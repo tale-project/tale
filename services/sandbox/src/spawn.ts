@@ -31,7 +31,7 @@ import {
   postToUploadSlot,
   reportUploaded,
   requestUploadUrls,
-} from './sandbox_callback.ts';
+} from './sandbox-callback.ts';
 import { runDocker, dockerKill, dockerRm } from './spawn-util.ts';
 import type {
   ErrorCode,

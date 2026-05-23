@@ -594,6 +594,12 @@ export const executeCode = internalAction({
     // base64 wire encoding entirely.
     let priorOutputDownloads: Array<{ name: string; url: string }> = [];
     let priorOutputSkippedNote: string | undefined;
+    // Captured here so the post-spawner attestation step (see §3 of the
+    // crispy-curry plan) can diff `priorStage.staged[]` against what we
+    // actually asked for. `sha256` is undefined for entries derived from
+    // legacy `artifactRunFiles` rows; the attestation treats those as
+    // "presence only" rather than "byte-exact".
+    const priorOutputExpected: Array<{ name: string; sha256?: string }> = [];
     if (args.artifactId !== undefined) {
       try {
         const latest = await ctx.runQuery(
@@ -611,6 +617,27 @@ export const executeCode = internalAction({
         console.info(
           `[sandbox.preStage] artifact=${args.artifactId} source=${latest.source} candidates=${candidates.length} totalBytes=${totalBytes} fromRun=${args.inputs?.fromRun ?? 'default-latest'}`,
         );
+        // Best-effort lazy migration: if the query had to fall back to the
+        // walk-back path, run the derive mutation so the next pre-stage
+        // hits the manifest in O(1). Never blocks the current run on
+        // failure — the walk-back already supplied the data we need.
+        if (latest.needsManifestDerive) {
+          try {
+            const r = await ctx.runMutation(
+              internal.artifacts.internal_mutations
+                .deriveOutputManifestFromHistory,
+              { artifactId: args.artifactId },
+            );
+            console.info(
+              `[sandbox.preStage] manifest-derived artifact=${args.artifactId} inserted=${r.inserted} alreadyPresent=${r.alreadyPresent}`,
+            );
+          } catch (deriveErr) {
+            console.warn(
+              `[sandbox.preStage] manifest derive failed (non-fatal):`,
+              deriveErr,
+            );
+          }
+        }
         const skipped: string[] = [];
         for (const file of candidates) {
           // Build a sandbox-bound download URL. `getUrl()` returns the
@@ -635,6 +662,10 @@ export const executeCode = internalAction({
           priorOutputDownloads.push({
             name: file.name,
             url: toSandboxStorageUrl(rawUrl),
+          });
+          priorOutputExpected.push({
+            name: file.name,
+            ...(file.sha256 !== undefined && { sha256: file.sha256 }),
           });
         }
         if (skipped.length > 0) {
@@ -704,16 +735,27 @@ export const executeCode = internalAction({
 
     // Resolve the sandbox-facing callback endpoints. The spawner uses
     // these to (a) request additional upload URLs via EP1 and (b) report
-    // each successful storageId via EP2. Caddy proxies `/api/sandbox/*`
-    // to convex:3211 in compose; locally `bun dev` would have to set
-    // SANDBOX_STORAGE_INTERNAL_BASE_URL to its host-loopback equivalent.
-    const callbackBase = (
+    // each successful storageId via EP2.
+    //
+    // Two ports are involved: storage upload/download is on convex:3210
+    // (the admin/storage API, what `generateUploadUrl()` returns), while
+    // user-defined httpActions live on convex:3211 (the HTTP API). Caddy
+    // routes `/api/storage/*` → 3210 and `/api/*` → 3211. When we bypass
+    // Caddy by talking directly to convex (`SANDBOX_STORAGE_INTERNAL_BASE_URL=
+    // http://convex:3210`), the storage URLs work on the configured base
+    // but the sandbox callbacks need an explicit port swap to 3211 — or
+    // the operator overrides via SANDBOX_HTTP_API_BASE_URL.
+    const storageBase = (
       process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL ??
       process.env.SITE_URL ??
       'http://127.0.0.1:3210'
     ).replace(/\/$/, '');
-    const outputUrlEndpoint = `${callbackBase}/api/sandbox/output_upload_url`;
-    const reportUploadedEndpoint = `${callbackBase}/api/sandbox/record_uploaded`;
+    const httpApiBase = (
+      process.env.SANDBOX_HTTP_API_BASE_URL ??
+      storageBase.replace(/:3210(\/|$)/, ':3211$1')
+    ).replace(/\/$/, '');
+    const outputUrlEndpoint = `${httpApiBase}/api/sandbox/output_upload_url`;
+    const reportUploadedEndpoint = `${httpApiBase}/api/sandbox/record_uploaded`;
 
     try {
       const spawnerResult = await spawnerExecute(

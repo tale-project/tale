@@ -483,6 +483,40 @@ export async function applyFinalizeArtifactRun(
       createdAt: completedAt,
     });
   }
+
+  // Upsert into `artifactOutputs` — the cumulative workspace-state manifest
+  // that backs pre-stage on the next run. Keyed by (artifactId, name);
+  // same-name files patch in place (newest wins), new names accumulate.
+  // Empty harvests don't touch the manifest, so a no-op run never wipes
+  // earlier output. This is the single source of truth that replaces the
+  // "latest-run walk-back" model — multi-run histories with different
+  // filenames no longer lose older files.
+  for (const f of args.runOutputFiles) {
+    if (f.storageId === undefined) continue;
+    const existing = await ctx.db
+      .query('artifactOutputs')
+      .withIndex('by_artifact_name', (q) =>
+        q.eq('artifactId', args.artifactId).eq('name', f.name),
+      )
+      .unique();
+    const patch = {
+      storageId: f.storageId,
+      size: f.size,
+      ...(f.contentType !== undefined && { contentType: f.contentType }),
+      ...(f.sha256 !== undefined && { sha256: f.sha256 }),
+      producedByRunId: runId,
+      updatedAt: completedAt,
+    };
+    if (existing === null) {
+      await ctx.db.insert('artifactOutputs', {
+        artifactId: args.artifactId,
+        name: f.name,
+        ...patch,
+      });
+    } else {
+      await ctx.db.patch(existing._id, patch);
+    }
+  }
 }
 
 export const finalizeArtifactRunArgs = {
@@ -523,4 +557,91 @@ export async function finalizeArtifactRunHandler(
 ) {
   await applyFinalizeArtifactRun(ctx, args);
   return null;
+}
+
+// =============================================================================
+// deriveOutputManifestFromHistory — lazy migration from artifactRunFiles
+//
+// Idempotent. Builds the cumulative `artifactOutputs` manifest for an
+// artifact by walking `artifactRunFiles` newest-first and reducing
+// (name → most-recent file). Used by `getLatestRunOutputs` on the
+// FIRST pre-stage read for an artifact created before the manifest
+// existed; subsequent runs maintain the manifest via the upsert in
+// `applyFinalizeArtifactRun`.
+//
+// `sha256` is left undefined on legacy entries (the spawner-side hash
+// wasn't computed at the time those rows landed). The pre-stage
+// attestation treats no-sha256 entries as "presence only" — a successful
+// download by name is enough; byte-exact diff is only enforced once the
+// manifest has been refreshed by a fresh harvest.
+// =============================================================================
+
+export const deriveOutputManifestFromHistoryArgs = {
+  artifactId: v.id('artifacts'),
+} as const;
+
+export const deriveOutputManifestFromHistoryReturns = v.object({
+  inserted: v.number(),
+  alreadyPresent: v.boolean(),
+});
+
+export async function deriveOutputManifestFromHistoryHandler(
+  ctx: MutationCtx,
+  args: { artifactId: Id<'artifacts'> },
+): Promise<{ inserted: number; alreadyPresent: boolean }> {
+  // Idempotency check — if any manifest row exists for this artifact,
+  // assume derivation already happened and return early. The merge-on-
+  // finalize path keeps it current from here on.
+  const existing = await ctx.db
+    .query('artifactOutputs')
+    .withIndex('by_artifact', (q) => q.eq('artifactId', args.artifactId))
+    .first();
+  if (existing !== null) {
+    return { inserted: 0, alreadyPresent: true };
+  }
+
+  // Walk artifactRunFiles indexed by artifact, reducing newest-name-wins.
+  // `_creationTime` desc gives us newest first; the first occurrence of
+  // each `name` is the winner. We resolve the producing run id by
+  // reading the `runId` field already present on the row.
+  const byName = new Map<
+    string,
+    {
+      runId: Id<'artifactRuns'>;
+      storageId: Id<'_storage'>;
+      size: number;
+      contentType?: string;
+      createdAt: number;
+    }
+  >();
+  for await (const row of ctx.db
+    .query('artifactRunFiles')
+    .withIndex('by_artifact', (q) => q.eq('artifactId', args.artifactId))
+    .order('desc')) {
+    if (byName.has(row.name)) continue;
+    byName.set(row.name, {
+      runId: row.runId,
+      storageId: row.storageId,
+      size: row.size,
+      ...(row.contentType !== undefined && { contentType: row.contentType }),
+      createdAt: row.createdAt,
+    });
+  }
+
+  const now = Date.now();
+  let inserted = 0;
+  for (const [name, info] of byName) {
+    await ctx.db.insert('artifactOutputs', {
+      artifactId: args.artifactId,
+      name,
+      storageId: info.storageId,
+      size: info.size,
+      ...(info.contentType !== undefined && { contentType: info.contentType }),
+      producedByRunId: info.runId,
+      updatedAt: now,
+    });
+    inserted += 1;
+  }
+
+  return { inserted, alreadyPresent: false };
 }

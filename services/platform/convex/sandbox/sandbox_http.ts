@@ -22,8 +22,12 @@
 // Both sides share the same SANDBOX_TOKEN so we don't introduce a new
 // secret-management surface (see plan §2).
 
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-
+// Web Crypto API (V8 runtime, no `'use node'` directive needed). The
+// spawner-side mirror in services/sandbox/src/sandbox-callback.ts uses
+// node:crypto, but the produced hex digests are byte-identical so the
+// two sides interoperate. Using Web Crypto here keeps the httpAction in
+// the fast V8 isolate path instead of paying Node-runtime cold-start
+// overhead per upload-slot RPC.
 import { internal } from '../_generated/api';
 import { httpAction } from '../_generated/server';
 import { toSandboxStorageUrl } from '../lib/helpers/public_storage_url';
@@ -43,17 +47,51 @@ function jsonResponse(body: unknown, status: number): Response {
   });
 }
 
-function buildSignedString(
-  method: string,
-  path: string,
-  timestamp: string,
-  body: string,
-): string {
-  const bodyHash = createHash('sha256').update(body).digest('hex');
-  return `${method.toUpperCase()}\n${path}\n${timestamp}\n${bodyHash}`;
+function toHex(bytes: ArrayBuffer): string {
+  const arr = new Uint8Array(bytes);
+  let out = '';
+  for (let i = 0; i < arr.length; i += 1) {
+    out += arr[i].toString(16).padStart(2, '0');
+  }
+  return out;
 }
 
-function verifyHmac(
+async function sha256Hex(input: string): Promise<string> {
+  const buf = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return toHex(digest);
+}
+
+async function hmacSha256Hex(token: string, payload: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(token),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
+  return toHex(sig);
+}
+
+/**
+ * Constant-time hex-string equality. Mirrors `crypto.timingSafeEqual`
+ * (Node) but works in V8 runtime where that API isn't exposed. Both
+ * strings must already be lower-case hex of the same length; the
+ * length pre-check is non-secret (the signature header length is
+ * attacker-controlled anyway, so leaking it via short-circuit is fine).
+ */
+function timingSafeHexEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let acc = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    acc |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return acc === 0;
+}
+
+async function verifyHmac(
   method: string,
   path: string,
   body: string,
@@ -61,7 +99,7 @@ function verifyHmac(
   timestampHeader: string | null,
   token: string,
   nowMs: number = Date.now(),
-): { ok: true } | { ok: false; reason: string } {
+): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!signatureHeader) return { ok: false, reason: 'missing_signature' };
   if (!timestampHeader) return { ok: false, reason: 'missing_timestamp' };
   const ts = Number(timestampHeader);
@@ -71,22 +109,12 @@ function verifyHmac(
   if (Math.abs(nowMs - ts) > TIMESTAMP_TOLERANCE_MS) {
     return { ok: false, reason: 'timestamp_skew' };
   }
-  const signedString = buildSignedString(method, path, timestampHeader, body);
-  const expected = createHmac('sha256', token)
-    .update(signedString)
-    .digest('hex');
-  if (expected.length !== signatureHeader.length) {
+  const bodyHash = await sha256Hex(body);
+  const signedString = `${method.toUpperCase()}\n${path}\n${timestampHeader}\n${bodyHash}`;
+  const expected = await hmacSha256Hex(token, signedString);
+  if (!timingSafeHexEqual(expected, signatureHeader)) {
     return { ok: false, reason: 'bad_signature' };
   }
-  const a = Buffer.from(expected, 'utf8');
-  const b = Buffer.from(signatureHeader, 'utf8');
-  let equal: boolean;
-  try {
-    equal = timingSafeEqual(a, b);
-  } catch {
-    return { ok: false, reason: 'bad_signature' };
-  }
-  if (!equal) return { ok: false, reason: 'bad_signature' };
   return { ok: true };
 }
 
@@ -125,7 +153,7 @@ export const outputUploadUrlAction = httpAction(async (ctx, req) => {
 
   const token = getSandboxToken();
   if (token !== null) {
-    const verifyResult = verifyHmac(
+    const verifyResult = await verifyHmac(
       req.method,
       path,
       body,
@@ -206,7 +234,7 @@ export const recordUploadedAction = httpAction(async (ctx, req) => {
 
   const token = getSandboxToken();
   if (token !== null) {
-    const verifyResult = verifyHmac(
+    const verifyResult = await verifyHmac(
       req.method,
       path,
       body,

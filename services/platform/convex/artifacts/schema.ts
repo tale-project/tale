@@ -373,3 +373,44 @@ export const artifactRunFilesTable = defineTable({
 })
   .index('by_run', ['runId'])
   .index('by_artifact', ['artifactId']);
+
+/**
+ * Cumulative output manifest per artifact. Authoritative source of truth for
+ * "files that should currently exist in /workspace/output/ for this artifact".
+ *
+ * Keyed by `(artifactId, name)`. Every successful harvest upserts each
+ * produced file here (newer wins for same name; new names accumulate).
+ * Empty harvests don't touch the manifest. This replaces the prior
+ * "latest run's files" walk-back model — multi-run histories with
+ * different filenames no longer lose older files.
+ *
+ * The `artifactRunFiles` table remains the per-run audit (append-only,
+ * never overwritten); this table is the workspace-state-of-truth used
+ * by pre-stage. `sha256` is computed at harvest time and used both for
+ * dedupe and for the spawner pre-stage attestation.
+ */
+export const artifactOutputsTable = defineTable({
+  artifactId: v.id('artifacts'),
+  /** POSIX-relative name inside `/workspace/output/`. Path-safety enforced by sandbox. */
+  name: v.string(),
+  storageId: v.id('_storage'),
+  size: v.number(),
+  contentType: v.optional(v.string()),
+  /**
+   * sha256 hex of the file bytes. Populated by every new harvest (computed
+   * spawner-side); used for both pre-stage attestation and dedupe.
+   *
+   * Optional because the lazy-derive migration backfills from legacy
+   * `artifactRunFiles` rows that predate sha256 capture — those entries
+   * land with `sha256` undefined and the attestation path treats them as
+   * "presence only" rather than "byte-exact". Once an artifact has been
+   * exercised by a fresh run, all of its entries carry sha256.
+   */
+  sha256: v.optional(v.string()),
+  /** The run that most recently produced this name. */
+  producedByRunId: v.id('artifactRuns'),
+  updatedAt: v.number(),
+})
+  .index('by_artifact', ['artifactId'])
+  .index('by_artifact_name', ['artifactId', 'name'])
+  .index('by_storageId', ['storageId']);

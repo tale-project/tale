@@ -36,6 +36,18 @@ export const sandboxErrorCodeLiterals = [
   'UPLOAD_FAILED',
   'UPLOAD_QUOTA_EXCEEDED',
   'UPLOAD_REPORT_FAILED',
+  // Pre-stage attestation failure raised by the platform when
+  // `ExecuteResponse.priorStage.skipped` shows files the platform expected
+  // to inject didn't actually make it onto `/workspace/output/`. The
+  // spawner never emits this code itself — it's an action-side gate — but
+  // the literal lives here so the parity guard on the Convex side stays
+  // satisfied.
+  'PRE_STAGE_FAILED',
+  // Output-pipeline completeness gate: the action treats any non-empty
+  // `uploadStats.failures` as fatal so a partially-harvested workspace
+  // doesn't get reported as `success:true`. Same as PRE_STAGE_FAILED:
+  // this is an action-side decision, not a spawner-emitted code.
+  'UPLOAD_INCOMPLETE',
 ] as const;
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];

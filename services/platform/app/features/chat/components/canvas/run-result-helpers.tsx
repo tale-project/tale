@@ -59,7 +59,19 @@ function iconForContentType(contentType: string): typeof FileIcon {
 
 export function FileChip({ file }: { file: RunOutputFile }) {
   const { t } = useT('chat');
-  const { data: fileUrl } = useFileUrl(file.storageId);
+  const { data: rawUrl } = useFileUrl(file.storageId);
+  // The raw URL points at `/api/storage/{id}` (the Convex backend route),
+  // which does NOT set `Content-Disposition`, so browsers fall back to
+  // using the URL's last path segment (the storageId UUID) as the saved
+  // filename — even when the `<a download="hello.txt">` attribute is set.
+  // Rewrite onto the platform's `/http_api/storage?id=…&filename=…`
+  // httpAction so the response carries
+  // `Content-Disposition: attachment; filename="hello.txt"`, which wins
+  // over the URL segment and matches the user's expected filename.
+  const fileUrl =
+    rawUrl && file.storageId
+      ? `${new URL(rawUrl).origin}/http_api/storage?id=${encodeURIComponent(String(file.storageId))}&filename=${encodeURIComponent(file.name)}`
+      : rawUrl;
   const Icon = iconForContentType(file.contentType);
   const disabled = !fileUrl;
   return (

@@ -694,6 +694,7 @@ import type * as providers_secret_io from "../providers/secret_io.js";
 import type * as providers_validators from "../providers/validators.js";
 import type * as sandbox_internal_mutations from "../sandbox/internal_mutations.js";
 import type * as sandbox_output_mutations from "../sandbox/output_mutations.js";
+import type * as sandbox_sandbox_http from "../sandbox/sandbox_http.js";
 import type * as sandbox_wire from "../sandbox/wire.js";
 import type * as sso_providers_actions from "../sso_providers/actions.js";
 import type * as sso_providers_create_user_session from "../sso_providers/create_user_session.js";
@@ -736,6 +737,7 @@ import type * as streaming_internal_mutations from "../streaming/internal_mutati
 import type * as streaming_validators from "../streaming/validators.js";
 import type * as team_members_mutations from "../team_members/mutations.js";
 import type * as team_members_queries from "../team_members/queries.js";
+import type * as test_sandbox_e2e from "../test_sandbox_e2e.js";
 import type * as thread_todos_helpers from "../thread_todos/helpers.js";
 import type * as thread_todos_internal_mutations from "../thread_todos/internal_mutations.js";
 import type * as thread_todos_internal_queries from "../thread_todos/internal_queries.js";
@@ -1784,6 +1786,7 @@ declare const fullApi: ApiFromModules<{
   "providers/validators": typeof providers_validators;
   "sandbox/internal_mutations": typeof sandbox_internal_mutations;
   "sandbox/output_mutations": typeof sandbox_output_mutations;
+  "sandbox/sandbox_http": typeof sandbox_sandbox_http;
   "sandbox/wire": typeof sandbox_wire;
   "sso_providers/actions": typeof sso_providers_actions;
   "sso_providers/create_user_session": typeof sso_providers_create_user_session;
@@ -1826,6 +1829,7 @@ declare const fullApi: ApiFromModules<{
   "streaming/validators": typeof streaming_validators;
   "team_members/mutations": typeof team_members_mutations;
   "team_members/queries": typeof team_members_queries;
+  test_sandbox_e2e: typeof test_sandbox_e2e;
   "thread_todos/helpers": typeof thread_todos_helpers;
   "thread_todos/internal_mutations": typeof thread_todos_internal_mutations;
   "thread_todos/internal_queries": typeof thread_todos_internal_queries;

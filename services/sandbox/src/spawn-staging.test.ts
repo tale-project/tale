@@ -37,6 +37,12 @@ function baseReq(overrides: Partial<ExecuteRequest>): ExecuteRequest {
     language: 'python',
     files: [{ path: 'main.py', content: 'print("ok")' }],
     entryPath: 'main.py',
+    // Staging tests don't exercise the upload path; the callback fields
+    // are passed through opaquely. An empty slot list is a valid wire
+    // payload (sandbox lazily fetches when it needs the first one).
+    outputUploadSlots: [],
+    outputUrlEndpoint: 'http://test-endpoint/upload-url',
+    reportUploadedEndpoint: 'http://test-endpoint/report-uploaded',
     ...overrides,
   };
 }

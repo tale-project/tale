@@ -43,7 +43,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  server.stop();
+  void server.stop();
 });
 
 function urlFor(key: string, bytes: Uint8Array | string): string {

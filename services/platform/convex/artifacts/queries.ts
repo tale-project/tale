@@ -344,6 +344,9 @@ export const listRunsPerFile = query({
     // storageId"). The canvas's <FileChip> needs `storageId` to render a
     // download link, so look it up per file via the `fileMetadata` row. Keeps
     // `selectRunsPerFile` pure (no ctx) so its unit tests stay synchronous.
+    /* oxlint-disable oxc/no-map-spread -- copy-on-write enrichment; mutating
+       the query-row projection in place would leak into the next reactive
+       subscription delivery */
     return await Promise.all(
       projections.map(async (p) => {
         if (!p.runOutputFiles || p.runOutputFiles.length === 0) return p;
@@ -358,5 +361,6 @@ export const listRunsPerFile = query({
         return { ...p, runOutputFiles: enriched };
       }),
     );
+    /* oxlint-enable oxc/no-map-spread */
   },
 });

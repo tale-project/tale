@@ -54,12 +54,22 @@ services:
       - caddy-data:/caddy-data:ro
     environment:
       - RUST_LOG=debug
+      # NODE_ENV is read by Convex V8 functions at evaluation time; the
+      # `test_sandbox_e2e` action gates itself on this so production can't
+      # accidentally invoke the E2E harness. Dev compose explicitly opts in.
+      - NODE_ENV=development
 
   platform:
     volumes:
       - ./services/platform/app:/app/services/platform/app
       - ./services/platform/lib:/app/services/platform/lib
       - ./services/platform/convex:/app/services/platform/convex
+      # `bunx convex deploy` runs from /app (the package.json with
+      # "convex": "1.35.x") and looks for source at `<cwd>/convex/`,
+      # which is the image-baked snapshot. Bind the host source over
+      # that path too so deploys pick up live edits instead of the
+      # snapshot frozen at build time.
+      - ./services/platform/convex:/app/convex
       - convex-data:/app/data:ro
     environment:
       - NODE_ENV=development

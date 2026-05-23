@@ -146,16 +146,16 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     ];
     const validatedByLang: { python?: string[]; node?: string[] } = {};
     let total = 0;
-    for (const [lang, raw] of buckets) {
-      if (raw === undefined) continue;
-      if (!Array.isArray(raw)) {
+    for (const [lang, rawBucket] of buckets) {
+      if (rawBucket === undefined) continue;
+      if (!Array.isArray(rawBucket)) {
         return {
           ok: false,
           error: `packagesByLang.${lang} must be an array of strings`,
         };
       }
       const list: string[] = [];
-      for (const p of raw) {
+      for (const p of rawBucket) {
         if (!isString(p)) {
           return {
             ok: false,

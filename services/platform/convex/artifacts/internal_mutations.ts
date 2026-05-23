@@ -50,6 +50,9 @@ import {
   appendArtifactRunOutputArgs,
   appendArtifactRunOutputHandler,
   appendArtifactRunOutputReturns,
+  deriveOutputManifestFromHistoryArgs,
+  deriveOutputManifestFromHistoryHandler,
+  deriveOutputManifestFromHistoryReturns,
   finalizeArtifactRunArgs,
   finalizeArtifactRunHandler,
   finalizeArtifactRunReturns,
@@ -195,4 +198,10 @@ export const finalizeArtifactRun = internalMutation({
   args: finalizeArtifactRunArgs,
   returns: finalizeArtifactRunReturns,
   handler: finalizeArtifactRunHandler,
+});
+
+export const deriveOutputManifestFromHistory = internalMutation({
+  args: deriveOutputManifestFromHistoryArgs,
+  returns: deriveOutputManifestFromHistoryReturns,
+  handler: deriveOutputManifestFromHistoryHandler,
 });

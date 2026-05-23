@@ -51,19 +51,28 @@ export const listByThread = internalQuery({
 });
 
 /**
- * Returns the prior run's outputs for pre-staging into the next sandbox run's
- * `/workspace/output/`. Reads from the new `artifactRuns` / `artifactRunFiles`
- * tables first; falls back to the deprecated `artifacts.runOutputFiles` field
- * for rows whose data hasn't been backfilled yet (per the migration plan in
- * llm-majestic-hamming.md).
+ * Returns the artifact's CUMULATIVE output manifest for pre-staging into the
+ * next sandbox run's `/workspace/output/`. Each `(artifactId, name)` survives
+ * across runs — empty runs don't wipe earlier files, and a later run that
+ * produces a different filename doesn't shadow the earlier one.
+ *
+ * Source precedence (highest first):
+ *   1. `artifactOutputs` table — cumulative manifest, maintained by
+ *      `applyFinalizeArtifactRun` upserts. O(1) per artifact.
+ *   2. Newest-name-wins reduction across `artifactRunFiles` — for artifacts
+ *      that predate the manifest. Walks all runs newest-first, builds a
+ *      `Map<name, file>` taking the first occurrence per name. The caller
+ *      (action) is expected to follow up with `deriveOutputManifestFromHistory`
+ *      so subsequent reads land in source 1.
+ *   3. Legacy `artifacts.runOutputFiles` field — pre-`artifactRunFiles` rows
+ *      (kept for backward compat per [feedback_deprecate_dont_delete_schema_fields]).
  *
  * Pre-stage source selection:
- *   - omitted `fromRun` (or `"latest"`): most recent **successful** terminal
- *     run on this artifact; failed/cancelled runs are skipped so a one-off
- *     crash never dead-ends the next pre-stage.
- *   - explicit runId string: pin to that exact run's outputs regardless of
- *     status. Errors silently fall through to the legacy fallback if the id
- *     is malformed or doesn't belong to this artifact.
+ *   - omitted `fromRun` (or `"latest"`): cumulative manifest as described above.
+ *   - explicit runId string: pin to that exact run's files via
+ *     `artifactRunFiles` (status-agnostic). Bypasses the cumulative model
+ *     because the LLM is explicitly asking for "the state run X produced"
+ *     rather than the artifact's accumulated workspace.
  */
 export const getLatestRunOutputs = internalQuery({
   args: {
@@ -78,27 +87,46 @@ export const getLatestRunOutputs = internalQuery({
         storageId: v.id('_storage'),
         size: v.number(),
         contentType: v.optional(v.string()),
+        sha256: v.optional(v.string()),
       }),
     ),
     source: v.union(
+      v.literal('artifact_outputs'),
       v.literal('artifact_run_files'),
       v.literal('legacy_artifact_field'),
       v.literal('none'),
     ),
+    /**
+     * True when the cumulative manifest table is empty for this artifact
+     * but a fallback source (`artifact_run_files` or `legacy_artifact_field`)
+     * supplied the data. The caller should follow up with
+     * `deriveOutputManifestFromHistory` so the next read is O(1).
+     */
+    needsManifestDerive: v.boolean(),
   }),
   handler: async (ctx, { artifactId, expectedOrganizationId, fromRun }) => {
+    type PriorOutputFile = {
+      name: string;
+      storageId: import('../_generated/dataModel').Id<'_storage'>;
+      size: number;
+      contentType?: string;
+      sha256?: string;
+    };
     const artifact = await ctx.db.get(artifactId);
-    if (!artifact) return { files: [], source: 'none' as const };
+    if (!artifact) {
+      return { files: [], source: 'none' as const, needsManifestDerive: false };
+    }
     if (
       expectedOrganizationId !== undefined &&
       artifact.organizationId !== expectedOrganizationId
     ) {
-      return { files: [], source: 'none' as const };
+      return { files: [], source: 'none' as const, needsManifestDerive: false };
     }
 
-    // 1a. Explicit pin: caller named a specific runId. Resolve it and
-    //     return that run's files (status-agnostic). Bail to the default
-    //     path if the id is malformed or scoped to a different artifact.
+    // 1. Explicit `from_run` pin — caller named a specific runId. Returns
+    //    that run's `artifactRunFiles` exactly (status-agnostic, no
+    //    cumulative reduce). Pin is a positive lever ("I want the state
+    //    run X produced"), so we deliberately bypass the manifest path.
     if (fromRun !== undefined && fromRun !== 'latest') {
       let pinnedRun: Awaited<ReturnType<typeof ctx.db.get<'artifactRuns'>>> =
         null;
@@ -128,56 +156,84 @@ export const getLatestRunOutputs = internalQuery({
         return {
           files: pinnedFiles,
           source: 'artifact_run_files' as const,
+          needsManifestDerive: false,
         };
       }
     }
 
-    // 1b. Default: walk back through ALL runs (newest first, any status)
-    // and return the FIRST run that produced at least one output file.
+    // 2. Cumulative manifest (preferred). One index scan, no walk-back.
+    const manifestFiles: Array<{
+      name: string;
+      storageId: import('../_generated/dataModel').Id<'_storage'>;
+      size: number;
+      contentType?: string;
+      sha256?: string;
+    }> = [];
+    for await (const row of ctx.db
+      .query('artifactOutputs')
+      .withIndex('by_artifact', (q) => q.eq('artifactId', artifactId))) {
+      manifestFiles.push({
+        name: row.name,
+        storageId: row.storageId,
+        size: row.size,
+        ...(row.contentType !== undefined && { contentType: row.contentType }),
+        ...(row.sha256 !== undefined && { sha256: row.sha256 }),
+      });
+    }
+    if (manifestFiles.length > 0) {
+      return {
+        files: manifestFiles,
+        source: 'artifact_outputs' as const,
+        needsManifestDerive: false,
+      };
+    }
+
+    // 3. Pre-manifest fallback: walk `artifactRunFiles` newest-first and
+    //    build a cumulative `Map<name, file>` (first occurrence wins).
+    //    This already fixes the "newest-shadows-older" architectural
+    //    defect even before the artifact's manifest gets derived. The
+    //    caller is expected to follow up with the derive mutation so the
+    //    next read lands in branch 2 above.
     //
-    // Status-agnostic by design — `artifactRunFiles` is append-only and
-    // only carries files that survived harvest + storage upload, so the
-    // presence of a row IS the "this file was really produced" signal.
-    // Multi-step runs that partially succeeded (main.js wrote a pptx →
-    // qa.py crashed → overall status='failed') still have their pptx
-    // in `artifactRunFiles`; an earlier "filter on completed-only" rule
-    // would skip the failed-but-with-file run entirely and dead-end the
-    // next run's pre-stage. The naive "latest completed" rule has the
-    // same footgun for a qa-only run that exits 0 with no output —
-    // empty `artifactRunFiles` shadows the earlier generator run.
-    //
-    // Bounded scan: in practice a runnable artifact accumulates
-    // single-digit / low-double-digit runs; iterating until we find
-    // files (or exhaust) costs at most O(runs) queries — fine for the
-    // pre-stage path which is already best-effort.
-    const RUN_SCAN_LIMIT = 50;
-    let scanned = 0;
-    for await (const runRow of ctx.db
-      .query('artifactRuns')
+    //    Status-agnostic by design — `artifactRunFiles` is append-only and
+    //    only carries files that survived harvest + storage upload, so the
+    //    row's presence is the "this file was really produced" signal.
+    const byName = new Map<
+      string,
+      {
+        storageId: import('../_generated/dataModel').Id<'_storage'>;
+        size: number;
+        contentType?: string;
+      }
+    >();
+    for await (const row of ctx.db
+      .query('artifactRunFiles')
       .withIndex('by_artifact', (q) => q.eq('artifactId', artifactId))
       .order('desc')) {
-      scanned += 1;
-      if (scanned > RUN_SCAN_LIMIT) break;
-      const runFiles = [];
-      for await (const f of ctx.db
-        .query('artifactRunFiles')
-        .withIndex('by_run', (q) => q.eq('runId', runRow._id))) {
-        runFiles.push({
-          name: f.name,
-          storageId: f.storageId,
-          size: f.size,
-          ...(f.contentType !== undefined && { contentType: f.contentType }),
-        });
-      }
-      if (runFiles.length > 0) {
-        return {
-          files: runFiles,
-          source: 'artifact_run_files' as const,
-        };
-      }
+      if (byName.has(row.name)) continue;
+      byName.set(row.name, {
+        storageId: row.storageId,
+        size: row.size,
+        ...(row.contentType !== undefined && { contentType: row.contentType }),
+      });
+    }
+    if (byName.size > 0) {
+      const files = Array.from(byName, ([name, info]) => ({
+        name,
+        storageId: info.storageId,
+        size: info.size,
+        ...(info.contentType !== undefined && {
+          contentType: info.contentType,
+        }),
+      }));
+      return {
+        files,
+        source: 'artifact_run_files' as const,
+        needsManifestDerive: true,
+      };
     }
 
-    // 2. Fallback: legacy artifacts.runOutputFiles (migration window).
+    // 4. Final fallback: legacy artifacts.runOutputFiles (pre-table data).
     type LegacyFile = {
       name: string;
       storageId: import('../_generated/dataModel').Id<'_storage'>;
@@ -201,6 +257,12 @@ export const getLatestRunOutputs = internalQuery({
         files.length > 0
           ? ('legacy_artifact_field' as const)
           : ('none' as const),
+      // Legacy field can't be derived into manifest from a query — the
+      // action's lazy-derive path explicitly only walks artifactRunFiles
+      // (the legacy field has no producedByRunId reference). So this
+      // flag stays false here; the next harvest will populate the
+      // manifest naturally via applyFinalizeArtifactRun.
+      needsManifestDerive: false,
     };
   },
 });

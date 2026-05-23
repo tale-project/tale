@@ -85,6 +85,22 @@ export const sandboxErrorCodeLiterals = [
   'UPLOAD_FAILED',
   'UPLOAD_QUOTA_EXCEEDED',
   'UPLOAD_REPORT_FAILED',
+  // Pre-stage attestation failure: the spawner reported `priorStage.skipped`
+  // entries for files the platform expected to inject into
+  // `/workspace/output/` before user code ran. Abort BEFORE the container
+  // starts so the LLM cannot run against a corrupted workspace. The
+  // `errorMessage` payload carries a JSON `{skipped: [{name, reason}], ...}`
+  // breakdown so the LLM can decide whether to retry with
+  // `inputs.from_run: <runId>` or surface the issue.
+  'PRE_STAGE_FAILED',
+  // Output-pipeline completeness gate: `uploadStats.failures` came back
+  // non-empty (either an upload POST or the EP2 record-uploaded callback
+  // dropped). The bytes that made it to `_storage` are cleaned via the
+  // existing `uploadedStorageIds[]` rollback; the run is failed so the
+  // LLM doesn't trust a partial workspace state. Distinct from the
+  // per-failure codes above because this is the action-side decision
+  // that "any failure → fatal", not a single transport-layer cause.
+  'UPLOAD_INCOMPLETE',
 ] as const;
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];
@@ -104,6 +120,8 @@ export const sandboxErrorCodeValidator = v.union(
   v.literal('UPLOAD_FAILED'),
   v.literal('UPLOAD_QUOTA_EXCEEDED'),
   v.literal('UPLOAD_REPORT_FAILED'),
+  v.literal('PRE_STAGE_FAILED'),
+  v.literal('UPLOAD_INCOMPLETE'),
 );
 
 /**
@@ -185,6 +203,11 @@ export const sandboxOutputFileValidator = v.object({
   contentType: v.string(),
   fileMetadataId: v.id('fileMetadata'),
   storageId: v.optional(v.id('_storage')),
+  // Optional so historical rows (and the audit-row projection that doesn't
+  // need it) continue to validate. New harvests always populate sha256 —
+  // it's set by the spawner during `harvestOutputDir` and used for the
+  // cumulative manifest (artifactOutputs) + pre-stage attestation.
+  sha256: v.optional(v.string()),
 });
 
 export interface SandboxOutputFile {
@@ -193,6 +216,7 @@ export interface SandboxOutputFile {
   contentType: string;
   fileMetadataId: string;
   storageId?: string;
+  sha256?: string;
 }
 
 export const sandboxTruncatedValidator = v.object({

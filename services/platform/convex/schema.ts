@@ -12,6 +12,7 @@ import {
 import { approvalsTable } from './approvals/schema';
 import {
   artifactFilesTable,
+  artifactOutputsTable,
   artifactRevisionsTable,
   artifactRunFilesTable,
   artifactRunsTable,
@@ -97,6 +98,7 @@ import {
 export default defineSchema({
   approvals: approvalsTable,
   artifactFiles: artifactFilesTable,
+  artifactOutputs: artifactOutputsTable,
   artifactRevisions: artifactRevisionsTable,
   artifactRunFiles: artifactRunFilesTable,
   artifactRuns: artifactRunsTable,
