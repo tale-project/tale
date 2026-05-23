@@ -91,15 +91,16 @@ export function loadConfig(): SpawnerConfig {
       100 * 1024 * 1024,
       { min: 1024 },
     ),
-    // Body cap on /v1/execute. The platform forwards prior-run output
-    // files (base64-encoded, up to 10 MB raw / ~13.5 MB after base64)
-    // inline in the request body so the runtime can pre-stage them. 20 MB
-    // covers that plus source files + JSON wrapper overhead, and still
-    // sits well below the spawner container's 512 MB mem_limit so a
-    // single oversized POST cannot OOM the process.
+    // Body cap on /v1/execute. Post-sandbox-wobbly-origami the request
+    // body carries only source files + URL lists (no inline base64
+    // outputs), so 2 MB is plenty: 800 KB MAX_FILES_BYTES + URL arrays
+    // + JSON wrapper overhead leaves room to spare while bounding the
+    // unsigned-mode OOM surface. The legacy 20 MB cap was sized for
+    // inline base64 prior-output round-tripping which no longer exists.
+    // Operators with a niche need can raise via SANDBOX_MAX_REQUEST_BODY_BYTES.
     maxRequestBodyBytes: numEnv(
       'SANDBOX_MAX_REQUEST_BODY_BYTES',
-      20 * 1024 * 1024,
+      2 * 1024 * 1024,
       { min: 4 * 1024 },
     ),
   };

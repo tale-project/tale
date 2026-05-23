@@ -1,22 +1,60 @@
-// Unit tests for `stagePriorOutputFiles` — the spawner-side helper that
-// writes the artifact's previous run outputs back into
-// `/workspace/output/` before the container starts.
+// Unit tests for `stagePriorOutputDownloads` — the spawner-side helper
+// that fetches the artifact's previous run outputs (as URLs) and writes
+// them back into `/workspace/output/` before the container starts.
 //
 // We exercise the path-traversal guard end-to-end against a real temp
-// directory (no mocks). bad names are logged + skipped, not fatal.
+// directory and a real ephemeral HTTP server (no mocks). Bad names and
+// failed fetches are logged + skipped, not fatal.
 
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from 'bun:test';
 import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { stagePriorOutputFiles } from './spawn.ts';
+import { stagePriorOutputDownloads } from './spawn.ts';
 
-function b64(text: string): string {
-  return Buffer.from(text).toString('base64');
+// Minimal ephemeral file-server backed by an in-memory map. Each test sets
+// the map's `{name: Uint8Array}` entries and computes URLs against the
+// returned base.
+let server: ReturnType<typeof Bun.serve>;
+let baseUrl: string;
+const fileMap = new Map<string, Uint8Array>();
+
+beforeAll(() => {
+  server = Bun.serve({
+    port: 0,
+    fetch(req) {
+      const url = new URL(req.url);
+      const key = url.searchParams.get('k') ?? '';
+      const bytes = fileMap.get(key);
+      if (!bytes) return new Response('not found', { status: 404 });
+      return new Response(bytes, { status: 200 });
+    },
+  });
+  baseUrl = `http://localhost:${server.port}`;
+});
+
+afterAll(() => {
+  server.stop();
+});
+
+function urlFor(key: string, bytes: Uint8Array | string): string {
+  fileMap.set(
+    key,
+    typeof bytes === 'string' ? new TextEncoder().encode(bytes) : bytes,
+  );
+  return `${baseUrl}/?k=${encodeURIComponent(key)}`;
 }
 
-describe('stagePriorOutputFiles', () => {
+describe('stagePriorOutputDownloads', () => {
   let hostDir: string;
   let outputDir: string;
 
@@ -24,6 +62,7 @@ describe('stagePriorOutputFiles', () => {
     hostDir = await mkdtemp(join(tmpdir(), 'tale-sandbox-prior-'));
     outputDir = join(hostDir, 'output');
     await mkdir(outputDir, { recursive: true });
+    fileMap.clear();
   });
 
   afterEach(async () => {
@@ -31,24 +70,24 @@ describe('stagePriorOutputFiles', () => {
   });
 
   test('writes a flat-name prior output to /output/<name>', async () => {
-    await stagePriorOutputFiles(outputDir, [
-      { name: 'report.pptx', contentBase64: b64('hello pptx') },
+    await stagePriorOutputDownloads(outputDir, [
+      { name: 'report.pptx', url: urlFor('report.pptx', 'hello pptx') },
     ]);
     const buf = await readFile(join(outputDir, 'report.pptx'));
     expect(buf.toString('utf8')).toBe('hello pptx');
   });
 
   test('creates nested directories as needed for a path-shaped name', async () => {
-    await stagePriorOutputFiles(outputDir, [
-      { name: 'sub/dir/report.txt', contentBase64: b64('nested') },
+    await stagePriorOutputDownloads(outputDir, [
+      { name: 'sub/dir/report.txt', url: urlFor('nested', 'nested') },
     ]);
     const buf = await readFile(join(outputDir, 'sub/dir/report.txt'));
     expect(buf.toString('utf8')).toBe('nested');
   });
 
   test('refuses ".." traversal — file is NOT written outside outputDir', async () => {
-    await stagePriorOutputFiles(outputDir, [
-      { name: '../escape.txt', contentBase64: b64('nope') },
+    await stagePriorOutputDownloads(outputDir, [
+      { name: '../escape.txt', url: urlFor('nope', 'nope') },
     ]);
     // The skipped file must not appear inside outputDir.
     const inside = await readdir(outputDir);
@@ -61,17 +100,17 @@ describe('stagePriorOutputFiles', () => {
   test('refuses an absolute path that escapes outputDir', async () => {
     // Absolute paths to `resolve` ignore the `from` arg, so the result is
     // the absolute path verbatim — well outside outputDir.
-    await stagePriorOutputFiles(outputDir, [
-      { name: '/tmp/abs-escape.txt', contentBase64: b64('nope') },
+    await stagePriorOutputDownloads(outputDir, [
+      { name: '/tmp/abs-escape.txt', url: urlFor('nope', 'nope') },
     ]);
     const inside = await readdir(outputDir);
     expect(inside).not.toContain('abs-escape.txt');
   });
 
   test('writes multiple files in one call', async () => {
-    await stagePriorOutputFiles(outputDir, [
-      { name: 'a.bin', contentBase64: b64('aaa') },
-      { name: 'b.bin', contentBase64: b64('bbb') },
+    await stagePriorOutputDownloads(outputDir, [
+      { name: 'a.bin', url: urlFor('a', 'aaa') },
+      { name: 'b.bin', url: urlFor('b', 'bbb') },
     ]);
     expect((await readFile(join(outputDir, 'a.bin'))).toString('utf8')).toBe(
       'aaa',
@@ -82,18 +121,27 @@ describe('stagePriorOutputFiles', () => {
   });
 
   test('no-ops on an empty list without throwing', async () => {
-    await stagePriorOutputFiles(outputDir, []);
+    await stagePriorOutputDownloads(outputDir, []);
     const inside = await readdir(outputDir);
     expect(inside).toEqual([]);
   });
 
-  test('preserves binary content faithfully (round-trip through base64)', async () => {
+  test('preserves binary content faithfully', async () => {
     const bytes = new Uint8Array([0, 1, 2, 255, 254, 0xff, 0x10, 0x20]);
-    const b64payload = Buffer.from(bytes).toString('base64');
-    await stagePriorOutputFiles(outputDir, [
-      { name: 'binary.bin', contentBase64: b64payload },
+    await stagePriorOutputDownloads(outputDir, [
+      { name: 'binary.bin', url: urlFor('binary', bytes) },
     ]);
     const buf = await readFile(join(outputDir, 'binary.bin'));
     expect(Array.from(new Uint8Array(buf))).toEqual(Array.from(bytes));
+  });
+
+  test('skips a fetch that returns 404 without throwing', async () => {
+    // URL is registered but the key doesn't exist in fileMap → server 404.
+    fileMap.clear();
+    await stagePriorOutputDownloads(outputDir, [
+      { name: 'missing.pptx', url: `${baseUrl}/?k=missing-key` },
+    ]);
+    const inside = await readdir(outputDir);
+    expect(inside).not.toContain('missing.pptx');
   });
 });

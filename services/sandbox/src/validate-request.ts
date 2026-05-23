@@ -360,25 +360,22 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     }
   }
 
-  // priorOutputFiles: pre-stage payload the Convex action ships when a
-  // follow-up `artifact_run` should see the previous run's
-  // /workspace/output/ contents. We don't enforce a hard size cap here
-  // (the platform action already enforces MAX_PRIOR_OUTPUT_BYTES);
-  // wire-shape validation only. Without this allowlist entry the field
-  // was silently dropped from the validated request and pre-staging was
-  // a no-op — the bug that drove the 2026-05-23 debugging session.
-  let priorOutputFiles: ExecuteRequest['priorOutputFiles'];
-  if (r.priorOutputFiles !== undefined) {
-    if (!Array.isArray(r.priorOutputFiles)) {
-      return { ok: false, error: 'priorOutputFiles must be an array' };
+  // priorOutputDownloads: list of {name, url} the spawner fetches during
+  // stageWorkspace. Replaces the legacy base64 priorOutputFiles —
+  // sandbox-wobbly-origami plan §1. Wire-shape validation only; URL
+  // safety (scheme/host) is left to the spawner's own fetch.
+  let priorOutputDownloads: ExecuteRequest['priorOutputDownloads'];
+  if (r.priorOutputDownloads !== undefined) {
+    if (!Array.isArray(r.priorOutputDownloads)) {
+      return { ok: false, error: 'priorOutputDownloads must be an array' };
     }
-    const validatedPrior: { name: string; contentBase64: string }[] = [];
-    for (let i = 0; i < r.priorOutputFiles.length; i += 1) {
-      const entry: unknown = r.priorOutputFiles[i];
+    const validated: { name: string; url: string }[] = [];
+    for (let i = 0; i < r.priorOutputDownloads.length; i += 1) {
+      const entry: unknown = r.priorOutputDownloads[i];
       if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
         return {
           ok: false,
-          error: `priorOutputFiles[${i}] must be an object`,
+          error: `priorOutputDownloads[${i}] must be an object`,
         };
       }
       // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
@@ -386,18 +383,58 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       if (!isString(e.name)) {
         return {
           ok: false,
-          error: `priorOutputFiles[${i}].name must be a string`,
+          error: `priorOutputDownloads[${i}].name must be a string`,
         };
       }
-      if (!isString(e.contentBase64)) {
+      if (!isString(e.url)) {
         return {
           ok: false,
-          error: `priorOutputFiles[${i}].contentBase64 must be a string`,
+          error: `priorOutputDownloads[${i}].url must be a string`,
         };
       }
-      validatedPrior.push({ name: e.name, contentBase64: e.contentBase64 });
+      validated.push({ name: e.name, url: e.url });
     }
-    priorOutputFiles = validatedPrior;
+    priorOutputDownloads = validated;
+  }
+
+  // outputUploadSlots: pre-allocated upload-slot URLs (required field).
+  // Empty array is acceptable — spawner will lazily request slots via EP1.
+  if (!Array.isArray(r.outputUploadSlots)) {
+    return {
+      ok: false,
+      error: 'outputUploadSlots is required and must be an array',
+    };
+  }
+  const outputUploadSlots: Array<{ url: string }> = [];
+  for (let i = 0; i < r.outputUploadSlots.length; i += 1) {
+    const entry: unknown = r.outputUploadSlots[i];
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      return {
+        ok: false,
+        error: `outputUploadSlots[${i}] must be an object`,
+      };
+    }
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const e = entry as Record<string, unknown>;
+    if (!isString(e.url)) {
+      return {
+        ok: false,
+        error: `outputUploadSlots[${i}].url must be a string`,
+      };
+    }
+    outputUploadSlots.push({ url: e.url });
+  }
+  if (!isString(r.outputUrlEndpoint)) {
+    return {
+      ok: false,
+      error: 'outputUrlEndpoint is required and must be a string',
+    };
+  }
+  if (!isString(r.reportUploadedEndpoint)) {
+    return {
+      ok: false,
+      error: 'reportUploadedEndpoint is required and must be a string',
+    };
   }
 
   return {
@@ -413,7 +450,10 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       files,
       ...(entryPath !== undefined && { entryPath }),
       ...(steps !== undefined && { steps }),
-      ...(priorOutputFiles !== undefined && { priorOutputFiles }),
+      ...(priorOutputDownloads !== undefined && { priorOutputDownloads }),
+      outputUploadSlots,
+      outputUrlEndpoint: r.outputUrlEndpoint,
+      reportUploadedEndpoint: r.reportUploadedEndpoint,
     },
   };
 }

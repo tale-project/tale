@@ -27,6 +27,11 @@ import {
 import { dirname, join, resolve, sep } from 'node:path';
 
 import { buildDockerRunArgs } from './docker-args.ts';
+import {
+  postToUploadSlot,
+  reportUploaded,
+  requestUploadUrls,
+} from './sandbox_callback.ts';
 import { runDocker, dockerKill, dockerRm } from './spawn-util.ts';
 import type {
   ErrorCode,
@@ -34,6 +39,8 @@ import type {
   ExecuteResponse,
   OutputFile,
   SpawnerConfig,
+  UploadFailure,
+  UploadStats,
 } from './types.ts';
 import {
   ensureCacheVolume,
@@ -414,22 +421,24 @@ process.exit(0);
 
 /**
  * Pre-stage the artifact's previous run outputs into `/workspace/output/`.
- * Lets a follow-up `artifact_run` on the same artifact (e.g. validate
- * after generate) read what a previous run produced, even though the runs
- * land in separate containers. The Convex caller is responsible for the
- * aggregate-size cap and storage I/O; we only need to enforce path safety
- * here. Bad names are skipped (logged), not fatal — pre-staging is a
- * best-effort convenience layer, not a contract.
  *
- * Exported so the unit test can exercise the path-traversal guard without
- * dragging in the chownRecursive / mkdir scaffolding of stageWorkspace.
+ * Post-sandbox-wobbly-origami plan §1: instead of receiving base64-inlined
+ * bytes, the spawner now gets a list of `{name, url}` and fetches each
+ * URL itself (URLs are pre-rewritten through `toSandboxStorageUrl()` on the
+ * platform side so they target the internal Caddy alias). Path safety is
+ * still enforced here as defense in depth.
+ *
+ * Bad names / failed fetches are skipped (logged), not fatal — pre-staging
+ * is a best-effort convenience layer, not a correctness contract.
+ *
+ * Exported so the unit test can exercise the path-traversal guard.
  */
-export async function stagePriorOutputFiles(
+export async function stagePriorOutputDownloads(
   outputDir: string,
-  files: ReadonlyArray<{ name: string; contentBase64: string }>,
+  downloads: ReadonlyArray<{ name: string; url: string }>,
 ): Promise<void> {
   const staged: string[] = [];
-  for (const file of files) {
+  for (const file of downloads) {
     const dest = resolve(outputDir, file.name);
     // Defense in depth — refuse anything escaping outputDir.
     if (dest !== outputDir && !dest.startsWith(outputDir + sep)) {
@@ -438,9 +447,25 @@ export async function stagePriorOutputFiles(
       );
       continue;
     }
+    let res: Response;
     try {
+      res = await fetch(file.url);
+    } catch (err) {
+      console.warn(
+        `[sandbox] prior-output fetch failed for ${JSON.stringify(file.name)}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      continue;
+    }
+    if (!res.ok) {
+      console.warn(
+        `[sandbox] prior-output fetch ${res.status} for ${JSON.stringify(file.name)}`,
+      );
+      continue;
+    }
+    try {
+      const buf = Buffer.from(await res.arrayBuffer());
       await mkdir(dirname(dest), { recursive: true });
-      await writeFile(dest, Buffer.from(file.contentBase64, 'base64'));
+      await writeFile(dest, buf);
       staged.push(file.name);
     } catch (err) {
       console.warn(
@@ -466,8 +491,11 @@ export async function stageWorkspace(
   await mkdir(codeDir, { recursive: true });
   await mkdir(outputDir, { recursive: true });
 
-  if (req.priorOutputFiles !== undefined && req.priorOutputFiles.length > 0) {
-    await stagePriorOutputFiles(outputDir, req.priorOutputFiles);
+  if (
+    req.priorOutputDownloads !== undefined &&
+    req.priorOutputDownloads.length > 0
+  ) {
+    await stagePriorOutputDownloads(outputDir, req.priorOutputDownloads);
   }
 
   // Stage user files at their declared paths under /workspace/code/.
@@ -574,14 +602,92 @@ async function chownRecursive(
   }
 }
 
+interface HarvestEndpoints {
+  outputUrlEndpoint: string;
+  reportUploadedEndpoint: string;
+}
+
+interface HarvestResult {
+  files: OutputFile[];
+  truncatedCount: number;
+  uploadStats: UploadStats;
+  /** True if any file hit `UPLOAD_QUOTA_EXCEEDED` while requesting slots. */
+  quotaExhausted: boolean;
+  /** True if any file failed the upload POST. */
+  uploadFailed: boolean;
+  /** True if any EP2 report-back failed (non-fatal, but surfaced). */
+  reportFailed: boolean;
+  /** True if the directory walk itself errored. */
+  readFailed: boolean;
+  uploadMs: number;
+}
+
+/**
+ * Walk `/workspace/output/`, POST each file's bytes to a presigned upload
+ * slot URL, and report each successful storageId via EP2. Slot URLs come
+ * from the pre-allocated pool first; when that pool is empty we lazily
+ * request more from EP1 (server-side quota gate may reject with 412).
+ *
+ * Errors are accumulated into `uploadStats.failures` rather than thrown —
+ * caller decides which errorCode to surface based on the failure flags.
+ * The HTTP status of the FIRST failure drives errorCode classification:
+ * 412 → UPLOAD_QUOTA_EXCEEDED, anything else from postToUploadSlot →
+ * UPLOAD_FAILED, EP2-only failures → UPLOAD_REPORT_FAILED.
+ */
 async function harvestOutputDir(
   hostDir: string,
   caps: { perFileMax: number; totalMax: number },
-): Promise<{ files: OutputFile[]; truncatedCount: number }> {
+  uploadSlots: ReadonlyArray<{ url: string }>,
+  endpoints: HarvestEndpoints,
+  executionId: string,
+  sandboxToken: string | null,
+): Promise<HarvestResult> {
   const outputDir = join(hostDir, 'output');
   const files: OutputFile[] = [];
   let truncatedCount = 0;
   let totalAccepted = 0;
+  const slotPool: string[] = uploadSlots.map((s) => s.url);
+  let slotIndex = 0;
+  const failures: UploadFailure[] = [];
+  let attempted = 0;
+  let succeeded = 0;
+  let quotaExhausted = false;
+  let uploadFailed = false;
+  let reportFailed = false;
+  let readFailed = false;
+  const startUpload = Date.now();
+
+  async function nextSlotUrl(): Promise<string | null> {
+    if (slotPool.length > 0) {
+      // Pop FIFO so the order in audit logs matches the pre-alloc order.
+      const url = slotPool.shift();
+      return url ?? null;
+    }
+    if (quotaExhausted) return null;
+    const result = await requestUploadUrls(
+      endpoints.outputUrlEndpoint,
+      executionId,
+      2,
+      { token: sandboxToken },
+    );
+    if (!result.ok) {
+      if (result.code === 'QUOTA_EXCEEDED') {
+        quotaExhausted = true;
+      } else {
+        uploadFailed = true;
+      }
+      failures.push({
+        slotIndex: -1,
+        fileName: '(slot-request)',
+        httpStatus: result.status,
+        errorSnippet: result.snippet,
+      });
+      return null;
+    }
+    for (const u of result.urls) slotPool.push(u);
+    const url = slotPool.shift();
+    return url ?? null;
+  }
 
   async function walk(rel: string): Promise<void> {
     const abs = join(outputDir, rel);
@@ -590,6 +696,7 @@ async function harvestOutputDir(
       entries = await readdir(abs, { withFileTypes: true });
     } catch (err) {
       console.warn(`[sandbox.harvest] failed to read output dir ${abs}:`, err);
+      readFailed = true;
       return;
     }
     for (const e of entries) {
@@ -613,18 +720,84 @@ async function harvestOutputDir(
         truncatedCount += 1;
         continue;
       }
+      const url = await nextSlotUrl();
+      if (url === null) {
+        // Out of slots (quota OR network error). Mark this file failed
+        // and continue — subsequent files will also fail-fast at
+        // nextSlotUrl, recorded just once per cause.
+        attempted += 1;
+        failures.push({
+          slotIndex: slotIndex,
+          fileName: childRel,
+          httpStatus: quotaExhausted ? 412 : 0,
+          errorSnippet: quotaExhausted
+            ? 'per-run output quota exceeded'
+            : 'no upload slot available',
+        });
+        continue;
+      }
+      attempted += 1;
       const bytes = await readFile(childAbs);
+      const contentType = guessContentType(childRel);
+      const postResult = await postToUploadSlot(
+        url,
+        bytes,
+        contentType,
+        slotIndex,
+        childRel,
+      );
+      slotIndex += 1;
+      if (!postResult.ok) {
+        uploadFailed = true;
+        failures.push(postResult.failure);
+        continue;
+      }
+      // POST succeeded; report storageId via EP2 so the platform's
+      // rollback set tracks the live blob before we send back the
+      // final SSE result.
+      const reportResult = await reportUploaded(
+        endpoints.reportUploadedEndpoint,
+        executionId,
+        {
+          fileName: childRel,
+          storageId: postResult.storageId,
+          size: st.size,
+          contentType,
+        },
+        { token: sandboxToken },
+      );
+      if (!reportResult.ok) {
+        reportFailed = true;
+        failures.push({
+          slotIndex: slotIndex - 1,
+          fileName: childRel,
+          httpStatus: reportResult.status,
+          errorSnippet: `EP2: ${reportResult.snippet}`,
+        });
+        // EP2 failure is non-fatal — the bytes are in storage, the
+        // file is usable. Continue and surface via uploadStats.
+      }
       files.push({
         name: childRel,
-        contentBase64: bytes.toString('base64'),
+        storageId: postResult.storageId,
         size: st.size,
-        contentType: guessContentType(childRel),
+        contentType,
       });
       totalAccepted += st.size;
+      succeeded += 1;
     }
   }
   await walk('');
-  return { files, truncatedCount };
+  return {
+    files,
+    truncatedCount,
+    uploadStats: { attempted, succeeded, failures },
+    quotaExhausted,
+    uploadFailed,
+    reportFailed,
+    readFailed,
+    uploadMs: Date.now() - startUpload,
+  };
 }
 
 /**
@@ -820,7 +993,9 @@ export async function executeRequest(
   try {
     await ensureCacheVolume(pipVolume);
     await ensureCacheVolume(npmVolume);
+    const stageStartedAt = Date.now();
     await stageWorkspace(workspaceHostDir, req);
+    const stageMs = Date.now() - stageStartedAt;
 
     // Resolve the path the runtime entrypoint will exec().
     //   - steps[] → the spawner-generated wrapper under /workspace/.tale/
@@ -986,21 +1161,81 @@ export async function executeRequest(
     // Harvest `/workspace/output/` unconditionally — even on failure or
     // cancellation, any partial files the user script managed to write
     // before crashing are worth surfacing (resolves D5 in plan
-    // llm-majestic-hamming.md). `harvestOutputDir` is already graceful
-    // when the dir is missing; wrap in try/catch as belt-and-suspenders so
-    // a stat error never trumps the underlying failure signal.
+    // llm-majestic-hamming.md). The presigned-URL upload happens inside
+    // harvestOutputDir; failures are accumulated rather than thrown so a
+    // network blip on one file doesn't lose the others.
     let harvestedFiles: OutputFile[] = [];
     let harvestTruncatedCount = 0;
+    let harvestUploadStats: UploadStats = {
+      attempted: 0,
+      succeeded: 0,
+      failures: [],
+    };
+    let harvestQuotaExhausted = false;
+    let harvestUploadFailed = false;
+    let harvestReportFailed = false;
+    let harvestReadFailed = false;
+    let uploadMs = 0;
+    const harvestStartedAt = Date.now();
     try {
-      const harvested = await harvestOutputDir(workspaceHostDir, {
-        perFileMax: cfg.outputFileMaxBytes,
-        totalMax: cfg.outputTotalMaxBytes,
-      });
+      const harvested = await harvestOutputDir(
+        workspaceHostDir,
+        {
+          perFileMax: cfg.outputFileMaxBytes,
+          totalMax: cfg.outputTotalMaxBytes,
+        },
+        req.outputUploadSlots,
+        {
+          outputUrlEndpoint: req.outputUrlEndpoint,
+          reportUploadedEndpoint: req.reportUploadedEndpoint,
+        },
+        req.executionId,
+        cfg.sandboxToken,
+      );
       harvestedFiles = harvested.files;
       harvestTruncatedCount = harvested.truncatedCount;
+      harvestUploadStats = harvested.uploadStats;
+      harvestQuotaExhausted = harvested.quotaExhausted;
+      harvestUploadFailed = harvested.uploadFailed;
+      harvestReportFailed = harvested.reportFailed;
+      harvestReadFailed = harvested.readFailed;
+      uploadMs = harvested.uploadMs;
     } catch (err) {
       console.warn(`[sandbox.harvest] best-effort harvest failed:`, err);
+      harvestReadFailed = true;
     }
+    const harvestMs = Date.now() - harvestStartedAt;
+
+    // Classify any harvest-side failure into a wire errorCode. Order
+    // matters: quota > upload > report > read. The first matching code
+    // becomes the response's errorCode IF the user code itself exited 0
+    // — we don't want to mask a legitimate runtime crash. For non-zero
+    // exits, classifyFailure() picks the runtime errorCode and the upload
+    // failure shows up in `uploadStats.failures` instead.
+    let harvestErrorCode: ErrorCode | undefined;
+    let harvestErrorMessage: string | undefined;
+    if (harvestQuotaExhausted) {
+      harvestErrorCode = 'UPLOAD_QUOTA_EXCEEDED';
+      harvestErrorMessage =
+        'Per-run output-file quota exceeded; some files were not uploaded';
+    } else if (harvestUploadFailed) {
+      harvestErrorCode = 'UPLOAD_FAILED';
+      harvestErrorMessage = 'One or more output uploads failed';
+    } else if (harvestReportFailed) {
+      harvestErrorCode = 'UPLOAD_REPORT_FAILED';
+      harvestErrorMessage =
+        'Upload succeeded but report-back to platform failed';
+    } else if (harvestReadFailed) {
+      harvestErrorCode = 'HARVEST_READ_FAILED';
+      harvestErrorMessage = "Couldn't read /workspace/output";
+    }
+
+    const timing = {
+      stageMs,
+      executeMs: Math.max(0, durationMs),
+      harvestMs,
+      uploadMs,
+    };
 
     if (abort.signal.aborted) {
       return {
@@ -1018,13 +1253,21 @@ export async function executeRequest(
         },
         outputFiles: harvestedFiles,
         ...(stepResults !== undefined && { steps: stepResults }),
+        uploadStats: harvestUploadStats,
+        timing,
       };
     }
 
     if (exitCode === 0) {
       return {
-        status: 'completed',
+        status: harvestErrorCode !== undefined ? 'failed' : 'completed',
         exitCode: 0,
+        ...(harvestErrorCode !== undefined && {
+          errorCode: harvestErrorCode,
+          ...(harvestErrorMessage !== undefined && {
+            errorMessage: harvestErrorMessage,
+          }),
+        }),
         stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
         stderrBase64: Buffer.from(stderrCapped).toString('base64'),
         durationMs,
@@ -1035,6 +1278,8 @@ export async function executeRequest(
         },
         outputFiles: harvestedFiles,
         ...(stepResults !== undefined && { steps: stepResults }),
+        uploadStats: harvestUploadStats,
+        timing,
       };
     }
 
@@ -1054,6 +1299,8 @@ export async function executeRequest(
       },
       outputFiles: harvestedFiles,
       ...(stepResults !== undefined && { steps: stepResults }),
+      uploadStats: harvestUploadStats,
+      timing,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

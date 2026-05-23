@@ -6,12 +6,19 @@ import { describe, expect, test } from 'bun:test';
 
 import { validateExecuteRequest } from './validate-request.ts';
 
+// Minimal valid request shape. Post-sandbox-wobbly-origami the spawner
+// requires the platform to pre-allocate upload-slot URLs + supply the
+// EP1/EP2 callback endpoints; tests still pin to a tiny fixture but the
+// new fields are present so we exercise the success path on every call.
 const good = {
   executionId: 'abc-123',
   organizationId: 'org_42',
   language: 'python',
   files: [{ path: 'main.py', content: 'print("hi")' }],
   entryPath: 'main.py',
+  outputUploadSlots: [{ url: 'http://proxy/api/storage/upload?token=test' }],
+  outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
+  reportUploadedEndpoint: 'http://proxy/api/sandbox/record_uploaded',
 };
 
 describe('validateExecuteRequest', () => {
@@ -194,6 +201,9 @@ describe('validateExecuteRequest', () => {
         { path: 'gen.py', content: 'print("gen")' },
         { path: 'validate.py', content: 'print("validate")' },
       ],
+      outputUploadSlots: [],
+      outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
+      reportUploadedEndpoint: 'http://proxy/api/sandbox/record_uploaded',
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
@@ -250,6 +260,9 @@ describe('validateExecuteRequest', () => {
         { path: 'main.py', content: 'print("gen")' },
         { path: 'test.py', content: 'print("validate")' },
       ],
+      outputUploadSlots: [],
+      outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
+      reportUploadedEndpoint: 'http://proxy/api/sandbox/record_uploaded',
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
@@ -264,6 +277,9 @@ describe('validateExecuteRequest', () => {
       language: 'node',
       steps: ['main.js'],
       files: [{ path: 'main.js', content: 'console.log(1)' }],
+      outputUploadSlots: [],
+      outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
+      reportUploadedEndpoint: 'http://proxy/api/sandbox/record_uploaded',
     });
     expect(r.ok).toBe(true);
   });
@@ -298,6 +314,9 @@ describe('validateExecuteRequest', () => {
         python: ['markitdown[pptx]==0.0.1a3'],
         node: ['pptxgenjs@3.12.0'],
       },
+      outputUploadSlots: [],
+      outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
+      reportUploadedEndpoint: 'http://proxy/api/sandbox/record_uploaded',
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
@@ -332,48 +351,64 @@ describe('validateExecuteRequest', () => {
       language: 'polyglot',
       entryPath: 'main.py',
       files: [{ path: 'main.py', content: 'print(1)' }],
+      outputUploadSlots: [],
+      outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
+      reportUploadedEndpoint: 'http://proxy/api/sandbox/record_uploaded',
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/polyglot requires/);
   });
 
-  test('passes through priorOutputFiles when valid', () => {
+  test('passes through priorOutputDownloads when valid', () => {
     // Regression guard: the validator's request-output allowlist used to
-    // silently drop `priorOutputFiles`, making /workspace/output/
-    // pre-staging a no-op for every follow-up artifact_run. Fix:
-    // 2026-05-23 debugging session.
+    // silently drop `priorOutputFiles` (legacy field). Post-sandbox-
+    // wobbly-origami this is `priorOutputDownloads` (URL list, no base64).
     const r = validateExecuteRequest({
       ...good,
-      priorOutputFiles: [
-        { name: 'deck.pptx', contentBase64: 'AAAA' },
-        { name: 'nested/report.txt', contentBase64: 'BBBB' },
+      priorOutputDownloads: [
+        { name: 'deck.pptx', url: 'http://proxy/api/storage/abc' },
+        { name: 'nested/report.txt', url: 'http://proxy/api/storage/def' },
       ],
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.request.priorOutputFiles).toEqual([
-        { name: 'deck.pptx', contentBase64: 'AAAA' },
-        { name: 'nested/report.txt', contentBase64: 'BBBB' },
+      expect(r.request.priorOutputDownloads).toEqual([
+        { name: 'deck.pptx', url: 'http://proxy/api/storage/abc' },
+        { name: 'nested/report.txt', url: 'http://proxy/api/storage/def' },
       ]);
     }
   });
 
-  test('rejects non-array priorOutputFiles', () => {
+  test('rejects non-array priorOutputDownloads', () => {
     const r = validateExecuteRequest({
       ...good,
-      priorOutputFiles: 'oops',
+      priorOutputDownloads: 'oops',
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/priorOutputFiles/);
+    if (!r.ok) expect(r.error).toMatch(/priorOutputDownloads/);
   });
 
-  test('rejects priorOutputFiles entry with non-string fields', () => {
+  test('rejects priorOutputDownloads entry with non-string fields', () => {
     const r = validateExecuteRequest({
       ...good,
-      priorOutputFiles: [{ name: 'x', contentBase64: 123 }],
+      priorOutputDownloads: [{ name: 'x', url: 123 }],
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/contentBase64/);
+    if (!r.ok) expect(r.error).toMatch(/url/);
+  });
+
+  test('rejects body missing outputUploadSlots', () => {
+    const { outputUploadSlots: _, ...withoutSlots } = good;
+    const r = validateExecuteRequest(withoutSlots);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/outputUploadSlots/);
+  });
+
+  test('rejects body missing outputUrlEndpoint', () => {
+    const { outputUrlEndpoint: _, ...withoutEndpoint } = good;
+    const r = validateExecuteRequest(withoutEndpoint);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/outputUrlEndpoint/);
   });
 
   test('rejects packagesByLang exceeding combined 20-spec cap', () => {
@@ -390,6 +425,9 @@ describe('validateExecuteRequest', () => {
         python: Array.from({ length: 15 }, (_, i) => `pkg${i}`),
         node: Array.from({ length: 10 }, (_, i) => `npm${i}`),
       },
+      outputUploadSlots: [],
+      outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
+      reportUploadedEndpoint: 'http://proxy/api/sandbox/record_uploaded',
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/combined.*limit/i);

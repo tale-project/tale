@@ -215,7 +215,7 @@ async function handleExecute(req: Request): Promise<Response> {
       parsed.steps !== undefined
         ? `steps=${JSON.stringify(parsed.steps)}`
         : `entry=${parsed.entryPath}`
-    } files=${parsed.files?.length ?? 0} prior=${parsed.priorOutputFiles?.length ?? 0}`,
+    } files=${parsed.files?.length ?? 0} priorDownloads=${parsed.priorOutputDownloads?.length ?? 0} preAllocSlots=${parsed.outputUploadSlots.length}`,
   );
 
   // Reject duplicates explicitly: the in-flight registry is keyed by

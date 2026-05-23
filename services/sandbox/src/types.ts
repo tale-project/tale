@@ -62,19 +62,15 @@ export interface ExecuteRequest {
    */
   steps?: string[];
   /**
-   * Files pre-staged into `/workspace/output/` BEFORE the container starts.
-   * The platform uses this to surface the artifact's most recent run
-   * outputs into a follow-up `artifact_run`, so two separate calls
-   * (e.g. generate.py → validate.py) work even though they land in
-   * different containers. Each entry is base64-encoded, matching the
-   * `OutputFile` shape returned by harvest. Names are validated against
-   * the same POSIX-traversal rules `harvestOutputDir` uses (no `..`, no
-   * leading `/`, no NUL); rejects are skipped, not fatal. Aggregate size
-   * capped by the caller before forwarding.
+   * Prior-run output downloads. Spawner fetches each URL during
+   * `stageWorkspace` and writes the bytes to `/workspace/output/<name>`.
+   * Replaces the legacy inline-base64 `priorOutputFiles[]` field
+   * (sandbox-wobbly-origami plan §1). Names are validated against the
+   * same POSIX-traversal rules; rejects skip (logged, not fatal).
    */
-  priorOutputFiles?: Array<{
+  priorOutputDownloads?: Array<{
     name: string;
-    contentBase64: string;
+    url: string;
   }>;
   /**
    * Legacy single-bucket package list. Sent for `python` / `node`
@@ -99,15 +95,54 @@ export interface ExecuteRequest {
     allowSdist?: boolean;
     allowInstallScripts?: boolean;
   };
+  /**
+   * Pre-allocated upload-slot URLs the spawner POSTs harvested output
+   * files to. Length = platform's pre-alloc N (defaults to 2). When the
+   * spawner exhausts this pool it lazily requests more via
+   * {@link outputUrlEndpoint}.
+   */
+  outputUploadSlots: Array<{ url: string }>;
+  /**
+   * HMAC-signed callback URL for requesting additional upload slots when
+   * the pre-allocated pool is empty (EP1; sandbox-wobbly-origami plan §2).
+   */
+  outputUrlEndpoint: string;
+  /**
+   * HMAC-signed callback URL the spawner POSTs to AFTER each successful
+   * upload, so the platform tracks `{fileName, storageId, ...}` against
+   * the audit row's rollback set (EP2; sandbox-wobbly-origami plan §2).
+   */
+  reportUploadedEndpoint: string;
 }
 
+/**
+ * Per-file harvest outcome. `storageId` is the Convex storage id allocated
+ * when the spawner POSTed the bytes to the pre-signed upload URL; the
+ * platform side just inserts the matching `fileMetadata` row.
+ */
 export interface OutputFile {
-  // Wire-format shape: bytes inline (base64). The Convex side uploads these
-  // to `_storage` and persists a separate validator with `fileMetadataId`.
   name: string;
-  contentBase64: string;
+  storageId: string;
   size: number;
   contentType: string;
+}
+
+/**
+ * Per-file upload failure (for `ExecuteResponse.uploadStats`). Surfaces
+ * the HTTP failure code + a short stderr snippet so the audit row /
+ * artifact_run_tool can show useful context without dumping kB of body.
+ */
+export interface UploadFailure {
+  slotIndex: number;
+  fileName: string;
+  httpStatus: number;
+  errorSnippet: string;
+}
+
+export interface UploadStats {
+  attempted: number;
+  succeeded: number;
+  failures: UploadFailure[];
 }
 
 export interface ExecuteResponse {
@@ -130,6 +165,23 @@ export interface ExecuteResponse {
    * existing callers don't have to thread the field through.
    */
   steps?: SandboxStepResult[];
+  /**
+   * Upload telemetry — per-file attempted / succeeded counts plus per-
+   * failure detail. Always present in new responses; the platform-side
+   * validator allows omission for old-image back-compat.
+   */
+  uploadStats?: UploadStats;
+  /**
+   * Per-phase timing breakdown (ms): `stageMs` (prior-output fetch +
+   * file writes), `executeMs` (inner docker run), `harvestMs` (output
+   * walk), `uploadMs` (presigned-URL POSTs + EP2 round-trips).
+   */
+  timing?: {
+    stageMs: number;
+    executeMs: number;
+    harvestMs: number;
+    uploadMs: number;
+  };
 }
 
 export interface SpawnerConfig {
