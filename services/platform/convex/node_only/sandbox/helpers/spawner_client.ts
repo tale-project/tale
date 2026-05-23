@@ -68,7 +68,35 @@ interface SpawnerExecuteBody {
     node?: string[];
   };
   timeoutMs?: number;
-  options?: { allowSdist?: boolean; allowInstallScripts?: boolean };
+  /**
+   * Prior-run output downloads. Each entry carries a name (filename to
+   * write inside /workspace/output/) and a URL the spawner GETs to pull
+   * the bytes. URLs are pre-rewritten through `toSandboxStorageUrl()` so
+   * they target the internal Caddy alias (`http://proxy/...`) and never
+   * have to round-trip through the public hostname. Replaces the legacy
+   * inline-base64 `priorOutputFiles[]` field — see plan §1.
+   */
+  priorOutputDownloads?: Array<{ name: string; url: string }>;
+  /**
+   * Pre-allocated upload slots the spawner POSTs harvested output files
+   * to. Length = N (defaults to 2; see plan §3). When the spawner needs
+   * more slots than were pre-allocated it lazily requests additional
+   * URLs via {@link outputUrlEndpoint}.
+   */
+  outputUploadSlots: Array<{ url: string }>;
+  /**
+   * HMAC-signed callback the spawner POSTs to when it needs more upload
+   * slots than the pre-allocated pool. Server-side per-run quota counter
+   * gates how many can be granted; see plan §3.
+   */
+  outputUrlEndpoint: string;
+  /**
+   * HMAC-signed callback the spawner POSTs to AFTER each output upload
+   * succeeds. The platform records `{fileName, storageId, size,
+   * contentType}` against the audit row's `uploadedStorageIds` set so a
+   * spawner crash mid-harvest doesn't orphan blobs. See plan §3.
+   */
+  reportUploadedEndpoint: string;
 }
 
 interface SpawnerExecuteResponse {
@@ -82,12 +110,44 @@ interface SpawnerExecuteResponse {
   truncated: { stdout: boolean; stderr: boolean; files: number };
   outputFiles: {
     name: string;
-    contentBase64: string;
+    /**
+     * Convex `_storage` id. Replaces the legacy `contentBase64` field —
+     * the spawner now POSTs bytes directly to a pre-signed upload URL and
+     * returns the storageId Convex allocated. See plan §3.
+     */
+    storageId: string;
     size: number;
     contentType: string;
   }[];
   /** Per-step results populated only for multi-step requests. */
   steps?: SandboxStepResult[];
+  /**
+   * Optional upload telemetry. Older spawner images (built before the
+   * presigned-URL plan landed) will omit this; new ones populate it with
+   * attempted / succeeded counts plus per-failure detail. Treat as a
+   * diagnostic — not a correctness signal.
+   */
+  uploadStats?: {
+    attempted: number;
+    succeeded: number;
+    failures: Array<{
+      slotIndex: number;
+      fileName: string;
+      httpStatus: number;
+      errorSnippet: string;
+    }>;
+  };
+  /**
+   * Optional per-phase timing breakdown (ms). Helpful for tracking where
+   * the round-trip budget goes; surface to audit so we can compare TTL
+   * pressure vs the 1h `generateUploadUrl` window.
+   */
+  timing?: {
+    stageMs: number;
+    executeMs: number;
+    harvestMs: number;
+    uploadMs: number;
+  };
 }
 
 const SANDBOX_ERROR_CODE_SET: ReadonlySet<string> = new Set(
@@ -376,6 +436,20 @@ function validateExecuteResponse(
   }
   if (typeof raw.durationMs !== 'number') return null;
   if (!Array.isArray(raw.outputFiles)) return null;
+  // Each outputFile must now carry a Convex storageId (the spawner POSTed
+  // the bytes to a pre-signed upload URL during harvest). The legacy
+  // `contentBase64` shape was retired by the sandbox-wobbly-origami plan.
+  for (const f of raw.outputFiles) {
+    if (f === null || typeof f !== 'object' || Array.isArray(f)) return null;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape-checked via guards above; standard wire-shape narrowing pattern
+    const e = f as Record<string, unknown>;
+    if (typeof e.name !== 'string') return null;
+    if (typeof e.storageId !== 'string' || e.storageId.length === 0) {
+      return null;
+    }
+    if (typeof e.size !== 'number') return null;
+    if (typeof e.contentType !== 'string') return null;
+  }
   // steps is optional, but if present must be a typed array of step
   // results — refuse the payload otherwise so a wire-drift surfaces as
   // a hard failure rather than a silently-typecast garbage object.
@@ -395,6 +469,47 @@ function validateExecuteResponse(
       if (e.exitCode !== null && typeof e.exitCode !== 'number') return null;
       if (typeof e.durationMs !== 'number') return null;
     }
+  }
+  // uploadStats / timing are optional diagnostic fields. If present they
+  // must be well-formed objects so a wire-drift surfaces as a hard fail
+  // rather than a silently-typecast garbage object.
+  if (raw.uploadStats !== undefined) {
+    if (
+      raw.uploadStats === null ||
+      typeof raw.uploadStats !== 'object' ||
+      Array.isArray(raw.uploadStats)
+    ) {
+      return null;
+    }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape-checked above
+    const us = raw.uploadStats as Record<string, unknown>;
+    if (typeof us.attempted !== 'number') return null;
+    if (typeof us.succeeded !== 'number') return null;
+    if (!Array.isArray(us.failures)) return null;
+    for (const f of us.failures) {
+      if (f === null || typeof f !== 'object' || Array.isArray(f)) return null;
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape-checked above
+      const fe = f as Record<string, unknown>;
+      if (typeof fe.slotIndex !== 'number') return null;
+      if (typeof fe.fileName !== 'string') return null;
+      if (typeof fe.httpStatus !== 'number') return null;
+      if (typeof fe.errorSnippet !== 'string') return null;
+    }
+  }
+  if (raw.timing !== undefined) {
+    if (
+      raw.timing === null ||
+      typeof raw.timing !== 'object' ||
+      Array.isArray(raw.timing)
+    ) {
+      return null;
+    }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape-checked above
+    const t = raw.timing as Record<string, unknown>;
+    if (typeof t.stageMs !== 'number') return null;
+    if (typeof t.executeMs !== 'number') return null;
+    if (typeof t.harvestMs !== 'number') return null;
+    if (typeof t.uploadMs !== 'number') return null;
   }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape-checked above; remaining nullable fields default at caller
   return raw as unknown as SpawnerExecuteResponse;

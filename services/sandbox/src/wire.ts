@@ -25,6 +25,17 @@ export const sandboxErrorCodeLiterals = [
   'SPAWNER_UNAVAILABLE',
   'CANCELLED',
   'INPUT_REJECTED',
+  // Output-pipeline error codes (sandbox-wobbly-origami plan §5). Split out
+  // of the legacy catch-all so the LLM-side recovery hint can be specific:
+  // a HARVEST_READ_FAILED means "check stderr / file write didn't happen",
+  // an UPLOAD_FAILED means "transient, one retry is fine", an
+  // UPLOAD_QUOTA_EXCEEDED means "consolidate or split into multi-step", and
+  // an UPLOAD_REPORT_FAILED means "the storageId was uploaded but the
+  // report-back mutation failed — audit row may need manual reconciliation".
+  'HARVEST_READ_FAILED',
+  'UPLOAD_FAILED',
+  'UPLOAD_QUOTA_EXCEEDED',
+  'UPLOAD_REPORT_FAILED',
 ] as const;
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];

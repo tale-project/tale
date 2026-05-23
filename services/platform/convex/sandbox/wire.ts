@@ -77,6 +77,14 @@ export const sandboxErrorCodeLiterals = [
   // SPAWNER_UNAVAILABLE so the agent's recovery hint is "fix the args",
   // not "retry the transient infra".
   'INPUT_REJECTED',
+  // Output-pipeline error codes (sandbox-wobbly-origami plan §5). Split out
+  // of the legacy catch-all `HARVEST_FAILED` so the LLM-side recovery hint
+  // can be specific. See artifact_run_tool.ts for the per-code recovery
+  // table; the spawner-side mirror is in services/sandbox/src/wire.ts.
+  'HARVEST_READ_FAILED',
+  'UPLOAD_FAILED',
+  'UPLOAD_QUOTA_EXCEEDED',
+  'UPLOAD_REPORT_FAILED',
 ] as const;
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];
@@ -92,6 +100,10 @@ export const sandboxErrorCodeValidator = v.union(
   v.literal('SPAWNER_UNAVAILABLE'),
   v.literal('CANCELLED'),
   v.literal('INPUT_REJECTED'),
+  v.literal('HARVEST_READ_FAILED'),
+  v.literal('UPLOAD_FAILED'),
+  v.literal('UPLOAD_QUOTA_EXCEEDED'),
+  v.literal('UPLOAD_REPORT_FAILED'),
 );
 
 /**
