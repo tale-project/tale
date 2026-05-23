@@ -5,6 +5,8 @@ import { mutation } from '../_generated/server';
 import { validatePath } from '../agent_tools/artifacts/shared';
 import { getAuthUserIdentity } from '../lib/rls';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
+import { authorizeRls } from '../lib/rls/helpers/access_control';
+import { getUserOrganizations } from '../lib/rls/organization/get_user_organizations';
 import { assertAggregateSize } from './internal_mutations';
 import { mirrorLegacyContent, resolveArtifactFiles } from './resolve_files';
 
@@ -41,6 +43,20 @@ export const userEdit = mutation({
       throw new ConvexError({
         code: 'forbidden',
         message: 'Not authorized to access this thread.',
+      });
+    }
+    // Role gate: the access-control matrix (access_control.ts) makes
+    // `member` READ-ONLY for `artifacts`. `userEdit` is a plain `mutation`,
+    // not `mutationWithRLS`, so without this explicit check a member
+    // could edit artifacts via the public mutation (audit follow-up F13).
+    const memberships = await getUserOrganizations(ctx, authUser);
+    const membership = memberships.find(
+      (m) => m.organizationId === artifact.organizationId,
+    );
+    if (!authorizeRls(membership?.role, 'artifacts', 'write')) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Your role does not permit editing artifacts.',
       });
     }
 

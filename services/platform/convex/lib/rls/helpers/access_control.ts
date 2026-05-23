@@ -33,7 +33,16 @@ type PlatformTable =
   | 'artifacts'
   | 'artifactRevisions'
   | 'auditLogChainGenesis'
-  | 'sandboxExecutions';
+  | 'sandboxExecutions'
+  // Multi-file artifact tables — added audit follow-up F14. Writes go
+  // exclusively through internalMutation (handlers/*.ts); reads need
+  // an explicit READ_ONLY role-matrix entry so the new rls_rules.ts
+  // rules can defense-in-depth via `authorizeRls()` (otherwise the
+  // deny-by-default permissions would silently 0-result the canvas).
+  | 'artifactFiles'
+  | 'artifactRuns'
+  | 'artifactRunFiles'
+  | 'artifactOutputs';
 
 type PlatformAction = 'read' | 'write';
 
@@ -79,6 +88,12 @@ const platformPermissions: Record<
     auditLogChainGenesis: NONE,
     // Audit table; user-facing access is read-only across all roles.
     sandboxExecutions: READ_ONLY,
+    // Multi-file artifact tables: writes are internal-only (handlers/*.ts);
+    // reads through RLS-wrapped queries get READ_ONLY across all org roles.
+    artifactFiles: READ_ONLY,
+    artifactRuns: READ_ONLY,
+    artifactRunFiles: READ_ONLY,
+    artifactOutputs: READ_ONLY,
   },
   developer: {
     agentBindings: ALL,
@@ -105,6 +120,10 @@ const platformPermissions: Record<
     artifactRevisions: ALL,
     auditLogChainGenesis: NONE,
     sandboxExecutions: READ_ONLY,
+    artifactFiles: READ_ONLY,
+    artifactRuns: READ_ONLY,
+    artifactRunFiles: READ_ONLY,
+    artifactOutputs: READ_ONLY,
   },
   editor: {
     agentBindings: ALL,
@@ -131,6 +150,10 @@ const platformPermissions: Record<
     artifactRevisions: ALL,
     auditLogChainGenesis: NONE,
     sandboxExecutions: READ_ONLY,
+    artifactFiles: READ_ONLY,
+    artifactRuns: READ_ONLY,
+    artifactRunFiles: READ_ONLY,
+    artifactOutputs: READ_ONLY,
   },
   member: {
     agentBindings: READ_ONLY,
@@ -161,6 +184,10 @@ const platformPermissions: Record<
     artifactRevisions: READ_ONLY,
     auditLogChainGenesis: NONE,
     sandboxExecutions: READ_ONLY,
+    artifactFiles: READ_ONLY,
+    artifactRuns: READ_ONLY,
+    artifactRunFiles: READ_ONLY,
+    artifactOutputs: READ_ONLY,
   },
   disabled: {
     agentBindings: NONE,
@@ -187,6 +214,10 @@ const platformPermissions: Record<
     artifactRevisions: NONE,
     auditLogChainGenesis: NONE,
     sandboxExecutions: NONE,
+    artifactFiles: NONE,
+    artifactRuns: NONE,
+    artifactRunFiles: NONE,
+    artifactOutputs: NONE,
   },
 };
 

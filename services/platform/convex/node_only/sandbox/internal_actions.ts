@@ -102,6 +102,28 @@ interface FailContext {
  * blobs we already wrote. Always returns the structured result the caller
  * can `return` directly.
  */
+/**
+ * Roll back `_storage` blobs we already wrote in the action's in-memory
+ * set. Used by `failExecution` AND by the success path when
+ * `insertOutputFiles` reports `skippedTerminal` (race with user-cancel).
+ * Clears the set after deletion so the finally block doesn't double-free.
+ */
+async function rollbackUploadedBlobs(
+  ctx: { storage: { delete: (id: Id<'_storage'>) => Promise<void> } },
+  ids: Set<string>,
+  context: string,
+): Promise<void> {
+  for (const sid of ids) {
+    try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- delete needs Id<'_storage'>
+      await ctx.storage.delete(sid as unknown as Id<'_storage'>);
+    } catch (err) {
+      console.warn(`[${context}] storage.delete(${sid}) failed:`, err);
+    }
+  }
+  ids.clear();
+}
+
 async function failExecution(
   fc: FailContext,
   status: 'failed' | 'cancelled',
@@ -114,19 +136,11 @@ async function failExecution(
   },
 ): Promise<ExecuteCodeResult> {
   const durationMs = Date.now() - fc.startedAt;
-  // Roll back any _storage blobs we already wrote so we don't orphan them.
-  for (const sid of fc.uploadedStorageIds) {
-    try {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- delete needs Id<'_storage'>
-      await fc.ctx.storage.delete(sid as unknown as Id<'_storage'>);
-    } catch (err) {
-      console.warn(
-        `[sandbox.failExecution] storage.delete(${sid}) failed:`,
-        err,
-      );
-    }
-  }
-  fc.uploadedStorageIds.clear();
+  await rollbackUploadedBlobs(
+    fc.ctx,
+    fc.uploadedStorageIds,
+    'sandbox.failExecution',
+  );
 
   try {
     await fc.ctx.runMutation(internal.sandbox.internal_mutations.finalize, {
@@ -1000,15 +1014,49 @@ export const executeCode = internalAction({
         });
       }
 
-      const insertedFiles = await ctx.runMutation(
+      const insertResult = await ctx.runMutation(
         internal.sandbox.output_mutations.insertOutputFiles,
         {
+          executionId,
           organizationId: args.organizationId,
           ...(args.threadId !== undefined && { threadId: args.threadId }),
           uploadedBy: args.uploadedBy,
           files: stagedForInsert,
         },
       );
+
+      // If the audit row was terminalized between the spawner's SSE result
+      // and this mutation (e.g., user clicked Stop near completion), the
+      // mutation refuses to insert fileMetadata rows. Roll back the blobs
+      // we already wrote — without this they orphan since neither the
+      // audit row nor the artifactRunFiles will reference them (audit
+      // follow-up F6 — cancel-race blob leak).
+      if (insertResult.skippedTerminal) {
+        console.warn(
+          `[sandbox.executeCode] insertOutputFiles skipped — audit row already terminal; rolling back ${uploadedStorageIds.size} blob(s)`,
+        );
+        await rollbackUploadedBlobs(
+          ctx,
+          uploadedStorageIds,
+          'sandbox.executeCode.cancel-race',
+        );
+        const cancelDurationMs = Date.now() - startedAt;
+        return {
+          executionId,
+          success: false,
+          status: 'cancelled',
+          exitCode: spawnerResult.exitCode,
+          errorCode: 'CANCELLED',
+          errorMessage:
+            'Run was cancelled while harvesting outputs; uploaded blobs rolled back.',
+          stdoutPreview: '',
+          stderrPreview: '',
+          durationMs: cancelDurationMs,
+          truncated: { stdout: false, stderr: false, files: 0 },
+          files: [],
+        };
+      }
+      const insertedFiles = insertResult.insertedFiles;
 
       // ---- stdout/stderr previews + overflow storage ----
       const stdoutText = Buffer.from(

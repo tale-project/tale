@@ -220,14 +220,19 @@ export async function runDocker(
 
 /**
  * Send a signal to a container. Default is SIGTERM (graceful); cancel paths
- * escalate to KILL when the graceful kill timed out. Callers wrap this in
- * `withTimeout` so a wedged daemon cannot block the HTTP cancel response.
+ * escalate to KILL when the graceful kill timed out. `timeoutMs` is
+ * forwarded to `runDocker` so a wedged daemon kills the docker CLI
+ * subprocess too — without it the outer caller's `withTimeout` would
+ * reject but the underlying Bun child would leak.
  */
 export async function dockerKill(
   containerName: string,
   signal: 'TERM' | 'KILL' = 'TERM',
+  opts: { timeoutMs?: number } = {},
 ): Promise<void> {
-  await runDocker(['kill', `--signal=SIG${signal}`, containerName]);
+  const runOpts: RunDockerOptions = {};
+  if (opts.timeoutMs !== undefined) runOpts.timeoutMs = opts.timeoutMs;
+  await runDocker(['kill', `--signal=SIG${signal}`, containerName], runOpts);
 }
 
 export async function dockerRm(containerName: string): Promise<void> {

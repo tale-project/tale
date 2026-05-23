@@ -143,9 +143,11 @@ export interface OutputFile {
 export type PriorStageSkipReason =
   | 'unsafe_path'
   | 'fetch_failed'
+  | 'fetch_timeout'
   | 'http_error'
   | 'url_expired'
-  | 'write_failed';
+  | 'write_failed'
+  | 'download_too_large';
 
 /**
  * Per-file pre-stage outcome. `bytes` and `sha256` are populated only for
@@ -233,12 +235,11 @@ export interface ExecuteResponse {
 
 export interface SpawnerConfig {
   port: number;
-  // Optional. When null AND `allowUnauth` is false the spawner refuses to
-  // start; loaded via `loadConfig()` so the policy is decided once at boot.
+  // Token policy: opt-in verification. When null, the spawner skips HMAC
+  // checks on every route (a single warn at boot logs the state). When
+  // set, the wire path enforces signatures. Set by `loadConfig()` once
+  // at boot from `SANDBOX_TOKEN`; empty-string is treated as null.
   sandboxToken: string | null;
-  // Explicit opt-in for development / rag-crawler parity flow (`bun dev`).
-  // Defaults to false; loadConfig sets it from SANDBOX_ALLOW_UNAUTH.
-  allowUnauth: boolean;
   runtimeImage: string;
   runtime: 'runc' | 'runsc';
   defaultTimeoutMs: number;

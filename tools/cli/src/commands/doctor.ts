@@ -3,6 +3,8 @@ import { existsSync } from 'node:fs';
 
 import { Command } from 'commander';
 
+import { findProject } from '../lib/project/find-project';
+import { loadEnv } from '../utils/load-env';
 import * as logger from '../utils/logger';
 
 /**
@@ -117,19 +119,31 @@ function checkApparmor(): Check {
 }
 
 function checkSandboxToken(env: NodeJS.ProcessEnv): Check {
-  if (!env.SANDBOX_TOKEN || env.SANDBOX_TOKEN.length < 32) {
+  // Token policy is opt-in (audit follow-up F1) — unset = HMAC disabled,
+  // valid for dev / internal-trust deployments. Report informationally:
+  // a short value is suspicious (probably truncated), but missing is OK.
+  const raw = env.SANDBOX_TOKEN;
+  if (!raw || raw.length === 0) {
+    return {
+      name: 'SANDBOX_TOKEN',
+      status: 'warn',
+      detail:
+        'unset — HMAC auth between Convex and the sandbox spawner is disabled',
+      fix: 'Set a 64-char hex value (or re-run `tale init`) to enable signature verification',
+    };
+  }
+  if (raw.length < 32) {
     return {
       name: 'SANDBOX_TOKEN',
       status: 'fail',
-      detail:
-        'missing or too short — required for HMAC auth between Convex and the sandbox spawner',
-      fix: 'Re-run `tale init` (or set a 64-char hex value manually)',
+      detail: `set but suspiciously short (${raw.length} chars) — looks truncated`,
+      fix: 'Set a 64-char hex value (or re-run `tale init`)',
     };
   }
   return {
     name: 'SANDBOX_TOKEN',
     status: 'ok',
-    detail: `set (${env.SANDBOX_TOKEN.length} chars)`,
+    detail: `enabled (${raw.length} chars)`,
   };
 }
 
@@ -143,6 +157,21 @@ export function createDoctorCommand(): Command {
       'Preflight checks for sandbox / artifact_run host requirements (docker, runsc, userns-remap, secrets).',
     )
     .action(async () => {
+      // Surface SANDBOX_TOKEN as the user actually configured it. Without
+      // loading the project's .env first, `tale doctor` always saw an
+      // empty process.env.SANDBOX_TOKEN and reported "missing" even when
+      // the value was set in .env (audit follow-up F10). loadEnv is a
+      // no-op when there's no project / no .env file.
+      const projectDir = findProject();
+      if (projectDir !== null) {
+        try {
+          loadEnv(projectDir);
+        } catch (err) {
+          logger.warn(
+            `Failed to load .env from ${projectDir}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
       const env = process.env;
       const checks: Check[] = [
         checkDocker(),

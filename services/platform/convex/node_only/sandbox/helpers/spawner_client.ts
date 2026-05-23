@@ -218,10 +218,10 @@ function getSpawnerUrl(): string {
 }
 
 function getSpawnerToken(): string | null {
-  // Optional only in dev (rag/crawler-parity, internal-trust mode). The
-  // spawner refuses to start in production without a token unless
-  // SANDBOX_ALLOW_UNAUTH=true; `tale deploy` auto-mints one via
-  // ensure-env. Both sides treat empty-string as unset.
+  // Opt-in HMAC: when SANDBOX_TOKEN is unset (or empty-string) the
+  // spawner skips signature verification and this client sends unsigned
+  // requests. `tale deploy` auto-mints one via ensure-env for production
+  // deploys. Both sides treat empty-string as unset.
   const token = process.env.SANDBOX_TOKEN;
   return token && token.length > 0 ? token : null;
 }

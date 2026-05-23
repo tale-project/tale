@@ -35,10 +35,31 @@ import { toId } from '../lib/type_cast_helpers';
 
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
-// Larger window than the spawner's 30s — Convex action latency + Caddy hop
-// can eat budget, and these callbacks are best-effort idempotent (EP2 dedupes
-// by storageId). Still bounded to 60s to keep the replay surface narrow.
-const TIMESTAMP_TOLERANCE_MS = 60_000;
+// Matches the spawner-side window in services/sandbox/src/auth.ts:29.
+// Keeping the two sides symmetric simplifies the threat model (replay
+// surface is the same in either direction) and 30s is enough for any
+// realistic Convex action latency + Caddy hop.
+const TIMESTAMP_TOLERANCE_MS = 30_000;
+
+// Nonce cache mirrors services/sandbox/src/auth.ts:36-52 — bounds the
+// replay window even within the skew tolerance. Module-level state lives
+// for the lifetime of the V8 isolate; on isolate recycle the cache
+// resets, but the spawner-side cache is authoritative for the
+// Convex→spawner direction anyway. This is defense-in-depth on the
+// spawner→Convex direction (EP1 quota drain / EP2 storageId planting).
+const NONCE_TTL_MS = TIMESTAMP_TOLERANCE_MS + 5_000;
+const NONCE_SWEEP_INTERVAL = 100;
+const seenSignatures = new Map<string, number>();
+let verifyCallsSinceSweep = 0;
+
+function maybeSweepNonces(now: number): void {
+  verifyCallsSinceSweep += 1;
+  if (verifyCallsSinceSweep < NONCE_SWEEP_INTERVAL) return;
+  verifyCallsSinceSweep = 0;
+  for (const [sig, expiresAt] of seenSignatures) {
+    if (expiresAt <= now) seenSignatures.delete(sig);
+  }
+}
 
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -115,6 +136,15 @@ async function verifyHmac(
   if (!timingSafeHexEqual(expected, signatureHeader)) {
     return { ok: false, reason: 'bad_signature' };
   }
+
+  // Signature is structurally valid AND within the skew window. Check
+  // the nonce cache to block replay-within-window.
+  maybeSweepNonces(nowMs);
+  const cached = seenSignatures.get(signatureHeader);
+  if (cached !== undefined && cached > nowMs) {
+    return { ok: false, reason: 'replay' };
+  }
+  seenSignatures.set(signatureHeader, nowMs + NONCE_TTL_MS);
   return { ok: true };
 }
 

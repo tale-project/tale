@@ -6,6 +6,7 @@ import { v } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
+import { sandboxTerminalStatuses } from './wire';
 
 const outputFileValidator = v.object({
   name: v.string(),
@@ -19,26 +20,44 @@ const outputFileValidator = v.object({
  * mutation atomically inserts the `fileMetadata` rows that point at them.
  * All-or-nothing: if any insert fails the mutation aborts and the caller
  * deletes the orphaned `_storage` blobs.
+ *
+ * Terminal-state guard mirrors `finalize`'s posture (audit follow-up F6):
+ * if the audit row reached a terminal state between the spawner's SSE
+ * `result` event and this mutation (e.g. the user clicked Stop right
+ * before the harvest landed), we return `{skippedTerminal: true}` so the
+ * caller skips the `uploadedStorageIds.clear()` step and the
+ * `failExecution`-style rollback can delete the orphan blobs.
  */
 export const insertOutputFiles = internalMutation({
   args: {
+    executionId: v.id('sandboxExecutions'),
     organizationId: v.string(),
     threadId: v.optional(v.string()),
     uploadedBy: v.string(),
     files: v.array(outputFileValidator),
   },
-  returns: v.array(
-    v.object({
-      name: v.string(),
-      fileMetadataId: v.id('fileMetadata'),
-      storageId: v.id('_storage'),
-      size: v.number(),
-      contentType: v.string(),
-    }),
-  ),
+  returns: v.object({
+    skippedTerminal: v.boolean(),
+    insertedFiles: v.array(
+      v.object({
+        name: v.string(),
+        fileMetadataId: v.id('fileMetadata'),
+        storageId: v.id('_storage'),
+        size: v.number(),
+        contentType: v.string(),
+      }),
+    ),
+  }),
   handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.executionId);
+    if (row !== null && sandboxTerminalStatuses.has(row.status)) {
+      console.warn(
+        `[sandbox.insertOutputFiles] no-op: row ${row._id} already terminal as ${row.status}; caller must roll back ${args.files.length} blob(s)`,
+      );
+      return { skippedTerminal: true, insertedFiles: [] };
+    }
     const now = Date.now();
-    const out: {
+    const insertedFiles: {
       name: string;
       fileMetadataId: Id<'fileMetadata'>;
       storageId: Id<'_storage'>;
@@ -58,7 +77,7 @@ export const insertOutputFiles = internalMutation({
         lifecycleStatus: 'active',
         statusChangedAt: now,
       });
-      out.push({
+      insertedFiles.push({
         name: f.name,
         fileMetadataId,
         storageId: f.storageId,
@@ -66,6 +85,6 @@ export const insertOutputFiles = internalMutation({
         contentType: f.contentType,
       });
     }
-    return out;
+    return { skippedTerminal: false, insertedFiles };
   },
 });

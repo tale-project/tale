@@ -480,6 +480,63 @@ export class InvalidArtifactPathError extends Error {
 }
 
 /**
+ * Narrow a caught error to its structured code + message for return to
+ * the LLM. Tool catch blocks used to flatten every error into
+ * `{success: false, message}` with NO code field, even though the
+ * underlying `ConvexError`/`InvalidArtifactPathError` already carries a
+ * stable code. Returning the code lets the LLM react programmatically
+ * (e.g. retry with smaller content on `too_large`, pick a different
+ * path on `invalid_path`) instead of string-sniffing the message
+ * (audit follow-up F8).
+ */
+export function extractToolErrorShape(err: unknown): {
+  code?: string;
+  message: string;
+} {
+  if (err instanceof InvalidArtifactPathError) {
+    return {
+      // Surface a stable kebab-case code so the LLM can dispatch on it
+      // alongside the mutation's discriminated-union codes (which use
+      // snake_case). All path-validation failures collapse to
+      // `invalid_path` — the more granular `PathValidationCode` is
+      // included in the message text for human triage.
+      code: 'invalid_path',
+      message: `${err.message} (${err.code})`,
+    };
+  }
+  // ConvexError carries its structured payload on `.data`. We can't
+  // rely on `instanceof ConvexError` reaching across the action/mutation
+  // bundle boundary cleanly, so shape-narrow on the `.data` field.
+  if (err instanceof Error) {
+    // Type-cast the error object to a partial structural shape rather
+    // than `any`. `data` is whatever the throwing site passed to
+    // `new ConvexError({...})`.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    const data = (err as { data?: unknown }).data;
+    if (
+      typeof data === 'object' &&
+      data !== null &&
+      'code' in data &&
+      typeof (data as { code: unknown }).code === 'string'
+    ) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      const dCode = (data as { code: string }).code;
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      const dMessage = (data as { message?: unknown }).message;
+      return {
+        code: dCode,
+        message:
+          typeof dMessage === 'string' && dMessage.length > 0
+            ? dMessage
+            : err.message,
+      };
+    }
+    return { message: err.message };
+  }
+  return { message: String(err) };
+}
+
+/**
  * Validate a file path for safe storage and sandbox-write. Run at every
  * mutation boundary that accepts a path. Throws `InvalidArtifactPathError`
  * with a structured code on failure. On success, returns the NFC-normalized

@@ -863,11 +863,14 @@ describe('applyFinalizeArtifactRun (terminal-guard executionId parity)', () => {
     expect(inserted.filter((i) => i.table === 'artifactRuns')).toHaveLength(1);
   });
 
-  it("proceeds when args.runExecutionId is omitted and the row is terminal (legacy callers can't self-dedupe)", async () => {
-    // Defensive: a caller that doesn't pass `runExecutionId` cannot be
-    // proven to be a duplicate. We let them through; the dual-write
-    // tables will gain a row but the caller is taking responsibility for
-    // not double-firing.
+  it('no-ops when args.runExecutionId is omitted and the row is already terminal (fallback finalize trusts the row state)', async () => {
+    // Audit follow-up F7: the tool-side fallback finalize at
+    // artifact_run_tool.ts:696-705 passes no `runExecutionId`. Without
+    // this short-circuit, a fallback finalize landing AFTER
+    // `failExecution` already terminalized the row would slip past
+    // `sameExecution=false` and insert a duplicate `artifactRuns` row.
+    // Treat "no executionId on a terminal row" as "trust the row's
+    // terminal state".
     const initial: FakeArtifactRow = {
       _id: 'art_legacy',
       organizationId: 'org_a',
@@ -881,6 +884,30 @@ describe('applyFinalizeArtifactRun (terminal-guard executionId parity)', () => {
     const { ctx, inserted } = createMockCtx([initial]);
     await applyFinalizeArtifactRun(ctx as never, {
       artifactId: 'art_legacy' as never,
+      runStatus: 'completed',
+      runOutputFiles: [],
+      // runExecutionId intentionally omitted — fallback finalize path
+    });
+    expect(inserted.filter((i) => i.table === 'artifactRuns')).toHaveLength(0);
+  });
+
+  it('proceeds when args.runExecutionId is omitted and the row is NOT terminal (first finalize without executionId still lands)', async () => {
+    // The trust-the-row shortcut only fires when the row is already
+    // terminal. A non-terminal row with omitted executionId still
+    // finalizes normally — otherwise legacy callers that haven't
+    // adopted the executionId argument couldn't make progress.
+    const initial: FakeArtifactRow = {
+      _id: 'art_running',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'script_runnable',
+      title: 'running-finalize',
+      revision: 1,
+      runStatus: 'running',
+    };
+    const { ctx, inserted } = createMockCtx([initial]);
+    await applyFinalizeArtifactRun(ctx as never, {
+      artifactId: 'art_running' as never,
       runStatus: 'completed',
       runOutputFiles: [],
       // runExecutionId intentionally omitted

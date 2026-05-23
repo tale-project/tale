@@ -737,7 +737,6 @@ import type * as streaming_internal_mutations from "../streaming/internal_mutati
 import type * as streaming_validators from "../streaming/validators.js";
 import type * as team_members_mutations from "../team_members/mutations.js";
 import type * as team_members_queries from "../team_members/queries.js";
-import type * as test_sandbox_e2e from "../test_sandbox_e2e.js";
 import type * as thread_todos_helpers from "../thread_todos/helpers.js";
 import type * as thread_todos_internal_mutations from "../thread_todos/internal_mutations.js";
 import type * as thread_todos_internal_queries from "../thread_todos/internal_queries.js";
@@ -1829,7 +1828,6 @@ declare const fullApi: ApiFromModules<{
   "streaming/validators": typeof streaming_validators;
   "team_members/mutations": typeof team_members_mutations;
   "team_members/queries": typeof team_members_queries;
-  test_sandbox_e2e: typeof test_sandbox_e2e;
   "thread_todos/helpers": typeof thread_todos_helpers;
   "thread_todos/internal_mutations": typeof thread_todos_internal_mutations;
   "thread_todos/internal_queries": typeof thread_todos_internal_queries;

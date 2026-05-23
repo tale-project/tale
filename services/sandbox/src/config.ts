@@ -28,18 +28,6 @@ function numEnv(
   return n;
 }
 
-function boolEnv(name: string, fallback: boolean): boolean {
-  const v = process.env[name];
-  if (v === undefined) return fallback;
-  const lower = v.trim().toLowerCase();
-  if (lower === '') return fallback;
-  if (lower === 'true' || lower === '1' || lower === 'yes') return true;
-  if (lower === 'false' || lower === '0' || lower === 'no') return false;
-  throw new Error(
-    `Env var ${name} must be a boolean; got: ${JSON.stringify(v)}`,
-  );
-}
-
 export function loadConfig(): SpawnerConfig {
   const rawRuntime = process.env.SANDBOX_RUNTIME ?? 'runc';
   if (rawRuntime !== 'runc' && rawRuntime !== 'runsc') {
@@ -51,13 +39,10 @@ export function loadConfig(): SpawnerConfig {
   const rawToken = process.env.SANDBOX_TOKEN;
   return {
     port: numEnv('SANDBOX_PORT', 8003, { min: 1, max: 65535 }),
-    // Empty string treated as unset so `SANDBOX_TOKEN=` in .env behaves
-    // the same as not declaring it at all. The fail-closed check at server
-    // boot rejects an unset token unless `SANDBOX_ALLOW_UNAUTH=true`.
+    // Token policy: opt-in verification. Unset (or empty-string) = HMAC
+    // disabled; set = enforced. `authorize()` returns null when this is
+    // null, so the wire path simply skips signature checks.
     sandboxToken: rawToken && rawToken.length > 0 ? rawToken : null,
-    // Dev-only opt-in: rag/crawler-parity for `bun dev`. Production always
-    // requires a token; deploy.ts auto-mints one via ensure-env.
-    allowUnauth: boolEnv('SANDBOX_ALLOW_UNAUTH', false),
     runtimeImage:
       process.env.SANDBOX_RUNTIME_IMAGE ?? 'tale-sandbox-runtime:latest',
     runtime,

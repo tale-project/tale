@@ -727,6 +727,70 @@ export async function rlsRules(
       insert: async () => false,
     },
 
+    // Multi-file artifact tables (audit follow-up F14). Writes are
+    // internal-mutation only (handlers/content_edits.ts,
+    // handlers/run_state.ts, output_mutations.ts) which bypasses RLS;
+    // user-facing modify/insert remain deny-all. Reads resolve org
+    // membership through the parent `artifactId` row, mirroring the
+    // `artifactRevisions` pattern above (the child rows don't carry
+    // `organizationId` themselves).
+    artifactFiles: {
+      read: async (_, file) => {
+        if (!user) return false;
+        const parent = await ctx.db.get(file.artifactId);
+        if (!parent) return false;
+        if (!userOrgIds.has(parent.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === parent.organizationId,
+        );
+        return authorizeRls(membership?.role, 'artifactFiles', 'read');
+      },
+      modify: async () => false,
+      insert: async () => false,
+    },
+    artifactRuns: {
+      read: async (_, run) => {
+        if (!user) return false;
+        const parent = await ctx.db.get(run.artifactId);
+        if (!parent) return false;
+        if (!userOrgIds.has(parent.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === parent.organizationId,
+        );
+        return authorizeRls(membership?.role, 'artifactRuns', 'read');
+      },
+      modify: async () => false,
+      insert: async () => false,
+    },
+    artifactRunFiles: {
+      read: async (_, runFile) => {
+        if (!user) return false;
+        const parent = await ctx.db.get(runFile.artifactId);
+        if (!parent) return false;
+        if (!userOrgIds.has(parent.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === parent.organizationId,
+        );
+        return authorizeRls(membership?.role, 'artifactRunFiles', 'read');
+      },
+      modify: async () => false,
+      insert: async () => false,
+    },
+    artifactOutputs: {
+      read: async (_, output) => {
+        if (!user) return false;
+        const parent = await ctx.db.get(output.artifactId);
+        if (!parent) return false;
+        if (!userOrgIds.has(parent.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === parent.organizationId,
+        );
+        return authorizeRls(membership?.role, 'artifactOutputs', 'read');
+      },
+      modify: async () => false,
+      insert: async () => false,
+    },
+
     // Workflow Step Audit Logs - organization-scoped, allow inserts for org members
     wfStepAuditLogs: {
       read: async (_, log) => {

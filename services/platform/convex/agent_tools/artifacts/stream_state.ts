@@ -27,6 +27,12 @@ export interface ArtifactStreamState {
   // True once we have either inserted the placeholder (create) or marked
   // the existing row (edit). Avoids double-init on rapid deltas.
   rowInitialized: boolean;
+  // Sticky hard-fail flag for the streaming preflight. When set, deltas
+  // skip `parsePartialJson` AND the beginEditStream re-attempt loop so
+  // the same invalid path doesn't spam WARN logs on every subsequent
+  // delta. `execute()` still runs and surfaces the structured failure
+  // (audit follow-up F9).
+  streamingFailedHard: boolean;
   // For artifact_create only — captures the outcome of `beginCreateStream`
   // so `execute()` knows whether to finalize the placeholder, hand off to
   // the existing `createArtifact` mutation (collision), or return a
@@ -81,6 +87,7 @@ export function initState(
     lastParsedLength: 0,
     lastParsedAt: 0,
     rowInitialized: false,
+    streamingFailedHard: false,
   };
   STATE.set(toolCallId, next);
   return next;
@@ -185,6 +192,10 @@ export function shouldParse(
   state: ArtifactStreamState,
   accumulatorLength: number,
 ): boolean {
+  // Hard-fail short-circuit: once preflight validation has rejected the
+  // path / artifact, every subsequent delta would re-trigger the same
+  // failure. Stop parsing the accumulator until `execute()` runs.
+  if (state.streamingFailedHard) return false;
   if (!state.rowInitialized) return true;
   const grew = accumulatorLength - state.lastParsedLength;
   const [byteDelta, minIntervalMs] = parseGateFor(accumulatorLength);

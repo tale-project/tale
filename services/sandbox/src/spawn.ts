@@ -117,16 +117,19 @@ export async function cancelExecution(executionId: string): Promise<boolean> {
   if (!entry) return false;
   entry.abort.abort('cancelled by client');
   // Hard ceiling on docker kill so a wedged daemon can't hang the cancel
-  // HTTP response. First try SIGTERM (graceful), fall back to SIGKILL.
+  // HTTP response. The timeoutMs is passed THROUGH to runDocker so the
+  // underlying Bun subprocess is killed too — earlier this used an outer
+  // `withTimeout` wrapper which only rejected the promise but left the
+  // docker CLI child running (audit follow-up F4).
   try {
-    await withTimeout(dockerKill(entry.containerName), 5_000);
+    await dockerKill(entry.containerName, 'TERM', { timeoutMs: 5_000 });
   } catch (err) {
     console.warn(
       `[sandbox.cancel] dockerKill timed out / failed for ${executionId}:`,
       err,
     );
     try {
-      await withTimeout(dockerKill(entry.containerName, 'KILL'), 5_000);
+      await dockerKill(entry.containerName, 'KILL', { timeoutMs: 5_000 });
     } catch (forceErr) {
       console.error(
         `[sandbox.cancel] forced dockerKill also failed for ${executionId}:`,
@@ -135,23 +138,6 @@ export async function cancelExecution(executionId: string): Promise<boolean> {
     }
   }
   return true;
-}
-
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      p,
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(`timeout after ${ms}ms`)),
-          ms,
-        );
-      }),
-    ]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
 }
 
 /**
@@ -436,10 +422,23 @@ process.exit(0);
  *
  * Exported so the unit test can exercise the path-traversal guard.
  */
+// Defaults for the pre-stage fetch. Overridable so unit tests can run
+// with tighter values without waiting on real timeouts.
+export const PRIOR_FETCH_DEFAULT_TIMEOUT_MS = 30_000;
+export const PRIOR_FETCH_DEFAULT_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
+
+interface StagePriorOpts {
+  timeoutMs?: number;
+  maxBytesPerFile?: number;
+}
+
 export async function stagePriorOutputDownloads(
   outputDir: string,
   downloads: ReadonlyArray<{ name: string; url: string }>,
+  opts: StagePriorOpts = {},
 ): Promise<PriorStageResult> {
+  const timeoutMs = opts.timeoutMs ?? PRIOR_FETCH_DEFAULT_TIMEOUT_MS;
+  const maxBytesPerFile = opts.maxBytesPerFile ?? PRIOR_FETCH_DEFAULT_MAX_BYTES;
   const staged: PriorStageResult['staged'] = [];
   const skipped: PriorStageResult['skipped'] = [];
   for (const file of downloads) {
@@ -455,13 +454,22 @@ export async function stagePriorOutputDownloads(
     }
     let res: Response;
     try {
-      res = await fetch(file.url);
+      // AbortSignal.timeout caps the round trip so a stalled presigned URL
+      // can't hang stageWorkspace indefinitely (audit follow-up F5).
+      res = await fetch(file.url, { signal: AbortSignal.timeout(timeoutMs) });
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
+      // AbortSignal.timeout rejects with a DOMException whose `name` is
+      // 'TimeoutError'; surface a distinct reason so the platform can
+      // distinguish "URL was reachable" from "URL hung".
+      const reason: PriorStageSkipReason =
+        err instanceof Error && err.name === 'TimeoutError'
+          ? 'fetch_timeout'
+          : 'fetch_failed';
       console.warn(
-        `[sandbox] prior-output fetch failed for ${JSON.stringify(file.name)}: ${detail}`,
+        `[sandbox] prior-output fetch ${reason} for ${JSON.stringify(file.name)}: ${detail}`,
       );
-      skipped.push({ name: file.name, reason: 'fetch_failed', detail });
+      skipped.push({ name: file.name, reason, detail });
       continue;
     }
     if (!res.ok) {
@@ -477,8 +485,67 @@ export async function stagePriorOutputDownloads(
       skipped.push({ name: file.name, reason, detail });
       continue;
     }
+    // Fast-fail on Content-Length when the server provides one — avoids
+    // streaming a known-too-large body just to reject it.
+    const contentLengthHeader = res.headers.get('content-length');
+    if (contentLengthHeader !== null) {
+      const declaredBytes = Number(contentLengthHeader);
+      if (Number.isFinite(declaredBytes) && declaredBytes > maxBytesPerFile) {
+        const detail = `Content-Length ${declaredBytes} exceeds cap ${maxBytesPerFile}`;
+        console.warn(
+          `[sandbox] prior-output download_too_large for ${JSON.stringify(file.name)}: ${detail}`,
+        );
+        skipped.push({
+          name: file.name,
+          reason: 'download_too_large',
+          detail,
+        });
+        continue;
+      }
+    }
     try {
-      const buf = Buffer.from(await res.arrayBuffer());
+      // Stream-and-cap. Without this a server that lies about (or omits)
+      // Content-Length could still smuggle gigabytes through, filling the
+      // host disk. We abort the read as soon as the running total crosses
+      // the cap.
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      let oversize = false;
+      if (res.body !== null) {
+        const reader = res.body.getReader();
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value === undefined) continue;
+            if (total + value.byteLength > maxBytesPerFile) {
+              oversize = true;
+              break;
+            }
+            chunks.push(value);
+            total += value.byteLength;
+          }
+        } finally {
+          try {
+            reader.releaseLock();
+          } catch (err) {
+            console.warn('[sandbox] prior-output reader.releaseLock:', err);
+          }
+        }
+      }
+      if (oversize) {
+        const detail = `streamed > ${maxBytesPerFile} bytes`;
+        console.warn(
+          `[sandbox] prior-output download_too_large for ${JSON.stringify(file.name)}: ${detail}`,
+        );
+        skipped.push({
+          name: file.name,
+          reason: 'download_too_large',
+          detail,
+        });
+        continue;
+      }
+      const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
       const sha256 = createHash('sha256').update(buf).digest('hex');
       await mkdir(dirname(dest), { recursive: true });
       await writeFile(dest, buf);
@@ -1076,12 +1143,16 @@ export async function executeRequest(
     //     CLI process too — covers the case where `docker kill` itself
     //     hangs (rare; would mean the daemon is in trouble).
     const killTimer = setTimeout(() => {
-      void dockerKill(containerName, 'KILL').catch((err) => {
-        console.warn(
-          `[sandbox] timeout-triggered dockerKill failed for ${containerName}:`,
-          err,
-        );
-      });
+      // Bounded so a wedged docker daemon doesn't leak the Bun subprocess
+      // (audit follow-up F4). Same 5s ceiling as cancelExecution.
+      void dockerKill(containerName, 'KILL', { timeoutMs: 5_000 }).catch(
+        (err) => {
+          console.warn(
+            `[sandbox] timeout-triggered dockerKill failed for ${containerName}:`,
+            err,
+          );
+        },
+      );
     }, timeoutMs);
     let result: Awaited<ReturnType<typeof runDocker>>;
     try {
@@ -1097,6 +1168,17 @@ export async function executeRequest(
       // event (audit finding R2-3 C3 partial). `stripPhaseMarkers` below
       // also handles the unterminated case via `split('\n')`.
       let lineBuf = '';
+      // Hard cap on lineBuf so a runtime that emits no newlines (a single
+      // multi-GB "log line") cannot grow the spawner heap. On overflow we
+      // flush the buffered prefix as a synthetic line and reset — the
+      // PHASE markers are short, so they're never inside such a blast.
+      const MAX_LINE_BUF_BYTES = 64 * 1024;
+      // Live-tail delta byte caps mirror `stdoutMaxBytes`/`stderrMaxBytes`
+      // (which only bound the spawner's buffered output). Without these
+      // caps `onStdoutDelta`/`onStderrDelta` would forward unbounded
+      // bytes to the SSE consumer even after truncation kicks in.
+      let stdoutDeltaBytes = 0;
+      let stderrDeltaBytes = 0;
       const decoder = new TextDecoder('utf-8', { fatal: false });
       const stderrDecoder = new TextDecoder('utf-8', { fatal: false });
       // PHASE-marker lines are stripped from the live tail (`onStdoutDelta`)
@@ -1108,26 +1190,44 @@ export async function executeRequest(
           opts.onPhase?.({ phase: 'installing' });
         } else if (line === PHASE_RUN) {
           opts.onPhase?.({ phase: 'running' });
-        } else if (opts.onStdoutDelta) {
-          opts.onStdoutDelta(`${line}\n`);
+        } else if (
+          opts.onStdoutDelta &&
+          stdoutDeltaBytes < cfg.stdoutMaxBytes
+        ) {
+          const payload = `${line}\n`;
+          stdoutDeltaBytes += payload.length;
+          opts.onStdoutDelta(payload);
         }
       };
       const wantStdoutScan = Boolean(opts.onPhase || opts.onStdoutDelta);
       const onStdoutChunk = wantStdoutScan
         ? (chunk: Uint8Array) => {
             lineBuf += decoder.decode(chunk, { stream: true });
+            // Flush any newline-delimited prefixes first so partial markers
+            // at the seam don't get clipped.
             let nl: number;
             while ((nl = lineBuf.indexOf('\n')) !== -1) {
               const line = lineBuf.slice(0, nl);
               lineBuf = lineBuf.slice(nl + 1);
               handleStdoutLine(line);
             }
+            // No-newline blast guard: if we still have a large pending
+            // buffer with no terminator, flush its prefix as a synthetic
+            // line so heap doesn't grow unbounded.
+            if (lineBuf.length > MAX_LINE_BUF_BYTES) {
+              const synthetic = lineBuf.slice(0, MAX_LINE_BUF_BYTES);
+              lineBuf = lineBuf.slice(MAX_LINE_BUF_BYTES);
+              handleStdoutLine(synthetic);
+            }
           }
         : undefined;
       const onStderrChunk = opts.onStderrDelta
         ? (chunk: Uint8Array) => {
+            if (stderrDeltaBytes >= cfg.stderrMaxBytes) return;
             const text = stderrDecoder.decode(chunk, { stream: true });
-            if (text.length > 0) opts.onStderrDelta?.(text);
+            if (text.length === 0) return;
+            stderrDeltaBytes += text.length;
+            opts.onStderrDelta?.(text);
           }
         : undefined;
       result = await runDocker(argv, {

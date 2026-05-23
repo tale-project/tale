@@ -2437,7 +2437,13 @@
         "RUNTIME_ERROR": "Runtime error",
         "SPAWNER_UNAVAILABLE": "Sandbox unavailable",
         "CANCELLED": "Cancelled",
-        "INPUT_REJECTED": "Input rejected"
+        "INPUT_REJECTED": "Input rejected",
+        "HARVEST_READ_FAILED": "Output read failed",
+        "UPLOAD_FAILED": "Upload failed",
+        "UPLOAD_QUOTA_EXCEEDED": "Upload quota exceeded",
+        "UPLOAD_REPORT_FAILED": "Upload report failed",
+        "PRE_STAGE_FAILED": "Pre-stage failed",
+        "UPLOAD_INCOMPLETE": "Upload incomplete"
       },
       "runProgress": {
         "queued": "Queued",

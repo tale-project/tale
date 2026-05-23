@@ -2437,7 +2437,13 @@
         "RUNTIME_ERROR": "Laufzeitfehler",
         "SPAWNER_UNAVAILABLE": "Sandbox nicht erreichbar",
         "CANCELLED": "Abgebrochen",
-        "INPUT_REJECTED": "Eingabe abgelehnt"
+        "INPUT_REJECTED": "Eingabe abgelehnt",
+        "HARVEST_READ_FAILED": "Ausgabe konnte nicht gelesen werden",
+        "UPLOAD_FAILED": "Upload fehlgeschlagen",
+        "UPLOAD_QUOTA_EXCEEDED": "Upload-Kontingent überschritten",
+        "UPLOAD_REPORT_FAILED": "Upload-Bestätigung fehlgeschlagen",
+        "PRE_STAGE_FAILED": "Vorbereitung fehlgeschlagen",
+        "UPLOAD_INCOMPLETE": "Upload unvollständig"
       },
       "runProgress": {
         "queued": "In Warteschlange",

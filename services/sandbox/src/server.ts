@@ -366,15 +366,14 @@ async function router(req: Request): Promise<Response> {
 }
 
 async function main(): Promise<void> {
-  // Fail-closed: refuse to start without a token unless the operator has
-  // explicitly opted in to dev-mode unauth. Production deploys auto-mint
-  // SANDBOX_TOKEN via the CLI's ensure-env helper, so the only way to hit
-  // this branch is a misconfiguration or an explicit `bun dev` opt-in.
-  if (cfg.sandboxToken === null && !cfg.allowUnauth) {
-    console.error(
-      '[sandbox] FATAL: SANDBOX_TOKEN is unset. Set a token, or pass SANDBOX_ALLOW_UNAUTH=true for dev-only unauth mode (rag/crawler-parity).',
+  // Token policy: SANDBOX_TOKEN is opt-in verification. Unset = skip HMAC
+  // (mirrors the Convex-side behavior); set = enforce. Production deploys
+  // auto-mint SANDBOX_TOKEN via the CLI's ensure-env helper. Log a single
+  // warn at boot so operators see the state.
+  if (cfg.sandboxToken === null) {
+    console.warn(
+      '[sandbox] SANDBOX_TOKEN is unset — HMAC verification disabled. Set SANDBOX_TOKEN to enable request authentication.',
     );
-    process.exit(1);
   }
 
   // Cross-process lock BEFORE bootSweep — refuses to start if another live

@@ -19,6 +19,7 @@ import {
   readdir,
   rm,
   stat,
+  utimes,
   writeFile,
 } from 'node:fs/promises';
 import { hostname } from 'node:os';
@@ -34,6 +35,13 @@ const SPAWNER_LOCK_FILE = '.spawner.lock';
 // as still alive and refuse to start. Otherwise we assume the previous
 // process crashed without cleanup and take over the lock.
 const SPAWNER_LOCK_FRESH_MS = 60_000;
+// Refresh the lock's mtime at 1/3 of the freshness window so a peer
+// looking for a "fresh" lock always sees one as long as we're alive.
+// Without this the lock starts looking stale once we cross the
+// freshness threshold and a second spawner would happily reclaim it,
+// defeating the lock's only purpose (audit follow-up F15).
+const SPAWNER_LOCK_REFRESH_MS = Math.floor(SPAWNER_LOCK_FRESH_MS / 3);
+let lockRefreshHandle: ReturnType<typeof setInterval> | undefined;
 
 interface SpawnerLockPayload {
   pid: number;
@@ -58,7 +66,11 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
   const lockPath = join(cfg.hostSessionRoot, SPAWNER_LOCK_FILE);
   try {
     const st = await stat(lockPath);
-    const age = Date.now() - st.mtimeMs;
+    // Clamp to [0, ∞) to defend against backward wall-clock skew (NTP
+    // step, VM snapshot resume). A negative `age` would otherwise read
+    // as "fresh forever" via the `<` comparison even though the lock
+    // hasn't been touched in minutes (audit follow-up F15).
+    const age = Math.max(0, Date.now() - st.mtimeMs);
     if (age < SPAWNER_LOCK_FRESH_MS) {
       let existing = '<unreadable>';
       try {
@@ -99,6 +111,21 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
     bootEpoch: Date.now(),
   };
   await writeFile(lockPath, JSON.stringify(payload));
+  // Keep the lock visibly "alive" via mtime refresh while the process
+  // runs. Stops a long-running spawner from accidentally looking stale
+  // to a peer that started later than SPAWNER_LOCK_FRESH_MS after our
+  // initial write.
+  if (lockRefreshHandle !== undefined) clearInterval(lockRefreshHandle);
+  lockRefreshHandle = setInterval(() => {
+    const now = Date.now() / 1000;
+    utimes(lockPath, now, now).catch((err) => {
+      console.warn(`[sandbox.lock] refresh ${lockPath} failed:`, err);
+    });
+  }, SPAWNER_LOCK_REFRESH_MS);
+  // Don't keep the event loop alive solely to refresh the lock — the
+  // shutdown handler will clear this. .unref() avoids a hung-process
+  // case if every other timer is cleared.
+  lockRefreshHandle.unref?.();
 }
 
 /**
@@ -106,6 +133,10 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
  * out the freshness window.
  */
 async function releaseSpawnerLock(cfg: SpawnerConfig): Promise<void> {
+  if (lockRefreshHandle !== undefined) {
+    clearInterval(lockRefreshHandle);
+    lockRefreshHandle = undefined;
+  }
   const lockPath = join(cfg.hostSessionRoot, SPAWNER_LOCK_FILE);
   try {
     await rm(lockPath, { force: true });

@@ -255,4 +255,83 @@ describe('stagePriorOutputDownloads', () => {
       'unsafe_path',
     ]);
   });
+
+  test('classifies stalled fetch as fetch_timeout skip', async () => {
+    // Server that never responds; the timeoutMs override triggers
+    // AbortSignal.timeout before any data comes back.
+    const slowServer = Bun.serve({
+      port: 0,
+      async fetch() {
+        await new Promise<void>(() => {
+          /* never resolves */
+        });
+        return new Response('unreachable');
+      },
+    });
+    try {
+      const result = await stagePriorOutputDownloads(
+        outputDir,
+        [{ name: 'slow.txt', url: `http://localhost:${slowServer.port}/` }],
+        { timeoutMs: 50 },
+      );
+      expect(result.staged).toEqual([]);
+      expect(result.skipped).toHaveLength(1);
+      expect(result.skipped[0]).toMatchObject({
+        name: 'slow.txt',
+        reason: 'fetch_timeout',
+      });
+    } finally {
+      void slowServer.stop();
+    }
+  });
+
+  test('rejects oversize body via Content-Length pre-check', async () => {
+    const bigPayload = new Uint8Array(10_000); // server lies/doesn't, see below
+    const url = urlFor('big', bigPayload);
+    const result = await stagePriorOutputDownloads(
+      outputDir,
+      [{ name: 'big.bin', url }],
+      { maxBytesPerFile: 1_000 },
+    );
+    expect(result.staged).toEqual([]);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]).toMatchObject({
+      name: 'big.bin',
+      reason: 'download_too_large',
+    });
+  });
+
+  test('rejects oversize body via streaming cap when Content-Length is absent', async () => {
+    // Bun.serve with a ReadableStream body usually omits Content-Length,
+    // so the size check has to be enforced by the streaming-read path.
+    const chunkBytes = new Uint8Array(512);
+    const chunks = 8;
+    const streamServer = Bun.serve({
+      port: 0,
+      fetch() {
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (let i = 0; i < chunks; i++) controller.enqueue(chunkBytes);
+            controller.close();
+          },
+        });
+        return new Response(stream, { status: 200 });
+      },
+    });
+    try {
+      const result = await stagePriorOutputDownloads(
+        outputDir,
+        [{ name: 'stream.bin', url: `http://localhost:${streamServer.port}/` }],
+        { maxBytesPerFile: 1_000 },
+      );
+      expect(result.staged).toEqual([]);
+      expect(result.skipped).toHaveLength(1);
+      expect(result.skipped[0]).toMatchObject({
+        name: 'stream.bin',
+        reason: 'download_too_large',
+      });
+    } finally {
+      void streamServer.stop();
+    }
+  });
 });

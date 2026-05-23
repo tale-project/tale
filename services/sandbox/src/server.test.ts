@@ -56,22 +56,18 @@ describe('cancel route regex', () => {
   });
 });
 
-describe('loadConfig fail-closed defaults', () => {
-  test('returns null token + allowUnauth=false on a fresh env', () => {
-    // server.ts main() relies on `cfg.sandboxToken === null && !cfg.allowUnauth`
-    // to refuse to start. Drop the env vars and re-parse to verify the config
-    // surface matches that contract.
-    const prevToken = process.env.SANDBOX_TOKEN;
-    const prevAllow = process.env.SANDBOX_ALLOW_UNAUTH;
+describe('loadConfig token defaults', () => {
+  test('returns null token on a fresh env (opt-in verification)', () => {
+    // server.ts main() only warns when sandboxToken is null; the wire path's
+    // `authorize()` returns null and skips HMAC checks. Drop the env var
+    // and re-parse to confirm the config surface matches the policy.
+    const prev = process.env.SANDBOX_TOKEN;
     delete process.env.SANDBOX_TOKEN;
-    delete process.env.SANDBOX_ALLOW_UNAUTH;
     try {
       const cfg = loadConfig();
       expect(cfg.sandboxToken).toBeNull();
-      expect(cfg.allowUnauth).toBe(false);
     } finally {
-      if (prevToken !== undefined) process.env.SANDBOX_TOKEN = prevToken;
-      if (prevAllow !== undefined) process.env.SANDBOX_ALLOW_UNAUTH = prevAllow;
+      if (prev !== undefined) process.env.SANDBOX_TOKEN = prev;
     }
   });
 

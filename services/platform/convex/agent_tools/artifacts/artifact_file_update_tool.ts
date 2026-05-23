@@ -17,7 +17,12 @@ import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
 import { applyPackagesAddIfAny, isStringFieldClosed } from './_packages_helper';
-import { isRunnableArtifactType } from './shared';
+import {
+  InvalidArtifactPathError,
+  extractToolErrorShape,
+  isRunnableArtifactType,
+  validatePath,
+} from './shared';
 import {
   clearState,
   getState,
@@ -95,7 +100,7 @@ There is no \`append\` and no patch mode — splitting is the only way for files
 
 **RUNNABLE ARTIFACTS:** if the updated file imports a new dependency, set \`packages_add\` (or follow up with \`artifact_packages_add\`). Edits do NOT auto-execute — call \`artifact_run\` to re-run.
 
-**RESPONSE:** \`{revision, path, byteLength, message}\`. Errors carry \`code\` (\`not_found\`, \`stale\`, \`file_missing\`, \`streaming_in_progress\`, \`too_large\`).`,
+**RESPONSE:** \`{revision, path, byteLength, message}\`. Errors carry \`code\` (\`not_found\`, \`stale\`, \`file_missing\`, \`too_large\`, \`too_many_files\`, \`duplicate_path\`, \`empty_project\`, \`invalid_path\`). Some failures (unhandled exceptions) come back with only \`message\`.`,
     inputSchema: fileUpdateArgs,
     onInputStart: async (_ctx: ToolCtx, options: ToolExecutionOptions) => {
       initState(options.toolCallId, 'artifact_file_update');
@@ -166,6 +171,24 @@ There is no \`append\` and no patch mode — splitting is the only way for files
         path.length > 0 &&
         isStringFieldClosed(state.accumulator, 'path')
       ) {
+        // Pre-validate the path BEFORE issuing beginEditStream — that
+        // mutation runs `validatePath()` itself, so a malformed path
+        // would throw mid-stream and spam WARN on every subsequent
+        // delta. Set the sticky hard-fail flag instead (audit follow-up
+        // F9).
+        try {
+          validatePath(path);
+        } catch (err) {
+          if (err instanceof InvalidArtifactPathError) {
+            state.streamingFailedHard = true;
+            console.warn(
+              '[artifact_file_update] streaming-preflight rejected invalid path',
+              { path, code: err.code },
+            );
+            return;
+          }
+          throw err;
+        }
         state.resolvedMode = 'rewrite';
         try {
           await ctx.runMutation(
@@ -179,8 +202,7 @@ There is no \`append\` and no patch mode — splitting is the only way for files
           );
           state.rowInitialized = true;
         } catch (err) {
-          // Defensive: beginEditStream only throws `not_found` now (mutex
-          // removed). execute() will surface that via its own preflight.
+          state.streamingFailedHard = true;
           console.warn(
             '[artifact_file_update] beginEditStream failed, deferring',
             {
@@ -292,10 +314,11 @@ There is no \`append\` and no patch mode — splitting is the only way for files
             { artifactId: state.artifactId },
           );
         }
-        const message = err instanceof Error ? err.message : String(err);
+        const shape = extractToolErrorShape(err);
         return {
           success: false,
-          message: `artifact_file_update failed: ${message}`,
+          ...(shape.code !== undefined && { code: shape.code }),
+          message: `artifact_file_update failed: ${shape.message}`,
         };
       } finally {
         clearState(options.toolCallId);
