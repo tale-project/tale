@@ -1,17 +1,14 @@
 'use client';
 
+import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
+import { HStack, Stack } from '@tale/ui/layout';
+import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
+import { Text } from '@tale/ui/text';
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-guide';
-import {
-  type StatGridItem,
-  StatGrid,
-} from '@/app/components/ui/data-display/stat-grid';
-import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import type { Integration } from '../../hooks/use-integration-manage';

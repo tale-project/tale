@@ -1,11 +1,11 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Folder, Workflow } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 

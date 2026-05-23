@@ -1,18 +1,15 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Card } from '@tale/ui/card';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { Heading } from '@tale/ui/heading';
 import { IconButton } from '@tale/ui/icon-button';
+import { Center, HStack, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { Ellipsis, Pencil, Server, Trash2, Wrench } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { Card } from '@/app/components/ui/layout/card';
-import { Center, HStack, Stack } from '@/app/components/ui/layout/layout';
-import {
-  DropdownMenu,
-  type DropdownMenuGroup,
-} from '@/app/components/ui/overlays/dropdown-menu';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import type { McpServerListItem } from './types';

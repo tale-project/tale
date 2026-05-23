@@ -1,10 +1,10 @@
 'use client';
 
 import { LinkButton } from '@tale/ui/button';
+import { Heading } from '@tale/ui/heading';
+import { Text } from '@tale/ui/text';
 import { MessageSquare } from 'lucide-react';
 
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 interface ActivateConversationsEmptyStateProps {

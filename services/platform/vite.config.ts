@@ -1,6 +1,7 @@
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
 import { injectEnv } from './vite-plugins/inject-env';
@@ -147,5 +148,99 @@ export default defineConfig({
     serveBrandingImages(),
     serveCanvasPreview(),
     serveStatus(),
+    VitePWA({
+      registerType: 'prompt',
+      injectRegister: null,
+      strategies: 'generateSW',
+      workbox: {
+        // Precache only the offline shell + minimal branding assets.
+        // The platform is an online-required app, so JS/CSS bundles are
+        // intentionally not precached — when offline, users see the shell.
+        globPatterns: [
+          '**/*.html',
+          '**/*.webmanifest',
+          '**/*.svg',
+          '**/*.ico',
+          'favicon-*.png',
+          'assets/pwa-*.png',
+          'assets/apple-touch-*.png',
+          'assets/maskable-*.png',
+        ],
+        navigateFallback: '/offline.html',
+        navigateFallbackDenylist: [
+          /^\/ws_api\//,
+          /^\/http_api\//,
+          /^\/api\//,
+          /^\/status$/,
+        ],
+        runtimeCaching: [
+          {
+            urlPattern: /\/assets\/.*\.(?:png|jpg|jpeg|svg|webp|ico)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'tale-assets',
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+          {
+            urlPattern: /\.(?:woff2?|ttf)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'tale-fonts',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+        ],
+        cleanupOutdatedCaches: true,
+      },
+      includeAssets: [
+        'favicon.ico',
+        'favicon-light.png',
+        'favicon-dark.png',
+        'offline.html',
+        'assets/apple-touch-icon-180x180.png',
+      ],
+      manifest: {
+        name: 'Tale',
+        short_name: 'Tale',
+        description: 'AI-powered customer support platform',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        background_color: '#fcfcfc',
+        theme_color: '#09090b',
+        orientation: 'any',
+        categories: ['business', 'productivity'],
+        icons: [
+          {
+            src: 'assets/pwa-64x64.png',
+            sizes: '64x64',
+            type: 'image/png',
+          },
+          {
+            src: 'assets/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: 'assets/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: 'assets/maskable-icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      devOptions: {
+        enabled: true,
+        type: 'module',
+        navigateFallback: '/offline.html',
+      },
+    }),
   ],
 });

@@ -1,16 +1,16 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Heading } from '@tale/ui/heading';
+import { Center, HStack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { decode } from 'he';
 import { ClipboardList, Inbox, Loader2, Mail, Sparkles } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import striptags from 'striptags';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { Center, HStack } from '@/app/components/ui/layout/layout';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

@@ -1,9 +1,9 @@
+import { Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute } from '@tanstack/react-router';
 import { Suspense, lazy, useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { seo } from '@/lib/utils/seo';
 
 import 'swagger-ui-react/swagger-ui.css';
@@ -68,7 +68,7 @@ function ApiDocsPage() {
   };
 
   return (
-    <div className="bg-background min-h-screen" onClickCapture={handleClick}>
+    <div className="bg-background min-h-dvh" onClickCapture={handleClick}>
       <main className="swagger-ui-standalone">
         <Suspense fallback={<SwaggerSkeleton />}>
           <SwaggerUI {...swaggerConfig} />

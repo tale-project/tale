@@ -1,12 +1,12 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { EmptyState } from '@tale/ui/empty-state';
+import { Center } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Image, Download, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
-import { EmptyState } from '@/app/components/ui/feedback/empty-state';
-import { Center } from '@/app/components/ui/layout/layout';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { getFileExtension } from '@/lib/utils/document-helpers';

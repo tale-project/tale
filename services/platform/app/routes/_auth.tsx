@@ -1,6 +1,6 @@
+import { VStack, Spacer } from '@tale/ui/layout';
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
 
-import { VStack, Spacer } from '@/app/components/ui/layout/layout';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
 import { authClient } from '@/lib/auth-client';
 
@@ -19,7 +19,7 @@ function AuthLayout() {
     <VStack
       gap={0}
       align="stretch"
-      className="bg-background text-foreground min-h-screen"
+      className="bg-background text-foreground min-h-dvh"
     >
       <div className="px-4 pt-8 pb-16 sm:px-8 md:pb-32">
         <LogoLink href="/" />

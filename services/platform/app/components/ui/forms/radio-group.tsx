@@ -1,6 +1,7 @@
 'use client';
 
 import * as RadioGroupPrimitive from '@radix-ui/react-radio-group';
+import { Description } from '@tale/ui/description';
 import { Circle } from 'lucide-react';
 import {
   forwardRef,
@@ -12,7 +13,6 @@ import {
 
 import { cn } from '@/lib/utils/cn';
 
-import { Description } from './description';
 import { Label } from './label';
 
 export interface RadioGroupOption {

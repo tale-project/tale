@@ -1,13 +1,13 @@
 'use client';
 
+import { EmptyState } from '@tale/ui/empty-state';
+import { HStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Database } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { EmptyState } from '@/app/components/ui/feedback/empty-state';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import type { SharePointDrive } from './types';

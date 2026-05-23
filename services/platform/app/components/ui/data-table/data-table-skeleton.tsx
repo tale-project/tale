@@ -1,9 +1,7 @@
 'use client';
 
+import { Stack, HStack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
-import type { ColumnDef } from '@tanstack/react-table';
-import type { ReactNode } from 'react';
-
 import {
   Table,
   TableBody,
@@ -11,8 +9,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/app/components/ui/data-display/table';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
+} from '@tale/ui/table';
+import type { ColumnDef } from '@tanstack/react-table';
+import type { ReactNode } from 'react';
+
 import { cn } from '@/lib/utils/cn';
 
 /** Skeleton type for different cell content patterns */

@@ -1,9 +1,16 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { EmptyState } from '@tale/ui/empty-state';
+import { Heading } from '@tale/ui/heading';
+import { HStack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Spinner } from '@tale/ui/spinner';
+import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
+import { Text } from '@tale/ui/text';
 import { FileText, Search as SearchIcon } from 'lucide-react';
 import {
   type ChangeEvent,
@@ -15,18 +22,8 @@ import {
 } from 'react';
 
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
-import {
-  type StatGridItem,
-  StatGrid,
-} from '@/app/components/ui/data-display/stat-grid';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { EmptyState } from '@/app/components/ui/feedback/empty-state';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';

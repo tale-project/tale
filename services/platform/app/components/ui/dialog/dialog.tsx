@@ -14,22 +14,25 @@ import { cn } from '@/lib/utils/cn';
 // =============================================================================
 
 const dialogContentVariants = cva(
-  // `flex flex-col` + explicit `max-h-[90vh]` keeps the dialog from escaping
-  // the viewport even when its body is tall (e.g. the endpoint editor in
-  // governance). Header and footer are rendered outside the overflow wrapper
-  // below so they stay pinned while the middle section scrolls — without
-  // this, Radix centers a tall dialog by translate-y-[-50%] and clips both
-  // ends of it, hiding the footer buttons.
-  'fixed left-[50%] top-[50%] z-50 flex flex-col w-full border-none translate-x-[-50%] translate-y-[-50%] gap-4 ring-1 ring-border bg-card p-4 sm:p-6 pt-5 shadow-lg max-h-[90vh] duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-2xl',
+  // Mobile: bottom sheet anchored to the viewport bottom with safe-area-aware
+  // padding. md+: classic centered dialog. `dvh` keeps iOS Safari's dynamic
+  // chrome from clipping the dialog at the top or bottom. Header and footer
+  // are rendered outside the overflow wrapper below so they stay pinned
+  // while the middle section scrolls.
+  'fixed z-50 flex flex-col border-none gap-4 ring-1 ring-border bg-card shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none ' +
+    // Mobile: bottom sheet
+    'inset-x-0 bottom-0 top-auto left-0 right-0 w-full max-w-full max-h-[88dvh] rounded-t-2xl rounded-b-none p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4 ' +
+    // md+: centered dialog
+    'md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:inset-x-auto md:w-full md:-translate-x-1/2 md:-translate-y-1/2 md:max-h-[90dvh] md:p-6 md:pb-6 md:pt-5 md:rounded-2xl md:data-[state=open]:zoom-in-95 md:data-[state=closed]:zoom-out-95 md:data-[state=open]:slide-in-from-bottom-0 md:data-[state=closed]:slide-out-to-bottom-0',
   {
     variants: {
       size: {
-        sm: 'max-w-sm',
-        default: 'max-w-[24rem]',
-        md: 'max-w-md',
-        lg: 'max-w-lg',
-        xl: 'max-w-xl',
-        wide: 'max-w-[1100px] w-[95vw]',
+        sm: 'md:max-w-sm',
+        default: 'md:max-w-[24rem]',
+        md: 'md:max-w-md',
+        lg: 'md:max-w-lg',
+        xl: 'md:max-w-xl',
+        wide: 'md:max-w-[1100px] md:w-[95vw]',
       },
     },
     defaultVariants: {

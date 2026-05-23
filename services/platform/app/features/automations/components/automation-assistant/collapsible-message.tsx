@@ -1,12 +1,12 @@
 'use client';
 
+import { VStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { ChevronDown, ChevronUp, Bot } from 'lucide-react';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { VStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';
 
 const USER_MESSAGE_TRUNCATE_LENGTH = 120;

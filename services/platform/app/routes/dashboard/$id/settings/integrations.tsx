@@ -1,12 +1,12 @@
 import { convexQuery } from '@convex-dev/react-query';
+import { Card } from '@tale/ui/card';
+import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { Card } from '@/app/components/ui/layout/card';
-import { Grid, HStack, Stack } from '@/app/components/ui/layout/layout';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { getTemplateIconUrl } from '@/app/features/settings/integrations/components/integration-upload/constants/integration-templates';
 import {

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
 import { useBlocker } from '@tanstack/react-router';
 import { History, Loader2, Save, Undo2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -10,10 +11,6 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
-import {
-  DropdownMenu,
-  type DropdownMenuItem,
-} from '@/app/components/ui/overlays/dropdown-menu';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';

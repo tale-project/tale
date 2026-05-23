@@ -1,9 +1,8 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-
-import { Text } from '@/app/components/ui/typography/text';
 
 interface AutomationDetailsCollapseProps {
   context: string;

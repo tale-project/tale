@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -13,7 +14,6 @@ import { ValidationCheckList } from '@/app/components/ui/feedback/validation-che
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';

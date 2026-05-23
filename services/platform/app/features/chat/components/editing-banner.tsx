@@ -1,9 +1,9 @@
 'use client';
 
+import { Popover } from '@tale/ui/popover';
 import { AlertTriangle, ChevronDown, Pencil, X } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
-import { Popover } from '@/app/components/ui/overlays/popover';
 import { useT } from '@/lib/i18n/client';
 
 import {

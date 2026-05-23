@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useNavigate } from '@tanstack/react-router';
 import {
   Clock,
@@ -14,10 +15,6 @@ import {
 import { useEffect, useState, useCallback, useMemo } from 'react';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
-import {
-  DropdownMenu,
-  type DropdownMenuGroup,
-} from '@/app/components/ui/overlays/dropdown-menu';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';

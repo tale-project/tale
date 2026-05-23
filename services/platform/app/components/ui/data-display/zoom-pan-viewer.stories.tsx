@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Text } from '@tale/ui/text';
 
-import { Text } from '../typography/text';
 import { ZoomPanViewer } from './zoom-pan-viewer';
 
 const SAMPLE_IMAGE =

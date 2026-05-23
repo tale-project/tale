@@ -100,6 +100,7 @@ vi.mock('@/app/components/branding/branding-provider', () => ({
   BrandingProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
+  useBrandingContext: () => ({ accentColor: undefined, logoUrl: undefined }),
 }));
 
 vi.mock('@/app/components/layout/adaptive-header', () => ({

@@ -1,4 +1,7 @@
 import { Button } from '@tale/ui/button';
+import { Heading } from '@tale/ui/heading';
+import { Stack, VStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 /**
  * Post-grace enrollment wall. The sign-in after-hook returns
  * `{ twoFactorRedirect: true, enrollRequired: true }` when an org policy
@@ -21,10 +24,7 @@ import { useState } from 'react';
 import { z } from 'zod';
 
 import { Input } from '@/app/components/ui/forms/input';
-import { Stack, VStack } from '@/app/components/ui/layout/layout';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
@@ -139,7 +139,7 @@ function TwoFactorEnrollPage() {
     <VStack
       gap={0}
       align="stretch"
-      className="bg-background text-foreground min-h-screen"
+      className="bg-background text-foreground min-h-dvh"
     >
       <div className="px-4 pt-8 pb-8 sm:px-8">
         <LogoLink href="/" />

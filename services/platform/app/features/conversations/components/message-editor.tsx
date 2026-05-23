@@ -7,13 +7,13 @@ import {
   useEditor,
   useInstance,
 } from '@milkdown/react';
+import { Text } from '@tale/ui/text';
 import DOMPurify from 'dompurify';
 import { LoaderIcon } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactMarkdown from 'react-markdown';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';

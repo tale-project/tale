@@ -1,10 +1,10 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Popover } from '@tale/ui/popover';
+import { Text } from '@tale/ui/text';
 import { useMemo } from 'react';
 
-import { Popover } from '@/app/components/ui/overlays/popover';
-import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Doc } from '@/convex/_generated/dataModel';
 import type { CustomerInfo } from '@/convex/conversations/types';

@@ -1,10 +1,10 @@
 'use client';
 
+import { Heading } from '@tale/ui/heading';
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { useCallback } from 'react';
 
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 

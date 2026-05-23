@@ -1,8 +1,8 @@
 import { Button } from '@tale/ui/button';
+import { Heading } from '@tale/ui/heading';
+import { Text } from '@tale/ui/text';
 import { Loader2Icon } from 'lucide-react';
 
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 interface BulkSendDialogProps {

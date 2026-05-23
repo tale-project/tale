@@ -1,11 +1,11 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { Info } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';

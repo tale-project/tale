@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { useCallback, useRef } from 'react';
 
 import { DialogErrorBoundary } from '@/app/components/error-boundaries/boundaries/dialog-error-boundary';
@@ -8,7 +9,6 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { Stack } from '../layout/layout';
 import { Dialog } from './dialog';
 
 const preventDefaultSubmit = (e: React.FormEvent) => e.preventDefault();

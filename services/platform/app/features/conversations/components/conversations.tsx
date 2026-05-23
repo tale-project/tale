@@ -1,6 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
+import { LoadingOverlay } from '@tale/ui/loading-overlay';
 import type { UsePaginatedQueryResult } from 'convex/react';
 import {
   ArchiveIcon,
@@ -13,13 +15,8 @@ import {
 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
-import { LoadingOverlay } from '@/app/components/ui/feedback/loading-overlay';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import {
-  DropdownMenu,
-  type DropdownMenuItem,
-} from '@/app/components/ui/overlays/dropdown-menu';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import type { ConversationItem } from '@/convex/conversations/types';
 import { useT } from '@/lib/i18n/client';

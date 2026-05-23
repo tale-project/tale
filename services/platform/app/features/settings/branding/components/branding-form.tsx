@@ -2,6 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { HStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
@@ -9,8 +11,6 @@ import { useBrandingContext } from '@/app/components/branding/branding-provider'
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {

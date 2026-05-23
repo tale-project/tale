@@ -1,9 +1,9 @@
+import { HStack, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { FormSection } from '@/app/components/ui/forms/form-section';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { BrandingSettings } from '@/app/features/settings/branding/components/branding-settings';
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';

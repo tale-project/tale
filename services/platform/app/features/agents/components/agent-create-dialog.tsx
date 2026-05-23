@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -12,7 +13,6 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Text } from '@/app/components/ui/typography/text';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';

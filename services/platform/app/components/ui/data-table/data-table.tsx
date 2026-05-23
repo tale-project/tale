@@ -1,8 +1,19 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { HStack, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Spinner } from '@tale/ui/spinner';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
+import { Text } from '@tale/ui/text';
 import {
   flexRender,
   getCoreRowModel,
@@ -30,18 +41,7 @@ import type { DateRange } from 'react-day-picker';
 
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/app/components/ui/data-display/table';
 import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useInfiniteScroll } from '@/app/hooks/use-infinite-scroll';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
@@ -742,7 +742,7 @@ export function DataTable<TData, TValue = unknown>({
       >
         <div className={cn('space-y-4', className)}>
           {headerContent}
-          <div className="border-border overflow-hidden rounded-lg border">
+          <div className="border-border overflow-x-auto rounded-lg border">
             {tableContent}
             {infiniteScrollContent}
             {entityCountFooter}

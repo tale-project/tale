@@ -2,13 +2,13 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { PageSection } from '@tale/ui/page-section';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Copy, Info, ShieldAlert } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { Select } from '@/app/components/ui/forms/select';
-import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';

@@ -1,13 +1,13 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { useCallback, useState } from 'react';
 
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
 
 import type { McpServerListItem } from './types';

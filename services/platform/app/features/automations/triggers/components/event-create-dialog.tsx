@@ -1,12 +1,12 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { useState, useMemo, useEffect } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
-import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import {

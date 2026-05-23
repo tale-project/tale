@@ -1,12 +1,12 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Swords } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 

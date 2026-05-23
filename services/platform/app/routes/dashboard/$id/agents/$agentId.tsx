@@ -1,4 +1,7 @@
+import { Heading } from '@tale/ui/heading';
+import { Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,13 +9,10 @@ import { useTranslation } from 'react-i18next';
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { Stack } from '@/app/components/ui/layout/layout';
 import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { AgentNavigation } from '@/app/features/agents/components/agent-navigation';
 import { useReadAgent } from '@/app/features/agents/hooks/queries';
 import { AgentConfigProvider } from '@/app/features/agents/hooks/use-agent-config-context';

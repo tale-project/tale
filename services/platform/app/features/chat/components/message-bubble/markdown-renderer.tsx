@@ -1,5 +1,12 @@
 'use client';
 
+import {
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
 import { useRouter } from '@tanstack/react-router';
 import {
   Children,
@@ -13,13 +20,6 @@ import {
 
 import { Image } from '@/app/components/ui/data-display/image';
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
-import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/app/components/ui/data-display/table';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { classifyLink } from '@/lib/utils/link-classifier';

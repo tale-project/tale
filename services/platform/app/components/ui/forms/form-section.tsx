@@ -1,10 +1,9 @@
 'use client';
 
+import { Description } from '@tale/ui/description';
 import { useId, type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
-
-import { Description } from './description';
 
 interface FormSectionProps {
   label?: string;

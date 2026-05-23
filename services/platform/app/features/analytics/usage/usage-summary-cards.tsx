@@ -1,9 +1,9 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { Info } from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 

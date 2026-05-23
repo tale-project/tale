@@ -1,6 +1,9 @@
 'use client';
 
 import { IconButton } from '@tale/ui/icon-button';
+import { Stack } from '@tale/ui/layout';
+import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
+import { Text } from '@tale/ui/text';
 import { Copy, Check } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
@@ -8,14 +11,8 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 
-import {
-  type StatGridItem,
-  StatGrid,
-} from '@/app/components/ui/data-display/stat-grid';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';

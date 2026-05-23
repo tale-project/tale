@@ -1,13 +1,12 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { memo } from 'react';
 
 import { useZoomPan } from '@/app/hooks/use-zoom-pan';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-
-import { Text } from '../typography/text';
 
 interface ZoomPanViewerProps {
   /** Image source URL */

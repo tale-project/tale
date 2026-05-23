@@ -1,13 +1,13 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { Upload } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 
 import { FilePreviewCard } from '@/app/components/ui/data-display/file-preview-card';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {

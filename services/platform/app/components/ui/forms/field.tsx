@@ -1,8 +1,7 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { forwardRef, HTMLAttributes, ReactNode, useId } from 'react';
-
-import { Stack } from '../layout/layout';
 
 interface FieldProps extends HTMLAttributes<HTMLDivElement> {
   /** The label to display above the value */

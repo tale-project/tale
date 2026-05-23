@@ -1,5 +1,6 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { AnimatePresence } from 'framer-motion';
 import { Bot, CheckCircle2, LoaderCircle } from 'lucide-react';
 import { useMemo } from 'react';
@@ -8,7 +9,6 @@ import remarkGfm from 'remark-gfm';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Image } from '@/app/components/ui/data-display/image';
-import { Text } from '@/app/components/ui/typography/text';
 import { ApprovalCardRenderer } from '@/app/features/chat/components/approval-card-renderer';
 import { CollapsibleSystemMessage } from '@/app/features/chat/components/collapsible-system-message';
 import { FileAttachmentDisplay } from '@/app/features/chat/components/message-bubble/file-displays';

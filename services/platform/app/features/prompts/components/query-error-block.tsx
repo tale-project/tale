@@ -1,8 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Text } from '@tale/ui/text';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 interface QueryErrorBlockProps {

@@ -1,10 +1,10 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Heading } from '@tale/ui/heading';
+import { Text } from '@tale/ui/text';
 import { Position } from '@xyflow/react';
 
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

@@ -2,12 +2,12 @@
 
 import { Button } from '@tale/ui/button';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { AlertTriangle, Ban, Clock, RefreshCcw } from 'lucide-react';
 import { useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Text } from '@/app/components/ui/typography/text';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 

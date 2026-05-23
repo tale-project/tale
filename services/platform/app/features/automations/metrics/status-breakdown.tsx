@@ -1,9 +1,9 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { Clock } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 

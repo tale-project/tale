@@ -1,13 +1,13 @@
 'use client';
 
+import { HStack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 import type { DocumentItem } from '@/types/documents';

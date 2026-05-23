@@ -1,4 +1,6 @@
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import {
   createFileRoute,
   useNavigate,
@@ -10,8 +12,6 @@ import { z } from 'zod';
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';

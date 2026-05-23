@@ -1,9 +1,12 @@
 'use client';
 
+import { ActionRow } from '@tale/ui/action-row';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
+import { Center, HStack, Stack } from '@tale/ui/layout';
 import { StatusIndicator } from '@tale/ui/status-indicator';
+import { Text } from '@tale/ui/text';
 import { CheckCircle, Loader2, X, XCircle } from 'lucide-react';
 
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
@@ -11,10 +14,7 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { ActionRow } from '@/app/components/ui/layout/action-row';
-import { Center, HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Text } from '@/app/components/ui/typography/text';
 import type {
   PlatformRole,
   SsoProvider,

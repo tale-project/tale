@@ -1,14 +1,14 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Heading } from '@tale/ui/heading';
+import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { GitFork, ArrowLeft, Loader2 } from 'lucide-react';
 import { useCallback, useId, useState } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';

@@ -1,15 +1,15 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
+import { PageSection } from '@tale/ui/page-section';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Text } from '@/app/components/ui/typography/text';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';

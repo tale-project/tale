@@ -2,6 +2,8 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { HStack, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import {
   AlertTriangle,
   Check,
@@ -16,9 +18,7 @@ import {
 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Text } from '@/app/components/ui/typography/text';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';

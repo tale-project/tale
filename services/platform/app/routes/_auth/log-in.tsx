@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { Separator } from '@tale/ui/separator';
 import {
   createFileRoute,
@@ -14,7 +15,6 @@ import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import {
   useHasAnyUsers,

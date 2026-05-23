@@ -95,15 +95,15 @@ export const InList: Story = {
 
 export const InToolbar: Story = {
   render: () => (
-    <div className="flex items-center gap-2 rounded-lg border p-2">
-      <button className="hover:bg-muted rounded p-2">Bold</button>
-      <button className="hover:bg-muted rounded p-2">Italic</button>
-      <Separator orientation="vertical" className="h-6" />
-      <button className="hover:bg-muted rounded p-2">Left</button>
-      <button className="hover:bg-muted rounded p-2">Center</button>
-      <button className="hover:bg-muted rounded p-2">Right</button>
-      <Separator orientation="vertical" className="h-6" />
-      <button className="hover:bg-muted rounded p-2">Link</button>
+    <div className="scrollbar-hide flex max-w-full items-center gap-2 overflow-x-auto rounded-lg border p-2">
+      <button className="hover:bg-muted shrink-0 rounded p-2">Bold</button>
+      <button className="hover:bg-muted shrink-0 rounded p-2">Italic</button>
+      <Separator orientation="vertical" className="h-6 shrink-0" />
+      <button className="hover:bg-muted shrink-0 rounded p-2">Left</button>
+      <button className="hover:bg-muted shrink-0 rounded p-2">Center</button>
+      <button className="hover:bg-muted shrink-0 rounded p-2">Right</button>
+      <Separator orientation="vertical" className="h-6 shrink-0" />
+      <button className="hover:bg-muted shrink-0 rounded p-2">Link</button>
     </div>
   ),
   parameters: {

@@ -1,19 +1,19 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { EmptyPlaceholder } from '@tale/ui/empty-placeholder';
+import { PageSection } from '@tale/ui/page-section';
+import { SectionHeader } from '@tale/ui/section-header';
+import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { FileText, Trash2, Upload } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { SectionHeader } from '@/app/components/ui/layout/section-header';
-import { Text } from '@/app/components/ui/typography/text';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
 import { useDocuments } from '@/app/features/documents/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';

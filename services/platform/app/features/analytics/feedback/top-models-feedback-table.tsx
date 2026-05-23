@@ -1,13 +1,13 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Text } from '@tale/ui/text';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 

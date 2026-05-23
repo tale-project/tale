@@ -2,6 +2,8 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { HStack, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import {
   ArrowLeft,
   Check,
@@ -18,9 +20,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Text } from '@/app/components/ui/typography/text';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Id } from '@/convex/_generated/dataModel';

@@ -1,5 +1,6 @@
 'use client';
 
+import { Description } from '@tale/ui/description';
 import { Info, Search } from 'lucide-react';
 import {
   forwardRef,
@@ -14,7 +15,6 @@ import {
 
 import { cn } from '@/lib/utils/cn';
 
-import { Description } from './description';
 import { Input } from './input';
 import { Label } from './label';
 

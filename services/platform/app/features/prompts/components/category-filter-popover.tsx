@@ -1,11 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Popover } from '@tale/ui/popover';
 import { Filter } from 'lucide-react';
 import { useState } from 'react';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { Popover } from '@/app/components/ui/overlays/popover';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 

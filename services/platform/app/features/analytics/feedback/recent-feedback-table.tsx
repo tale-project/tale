@@ -1,14 +1,14 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { MessageSquare, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { type ReactNode, useCallback, useMemo } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

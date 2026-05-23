@@ -1,10 +1,10 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { StopCircle } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { Select } from '@/app/components/ui/forms/select';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 

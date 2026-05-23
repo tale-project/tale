@@ -1,6 +1,9 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Description } from '@tale/ui/description';
+import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
+import { Text } from '@tale/ui/text';
 import {
   format,
   isSameDay,
@@ -32,15 +35,9 @@ import {
 import ReactDatePicker from 'react-datepicker';
 import { DateRange } from 'react-day-picker';
 
-import {
-  DropdownMenu,
-  type DropdownMenuItem,
-} from '@/app/components/ui/overlays/dropdown-menu';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { Description } from './description';
 import { Label } from './label';
 
 import styles from './date-range-picker.module.css';

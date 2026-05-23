@@ -1,8 +1,8 @@
 'use client';
 
+import { Popover } from '@tale/ui/popover';
 import { memo } from 'react';
 
-import { Popover } from '@/app/components/ui/overlays/popover';
 import { useT } from '@/lib/i18n/client';
 
 import type { CitationInfo } from '../hooks/use-citations';

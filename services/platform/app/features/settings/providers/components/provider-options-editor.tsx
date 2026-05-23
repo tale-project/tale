@@ -15,10 +15,11 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 // authoritative gate (it carries the deny-list). This schema only catches
 // "is JSON, is an object" so we don't ship obviously malformed input.
 const providerOptionsClientSchema = z.record(z.string(), z.unknown());
-import { Card } from '@/app/components/ui/layout/card';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import { Card } from '@tale/ui/card';
+import { HStack, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
+
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 

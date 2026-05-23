@@ -1,8 +1,8 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { useCallback, useRef } from 'react';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';
 
 interface ColorPickerInputProps {

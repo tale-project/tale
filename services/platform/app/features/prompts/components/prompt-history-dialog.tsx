@@ -2,6 +2,8 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { HStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { RotateCcw } from 'lucide-react';
 import {
   useCallback,
@@ -13,8 +15,6 @@ import {
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';

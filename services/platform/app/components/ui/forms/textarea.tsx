@@ -1,11 +1,11 @@
 'use client';
 
+import { Description } from '@tale/ui/description';
 import { Info } from 'lucide-react';
 import * as React from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
-import { Description } from './description';
 import { Label } from './label';
 
 interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {

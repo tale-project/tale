@@ -1,12 +1,9 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { BookOpen, Bookmark } from 'lucide-react';
 
-import {
-  DropdownMenu,
-  type DropdownMenuGroup,
-} from '@/app/components/ui/overlays/dropdown-menu';
 import { useT } from '@/lib/i18n/client';
 
 interface SavePromptMenuProps {

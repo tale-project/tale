@@ -1,13 +1,13 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { HStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import type { RowSelectionState } from '@tanstack/react-table';
 import { Trash2, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 

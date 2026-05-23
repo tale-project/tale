@@ -1,6 +1,7 @@
 'use client';
 
-import { Text } from '@/app/components/ui/typography/text';
+import { Text } from '@tale/ui/text';
+
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
 import { VendorRowActions } from '../components/vendor-row-actions';

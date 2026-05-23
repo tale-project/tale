@@ -1,4 +1,6 @@
 import { Button } from '@tale/ui/button';
+import { StickySectionHeader } from '@tale/ui/sticky-section-header';
+import { Tabs, type TabItem } from '@tale/ui/tabs';
 import { createFileRoute } from '@tanstack/react-router';
 import { Languages, Loader2, Plus } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
@@ -7,8 +9,6 @@ import { ContentArea } from '@/app/components/layout/content-area';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { ReorderList } from '@/app/components/ui/forms/reorder-list';
-import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
-import { Tabs, type TabItem } from '@/app/components/ui/navigation/tabs';
 import { useTranslateAgentFields } from '@/app/features/agents/hooks/mutations';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useOrganization } from '@/app/features/organization/hooks/queries';

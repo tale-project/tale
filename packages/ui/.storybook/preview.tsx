@@ -81,6 +81,30 @@ const preview: Preview = {
         },
       },
     },
+    viewport: {
+      viewports: {
+        iphone14Pro: {
+          name: 'iPhone 14 Pro',
+          styles: { width: '393px', height: '852px' },
+          type: 'mobile',
+        },
+        pixel7: {
+          name: 'Pixel 7',
+          styles: { width: '412px', height: '915px' },
+          type: 'mobile',
+        },
+        ipadMini: {
+          name: 'iPad Mini',
+          styles: { width: '768px', height: '1024px' },
+          type: 'tablet',
+        },
+        desktop: {
+          name: 'Desktop',
+          styles: { width: '1280px', height: '800px' },
+          type: 'desktop',
+        },
+      },
+    },
   },
   decorators: [
     (Story, context) => <WithProviders Story={Story} context={context} />,

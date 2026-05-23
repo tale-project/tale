@@ -1,6 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { HStack, VStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { ArrowUp, Eye, Loader, Paperclip, X } from 'lucide-react';
 import { useState } from 'react';
 
@@ -9,9 +11,7 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Text } from '@/app/components/ui/typography/text';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
 import {
   formatFileSize,

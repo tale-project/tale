@@ -2,6 +2,8 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { HStack, VStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, Zap, Trash2, Pencil } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
@@ -9,8 +11,6 @@ import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { HStack, VStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';

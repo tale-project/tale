@@ -1,14 +1,14 @@
 'use client';
 
+import { ActionRow } from '@tale/ui/action-row';
 import { Button } from '@tale/ui/button';
+import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { Archive, ArchiveRestore, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Text } from '@/app/components/ui/typography/text';
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';

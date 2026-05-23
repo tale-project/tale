@@ -1,4 +1,7 @@
+import { FullPageCenter } from '@tale/ui/full-page-center';
+import { VStack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
+import { Text } from '@tale/ui/text';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Outlet, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation } from 'convex/react';
@@ -9,11 +12,9 @@ import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
-import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
-import { VStack } from '@/app/components/ui/layout/layout';
+import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
-import { Text } from '@/app/components/ui/typography/text';
 import {
   AbilityContext,
   AbilityLoadingContext,
@@ -179,7 +180,7 @@ function DashboardLayout() {
         <TeamFilterProvider organizationId={organizationId}>
           <AdaptiveHeaderProvider>
             <div className="flex size-full flex-col overflow-hidden md:flex-row">
-              <div className="bg-background flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
+              <div className="bg-background flex items-center gap-2 p-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] md:hidden">
                 <MobileNavigation organizationId={organizationId} />
                 <AdaptiveHeaderSlot />
               </div>
@@ -190,7 +191,7 @@ function DashboardLayout() {
 
               <main
                 id="main-content"
-                className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l"
+                className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(var(--safe-bottom)+3.5rem)] md:border-l md:pb-0"
               >
                 {hasRole && (
                   <TwoFactorGraceBanner organizationId={organizationId} />
@@ -218,6 +219,7 @@ function DashboardLayout() {
                 )}
               </main>
             </div>
+            {hasRole && <MobileBottomNav organizationId={organizationId} />}
           </AdaptiveHeaderProvider>
         </TeamFilterProvider>
       </AbilityLoadingContext.Provider>

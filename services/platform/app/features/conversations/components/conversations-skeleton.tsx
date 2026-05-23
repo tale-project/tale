@@ -1,7 +1,7 @@
+import { HStack, VStack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
-import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { cn } from '@/lib/utils/cn';
 
 interface ConversationsListSkeletonProps {

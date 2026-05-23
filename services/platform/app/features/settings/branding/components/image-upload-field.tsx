@@ -1,12 +1,12 @@
 'use client';
 
+import { VStack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
+import { Text } from '@tale/ui/text';
 import { Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
-import { VStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';
 
 import { useSaveImage } from '../hooks/mutations';

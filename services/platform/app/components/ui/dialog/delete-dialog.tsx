@@ -1,10 +1,10 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import * as React from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { Stack } from '../layout/layout';
 import { ConfirmDialog } from './confirm-dialog';
 import { ItemPreview } from './item-preview';
 

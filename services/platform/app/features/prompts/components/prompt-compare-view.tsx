@@ -1,11 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Text } from '@tale/ui/text';
 import { diffLines } from 'diff';
 import { ArrowLeft, RotateCcw } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import type { Id } from '@/convex/_generated/dataModel';

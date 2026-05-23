@@ -1,3 +1,5 @@
+import { PageSection } from '@tale/ui/page-section';
+import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { createFileRoute } from '@tanstack/react-router';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useMemo, useState, useEffect } from 'react';
@@ -9,8 +11,6 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { LocaleTabs } from '@/app/components/ui/i18n/locale-tabs';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import {
   useUpdateAgentBindings,
   useUpdateAgentSharing,

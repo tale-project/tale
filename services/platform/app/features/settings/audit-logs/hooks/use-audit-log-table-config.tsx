@@ -1,11 +1,11 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import { Text } from '@/app/components/ui/typography/text';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 

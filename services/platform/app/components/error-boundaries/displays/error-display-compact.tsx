@@ -1,12 +1,12 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Heading } from '@tale/ui/heading';
+import { Stack, Center, HStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useEffect } from 'react';
 
-import { Stack, Center, HStack } from '@/app/components/ui/layout/layout';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import { useErrorLogger } from '../hooks/use-error-logger';

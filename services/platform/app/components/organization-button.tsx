@@ -1,14 +1,11 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useParams } from '@tanstack/react-router';
 import { Building2 } from 'lucide-react';
 import { useMemo } from 'react';
 
-import {
-  DropdownMenu,
-  type DropdownMenuGroup,
-} from '@/app/components/ui/overlays/dropdown-menu';
 import { OrganizationListPanel } from '@/app/features/organization/components/organization-list-panel';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useT } from '@/lib/i18n/client';

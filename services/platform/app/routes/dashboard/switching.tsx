@@ -13,7 +13,10 @@
  * not re-flash a loading indicator of its own.
  */
 
+import { FullPageCenter } from '@tale/ui/full-page-center';
+import { VStack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
+import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   createFileRoute,
@@ -24,9 +27,6 @@ import { useMutation } from 'convex/react';
 import { useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
 
-import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
-import { VStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';

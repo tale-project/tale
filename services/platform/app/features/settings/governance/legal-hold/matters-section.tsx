@@ -2,14 +2,14 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { PageSection } from '@tale/ui/page-section';
+import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Select } from '@/app/components/ui/forms/select';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import { useLegalMatters } from '../hooks/queries';

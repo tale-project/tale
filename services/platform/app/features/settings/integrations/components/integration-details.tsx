@@ -1,14 +1,11 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
+import { Text } from '@tale/ui/text';
 import { Check, ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import {
-  type StatGridItem,
-  StatGrid,
-} from '@/app/components/ui/data-display/stat-grid';
-import { Text } from '@/app/components/ui/typography/text';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-guards';

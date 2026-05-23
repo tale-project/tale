@@ -1,8 +1,15 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import {
+  DropdownMenu,
+  type DropdownMenuItem,
+  type DropdownMenuGroup,
+} from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Tabs } from '@tale/ui/tabs';
+import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import {
@@ -18,14 +25,7 @@ import {
 import { useCallback, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Tabs } from '@/app/components/ui/navigation/tabs';
-import {
-  DropdownMenu,
-  type DropdownMenuItem,
-  type DropdownMenuGroup,
-} from '@/app/components/ui/overlays/dropdown-menu';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Text } from '@/app/components/ui/typography/text';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';

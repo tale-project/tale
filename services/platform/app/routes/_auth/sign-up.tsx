@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { Separator } from '@tale/ui/separator';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMemo, useCallback, useEffect, useRef } from 'react';
@@ -11,7 +12,6 @@ import { ValidationCheckList } from '@/app/components/ui/feedback/validation-che
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import {
   useHasAnyUsers,

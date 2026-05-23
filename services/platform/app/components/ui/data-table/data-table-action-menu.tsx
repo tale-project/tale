@@ -1,14 +1,11 @@
 'use client';
 
 import { Button, buttonVariants } from '@tale/ui/button';
+import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
 import { Link } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
 import type { ComponentType, ReactNode } from 'react';
 
-import {
-  DropdownMenu,
-  type DropdownMenuItem,
-} from '@/app/components/ui/overlays/dropdown-menu';
 import { cn } from '@/lib/utils/cn';
 
 /** Icon component type that accepts className prop */

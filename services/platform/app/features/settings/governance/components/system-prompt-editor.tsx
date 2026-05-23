@@ -1,14 +1,14 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
+import { PageSection } from '@tale/ui/page-section';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-guards';

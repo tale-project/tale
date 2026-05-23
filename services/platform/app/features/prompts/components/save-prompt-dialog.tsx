@@ -1,12 +1,12 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { useCallback, useId, useMemo, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useCurrentUser } from '@/app/hooks/use-current-user';

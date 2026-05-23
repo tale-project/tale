@@ -2,6 +2,9 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { HStack, Stack } from '@tale/ui/layout';
+import { PageSection } from '@tale/ui/page-section';
+import { Text } from '@tale/ui/text';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -12,9 +15,6 @@ import { Field } from '@/app/components/ui/forms/field';
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Text } from '@/app/components/ui/typography/text';
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';

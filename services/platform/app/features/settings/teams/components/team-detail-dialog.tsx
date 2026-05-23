@@ -2,13 +2,13 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { HStack, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { Pencil, Users } from 'lucide-react';
 import { useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import { useTeamMembers, type Team } from '../hooks/queries';

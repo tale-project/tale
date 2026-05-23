@@ -1,18 +1,18 @@
 'use client';
 
+import { ActionRow } from '@tale/ui/action-row';
 import { Button } from '@tale/ui/button';
+import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
+import { HStack } from '@tale/ui/layout';
 import { Separator } from '@tale/ui/separator';
+import { Text } from '@tale/ui/text';
 import { Download, X, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { ActionRow } from '@/app/components/ui/layout/action-row';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { useFileUrl } from '@/app/features/chat/hooks/queries';
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
 import { LegalHoldBadge } from '@/app/features/settings/governance/legal-hold/legal-hold-badge';

@@ -1,6 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { PageSection } from '@tale/ui/page-section';
+import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
 import { FileText } from 'lucide-react';
@@ -13,8 +15,6 @@ import {
   DataTableFilters,
   type FilterConfig,
 } from '@/app/components/ui/data-table/data-table-filters';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Text } from '@/app/components/ui/typography/text';
 import { useAbility } from '@/app/hooks/use-ability';
 import {
   ERASURE_STATUSES,

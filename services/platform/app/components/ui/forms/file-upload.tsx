@@ -1,5 +1,7 @@
 'use client';
 
+import { Description } from '@tale/ui/description';
+import { Text } from '@tale/ui/text';
 import { ImagePlus, Info } from 'lucide-react';
 import {
   createContext,
@@ -12,11 +14,9 @@ import {
   type ReactNode,
 } from 'react';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { Description } from './description';
 import { Label } from './label';
 
 interface FileUploadContextValue {

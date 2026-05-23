@@ -1,5 +1,6 @@
 'use client';
 
+import { Description } from '@tale/ui/description';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Eye, EyeOff, Info, XCircle } from 'lucide-react';
 import {
@@ -15,7 +16,6 @@ import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { Description } from './description';
 import { Label } from './label';
 
 const inputVariants = cva(

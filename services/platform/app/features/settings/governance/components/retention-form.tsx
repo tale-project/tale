@@ -1,9 +1,10 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
+
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import type { RetentionPolicyConfig } from '@/lib/shared/schemas/governance';
 import {

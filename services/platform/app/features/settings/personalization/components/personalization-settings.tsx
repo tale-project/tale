@@ -2,6 +2,9 @@
 
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
+import { Stack } from '@tale/ui/layout';
+import { PageSection } from '@tale/ui/page-section';
+import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { useAction, useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
@@ -10,9 +13,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Text } from '@/app/components/ui/typography/text';
 import { primeAudio } from '@/app/features/chat/utils/prime-audio';
 import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';

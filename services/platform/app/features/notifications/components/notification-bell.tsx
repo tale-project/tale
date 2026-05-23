@@ -1,11 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Popover } from '@tale/ui/popover';
+import { Tabs } from '@tale/ui/tabs';
 import { Bell, ChevronDown, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { Tabs } from '@/app/components/ui/navigation/tabs';
-import { Popover } from '@/app/components/ui/overlays/popover';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';

@@ -2,11 +2,11 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { HStack, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { Check, Loader2, MapPin, X, XCircle } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
