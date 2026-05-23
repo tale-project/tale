@@ -1,4 +1,4 @@
-import { parseFrontmatter } from '@tale/webui/utils/parse-frontmatter';
+import { parseFrontmatter } from '@tale/ui/parse-frontmatter';
 
 import { ALL_LOCALES, type Locale } from '@/lib/i18n/locales';
 

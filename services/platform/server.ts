@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createPrecompiledServer, type ArtifactsServer } from '@tale/seo';
+import { createPrecompiledServer, type ArtifactsServer } from '@tale/ui/seo';
 import { Hono } from 'hono';
 import { NONCE, secureHeaders } from 'hono/secure-headers';
 

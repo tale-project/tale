@@ -286,9 +286,6 @@
       "themeLight": "Thème clair",
       "themeDark": "Thème sombre",
       "language": "Langue",
-      "languageEnglish": "Anglais",
-      "languageGerman": "Allemand",
-      "languageFrench": "Français",
       "logOut": "Se déconnecter",
       "logOutConfirm": {
         "title": "Se déconnecter",
@@ -3458,7 +3455,6 @@
     "conversations": "Conversations",
     "knowledge": "Connaissances",
     "automations": "Automatisations",
-    "settings": "Paramètres",
     "userSettings": "Paramètres",
     "orgSettings": "Paramètres de l'organisation",
     "notifications": "Notifications",
@@ -3475,8 +3471,7 @@
     "logs": "Journaux",
     "agents": "Agents",
     "teamFilter": {
-      "allTeams": "Toutes",
-      "label": "Équipe"
+      "allTeams": "Toutes"
     },
     "orgSwitcher": {
       "label": "Organisation"
@@ -3969,7 +3964,6 @@
     "offlineReady": "Tale est prêt à fonctionner hors ligne."
   },
   "settings": {
-    "title": "Paramètres",
     "account": {
       "profile": {
         "name": "Nom d'affichage",

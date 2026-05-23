@@ -1,4 +1,4 @@
-import { SiteFooter } from '@tale/webui/layout/site-footer';
+import { SiteFooter } from '@tale/ui/site-footer';
 
 import { GithubIcon } from '@/app/components/icons/github-icon';
 import { useT } from '@/lib/i18n/client';

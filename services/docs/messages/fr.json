@@ -92,5 +92,12 @@
     },
     "copyrightLine1": "© {year} Tale par Ruler GmbH — certifié ISO 27001 et SOC 2.",
     "copyrightLine2": "Tale est sous licence MIT — libre d'utilisation, de modification et de distribution."
+  },
+  "pwa": {
+    "updateAvailableTitle": "Mise à jour disponible",
+    "updateAvailableDescription": "Une nouvelle version de la doc est prête.",
+    "updateNow": "Recharger",
+    "dismiss": "Ignorer",
+    "offlineReady": "La doc est prête en mode hors ligne."
   }
 }

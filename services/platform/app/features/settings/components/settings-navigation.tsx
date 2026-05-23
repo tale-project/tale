@@ -27,10 +27,10 @@ type SettingsLabelKey =
   | 'account';
 
 // User-scoped tabs — surfaced under "Settings" (the profile panel entry).
-const USER_KEYS: ReadonlyArray<SettingsLabelKey> = [
+const USER_KEYS: ReadonlySet<SettingsLabelKey> = new Set([
   'account',
   'personalization',
-];
+]);
 
 /**
  * Detect whether the current settings path belongs to the user scope
@@ -128,7 +128,7 @@ export function SettingsNavigation({
   // therefore has its own self-contained tab strip.
   const navigationItems = allItems.filter((item) => {
     if (!showAccountTab && item.labelKey === 'account') return false;
-    const inUserScope = USER_KEYS.includes(item.labelKey);
+    const inUserScope = USER_KEYS.has(item.labelKey);
     return userScope ? inUserScope : !inUserScope;
   });
 

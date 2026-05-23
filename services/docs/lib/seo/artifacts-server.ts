@@ -16,7 +16,7 @@
  *   - `/<route>.md`      (every locale × every page)
  */
 
-import { createOnDemandServer, type ArtifactsServer } from '@tale/seo';
+import { createOnDemandServer, type ArtifactsServer } from '@tale/ui/seo';
 
 import {
   buildDocsSeo,

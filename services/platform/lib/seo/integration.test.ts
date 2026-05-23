@@ -4,7 +4,7 @@
  * in-process and assert byte-level output without any temp-disk dance.
  */
 
-import { compileToMemory } from '@tale/seo';
+import { compileToMemory } from '@tale/ui/seo';
 import { describe, expect, it } from 'vitest';
 
 import platformSeoConfig from '../../scripts/seo.config';

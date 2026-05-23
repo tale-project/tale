@@ -4,13 +4,7 @@ import { Button } from '@tale/ui/button';
 import { Popover } from '@tale/ui/popover';
 import { Tabs } from '@tale/ui/tabs';
 import { Bell, ChevronDown, ChevronRight } from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Id } from '@/convex/_generated/dataModel';

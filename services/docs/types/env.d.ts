@@ -1,3 +1,6 @@
+/// <reference types="vite-plugin-pwa/client" />
+/// <reference types="vite-plugin-pwa/react" />
+
 // Vite-exposed env vars consumed by the docs client. Anything prefixed with
 // `VITE_` is inlined into the bundle at build time; everything else is server-
 // only and must not be referenced from client code.

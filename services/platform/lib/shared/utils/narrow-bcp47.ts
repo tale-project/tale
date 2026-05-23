@@ -5,7 +5,7 @@
  * Returns `undefined` when the input has no region/script subtag, so callers
  * can chain: `i18n[locale] ?? (base ? i18n[base] : undefined) ?? i18n.en`.
  *
- * Intentionally inlined here (vs. shared via `@tale/i18n`) because the only
+ * Intentionally inlined here (vs. shared via `@tale/ui/i18n`) because the only
  * consumers are platform-side code (including Convex functions), and Convex's
  * deploy bundler doesn't resolve workspace-package subpath exports.
  *

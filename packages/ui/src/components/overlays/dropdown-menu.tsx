@@ -43,7 +43,7 @@ export interface DropdownMenuRadioGroupItem {
   type: 'radio-group';
   value: string;
   onValueChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: ReactNode }>;
 }
 
 export interface DropdownMenuCustomItem {

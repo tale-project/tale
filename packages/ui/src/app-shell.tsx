@@ -1,11 +1,11 @@
 'use client';
 
+import { LocaleProvider, useLocale } from '@tale/ui/i18n/locale-provider';
+import { LocaleSync } from '@tale/ui/i18n/sync';
 import type { i18n as I18nInstance } from 'i18next';
 import type { ReactNode } from 'react';
 import { I18nextProvider } from 'react-i18next';
 
-import { LocaleProvider, useLocale } from './i18n/locale-provider';
-import { LocaleSync } from './i18n/sync';
 import { type Theme, ThemeProvider } from './theme';
 
 interface ClientLocaleConfig {

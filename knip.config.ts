@@ -28,9 +28,6 @@ export default {
         // Listed in `optimizeDeps.include` in vite.config.ts as a string literal so vite prebundles it;
         // consumed transitively via @tale/ui components, never imported by name from platform code.
         '@radix-ui/react-slot',
-        // Referenced as a glob path in tailwind.config.ts (`./node_modules/@tale/webui/src/**`) so
-        // tailwind scans its source files; no JS/TS import from platform.
-        '@tale/webui',
         // Peer of @vitest/browser-playwright, required at runtime by vitest's browser test mode
         // but never imported directly.
         '@vitest/browser',
@@ -64,25 +61,6 @@ export default {
         // vite's plugin only sees the client-side index.html input.
         'app/entry-server.tsx',
       ],
-      project: ['**/*.{ts,tsx}'],
-    },
-    'packages/seo': {
-      entry: ['src/**/*.ts'],
-      project: ['**/*.ts'],
-      // Vite is an optional peer dep for the `vite-plugin-artifacts`
-      // subpath; consumers bring their own vite. Knip flags it as a
-      // referenced optional peer otherwise.
-      ignoreDependencies: ['vite'],
-    },
-    'packages/webui': {
-      storybook: {
-        config: ['.storybook/main.ts'],
-        entry: [
-          '.storybook/{main,manager,preview}.{ts,tsx}',
-          '**/*.stories.{ts,tsx}',
-        ],
-      },
-      entry: ['src/**/*.{ts,tsx}', 'src/**/*.stories.{ts,tsx}'],
       project: ['**/*.{ts,tsx}'],
     },
     'packages/ui': {

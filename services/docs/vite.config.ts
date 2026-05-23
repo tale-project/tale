@@ -1,4 +1,5 @@
-import { artifactsPlugin } from '@tale/seo/vite-plugin-artifacts';
+import { createPwaPlugin } from '@tale/ui/pwa/vite-plugin';
+import { artifactsPlugin } from '@tale/ui/seo/vite-plugin-artifacts';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
@@ -107,7 +108,6 @@ export default defineConfig({
   ssr: {
     noExternal: [
       '@tale/ui',
-      '@tale/webui',
       '@tanstack/react-router',
       'framer-motion',
       'lucide-react',
@@ -123,5 +123,30 @@ export default defineConfig({
     tanstackRouter(),
     viteReact(),
     artifactsPlugin({ server: devArtifactsServer }),
+    createPwaPlugin({
+      name: 'Tale Docs',
+      shortName: 'Tale Docs',
+      description:
+        'Documentation for Tale, the self-hosted sovereign AI platform.',
+      themeColor: '#09090b',
+      backgroundColor: '#fcfcfc',
+      projectDir: import.meta.dirname,
+      icons: [
+        { src: 'assets/pwa-64x64.png', sizes: '64x64', type: 'image/png' },
+        { src: 'assets/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+        {
+          src: 'assets/pwa-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any',
+        },
+        {
+          src: 'assets/maskable-icon-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable',
+        },
+      ],
+    }),
   ],
 });

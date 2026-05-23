@@ -1,13 +1,38 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
+const dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export default defineConfig({
+  plugins: [react()],
   resolve: {
     alias: {
-      '@': new URL('./', import.meta.url).pathname,
+      '@': dirname,
     },
   },
   test: {
-    environment: 'node',
-    include: ['tests/**/*.test.ts', 'lib/**/*.test.ts'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'node',
+          environment: 'node',
+          include: ['tests/**/*.test.ts', 'lib/**/*.test.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+          environment: 'jsdom',
+          setupFiles: ['./tests/setup.ts'],
+          globals: true,
+          include: ['app/**/*.test.{ts,tsx}'],
+        },
+      },
+    ],
   },
 });

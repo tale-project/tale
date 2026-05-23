@@ -17,13 +17,17 @@
 
 import { readFile } from 'node:fs/promises';
 
-import type { ArtifactRoute, ArtifactSection, OptionalPage } from '@tale/seo';
-import { htmlToMarkdown } from '@tale/seo';
+import type {
+  ArtifactRoute,
+  ArtifactSection,
+  OptionalPage,
+} from '@tale/ui/seo';
+import { htmlToMarkdown } from '@tale/ui/seo';
 import {
   TALE_DOCS_LLMS_TXT,
   TALE_GITHUB_URL,
   TALE_SITE_URL,
-} from '@tale/seo/globals';
+} from '@tale/ui/seo/globals';
 
 import {
   enumerateLegalRoutes,

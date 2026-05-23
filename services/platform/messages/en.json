@@ -286,9 +286,6 @@
       "themeLight": "Light theme",
       "themeDark": "Dark theme",
       "language": "Language",
-      "languageEnglish": "English",
-      "languageGerman": "German",
-      "languageFrench": "French",
       "logOut": "Log out",
       "logOutConfirm": {
         "title": "Log out",
@@ -3458,7 +3455,6 @@
     "conversations": "Conversations",
     "knowledge": "Knowledge",
     "automations": "Automations",
-    "settings": "Settings",
     "userSettings": "Settings",
     "orgSettings": "Organization settings",
     "notifications": "Notifications",
@@ -3475,8 +3471,7 @@
     "logs": "Logs",
     "agents": "Agents",
     "teamFilter": {
-      "allTeams": "All",
-      "label": "Team"
+      "allTeams": "All"
     },
     "orgSwitcher": {
       "label": "Organization"
@@ -3969,7 +3964,6 @@
     "offlineReady": "Tale is ready to work offline."
   },
   "settings": {
-    "title": "Settings",
     "account": {
       "profile": {
         "name": "Display name",

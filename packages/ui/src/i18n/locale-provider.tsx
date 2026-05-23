@@ -1,8 +1,5 @@
 'use client';
 
-import { parseAcceptLanguage } from '@tale/i18n/accept-language';
-import { isValidLocale } from '@tale/i18n/is-valid-locale';
-import { resolveLocale } from '@tale/i18n/resolve-locale';
 import {
   createContext,
   type ReactNode,
@@ -12,6 +9,10 @@ import {
   useMemo,
   useState,
 } from 'react';
+
+import { parseAcceptLanguage } from './accept-language';
+import { isValidLocale } from './is-valid-locale';
+import { resolveLocale } from './resolve-locale';
 
 const STORAGE_KEY = 'user-locale';
 

@@ -1,9 +1,7 @@
-import { resolve } from 'node:path';
-
+import { createPwaPlugin } from '@tale/ui/pwa/vite-plugin';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
-import { VitePWA } from 'vite-plugin-pwa';
 
 import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
 import { injectEnv } from './vite-plugins/inject-env';
@@ -150,131 +148,29 @@ export default defineConfig({
     serveBrandingImages(),
     serveCanvasPreview(),
     serveStatus(),
-    VitePWA({
-      registerType: 'prompt',
-      injectRegister: null,
-      strategies: 'generateSW',
-      workbox: {
-        // Precache only the offline shell + minimal branding assets.
-        // The platform is an online-required app, so JS/CSS bundles are
-        // intentionally not precached — when offline, users see the shell.
-        globPatterns: [
-          '**/*.webmanifest',
-          '**/*.svg',
-          '**/*.ico',
-          'favicon-*.png',
-          'assets/pwa-*.png',
-          'assets/apple-touch-*.png',
-          'assets/maskable-*.png',
-        ],
-        // vite-plugin-pwa's dev mode hard-codes the precache manifest to
-        // `[{ url: navigateFallback, ... }]` and ignores any
-        // `additionalManifestEntries` passed in. So we set
-        // `navigateFallback` purely as a vehicle to enrol /offline.html
-        // into the dev precache. The empty allowlists below stop the
-        // navigation route that this option would otherwise register from
-        // ever matching — navigation requests are handled by the
-        // `runtimeCaching` entry instead, which only serves the shell on
-        // real network failure (precacheFallback below).
-        navigateFallback: '/offline.html',
-        navigateFallbackAllowlist: [],
-        // Production-mode precache (workbox-build runs the full pipeline
-        // and honours this list). Same revision can stay since the shell
-        // is a tiny static page.
-        additionalManifestEntries: [
-          { url: '/offline.html', revision: 'offline-shell-v1' },
-        ],
-        runtimeCaching: [
-          {
-            // Navigations always hit the network so the live app shell renders.
-            // Only when the request fails (true offline / cold launch with no
-            // connection) do we serve the precached offline shell.
-            urlPattern: ({ request, url }) =>
-              request.mode === 'navigate' &&
-              !url.pathname.startsWith('/ws_api/') &&
-              !url.pathname.startsWith('/http_api/') &&
-              !url.pathname.startsWith('/api/') &&
-              url.pathname !== '/status',
-            handler: 'NetworkOnly',
-            options: {
-              precacheFallback: { fallbackURL: '/offline.html' },
-            },
-          },
-          {
-            urlPattern: /\/assets\/.*\.(?:png|jpg|jpeg|svg|webp|ico)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'tale-assets',
-              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          {
-            urlPattern: /\.(?:woff2?|ttf)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'tale-fonts',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-        ],
-        cleanupOutdatedCaches: true,
-      },
-      includeAssets: [
-        'favicon.ico',
-        'favicon-light.png',
-        'favicon-dark.png',
-        'offline.html',
-        'assets/apple-touch-icon-180x180.png',
+    createPwaPlugin({
+      name: 'Tale',
+      shortName: 'Tale',
+      description: 'AI-powered customer support platform',
+      themeColor: '#09090b',
+      backgroundColor: '#fcfcfc',
+      projectDir: import.meta.dirname,
+      icons: [
+        { src: 'assets/pwa-64x64.png', sizes: '64x64', type: 'image/png' },
+        { src: 'assets/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+        {
+          src: 'assets/pwa-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any',
+        },
+        {
+          src: 'assets/maskable-icon-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable',
+        },
       ],
-      manifest: {
-        name: 'Tale',
-        short_name: 'Tale',
-        description: 'AI-powered customer support platform',
-        start_url: '/',
-        scope: '/',
-        display: 'standalone',
-        background_color: '#fcfcfc',
-        theme_color: '#09090b',
-        orientation: 'any',
-        categories: ['business', 'productivity'],
-        icons: [
-          {
-            src: 'assets/pwa-64x64.png',
-            sizes: '64x64',
-            type: 'image/png',
-          },
-          {
-            src: 'assets/pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: 'assets/pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: 'assets/maskable-icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-        ],
-      },
-      devOptions: {
-        enabled: true,
-        type: 'module',
-        // Same empty allowlist as in `workbox` above — required separately
-        // because the dev pipeline reads `devOptions.navigateFallbackAllowlist`,
-        // not the workbox one (defaults to `[/^\/$/]` otherwise).
-        navigateFallbackAllowlist: [],
-        // Store the dev-mode service worker output in `dist-pwa/` instead
-        // of the plugin's default `dev-dist/` — keeps the dev artefacts
-        // under a name that makes their purpose obvious next to the
-        // production `dist/`.
-        resolveTempFolder: () => resolve(import.meta.dirname, 'dist-pwa'),
-      },
     }),
   ],
 });

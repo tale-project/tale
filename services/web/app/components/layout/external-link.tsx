@@ -1,1 +1,1 @@
-export { ExternalLink } from '@tale/webui/layout/external-link';
+export { ExternalLink } from '@tale/ui/external-link';

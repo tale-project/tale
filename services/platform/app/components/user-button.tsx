@@ -1,11 +1,7 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
-import {
-  DropdownMenu,
-  type DropdownMenuItem,
-  type DropdownMenuGroup,
-} from '@tale/ui/dropdown-menu';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Tabs } from '@tale/ui/tabs';
@@ -87,7 +83,7 @@ export function UserButton({
 
   // Used to display the current org name in the dropdown trigger row.
   const { organizations: userOrgs } = useUserOrganizationsWithDetails();
-  const currentOrg = userOrgs?.find((o) => o.id === organizationId);
+  const currentOrg = userOrgs?.find((o) => o.organizationId === organizationId);
 
   const {
     currentVersion,

@@ -1,6 +1,5 @@
 import { initServiceI18n } from '@tale/ui/i18n/init-service';
 import { uiMessages } from '@tale/ui/i18n/messages';
-import { webuiMessages } from '@tale/webui/i18n/messages';
 
 import deMessages from '@/messages/de.json';
 import enMessages from '@/messages/en.json';
@@ -17,5 +16,5 @@ export const i18n = initServiceI18n({
     import: 'default',
   }),
   global: globalMessages,
-  packages: [uiMessages, webuiMessages],
+  packages: [uiMessages],
 });

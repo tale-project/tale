@@ -286,9 +286,6 @@
       "themeLight": "Helles Design",
       "themeDark": "Dunkles Design",
       "language": "Sprache",
-      "languageEnglish": "Englisch",
-      "languageGerman": "Deutsch",
-      "languageFrench": "Französisch",
       "logOut": "Abmelden",
       "logOutConfirm": {
         "title": "Abmelden",
@@ -3458,7 +3455,6 @@
     "conversations": "Konversationen",
     "knowledge": "Wissen",
     "automations": "Automatisierungen",
-    "settings": "Einstellungen",
     "userSettings": "Einstellungen",
     "orgSettings": "Organisationseinstellungen",
     "notifications": "Benachrichtigungen",
@@ -3475,8 +3471,7 @@
     "logs": "Protokolle",
     "agents": "Agents",
     "teamFilter": {
-      "allTeams": "Alle",
-      "label": "Team"
+      "allTeams": "Alle"
     },
     "orgSwitcher": {
       "label": "Organisation"
@@ -3969,7 +3964,6 @@
     "offlineReady": "Tale ist offline einsatzbereit."
   },
   "settings": {
-    "title": "Einstellungen",
     "account": {
       "profile": {
         "name": "Anzeigename",

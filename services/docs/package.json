@@ -20,10 +20,11 @@
     "test:watch": "bunx vitest"
   },
   "dependencies": {
-    "@tale/seo": "workspace:*",
+    "@radix-ui/react-dialog": "1.1.15",
     "@tale/ui": "workspace:*",
-    "@tale/webui": "workspace:*",
-    "framer-motion": "12.38.0"
+    "framer-motion": "12.38.0",
+    "minisearch": "7.2.0",
+    "vite-plugin-pwa": "1.3.0"
   },
   "devDependencies": {
     "@types/bun": "1.3.11"

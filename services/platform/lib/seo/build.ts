@@ -5,7 +5,7 @@
  * consistent.
  */
 
-import type { ArtifactSection, OptionalPage, RobotsConfig } from '@tale/seo';
+import type { ArtifactSection, OptionalPage, RobotsConfig } from '@tale/ui/seo';
 import {
   TALE_DOCS_LLMS_FULL_TXT,
   TALE_DOCS_LLMS_TXT,
@@ -13,7 +13,7 @@ import {
   TALE_SITE_LLMS_FULL_TXT,
   TALE_SITE_LLMS_TXT,
   TALE_SITE_URL,
-} from '@tale/seo/globals';
+} from '@tale/ui/seo/globals';
 
 export const PLATFORM_SITE_TITLE = 'Tale Platform';
 export const PLATFORM_SITE_DESCRIPTION =

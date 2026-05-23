@@ -1,6 +1,6 @@
 /**
  * Build-time SEO config for the docs site. Consumed by
- * `tale-seo-compile` (`@tale/seo/bin/compile`) during the Docker builder
+ * `tale-seo-compile` (`@tale/ui/seo/bin/compile`) during the Docker builder
  * stage to materialise `dist-seo/`.
  *
  * Bodies are inline (the disk walk produces them), so this config does

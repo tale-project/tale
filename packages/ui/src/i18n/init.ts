@@ -3,7 +3,7 @@ import ICU from 'i18next-icu';
 import { initReactI18next } from 'react-i18next';
 
 import { defaultLocale } from './config';
-import { detectInitialLocale } from './locales';
+import { detectInitialLocale } from './detect-locale';
 
 type Bundle = Record<string, Record<string, unknown>>;
 
