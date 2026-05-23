@@ -3,15 +3,15 @@ import type { TFunction } from 'i18next';
 // =============================================================================
 // Hardware catalog — single source of truth for the hardware-pricing page.
 //
-// Edit a node below; cluster specs, pricing, and progress-bar metrics all
-// recompute from `NODES × CLUSTER_COMPOSITION`. The snake_case IDs
+// Edit a node below; multi-node specs, pricing, and progress-bar metrics all
+// recompute from `NODES × MULTI_NODE_COMPOSITION`. The snake_case IDs
 // (`ddr5_ecc`, `apple_silicon`, `m2_nvme`, …) map to display labels in
 // `messages/global.json` under `specs.types.*` — keep the two in sync.
 // =============================================================================
 
 type TierKey = 'quality' | 'hybrid' | 'speed';
 type NodeKey = TierKey;
-type ClusterKey = TierKey;
+type MultiNodeKey = TierKey;
 
 type RamId = 'uma' | 'vram' | 'ddr5' | 'ddr5_ecc';
 type ChipId =
@@ -72,11 +72,11 @@ const NODES: Record<NodeKey, Node> = {
 };
 
 /**
- * Number of each node type composing a cluster. Every cluster ships with
- * two application nodes (`hybrid`) — one drives the workload, the other
- * stands by for redundancy and rolling upgrades.
+ * Number of each node type composing a multi-node setup. Every multi-node
+ * configuration ships with two application nodes (`hybrid`) — one drives
+ * the workload, the other stands by for redundancy and rolling upgrades.
  */
-const CLUSTER_COMPOSITION: Record<ClusterKey, Record<NodeKey, number>> = {
+const MULTI_NODE_COMPOSITION: Record<MultiNodeKey, Record<NodeKey, number>> = {
   quality: { quality: 6, hybrid: 2, speed: 0 },
   hybrid: { quality: 3, hybrid: 2, speed: 1 },
   speed: { quality: 0, hybrid: 2, speed: 2 },
@@ -84,8 +84,8 @@ const CLUSTER_COMPOSITION: Record<ClusterKey, Record<NodeKey, number>> = {
 
 /**
  * AI server rack — single-chassis offering that bundles the compute of a
- * speed cluster into one rack unit, with confidential computing enabled
- * by default. Only one configuration ships in this mode.
+ * speed multi-node setup into one rack unit, with confidential computing
+ * enabled by default. Only one configuration ships in this mode.
  */
 const RACK: Node = {
   aiRam: { id: 'vram', gb: 384 },
@@ -147,13 +147,29 @@ export function rackSpec(t: TFunction): SpecLines {
 }
 
 /**
- * Cluster specs sum each component across the composition, grouped by `id`.
- * If two types coexist on the same row (e.g. UMA + VRAM, or Apple + NVIDIA),
- * each renders as its own line — order follows first appearance in the
- * composition.
+ * Multi-node composition rendered as one line per node type, e.g.
+ *   "6× Quality node\n2× Application node"
+ * Node types with a zero count are omitted; line order follows `TIER_KEYS`.
  */
-export function clusterSpec(t: TFunction, key: ClusterKey): SpecLines {
-  const comp = CLUSTER_COMPOSITION[key];
+export function multiNodeComposition(t: TFunction, key: MultiNodeKey): string {
+  const comp = MULTI_NODE_COMPOSITION[key];
+  const lines: string[] = [];
+  for (const nk of TIER_KEYS) {
+    const count = comp[nk];
+    if (count === 0) continue;
+    lines.push(`${count}× ${t(`tierNames.node.${nk}`)}`);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Multi-node specs sum each component across the composition, grouped by
+ * `id`. If two types coexist on the same row (e.g. UMA + VRAM, or Apple +
+ * NVIDIA), each renders as its own line — order follows first appearance
+ * in the composition.
+ */
+export function multiNodeSpec(t: TFunction, key: MultiNodeKey): SpecLines {
+  const comp = MULTI_NODE_COMPOSITION[key];
 
   function sumByType<I extends string>(
     pick: (n: Node) => { id: I; n: number } | null,
@@ -189,32 +205,32 @@ export function clusterSpec(t: TFunction, key: ClusterKey): SpecLines {
     cpu: join([...cpu].map(([id, count]) => chipLine(t, { id, count }))),
     ssd: ssdTotal > 0 ? ssdLine(t, ssdTotal) : NA,
     hdd: NA,
-    size: t(`specs.sizes.cluster.${key}`),
+    size: t(`specs.sizes.multinode.${key}`),
   };
 }
 
 // =============================================================================
-// Pricing — node buy prices listed; cluster buy = sum of contained nodes
-// plus a flat infrastructure surcharge. Monthly leasing is derived on
-// demand from buy × per-term factor.
+// Pricing — node buy prices listed; multi-node buy = sum of contained
+// nodes plus a flat infrastructure surcharge. Monthly leasing is derived
+// on demand from buy × per-term factor.
 // =============================================================================
 
 /**
- * Flat surcharge added to every cluster — covers the cables, network
- * equipment, and rack that ship with the cluster and aren't billed
+ * Flat surcharge added to every multi-node setup — covers the cables,
+ * network equipment, and rack that ship with the bundle and aren't billed
  * per-node.
  */
-const CLUSTER_INFRA_SURCHARGE = 790;
+const MULTI_NODE_INFRA_SURCHARGE = 790;
 
 export function nodeBuyPrice(key: NodeKey): number {
   return NODES[key].buyPrice;
 }
 
-export function clusterBuyPrice(key: ClusterKey): number {
-  const comp = CLUSTER_COMPOSITION[key];
+export function multiNodeBuyPrice(key: MultiNodeKey): number {
+  const comp = MULTI_NODE_COMPOSITION[key];
   let buy = 0;
   for (const nk of TIER_KEYS) buy += NODES[nk].buyPrice * comp[nk];
-  return buy + CLUSTER_INFRA_SURCHARGE;
+  return buy + MULTI_NODE_INFRA_SURCHARGE;
 }
 
 export function rackBuyPrice(): number {
@@ -249,14 +265,14 @@ export function leasingMonthly(buy: number, term: LeasingTerm): number {
 //
 //   • quality — AI RAM per CHF (capacity weighted by value-for-money)
 //   • speed   — average chip bandwidth across the tier's AI RAM
-//               (per-token rate; doesn't grow with cluster size)
+//               (per-token rate; doesn't grow with multi-node size)
 //   • storage — total SSD TB
 //
-// Speed is a *rate*, not a capacity — a 9-node Apple cluster doesn't
-// generate tokens 9× faster than one Apple node. Cluster speed is the
-// RAM-weighted average bandwidth of the chips driving inference, so a
-// cluster dominated by NVIDIA scores higher than one dominated by Apple
-// regardless of total node count.
+// Speed is a *rate*, not a capacity — a 9-node Apple multi-node setup
+// doesn't generate tokens 9× faster than one Apple node. Multi-node speed
+// is the RAM-weighted average bandwidth of the chips driving inference,
+// so a setup dominated by NVIDIA scores higher than one dominated by
+// Apple regardless of total node count.
 // =============================================================================
 
 /**
@@ -300,16 +316,16 @@ function nodeRaw(key: NodeKey): RawMetrics {
   };
 }
 
-function clusterRaw(key: ClusterKey): RawMetrics {
-  const comp = CLUSTER_COMPOSITION[key];
+function multiNodeRaw(key: MultiNodeKey): RawMetrics {
+  const comp = MULTI_NODE_COMPOSITION[key];
   // Seed `buy` with the infra surcharge so the quality metric
-  // (aiRamGB / buy) divides by the true cluster price that customers see,
-  // matching what `clusterBuyPrice()` returns.
+  // (aiRamGB / buy) divides by the true multi-node price that customers
+  // see, matching what `multiNodeBuyPrice()` returns.
   const zero: RawMetrics = {
     aiRamGB: 0,
     speed: 0,
     ssdTB: 0,
-    buy: CLUSTER_INFRA_SURCHARGE,
+    buy: MULTI_NODE_INFRA_SURCHARGE,
   };
   return TIER_KEYS.reduce((acc, nk) => {
     const c = comp[nk];
@@ -331,8 +347,8 @@ function normalize(my: RawMetrics, all: RawMetrics[]): TierMetrics {
   const qualityOf = (r: RawMetrics) => (r.buy > 0 ? r.aiRamGB / r.buy : 0);
   // Speed = RAM-weighted average bandwidth: total compute capability
   // (ramGB × bandwidth, summed) divided by total RAM. Stays at the
-  // bandwidth of a single chip when the cluster is homogeneous; blends
-  // toward whichever chip family carries more RAM in mixed clusters.
+  // bandwidth of a single chip when the multi-node setup is homogeneous;
+  // blends toward whichever chip family carries more RAM in mixed setups.
   const speedOf = (r: RawMetrics) => (r.aiRamGB > 0 ? r.speed / r.aiRamGB : 0);
   return {
     quality: pct(qualityOf(my), Math.max(...all.map(qualityOf))),
@@ -344,14 +360,15 @@ function normalize(my: RawMetrics, all: RawMetrics[]): TierMetrics {
 export const nodeMetrics = (key: NodeKey): TierMetrics =>
   normalize(nodeRaw(key), TIER_KEYS.map(nodeRaw));
 
-export const clusterMetrics = (key: ClusterKey): TierMetrics =>
-  normalize(clusterRaw(key), TIER_KEYS.map(clusterRaw));
+export const multiNodeMetrics = (key: MultiNodeKey): TierMetrics =>
+  normalize(multiNodeRaw(key), TIER_KEYS.map(multiNodeRaw));
 
 /**
- * Rack metrics use the cluster set as the reference scale so the bars
+ * Rack metrics use the multi-node set as the reference scale so the bars
  * communicate where the rack sits relative to multi-node alternatives.
  * Speed is taken as the per-GPU bandwidth (each GPU drives its own VRAM
- * slice) — matching the RAM-weighted-average semantics used for clusters.
+ * slice) — matching the RAM-weighted-average semantics used for
+ * multi-node setups.
  */
 function rackRaw(): RawMetrics {
   const gpu = RACK.gpu;
@@ -367,5 +384,5 @@ function rackRaw(): RawMetrics {
 
 export const rackMetrics = (): TierMetrics => {
   const me = rackRaw();
-  return normalize(me, [me, ...TIER_KEYS.map(clusterRaw)]);
+  return normalize(me, [me, ...TIER_KEYS.map(multiNodeRaw)]);
 };

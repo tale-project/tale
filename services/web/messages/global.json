@@ -19,16 +19,16 @@
     },
     "modes": {
       "node": "Single node",
-      "cluster": "Multi node",
+      "multinode": "Multi node",
       "rack": "Server rack"
     },
     "versions": {
       "nodeQuality": "26.04 (NQ)",
       "nodeApplication": "26.04 (NA)",
       "nodeSpeed": "26.04 (NS)",
-      "clusterQuality": "26.04 (MQ)",
-      "clusterHybrid": "26.04 (MH)",
-      "clusterSpeed": "26.04 (MS)",
+      "multinodeQuality": "26.04 (MQ)",
+      "multinodeHybrid": "26.04 (MH)",
+      "multinodeSpeed": "26.04 (MS)",
       "rack": "26.04 (SR)"
     },
     "productNumbers": {
@@ -38,7 +38,7 @@
       "rack": "P0012"
     },
     "tierNames": {
-      "cluster": {
+      "multinode": {
         "quality": "Quality multi node",
         "hybrid": "Hybrid multi node",
         "speed": "Speed multi node"
@@ -75,7 +75,7 @@
           "hybrid": "192mm × 366mm × 270mm",
           "speed": "192mm × 366mm × 270mm"
         },
-        "cluster": {
+        "multinode": {
           "quality": "500mm × 500mm × 1500mm",
           "hybrid": "500mm × 500mm × 1500mm",
           "speed": "1500mm × 500mm × 500mm"

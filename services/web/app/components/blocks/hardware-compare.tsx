@@ -10,7 +10,8 @@ import {
 } from '@/app/components/blocks/compare-table';
 import { SpecValue } from '@/app/components/blocks/hardware-spec-value';
 import {
-  clusterSpec,
+  multiNodeComposition,
+  multiNodeSpec,
   nodeSpec,
   rackSpec,
   type SpecLines,
@@ -26,7 +27,7 @@ import { useT } from '@/lib/i18n/client';
  * pricing page. The upper half is rendered by `HardwareTiers` and shows
  * the per-tier pricing cards.
  *
- * Cell content for the specs section is derived from the node/cluster
+ * Cell content for the specs section is derived from the node/multi-node
  * definitions in `hardware-specs.ts`; everything else (CTAs, span rows,
  * section dividers) is composed inline.
  */
@@ -37,7 +38,7 @@ type TierKey = StandardTierKey | 'rack';
 
 const TIER_KEYS_BY_MODE: Record<HardwareMode, readonly TierKey[]> = {
   node: STANDARD_TIER_KEYS,
-  cluster: STANDARD_TIER_KEYS,
+  multinode: STANDARD_TIER_KEYS,
   rack: ['rack'],
 };
 
@@ -69,10 +70,10 @@ const VERSION_KEYS: Record<HardwareMode, Record<TierKey, string>> = {
     speed: 'nodeSpeed',
     rack: '',
   },
-  cluster: {
-    quality: 'clusterQuality',
-    hybrid: 'clusterHybrid',
-    speed: 'clusterSpeed',
+  multinode: {
+    quality: 'multinodeQuality',
+    hybrid: 'multinodeHybrid',
+    speed: 'multinodeSpeed',
     rack: '',
   },
   rack: {
@@ -94,7 +95,7 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
 
   const specFor = (key: TierKey): SpecLines => {
     if (key === 'rack') return rackSpec(t);
-    return mode === 'node' ? nodeSpec(t, key) : clusterSpec(t, key);
+    return mode === 'node' ? nodeSpec(t, key) : multiNodeSpec(t, key);
   };
 
   const specs = activeTierKeys.reduce<Partial<Record<TierKey, SpecLines>>>(
@@ -157,8 +158,8 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
   };
 
   // Product numbers ship for single-product configurations (single node
-  // and server rack). Clusters are billed and shipped as composed systems
-  // with no top-level SKU.
+  // and server rack). Multi-node setups are billed and shipped as composed
+  // systems with no top-level SKU.
   const productNumberRow: CompareRow<TierKey> | null =
     mode === 'node' || mode === 'rack'
       ? {
@@ -167,6 +168,29 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
           label: t('compare.categories.productNumber'),
           cells: Object.fromEntries(
             activeTierKeys.map((key) => [key, t(`productNumbers.${key}`)]),
+          ) as Partial<Record<TierKey, ReactNode>>,
+        }
+      : null;
+
+  // Multi-node mode has no per-tier SKU or version. Replace the version
+  // row with the per-tier node composition (one line per node type).
+  const compositionRow: CompareRow<TierKey> | null =
+    mode === 'multinode'
+      ? {
+          kind: 'data',
+          rowKey: 'composition',
+          label: t('compare.categories.composition'),
+          cells: Object.fromEntries(
+            activeTierKeys.map((key) => [
+              key,
+              <SpecValue
+                key={key}
+                value={multiNodeComposition(
+                  t,
+                  key as 'quality' | 'hybrid' | 'speed',
+                )}
+              />,
+            ]),
           ) as Partial<Record<TierKey, ReactNode>>,
         }
       : null;
@@ -221,14 +245,21 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
     ) as Partial<Record<TierKey, ReactNode>>,
   };
 
-  const confidentialComputingRow: CompareRow<TierKey> = {
-    kind: 'span',
-    label: t('compare.categories.confidentialComputing'),
-    content:
-      mode === 'rack'
-        ? t('compare.cellLabels.yes')
-        : t('compare.cellLabels.onRequest'),
-  };
+  const confidentialComputingRow: CompareRow<TierKey> =
+    mode === 'rack'
+      ? {
+          kind: 'data',
+          rowKey: 'confidentialComputing',
+          label: t('compare.categories.confidentialComputing'),
+          cells: Object.fromEntries(
+            activeTierKeys.map((key) => [key, checkIcon]),
+          ) as Partial<Record<TierKey, ReactNode>>,
+        }
+      : {
+          kind: 'span',
+          label: t('compare.categories.confidentialComputing'),
+          content: t('compare.cellLabels.onRequest'),
+        };
 
   const warrantyRow: CompareRow<TierKey> = {
     kind: 'span',
@@ -273,8 +304,9 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
   };
 
   const rows: CompareRow<TierKey>[] = [
-    versionRow,
+    ...(mode === 'multinode' ? [] : [versionRow]),
     ...(productNumberRow ? [productNumberRow] : []),
+    ...(compositionRow ? [compositionRow] : []),
     { kind: 'section', label: t('compare.sections.specifications') },
     ...specRows,
     { kind: 'section', label: t('compare.sections.other') },

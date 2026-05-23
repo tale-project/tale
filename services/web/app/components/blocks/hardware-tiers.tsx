@@ -3,8 +3,8 @@ import { formatCurrency } from '@tale/ui/format';
 
 import {
   LEASING_TERMS,
-  clusterBuyPrice,
-  clusterMetrics,
+  multiNodeBuyPrice,
+  multiNodeMetrics,
   leasingMonthly,
   nodeBuyPrice,
   nodeMetrics,
@@ -40,7 +40,7 @@ type TierKey = StandardTierKey | 'rack';
 const METRIC_AXES = ['quality', 'speed', 'storage'] as const;
 const HARDWARE_MODES = [
   'node',
-  'cluster',
+  'multinode',
   'rack',
 ] as const satisfies readonly HardwareMode[];
 const HARDWARE_BILLINGS = [
@@ -62,11 +62,11 @@ const TIERS_BY_MODE: Record<HardwareMode, Tier[]> = {
     buyPrice: nodeBuyPrice(key),
     metrics: nodeMetrics(key),
   })),
-  cluster: STANDARD_TIER_KEYS.map((key) => ({
+  multinode: STANDARD_TIER_KEYS.map((key) => ({
     key,
     popular: key === 'hybrid',
-    buyPrice: clusterBuyPrice(key),
-    metrics: clusterMetrics(key),
+    buyPrice: multiNodeBuyPrice(key),
+    metrics: multiNodeMetrics(key),
   })),
   rack: [
     {

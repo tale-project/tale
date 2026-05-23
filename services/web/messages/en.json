@@ -392,7 +392,8 @@
         "cables": "Cables & network equipment",
         "confidentialComputing": "Confidential computing",
         "version": "Product version",
-        "productNumber": "Product number"
+        "productNumber": "Product number",
+        "composition": "Composition"
       },
       "cellLabels": {
         "yes": "Included",
