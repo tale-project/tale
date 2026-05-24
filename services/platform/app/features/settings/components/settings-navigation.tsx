@@ -15,27 +15,20 @@ interface SettingsNavigationProps {
 
 type SettingsLabelKey =
   | 'organization'
-  | 'teams'
+  | 'people'
   | 'integrations'
-  | 'mcpServers'
   | 'providers'
   | 'apiKeys'
   | 'branding'
   | 'governance'
-  | 'logs'
   | 'personalization'
   | 'account';
 
-// User-scoped tabs — surfaced under "Settings" (the profile panel entry).
 const USER_KEYS: ReadonlySet<SettingsLabelKey> = new Set([
   'account',
   'personalization',
 ]);
 
-/**
- * Detect whether the current settings path belongs to the user scope
- * (account / personalization) or the organization scope (everything else).
- */
 function isUserScope(pathname: string): boolean {
   return (
     pathname.includes('/settings/account') ||
@@ -52,8 +45,6 @@ export function SettingsNavigation({
   const location = useLocation();
   const userScope = isUserScope(location.pathname);
 
-  // Account first within the user scope — when the user lands on user
-  // settings the most-commonly-edited section ("Account") sits at the start.
   const allItems: (TabNavigationItem & { labelKey: SettingsLabelKey })[] = [
     {
       labelKey: 'account',
@@ -72,9 +63,16 @@ export function SettingsNavigation({
       can: ['read', 'orgSettings'],
     },
     {
-      labelKey: 'teams',
-      label: t('teams'),
-      href: `/dashboard/${organizationId}/settings/teams`,
+      labelKey: 'people',
+      label: t('people'),
+      href: `/dashboard/${organizationId}/settings/people`,
+      can: ['read', 'orgSettings'],
+      matchMode: 'startsWith',
+    },
+    {
+      labelKey: 'branding',
+      label: t('branding'),
+      href: `/dashboard/${organizationId}/settings/branding`,
       can: ['read', 'orgSettings'],
     },
     {
@@ -82,12 +80,7 @@ export function SettingsNavigation({
       label: t('integrations'),
       href: `/dashboard/${organizationId}/settings/integrations`,
       can: ['read', 'developerSettings'],
-    },
-    {
-      labelKey: 'mcpServers',
-      label: t('mcpServers'),
-      href: `/dashboard/${organizationId}/settings/mcp-servers`,
-      can: ['read', 'developerSettings'],
+      matchMode: 'startsWith',
     },
     {
       labelKey: 'providers',
@@ -103,29 +96,14 @@ export function SettingsNavigation({
       can: ['read', 'developerSettings'],
     },
     {
-      labelKey: 'branding',
-      label: t('branding'),
-      href: `/dashboard/${organizationId}/settings/branding`,
-      can: ['read', 'orgSettings'],
-    },
-    {
       labelKey: 'governance',
       label: t('governance'),
       href: `/dashboard/${organizationId}/settings/governance`,
       can: ['read', 'orgSettings'],
       matchMode: 'startsWith',
     },
-    {
-      labelKey: 'logs',
-      label: t('logs'),
-      href: `/dashboard/${organizationId}/settings/logs`,
-      can: ['read', 'orgSettings'],
-    },
   ];
 
-  // Truly split the two settings surfaces: user-scoped pages only see the
-  // user tabs, organization-scoped pages only see the org tabs. Each page
-  // therefore has its own self-contained tab strip.
   const navigationItems = allItems.filter((item) => {
     if (!showAccountTab && item.labelKey === 'account') return false;
     const inUserScope = USER_KEYS.has(item.labelKey);

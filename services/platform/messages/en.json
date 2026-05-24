@@ -5,9 +5,7 @@
     "integrations": "You need Admin or Developer permissions to access integrations settings.",
     "apiKeys": "You need Admin or Developer permissions to manage API keys.",
     "organization": "You need Admin permissions to access organization settings.",
-    "teams": "You need Admin permissions to access team settings.",
     "agents": "You need Admin or Developer permissions to manage agents.",
-    "mcpServers": "You need Admin or Developer permissions to manage MCP servers.",
     "branding": "You need Admin permissions to access branding settings.",
     "knowledge": "Your account does not have permission to access knowledge.",
     "workspaceNotFound": "The workspace you're looking for doesn't exist or may have been removed.",
@@ -278,6 +276,7 @@
     "userButton": {
       "defaultName": "User",
       "manageAccount": "Manage account",
+      "getApp": "Get app",
       "helpFeedback": "Help & feedback",
       "currentVersion": "Current version: v{version}",
       "whatsNew": "What's new",
@@ -2658,7 +2657,9 @@
       "guardrails": "Guardrails",
       "usage": "Usage",
       "feedback": "Feedback",
-      "dataSubjectRequests": "Data subject requests"
+      "auditLogs": "Audit logs",
+      "dataSubjectRequests": "Data subject requests",
+      "policiesAndLimitsDescription": "Budgets, upload restrictions, data retention, feature flags, and voice output."
     },
     "trash": {
       "title": "Trash",
@@ -3353,6 +3354,10 @@
       "title": "Teams",
       "description": "Manage teams within your organization."
     },
+    "people": {
+      "title": "People",
+      "description": "Manage members and teams in your organization."
+    },
     "agents": {
       "title": "Agents",
       "description": "Create and manage AI agents for customer service."
@@ -3458,7 +3463,8 @@
     "userSettings": "Settings",
     "orgSettings": "Organization settings",
     "notifications": "Notifications",
-    "organization": "Organization",
+    "organization": "General",
+    "people": "People",
     "teams": "Teams",
     "integrations": "Integrations",
     "mcpServers": "MCP servers",
@@ -3466,9 +3472,8 @@
     "apiKeys": "API keys",
     "branding": "Branding",
     "governance": "Governance",
-    "personalization": "Personalization",
+    "personalization": "Preferences",
     "account": "Account",
-    "logs": "Logs",
     "agents": "Agents",
     "teamFilter": {
       "allTeams": "All"
@@ -3482,10 +3487,7 @@
   },
   "notifications": {
     "title": "Notifications",
-    "tooltip": "Notifications",
-    "ariaLabel": "Open notifications",
     "ariaUnread": "Unread",
-    "unreadCount": "{count, plural, one {# unread} other {# unread}}",
     "empty": "No notifications.",
     "markAsRead": "Mark as read",
     "markAllAsRead": "Mark all as read",
@@ -3964,26 +3966,65 @@
     "offlineReady": "Tale is ready to work offline."
   },
   "settings": {
+    "menu": {
+      "groups": {
+        "you": "You",
+        "workspace": "Workspace",
+        "governance": "Governance"
+      },
+      "account": {
+        "description": "Your profile, sign-in, and security."
+      },
+      "personalization": {
+        "description": "How Tale adapts to you — memory, instructions, and voice."
+      },
+      "organization": {
+        "description": "Workspace name, language, and identifiers."
+      },
+      "people": {
+        "description": "Members, roles, and teams."
+      },
+      "branding": {
+        "description": "Logo, colors, and the name shown to your users."
+      },
+      "integrations": {
+        "description": "Connect external apps and MCP servers."
+      },
+      "providers": {
+        "description": "Bring your own API keys for OpenAI, Anthropic, and others."
+      },
+      "apiKeys": {
+        "description": "Programmatic access tokens for the Tale API."
+      },
+      "governance": {
+        "description": "Policies, security, audit logs, and data retention."
+      }
+    },
     "account": {
       "profile": {
+        "title": "Profile",
+        "description": "Your display name and email — visible to your teammates.",
         "name": "Display name",
         "namePlaceholder": "Enter your name",
         "email": "Email",
         "nameRequired": "Name is required"
       },
       "security": {
-        "title": "Security"
+        "title": "Security",
+        "description": "Password and two-factor authentication."
       }
     },
     "organization": {
       "title": "Organization name",
       "detailsTitle": "Organization details",
       "detailsDescription": "Basic information about your organization.",
+      "identifiersTitle": "Identifiers",
+      "identifiersDescription": "Read-only references you may need when using the API or contacting support.",
       "organizationId": "Organization ID",
+      "organizationIdDescription": "Reference this ID in API requests and integrations.",
       "copyOrganizationId": "Copy organization ID",
       "membersTitle": "Organization members",
       "membersEntityLabel": "members",
-      "manageAccess": "Manage access to the organization",
       "defaultLocale": "Default language (for agents)",
       "searchMember": "Search member",
       "addMember": "Add member",
@@ -4304,6 +4345,9 @@
       "tabs": {
         "all": "All integrations",
         "connected": "Connected"
+      },
+      "sections": {
+        "apps": "Apps"
       },
       "searchPlaceholder": "Search integrations...",
       "badge": {

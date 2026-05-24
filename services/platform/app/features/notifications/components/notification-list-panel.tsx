@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Tabs } from '@tale/ui/tabs';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -25,6 +25,12 @@ interface NotificationListPanelProps {
   organizationId: string;
   /** Override the panel height. Defaults to `24rem`. */
   className?: string;
+  /**
+   * When provided, renders a back-chevron button in the header (left of the
+   * title) that invokes this callback. Used by the profile-dropdown integration
+   * to swap back to the profile view without closing the dropdown.
+   */
+  onBack?: () => void;
 }
 
 const SEVERITY_DOT: Record<string, string> = {
@@ -53,6 +59,7 @@ function stripNsPrefix(key: string): string {
 export function NotificationListPanel({
   organizationId,
   className,
+  onBack,
 }: NotificationListPanelProps) {
   const [expandedId, setExpandedId] = useState<Id<'notifications'> | null>(
     null,
@@ -60,6 +67,7 @@ export function NotificationListPanel({
   const [filter, setFilter] = useState<NotificationsFilter>('unread');
   const [hiddenIds, setHiddenIds] = useState(new Set<string>());
   const { t } = useT('notifications');
+  const { t: tCommon } = useT('common');
   const { formatRelative, formatDate } = useFormatDate();
 
   const { results, status, loadMore } = useNotificationsList(
@@ -133,7 +141,19 @@ export function NotificationListPanel({
     <div className={cn('flex h-[24rem] flex-col', className)}>
       <div className="border-border flex flex-col gap-2 border-b px-4 py-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold">{t('title')}</span>
+          <div className="flex items-center gap-1.5">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                aria-label={tCommon('actions.back')}
+                className="hover:bg-muted -ml-1.5 flex size-6 items-center justify-center rounded-md transition-colors"
+              >
+                <ChevronLeft className="text-muted-foreground size-4" />
+              </button>
+            )}
+            <span className="text-sm font-semibold">{t('title')}</span>
+          </div>
           {unreadCount > 0 && (
             <Button
               size="sm"

@@ -1,6 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ProvidersTable } from '@/app/features/settings/providers/components/providers-table';
+import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/settings/providers/')({
   component: ProvidersIndexRoute,
@@ -8,5 +10,15 @@ export const Route = createFileRoute('/dashboard/$id/settings/providers/')({
 
 function ProvidersIndexRoute() {
   const { id } = Route.useParams();
-  return <ProvidersTable organizationId={id} />;
+  const { t: tNav } = useT('navigation');
+  const { t: tSettings } = useT('settings');
+
+  return (
+    <SettingsPage
+      title={tNav('providers')}
+      description={tSettings('menu.providers.description')}
+    >
+      <ProvidersTable organizationId={id} />
+    </SettingsPage>
+  );
 }

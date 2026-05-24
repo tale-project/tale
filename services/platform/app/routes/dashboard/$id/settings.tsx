@@ -1,4 +1,10 @@
-import { createFileRoute, Outlet, useLocation } from '@tanstack/react-router';
+import {
+  Link,
+  Outlet,
+  createFileRoute,
+  useLocation,
+} from '@tanstack/react-router';
+import { ChevronLeft } from 'lucide-react';
 
 import {
   AdaptiveHeaderRoot,
@@ -20,10 +26,11 @@ export const Route = createFileRoute('/dashboard/$id/settings')({
 function SettingsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t: tNav } = useT('navigation');
+  const { t: tCommon } = useT('common');
   const location = useLocation();
-  // Each scope gets its own page title so the header matches the tab strip
-  // — user settings reads "Settings", organization settings reads
-  // "Organization settings".
+
+  const settingsRoot = `/dashboard/${organizationId}/settings`;
+  const isAtIndex = location.pathname === settingsRoot;
   const isUserScope =
     location.pathname.includes('/settings/account') ||
     location.pathname.includes('/settings/personalization');
@@ -37,10 +44,22 @@ function SettingsLayout() {
           <AdaptiveHeaderRoot standalone={false}>
             <AdaptiveHeaderTitle>{headerTitle}</AdaptiveHeaderTitle>
           </AdaptiveHeaderRoot>
-          <SettingsNavigation organizationId={organizationId} />
+          <div className="hidden md:block">
+            <SettingsNavigation organizationId={organizationId} />
+          </div>
         </>
       }
     >
+      {!isAtIndex && (
+        <Link
+          to="/dashboard/$id/settings"
+          params={{ id: organizationId }}
+          className="text-muted-foreground hover:text-foreground border-border flex items-center gap-1.5 border-b px-4 py-2.5 text-sm font-medium md:hidden"
+        >
+          <ChevronLeft aria-hidden="true" className="size-4" />
+          {tCommon('actions.back')}
+        </Link>
+      )}
       <ContentArea className="min-h-0 flex-1" variant="page" gap={6}>
         <Outlet />
       </ContentArea>

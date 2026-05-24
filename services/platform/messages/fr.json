@@ -5,9 +5,7 @@
     "integrations": "Tu dois disposer des permissions Admin ou Développeur pour accéder aux paramètres d'intégrations.",
     "apiKeys": "Tu dois disposer des permissions Admin ou Développeur pour gérer les clés API.",
     "organization": "Tu dois disposer des permissions Admin pour accéder aux paramètres de l'organisation.",
-    "teams": "Tu dois disposer des permissions Admin pour accéder aux paramètres des équipes.",
     "agents": "Tu dois disposer des permissions Admin ou Développeur pour gérer les agents.",
-    "mcpServers": "Tu dois disposer des permissions Admin ou Développeur pour gérer les serveurs MCP.",
     "branding": "Tu dois disposer des permissions Admin pour accéder aux paramètres de marque.",
     "knowledge": "Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.",
     "workspaceNotFound": "L'espace de travail que tu recherches n'existe pas ou a été supprimé.",
@@ -278,6 +276,7 @@
     "userButton": {
       "defaultName": "Utilisateur",
       "manageAccount": "Gérer le compte",
+      "getApp": "Installer l'app",
       "helpFeedback": "Aide et retours",
       "currentVersion": "Version actuelle : v{version}",
       "whatsNew": "Nouveautés",
@@ -1836,6 +1835,7 @@
       "download": "Télécharger",
       "document": "Document",
       "title": "Aperçu du document",
+      "dragToolbar": "Déplacer la barre d'outils",
       "sidebar": {
         "document": "Document",
         "size": "Taille",
@@ -1848,8 +1848,7 @@
         "sourceOnedrive": "OneDrive",
         "sourceSharepoint": "SharePoint",
         "imagePages": "Pages image"
-      },
-      "dragToolbar": "Déplacer la barre d'outils"
+      }
     },
     "upload": {
       "cancelUpload": "Annuler le téléversement",
@@ -2302,6 +2301,19 @@
       "saved": "La politique de mot de passe a été mise à jour",
       "saveFailed": "Échec de l'enregistrement de la politique de mot de passe"
     },
+    "twoFactorPolicy": {
+      "title": "Authentification à double facteur",
+      "description": "Exiger que tous les utilisateurs authentifiés par mot de passe activent un second facteur (TOTP) après une période de grâce.",
+      "enforced": "Exiger l'authentification à double facteur",
+      "policyDisabledHint": "L'authentification à double facteur reste facultative pour tous les utilisateurs tant que cette politique est désactivée.",
+      "gracePeriodDays": "Période de grâce (jours)",
+      "gracePeriodDaysHint": "Nombre de jours dont dispose chaque utilisateur à partir de sa première connexion soumise à la politique avant que l'inscription ne devienne obligatoire. Règle sur 0 pour une application immédiate.",
+      "exemptSsoUsers": "Exempter les utilisateurs SSO uniquement",
+      "exemptSsoUsersHint": "Les utilisateurs dont le seul compte est une identité fédérée (p. ex. Microsoft Entra ID) s'appuient sur le MFA du fournisseur d'identité.",
+      "invalidGrace": "La période de grâce doit être un entier compris entre 0 et 30.",
+      "saved": "La politique de double facteur a été mise à jour",
+      "saveFailed": "Échec de l'enregistrement de la politique de double facteur"
+    },
     "loginPolicy": {
       "title": "Limites de tentatives de connexion",
       "description": "Verrouille les comptes après des échecs de connexion répétés et augmente le délai entre les tentatives.",
@@ -2645,7 +2657,9 @@
       "guardrails": "Guardrails",
       "usage": "Utilisation",
       "feedback": "Retours",
-      "dataSubjectRequests": "Personnes concernées"
+      "auditLogs": "Audit logs",
+      "dataSubjectRequests": "Personnes concernées",
+      "policiesAndLimitsDescription": "Budgets, upload restrictions, data retention, feature flags, and voice output."
     },
     "trash": {
       "title": "Corbeille",
@@ -2917,19 +2931,6 @@
       "removeDefaultConfirmTitle": "Révoquer l'accès à un modèle par défaut actif ?",
       "removeDefaultConfirmBody": "Les règles de modèle par défaut suivantes utilisent des modèles qui ne seraient plus autorisés : {rules}. Les utilisateurs concernés basculeront vers un autre modèle autorisé.",
       "removeDefaultConfirmAction": "Enregistrer quand même"
-    },
-    "twoFactorPolicy": {
-      "title": "Authentification à double facteur",
-      "description": "Exiger que tous les utilisateurs authentifiés par mot de passe activent un second facteur (TOTP) après une période de grâce.",
-      "enforced": "Exiger l'authentification à double facteur",
-      "policyDisabledHint": "L'authentification à double facteur reste facultative pour tous les utilisateurs tant que cette politique est désactivée.",
-      "gracePeriodDays": "Période de grâce (jours)",
-      "gracePeriodDaysHint": "Nombre de jours dont dispose chaque utilisateur à partir de sa première connexion soumise à la politique avant que l'inscription ne devienne obligatoire. Règle sur 0 pour une application immédiate.",
-      "exemptSsoUsers": "Exempter les utilisateurs SSO uniquement",
-      "exemptSsoUsersHint": "Les utilisateurs dont le seul compte est une identité fédérée (p. ex. Microsoft Entra ID) s'appuient sur le MFA du fournisseur d'identité.",
-      "invalidGrace": "La période de grâce doit être un entier compris entre 0 et 30.",
-      "saved": "La politique de double facteur a été mise à jour",
-      "saveFailed": "Échec de l'enregistrement de la politique de double facteur"
     },
     "dataSubjectRequests": {
       "title": "Demandes de personnes concernées",
@@ -3353,6 +3354,10 @@
       "title": "Équipes",
       "description": "Gère les équipes au sein de ton organisation."
     },
+    "people": {
+      "title": "People",
+      "description": "Manage members and teams in your organization."
+    },
     "agents": {
       "title": "Agents",
       "description": "Crée et gère des agents IA pour le service client."
@@ -3459,6 +3464,7 @@
     "orgSettings": "Paramètres de l'organisation",
     "notifications": "Notifications",
     "organization": "Organisation",
+    "people": "People",
     "teams": "Équipes",
     "integrations": "Intégrations",
     "mcpServers": "Serveurs MCP",
@@ -3468,7 +3474,6 @@
     "governance": "Gouvernance",
     "personalization": "Personnalisation",
     "account": "Compte",
-    "logs": "Journaux",
     "agents": "Agents",
     "teamFilter": {
       "allTeams": "Toutes"
@@ -3482,10 +3487,7 @@
   },
   "notifications": {
     "title": "Notifications",
-    "tooltip": "Notifications",
-    "ariaLabel": "Ouvrir les notifications",
     "ariaUnread": "Non lu",
-    "unreadCount": "{count, plural, one {# non lu} other {# non lus}}",
     "empty": "Aucune notification.",
     "markAsRead": "Marquer comme lu",
     "markAllAsRead": "Tout marquer comme lu",
@@ -3964,30 +3966,74 @@
     "offlineReady": "Tale est prêt à fonctionner hors ligne."
   },
   "settings": {
+    "menu": {
+      "groups": {
+        "you": "You",
+        "workspace": "Workspace",
+        "governance": "Governance"
+      },
+      "account": {
+        "description": "Your profile, sign-in, and security."
+      },
+      "personalization": {
+        "description": "How Tale adapts to you — memory, instructions, and voice."
+      },
+      "organization": {
+        "description": "Workspace name, language, and identifiers."
+      },
+      "people": {
+        "description": "Members, roles, and teams."
+      },
+      "branding": {
+        "description": "Logo, colors, and the name shown to your users."
+      },
+      "integrations": {
+        "description": "Connect external apps and MCP servers."
+      },
+      "providers": {
+        "description": "Bring your own API keys for OpenAI, Anthropic, and others."
+      },
+      "apiKeys": {
+        "description": "Programmatic access tokens for the Tale API."
+      },
+      "governance": {
+        "description": "Policies, security, audit logs, and data retention."
+      }
+    },
     "account": {
       "profile": {
+        "title": "Profile",
+        "description": "Your display name and email — visible to your teammates.",
         "name": "Nom d'affichage",
         "namePlaceholder": "Entre ton nom",
         "email": "Courriel",
         "nameRequired": "Le nom est requis"
       },
       "security": {
-        "title": "Sécurité"
+        "title": "Sécurité",
+        "description": "Password and two-factor authentication."
       }
     },
     "organization": {
       "title": "Organisation (facultatif)",
       "detailsTitle": "Détails de l'organisation",
       "detailsDescription": "Informations de base sur ton organisation.",
+      "identifiersTitle": "Identifiers",
+      "identifiersDescription": "Read-only references you may need when using the API or contacting support.",
       "organizationId": "ID de l'organisation",
+      "organizationIdDescription": "Reference this ID in API requests and integrations.",
       "copyOrganizationId": "Copier l'ID de l'organisation",
       "membersTitle": "Membres de l'organisation",
       "membersEntityLabel": "membres",
-      "manageAccess": "Gérer l'accès à l'organisation",
       "defaultLocale": "Langue par défaut (pour les agents)",
       "searchMember": "Rechercher un membre",
       "addMember": "Ajouter un membre",
       "createOrganization": "Créer une organisation",
+      "organizationName": "Nom de l'organisation",
+      "companyNameRequired": "Le nom de l'entreprise est requis",
+      "enterCompanyName": "Entre le nom de ton entreprise",
+      "organizationCreated": "Organisation créée avec succès !",
+      "creating": "Création...",
       "switching": "Changement en cours…",
       "switchingTo": "Passage à {name}…",
       "switchingLabel": "Changement d'organisation",
@@ -3998,17 +4044,14 @@
       "deleteLoading": "Suppression…",
       "deleteSuccess": "Organisation supprimée",
       "deleteFailed": "Échec de la suppression de l'organisation",
-      "organizationName": "Nom de l'organisation",
-      "companyNameRequired": "Le nom de l'entreprise est requis",
-      "enterCompanyName": "Entre le nom de ton entreprise",
-      "organizationCreated": "Organisation créée avec succès !",
-      "creating": "Création...",
       "editMember": "Modifier le membre",
       "removeMember": "Retirer le membre",
       "memberUpdated": "Membre mis à jour avec succès",
       "memberUpdateFailed": "Échec de la mise à jour du membre",
       "memberRemoved": "Membre retiré avec succès",
       "memberRemoveFailed": "Échec du retrait du membre",
+      "twoFactorResetSuccess": "Double facteur réinitialisé — le membre devra se réinscrire lors de sa prochaine connexion",
+      "twoFactorResetFailed": "Échec de la réinitialisation de l'authentification à double facteur",
       "emailCannotChange": "L'email ne peut pas être modifié",
       "cannotChangeOwnRole": "Tu ne peux pas modifier ton propre rôle",
       "updatePassword": "Mettre à jour le mot de passe",
@@ -4019,9 +4062,7 @@
       "transferOwnership": "Transférer la propriété",
       "transferOwnershipConfirmation": "Es-tu sûr de vouloir transférer la propriété à {name} ? Tu seras rétrogradé au rôle d'administrateur.",
       "ownershipTransferred": "Propriété transférée avec succès",
-      "ownershipTransferFailed": "Échec du transfert de propriété",
-      "twoFactorResetSuccess": "Double facteur réinitialisé — le membre devra se réinscrire lors de sa prochaine connexion",
-      "twoFactorResetFailed": "Échec de la réinitialisation de l'authentification à double facteur"
+      "ownershipTransferFailed": "Échec du transfert de propriété"
     },
     "teams": {
       "title": "Équipes",
@@ -4071,6 +4112,7 @@
       "agentCreated": "Agent créé",
       "agentCreateFailed": "Échec de la création de l'agent",
       "agentAlreadyExists": "Un agent avec cet identifiant existe déjà",
+      "validationError": "Configuration de l'assistant invalide",
       "agentDeleted": "Agent supprimé",
       "agentDeleteFailed": "Échec de la suppression de l'agent",
       "agentDuplicated": "Agent dupliqué",
@@ -4197,14 +4239,14 @@
         "noModelsFound": "Aucun modèle trouvé",
         "removeModel": "Retirer",
         "embeddingModelWarning": "Modèle d'embedding uniquement — non utilisable pour le chat",
+        "viaProvider": "via {provider}",
         "modelSelector": {
           "moveUp": "Déplacer le modèle vers le haut",
           "moveDown": "Déplacer le modèle vers le bas",
           "dragHandle": "Glisser pour réorganiser le modèle"
         },
         "structuredResponsesInjectedPrompt": "Les instructions suivantes seront automatiquement ajoutées au prompt système :",
-        "browsePrompts": "Parcourir les prompts",
-        "viaProvider": "via {provider}"
+        "browsePrompts": "Parcourir les prompts"
       },
       "delegation": {
         "title": "Délégation",
@@ -4294,8 +4336,7 @@
         "exampleFileUploadStream": "Téléversement de fichier avec streaming (réponse SSE)",
         "exampleOpenAICompat": "Point de terminaison compatible OpenAI (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "Configuration client OpenAI (p. ex. Meetily)"
-      },
-      "validationError": "Configuration de l'assistant invalide"
+      }
     },
     "integrations": {
       "title": "Intégrations",
@@ -4304,6 +4345,9 @@
       "tabs": {
         "all": "Toutes les intégrations",
         "connected": "Connectées"
+      },
+      "sections": {
+        "apps": "Apps"
       },
       "searchPlaceholder": "Rechercher des intégrations...",
       "badge": {

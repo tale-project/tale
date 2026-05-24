@@ -1,11 +1,10 @@
-import { HStack, Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { FormSection } from '@/app/components/ui/forms/form-section';
+import { BrandingPageSkeleton } from '@/app/features/settings/branding/components/branding-page-skeleton';
 import { BrandingSettings } from '@/app/features/settings/branding/components/branding-settings';
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
+import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -17,51 +16,10 @@ export const Route = createFileRoute('/dashboard/$id/settings/branding')({
   component: BrandingSettingsPage,
 });
 
-function BrandingSettingsSkeleton() {
-  return (
-    <HStack gap={6} align="start" className="min-h-[500px]">
-      <Stack gap={6} className="w-full max-w-sm">
-        <FormSection>
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-9 w-full" />
-        </FormSection>
-        <FormSection>
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-9 w-full" />
-        </FormSection>
-        <HStack justify="between">
-          <Stack gap={1}>
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-3 w-32" />
-          </Stack>
-          <Skeleton className="size-10" />
-        </HStack>
-        <HStack justify="between">
-          <Stack gap={1}>
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-3 w-20" />
-          </Stack>
-          <HStack gap={2}>
-            <Skeleton className="size-12" />
-            <Skeleton className="size-12" />
-          </HStack>
-        </HStack>
-        <HStack justify="between">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-8 w-28" />
-        </HStack>
-        <HStack justify="between">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-8 w-28" />
-        </HStack>
-      </Stack>
-      <Skeleton className="hidden h-[500px] flex-1 rounded-xl lg:block" />
-    </HStack>
-  );
-}
-
 function BrandingSettingsPage() {
   const { t } = useT('accessDenied');
+  const { t: tNav } = useT('navigation');
+  const { t: tSettings } = useT('settings');
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -73,7 +31,7 @@ function BrandingSettingsPage() {
   } = useBranding();
 
   if (abilityLoading || isBrandingLoading) {
-    return <BrandingSettingsSkeleton />;
+    return <BrandingPageSkeleton />;
   }
 
   if (ability.cannot('read', 'orgSettings')) {
@@ -81,6 +39,11 @@ function BrandingSettingsPage() {
   }
 
   return (
-    <BrandingSettings branding={branding ?? undefined} onSaved={refetch} />
+    <SettingsPage
+      title={tNav('branding')}
+      description={tSettings('menu.branding.description')}
+    >
+      <BrandingSettings branding={branding ?? undefined} onSaved={refetch} />
+    </SettingsPage>
   );
 }

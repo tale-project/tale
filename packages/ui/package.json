@@ -141,6 +141,7 @@
     "./seo/runtime/precompiled-server": "./src/seo/runtime/precompiled-server.ts",
     "./seo/vite-plugin-artifacts": "./src/seo/runtime/vite-plugin.ts",
     "./pwa/sw-update-listener": "./src/pwa/sw-update-listener.tsx",
+    "./pwa/use-install-prompt": "./src/pwa/use-install-prompt.ts",
     "./pwa/vite-plugin": "./src/pwa/vite-plugin.ts",
     "./server": "./src/server/index.ts",
     "./use-debounce": "./src/hooks/use-debounce.ts",

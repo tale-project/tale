@@ -39,6 +39,7 @@ import { Route as DashboardIdAgentsIndexRouteImport } from './routes/dashboard/$
 import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams';
 import { Route as DashboardIdSettingsProvidersRouteImport } from './routes/dashboard/$id/settings/providers';
 import { Route as DashboardIdSettingsPersonalizationRouteImport } from './routes/dashboard/$id/settings/personalization';
+import { Route as DashboardIdSettingsPeopleRouteImport } from './routes/dashboard/$id/settings/people';
 import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization';
 import { Route as DashboardIdSettingsMcpServersRouteImport } from './routes/dashboard/$id/settings/mcp-servers';
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs';
@@ -70,6 +71,7 @@ import { Route as DashboardIdSettingsGovernanceLegalHoldRouteImport } from './ro
 import { Route as DashboardIdSettingsGovernanceGuardrailsRouteImport } from './routes/dashboard/$id/settings/governance/guardrails';
 import { Route as DashboardIdSettingsGovernanceFeedbackRouteImport } from './routes/dashboard/$id/settings/governance/feedback';
 import { Route as DashboardIdSettingsGovernanceContentModelsRouteImport } from './routes/dashboard/$id/settings/governance/content-models';
+import { Route as DashboardIdSettingsGovernanceAuditLogsRouteImport } from './routes/dashboard/$id/settings/governance/audit-logs';
 import { Route as DashboardIdChatSharedShareTokenRouteImport } from './routes/dashboard/$id/chat/shared/$shareToken';
 import { Route as DashboardIdAutomationsAmIdTriggersRouteImport } from './routes/dashboard/$id/automations/$amId/triggers';
 import { Route as DashboardIdAutomationsAmIdExecutionsRouteImport } from './routes/dashboard/$id/automations/$amId/executions';
@@ -236,6 +238,12 @@ const DashboardIdSettingsPersonalizationRoute =
   DashboardIdSettingsPersonalizationRouteImport.update({
     id: '/personalization',
     path: '/personalization',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any);
+const DashboardIdSettingsPeopleRoute =
+  DashboardIdSettingsPeopleRouteImport.update({
+    id: '/people',
+    path: '/people',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any);
 const DashboardIdSettingsOrganizationRoute =
@@ -422,6 +430,12 @@ const DashboardIdSettingsGovernanceContentModelsRoute =
     path: '/content-models',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
   } as any);
+const DashboardIdSettingsGovernanceAuditLogsRoute =
+  DashboardIdSettingsGovernanceAuditLogsRouteImport.update({
+    id: '/audit-logs',
+    path: '/audit-logs',
+    getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
+  } as any);
 const DashboardIdChatSharedShareTokenRoute =
   DashboardIdChatSharedShareTokenRouteImport.update({
     id: '/shared/$shareToken',
@@ -537,6 +551,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
+  '/dashboard/$id/settings/people': typeof DashboardIdSettingsPeopleRoute;
   '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
@@ -555,6 +570,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute;
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
+  '/dashboard/$id/settings/governance/audit-logs': typeof DashboardIdSettingsGovernanceAuditLogsRoute;
   '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute;
   '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute;
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
@@ -602,6 +618,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
+  '/dashboard/$id/settings/people': typeof DashboardIdSettingsPeopleRoute;
   '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
   '/dashboard/$id/agents': typeof DashboardIdAgentsIndexRoute;
@@ -619,6 +636,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute;
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
+  '/dashboard/$id/settings/governance/audit-logs': typeof DashboardIdSettingsGovernanceAuditLogsRoute;
   '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute;
   '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute;
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
@@ -677,6 +695,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
+  '/dashboard/$id/settings/people': typeof DashboardIdSettingsPeopleRoute;
   '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
@@ -695,6 +714,7 @@ export interface FileRoutesById {
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute;
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
+  '/dashboard/$id/settings/governance/audit-logs': typeof DashboardIdSettingsGovernanceAuditLogsRoute;
   '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute;
   '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute;
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
@@ -752,6 +772,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp-servers'
     | '/dashboard/$id/settings/organization'
+    | '/dashboard/$id/settings/people'
     | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/teams'
@@ -770,6 +791,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
     | '/dashboard/$id/chat/shared/$shareToken'
+    | '/dashboard/$id/settings/governance/audit-logs'
     | '/dashboard/$id/settings/governance/content-models'
     | '/dashboard/$id/settings/governance/feedback'
     | '/dashboard/$id/settings/governance/guardrails'
@@ -817,6 +839,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp-servers'
     | '/dashboard/$id/settings/organization'
+    | '/dashboard/$id/settings/people'
     | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/agents'
@@ -834,6 +857,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
     | '/dashboard/$id/chat/shared/$shareToken'
+    | '/dashboard/$id/settings/governance/audit-logs'
     | '/dashboard/$id/settings/governance/content-models'
     | '/dashboard/$id/settings/governance/feedback'
     | '/dashboard/$id/settings/governance/guardrails'
@@ -891,6 +915,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp-servers'
     | '/dashboard/$id/settings/organization'
+    | '/dashboard/$id/settings/people'
     | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/teams'
@@ -909,6 +934,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
     | '/dashboard/$id/chat/shared/$shareToken'
+    | '/dashboard/$id/settings/governance/audit-logs'
     | '/dashboard/$id/settings/governance/content-models'
     | '/dashboard/$id/settings/governance/feedback'
     | '/dashboard/$id/settings/governance/guardrails'
@@ -1146,6 +1172,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsPersonalizationRouteImport;
       parentRoute: typeof DashboardIdSettingsRoute;
     };
+    '/dashboard/$id/settings/people': {
+      id: '/dashboard/$id/settings/people';
+      path: '/people';
+      fullPath: '/dashboard/$id/settings/people';
+      preLoaderRoute: typeof DashboardIdSettingsPeopleRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/organization': {
       id: '/dashboard/$id/settings/organization';
       path: '/organization';
@@ -1361,6 +1394,13 @@ declare module '@tanstack/react-router' {
       path: '/content-models';
       fullPath: '/dashboard/$id/settings/governance/content-models';
       preLoaderRoute: typeof DashboardIdSettingsGovernanceContentModelsRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
+    '/dashboard/$id/settings/governance/audit-logs': {
+      id: '/dashboard/$id/settings/governance/audit-logs';
+      path: '/audit-logs';
+      fullPath: '/dashboard/$id/settings/governance/audit-logs';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceAuditLogsRouteImport;
       parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
     };
     '/dashboard/$id/chat/shared/$shareToken': {
@@ -1613,6 +1653,7 @@ const DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren =
 
 interface DashboardIdSettingsGovernanceRouteRouteChildren {
   DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
+  DashboardIdSettingsGovernanceAuditLogsRoute: typeof DashboardIdSettingsGovernanceAuditLogsRoute;
   DashboardIdSettingsGovernanceContentModelsRoute: typeof DashboardIdSettingsGovernanceContentModelsRoute;
   DashboardIdSettingsGovernanceFeedbackRoute: typeof DashboardIdSettingsGovernanceFeedbackRoute;
   DashboardIdSettingsGovernanceGuardrailsRoute: typeof DashboardIdSettingsGovernanceGuardrailsRoute;
@@ -1628,6 +1669,8 @@ const DashboardIdSettingsGovernanceRouteRouteChildren: DashboardIdSettingsGovern
   {
     DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute:
       DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren,
+    DashboardIdSettingsGovernanceAuditLogsRoute:
+      DashboardIdSettingsGovernanceAuditLogsRoute,
     DashboardIdSettingsGovernanceContentModelsRoute:
       DashboardIdSettingsGovernanceContentModelsRoute,
     DashboardIdSettingsGovernanceFeedbackRoute:
@@ -1681,6 +1724,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute;
   DashboardIdSettingsMcpServersRoute: typeof DashboardIdSettingsMcpServersRoute;
   DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute;
+  DashboardIdSettingsPeopleRoute: typeof DashboardIdSettingsPeopleRoute;
   DashboardIdSettingsPersonalizationRoute: typeof DashboardIdSettingsPersonalizationRoute;
   DashboardIdSettingsProvidersRoute: typeof DashboardIdSettingsProvidersRouteWithChildren;
   DashboardIdSettingsTeamsRoute: typeof DashboardIdSettingsTeamsRoute;
@@ -1698,6 +1742,7 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
   DashboardIdSettingsMcpServersRoute: DashboardIdSettingsMcpServersRoute,
   DashboardIdSettingsOrganizationRoute: DashboardIdSettingsOrganizationRoute,
+  DashboardIdSettingsPeopleRoute: DashboardIdSettingsPeopleRoute,
   DashboardIdSettingsPersonalizationRoute:
     DashboardIdSettingsPersonalizationRoute,
   DashboardIdSettingsProvidersRoute:

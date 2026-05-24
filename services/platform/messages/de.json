@@ -5,9 +5,7 @@
     "integrations": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die Integrationseinstellungen zuzugreifen.",
     "apiKeys": "Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu verwalten.",
     "organization": "Du benötigst Admin-Berechtigungen, um auf die Organisationseinstellungen zuzugreifen.",
-    "teams": "Du benötigst Admin-Berechtigungen, um auf die Team-Einstellungen zuzugreifen.",
     "agents": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Agents zu verwalten.",
-    "mcpServers": "Du benötigst Admin- oder Entwickler-Berechtigungen, um MCP-Server zu verwalten.",
     "branding": "Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen zuzugreifen.",
     "knowledge": "Dein Konto hat keine Berechtigung, auf Wissen zuzugreifen.",
     "workspaceNotFound": "Der gesuchte Workspace existiert nicht oder wurde möglicherweise entfernt.",
@@ -278,6 +276,7 @@
     "userButton": {
       "defaultName": "Benutzer",
       "manageAccount": "Konto verwalten",
+      "getApp": "App installieren",
       "helpFeedback": "Hilfe & Feedback",
       "currentVersion": "Aktuelle Version: v{version}",
       "whatsNew": "Neuigkeiten",
@@ -2658,7 +2657,9 @@
       "guardrails": "Guardrails",
       "usage": "Nutzung",
       "feedback": "Feedback",
-      "dataSubjectRequests": "Anfragen betroffener Personen"
+      "auditLogs": "Audit logs",
+      "dataSubjectRequests": "Anfragen betroffener Personen",
+      "policiesAndLimitsDescription": "Budgets, upload restrictions, data retention, feature flags, and voice output."
     },
     "trash": {
       "title": "Papierkorb",
@@ -3353,6 +3354,10 @@
       "title": "Teams",
       "description": "Teams innerhalb deiner Organisation verwalten."
     },
+    "people": {
+      "title": "People",
+      "description": "Manage members and teams in your organization."
+    },
     "agents": {
       "title": "Agents",
       "description": "KI-Agents für den Kundenservice erstellen und verwalten."
@@ -3459,6 +3464,7 @@
     "orgSettings": "Organisationseinstellungen",
     "notifications": "Benachrichtigungen",
     "organization": "Organisation",
+    "people": "People",
     "teams": "Teams",
     "integrations": "Integrationen",
     "mcpServers": "MCP-Server",
@@ -3468,7 +3474,6 @@
     "governance": "Richtlinien",
     "personalization": "Personalisierung",
     "account": "Konto",
-    "logs": "Protokolle",
     "agents": "Agents",
     "teamFilter": {
       "allTeams": "Alle"
@@ -3482,10 +3487,7 @@
   },
   "notifications": {
     "title": "Benachrichtigungen",
-    "tooltip": "Benachrichtigungen",
-    "ariaLabel": "Benachrichtigungen öffnen",
     "ariaUnread": "Ungelesen",
-    "unreadCount": "{count, plural, one {# ungelesen} other {# ungelesen}}",
     "empty": "Keine Benachrichtigungen.",
     "markAsRead": "Als gelesen markieren",
     "markAllAsRead": "Alle als gelesen markieren",
@@ -3964,30 +3966,74 @@
     "offlineReady": "Tale ist offline einsatzbereit."
   },
   "settings": {
+    "menu": {
+      "groups": {
+        "you": "You",
+        "workspace": "Workspace",
+        "governance": "Governance"
+      },
+      "account": {
+        "description": "Your profile, sign-in, and security."
+      },
+      "personalization": {
+        "description": "How Tale adapts to you — memory, instructions, and voice."
+      },
+      "organization": {
+        "description": "Workspace name, language, and identifiers."
+      },
+      "people": {
+        "description": "Members, roles, and teams."
+      },
+      "branding": {
+        "description": "Logo, colors, and the name shown to your users."
+      },
+      "integrations": {
+        "description": "Connect external apps and MCP servers."
+      },
+      "providers": {
+        "description": "Bring your own API keys for OpenAI, Anthropic, and others."
+      },
+      "apiKeys": {
+        "description": "Programmatic access tokens for the Tale API."
+      },
+      "governance": {
+        "description": "Policies, security, audit logs, and data retention."
+      }
+    },
     "account": {
       "profile": {
+        "title": "Profile",
+        "description": "Your display name and email — visible to your teammates.",
         "name": "Anzeigename",
         "namePlaceholder": "Gib deinen Namen ein",
         "email": "E-Mail",
         "nameRequired": "Name ist erforderlich"
       },
       "security": {
-        "title": "Sicherheit"
+        "title": "Sicherheit",
+        "description": "Password and two-factor authentication."
       }
     },
     "organization": {
       "title": "Organisation (optional)",
       "detailsTitle": "Organisationsdetails",
       "detailsDescription": "Grundlegende Informationen zu deiner Organisation.",
+      "identifiersTitle": "Identifiers",
+      "identifiersDescription": "Read-only references you may need when using the API or contacting support.",
       "organizationId": "Organisations-ID",
+      "organizationIdDescription": "Reference this ID in API requests and integrations.",
       "copyOrganizationId": "Organisations-ID kopieren",
       "membersTitle": "Organisationsmitglieder",
       "membersEntityLabel": "Mitglieder",
-      "manageAccess": "Zugriff auf die Organisation verwalten",
       "defaultLocale": "Standardsprache (für Agenten)",
       "searchMember": "Mitglied suchen",
       "addMember": "Mitglied hinzufügen",
       "createOrganization": "Organisation erstellen",
+      "organizationName": "Organisationsname",
+      "companyNameRequired": "Firmenname ist erforderlich",
+      "enterCompanyName": "Gib deinen Firmennamen ein",
+      "organizationCreated": "Organisation erstellt!",
+      "creating": "Erstelle...",
       "switching": "Wird gewechselt…",
       "switchingTo": "Wechsle zu {name}…",
       "switchingLabel": "Organisation wird gewechselt",
@@ -3998,11 +4044,6 @@
       "deleteLoading": "Lösche…",
       "deleteSuccess": "Organisation gelöscht",
       "deleteFailed": "Organisation konnte nicht gelöscht werden",
-      "organizationName": "Organisationsname",
-      "companyNameRequired": "Firmenname ist erforderlich",
-      "enterCompanyName": "Gib deinen Firmennamen ein",
-      "organizationCreated": "Organisation erstellt!",
-      "creating": "Erstelle...",
       "editMember": "Mitglied bearbeiten",
       "removeMember": "Mitglied entfernen",
       "memberUpdated": "Mitglied aktualisiert",
@@ -4304,6 +4345,9 @@
       "tabs": {
         "all": "Alle Integrationen",
         "connected": "Verbunden"
+      },
+      "sections": {
+        "apps": "Apps"
       },
       "searchPlaceholder": "Integrationen suchen...",
       "badge": {

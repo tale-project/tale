@@ -3,6 +3,7 @@
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { useInstallPrompt } from '@tale/ui/pwa/use-install-prompt';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
@@ -20,6 +21,7 @@ import {
   Building2,
   Settings as SettingsIcon,
   Bell,
+  Download,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -80,6 +82,14 @@ export function UserButton({
     organizationId ?? '',
   );
   const unreadCount = notificationsUnread ?? 0;
+  // PWA install — `canInstall` is only true on browsers that fired
+  // `beforeinstallprompt` AND when the app isn't already installed, so the
+  // "Get app" row stays hidden everywhere else (iOS Safari, Firefox, etc.).
+  const { canInstall, promptInstall } = useInstallPrompt();
+
+  const handleInstallApp = useCallback(() => {
+    void promptInstall();
+  }, [promptInstall]);
 
   // Used to display the current org name in the dropdown trigger row.
   const { organizations: userOrgs } = useUserOrganizationsWithDetails();
@@ -98,6 +108,24 @@ export function UserButton({
   );
 
   const [signOutDialogOpen, setSignOutDialogOpen] = useState(false);
+  const [open, setOpen] = useState(false);
+  // Profile dropdown swaps its content between the default view and a
+  // notifications view in-place (no second popover). When it closes, reset
+  // to the default so reopening always starts at the profile.
+  const [view, setView] = useState<'profile' | 'notifications'>('profile');
+
+  const handleOpenChange = useCallback((next: boolean) => {
+    setOpen(next);
+    if (!next) setView('profile');
+  }, []);
+
+  const handleOpenNotifications = useCallback(() => {
+    setView('notifications');
+  }, []);
+
+  const handleBackToProfile = useCallback(() => {
+    setView('profile');
+  }, []);
 
   const handleSignOut = useCallback(async () => {
     try {
@@ -124,66 +152,108 @@ export function UserButton({
     memberContext?.displayName || user?.name || t('userButton.defaultName');
 
   const menuItems = useMemo<DropdownMenuGroup[]>(() => {
+    // Notifications view — replaces the entire dropdown content with the
+    // notifications list (a back chevron in the list header swaps back).
+    // Width and padding adjust via `contentClassName` below.
+    if (view === 'notifications' && organizationId) {
+      return [
+        [
+          {
+            type: 'custom',
+            content: (
+              <div className="animate-in fade-in-0 slide-in-from-right-1 duration-150">
+                <NotificationListPanel
+                  organizationId={organizationId}
+                  onBack={handleBackToProfile}
+                  className="h-[28rem]"
+                />
+              </div>
+            ),
+          },
+        ],
+      ];
+    }
+
     const groups: DropdownMenuGroup[] = [];
 
     groups.push([
       {
         type: 'label',
         content: (
-          <Tooltip
-            content={
-              !loading && user && memberContext?.role
-                ? `${displayName} - ${memberContext.role}`
-                : null
-            }
-            side="top"
-          >
-            <div className="flex cursor-default flex-col gap-1">
-              {loading || !user ? (
-                <>
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-3.5 w-40" />
-                </>
-              ) : (
-                <>
-                  <Text className="font-semibold">{displayName}</Text>
-                  {displayName !== user.email && (
-                    <Text variant="muted">{user.email}</Text>
-                  )}
-                  {currentVersion && (
-                    <Text variant="muted" className="text-xs">
-                      {t('userButton.currentVersion', {
-                        version: currentVersion,
-                      })}
-                      {' · '}
-                      <Link
-                        to="/dashboard/changelog"
-                        search={{
-                          from: lastSeenVersion,
-                          to: currentVersion,
-                        }}
-                        onClick={markChangelogSeen}
-                        className="text-foreground relative inline-flex cursor-pointer items-center underline underline-offset-2 hover:opacity-80"
-                      >
-                        {t('userButton.whatsNew')}
-                        {hasUnseenVersion && (
-                          <>
-                            <span className="sr-only">
-                              {t('userButton.updateAvailable')}
-                            </span>
-                            <span
-                              className="ml-1.5 size-1.5 rounded-full bg-red-500"
-                              aria-hidden="true"
-                            />
-                          </>
-                        )}
-                      </Link>
-                    </Text>
-                  )}
-                </>
-              )}
-            </div>
-          </Tooltip>
+          <div className="flex items-start justify-between gap-2">
+            <Tooltip
+              content={
+                !loading && user && memberContext?.role
+                  ? `${displayName} - ${memberContext.role}`
+                  : null
+              }
+              side="top"
+            >
+              <div className="flex min-w-0 flex-1 cursor-default flex-col gap-1">
+                {loading || !user ? (
+                  <>
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3.5 w-40" />
+                  </>
+                ) : (
+                  <>
+                    <Text className="font-semibold">{displayName}</Text>
+                    {displayName !== user.email && (
+                      <Text variant="muted">{user.email}</Text>
+                    )}
+                    {currentVersion && (
+                      <Text variant="muted" className="text-xs">
+                        {t('userButton.currentVersion', {
+                          version: currentVersion,
+                        })}
+                        {' · '}
+                        <Link
+                          to="/dashboard/changelog"
+                          search={{
+                            from: lastSeenVersion,
+                            to: currentVersion,
+                          }}
+                          onClick={markChangelogSeen}
+                          className="text-foreground relative inline-flex cursor-pointer items-center underline underline-offset-2 hover:opacity-80"
+                        >
+                          {t('userButton.whatsNew')}
+                          {hasUnseenVersion && (
+                            <>
+                              <span className="sr-only">
+                                {t('userButton.updateAvailable')}
+                              </span>
+                              <span
+                                className="ml-1.5 size-1.5 rounded-full bg-red-500"
+                                aria-hidden="true"
+                              />
+                            </>
+                          )}
+                        </Link>
+                      </Text>
+                    )}
+                  </>
+                )}
+              </div>
+            </Tooltip>
+            {organizationId && (
+              <button
+                type="button"
+                onClick={handleOpenNotifications}
+                aria-label={tNav('notifications')}
+                className="hover:bg-muted relative -my-0.5 flex size-7 shrink-0 items-center justify-center rounded-md transition-colors"
+              >
+                <Bell className="text-muted-foreground size-4" />
+                {unreadCount > 0 && (
+                  <span
+                    aria-hidden
+                    className="bg-destructive text-destructive-foreground absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold"
+                  >
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
         ),
         className: 'pb-3 font-normal',
       },
@@ -260,43 +330,6 @@ export function UserButton({
           },
         ]);
       }
-
-      // Notifications — a horizontal extension of the profile panel, not a
-      // separate popover. Opening the sub-menu reveals the full notification
-      // list to the right of the dropdown (Radix sub-menus default to
-      // `side="right"`); the wider `contentClassName` keeps the list
-      // legible.
-      groups.push([
-        {
-          type: 'sub',
-          label: tNav('notifications'),
-          icon: Bell,
-          trailing:
-            unreadCount > 0 ? (
-              <span
-                aria-label={t('userButton.updateAvailable')}
-                className="bg-destructive text-destructive-foreground inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold"
-              >
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            ) : undefined,
-          items: [
-            [
-              {
-                type: 'custom',
-                content: (
-                  <NotificationListPanel
-                    organizationId={organizationId}
-                    className="h-[28rem]"
-                  />
-                ),
-              },
-            ],
-          ],
-          className: 'py-2.5',
-          contentClassName: 'w-96 max-w-[26rem] p-0',
-        },
-      ]);
 
       // Settings entry points — split between user-scoped settings (account,
       // personalization) and organization-scoped settings (everything else).
@@ -405,7 +438,17 @@ export function UserButton({
       },
     ]);
 
-    groups.push([
+    const helpGroup: DropdownMenuGroup = [];
+    if (canInstall) {
+      helpGroup.push({
+        type: 'item',
+        label: t('userButton.getApp'),
+        icon: Download,
+        onClick: handleInstallApp,
+        className: 'py-2.5',
+      });
+    }
+    helpGroup.push(
       {
         type: 'item',
         label: t('userButton.helpFeedback'),
@@ -422,10 +465,12 @@ export function UserButton({
         disabled: loading || !user,
         className: 'py-2.5',
       },
-    ]);
+    );
+    groups.push(helpGroup);
 
     return groups;
   }, [
+    view,
     loading,
     user,
     memberContext,
@@ -444,6 +489,10 @@ export function UserButton({
     setLocale,
     setSelectedTeamId,
     handleSignOutClick,
+    handleOpenNotifications,
+    handleBackToProfile,
+    handleInstallApp,
+    canInstall,
     unreadCount,
     currentVersion,
     lastSeenVersion,
@@ -493,6 +542,15 @@ export function UserButton({
     />
   );
 
+  // Width transitions between the compact profile view and the wider
+  // notifications view so the side-extension swap feels continuous.
+  // `max-w-[calc(100vw-2rem)]` keeps the wider variant inside the viewport
+  // on small screens.
+  const contentClassName = cn(
+    'transition-[width,max-width] duration-200',
+    view === 'notifications' ? 'w-96 max-w-[calc(100vw-2rem)] p-0' : 'w-64',
+  );
+
   if (label) {
     return (
       <>
@@ -500,7 +558,9 @@ export function UserButton({
           trigger={triggerContent}
           items={menuItems}
           align={align}
-          contentClassName="w-64"
+          open={open}
+          onOpenChange={handleOpenChange}
+          contentClassName={contentClassName}
         />
         {signOutConfirmDialog}
       </>
@@ -519,7 +579,9 @@ export function UserButton({
             }
             items={menuItems}
             align={align}
-            contentClassName="w-64"
+            open={open}
+            onOpenChange={handleOpenChange}
+            contentClassName={contentClassName}
           />
           <TooltipPrimitive.Content
             side="right"

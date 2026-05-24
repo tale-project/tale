@@ -1,23 +1,24 @@
 import { convexQuery } from '@convex-dev/react-query';
-import { Card } from '@tale/ui/card';
-import { Grid, HStack, Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Tabs } from '@tale/ui/tabs';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
+import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { getTemplateIconUrl } from '@/app/features/settings/integrations/components/integration-upload/constants/integration-templates';
 import {
   type IntegrationListItem,
   Integrations,
 } from '@/app/features/settings/integrations/components/integrations';
+import { IntegrationsPageSkeleton } from '@/app/features/settings/integrations/components/integrations-page-skeleton';
 import {
   useIntegrationCredentials,
   useIntegrations,
   useSsoProvider,
 } from '@/app/features/settings/integrations/hooks/queries';
+import { McpServers } from '@/app/features/settings/mcp-servers/components/mcp-servers';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -26,6 +27,7 @@ import { seo } from '@/lib/utils/seo';
 import { isRecord } from '@/lib/utils/type-guards';
 
 const searchSchema = z.object({
+  section: z.enum(['apps', 'mcp-servers']).optional(),
   tab: z.string().optional(),
   slug: z.string().optional(),
   integration_oauth2: z.string().optional(),
@@ -47,52 +49,14 @@ export const Route = createFileRoute('/dashboard/$id/settings/integrations')({
     void context.queryClient.prefetchQuery(
       convexQuery(api.sso_providers.queries.get, {}),
     );
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.mcp_servers.queries.list, {
+        organizationId: params.id,
+      }),
+    );
   },
   component: IntegrationsPage,
 });
-
-function IntegrationCardSkeleton() {
-  return (
-    <Card className="flex flex-col justify-between" contentClassName="p-5">
-      <Stack gap={3}>
-        <HStack justify="between" align="start">
-          <div className="border-border flex h-11 w-11 items-center justify-center rounded-lg border">
-            <Skeleton className="size-6 rounded-sm" />
-          </div>
-          <Skeleton className="h-5 w-16 rounded-full" />
-        </HStack>
-        <Stack gap={1}>
-          <Skeleton className="h-5 w-24" />
-          <Skeleton className="h-5 w-full" />
-          <Skeleton className="h-5 w-4/5" />
-        </Stack>
-      </Stack>
-    </Card>
-  );
-}
-
-function IntegrationsSkeleton() {
-  return (
-    <Stack gap={0}>
-      <HStack justify="between" align="start" className="pb-3">
-        <Stack gap={1}>
-          <Skeleton className="h-7 w-32" />
-          <Skeleton className="h-5 w-64" />
-        </Stack>
-        <Skeleton className="h-9 w-40" />
-      </HStack>
-      <HStack justify="between" align="center" className="mb-4">
-        <Skeleton className="h-9 w-72 rounded-lg" />
-        <Skeleton className="h-9 w-64 rounded-md" />
-      </HStack>
-      <Grid cols={1} md={2} lg={3}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <IntegrationCardSkeleton key={i} />
-        ))}
-      </Grid>
-    </Stack>
-  );
-}
 
 function IntegrationsPage() {
   const { id: organizationId } = Route.useParams();
@@ -100,6 +64,9 @@ function IntegrationsPage() {
   const navigate = useNavigate();
   const { t } = useT('accessDenied');
   const { t: tSettings } = useT('settings');
+  const { t: tNav } = useT('navigation');
+
+  const section = search.section ?? 'apps';
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -111,7 +78,6 @@ function IntegrationsPage() {
   const { data: credentials } = useIntegrationCredentials(organizationId);
   const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
 
-  // Handle OAuth2 redirect query params
   useEffect(() => {
     if (search.integration_oauth2 === 'success') {
       toast({
@@ -128,25 +94,23 @@ function IntegrationsPage() {
       });
     }
 
-    // Clean up OAuth query params from URL
     if (search.integration_oauth2 || search.integration_oauth2_error) {
       void navigate({
         from: Route.fullPath,
-        search: { tab: search.tab },
+        search: { section: search.section, tab: search.tab },
         replace: true,
       });
     }
   }, [search.integration_oauth2, search.integration_oauth2_error]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (abilityLoading || isOrgLoading || isIntegrationsLoading || isSsoLoading) {
-    return <IntegrationsSkeleton />;
+    return <IntegrationsPageSkeleton />;
   }
 
   if (ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={t('integrations')} />;
   }
 
-  // Merge file-based integration config with DB credential records
   const credentialsBySlug = new Map(
     (credentials ?? []).map(
       (c: Record<string, unknown> & { slug: string }) => [c.slug, c] as const,
@@ -161,8 +125,6 @@ function IntegrationsPage() {
       'slug' in item,
   );
 
-  // Deep-merge object configs so DB partials don't wipe file-defined defaults
-  // (e.g. OAuth2 authorizationUrl/tokenUrl from config.json)
   const mergeConfig = (fileVal: unknown, credVal: unknown): unknown => {
     if (isRecord(credVal) && isRecord(fileVal)) {
       return { ...fileVal, ...credVal };
@@ -204,6 +166,15 @@ function IntegrationsPage() {
     },
   ) as unknown as IntegrationListItem[];
 
+  const handleSectionChange = (next: string) => {
+    const sectionNext = next === 'mcp-servers' ? 'mcp-servers' : undefined;
+    void navigate({
+      from: Route.fullPath,
+      search: { section: sectionNext },
+      replace: true,
+    });
+  };
+
   const handleTabChange = (tab: string) => {
     void navigate({
       from: Route.fullPath,
@@ -221,14 +192,36 @@ function IntegrationsPage() {
   };
 
   return (
-    <Integrations
-      organizationId={organizationId}
-      integrations={allIntegrations}
-      ssoProvider={ssoProvider ?? null}
-      tab={search.tab ?? 'connected'}
-      onTabChange={handleTabChange}
-      initialSlug={search.slug}
-      onInitialSlugConsumed={clearSlugParam}
-    />
+    <SettingsPage
+      title={tNav('integrations')}
+      description={tSettings('menu.integrations.description')}
+    >
+      <Tabs
+        value={section}
+        onValueChange={handleSectionChange}
+        items={[
+          {
+            value: 'apps',
+            label: tSettings('integrations.sections.apps'),
+            content: (
+              <Integrations
+                organizationId={organizationId}
+                integrations={allIntegrations}
+                ssoProvider={ssoProvider ?? null}
+                tab={search.tab ?? 'connected'}
+                onTabChange={handleTabChange}
+                initialSlug={search.slug}
+                onInitialSlugConsumed={clearSlugParam}
+              />
+            ),
+          },
+          {
+            value: 'mcp-servers',
+            label: tNav('mcpServers'),
+            content: <McpServers organizationId={organizationId} />,
+          },
+        ]}
+      />
+    </SettingsPage>
   );
 }
