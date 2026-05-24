@@ -402,7 +402,7 @@ export function ChatInput({
           style={{ display: 'none' }}
         />
 
-        <div className="bg-background border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-2xl border px-5 pt-4">
+        <div className="bg-background border-border sm:border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-xl border px-3 pt-3 sm:rounded-2xl sm:px-5 sm:pt-4">
           {videoLinkJobs.length > 0 && (
             <HStack gap={1} wrap className="mb-2">
               {videoLinkJobs.map((job) => (
@@ -732,7 +732,7 @@ export function ChatInput({
               onCompositionEnd={() => {
                 isComposingRef.current = false;
               }}
-              className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="text-foreground placeholder:text-muted-foreground relative min-h-[72px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[100px]"
               disabled={inputDisabled}
               placeholder=""
               aria-labelledby={textareaLabelId}
@@ -805,6 +805,7 @@ export function ChatInput({
             </HStack>
             <HStack gap={1} align="center" className="shrink-0">
               <DictationButton
+                organizationId={organizationId}
                 disabled={inputDisabled}
                 lang={speechLang}
                 onTranscript={handleTranscript}

@@ -191,7 +191,7 @@ function DashboardLayout() {
 
               <main
                 id="main-content"
-                className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(var(--safe-bottom)+3.5rem)] md:border-l md:pb-0"
+                className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(var(--safe-bottom)+var(--mobile-nav-height,3.5rem))] md:border-l md:pb-0"
               >
                 {hasRole && (
                   <TwoFactorGraceBanner organizationId={organizationId} />

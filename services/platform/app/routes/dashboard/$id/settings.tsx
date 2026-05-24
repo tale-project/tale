@@ -30,7 +30,9 @@ function SettingsLayout() {
   const location = useLocation();
 
   const settingsRoot = `/dashboard/${organizationId}/settings`;
-  const isAtIndex = location.pathname === settingsRoot;
+  const personalRoot = `${settingsRoot}/personal`;
+  const isAtIndex =
+    location.pathname === settingsRoot || location.pathname === personalRoot;
   // Show the mobile back-to-settings link only when we're at a direct child of
   // `/settings` (e.g. `/settings/account`). Deeper routes — `governance/<sub>`,
   // `integrations/<sub>` — own their own intra-section back link and would
@@ -63,7 +65,11 @@ function SettingsLayout() {
     >
       {!isAtIndex && isDirectChild && (
         <Link
-          to="/dashboard/$id/settings"
+          to={
+            isUserScope
+              ? '/dashboard/$id/settings/personal'
+              : '/dashboard/$id/settings'
+          }
           params={{ id: organizationId }}
           className="text-muted-foreground hover:text-foreground border-border flex items-center gap-1.5 border-b px-4 py-2.5 text-sm font-medium md:hidden"
         >

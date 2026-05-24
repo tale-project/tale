@@ -11,9 +11,9 @@ import { ConvexError } from 'convex/values';
 import { Trash2 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
-import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { primeAudio } from '@/app/features/chat/utils/prime-audio';
+import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -164,27 +164,26 @@ function OrgDefaultSection({ organizationId }: { organizationId: string }) {
   const enabled = readPolicyEnabled(policy?.config);
 
   return (
-    <PageSection title={t('page.orgDefault.label')} titleSize="base">
-      <Switch
-        checked={enabled}
-        description={t('page.orgDefault.description')}
-        onCheckedChange={async (next) => {
-          try {
-            await upsertMutation.mutateAsync({
-              organizationId,
-              policyType: 'personalization',
-              config: { enabled: next },
-            });
-            toast({ title: t('page.orgDefault.toastUpdated') });
-          } catch (err) {
-            toast({
-              title: errorMessage(err, t('errors.saveFailed')),
-              variant: 'destructive',
-            });
-          }
-        }}
-      />
-    </PageSection>
+    <SettingsToggleRow
+      label={t('page.orgDefault.label')}
+      description={t('page.orgDefault.description')}
+      checked={enabled}
+      onCheckedChange={async (next) => {
+        try {
+          await upsertMutation.mutateAsync({
+            organizationId,
+            policyType: 'personalization',
+            config: { enabled: next },
+          });
+          toast({ title: t('page.orgDefault.toastUpdated') });
+        } catch (err) {
+          toast({
+            title: errorMessage(err, t('errors.saveFailed')),
+            variant: 'destructive',
+          });
+        }
+      }}
+    />
   );
 }
 
@@ -214,29 +213,37 @@ function EnableSection({
     ? t('page.enable.followingOrgDefault', { state: orgStateLabel })
     : t('page.enable.overridingOrgDefault', { state: orgStateLabel });
 
+  // The org-default hint sits inside the toggle row's `description` slot so
+  // both lines share `aria-describedby`. Folding it into the description
+  // also lines it up with the label on the left rather than dangling under
+  // the right-aligned switch.
+  const description: ReactNode =
+    orgDefault === undefined ? (
+      t('page.enable.description')
+    ) : (
+      <>
+        {t('page.enable.description')}{' '}
+        <span className="text-muted-foreground">{hint}</span>
+      </>
+    );
+
   return (
-    <PageSection title={t('page.enable.label')} titleSize="base">
-      <Switch
-        checked={effective}
-        description={t('page.enable.description')}
-        onCheckedChange={async (next) => {
-          try {
-            await setEnabled({ organizationId, enabled: next });
-            toast({ title: t('toasts.preferencesUpdated') });
-          } catch (err) {
-            toast({
-              title: errorMessage(err, t('errors.saveFailed')),
-              variant: 'destructive',
-            });
-          }
-        }}
-      />
-      {orgDefault !== undefined && (
-        <Text variant="muted" className="mt-2 text-xs">
-          {hint}
-        </Text>
-      )}
-    </PageSection>
+    <SettingsToggleRow
+      label={t('page.enable.label')}
+      description={description}
+      checked={effective}
+      onCheckedChange={async (next) => {
+        try {
+          await setEnabled({ organizationId, enabled: next });
+          toast({ title: t('toasts.preferencesUpdated') });
+        } catch (err) {
+          toast({
+            title: errorMessage(err, t('errors.saveFailed')),
+            variant: 'destructive',
+          });
+        }
+      }}
+    />
   );
 }
 
@@ -402,73 +409,57 @@ function VoiceOutputSection({
     t('page.voiceOutput.description')
   );
 
+  // Disable when (a) prefs still loading, (b) no provider AND the user has
+  // it OFF (so they can still flip OFF in the edge case where the probe is
+  // wrong about negativity), or (c) the org has vetoed voice org-wide — in
+  // that case the write would persist but the effective state stays OFF,
+  // so we hard-disable to prevent the silent no-op. M6.
+  const disabled =
+    isLoading || (providerAvailable === false && !enabled) || orgVetoed;
+
   return (
-    <PageSection title={t('page.voiceOutput.label')} titleSize="base">
-      <Switch
-        // Disable the control until `prefs` resolves so a tap during the
-        // loading window can't write `false` over a stored `true` (the
-        // previous bug). Additionally block flipping the switch ON when
-        // the capability probe has decisively reported "no provider" —
-        // turning on voice in that state writes a preference the system
-        // can't honor and just surfaces a destructive toast after the
-        // fact. The user can still turn it OFF in that state (the probe
-        // could be wrong about negativity, e.g. a transient mid-toggle
-        // outage), so the gate is asymmetric.
-        // Disable when (a) prefs still loading, (b) no provider AND the
-        // user has it OFF (so they can still flip OFF in the
-        // edge case where the probe is wrong about negativity), or
-        // (c) the org has vetoed voice org-wide — in that case the
-        // write would persist but the effective state stays OFF, so
-        // we hard-disable to prevent the silent no-op. M6.
-        disabled={
-          isLoading || (providerAvailable === false && !enabled) || orgVetoed
-        }
-        checked={enabled}
-        // Use `aria-label` (not the visible `label` prop) for the
-        // accessible name — the PageSection title above already renders
-        // the same text visually, and passing `label` to Switch
-        // duplicated it on screen. `aria-label` keeps WCAG 4.1.2 happy
-        // without the redundant visible label.
-        aria-label={t('page.voiceOutput.label')}
-        description={switchDescription}
-        aria-busy={isLoading || providerAvailable === null}
-        onCheckedChange={async (next) => {
-          // Bank the shared AudioContext gesture token. The chat view
-          // owns the actual `<audio>` element used for playback; the
-          // settings page can't reach that element, so the per-element
-          // activation transfer documented in `prime-audio.ts` doesn't
-          // apply here. iOS Safari users toggling from settings may
-          // still see a single `NotAllowedError` on the first reply
-          // until they tap the bubble's play affordance once; from
-          // then on the chat-header toggle's gesture covers them.
-          if (next) primeAudio();
-          try {
-            await setVoiceOutput({ organizationId, enabled: next });
-            // Race-defensive: although the `disabled` gate prevents
-            // toggling ON when `providerAvailable === false`, the probe
-            // might still be `null` at gesture time and resolve to
-            // `false` by the time the mutation completes. In that
-            // window the user toggled ON without an actionable
-            // provider; surface the gap as a destructive toast
-            // pointing to the providers page instead of the
-            // misleading green "Preferences updated".
-            if (next && providerAvailable === false) {
-              toast({
-                title: t('toasts.voiceOutputEnabledButProviderMissing'),
-                variant: 'destructive',
-              });
-            } else {
-              toast({ title: t('toasts.preferencesUpdated') });
-            }
-          } catch (err) {
+    <SettingsToggleRow
+      label={t('page.voiceOutput.label')}
+      description={switchDescription}
+      checked={enabled}
+      disabled={disabled}
+      ariaBusy={isLoading || providerAvailable === null}
+      onCheckedChange={async (next) => {
+        // Bank the shared AudioContext gesture token. The chat view
+        // owns the actual `<audio>` element used for playback; the
+        // settings page can't reach that element, so the per-element
+        // activation transfer documented in `prime-audio.ts` doesn't
+        // apply here. iOS Safari users toggling from settings may
+        // still see a single `NotAllowedError` on the first reply
+        // until they tap the bubble's play affordance once; from
+        // then on the chat-header toggle's gesture covers them.
+        if (next) primeAudio();
+        try {
+          await setVoiceOutput({ organizationId, enabled: next });
+          // Race-defensive: although the `disabled` gate prevents
+          // toggling ON when `providerAvailable === false`, the probe
+          // might still be `null` at gesture time and resolve to
+          // `false` by the time the mutation completes. In that
+          // window the user toggled ON without an actionable
+          // provider; surface the gap as a destructive toast
+          // pointing to the providers page instead of the
+          // misleading green "Preferences updated".
+          if (next && providerAvailable === false) {
             toast({
-              title: errorMessage(err, t('errors.saveFailed')),
+              title: t('toasts.voiceOutputEnabledButProviderMissing'),
               variant: 'destructive',
             });
+          } else {
+            toast({ title: t('toasts.preferencesUpdated') });
           }
-        }}
-      />
-    </PageSection>
+        } catch (err) {
+          toast({
+            title: errorMessage(err, t('errors.saveFailed')),
+            variant: 'destructive',
+          });
+        }
+      }}
+    />
   );
 }
 

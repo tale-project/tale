@@ -3,7 +3,7 @@
 import { BottomTabBar, type BottomTabBarItem } from '@tale/ui/bottom-tab-bar';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { Bot, BrainIcon, Inbox, MessageCircle, Network } from 'lucide-react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -70,7 +70,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
       },
       {
         key: 'automations',
-        label: tNav('automations'),
+        label: tNav('automationsShort'),
         icon: Network,
         to: `/dashboard/${organizationId}/automations`,
         activePrefix: `/dashboard/${organizationId}/automations`,
@@ -79,6 +79,31 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
     ],
     [ability, organizationId, tNav],
   );
+
+  // Publish the bar's measured height as `--mobile-nav-height` so the
+  // dashboard `<main>` can reserve exactly the right padding-bottom.
+  // `BottomTabBar` labels are `line-clamp-2`, so locales with long words
+  // (de: "Konversationen", "Automationen") wrap and grow the bar past
+  // any hard-coded reservation. ResizeObserver keeps the var in sync
+  // when fonts load, the locale switches, or rotation reflows labels.
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return undefined;
+    const update = () => {
+      document.documentElement.style.setProperty(
+        '--mobile-nav-height',
+        `${el.offsetHeight}px`,
+      );
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty('--mobile-nav-height');
+    };
+  }, []);
 
   const items = useMemo<BottomTabBarItem[]>(() => {
     const pathname = location.pathname;
@@ -102,6 +127,10 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   }, [tabs, location.pathname, navigate, accentColor]);
 
   return (
-    <BottomTabBar items={items} ariaLabel={tNav('aria.primaryNavigation')} />
+    <BottomTabBar
+      ref={navRef}
+      items={items}
+      ariaLabel={tNav('aria.primaryNavigation')}
+    />
   );
 }

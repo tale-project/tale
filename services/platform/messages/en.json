@@ -1049,8 +1049,10 @@
     "dictation": {
       "start": "Start dictation",
       "stop": "Stop dictation",
+      "transcribing": "Transcribing…",
       "notSupported": "Speech recognition is not supported in this browser",
-      "permissionDenied": "Microphone access was denied. Please allow microphone access in your browser settings."
+      "permissionDenied": "Microphone access was denied. Please allow microphone access in your browser settings.",
+      "transcriptionFailed": "Could not transcribe your dictation. Please try again."
     },
     "citations": {
       "source": "Source {number}",
@@ -3457,6 +3459,7 @@
     "conversations": "Conversations",
     "knowledge": "Knowledge",
     "automations": "Automations",
+    "automationsShort": "Automation",
     "userSettings": "Settings",
     "orgSettings": "Organization settings",
     "notifications": "Notifications",

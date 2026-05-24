@@ -60,8 +60,8 @@ function ChatInputSkeleton() {
     // inside ChatSkeleton where the sibling already consumes all space.
     <PanelFooter className="mt-auto">
       <div className="mx-auto w-full max-w-(--chat-max-width)">
-        <div className="bg-background border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-2xl border px-5 pt-4">
-          <Skeleton className="h-[100px] w-full bg-transparent" />
+        <div className="bg-background border-border sm:border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-xl border px-3 pt-3 sm:rounded-2xl sm:px-5 sm:pt-4">
+          <Skeleton className="h-[72px] w-full bg-transparent sm:h-[100px]" />
           <div className="flex items-center pb-3">
             <Skeleton className="h-5 w-5 rounded" />
           </div>

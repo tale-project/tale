@@ -1049,8 +1049,10 @@
     "dictation": {
       "start": "Démarrer la dictée",
       "stop": "Arrêter la dictée",
+      "transcribing": "Transcription…",
       "notSupported": "La reconnaissance vocale n'est pas prise en charge par ce navigateur",
-      "permissionDenied": "L'accès au microphone a été refusé. Merci d'autoriser l'accès au microphone dans les paramètres de ton navigateur."
+      "permissionDenied": "L'accès au microphone a été refusé. Merci d'autoriser l'accès au microphone dans les paramètres de ton navigateur.",
+      "transcriptionFailed": "Impossible de transcrire ta dictée. Réessaie."
     },
     "citations": {
       "source": "Source {number}",
@@ -3457,6 +3459,7 @@
     "conversations": "Conversations",
     "knowledge": "Connaissances",
     "automations": "Automatisations",
+    "automationsShort": "Automation",
     "userSettings": "Paramètres",
     "orgSettings": "Paramètres de l'organisation",
     "notifications": "Notifications",

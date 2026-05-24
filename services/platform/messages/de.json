@@ -1049,8 +1049,10 @@
     "dictation": {
       "start": "Diktat starten",
       "stop": "Diktat stoppen",
+      "transcribing": "Transkribiere…",
       "notSupported": "Spracherkennung wird in diesem Browser nicht unterstützt",
-      "permissionDenied": "Mikrofonzugriff wurde verweigert. Bitte erlaube den Mikrofonzugriff in den Browsereinstellungen."
+      "permissionDenied": "Mikrofonzugriff wurde verweigert. Bitte erlaube den Mikrofonzugriff in den Browsereinstellungen.",
+      "transcriptionFailed": "Dein Diktat konnte nicht transkribiert werden. Versuch es nochmal."
     },
     "citations": {
       "source": "Quelle {number}",
@@ -3457,6 +3459,7 @@
     "conversations": "Konversationen",
     "knowledge": "Wissen",
     "automations": "Automatisierungen",
+    "automationsShort": "Automation",
     "userSettings": "Einstellungen",
     "orgSettings": "Organisationseinstellungen",
     "notifications": "Benachrichtigungen",
