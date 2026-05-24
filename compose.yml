@@ -321,18 +321,6 @@ services:
     env_file:
       - .env
 
-    environment:
-      # Sandbox-wobbly-origami plan §1+§4: spawner-bound storage URLs and
-      # the /api/sandbox/* callback endpoints are rewritten against this
-      # base so the spawner stays on the internal Docker network. We point
-      # directly at `convex:3210` rather than going through Caddy `proxy`
-      # because Caddy's main site block is HTTPS-only with a self-signed
-      # cert in dev — POSTing HTTP through it returns a 308 to HTTPS that
-      # the spawner can't validate without a TLS skip-verify flag. Direct
-      # to Convex bypasses both the redirect and the cert: the spawner is
-      # a trusted internal process on the same Docker bridge as Convex.
-      SANDBOX_STORAGE_INTERNAL_BASE_URL: http://convex:3210
-
     restart: unless-stopped
 
     # Readiness: /version responds as soon as HTTP server binds, but we also

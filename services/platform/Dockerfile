@@ -216,6 +216,16 @@ ENV NODE_ENV=production \
     HOSTNAME="0.0.0.0" \
     # Convex service DNS name (compose-internal). Overridable via CONVEX_URL.
     CONVEX_URL=http://convex:3210 \
+    # Origin that the sandbox spawner uses to POST presigned-URL output
+    # uploads back to Convex. Read by Convex Node actions via process.env
+    # in toSandboxStorageUrl() (see convex/lib/helpers/public_storage_url.ts).
+    # Node actions only see vars that this container's entrypoint pushes
+    # into Convex's deployment env via `convex env set`, so baking the
+    # value into the platform image is what guarantees the rewrite has
+    # a reachable origin on every docker deploy. Direct to convex:3210
+    # rather than the Caddy proxy because Caddy is HTTPS-only with a
+    # self-signed cert and would 308-redirect plain HTTP POSTs.
+    SANDBOX_STORAGE_INTERNAL_BASE_URL=http://convex:3210 \
     # INSTANCE_NAME is shared with convex service; platform uses it + INSTANCE_SECRET
     # to compute the admin key for `bunx convex env set` and `bunx convex deploy`.
     INSTANCE_NAME=tale_platform \
@@ -272,6 +282,7 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME="0.0.0.0" \
     CONVEX_URL=http://convex:3210 \
+    SANDBOX_STORAGE_INTERNAL_BASE_URL=http://convex:3210 \
     INSTANCE_NAME=tale_platform \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data
