@@ -400,7 +400,12 @@ else
     # left in the spawner's in-flight registry from a previous run) doesn't
     # return 409 Duplicate.
     SMOKE_EXEC_ID="smoke-$$-$(date +%s)$(date +%N | head -c 6)"
-    SANDBOX_BODY="{\"executionId\":\"${SMOKE_EXEC_ID}\",\"organizationId\":\"smoke\",\"language\":\"python\",\"code\":\"print(1)\",\"timeoutMs\":30000}"
+    # New contract (post-wobbly-origami): source ships in `files[]`,
+    # `entryPath` names the file to exec, and `outputUploadSlots` + the
+    # upload-URL endpoints are required even when no outputs are produced.
+    # `print(1)` writes nothing under /workspace/output/, so the endpoint
+    # URLs are never actually called — placeholders satisfy the validator.
+    SANDBOX_BODY="{\"executionId\":\"${SMOKE_EXEC_ID}\",\"organizationId\":\"smoke\",\"language\":\"python\",\"files\":[{\"path\":\"main.py\",\"content\":\"print(1)\"}],\"entryPath\":\"main.py\",\"timeoutMs\":30000,\"outputUploadSlots\":[],\"outputUrlEndpoint\":\"http://platform:3000/api/sandbox/output_upload_url\",\"reportUploadedEndpoint\":\"http://platform:3000/api/sandbox/record_uploaded\"}"
     SANDBOX_TS=$(($(date +%s%N) / 1000000))
     SANDBOX_PATH="/v1/execute"
     # New signing contract (auth.ts): METHOD\npath\ntimestamp\nsha256Hex(body)
@@ -456,15 +461,16 @@ else
         fail "Sandbox /v1/execute: expected 401 without signature, got ${NEG_HTTP}"
     fi
 
-    # 256 KB + 1 body → 413. Tests the streaming body cap before HMAC
+    # 2 MB + 1 body → 413. Tests the streaming body cap before HMAC
     # check; we don't bother signing because the byte cap fires first.
+    # Cap default (cfg.maxRequestBodyBytes) is 2 MiB, see services/sandbox/src/config.ts.
     #
     # The body has to come from a file rather than be passed inline: the
     # Linux kernel caps a single argv string at MAX_ARG_STRLEN (128 KiB),
-    # independent of ARG_MAX, so `--data-binary "${TOO_BIG}"` with 256 KiB
+    # independent of ARG_MAX, so `--data-binary "${TOO_BIG}"` with multi-MB
     # of payload fails the execve before curl ever runs.
     TOO_BIG_FILE="$(mktemp)"
-    head -c 262145 /dev/zero | tr '\0' 'x' > "${TOO_BIG_FILE}"
+    head -c 2097153 /dev/zero | tr '\0' 'x' > "${TOO_BIG_FILE}"
     NEG_HTTP=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 \
         -X POST \
         -H "content-type: application/json" \
