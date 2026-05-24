@@ -186,7 +186,6 @@ export function ProvidersTable({
 
       {editProvider && (
         <ProviderEditPanelLoader
-          orgSlug={orgSlug}
           providerName={editProvider.name}
           organizationId={organizationId}
           onClose={() => setEditProvider(null)}
@@ -297,23 +296,19 @@ function ProviderRowActions({
  * `useProviderConfig` inside `ProviderEditPanel` throws.
  */
 function ProviderEditPanelLoader({
-  orgSlug,
   providerName,
   organizationId,
   onClose,
 }: {
-  orgSlug: string;
   providerName: string;
   organizationId: string;
   onClose: () => void;
 }) {
-  const { data } = useReadProvider(orgSlug, providerName, {
-    enabled: !!orgSlug,
-  });
+  const { data } = useReadProvider(organizationId, providerName);
   if (!data?.ok) return null;
   return (
     <ProviderConfigProvider
-      orgSlug={orgSlug}
+      organizationId={organizationId}
       providerName={providerName}
       initialConfig={data.config}
       initialHash={data.hash}
