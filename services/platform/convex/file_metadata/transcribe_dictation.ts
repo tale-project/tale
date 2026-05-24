@@ -134,7 +134,7 @@ export const transcribeDictation = action({
   },
 });
 
-function pickExtensionFromMime(mime: string): string {
+export function pickExtensionFromMime(mime: string): string {
   const lower = mime.toLowerCase();
   if (lower.includes('ogg')) return 'ogg';
   if (lower.includes('webm')) return 'webm';
