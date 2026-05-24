@@ -42,7 +42,9 @@ function SettingsLayout() {
     settingsPath !== '' && !settingsPath.replace(/\/$/, '').includes('/');
   const isUserScope =
     location.pathname.includes('/settings/account') ||
-    location.pathname.includes('/settings/personalization');
+    location.pathname.includes('/settings/personalization') ||
+    location.pathname.endsWith('/settings/personal') ||
+    location.pathname.includes('/settings/personal/');
   const headerTitle = isUserScope ? tNav('userSettings') : tNav('orgSettings');
 
   return (

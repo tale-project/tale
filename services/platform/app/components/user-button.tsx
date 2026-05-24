@@ -352,7 +352,7 @@ export function UserButton({
           icon: SettingsIcon,
           onClick: () => {
             void navigate({
-              to: '/dashboard/$id/settings/account',
+              to: '/dashboard/$id/settings/personal',
               params: { id: organizationId },
             });
             onNavigate?.();
@@ -365,7 +365,7 @@ export function UserButton({
           icon: Building2,
           onClick: () => {
             void navigate({
-              to: '/dashboard/$id/settings/organization',
+              to: '/dashboard/$id/settings',
               params: { id: organizationId },
             });
             onNavigate?.();

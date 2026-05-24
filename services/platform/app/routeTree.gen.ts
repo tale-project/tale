@@ -39,6 +39,7 @@ import { Route as DashboardIdAgentsIndexRouteImport } from './routes/dashboard/$
 import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams';
 import { Route as DashboardIdSettingsProvidersRouteImport } from './routes/dashboard/$id/settings/providers';
 import { Route as DashboardIdSettingsPersonalizationRouteImport } from './routes/dashboard/$id/settings/personalization';
+import { Route as DashboardIdSettingsPersonalRouteImport } from './routes/dashboard/$id/settings/personal';
 import { Route as DashboardIdSettingsPeopleRouteImport } from './routes/dashboard/$id/settings/people';
 import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization';
 import { Route as DashboardIdSettingsMcpServersRouteImport } from './routes/dashboard/$id/settings/mcp-servers';
@@ -238,6 +239,12 @@ const DashboardIdSettingsPersonalizationRoute =
   DashboardIdSettingsPersonalizationRouteImport.update({
     id: '/personalization',
     path: '/personalization',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any);
+const DashboardIdSettingsPersonalRoute =
+  DashboardIdSettingsPersonalRouteImport.update({
+    id: '/personal',
+    path: '/personal',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any);
 const DashboardIdSettingsPeopleRoute =
@@ -552,6 +559,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
   '/dashboard/$id/settings/people': typeof DashboardIdSettingsPeopleRoute;
+  '/dashboard/$id/settings/personal': typeof DashboardIdSettingsPersonalRoute;
   '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
@@ -619,6 +627,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
   '/dashboard/$id/settings/people': typeof DashboardIdSettingsPeopleRoute;
+  '/dashboard/$id/settings/personal': typeof DashboardIdSettingsPersonalRoute;
   '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
   '/dashboard/$id/agents': typeof DashboardIdAgentsIndexRoute;
@@ -696,6 +705,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
   '/dashboard/$id/settings/people': typeof DashboardIdSettingsPeopleRoute;
+  '/dashboard/$id/settings/personal': typeof DashboardIdSettingsPersonalRoute;
   '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
@@ -773,6 +783,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/mcp-servers'
     | '/dashboard/$id/settings/organization'
     | '/dashboard/$id/settings/people'
+    | '/dashboard/$id/settings/personal'
     | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/teams'
@@ -840,6 +851,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/mcp-servers'
     | '/dashboard/$id/settings/organization'
     | '/dashboard/$id/settings/people'
+    | '/dashboard/$id/settings/personal'
     | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/agents'
@@ -916,6 +928,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/mcp-servers'
     | '/dashboard/$id/settings/organization'
     | '/dashboard/$id/settings/people'
+    | '/dashboard/$id/settings/personal'
     | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/teams'
@@ -1170,6 +1183,13 @@ declare module '@tanstack/react-router' {
       path: '/personalization';
       fullPath: '/dashboard/$id/settings/personalization';
       preLoaderRoute: typeof DashboardIdSettingsPersonalizationRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
+    '/dashboard/$id/settings/personal': {
+      id: '/dashboard/$id/settings/personal';
+      path: '/personal';
+      fullPath: '/dashboard/$id/settings/personal';
+      preLoaderRoute: typeof DashboardIdSettingsPersonalRouteImport;
       parentRoute: typeof DashboardIdSettingsRoute;
     };
     '/dashboard/$id/settings/people': {
@@ -1725,6 +1745,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsMcpServersRoute: typeof DashboardIdSettingsMcpServersRoute;
   DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute;
   DashboardIdSettingsPeopleRoute: typeof DashboardIdSettingsPeopleRoute;
+  DashboardIdSettingsPersonalRoute: typeof DashboardIdSettingsPersonalRoute;
   DashboardIdSettingsPersonalizationRoute: typeof DashboardIdSettingsPersonalizationRoute;
   DashboardIdSettingsProvidersRoute: typeof DashboardIdSettingsProvidersRouteWithChildren;
   DashboardIdSettingsTeamsRoute: typeof DashboardIdSettingsTeamsRoute;
@@ -1743,6 +1764,7 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsMcpServersRoute: DashboardIdSettingsMcpServersRoute,
   DashboardIdSettingsOrganizationRoute: DashboardIdSettingsOrganizationRoute,
   DashboardIdSettingsPeopleRoute: DashboardIdSettingsPeopleRoute,
+  DashboardIdSettingsPersonalRoute: DashboardIdSettingsPersonalRoute,
   DashboardIdSettingsPersonalizationRoute:
     DashboardIdSettingsPersonalizationRoute,
   DashboardIdSettingsProvidersRoute:

@@ -5,28 +5,12 @@ import {
   useLoaderData,
   useNavigate,
 } from '@tanstack/react-router';
-import {
-  Building2,
-  KeyRound,
-  Palette,
-  Plug,
-  Shield,
-  SlidersHorizontal,
-  Sparkles,
-  User,
-  Users,
-} from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 
 import { SettingsSectionList } from '@/app/features/settings/components/settings-section-list';
-import type {
-  SettingsSectionListGroup,
-  SettingsSectionListItem,
-} from '@/app/features/settings/components/settings-section-list';
-import { useAbility } from '@/app/hooks/use-ability';
+import { useSettingsMenuGroups } from '@/app/features/settings/components/use-settings-menu-groups';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
-import type { AppAction, AppSubject } from '@/lib/permissions/ability';
 import { getDefaultSettingsRoute } from '@/lib/permissions/get-default-settings-route';
 
 export const Route = createFileRoute('/dashboard/$id/settings/')({
@@ -47,24 +31,19 @@ export const Route = createFileRoute('/dashboard/$id/settings/')({
   component: SettingsIndex,
 });
 
-interface SectionConfig {
-  key: string;
-  icon: SettingsSectionListItem['icon'];
-  href: string;
-  can?: [AppAction, AppSubject];
-}
-
+/**
+ * Workspace settings overview (mobile). Shows the `workspace` + `governance`
+ * groups — the personal-settings counterpart lives at
+ * `/settings/personal`. Desktop bounces to the default permission-aware
+ * leaf so the user lands on something useful instead of an empty list.
+ */
 function SettingsIndex() {
   const { id: organizationId } = Route.useParams();
   const { role } = useLoaderData({ from: Route.id });
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  const ability = useAbility();
   const { t: tNav } = useT('navigation');
-  const { t: tSettings } = useT('settings');
 
-  // Desktop: settings has no "overview" page — bounce to the default
-  // permission-aware page so the user lands on something useful.
   useEffect(() => {
     if (!isMobile) {
       void navigate({
@@ -75,101 +54,11 @@ function SettingsIndex() {
     }
   }, [isMobile, navigate, organizationId, role]);
 
-  const groups = useMemo<SettingsSectionListGroup[]>(() => {
-    const youConfig: SectionConfig[] = [
-      {
-        key: 'account',
-        icon: User,
-        href: `/dashboard/${organizationId}/settings/account`,
-      },
-      {
-        key: 'personalization',
-        icon: SlidersHorizontal,
-        href: `/dashboard/${organizationId}/settings/personalization`,
-      },
-    ];
-
-    const workspaceConfig: SectionConfig[] = [
-      {
-        key: 'organization',
-        icon: Building2,
-        href: `/dashboard/${organizationId}/settings/organization`,
-        can: ['read', 'orgSettings'],
-      },
-      {
-        key: 'people',
-        icon: Users,
-        href: `/dashboard/${organizationId}/settings/people`,
-        can: ['read', 'orgSettings'],
-      },
-      {
-        key: 'branding',
-        icon: Palette,
-        href: `/dashboard/${organizationId}/settings/branding`,
-        can: ['read', 'orgSettings'],
-      },
-      {
-        key: 'integrations',
-        icon: Plug,
-        href: `/dashboard/${organizationId}/settings/integrations`,
-        can: ['read', 'developerSettings'],
-      },
-      {
-        key: 'providers',
-        icon: Sparkles,
-        href: `/dashboard/${organizationId}/settings/providers`,
-        can: ['read', 'developerSettings'],
-      },
-      {
-        key: 'apiKeys',
-        icon: KeyRound,
-        href: `/dashboard/${organizationId}/settings/api-keys`,
-        can: ['read', 'developerSettings'],
-      },
-    ];
-
-    const governanceConfig: SectionConfig[] = [
-      {
-        key: 'governance',
-        icon: Shield,
-        href: `/dashboard/${organizationId}/settings/governance`,
-        can: ['read', 'orgSettings'],
-      },
-    ];
-
-    const toItem = (cfg: SectionConfig): SettingsSectionListItem => ({
-      key: cfg.key,
-      label: tNav(cfg.key),
-      description: tSettings(`menu.${cfg.key}.description`),
-      icon: cfg.icon,
-      href: cfg.href,
-    });
-
-    const filter = (cfgs: SectionConfig[]) =>
-      cfgs.filter((c) => !c.can || ability.can(c.can[0], c.can[1])).map(toItem);
-
-    return [
-      {
-        key: 'you',
-        label: tSettings('menu.groups.you'),
-        items: filter(youConfig),
-      },
-      {
-        key: 'workspace',
-        label: tSettings('menu.groups.workspace'),
-        items: filter(workspaceConfig),
-      },
-      {
-        key: 'governance',
-        label: tSettings('menu.groups.governance'),
-        items: filter(governanceConfig),
-      },
-    ].filter((group) => group.items.length > 0);
-  }, [ability, organizationId, tNav, tSettings]);
+  const groups = useSettingsMenuGroups(organizationId, 'workspace');
 
   if (!isMobile) return null;
 
   return (
-    <SettingsSectionList groups={groups} ariaLabel={tNav('userSettings')} />
+    <SettingsSectionList groups={groups} ariaLabel={tNav('orgSettings')} />
   );
 }
