@@ -84,12 +84,17 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
     projectDir,
   } = options;
 
-  return VitePWA({
-    registerType: 'prompt',
-    injectRegister: null,
-    strategies: 'generateSW',
-    workbox: {
-      globPatterns: [
+  // vite-plugin-pwa runs workbox-build against the dev temp folder (set via
+  // `resolveTempFolder` below to `dist-pwa/`). That folder only ever holds
+  // the generated SW + workbox-*.js, so any glob aimed at the prod `dist/`
+  // shape ("**/*.webmanifest", "**/*.svg", icons, …) matches nothing and
+  // emits a noisy "One of the glob patterns doesn't match any files"
+  // warning per pattern on every dev boot. Skip them in dev — the dev SW
+  // is driven by `navigateFallback`, not the glob set — and keep the full
+  // list in prod where the matching is meaningful.
+  const isProductionBuild = process.env.NODE_ENV === 'production';
+  const globPatterns = isProductionBuild
+    ? [
         '**/*.webmanifest',
         '**/*.svg',
         '**/*.ico',
@@ -97,7 +102,15 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
         'assets/pwa-*.png',
         'assets/apple-touch-*.png',
         'assets/maskable-*.png',
-      ],
+      ]
+    : [];
+
+  return VitePWA({
+    registerType: 'prompt',
+    injectRegister: null,
+    strategies: 'generateSW',
+    workbox: {
+      globPatterns,
       // `offline.html` is precached via `includeAssets` (default list above)
       // with a content-based revision injected by vite-plugin-pwa, so
       // Workbox automatically refreshes the cache when the shell changes.
