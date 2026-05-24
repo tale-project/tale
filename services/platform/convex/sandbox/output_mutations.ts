@@ -13,6 +13,12 @@ const outputFileValidator = v.object({
   storageId: v.id('_storage'),
   size: v.number(),
   contentType: v.string(),
+  // SHA-256 (hex) computed by the spawner during harvest. Required at this
+  // hop — spawner always emits it for new uploads (parity-guarded by
+  // `HarvestOutputFile` in wire.ts). Persisted onto the `fileMetadata` row
+  // so downstream readers (artifactOutputs, attestation) don't have to
+  // re-fetch from the spawner result.
+  sha256: v.string(),
 });
 
 /**
@@ -45,6 +51,7 @@ export const insertOutputFiles = internalMutation({
         storageId: v.id('_storage'),
         size: v.number(),
         contentType: v.string(),
+        sha256: v.string(),
       }),
     ),
   }),
@@ -63,6 +70,7 @@ export const insertOutputFiles = internalMutation({
       storageId: Id<'_storage'>;
       size: number;
       contentType: string;
+      sha256: string;
     }[] = [];
     for (const f of args.files) {
       const fileMetadataId = await ctx.db.insert('fileMetadata', {
@@ -73,6 +81,7 @@ export const insertOutputFiles = internalMutation({
         fileName: f.name,
         contentType: f.contentType,
         size: f.size,
+        sha256: f.sha256,
         source: 'agent',
         lifecycleStatus: 'active',
         statusChangedAt: now,
@@ -83,6 +92,7 @@ export const insertOutputFiles = internalMutation({
         storageId: f.storageId,
         size: f.size,
         contentType: f.contentType,
+        sha256: f.sha256,
       });
     }
     return { skippedTerminal: false, insertedFiles };

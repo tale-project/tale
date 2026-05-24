@@ -17,7 +17,6 @@ import type { ToolExecutionOptions } from 'ai';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
-import { resolveArtifactFiles } from '../../artifacts/resolve_files';
 import type { ToolDefinition } from '../types';
 
 const MAX_LIST = 50;
@@ -74,8 +73,11 @@ No file content is returned — call \`artifact_file_list({artifactId})\` to enu
           message: 'No organizationId/threadId in context.',
         };
       }
+      // Metadata-only query: server-side projection avoids hauling MBs of
+      // file content into the action just to count bytes. See
+      // `listByThreadMetadata` docstring for the trade-off.
       const rows = await ctx.runQuery(
-        internal.artifacts.internal_queries.listByThread,
+        internal.artifacts.internal_queries.listByThreadMetadata,
         { organizationId, threadId },
       );
       // Sort by updatedAt desc, cap at MAX_LIST.
@@ -83,19 +85,14 @@ No file content is returned — call \`artifact_file_list({artifactId})\` to enu
       const truncated = sorted.length > MAX_LIST;
       const capped = sorted.slice(0, MAX_LIST);
       const artifacts: ArtifactListEntry[] = capped.map((row) => {
-        const resolved = resolveArtifactFiles(row);
-        const totalBytes = resolved.files.reduce(
-          (acc, f) => acc + f.content.length,
-          0,
-        );
         const entry: ArtifactListEntry = {
           artifactId: row._id,
           type: row.type,
           title: row.title,
           revision: row.revision,
-          entryFile: resolved.entryFile,
-          fileCount: resolved.files.length,
-          totalBytes,
+          entryFile: row.entryFile,
+          fileCount: row.fileCount,
+          totalBytes: row.totalBytes,
           updatedAt: row.updatedAt,
         };
         if (row.language !== undefined) entry.language = row.language;

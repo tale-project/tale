@@ -71,24 +71,14 @@ export function FileChip({ file }: { file: RunOutputFile }) {
   const fileUrl =
     rawUrl && file.storageId
       ? `${new URL(rawUrl).origin}/http_api/storage?id=${encodeURIComponent(String(file.storageId))}&filename=${encodeURIComponent(file.name)}`
-      : rawUrl;
+      : undefined;
   const Icon = iconForContentType(file.contentType);
-  const disabled = !fileUrl;
-  return (
-    <a
-      href={fileUrl ?? '#'}
-      download={file.name}
-      target={fileUrl ? '_blank' : undefined}
-      rel="noreferrer"
-      aria-label={t('canvas.runOpenFile', { name: file.name })}
-      onClick={(e) => {
-        if (disabled) e.preventDefault();
-      }}
-      className={cn(
-        'border-border bg-background hover:bg-muted/40 flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors',
-        disabled && 'opacity-60',
-      )}
-    >
+
+  const sharedClassName = cn(
+    'border-border bg-background flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors',
+  );
+  const innerBody = (
+    <>
       <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-medium">{file.name}</span>
@@ -100,6 +90,41 @@ export function FileChip({ file }: { file: RunOutputFile }) {
         className="text-muted-foreground size-3.5 shrink-0"
         aria-hidden
       />
+    </>
+  );
+
+  // Without a resolvable URL the chip MUST NOT render as an anchor — an
+  // `<a href="#">` is semantically broken (no destination + scrolls to top
+  // on click) and screen readers announce it as a link with no target.
+  // Render a disabled `<button>` instead so the affordance is correctly
+  // typed for a11y, and surface the missing-URL state via the aria-label.
+  if (!fileUrl) {
+    return (
+      <button
+        type="button"
+        disabled
+        aria-label={t('canvas.runOpenFile', { name: file.name })}
+        className={cn(
+          sharedClassName,
+          'cursor-not-allowed opacity-60',
+          'hover:bg-background', // override default hover
+        )}
+      >
+        {innerBody}
+      </button>
+    );
+  }
+
+  return (
+    <a
+      href={fileUrl}
+      download={file.name}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={t('canvas.runOpenFile', { name: file.name })}
+      className={cn(sharedClassName, 'hover:bg-muted/40')}
+    >
+      {innerBody}
     </a>
   );
 }

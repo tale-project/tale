@@ -20,6 +20,7 @@ import {
   recoverStuckSandboxes,
   finalize,
 } from './internal_mutations';
+import { insertOutputFiles } from './output_mutations';
 import { SANDBOX_MAX_CONCURRENT_PER_ORG } from './schema';
 
 interface MutHandler<TArgs, TReturn> {
@@ -311,5 +312,98 @@ describe('finalize', () => {
       'exec_1',
       expect.objectContaining({ status: 'completed' }),
     );
+  });
+});
+
+describe('insertOutputFiles', () => {
+  // P0 fix regression gate (commit A): sha256 must round-trip from the
+  // spawner's harvest payload through `insertOutputFiles` onto the
+  // `fileMetadata` row AND into the returned `insertedFiles` shape, so the
+  // action's downstream `runOutputFiles` mapping no longer needs the
+  // manual filename re-join that used to drop sha256 silently.
+  const baseArgs = {
+    executionId: 'exec_1' as never,
+    organizationId: 'org_alpha',
+    threadId: 'thr_a',
+    uploadedBy: 'user_1',
+    files: [
+      {
+        name: 'chart.png',
+        storageId: 'kg_blob_1' as never,
+        size: 1024,
+        contentType: 'image/png',
+        sha256: 'a'.repeat(64),
+      },
+      {
+        name: 'data.csv',
+        storageId: 'kg_blob_2' as never,
+        size: 2048,
+        contentType: 'text/csv',
+        sha256: 'b'.repeat(64),
+      },
+    ],
+  };
+
+  function makeCtx(rowStatus: string) {
+    const inserted: Array<{
+      table: string;
+      payload: Record<string, unknown>;
+    }> = [];
+    return {
+      ctx: {
+        db: {
+          get: vi.fn(async () => ({ _id: 'exec_1', status: rowStatus })),
+          insert: vi.fn(
+            async (table: string, payload: Record<string, unknown>) => {
+              inserted.push({ table, payload });
+              return `fm_${inserted.length}` as never;
+            },
+          ),
+        },
+      },
+      inserted,
+    };
+  }
+
+  it('persists sha256 onto each fileMetadata row and returns it', async () => {
+    const mut = insertOutputFiles as unknown as MutHandler<
+      typeof baseArgs,
+      {
+        skippedTerminal: boolean;
+        insertedFiles: Array<{ name: string; sha256: string }>;
+      }
+    >;
+    const { ctx, inserted } = makeCtx('running');
+    const result = await mut.handler(ctx, baseArgs);
+    expect(result.skippedTerminal).toBe(false);
+    expect(result.insertedFiles).toHaveLength(2);
+    expect(result.insertedFiles[0].sha256).toBe('a'.repeat(64));
+    expect(result.insertedFiles[1].sha256).toBe('b'.repeat(64));
+    // Both fileMetadata inserts carry sha256 (regression gate: prior bug
+    // dropped it on the floor here).
+    expect(inserted).toHaveLength(2);
+    expect(inserted[0].payload).toMatchObject({
+      fileName: 'chart.png',
+      sha256: 'a'.repeat(64),
+    });
+    expect(inserted[1].payload).toMatchObject({
+      fileName: 'data.csv',
+      sha256: 'b'.repeat(64),
+    });
+  });
+
+  it('returns skippedTerminal:true when the audit row is already terminal', async () => {
+    const mut = insertOutputFiles as unknown as MutHandler<
+      typeof baseArgs,
+      { skippedTerminal: boolean; insertedFiles: unknown[] }
+    >;
+    const { ctx, inserted } = makeCtx('cancelled');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await mut.handler(ctx, baseArgs);
+    expect(result.skippedTerminal).toBe(true);
+    expect(result.insertedFiles).toEqual([]);
+    expect(inserted).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });

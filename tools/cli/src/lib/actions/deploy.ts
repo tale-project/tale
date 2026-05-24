@@ -78,6 +78,16 @@ interface DeployOptions {
   assumeYes?: boolean;
   /** @deprecated use assumeYes. Kept for one release of CLI back-compat. */
   migrateVolumes?: boolean;
+  /**
+   * Set by the caller when `ensureEnv` filled in auto-gen secrets headlessly
+   * (e.g. an upgrade silently materialized `SANDBOX_TOKEN`). All subsequent
+   * `docker compose up -d` invocations gain `--force-recreate` so containers
+   * that were already running on an unchanged image pick up the new value
+   * — without this, the spawner could keep its pre-rotation null token in
+   * memory while Convex picks up the new one, breaking the HMAC handshake
+   * until the next manual restart.
+   */
+  forceRecreate?: boolean;
 }
 
 export async function deploy(options: DeployOptions): Promise<void> {
@@ -354,7 +364,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
         } else {
           const result = await dockerCompose(
             statefulCompose,
-            ['up', '-d', ...statefulToUpdate],
+            [
+              'up',
+              '-d',
+              ...(options.forceRecreate ? ['--force-recreate'] : []),
+              ...statefulToUpdate,
+            ],
             { projectName: getProjectId(), cwd: env.DEPLOY_DIR },
           );
 
@@ -426,7 +441,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
             );
             const deployResult = await dockerCompose(
               colorCompose,
-              ['up', '-d', ...coloredServices],
+              [
+                'up',
+                '-d',
+                ...(options.forceRecreate ? ['--force-recreate'] : []),
+                ...coloredServices,
+              ],
               {
                 projectName: `${getProjectId()}-${currentColor}`,
                 cwd: env.DEPLOY_DIR,
@@ -520,7 +540,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
             );
             const deployResult = await dockerCompose(
               colorCompose,
-              ['up', '-d', ...coloredServices],
+              [
+                'up',
+                '-d',
+                ...(options.forceRecreate ? ['--force-recreate'] : []),
+                ...coloredServices,
+              ],
               {
                 projectName: `${getProjectId()}-${nextColor}`,
                 cwd: env.DEPLOY_DIR,

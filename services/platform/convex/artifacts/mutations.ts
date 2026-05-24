@@ -49,11 +49,23 @@ export const userEdit = mutation({
     // `member` READ-ONLY for `artifacts`. `userEdit` is a plain `mutation`,
     // not `mutationWithRLS`, so without this explicit check a member
     // could edit artifacts via the public mutation (audit follow-up F13).
+    // Explicit-fail when membership is absent (e.g. revoked org access mid-
+    // session): previously this leaned on `authorizeRls(undefined, …)`
+    // implicitly coercing to the most-restrictive `member` row, which is
+    // correct today but couples correctness to the role matrix never
+    // changing the undefined behaviour. Surface the forbidden state
+    // directly so a future matrix change can't quietly open a hole.
     const memberships = await getUserOrganizations(ctx, authUser);
     const membership = memberships.find(
       (m) => m.organizationId === artifact.organizationId,
     );
-    if (!authorizeRls(membership?.role, 'artifacts', 'write')) {
+    if (!membership) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: "You are not a member of this artifact's organization.",
+      });
+    }
+    if (!authorizeRls(membership.role, 'artifacts', 'write')) {
       throw new ConvexError({
         code: 'forbidden',
         message: 'Your role does not permit editing artifacts.',

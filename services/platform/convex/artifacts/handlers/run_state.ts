@@ -422,24 +422,29 @@ export async function applyFinalizeArtifactRun(
   // A different execution means a genuinely new run is finalizing — let it
   // through so the dual-write tables capture it.
   //
-  // Audit follow-up F7: also no-op when the caller omits `runExecutionId`
-  // entirely (the tool-side fallback finalize in artifact_run_tool.ts does
-  // this). Without this branch, a fallback finalize after a `failExecution`
-  // already terminalized the row would slip past `sameExecution=false` and
-  // insert a duplicate `artifactRuns` row. Treat "no executionId on a
-  // terminal row" as "trust the row's terminal state".
+  // Fallback finalize (caller omits `runExecutionId`): the tool-side catch
+  // in artifact_run_tool.ts hits this after `failExecution` already wrote
+  // terminal state with the executionId. We must still de-dup that case,
+  // OR the unrelated-second-execution case where executionId never
+  // landed. The narrow rule: no-op a fallback finalize only when the row
+  // ALREADY carries an executionId — that proves a real execution wrote
+  // the terminal state, and the fallback is the idempotent retry. If the
+  // row's executionId is also unset, this is a fresh execution whose
+  // history would otherwise be lost (audit finding R2-V1 #A) — let it
+  // through.
   const sameExecution =
     args.runExecutionId !== undefined &&
     row.runExecutionId !== undefined &&
     args.runExecutionId === row.runExecutionId;
-  const trustTerminal = args.runExecutionId === undefined;
+  const fallbackOverPriorExecution =
+    args.runExecutionId === undefined && row.runExecutionId !== undefined;
   if (
     row.runStatus !== undefined &&
     sandboxTerminalStatuses.has(row.runStatus) &&
-    (sameExecution || trustTerminal)
+    (sameExecution || fallbackOverPriorExecution)
   ) {
     console.warn(
-      `[finalizeArtifactRun] no-op: artifact ${args.artifactId} already terminal as ${row.runStatus} for execution ${row.runExecutionId ?? '<unset>'}; dropping duplicate ${args.runStatus}${trustTerminal ? ' (fallback finalize without runExecutionId)' : ''}`,
+      `[finalizeArtifactRun] no-op: artifact ${args.artifactId} already terminal as ${row.runStatus} for execution ${row.runExecutionId ?? '<unset>'}; dropping duplicate ${args.runStatus}${fallbackOverPriorExecution ? ' (fallback finalize over recorded execution)' : ''}`,
     );
     return;
   }
@@ -506,6 +511,7 @@ export async function applyFinalizeArtifactRun(
       storageId: f.storageId,
       size: f.size,
       ...(f.contentType !== undefined && { contentType: f.contentType }),
+      ...(f.sha256 !== undefined && { sha256: f.sha256 }),
       createdAt: completedAt,
     });
   }

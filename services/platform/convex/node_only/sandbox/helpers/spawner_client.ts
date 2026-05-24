@@ -122,10 +122,12 @@ interface SpawnerExecuteResponse {
      * sha256 (hex) of the harvested bytes — populated by the spawner
      * during `harvestOutputDir` (crispy-curry plan §1). Used to seed the
      * cumulative `artifactOutputs` manifest entry for the next pre-stage
-     * attestation. Optional only for back-compat with pre-crispy-curry
-     * spawner images; new images always populate.
+     * attestation. Required (parity-guarded by `HarvestOutputFile` in
+     * `services/platform/convex/sandbox/wire.ts`); the SSE parser rejects
+     * payloads missing it so a wire-drift surfaces as a hard failure
+     * rather than a silently-undefined sha256 downstream.
      */
-    sha256?: string;
+    sha256: string;
   }[];
   /** Per-step results populated only for multi-step requests. */
   steps?: SandboxStepResult[];
@@ -251,6 +253,16 @@ interface SpawnerExecuteCallbacks {
  * success-shape `{status, errorCode, ...}` otherwise so the caller can
  * decide failure semantics.
  */
+// Spawner overhead budget above the user-code timeout: container pull/start,
+// pip/npm install streaming, harvest + bytes-out. Keeps the fetch ceiling
+// above the spawner-side wall clock so a healthy long run isn't aborted by
+// the client. Anything beyond this is genuinely stuck (the SSE stream has
+// stalled past any plausible processing), so abort and let the caller route
+// through `failExecution` → `SPAWNER_UNAVAILABLE` rather than wait for the
+// 30-min Convex action ceiling.
+const SPAWNER_FETCH_OVERHEAD_MS = 60_000;
+const SPAWNER_DEFAULT_TIMEOUT_MS = 30_000;
+
 export async function spawnerExecute(
   body: SpawnerExecuteBody,
   signal: AbortSignal,
@@ -278,13 +290,24 @@ export async function spawnerExecute(
     headers[TIMESTAMP_HEADER] = timestamp;
   }
 
+  // Independent client-side timeout. Without this a stalled SSE stream
+  // (network or spawner hang) would block the Convex action until its 30-min
+  // hard limit, wasting the slot. Combine with the caller's abort signal so
+  // user-stop still aborts immediately.
+  const fetchTimeoutMs =
+    (body.timeoutMs ?? SPAWNER_DEFAULT_TIMEOUT_MS) + SPAWNER_FETCH_OVERHEAD_MS;
+  const fetchAbort = AbortSignal.any([
+    signal,
+    AbortSignal.timeout(fetchTimeoutMs),
+  ]);
+
   let res: Response;
   try {
     res = await fetch(url, {
       method: 'POST',
       headers,
       body: bodyJson,
-      signal,
+      signal: fetchAbort,
     });
   } catch (err) {
     throw new Error(
@@ -479,6 +502,10 @@ function validateExecuteResponse(
     }
     if (typeof e.size !== 'number') return null;
     if (typeof e.contentType !== 'string') return null;
+    // sha256 required (parity-guarded by `HarvestOutputFile` in wire.ts).
+    // Reject malformed payloads here so the downstream insert can write
+    // the hash without ambiguity.
+    if (typeof e.sha256 !== 'string' || e.sha256.length === 0) return null;
   }
   // steps is optional, but if present must be a typed array of step
   // results — refuse the payload otherwise so a wire-drift surfaces as
@@ -565,7 +592,16 @@ export async function spawnerCancel(executionId: string): Promise<void> {
     headers[TIMESTAMP_HEADER] = timestamp;
   }
   try {
-    await fetch(url, { method: 'POST', headers, body });
+    // 5s timeout: cancel is best-effort and the watchdog reaps stuck rows
+    // anyway. Without this, an unreachable spawner blocks user-Stop per row
+    // until Node's socket default (~minutes) — visible to users as the
+    // canvas spinner refusing to clear.
+    await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+      signal: AbortSignal.timeout(5_000),
+    });
   } catch (err) {
     // Cancellation is best-effort; the watchdog cron will reap stuck rows
     // if the spawner is unreachable. Log so a stuck cancel path isn't

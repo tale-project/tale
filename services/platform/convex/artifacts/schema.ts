@@ -239,6 +239,16 @@ export const artifactsTable = defineTable({
   // wiping the prior output the moment they touch the script (round-2
   // R2-B10).
   runRevision: v.optional(v.number()),
+  /**
+   * Phase-B migration sentinel: set to `true` by
+   * `migrations/backfill_artifact_files_table.ts` as the LAST write after
+   * all of an artifact's `artifactFiles` + `artifactRuns` + `artifactRunFiles`
+   * rows are inserted. On retry the backfill skips artifacts where this is
+   * truthy. Optional + sparse — non-migrated rows omit it. Once Phase B
+   * is universally applied this field could be dropped, but per the
+   * "deprecate, don't delete" rule it stays optional indefinitely.
+   */
+  _phaseB_complete: v.optional(v.boolean()),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_thread', ['organizationId', 'threadId'])
@@ -369,6 +379,16 @@ export const artifactRunFilesTable = defineTable({
   storageId: v.id('_storage'),
   size: v.number(),
   contentType: v.optional(v.string()),
+  /**
+   * SHA-256 (hex) of the harvested bytes, mirrored from
+   * `fileMetadata.sha256`. Required for the pinned-run pre-stage path
+   * (`getLatestRunOutputs` branch 1) to return attestation hashes
+   * symmetric with the cumulative `artifactOutputs` manifest. Optional
+   * because rows written before sha256 was plumbed all the way through
+   * the harvest pipeline don't carry it; attestation falls back to
+   * "presence only" in that case.
+   */
+  sha256: v.optional(v.string()),
   createdAt: v.number(),
 })
   .index('by_run', ['runId'])

@@ -1001,6 +1001,7 @@ export const executeCode = internalAction({
         storageId: Id<'_storage'>;
         size: number;
         contentType: string;
+        sha256: string;
       }> = [];
       for (const f of spawnerResult.outputFiles) {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner-side validator already enforced the storageId is a non-empty string; cast to the branded id for the mutation arg
@@ -1011,6 +1012,7 @@ export const executeCode = internalAction({
           storageId,
           size: f.size,
           contentType: f.contentType,
+          sha256: f.sha256,
         });
       }
 
@@ -1108,6 +1110,7 @@ export const executeCode = internalAction({
           fileMetadataId: f.fileMetadataId,
           size: f.size,
           contentType: f.contentType,
+          sha256: f.sha256,
         })),
         truncated: spawnerResult.truncated,
         durationMs,
@@ -1151,22 +1154,14 @@ export const executeCode = internalAction({
             ...(stderrStorageId !== undefined && {
               runStderrStorageId: stderrStorageId,
             }),
-            runOutputFiles: insertedFiles.map((f) => {
-              // Look up sha256 from the spawner's outputFiles (parallel
-              // by filename). The cumulative `artifactOutputs` manifest
-              // uses this for pre-stage attestation on future runs.
-              const sha256 = spawnerResult.outputFiles.find(
-                (s) => s.name === f.name,
-              )?.sha256;
-              return {
-                name: f.name,
-                fileMetadataId: f.fileMetadataId,
-                storageId: f.storageId,
-                size: f.size,
-                contentType: f.contentType,
-                ...(sha256 !== undefined && { sha256 }),
-              };
-            }),
+            runOutputFiles: insertedFiles.map((f) => ({
+              name: f.name,
+              fileMetadataId: f.fileMetadataId,
+              storageId: f.storageId,
+              size: f.size,
+              contentType: f.contentType,
+              sha256: f.sha256,
+            })),
             runExecutionId: executionId,
           },
         );

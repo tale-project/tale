@@ -51,6 +51,86 @@ export const listByThread = internalQuery({
 });
 
 /**
+ * Metadata-only projection of artifacts in a thread. Returned shape carries
+ * the fields the `artifact_list` agent tool exposes to the LLM:
+ *   { _id, type, title, revision, entryFile, fileCount, totalBytes,
+ *     language?, updatedAt }
+ *
+ * Why a separate query: the heavier `listByThread` returns full rows with
+ * embedded `files[]` content for `build_artifacts_context` (which actually
+ * needs the bytes). The agent-tool path doesn't — it just summarizes —
+ * but the original implementation pulled the full rows and aggregated
+ * `content.length` on the action side, allocating MB of strings per call
+ * for no user-visible benefit. This query projects server-side via
+ * `resolveArtifactFiles`, keeping the wire payload bounded.
+ */
+export const listByThreadMetadata = internalQuery({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id('artifacts'),
+      type: v.string(),
+      title: v.string(),
+      revision: v.number(),
+      entryFile: v.string(),
+      fileCount: v.number(),
+      totalBytes: v.number(),
+      language: v.optional(v.string()),
+      updatedAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, { organizationId, threadId }) => {
+    const out: Array<{
+      _id: import('../_generated/dataModel').Id<'artifacts'>;
+      type: string;
+      title: string;
+      revision: number;
+      entryFile: string;
+      fileCount: number;
+      totalBytes: number;
+      language?: string;
+      updatedAt: number;
+    }> = [];
+    for await (const row of ctx.db
+      .query('artifacts')
+      .withIndex('by_organizationId_and_thread', (q) =>
+        q.eq('organizationId', organizationId).eq('threadId', threadId),
+      )
+      .order('asc')) {
+      const resolved = resolveArtifactFiles(row);
+      let totalBytes = 0;
+      for (const f of resolved.files) totalBytes += f.content.length;
+      const entry: {
+        _id: import('../_generated/dataModel').Id<'artifacts'>;
+        type: string;
+        title: string;
+        revision: number;
+        entryFile: string;
+        fileCount: number;
+        totalBytes: number;
+        language?: string;
+        updatedAt: number;
+      } = {
+        _id: row._id,
+        type: row.type,
+        title: row.title,
+        revision: row.revision,
+        entryFile: resolved.entryFile,
+        fileCount: resolved.files.length,
+        totalBytes,
+        updatedAt: row.updatedAt,
+      };
+      if (row.language !== undefined) entry.language = row.language;
+      out.push(entry);
+    }
+    return out;
+  },
+});
+
+/**
  * Returns the artifact's CUMULATIVE output manifest for pre-staging into the
  * next sandbox run's `/workspace/output/`. Each `(artifactId, name)` survives
  * across runs — empty runs don't wipe earlier files, and a later run that
@@ -151,6 +231,7 @@ export const getLatestRunOutputs = internalQuery({
             storageId: f.storageId,
             size: f.size,
             ...(f.contentType !== undefined && { contentType: f.contentType }),
+            ...(f.sha256 !== undefined && { sha256: f.sha256 }),
           });
         }
         return {
@@ -202,6 +283,7 @@ export const getLatestRunOutputs = internalQuery({
         storageId: row.storageId,
         size: row.size,
         ...(row.contentType !== undefined && { contentType: row.contentType }),
+        ...(row.sha256 !== undefined && { sha256: row.sha256 }),
       });
     }
     if (byName.size > 0) {
@@ -251,6 +333,45 @@ export const getLatestRunOutputs = internalQuery({
  * `artifact_run` to surface the persistent run id to the LLM so a later
  * call can pin pre-staging via `inputs: { from_run: "<runId>" }`.
  */
+/**
+ * Validates that a `runId` (LLM-supplied as `artifact_run({inputs.from_run})`)
+ * actually belongs to the given `artifactId`. Returns `'ok'` if valid, or a
+ * structured reason for the tool layer to surface to the LLM. Without this
+ * validation the spawner action silently falls back to "latest succeeded"
+ * when the runId is malformed or points at a different artifact's run,
+ * masking the misuse and producing a run pinned to outputs the LLM did not
+ * intend.
+ */
+export const validateRunIdForArtifact = internalQuery({
+  args: {
+    artifactId: v.id('artifacts'),
+    runId: v.string(),
+  },
+  returns: v.union(
+    v.literal('ok'),
+    v.literal('malformed_run_id'),
+    v.literal('run_not_found'),
+    v.literal('run_belongs_to_other_artifact'),
+  ),
+  handler: async (ctx, { artifactId, runId }) => {
+    if (runId === 'latest' || runId.length === 0) {
+      // 'latest' is the sentinel for "no explicit pin"; both paths fall
+      // through to the cumulative-manifest branch in `getLatestRunOutputs`
+      // so they're equivalent — accept here so the tool doesn't have to
+      // pre-strip them.
+      return 'ok' as const;
+    }
+    const normalized = ctx.db.normalizeId('artifactRuns', runId);
+    if (normalized === null) return 'malformed_run_id' as const;
+    const row = await ctx.db.get(normalized);
+    if (row === null) return 'run_not_found' as const;
+    if (row.artifactId !== artifactId) {
+      return 'run_belongs_to_other_artifact' as const;
+    }
+    return 'ok' as const;
+  },
+});
+
 export const getRunByExecutionId = internalQuery({
   args: { executionId: v.id('sandboxExecutions') },
   returns: v.union(

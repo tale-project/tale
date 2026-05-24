@@ -54,6 +54,13 @@ export const createArtifactReturns = v.union(
     conflict: v.literal('type_mismatch'),
     existingArtifactId: v.id('artifacts'),
     existingType: artifactTypeValidator,
+    // Title + file paths of the conflicting artifact — surfaced so the
+    // LLM can decide whether to use the existing artifact via
+    // `artifact_file_update` (when paths overlap) or rename and retry
+    // (when truly different). Without these, the LLM had to follow up
+    // with `artifact_file_list` to make the call.
+    existingTitle: v.string(),
+    existingFiles: v.array(v.string()),
     message: v.string(),
   }),
 );
@@ -97,11 +104,14 @@ export async function createArtifactHandler(
     const rowKey = normalizeTitleForCompare(row.title);
     if (rowKey !== compareKey) continue;
     if (row.type !== args.type) {
+      const conflictingResolved = resolveArtifactFiles(row);
       return {
         success: false as const,
         conflict: 'type_mismatch' as const,
         existingArtifactId: row._id,
         existingType: row.type,
+        existingTitle: row.title,
+        existingFiles: conflictingResolved.files.map((f) => f.path),
         message: `An artifact titled "${row.title}" already exists in this thread with type "${row.type}". Either pick a different title or use the existing artifactId ${row._id} via artifact_file_create / artifact_file_update.`,
       };
     }

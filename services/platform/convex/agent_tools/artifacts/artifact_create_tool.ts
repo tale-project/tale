@@ -236,6 +236,8 @@ Typical sequence:
           conflict: result.conflict,
           existingArtifactId: result.existingArtifactId,
           existingType: result.existingType,
+          existingTitle: result.existingTitle,
+          existingFiles: result.existingFiles,
           message: result.message,
         };
       }

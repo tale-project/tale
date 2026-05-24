@@ -199,6 +199,13 @@ interface ArtifactRunSuccess {
 
 interface ArtifactRunFailure {
   success: false;
+  /**
+   * Structured failure code so the LLM can branch on cause without
+   * substring-matching the human-readable `message`. Currently emitted by
+   * the `inputs.from_run` validator; other code paths leave it unset for
+   * legacy compatibility.
+   */
+  code?: 'pin_target_not_found';
   message: string;
 }
 
@@ -624,6 +631,32 @@ artifact_run({
           return null;
         });
       const agentSlug = threadMeta?.agentSlug;
+
+      // Validate `inputs.from_run` against this artifact BEFORE we dispatch
+      // the run. Without this, the spawner action's `getLatestRunOutputs`
+      // would silently fall back to "latest succeeded" on a malformed or
+      // cross-artifact runId, pinning the run to outputs the LLM never
+      // intended. Surface the error directly so the LLM can correct the
+      // call instead of getting a confusing diff later.
+      if (args.inputs?.from_run !== undefined) {
+        const verdict = await ctx.runQuery(
+          internal.artifacts.internal_queries.validateRunIdForArtifact,
+          { artifactId, runId: args.inputs.from_run },
+        );
+        if (verdict !== 'ok') {
+          const reasonMessage =
+            verdict === 'malformed_run_id'
+              ? `'${args.inputs.from_run}' is not a valid artifactRuns id. Either omit \`inputs.from_run\` (uses the latest succeeded run by default) or pass an exact runId from a prior \`artifact_run\` response.`
+              : verdict === 'run_not_found'
+                ? `runId '${args.inputs.from_run}' was not found (it may have been GC'd, or you copied from a different deploy). Omit \`inputs.from_run\` to use the latest succeeded run, or call \`artifact_list_runs\` to enumerate available runIds.`
+                : `runId '${args.inputs.from_run}' belongs to a different artifact. Pre-stage only works against runs from this same artifact (\`${artifactId}\`).`;
+          return {
+            success: false,
+            code: 'pin_target_not_found',
+            message: reasonMessage,
+          };
+        }
+      }
 
       let raw: unknown;
       try {

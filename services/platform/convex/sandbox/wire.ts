@@ -1,5 +1,9 @@
 import { v } from 'convex/values';
 
+// Type-only import of the spawner's harvest output-file shape so the
+// compile-time parity guard at the bottom of this file catches any drift
+// between the bytes the spawner emits and the shape Convex consumes.
+import type { OutputFile as SpawnerOutputFile } from '../../../sandbox/src/types';
 // Type-only imports from the spawner's wire module — purely structural,
 // nothing of this lands in the convex runtime bundle. We use these in the
 // compile-time parity assertions at the bottom of the file so a literal
@@ -219,6 +223,27 @@ export interface SandboxOutputFile {
   sha256?: string;
 }
 
+/**
+ * Spawner-emitted harvest output-file shape. Always populated by the
+ * spawner's `harvestOutputDir`; `storageId` and `sha256` are required here
+ * because the spawner has just uploaded the bytes and computed the hash.
+ * Convex transforms this into {@link SandboxOutputFile} when persisting to
+ * the audit row (allocates `fileMetadataId`; `storageId` / `sha256` flow
+ * through verbatim).
+ *
+ * The compile-time parity guard at the bottom of this file ensures this
+ * stays byte-identical to `services/sandbox/src/types.ts:OutputFile`. If
+ * spawner adds or removes a field on its `OutputFile`, the typecheck fails
+ * here, forcing a coordinated update before merge.
+ */
+export interface HarvestOutputFile {
+  name: string;
+  storageId: string;
+  size: number;
+  contentType: string;
+  sha256: string;
+}
+
 export const sandboxTruncatedValidator = v.object({
   stdout: v.boolean(),
   stderr: v.boolean(),
@@ -328,3 +353,14 @@ const _sseEventParity: Equal<
   (typeof sandboxSseEventLiterals)[number],
   (typeof SpawnerSseEvents)[number]
 > = true;
+
+// Harvest output-file shape parity. Both sides declare:
+//   { name, storageId, size, contentType, sha256 }
+// — all required, all primitive strings/numbers. If the spawner side adds
+// or removes a field on its `OutputFile`, the Equal<> below fails here
+// with a clear diagnostic, forcing a coordinated update before merge.
+// (The audit-row validator `sandboxOutputFileValidator` keeps storageId/
+// sha256 optional indefinitely so legacy rows pass — see plan §A.)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _harvestOutputFileParity: Equal<HarvestOutputFile, SpawnerOutputFile> =
+  true;

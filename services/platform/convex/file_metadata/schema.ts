@@ -71,6 +71,14 @@ export const fileMetadataTable = defineTable({
   // short-circuits to the cached transcript when a prior row in the same
   // org has completed transcription of the same content.
   contentHash: v.optional(v.string()),
+  // SHA-256 (hex) of the raw bytes for sandbox-harvested output files.
+  // Set by `insertOutputFiles` from the spawner's harvest payload; used for
+  // pre-stage attestation when the same file is later re-injected into
+  // another run's `/workspace/output/`. Distinct from `contentHash` (audio
+  // transcript dedup) — different write source, different purpose. Optional
+  // because non-sandbox uploads (chat attachments, document imports) don't
+  // compute it.
+  sha256: v.optional(v.string()),
   uploadedBy: v.optional(v.string()),
   /**
    * For chat-uploaded files, the chat thread the file was attached to.
