@@ -346,6 +346,31 @@ describe('useSpeechToText', () => {
       expect(result.current.error).toBeNull();
     });
 
+    it('ignores no-speech (silence timeout) and does not surface it as an error', () => {
+      // The Web Speech API fires `no-speech` after a few seconds of
+      // silence. The follow-up `end` event ends the session — we
+      // intentionally swallow the error code so the UI doesn't show a
+      // misleading "speech recognition not supported" toast.
+      const { result } = renderHook(() =>
+        useSpeechToText({ onTranscript: vi.fn() }),
+      );
+
+      act(() => {
+        result.current.startListening();
+      });
+
+      act(() => {
+        getLatest()._fireEvent('start');
+      });
+
+      act(() => {
+        getLatest()._fireEvent('error', { error: 'no-speech' });
+      });
+
+      expect(result.current.error).toBeNull();
+      expect(result.current.isListening).toBe(false);
+    });
+
     it('sets error to not-allowed when start() throws', () => {
       Object.defineProperty(window, 'SpeechRecognition', {
         value: createThrowingRecognitionProxy(),

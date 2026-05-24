@@ -1050,6 +1050,7 @@
       "start": "Start dictation",
       "stop": "Stop dictation",
       "transcribing": "Transcribing…",
+      "level": "Microphone level",
       "notSupported": "Speech recognition is not supported in this browser",
       "permissionDenied": "Microphone access was denied. Please allow microphone access in your browser settings.",
       "transcriptionFailed": "Could not transcribe your dictation. Please try again."

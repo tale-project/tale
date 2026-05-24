@@ -10,7 +10,12 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useMediaRecorderDictation } from '../hooks/use-media-recorder-dictation';
+import { useMicrophoneLevel } from '../hooks/use-microphone-level';
 import { useSpeechToText } from '../hooks/use-speech-to-text';
+import {
+  playDictationStartSound,
+  playDictationStopSound,
+} from '../utils/dictation-sounds';
 
 interface DictationButtonProps {
   organizationId: string;
@@ -60,22 +65,48 @@ function DictationButtonComponent({
     ? recorder.stopListening
     : speech.stopListening;
 
+  const level = useMicrophoneLevel({ enabled: isListening });
+
   const prevErrorRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (error && error !== prevErrorRef.current) {
-      let message: string;
-      if (error === 'not-allowed') {
+      // Map only known error codes to user-facing messages. Unknown codes
+      // (notably transient Web Speech codes like "network" or
+      // "service-not-allowed") get logged but not toasted as
+      // "not supported", which would be wrong and confusing.
+      let message: string | null = null;
+      if (error === 'not-allowed' || error === 'audio-capture') {
         message = t('dictation.permissionDenied');
       } else if (error === 'transcription-failed') {
         message = t('dictation.transcriptionFailed');
-      } else {
+      } else if (
+        error === 'not-supported' ||
+        error === 'language-not-supported'
+      ) {
         message = t('dictation.notSupported');
+      } else {
+        console.warn('[dictation] unhandled error code:', error);
       }
-      toast({ title: message, variant: 'destructive' });
+      if (message) {
+        toast({ title: message, variant: 'destructive' });
+      }
     }
     prevErrorRef.current = error;
   }, [error, t]);
+
+  // Edge-detect the listening state so we play start/stop tones once per
+  // transition. We intentionally skip the first render (no transition).
+  const prevListeningRef = useRef(isListening);
+  useEffect(() => {
+    if (prevListeningRef.current === isListening) return;
+    if (isListening) {
+      playDictationStartSound();
+    } else {
+      playDictationStopSound();
+    }
+    prevListeningRef.current = isListening;
+  }, [isListening]);
 
   if (!isSupported) return null;
 
@@ -99,28 +130,48 @@ function DictationButtonComponent({
       ? t('dictation.stop')
       : t('dictation.start');
 
+  // Map the 0..1 level into a CSS percent for the volume bar. The bar
+  // sits inside the pill button when listening; clamp at 100 so a brief
+  // peak can't visually overflow.
+  const levelPercent = Math.round(Math.min(1, Math.max(0, level)) * 100);
+
   return (
     <Tooltip content={tooltipContent} side="top">
       <Button
-        variant="ghost"
-        size="icon"
+        variant={isListening ? 'destructive' : 'ghost'}
+        size={isListening ? 'sm' : 'icon'}
         onClick={handleClick}
         disabled={disabled || isTranscribing}
         aria-label={ariaLabel}
         aria-busy={isTranscribing}
         aria-pressed={isListening}
-        className="relative rounded-full"
+        className={cn('relative rounded-full', isListening && 'gap-2 px-3')}
       >
         {isTranscribing ? (
           <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
         ) : (
-          <Mic className={cn('size-4', isListening && 'text-destructive')} />
+          <Mic
+            className={cn(
+              'size-4',
+              isListening && 'animate-pulse motion-reduce:animate-none',
+            )}
+          />
         )}
         {isListening && (
           <span
-            className="bg-destructive absolute top-1 right-1 size-2 animate-pulse rounded-full motion-reduce:animate-none"
-            aria-hidden="true"
-          />
+            className="bg-destructive-foreground/30 relative h-1.5 w-12 overflow-hidden rounded-full"
+            role="progressbar"
+            aria-label={t('dictation.level')}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={levelPercent}
+          >
+            <span
+              className="bg-destructive-foreground absolute inset-y-0 left-0 rounded-full transition-[width] duration-75 ease-out"
+              style={{ width: `${levelPercent}%` }}
+              aria-hidden="true"
+            />
+          </span>
         )}
       </Button>
     </Tooltip>
