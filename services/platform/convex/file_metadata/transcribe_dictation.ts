@@ -7,7 +7,6 @@ import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
-import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { resolveTranscriptionModel } from '../providers/resolve_model';
 
 const TRANSCRIBE_API_TIMEOUT_MS = 60_000;
@@ -61,8 +60,9 @@ export const transcribeDictation = action({
       throw new Error('Dictation audio exceeds 8 MiB limit');
     }
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-    const modelData = await resolveTranscriptionModel(ctx, { orgSlug });
+    const modelData = await resolveTranscriptionModel(ctx, {
+      organizationId: args.organizationId,
+    });
 
     // Whisper validates by file extension. Map the recorded MIME to the
     // closest accepted extension; `.ogg`/`.webm`/`.mp4` cover what
