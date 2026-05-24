@@ -25,7 +25,24 @@ type PlatformTable =
   | 'workflowProcessingRecords'
   | 'promptTemplates'
   | 'promptCategories'
-  | 'auditLogs';
+  | 'auditLogs'
+  // Sandbox / artifact tables — added round-2 R2-B8. Previously the
+  // `rls_rules.ts` entries for these tables gated on bare org membership
+  // and bypassed `authorizeRls`, which meant a `member` (read-only) user
+  // could still write to artifacts and trigger billable sandbox runs.
+  | 'artifacts'
+  | 'artifactRevisions'
+  | 'auditLogChainGenesis'
+  | 'sandboxExecutions'
+  // Multi-file artifact tables — added audit follow-up F14. Writes go
+  // exclusively through internalMutation (handlers/*.ts); reads need
+  // an explicit READ_ONLY role-matrix entry so the new rls_rules.ts
+  // rules can defense-in-depth via `authorizeRls()` (otherwise the
+  // deny-by-default permissions would silently 0-result the canvas).
+  | 'artifactFiles'
+  | 'artifactRuns'
+  | 'artifactRunFiles'
+  | 'artifactOutputs';
 
 type PlatformAction = 'read' | 'write';
 
@@ -65,6 +82,18 @@ const platformPermissions: Record<
     promptTemplates: ALL,
     promptCategories: ALL,
     auditLogs: ALL,
+    artifacts: ALL,
+    artifactRevisions: ALL,
+    // Genesis row is an internal sentinel — no client-facing reads/writes.
+    auditLogChainGenesis: NONE,
+    // Audit table; user-facing access is read-only across all roles.
+    sandboxExecutions: READ_ONLY,
+    // Multi-file artifact tables: writes are internal-only (handlers/*.ts);
+    // reads through RLS-wrapped queries get READ_ONLY across all org roles.
+    artifactFiles: READ_ONLY,
+    artifactRuns: READ_ONLY,
+    artifactRunFiles: READ_ONLY,
+    artifactOutputs: READ_ONLY,
   },
   developer: {
     agentBindings: ALL,
@@ -87,6 +116,14 @@ const platformPermissions: Record<
     promptTemplates: ALL,
     promptCategories: ALL,
     auditLogs: ALL,
+    artifacts: ALL,
+    artifactRevisions: ALL,
+    auditLogChainGenesis: NONE,
+    sandboxExecutions: READ_ONLY,
+    artifactFiles: READ_ONLY,
+    artifactRuns: READ_ONLY,
+    artifactRunFiles: READ_ONLY,
+    artifactOutputs: READ_ONLY,
   },
   editor: {
     agentBindings: ALL,
@@ -109,6 +146,14 @@ const platformPermissions: Record<
     promptTemplates: ALL,
     promptCategories: ALL,
     auditLogs: ALL,
+    artifacts: ALL,
+    artifactRevisions: ALL,
+    auditLogChainGenesis: NONE,
+    sandboxExecutions: READ_ONLY,
+    artifactFiles: READ_ONLY,
+    artifactRuns: READ_ONLY,
+    artifactRunFiles: READ_ONLY,
+    artifactOutputs: READ_ONLY,
   },
   member: {
     agentBindings: READ_ONLY,
@@ -131,6 +176,18 @@ const platformPermissions: Record<
     promptTemplates: ALL,
     promptCategories: ALL,
     auditLogs: READ_ONLY,
+    // Members can READ artifacts (so the chat surface keeps working in
+    // shared threads) but NOT write — artifact_create / file_* /
+    // artifact_run all trigger billable sandbox executions. Aligns with
+    // the `documents` table's own member-as-read-only contract.
+    artifacts: READ_ONLY,
+    artifactRevisions: READ_ONLY,
+    auditLogChainGenesis: NONE,
+    sandboxExecutions: READ_ONLY,
+    artifactFiles: READ_ONLY,
+    artifactRuns: READ_ONLY,
+    artifactRunFiles: READ_ONLY,
+    artifactOutputs: READ_ONLY,
   },
   disabled: {
     agentBindings: NONE,
@@ -153,6 +210,14 @@ const platformPermissions: Record<
     promptTemplates: NONE,
     promptCategories: NONE,
     auditLogs: NONE,
+    artifacts: NONE,
+    artifactRevisions: NONE,
+    auditLogChainGenesis: NONE,
+    sandboxExecutions: NONE,
+    artifactFiles: NONE,
+    artifactRuns: NONE,
+    artifactRunFiles: NONE,
+    artifactOutputs: NONE,
   },
 };
 

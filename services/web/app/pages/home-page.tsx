@@ -11,7 +11,7 @@ import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 export function HomePage() {
-  const { t: tNav } = useT('nav');
+  const { t: tFooter } = useT('footer');
   const { t: tSeo } = useT('seo');
   const locale = useCurrentLocale();
 
@@ -26,7 +26,7 @@ export function HomePage() {
       <HeroHeadline />
       <Tagline />
 
-      <section id="features" aria-label={tNav('features')}>
+      <section id="features" aria-label={tFooter('features')}>
         <FeatureSecure />
       </section>
 

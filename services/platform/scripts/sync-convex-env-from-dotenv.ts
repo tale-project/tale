@@ -66,6 +66,13 @@ function parseDotEnv(filePath: string): Record<string, string> {
   return result;
 }
 
+// Vars whose canonical value lives in the parent process (set by the dev
+// orchestrator), not in any .env file. The orchestrator ensures these are
+// populated before invoking the sync, so we include them here so they
+// (a) get pushed into Convex, and (b) are protected from the stale-cleanup
+// pass that removes Convex vars missing from the merged dotenv map.
+const ORCHESTRATOR_MANAGED_KEYS = ['BETTER_AUTH_SECRET'] as const;
+
 function findEnv(): Record<string, string> {
   const repoEnvPath = join(repoRoot, '.env');
   const repoEnvLocalPath = join(repoRoot, '.env.local');
@@ -77,12 +84,23 @@ function findEnv(): Record<string, string> {
   const platformBaseEnv = parseDotEnv(platformEnvPath);
   const platformLocalEnv = parseDotEnv(platformEnvLocalPath);
 
-  return {
+  // Dotenv files win against process.env defaults: if the developer has put
+  // BETTER_AUTH_SECRET in their .env, that real value takes precedence over
+  // the dev orchestrator's insecure local fallback.
+  const merged: Record<string, string> = {
     ...repoBaseEnv,
     ...repoLocalEnv,
     ...platformBaseEnv,
     ...platformLocalEnv,
   };
+
+  for (const key of ORCHESTRATOR_MANAGED_KEYS) {
+    if (!merged[key] && process.env[key]) {
+      merged[key] = process.env[key];
+    }
+  }
+
+  return merged;
 }
 
 function runConvexEnvList(): ConvexEnvListResult {

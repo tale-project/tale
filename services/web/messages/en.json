@@ -22,8 +22,9 @@
     }
   },
   "nav": {
-    "features": "Features",
+    "platform": "Platform",
     "pricing": "Pricing",
+    "hardware": "Hardware",
     "readDocs": "Read docs",
     "requestDemo": "Request demo",
     "openMenu": "Open menu",
@@ -347,6 +348,15 @@
         "cta": "Contact us",
         "highlightQuality": "Standard",
         "highlightSpeed": "Quality"
+      },
+      "rack": {
+        "priceSuffix": "+ VAT/month",
+        "buySuffix": "+ VAT",
+        "tagline": "Multi-node performance packaged in a single, secure chassis — with confidential computing.",
+        "nodeTagline": "Multi-node performance packaged in a single, secure chassis — with confidential computing.",
+        "cta": "Contact us",
+        "highlightQuality": "High",
+        "highlightSpeed": "High"
       }
     },
     "compare": {
@@ -354,7 +364,7 @@
       "subtitle": "Breakdown of each configuration",
       "categories": {
         "model": "Recommended AI model",
-        "modelInfo": "Suggested model for a cluster setup. Single-node configurations can run smaller variants — your team picks the actual model at deploy time.",
+        "modelInfo": "Suggested model for a multi-node setup. Single-node configurations can run smaller variants — your team picks the actual model at deploy time.",
         "size": "Size",
         "sizeInfo": "Approximate dimensions — actual size may vary slightly.",
         "gpu": "Chip (GPU)",
@@ -365,22 +375,25 @@
         "gddr7Info": "7th-generation graphics DDR — high-bandwidth video memory on the GPU board, optimised for AI inference workloads.",
         "ddr5Info": "Fifth-generation DDR SDRAM (faster, more efficient than DDR4).",
         "ddr5eccInfo": "DDR5 with error-correcting code — server-grade memory that detects and corrects single-bit faults.",
+        "zen4Info": "AMD's 4th-generation x86 CPU microarchitecture (2022).",
         "zen5Info": "AMD's 5th-generation x86 CPU microarchitecture (2024).",
         "int4Info": "4-bit integer quantization — trades a small amount of model precision for ~4× less memory.",
         "m2nvmeInfo": "m.2 NVMe SSDs in a ZFS RAID pool — fast, redundant storage.",
         "nqInfo": "Node Quality",
         "naInfo": "Node Application",
         "nsInfo": "Node Speed",
-        "cqInfo": "Cluster Quality",
-        "chInfo": "Cluster Hybrid",
-        "csInfo": "Cluster Speed",
+        "mqInfo": "Multi-node Quality",
+        "mhInfo": "Multi-node Hybrid",
+        "msInfo": "Multi-node Speed",
+        "srInfo": "Server Rack",
         "systemRam": "RAM",
         "ssd": "SSD",
         "hdd": "HDD",
         "cables": "Cables & network equipment",
         "confidentialComputing": "Confidential computing",
         "version": "Product version",
-        "productNumber": "Product number"
+        "productNumber": "Product number",
+        "composition": "Composition"
       },
       "cellLabels": {
         "yes": "Included",
@@ -405,6 +418,10 @@
       "prefix": "All configurations are subject to our",
       "linkLabel": "hardware agreement",
       "suffix": "."
+    },
+    "warranty": {
+      "title": "Warranty",
+      "content": "24 months manufacturer warranty (extensible to 36 months on request)"
     },
     "metrics": {
       "quality": "Output quality",

@@ -106,6 +106,12 @@ jobs:
               - 'services/platform/**'
               - 'packages/ui/**'
               - 'packages/webui/**'
+            sandbox:
+              - 'services/sandbox/**'
+            sandbox-egress:
+              - 'services/sandbox-egress/**'
+            sandbox-runtime:
+              - 'services/sandbox-runtime/**'
             ci_tests:
               - 'tests/container-*'
               - 'compose.test.yml'
@@ -118,6 +124,9 @@ jobs:
               - 'services/rag/**'
               - 'services/platform/**'
               - 'services/proxy/**'
+              - 'services/sandbox/**'
+              - 'services/sandbox-egress/**'
+              - 'services/sandbox-runtime/**'
 
       - name: Compute service matrix
         id: services
@@ -127,10 +136,11 @@ jobs:
           echo "list=${SERVICES}" >> "$GITHUB_OUTPUT"
           echo "Services to build: ${SERVICES}"
 
-          # Vulnerability scan only covers the six compose-stack services that
-          # `build` actually pushes to GHCR. Web and docs use their own compose
-          # stacks and are reachable via security.yml's filesystem scan.
-          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "crawler" or . == "rag" or . == "platform" or . == "proxy")]')
+          # Vulnerability scan covers the compose-stack services + sandbox
+          # trio that `build` actually pushes to GHCR. Web and docs use their
+          # own compose stacks and are reachable via security.yml's
+          # filesystem scan.
+          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "crawler" or . == "rag" or . == "platform" or . == "proxy" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-runtime")]')
           echo "scannable=${SCANNABLE}" >> "$GITHUB_OUTPUT"
           echo "Services to scan: ${SCANNABLE}"
 
@@ -180,14 +190,25 @@ jobs:
       matrix:
         # Compose-stack services. Keep in sync with build.yml (smoke/validate
         # pull loops) and cleanup-pr-images.yml matrix.
-        service: [db, convex, crawler, rag, platform, proxy]
+        service:
+          [
+            db,
+            convex,
+            crawler,
+            rag,
+            platform,
+            proxy,
+            sandbox,
+            sandbox-egress,
+            sandbox-runtime,
+          ]
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Reclaim disk space
-        if: matrix.service == 'platform' || matrix.service == 'rag' || matrix.service == 'crawler' || matrix.service == 'convex'
+        if: matrix.service == 'platform' || matrix.service == 'rag' || matrix.service == 'crawler' || matrix.service == 'convex' || matrix.service == 'sandbox-runtime'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune -af
@@ -316,16 +337,22 @@ jobs:
       # `docker compose build` step.
       - name: Pull images from GHCR
         run: |
-          # Compose-stack services. Keep in sync with build.yml (build matrix)
-          # and cleanup-pr-images.yml matrix.
+          # Compose-stack services + sandbox-runtime. Keep in sync with build.yml
+          # (build matrix) and cleanup-pr-images.yml matrix. sandbox-runtime is
+          # not a compose service but the spawner pulls it at boot — re-tag it
+          # locally so smoke tests with PULL_POLICY=never find it.
           TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db convex crawler rag platform proxy; do
+          for svc in db convex crawler rag platform proxy sandbox sandbox-egress sandbox-runtime; do
             IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
             docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
           done
+          # See note in image-validate: the spawner's SANDBOX_RUNTIME_IMAGE
+          # defaults to the unscoped `tale-sandbox-runtime:latest`.
+          docker tag "ghcr.io/tale-project/tale/tale-sandbox-runtime:latest" \
+            "tale-sandbox-runtime:latest"
 
       - name: Run smoke tests
         run: bash tests/container-smoke-test.sh
@@ -511,16 +538,24 @@ jobs:
 
       - name: Pull images from GHCR
         run: |
-          # Compose-stack services. Keep in sync with build.yml (build matrix)
-          # and cleanup-pr-images.yml matrix.
+          # Compose-stack services + sandbox-runtime. Keep in sync with build.yml
+          # (build matrix) and cleanup-pr-images.yml matrix. sandbox-runtime is
+          # not a compose service but the spawner pulls it at boot — re-tag it
+          # locally so PULL_POLICY=never validation finds it.
           TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db convex crawler rag platform proxy; do
+          for svc in db convex crawler rag platform proxy sandbox sandbox-egress sandbox-runtime; do
             IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
             docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
           done
+          # The spawner reads SANDBOX_RUNTIME_IMAGE which defaults to
+          # `tale-sandbox-runtime:latest` (unscoped). Mirror the tag so the
+          # spawner's boot-time `ensureImage` hits a local cache instead of
+          # trying to pull from GHCR.
+          docker tag "ghcr.io/tale-project/tale/tale-sandbox-runtime:latest" \
+            "tale-sandbox-runtime:latest"
 
       - name: Run image validation
         run: bash tests/container-image-test.sh
@@ -605,6 +640,7 @@ jobs:
           format: 'sarif'
           output: '${{ matrix.service }}-trivy.sarif'
           severity: 'HIGH,CRITICAL'
+          trivyignores: '.trivyignore.yaml'
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3

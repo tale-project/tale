@@ -17,7 +17,7 @@ function makeFakeModel() {
 
 describe('createAgentConfig', () => {
   describe('callSettings.maxOutputTokens default', () => {
-    it('defaults callSettings.maxOutputTokens to 8192 when maxTokens is not provided', () => {
+    it('defaults callSettings.maxOutputTokens to 32768 when maxTokens is not provided', () => {
       const config = createAgentConfig({
         name: 'test-agent',
         languageModel: makeFakeModel(),
@@ -27,7 +27,7 @@ describe('createAgentConfig', () => {
       const callSettings = config.callSettings as
         | Record<string, number>
         | undefined;
-      expect(callSettings?.maxOutputTokens).toBe(8192);
+      expect(callSettings?.maxOutputTokens).toBe(32768);
     });
 
     it('uses caller-provided maxTokens when explicitly set', () => {
@@ -106,7 +106,7 @@ describe('createAgentConfig', () => {
       expect(callSettings?.maxOutputTokens).toBe(1024);
     });
 
-    it('falls back to 8192 default when neither is provided', () => {
+    it('falls back to 32768 default when neither is provided', () => {
       const config = createAgentConfig({
         name: 'test-agent',
         languageModel: makeFakeModel(),
@@ -116,7 +116,7 @@ describe('createAgentConfig', () => {
       const callSettings = config.callSettings as
         | Record<string, number>
         | undefined;
-      expect(callSettings?.maxOutputTokens).toBe(8192);
+      expect(callSettings?.maxOutputTokens).toBe(32768);
     });
   });
 

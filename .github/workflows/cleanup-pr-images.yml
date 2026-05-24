@@ -28,7 +28,18 @@ jobs:
       matrix:
         # Compose-stack services. Keep in sync with build.yml (build matrix +
         # smoke/validate pull loops).
-        service: [db, convex, crawler, rag, platform, proxy]
+        service:
+          [
+            db,
+            convex,
+            crawler,
+            rag,
+            platform,
+            proxy,
+            sandbox,
+            sandbox-egress,
+            sandbox-runtime,
+          ]
 
     steps:
       - name: Delete PR-tagged versions

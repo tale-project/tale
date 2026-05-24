@@ -12,13 +12,15 @@ import {
   type RotatableService,
   type ServiceName,
   type StatefulService,
+  LOCKSTEP_SERVICES,
   ROTATABLE_SERVICES,
   STATEFUL_SERVICES,
+  isLockstepService,
   isRotatableService,
   isStatefulService,
 } from '../compose/types';
 import { dockerCompose } from '../docker/docker-compose';
-import { ensureNetwork } from '../docker/ensure-network';
+import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { getContainerVersion } from '../docker/get-container-version';
@@ -56,6 +58,11 @@ async function ensureInfrastructure(
   if (!networkCreated) {
     throw new Error('Failed to create required network');
   }
+  // Sandbox bridge: fixed name `tale-sandbox-net`, internal-only, IPv6 off.
+  const sandboxNetworkCreated = await ensureSandboxNetwork();
+  if (!sandboxNetworkCreated) {
+    throw new Error('Failed to create sandbox network');
+  }
 }
 
 interface DeployOptions {
@@ -71,6 +78,16 @@ interface DeployOptions {
   assumeYes?: boolean;
   /** @deprecated use assumeYes. Kept for one release of CLI back-compat. */
   migrateVolumes?: boolean;
+  /**
+   * Set by the caller when `ensureEnv` filled in auto-gen secrets headlessly
+   * (e.g. an upgrade silently materialized `SANDBOX_TOKEN`). All subsequent
+   * `docker compose up -d` invocations gain `--force-recreate` so containers
+   * that were already running on an unchanged image pick up the new value
+   * — without this, the spawner could keep its pre-rotation null token in
+   * memory while Convex picks up the new one, breaking the HMAC handshake
+   * until the next manual restart.
+   */
+  forceRecreate?: boolean;
 }
 
 export async function deploy(options: DeployOptions): Promise<void> {
@@ -188,7 +205,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
         rotatableToUpdate = services.filter(isRotatableService);
         statefulToUpdate = services.filter(isStatefulService);
       } else {
-        // Default: all rotatable services
+        // Default: all rotatable services PLUS lockstep services.
+        //
+        // Lockstep services (sandbox, sandbox-egress) version in step with
+        // the platform image — shipping an old sandbox against new
+        // platform code would break the SSE wire contract. Including
+        // them on every default deploy matches the build matrix's
+        // single-version policy and avoids the "platform upgraded but
+        // sandbox stayed on yesterday's image" failure mode that drove
+        // the sandbox-wobbly-origami plan §5 rollout decision.
         rotatableToUpdate = [...ROTATABLE_SERVICES];
 
         if (isFirstDeploy || updateStateful) {
@@ -199,9 +224,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
             );
           }
         } else {
-          // Check if any required stateful services are not running
+          // Check if any required stateful services are not running, and
+          // ALWAYS include lockstep services so they roll forward with
+          // the platform image.
           const missingStateful: StatefulService[] = [];
           for (const service of STATEFUL_SERVICES) {
+            if (isLockstepService(service)) continue; // handled below
             const containerName = `${getProjectId()}-${service}`;
             const running = await isContainerRunning(containerName);
             if (!running) {
@@ -209,14 +237,19 @@ export async function deploy(options: DeployOptions): Promise<void> {
             }
           }
 
+          const lockstepToUpdate: StatefulService[] = [...LOCKSTEP_SERVICES];
+
           if (missingStateful.length > 0) {
             logger.notice(
               `Infrastructure services not running: ${missingStateful.join(', ')} - including automatically`,
             );
-            statefulToUpdate = missingStateful;
-          } else {
-            statefulToUpdate = [];
           }
+          if (lockstepToUpdate.length > 0) {
+            logger.info(
+              `Lockstep services: ${lockstepToUpdate.join(', ')} - included on every default deploy`,
+            );
+          }
+          statefulToUpdate = [...missingStateful, ...lockstepToUpdate];
         }
       }
 
@@ -255,9 +288,31 @@ export async function deploy(options: DeployOptions): Promise<void> {
         ),
       ];
 
+      // The spawner's runtime image (consumed by `docker run` of user code,
+      // not a compose service) must also be pulled and re-tagged to match the
+      // spawner's `SANDBOX_RUNTIME_IMAGE` default (`tale-sandbox-runtime:latest`).
+      // Without this, a fresh deploy host has no local runtime image and the
+      // first /v1/execute fails with image-not-found. Mirrors build.yml's
+      // re-tag step. Pulled whenever sandbox or sandbox-egress is being
+      // updated, since the runtime image versions in lockstep with the spawner.
+      const needsRuntimeImage =
+        statefulToUpdate.includes('sandbox') ||
+        statefulToUpdate.includes('sandbox-egress');
+      const runtimeImageRemote = needsRuntimeImage
+        ? `${env.GHCR_REGISTRY}/tale-sandbox-runtime:${version}`
+        : null;
+      if (runtimeImageRemote) {
+        imagesToPull.push(runtimeImageRemote);
+      }
+
       if (dryRun) {
         for (const image of imagesToPull) {
           logger.info(`${prefix}Would pull: ${image}`);
+        }
+        if (runtimeImageRemote) {
+          logger.info(
+            `${prefix}Would tag: ${runtimeImageRemote} -> tale-sandbox-runtime:latest`,
+          );
         }
       } else {
         const failedImages: string[] = [];
@@ -273,6 +328,18 @@ export async function deploy(options: DeployOptions): Promise<void> {
               'If this is a recent release, the container images may still be building and testing. ' +
               'Please wait a few minutes and try again.',
           );
+        }
+        if (runtimeImageRemote) {
+          const tagResult = await exec('docker', [
+            'tag',
+            runtimeImageRemote,
+            'tale-sandbox-runtime:latest',
+          ]);
+          if (!tagResult.success) {
+            throw new Error(
+              `Failed to re-tag sandbox runtime image: ${tagResult.stderr.trim()}`,
+            );
+          }
         }
       }
 
@@ -297,7 +364,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
         } else {
           const result = await dockerCompose(
             statefulCompose,
-            ['up', '-d', ...statefulToUpdate],
+            [
+              'up',
+              '-d',
+              ...(options.forceRecreate ? ['--force-recreate'] : []),
+              ...statefulToUpdate,
+            ],
             { projectName: getProjectId(), cwd: env.DEPLOY_DIR },
           );
 
@@ -369,7 +441,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
             );
             const deployResult = await dockerCompose(
               colorCompose,
-              ['up', '-d', ...coloredServices],
+              [
+                'up',
+                '-d',
+                ...(options.forceRecreate ? ['--force-recreate'] : []),
+                ...coloredServices,
+              ],
               {
                 projectName: `${getProjectId()}-${currentColor}`,
                 cwd: env.DEPLOY_DIR,
@@ -463,7 +540,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
             );
             const deployResult = await dockerCompose(
               colorCompose,
-              ['up', '-d', ...coloredServices],
+              [
+                'up',
+                '-d',
+                ...(options.forceRecreate ? ['--force-recreate'] : []),
+                ...coloredServices,
+              ],
               {
                 projectName: `${getProjectId()}-${nextColor}`,
                 cwd: env.DEPLOY_DIR,

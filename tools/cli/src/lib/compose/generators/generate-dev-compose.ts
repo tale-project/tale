@@ -11,6 +11,8 @@ import { createDbService } from '../services/create-db-service';
 import { createPlatformService } from '../services/create-platform-service';
 import { createProxyService } from '../services/create-proxy-service';
 import { createRagService } from '../services/create-rag-service';
+import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
+import { createSandboxService } from '../services/create-sandbox-service';
 import type { ComposeConfig, ServiceConfig } from '../types';
 import { DEV_VOLUME_NAMES } from './constants';
 
@@ -134,6 +136,13 @@ export function generateDevCompose(
   const proxy = createProxyService(config, hostAlias);
   proxy.ports = [`${port}:443`];
 
+  // Dev-only: publish the sandbox spawner on host loopback so `bun dev`
+  // running Convex on the host can reach it at http://127.0.0.1:8003. The
+  // stateful compose generator never publishes this port — production Convex
+  // is in-container and uses the `internal` Docker network alias.
+  const sandbox = createSandboxService(config);
+  sandbox.ports = ['127.0.0.1:8003:8003'];
+
   // Scope dev volumes/networks explicitly via `external: true` + `name:`.
   // Dev volumes live under the `${projectId}-dev_` prefix (matching the
   // `-p ${projectId}-dev` passed to docker compose). They are pre-created by
@@ -153,6 +162,8 @@ export function generateDevCompose(
       platform,
       rag,
       crawler,
+      'sandbox-egress': createSandboxEgressService(config),
+      sandbox,
     },
     volumes,
     networks: {
@@ -160,6 +171,10 @@ export function generateDevCompose(
         external: true,
         name: `${devPrefix}internal`,
       },
+      // Sandbox bridge — internal-only, IPv6 disabled (declared in
+      // start.ts via ensureNetwork; here referenced as external so the
+      // generator emits the right ref).
+      sandbox: { external: true, name: 'tale-sandbox-net' },
     },
   };
 

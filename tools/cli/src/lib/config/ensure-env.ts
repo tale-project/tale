@@ -81,6 +81,15 @@ interface EnvSetupResult {
   success: boolean;
   agePublicKey?: string;
   openrouterKey?: string;
+  /**
+   * Set when `ensureEnv` filled in missing auto-gen secrets (most relevant:
+   * `SANDBOX_TOKEN`) — so the deploy action can force-recreate the
+   * containers that depend on those secrets. Without forced recreate, a
+   * container that's already running on an unchanged image keeps its
+   * pre-rotation env in memory while peers pick up the new one, breaking
+   * the HMAC handshake until the next manual restart.
+   */
+  regeneratedAutoSecrets?: readonly string[];
 }
 
 export async function ensureEnv(
@@ -93,34 +102,53 @@ export async function ensureEnv(
     const content = await readFile(envPath, 'utf-8');
     const existing = parseEnvFile(content);
 
-    const requiredVars = [
-      'HOST',
-      'SITE_URL',
-      'TLS_MODE',
+    // Split required vars by who can satisfy them:
+    //   - User-supplied: needs human input (HOST, TLS choice). Non-TTY
+    //     upgrade can't fill these in; refuse and prompt for interactive.
+    //   - Auto-generatable: secret of a known shape (HMAC keys, DB password,
+    //     age key). Non-TTY upgrade silently fills these so headless
+    //     CI/CD deploys keep working when the schema gains a new secret
+    //     (history: `SANDBOX_TOKEN` was added to required mid-stream and
+    //     started failing every existing headless deploy).
+    const requiredUserVars = ['HOST', 'SITE_URL', 'TLS_MODE'];
+    const requiredAutoVars = [
       'BETTER_AUTH_SECRET',
       'ENCRYPTION_SECRET_HEX',
       'INSTANCE_SECRET',
       'DB_PASSWORD',
       'SOPS_AGE_KEY',
+      // Shared HMAC secret for Convex → sandbox spawner. Generated as
+      // 32 random bytes (hex); see services/sandbox/src/auth.ts.
+      'SANDBOX_TOKEN',
     ];
-    const missing = requiredVars.filter((v) => !existing[v]);
+    const missingUser = requiredUserVars.filter((v) => !existing[v]);
+    const missingAuto = requiredAutoVars.filter((v) => !existing[v]);
 
-    if (missing.length === 0) {
+    if (missingUser.length === 0 && missingAuto.length === 0) {
       // All required vars present — derive public key for caller
       const agePublicKey = deriveAgePublicKey(existing.SOPS_AGE_KEY);
       return { success: true, agePublicKey };
     }
 
     if (!isTTY) {
-      logger.warn(
-        `Existing .env is missing required variables: ${missing.join(', ')}`,
-      );
-      logger.info('Run the CLI interactively to complete environment setup.');
-      return { success: false };
+      // Headless: refuse only when user-supplied vars are missing (we
+      // can't synthesize a domain or TLS choice). Otherwise auto-generate
+      // the missing secrets and continue so CI/CD upgrades stay green.
+      if (missingUser.length > 0) {
+        logger.warn(
+          `Existing .env is missing required user-supplied variables: ${missingUser.join(', ')}`,
+        );
+        logger.info('Run the CLI interactively to complete environment setup.');
+        return { success: false };
+      }
+      return await runHeadlessAutoSecretFill(envPath, existing, missingAuto);
     }
 
     // Fill in only the missing variables
-    return await runPartialEnvSetup(envPath, existing, missing);
+    return await runPartialEnvSetup(envPath, existing, [
+      ...missingUser,
+      ...missingAuto,
+    ]);
   }
 
   if (!isTTY) {
@@ -134,6 +162,76 @@ export async function ensureEnv(
   }
 
   return await runEnvSetup(envPath);
+}
+
+/**
+ * Headless (non-TTY) auto-gen path for known-shape secrets. Used when a
+ * deploy adds a new required secret (e.g. `SANDBOX_TOKEN`) and existing
+ * CI/CD deploys would otherwise fail because the secret isn't in their
+ * `.env`. Only invoked when every missing var is in the auto-gen set; a
+ * missing user-supplied var (HOST, TLS_MODE) still refuses non-TTY.
+ *
+ * The deploy action receives `regeneratedAutoSecrets` so it can
+ * force-recreate containers that read these secrets at boot (otherwise
+ * a container already running on an unchanged image keeps the old null
+ * value while its peer picks up the new one — HMAC handshake breaks).
+ */
+async function runHeadlessAutoSecretFill(
+  envPath: string,
+  existing: Record<string, string>,
+  missingAuto: string[],
+): Promise<EnvSetupResult> {
+  const secretDefaults: Record<string, () => string> = {
+    BETTER_AUTH_SECRET: generateBase64Secret,
+    ENCRYPTION_SECRET_HEX: generateHexSecret,
+    INSTANCE_SECRET: generateHexSecret,
+    DB_PASSWORD: generatePassword,
+    SANDBOX_TOKEN: generateHexSecret,
+  };
+
+  const updates: Record<string, string> = {};
+  let sopsAgeKey = existing.SOPS_AGE_KEY;
+
+  for (const key of missingAuto) {
+    if (key === 'SOPS_AGE_KEY') {
+      const keypair = generateAgeKeypair();
+      updates.SOPS_AGE_KEY = keypair.secretKey;
+      sopsAgeKey = keypair.secretKey;
+      continue;
+    }
+    const generator = secretDefaults[key];
+    if (generator === undefined) {
+      // Defensive: a var made it into requiredAutoVars without a
+      // generator. Refuse rather than silently leave it unset.
+      logger.error(
+        `[ensureEnv] Missing auto-secret generator for "${key}". Add one in runHeadlessAutoSecretFill.`,
+      );
+      return { success: false };
+    }
+    updates[key] = generator();
+  }
+
+  // Surgically append to preserve existing content + comments.
+  const existingContent = await readFile(envPath, 'utf-8');
+  const appendLines = Object.entries(updates).map(([k, v]) => `${k}=${v}`);
+  if (appendLines.length > 0) {
+    const separator = existingContent.endsWith('\n') ? '' : '\n';
+    await writeFile(
+      envPath,
+      existingContent + separator + appendLines.join('\n') + '\n',
+      'utf-8',
+    );
+    logger.info(
+      `[ensureEnv] Generated ${missingAuto.length} missing secret(s) headlessly: ${missingAuto.join(', ')}.`,
+    );
+  }
+
+  const agePublicKey = deriveAgePublicKey(sopsAgeKey);
+  return {
+    success: true,
+    agePublicKey,
+    regeneratedAutoSecrets: missingAuto,
+  };
 }
 
 /**
@@ -212,6 +310,7 @@ async function runPartialEnvSetup(
     ENCRYPTION_SECRET_HEX: generateHexSecret,
     INSTANCE_SECRET: generateHexSecret,
     DB_PASSWORD: generatePassword,
+    SANDBOX_TOKEN: generateHexSecret,
   };
 
   let generatedCount = 0;
@@ -408,6 +507,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     instanceSecret: generateHexSecret(),
     dbPassword,
     sopsAgeKey: ageKeypair.secretKey,
+    sandboxToken: generateHexSecret(),
   };
 
   const envContent = generateEnvContent({
@@ -441,6 +541,7 @@ interface EnvConfig {
   instanceSecret: string;
   dbPassword: string;
   sopsAgeKey: string;
+  sandboxToken: string;
 }
 
 function generateEnvContent(config: EnvConfig): string {
@@ -507,6 +608,24 @@ function generateEnvContent(config: EnvConfig): string {
     '#                              external tooling.',
     `SOPS_AGE_KEY=${config.sopsAgeKey}`,
     '# SOPS_AGE_KEY_FILE=',
+    '',
+    '# ============================================================================',
+    '# Sandbox (artifact_run) Configuration',
+    '# ============================================================================',
+    '# Shared HMAC secret. Convex signs every request to the sandbox spawner',
+    '# with this; the spawner rejects unsigned/wrong-signed requests. Rotate',
+    '# by setting a new value and restarting both `platform` and `sandbox`.',
+    `SANDBOX_TOKEN=${config.sandboxToken}`,
+    '# Container runtime for spawned sandbox containers. `runc` (default) is',
+    '# plain Docker; `runsc` is gVisor (requires `runsc` installed on the',
+    '# host and registered with dockerd — see `tale doctor`). gVisor provides',
+    '# a userspace kernel that mitigates runc-class escape CVEs at the cost',
+    '# of ~6x pip-install latency for native-extension packages.',
+    '# SANDBOX_RUNTIME=runc',
+    '# Pipe-separated regex allow-list of egress hostnames for the sandbox',
+    '# proxy. Default covers pypi/npm/github package endpoints; extend if',
+    '# your agents need other registries (e.g. private wheel mirrors).',
+    '# SANDBOX_EGRESS_ALLOWLIST=^pypi\\.org$|^files\\.pythonhosted\\.org$|^registry\\.npmjs\\.org$',
     '',
   );
 

@@ -2409,13 +2409,82 @@
       "streamingWriting": "AI is writing…",
       "streamingPatch": "AI is editing…",
       "cancel": "Cancel edit",
-      "streamingDuringEdit": "Agent is updating this artifact — your draft is saved. Cancel to discard."
+      "streamingDuringEdit": "Agent is updating this artifact — your draft is saved. Cancel to discard.",
+      "runDone": "Done",
+      "runStarted": "Started",
+      "runStale": "Source edited",
+      "runFiles": "Files",
+      "runStdout": "stdout ({chars} chars)",
+      "runStderr": "stderr ({chars} chars)",
+      "runOpenFile": "Open file {name}",
+      "runResultEntryLabel": "Run output",
+      "runResultSecondaryLabel": "Output for {path}",
+      "runResultSecondaryCount": "{count, plural, one {# other file} other {# other files}}",
+      "runStatus": {
+        "queued": "Queued",
+        "installing": "Installing dependencies",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "runErrorCode": {
+        "TIMEOUT": "Timed out",
+        "OOM": "Out of memory",
+        "EGRESS_DENIED": "Network blocked",
+        "INSTALL_FAILED": "Install failed",
+        "PACKAGE_NOT_FOUND": "Package not found",
+        "QUOTA_EXCEEDED": "Quota exceeded",
+        "RUNTIME_ERROR": "Runtime error",
+        "SPAWNER_UNAVAILABLE": "Sandbox unavailable",
+        "CANCELLED": "Cancelled",
+        "INPUT_REJECTED": "Input rejected",
+        "HARVEST_READ_FAILED": "Output read failed",
+        "UPLOAD_FAILED": "Upload failed",
+        "UPLOAD_QUOTA_EXCEEDED": "Upload quota exceeded",
+        "UPLOAD_REPORT_FAILED": "Upload report failed",
+        "PRE_STAGE_FAILED": "Pre-stage failed",
+        "UPLOAD_INCOMPLETE": "Upload incomplete"
+      },
+      "runProgress": {
+        "queued": "Queued",
+        "preparing": "Preparing sandbox",
+        "installingPackage": "Installing {package}{version, select, undefined {} other { {version}}}",
+        "installing": "Installing dependencies",
+        "running": "Running"
+      },
+      "typeLabel": {
+        "code": "Code",
+        "html": "HTML",
+        "mermaid": "Mermaid",
+        "svg": "SVG",
+        "markdown": "Markdown",
+        "script_runnable": "Script (sandbox)",
+        "python_runnable": "Python (sandbox)",
+        "node_runnable": "Node (sandbox)"
+      },
+      "fileSidebar": {
+        "label": "Project files",
+        "title": "Files",
+        "expand": "Show files",
+        "collapse": "Hide files",
+        "entryBadge": "entry",
+        "streamingDot": "Writing this file…",
+        "addFile": "Add file",
+        "addFilePlaceholder": "path/to/file.ext",
+        "addFileConfirm": "Add",
+        "addFileCancel": "Cancel",
+        "errorPathRequired": "Path is required.",
+        "errorPathExists": "A file with this path already exists.",
+        "errorAddFailed": "Could not add the file."
+      }
     },
     "artifacts": {
       "barLabel": "Artifacts in this thread",
       "barTitle": "Artifacts",
       "openCard": "Open artifact: {title}",
-      "touchedByMessage": "{title} (revision {revision})"
+      "touchedByMessage": "{title}",
+      "fileCount": "{count, plural, one {# file} other {# files}}"
     },
     "branchNavigator": {
       "previous": "Previous branch",

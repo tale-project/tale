@@ -155,9 +155,14 @@ export function CompareTable<TK extends string>({
       <table className="w-full table-fixed border-collapse">
         <caption className="sr-only">{caption}</caption>
         <colgroup>
-          <col className="w-[34%] sm:w-[28%]" />
+          <col
+            className={tiers.length === 1 ? 'w-1/2' : 'w-[34%] sm:w-[28%]'}
+          />
           {tiers.map((tier) => (
-            <col key={tier.key} className="w-[22%] sm:w-[24%]" />
+            <col
+              key={tier.key}
+              className={tiers.length === 1 ? 'w-1/2' : 'w-[22%] sm:w-[24%]'}
+            />
           ))}
         </colgroup>
         <thead>

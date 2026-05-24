@@ -15,6 +15,18 @@ export const runAll = internalAction({
     await ctx.runMutation(
       internal.migrations.backfill_ledger_granularity.apply,
     );
+    // Multi-file artifact refactor — Phase A. Synthesizes `files`/`entryFile`
+    // for legacy single-`content` artifact rows. Idempotent (skip-if-set).
+    await ctx.runMutation(internal.migrations.backfill_artifact_files.apply);
+    // Multi-file artifact refactor — Phase B. Backfills the dedicated
+    // `artifactFiles` / `artifactRuns` / `artifactRunFiles` tables from
+    // the legacy embedded fields. Depends on Phase A (reads the
+    // synthesized `files[]`). Sentinel-gated idempotent — partially-done
+    // artifacts roll back atomically per batch and retry skips completed
+    // ones at O(1).
+    await ctx.runMutation(
+      internal.migrations.backfill_artifact_files_table.apply,
+    );
     // Idempotent: orgs that already carry an applied-bounds snapshot are
     // skipped inside `seedInitialBoundsInternal`, so re-running on every
     // deploy is safe. Without this seed, retention_cleanup silently no-ops

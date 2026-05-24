@@ -535,6 +535,138 @@ services:
         aliases:
           - ${HOST:-tale.local}
 
+  # ============================================================================
+  # Tale Sandbox Egress (tinyproxy) — HTTPS forward proxy
+  # ----------------------------------------------------------------------------
+  # Filters CONNECT host requests against an allow-list of package registries
+  # (pypi.org, files.pythonhosted.org, registry.npmjs.org, github package
+  # endpoints). Sandbox runtime containers reach pypi/npm via this proxy; all
+  # other internet is unreachable because the sandbox bridge is `internal:true`.
+  # See plan §2.
+  # ============================================================================
+  sandbox-egress:
+    image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
+    build:
+      context: .
+      dockerfile: services/sandbox-egress/Dockerfile
+    container_name: tale-sandbox-egress
+    env_file:
+      - .env
+    restart: unless-stopped
+    # NET_ADMIN lets the entrypoint install iptables REJECT rules for
+    # IMDS (169.254.169.254) and RFC1918 ranges as defense-in-depth
+    # against DNS-rebind on an allowlisted hostname. Without this cap
+    # the entrypoint warns and skips the firewall. Mirrors the convex
+    # container — see services/convex/docker-entrypoint.sh.
+    cap_add:
+      - NET_ADMIN
+    healthcheck:
+      # Plain TCP-listen check: if tinyproxy is up the port answers. We
+      # intentionally do NOT CONNECT-probe an external host (pypi/npm)
+      # — flapping that probe against a transient upstream outage flips
+      # the spawner's `depends_on: service_healthy` gate to false and
+      # blocks all new sandbox launches even though the proxy itself is
+      # fine. Round-2 R2-B11: aligned with the CLI generator (TCP-only)
+      # so `docker compose up` and `tale start` produce identical health
+      # semantics.
+      test: ['CMD-SHELL', 'nc -z 127.0.0.1 3128 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 2
+      start_period: 10s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      # `sandbox` faces the runtime containers (their only outbound path,
+      # since tale-sandbox-net is `--internal`). `internal` provides
+      # outbound NAT to pypi/npmjs/etc — `--internal` networks can't reach
+      # the host bridge. Egress peers on `internal` are NOT a meaningful
+      # new attack surface (the hostname allowlist + RFC1918/IMDS iptables
+      # rules limit them to the same registries they could already reach
+      # directly via their own NAT).
+      - sandbox
+      - internal
+
+  # ============================================================================
+  # Tale Sandbox Spawner — thin stateless docker-run service for artifact_run
+  # ----------------------------------------------------------------------------
+  # Mounts /var/run/docker.sock to spawn ephemeral sibling containers per call.
+  # Reachable only on the `internal` bridge by the platform/convex service;
+  # joined to `sandbox` only to issue `docker run` (the runtime containers
+  # themselves attach to `sandbox` for egress via tinyproxy).
+  #
+  # SECURITY: docker.sock = host root. Explicit threat acceptance per plan
+  # "Security model". Spawner accepts only HMAC-signed typed JSON over HTTP;
+  # `services/sandbox/src/docker-args.ts` validates every argv field with
+  # regexes so a malformed input never reaches `docker run`. Future hardening:
+  # SANDBOX_RUNTIME=runsc opt-in (gVisor), `opa-docker-authz` daemon plugin
+  # for HostConfig body filtering, dockerd userns-remap.
+  # ============================================================================
+  sandbox:
+    image: ghcr.io/tale-project/tale/tale-sandbox:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
+    build:
+      context: .
+      dockerfile: services/sandbox/Dockerfile
+    container_name: tale-sandbox
+    # Loopback-only port mapping. The spawner mounts /var/run/docker.sock,
+    # so an unauthenticated request on this port = remote root via docker.
+    # Convex reaches the spawner through the `internal` Docker network
+    # (http://sandbox:8003) — the published port is only for `bun dev`
+    # running convex-local-backend on the host. NEVER publish on 0.0.0.0.
+    ports:
+      - '127.0.0.1:8003:8003'
+    env_file:
+      - .env
+    environment:
+      SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runc}
+      SANDBOX_RUNTIME_IMAGE: ${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}
+      SANDBOX_EGRESS_NETWORK: tale-sandbox-net
+      SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
+    volumes:
+      # The spawner needs the host docker socket to spawn sibling containers.
+      # This is the security boundary — see header comment.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 1:1 bind: per-call workspace dirs are created here by the spawner
+      # and mounted into the runtime container at the SAME host path (the
+      # docker daemon resolves --mount source paths against the host fs,
+      # so the spawner and the daemon must agree on the path).
+      - /var/lib/tale-sandbox:/var/lib/tale-sandbox
+    restart: unless-stopped
+    # Resource caps mirror the CLI compose generator
+    # (`tools/cli/src/lib/compose/services/create-sandbox-service.ts`). The
+    # `tale start` and raw `docker compose up` paths must produce the SAME
+    # operational posture; previously this file shipped without caps, so
+    # operators running `docker compose up` directly got an uncapped
+    # spawner — audit finding R2-B11.
+    mem_limit: 512m
+    pids_limit: 512
+    ulimits:
+      nofile:
+        soft: 4096
+        hard: 8192
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8003/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      sandbox-egress:
+        condition: service_healthy
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - internal
+      - sandbox
+
 # ============================================================================
 # Volumes
 # ============================================================================
@@ -588,3 +720,14 @@ networks:
   # Internal network for Tale services
   internal:
     driver: bridge
+
+  # Sandbox network — internal-only bridge for artifact_run runtime containers + the
+  # tinyproxy egress sidecar. The CLI (start.ts / deploy.ts via
+  # ensureSandboxNetwork) pre-creates the network with `--internal --ipv6=false`
+  # so it can carry both `tale-sandbox-net` and the bridge-driver flags that
+  # compose's `networks:` block can't express atomically. We mark it external
+  # here so compose attaches to the existing network rather than overwriting
+  # its driver options.
+  sandbox:
+    external: true
+    name: tale-sandbox-net

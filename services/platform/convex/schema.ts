@@ -10,7 +10,14 @@ import {
   agentWebhookUserThreadsTable,
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
-import { artifactRevisionsTable, artifactsTable } from './artifacts/schema';
+import {
+  artifactFilesTable,
+  artifactOutputsTable,
+  artifactRevisionsTable,
+  artifactRunFilesTable,
+  artifactRunsTable,
+  artifactsTable,
+} from './artifacts/schema';
 import { auditLogChainGenesisTable, auditLogsTable } from './audit_logs/schema';
 import {
   brandingBindingsTable,
@@ -54,6 +61,7 @@ import { notificationsTable } from './notifications/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
 import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
+import { sandboxExecutionsTable } from './sandbox/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
 import { threadTodosTable } from './thread_todos/schema';
@@ -89,7 +97,11 @@ import {
 
 export default defineSchema({
   approvals: approvalsTable,
+  artifactFiles: artifactFilesTable,
+  artifactOutputs: artifactOutputsTable,
   artifactRevisions: artifactRevisionsTable,
+  artifactRunFiles: artifactRunFilesTable,
+  artifactRuns: artifactRunsTable,
   artifacts: artifactsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,
@@ -152,6 +164,7 @@ export default defineSchema({
   products: productsTable,
   ssoProviders: ssoProvidersTable,
   vendors: vendorsTable,
+  sandboxExecutions: sandboxExecutionsTable,
   videoLinkJobs: videoLinkJobsTable,
   websites: websitesTable,
   wfApiKeys: wfApiKeysTable,

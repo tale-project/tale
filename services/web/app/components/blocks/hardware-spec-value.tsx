@@ -60,9 +60,11 @@ export function SpecValue({ value }: SpecValueProps): ReactNode {
 
   return (
     <TooltipProvider delayDuration={150}>
-      {value.split('\n').map((line, lineIdx) => (
-        <SpecLine key={lineIdx} line={line} />
-      ))}
+      <span className="inline-block text-left">
+        {value.split('\n').map((line, lineIdx) => (
+          <SpecLine key={lineIdx} line={line} />
+        ))}
+      </span>
     </TooltipProvider>
   );
 }

@@ -1,0 +1,52 @@
+# Tale Sandbox Egress — tinyproxy config
+# Rendered at startup by entrypoint.sh (no template vars currently in use,
+# but keep envsubst-ready so we can introduce them without re-tooling).
+
+User nobody
+Group nobody
+
+Port 3128
+Listen 0.0.0.0
+Timeout 600
+DefaultErrorFile "/usr/share/tinyproxy/default.html"
+# Notice (not Info) — Info logs full request lines including query strings,
+# which can leak tokens/secrets a sandboxed user pastes into a URL.
+LogLevel Notice
+LogFile "/var/log/tinyproxy/tinyproxy.log"
+PidFile "/tmp/tinyproxy.pid"
+MaxClients 100
+ViaProxyName "tale-sandbox-egress"
+
+# CONNECT method (HTTPS tunneling) — required for pip/npm/uv installs.
+# Only the standard TLS port; nothing else.
+ConnectPort 443
+
+# Host-name allow-list (default-deny). Allowlist contents are rewritten
+# by entrypoint.sh from SANDBOX_EGRESS_ALLOWLIST or the default registry set.
+FilterDefaultDeny Yes
+FilterCaseSensitive No
+FilterExtended Yes
+FilterURLs Off
+Filter "/etc/tinyproxy/allowlist"
+
+# Client allow-list (network-layer): only loopback (healthcheck) and the
+# Docker user-network CIDRs that the sandbox runtime containers attach to.
+# 172.16.0.0/12 covers the default Docker bridge-driver range. This list is
+# defense-in-depth ONLY — it's a client ACL, NOT the primary network
+# boundary. The primary boundary is the `--internal` flag on tale-sandbox-net
+# (runtime containers can't reach the host bridge) plus the iptables OUTPUT
+# rules installed by entrypoint.sh (REJECT IMDS + RFC1918). The allowlist
+# entry would only matter if a future topology change exposed the egress
+# proxy to additional networks; until then it's a belt-and-braces guard.
+# ::1 covers IPv6 loopback for the healthcheck on dual-stack hosts.
+Allow 127.0.0.1
+Allow ::1
+Allow 172.16.0.0/12
+
+# DisableViaHeader replaces the default `No` (which emitted
+# `Via: 1.1 tale-sandbox-egress`). Note: tinyproxy's Anonymous block does
+# NOT apply to CONNECT / HTTPS traffic — the tunnel is end-to-end
+# encrypted between the runtime container and the upstream, so tinyproxy
+# cannot see or rewrite request headers. Header stripping would only
+# matter for plaintext HTTP, which CONNECT-only mode rejects anyway.
+DisableViaHeader Yes

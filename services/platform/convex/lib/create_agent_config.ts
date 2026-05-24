@@ -92,10 +92,12 @@ export function createAgentConfig(opts: {
   });
 
   // Call settings: cap output tokens via priority caller > model config >
-  // 8192 default. The default keeps OpenRouter from truncating responses
-  // with its much lower built-in cap. Temperature and frequencyPenalty are
-  // intentionally NOT set — reasoning models (e.g. DeepSeek V3.2) treat
-  // them as `0` and return empty content.
+  // 32768 default. The default keeps OpenRouter from truncating responses
+  // with its much lower built-in cap, and leaves enough headroom for tool
+  // calls whose arguments include large `content` strings (e.g. file-write
+  // tools); 8192 was too tight and got truncated mid-string on ~22KB writes.
+  // Temperature and frequencyPenalty are intentionally NOT set — reasoning
+  // models (e.g. DeepSeek V3.2) treat them as `0` and return empty content.
   //
   // `0` from caller / model config is treated as "omit" — sending
   // `max_tokens: 0` to OpenAI/OpenRouter generates zero tokens, not
@@ -109,7 +111,7 @@ export function createAgentConfig(opts: {
         ? opts.modelMaxOutputTokens
         : opts.maxTokens === 0 || opts.modelMaxOutputTokens === 0
           ? undefined
-          : 8192;
+          : 32768;
   const callSettings: Record<string, number> =
     resolvedMax === undefined ? {} : { maxOutputTokens: resolvedMax };
 
