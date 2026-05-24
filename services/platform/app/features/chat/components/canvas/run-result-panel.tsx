@@ -11,9 +11,9 @@
 // download chip disappear. Hoisting it to canvas-pane decouples the run
 // display from sidebar selection.
 
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { useQuery } from 'convex/react';
 
-import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';

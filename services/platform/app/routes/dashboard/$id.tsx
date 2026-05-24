@@ -12,6 +12,7 @@ import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
+import { DashboardShellSkeleton } from '@/app/components/layout/dashboard-shell-skeleton';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
@@ -27,7 +28,6 @@ import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
-import { DashboardShellSkeleton } from '@/app/routes/dashboard/dashboard-shell-skeleton';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
