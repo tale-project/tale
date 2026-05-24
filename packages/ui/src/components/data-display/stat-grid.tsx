@@ -38,8 +38,12 @@ export const StatGrid = memo(function StatGrid({
 }: StatGridProps) {
   return (
     <dl className={cn(statGridVariants({ cols }), className)}>
-      {items.map((item) => (
-        <StatItem key={item.label} label={item.label} colSpan={item.colSpan}>
+      {items.map((item, index) => (
+        <StatItem
+          key={`${index}-${item.label}`}
+          label={item.label}
+          colSpan={item.colSpan}
+        >
           {item.value}
         </StatItem>
       ))}

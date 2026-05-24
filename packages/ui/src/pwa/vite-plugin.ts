@@ -98,20 +98,19 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
         'assets/apple-touch-*.png',
         'assets/maskable-*.png',
       ],
-      // vite-plugin-pwa's dev mode hard-codes the precache manifest to
-      // `[{ url: navigateFallback, ... }]` and ignores any
-      // `additionalManifestEntries` passed in. So we set
-      // `navigateFallback` purely as a vehicle to enrol the offline
-      // shell into the dev precache. The empty allowlists below stop
-      // the navigation route that this option would otherwise register
-      // from ever matching — navigation requests are handled by the
-      // `runtimeCaching` entry instead, which only serves the shell on
-      // real network failure (`precacheFallback` below).
+      // `offline.html` is precached via `includeAssets` (default list above)
+      // with a content-based revision injected by vite-plugin-pwa, so
+      // Workbox automatically refreshes the cache when the shell changes.
+      // We still set `navigateFallback` because vite-plugin-pwa's dev mode
+      // hard-codes its precache manifest to `[{ url: navigateFallback, ... }]`
+      // and ignores any extra entries — pointing it at the offline shell
+      // makes the dev SW behave like prod. The empty allowlist stops the
+      // navigation route this option would otherwise register from ever
+      // matching; navigations are handled by the runtimeCaching entry
+      // below (`precacheFallback`), which only serves the shell on real
+      // network failure.
       navigateFallback: offlineFallback,
       navigateFallbackAllowlist: [],
-      additionalManifestEntries: [
-        { url: offlineFallback, revision: 'offline-shell-v1' },
-      ],
       runtimeCaching: [
         {
           // Navigations always hit the network so the live app shell renders.

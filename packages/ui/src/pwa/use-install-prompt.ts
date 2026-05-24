@@ -12,6 +12,21 @@ interface BeforeInstallPromptEvent extends Event {
   }>;
 }
 
+function isBeforeInstallPromptEvent(
+  event: Event,
+): event is BeforeInstallPromptEvent {
+  return (
+    'prompt' in event &&
+    typeof (event as { prompt: unknown }).prompt === 'function'
+  );
+}
+
+// `navigator.standalone` is a non-standard iOS Safari flag — not in lib.dom.
+function readIosStandalone(navigator: Navigator): boolean {
+  const value = (navigator as Navigator & { standalone?: unknown }).standalone;
+  return value === true;
+}
+
 export interface InstallPromptState {
   /**
    * True when the browser has fired `beforeinstallprompt` (meaning the PWA
@@ -48,20 +63,21 @@ export function useInstallPrompt(): InstallPromptState {
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return undefined;
 
     const standaloneQuery = window.matchMedia('(display-mode: standalone)');
-    const iosStandalone =
-      (window.navigator as { standalone?: boolean }).standalone === true;
-    setIsInstalled(standaloneQuery.matches || iosStandalone);
+    setIsInstalled(
+      standaloneQuery.matches || readIosStandalone(window.navigator),
+    );
 
     const handleDisplayModeChange = (event: MediaQueryListEvent) => {
       setIsInstalled(event.matches);
     };
     const handleBeforeInstallPrompt = (event: Event) => {
+      if (!isBeforeInstallPromptEvent(event)) return;
       // Suppress the browser's native mini-infobar so we control the UX.
       event.preventDefault();
-      setDeferred(event as BeforeInstallPromptEvent);
+      setDeferred(event);
     };
     const handleAppInstalled = () => {
       setIsInstalled(true);
@@ -84,12 +100,19 @@ export function useInstallPrompt(): InstallPromptState {
 
   const promptInstall = useCallback(async () => {
     if (!deferred) return 'unavailable' as const;
-    await deferred.prompt();
-    const { outcome } = await deferred.userChoice;
-    // A deferred prompt can only be used once — discard regardless of outcome
-    // so the button hides until the browser re-fires `beforeinstallprompt`.
-    setDeferred(null);
-    return outcome;
+    try {
+      await deferred.prompt();
+      const { outcome } = await deferred.userChoice;
+      return outcome;
+    } catch (error) {
+      console.warn('PWA install prompt failed', error);
+      return 'unavailable' as const;
+    } finally {
+      // A deferred prompt can only be used once — discard regardless of
+      // outcome so the button hides until the browser re-fires
+      // `beforeinstallprompt`.
+      setDeferred(null);
+    }
   }, [deferred]);
 
   return {
