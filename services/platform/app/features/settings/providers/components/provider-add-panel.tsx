@@ -626,14 +626,14 @@ export function ProviderAddPanel({
             {/* ── Models section ─────────────────────────────── */}
             <Stack gap={3}>
               <HStack justify="between" align="center">
-                <Text className="text-sm font-medium">
+                <Text className="text-[15px] font-semibold tracking-[-0.01em]">
                   {t('providers.models')}
                 </Text>
-                <HStack gap={2} align="center">
+                <HStack gap={1} align="center">
                   {canFetch && (
                     <Button
                       type="button"
-                      variant="secondary"
+                      variant="ghost"
                       size="sm"
                       onClick={() => void handleFetchModels()}
                       disabled={isFetching}
@@ -648,7 +648,7 @@ export function ProviderAddPanel({
                   )}
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
                     onClick={openAddDialog}
                   >
@@ -680,7 +680,7 @@ export function ProviderAddPanel({
 
               {isFetching && rows.length === 0 && (
                 <div
-                  className="border-border flex items-center justify-center gap-2 rounded-lg border px-4 py-8"
+                  className="border-border flex items-center justify-center gap-2 rounded-xl border px-4 py-8"
                   role="status"
                   aria-live="polite"
                 >
@@ -692,8 +692,8 @@ export function ProviderAddPanel({
               )}
 
               {rows.length > 0 && (
-                <div className="overflow-hidden rounded-lg border">
-                  <div className="border-border border-b px-3 py-2">
+                <div className="overflow-hidden rounded-xl border">
+                  <div className="border-border border-b px-3 py-2.5">
                     <SearchInput
                       value={modelSearch}
                       onChange={(e) => setModelSearch(e.target.value)}

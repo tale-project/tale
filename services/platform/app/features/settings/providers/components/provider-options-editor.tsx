@@ -6,6 +6,7 @@ import { Pencil, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 
+import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-guide';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -106,6 +107,7 @@ interface Props {
   copy: {
     title: string;
     description: string;
+    guideLabel: string;
     notConfigured: string;
     editLabel: string;
     saveLabel: string;
@@ -232,25 +234,20 @@ export function ProviderOptionsEditor({
 
   return (
     <>
-      <Card contentClassName="p-5">
-        <HStack justify="between" align="start" className="border-b pb-4">
-          <Stack gap={1} className="min-w-0">
-            <Text className="text-sm font-semibold">{copy.title}</Text>
-            <Text className="text-muted-foreground text-[13px] whitespace-pre-line">
-              {copy.description}
-            </Text>
-          </Stack>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="text-muted-foreground hover:text-foreground focus-visible:outline-ring flex shrink-0 items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
-          >
-            <Pencil className="size-3.5" />
+      <Stack gap={2}>
+        <HStack justify="between" align="center">
+          <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+            {copy.title}
+          </Text>
+          <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+            <Pencil className="mr-1 size-3.5" />
             {copy.editLabel}
-          </button>
+          </Button>
         </HStack>
 
-        <div className="pt-4">
+        <CollapsibleGuide label={copy.guideLabel} content={copy.description} />
+
+        <Card contentClassName="px-4 py-2.5">
           {isEmpty ? (
             <Text className="text-muted-foreground text-[13px] italic">
               {copy.notConfigured}
@@ -265,13 +262,13 @@ export function ProviderOptionsEditor({
             <pre
               role="region"
               aria-label={copy.title}
-              className="bg-muted/40 overflow-x-auto rounded-md p-3 font-mono text-xs leading-relaxed"
+              className="bg-muted/40 overflow-x-auto rounded-md font-mono text-xs leading-relaxed"
             >
               {initialJson}
             </pre>
           )}
-        </div>
-      </Card>
+        </Card>
+      </Stack>
 
       <Sheet
         open={open}
@@ -290,6 +287,7 @@ export function ProviderOptionsEditor({
         <ProviderOptionsEditorSheet
           title={copy.title}
           description={copy.description}
+          guideLabel={copy.guideLabel}
           draft={draft}
           onDraftChange={setDraft}
           onClose={requestClose}
@@ -321,6 +319,7 @@ export function ProviderOptionsEditor({
 interface SheetBodyProps {
   title: string;
   description: string;
+  guideLabel: string;
   draft: string;
   onDraftChange: (next: string) => void;
   onClose: () => void;
@@ -337,6 +336,7 @@ interface SheetBodyProps {
 function ProviderOptionsEditorSheet({
   title,
   description,
+  guideLabel,
   draft,
   onDraftChange,
   onClose,
@@ -373,9 +373,7 @@ function ProviderOptionsEditorSheet({
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
           <Stack gap={3}>
-            <Text className="text-muted-foreground text-[13px] whitespace-pre-line">
-              {description}
-            </Text>
+            <CollapsibleGuide label={guideLabel} content={description} />
             <Textarea
               // `aria-label` (instead of a visible `label`) so screen
               // readers announce the textarea's purpose without
@@ -442,10 +440,11 @@ interface ModelEditorProps {
   value: string;
   /** Setter wired into the dialog's form state. */
   onChange: (next: string) => void;
-  /** Translated copy. `helpText` renders below the editor. */
+  /** Translated copy. `helpText` renders below the editor inside a CollapsibleGuide. */
   copy: {
     title: string;
     description: string;
+    guideLabel: string;
     helpText: string;
   };
 }
@@ -468,9 +467,7 @@ export function ModelProviderOptionsField({
         rows={6}
         fontSize={12}
       />
-      <Text className="text-muted-foreground text-[12px] whitespace-pre-line">
-        {copy.helpText}
-      </Text>
+      <CollapsibleGuide label={copy.guideLabel} content={copy.helpText} />
     </Stack>
   );
 }
