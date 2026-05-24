@@ -9,7 +9,7 @@ Le public, c'est toute personne dans le chat. Pas de verrou de rôle ; quiconque
 
 ## Comment le cycle de vie d'un artéfact fonctionne
 
-Quand l'IA décide de produire quelque chose d'exécutable ou de révisable, elle appelle l'outil `artifact_create`. Le nouvel artéfact apparaît comme une carte dans la barre des **Artéfacts** au-dessus du chat, s'ouvre automatiquement dans le panneau Canevas à la première création, et diffuse son contenu en direct dans le panneau pendant que l'IA tape. Pour le réviser, l'IA appelle `artifact_edit` sur la même identité — les petites modifications utilisent `mode: 'patch'` (blocs recherche-remplacement) ; les grandes réécritures utilisent `mode: 'rewrite'`. Dans les deux cas, Canevas se re-rend en place, donc tu ne remontes jamais pour trouver la dernière version.
+Quand l'IA décide de produire quelque chose d'exécutable ou de révisable, elle appelle l'outil `artifact_create`. Le nouvel artéfact apparaît comme une carte dans la barre des **Artéfacts** au-dessus du chat et s'ouvre automatiquement dans le panneau Canevas à la première création. Pour le peupler ou le réviser, l'IA appelle des outils CRUD au niveau fichier sur la même identité : `artifact_file_update` pour écraser entièrement un fichier existant, `artifact_file_create` pour ajouter un nouveau fichier frère (un projet peut contenir plusieurs fichiers), `artifact_file_delete` et `artifact_file_rename` pour le nettoyage. Canevas se re-rend en place et diffuse le contenu en direct pendant que l'IA tape, donc tu ne remontes jamais pour trouver la dernière version.
 
 Pendant que l'IA écrit ou patche, la carte montre un indicateur de progression et l'en-tête de Canevas affiche **L'IA écrit…** ou **L'IA modifie…**.
 

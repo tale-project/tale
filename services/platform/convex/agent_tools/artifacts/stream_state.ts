@@ -1,7 +1,7 @@
 /**
  * Per-tool-call streaming state for the artifact tools.
  *
- * Both `artifact_create` and `artifact_edit` use the AI SDK / @convex-dev
+ * The `artifact_file_create` and `artifact_file_update` tools use the AI SDK / @convex-dev
  * /agent createTool hooks (`onInputStart`, `onInputDelta`, `execute`).
  * These run sequentially within a single agent action invocation, in the
  * same Node process, so a module-level Map keyed by `toolCallId` is a
@@ -14,19 +14,35 @@ import type { Id } from '../../_generated/dataModel';
 
 export interface ArtifactStreamState {
   toolCallId: string;
-  toolName: 'artifact_create' | 'artifact_edit';
+  toolName: 'artifact_create' | 'artifact_file_create' | 'artifact_file_update';
   accumulator: string;
   artifactId?: Id<'artifacts'>;
   // Last byte length of the parsed `content` value flushed to the row.
   // Used to throttle DB writes during create / rewrite streaming.
   lastFlushedContentLength: number;
   lastFlushAt: number;
-  // Set once the parser has seen enough JSON to know the streaming mode
-  // (only relevant for artifact_edit which carries `mode` in its input).
-  resolvedMode?: 'create' | 'rewrite' | 'patch';
+  // Resolved streaming mode for the current tool call. artifact_file_create /
+  // artifact_file_update both stream as 'rewrite'; older tools used other modes.
+  resolvedMode?: 'create' | 'rewrite' | 'append' | 'patch';
   // True once we have either inserted the placeholder (create) or marked
   // the existing row (edit). Avoids double-init on rapid deltas.
   rowInitialized: boolean;
+  // Sticky hard-fail flag for the streaming preflight. When set, deltas
+  // skip `parsePartialJson` AND the beginEditStream re-attempt loop so
+  // the same invalid path doesn't spam WARN logs on every subsequent
+  // delta. `execute()` still runs and surfaces the structured failure
+  // (audit follow-up F9).
+  streamingFailedHard: boolean;
+  // For artifact_create only — captures the outcome of `beginCreateStream`
+  // so `execute()` knows whether to finalize the placeholder, hand off to
+  // the existing `createArtifact` mutation (collision), or return a
+  // type-mismatch error without further DB writes.
+  createOutcome?: 'placeholder' | 'collision' | 'type_mismatch';
+  typeMismatchInfo?: {
+    existingArtifactId: Id<'artifacts'>;
+    existingType: string;
+    message: string;
+  };
   // Last title / language values written to the row so we don't issue a
   // mutation on every delta when nothing changed.
   lastFlushedTitle?: string;
@@ -36,9 +52,9 @@ export interface ArtifactStreamState {
   lastFlushedPatchesKey?: string;
   lastPatchesFlushAt: number;
   // Byte length of the existing artifact content at edit time. Set during
-  // artifact_edit preflight; used to slow down the patch-stream flush rate
-  // for large sources, where each tick forces the client to re-render a
-  // diff overlay that spans tens of KB. Unset for artifact_create.
+  // artifact_file_create / artifact_file_update preflight; used to scale the flush rate for
+  // large sources where each tick forces the client to re-render a content
+  // overlay that spans tens of KB.
   baseContentLength?: number;
   // Length of the accumulator at the last `parsePartialJson` call, plus
   // the wall-clock timestamp. Used by `shouldParse` to amortise the
@@ -48,17 +64,6 @@ export interface ArtifactStreamState {
   // than its configured interval.
   lastParsedLength: number;
   lastParsedAt: number;
-  // Coalesced fire-and-forget flush state. Streaming flushes (the
-  // `updateStreamingContent` mutation) are NOT awaited inside
-  // `onInputDelta` because a 30 KB+ payload roundtrip blocks the AI SDK's
-  // event loop, builds buffer pressure, and produces a "wait several
-  // seconds, then dump a big chunk" cadence on screen. Instead we keep
-  // at most one mutation in flight; subsequent flush requests overwrite
-  // `pendingFlush` with the latest payload, and the in-flight callback's
-  // `.finally` drains it. Final consistency is guaranteed by the canonical
-  // settle in `execute()`, which clears streaming flags atomically.
-  flushInFlight: boolean;
-  pendingFlush?: () => Promise<unknown>;
 }
 
 export interface StreamingPatchPair {
@@ -82,44 +87,10 @@ export function initState(
     lastParsedLength: 0,
     lastParsedAt: 0,
     rowInitialized: false,
-    flushInFlight: false,
+    streamingFailedHard: false,
   };
   STATE.set(toolCallId, next);
   return next;
-}
-
-/**
- * Hand a streaming-flush mutation off to the background. At most one flush
- * is in flight at a time; if another request arrives while one is running,
- * the previous queued payload is replaced (we always want the latest).
- * The in-flight callback's `.finally` drains any payload that was queued
- * during its run.
- *
- * `runMutation` is a closure provided by the caller — keeping the Convex
- * api reference out of this module so this file stays import-light.
- */
-export function scheduleStreamingFlush(
-  state: ArtifactStreamState,
-  runMutation: () => Promise<unknown>,
-): void {
-  state.pendingFlush = runMutation;
-  if (state.flushInFlight) return;
-  drainFlush(state);
-}
-
-function drainFlush(state: ArtifactStreamState): void {
-  if (state.flushInFlight || !state.pendingFlush) return;
-  const next = state.pendingFlush;
-  state.pendingFlush = undefined;
-  state.flushInFlight = true;
-  void next()
-    .catch((err) => {
-      console.error('[artifact streaming] flush failed:', err);
-    })
-    .finally(() => {
-      state.flushInFlight = false;
-      drainFlush(state);
-    });
 }
 
 export function getState(toolCallId: string): ArtifactStreamState | undefined {
@@ -221,6 +192,10 @@ export function shouldParse(
   state: ArtifactStreamState,
   accumulatorLength: number,
 ): boolean {
+  // Hard-fail short-circuit: once preflight validation has rejected the
+  // path / artifact, every subsequent delta would re-trigger the same
+  // failure. Stop parsing the accumulator until `execute()` runs.
+  if (state.streamingFailedHard) return false;
   if (!state.rowInitialized) return true;
   const grew = accumulatorLength - state.lastParsedLength;
   const [byteDelta, minIntervalMs] = parseGateFor(accumulatorLength);

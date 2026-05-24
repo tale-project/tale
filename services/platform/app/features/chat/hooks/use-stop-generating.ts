@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 
 import { useCancelGeneration } from './mutations';
 import {
-  consumeFrozenDisplayText,
+  consumeFrozenDisplayLength,
   freezeActiveStream,
   resetGlobalFreeze,
 } from './use-stream-buffer';
@@ -37,18 +37,22 @@ export function useStopGenerating({
     if (!threadId || cancelledRef.current) return;
 
     // 1. Freeze the display immediately (client-side, synchronous).
-    //    This also snapshots the currently displayed text.
+    //    This also snapshots the currently displayed length.
     freezeActiveStream();
 
     // 2. Set optimistic cancelled flag
     cancelledRef.current = true;
 
-    // 3. Grab the displayed text captured at freeze time
-    const displayedContent = consumeFrozenDisplayText();
+    // 3. Grab the displayed length captured at freeze time. We send the
+    //    char count (not the content string) so the backend can truncate
+    //    the persisted message in-place — preserving structured parts
+    //    (file/image cards, reasoning, tool calls) that would otherwise
+    //    be wiped if we re-sent a flat string.
+    const displayedLength = consumeFrozenDisplayLength();
 
     // 4. Fire backend mutation to abort active streams and truncate
     //    the message to match what the user saw.
-    void cancelGeneration({ threadId, displayedContent });
+    void cancelGeneration({ threadId, displayedLength });
   }, [threadId, cancelGeneration]);
 
   const resetCancelled = useCallback(() => {

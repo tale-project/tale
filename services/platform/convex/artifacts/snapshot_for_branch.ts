@@ -1,43 +1,71 @@
 import type { Doc } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { mirrorLegacyContent, resolveArtifactFiles } from './resolve_files';
 
 /**
  * Snapshot a single artifact from a parent thread into a freshly-forked
  * branch thread. Called by `createBranchThread` while copying messages.
  *
- * The caller decides which revision to snapshot (the latest in-scope one,
- * walked from `artifactRevisions` so the branch sees the artifact as it
- * stood at the fork point — not the parent's current state, which may
- * include post-fork edits the branch shouldn't inherit).
+ * The caller decides which revision to snapshot via `snapshotRevision` AND
+ * supplies the file state captured at that revision (`revisionFiles` +
+ * `revisionEntryFile`, falling back to `revisionContent` for legacy
+ * content-only rows). Using the source row's CURRENT files would mix in
+ * out-of-scope edits made on the parent after the fork point — exactly the
+ * bug the `create_branch_thread_artifacts` "later edits out of scope" test
+ * pins down. When no revision-level snapshot is supplied we fall back to
+ * the source row's current state (used by callers that branch from a
+ * single-revision artifact, where current === in-scope).
  *
  * Behaviour:
  *   - Inserts a new `artifacts` row scoped to `targetThreadId`.
  *   - Preserves `snapshotRevision` as the row's `revision` so the user
- *     sees continuous version labels (e.g. "v26" in both branches);
- *     branching is a workspace fork, not a fresh start.
- *   - Always uses settled `snapshotContent` — never `streamingContent`.
- *   - Maps `createdByMessageId` to the branch's copy of that message;
- *     `lastEditedByMessageId` is mapped if the editor message was in the
- *     copied range, otherwise dropped to `undefined`.
- *   - Inserts one `artifactRevisions` row with `editKind: 'branch'` so the
- *     branch's revision history begins with an explicit fork marker.
- *
- * Plain helper (not a Convex `internalMutation`) so the caller's mutation
- * transaction wraps both the message copy and the artifact snapshots —
- * either everything succeeds or nothing is written.
+ *     sees continuous version labels.
+ *   - Copies the full `files[]` map and `entryFile`. Also mirrors entry
+ *     content to legacy `content` for rollback safety during Phase A.
+ *   - Inserts one `artifactRevisions` row with `editKind: 'branch'`.
  */
 export async function snapshotArtifactForBranch(
   ctx: MutationCtx,
   args: {
     source: Doc<'artifacts'>;
-    snapshotContent: string;
     snapshotRevision: number;
     targetThreadId: string;
     mappedCreatedByMessageId: string;
     mappedLastEditedByMessageId?: string;
+    /** Files snapshot captured at `snapshotRevision` (Phase A+ rows). */
+    revisionFiles?: ReadonlyArray<{ path: string; content: string }>;
+    /** Entry-file pointer at `snapshotRevision`. */
+    revisionEntryFile?: string;
+    /** Legacy single-file content at `snapshotRevision` (Phase A rows). */
+    revisionContent?: string;
   },
 ): Promise<{ artifactId: Doc<'artifacts'>['_id'] }> {
   const { source } = args;
+  const sourceResolved = resolveArtifactFiles(source);
+  let files: Array<{ path: string; content: string }>;
+  let entryFile: string;
+  if (args.revisionFiles !== undefined && args.revisionFiles.length > 0) {
+    files = args.revisionFiles.map((f) => ({
+      path: f.path,
+      content: f.content,
+    }));
+    entryFile = args.revisionEntryFile ?? sourceResolved.entryFile;
+  } else if (args.revisionContent !== undefined) {
+    // Legacy `content`-only revision: synthesize a single-file artifact at
+    // the entry path captured at that revision (or the current entry as a
+    // last resort — only the entry pointer can drift, files cannot, since
+    // legacy rows only had one file).
+    entryFile = args.revisionEntryFile ?? sourceResolved.entryFile;
+    files = [{ path: entryFile, content: args.revisionContent }];
+  } else {
+    // No revision-level snapshot supplied — current state is in-scope.
+    files = sourceResolved.files.map((f) => ({
+      path: f.path,
+      content: f.content,
+    }));
+    entryFile = sourceResolved.entryFile;
+  }
+  const legacyContent = mirrorLegacyContent(files, entryFile);
   const now = Date.now();
   const artifactId = await ctx.db.insert('artifacts', {
     organizationId: source.organizationId,
@@ -45,7 +73,9 @@ export async function snapshotArtifactForBranch(
     type: source.type,
     title: source.title,
     language: source.language,
-    content: args.snapshotContent,
+    files,
+    entryFile,
+    content: legacyContent,
     revision: args.snapshotRevision,
     createdByMessageId: args.mappedCreatedByMessageId,
     lastEditedByMessageId: args.mappedLastEditedByMessageId,
@@ -56,7 +86,9 @@ export async function snapshotArtifactForBranch(
   await ctx.db.insert('artifactRevisions', {
     artifactId,
     revision: args.snapshotRevision,
-    content: args.snapshotContent,
+    content: legacyContent,
+    files,
+    entryFile,
     editedByMessageId:
       args.mappedLastEditedByMessageId ?? args.mappedCreatedByMessageId,
     editKind: 'branch',

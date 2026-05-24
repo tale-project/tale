@@ -6,7 +6,15 @@
  */
 
 import { artifactCreateTool } from './artifacts/artifact_create_tool';
-import { artifactEditTool } from './artifacts/artifact_edit_tool';
+import { artifactFileCreateTool } from './artifacts/artifact_file_create_tool';
+import { artifactFileDeleteTool } from './artifacts/artifact_file_delete_tool';
+import { artifactFileListTool } from './artifacts/artifact_file_list_tool';
+import { artifactFileReadTool } from './artifacts/artifact_file_read_tool';
+import { artifactFileRenameTool } from './artifacts/artifact_file_rename_tool';
+import { artifactFileUpdateTool } from './artifacts/artifact_file_update_tool';
+import { artifactListTool } from './artifacts/artifact_list_tool';
+import { artifactPackagesAddTool } from './artifacts/artifact_packages_add_tool';
+import { artifactRunTool } from './artifacts/artifact_run_tool';
 import { conversationReadTool } from './conversations/conversation_read_tool';
 import { customerReadTool } from './customers/customer_read_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
@@ -45,7 +53,15 @@ export { TOOL_NAMES, type ToolName } from './tool_names';
  */
 export const TOOL_REGISTRY = [
   artifactCreateTool,
-  artifactEditTool,
+  artifactListTool,
+  artifactRunTool,
+  artifactPackagesAddTool,
+  artifactFileCreateTool,
+  artifactFileUpdateTool,
+  artifactFileDeleteTool,
+  artifactFileRenameTool,
+  artifactFileReadTool,
+  artifactFileListTool,
   customerReadTool,
   productReadTool,
   ragSearchTool,

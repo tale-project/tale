@@ -3,32 +3,15 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { useQuery } from 'convex/react';
-import {
-  Code,
-  FileText,
-  GitBranch,
-  Globe,
-  Image as ImageIcon,
-  Loader2,
-} from 'lucide-react';
-import { memo, useEffect, useRef, type ComponentType } from 'react';
+import { Loader2 } from 'lucide-react';
+import { memo, useEffect, useRef } from 'react';
 
 import { api } from '@/convex/_generated/api';
 import type { ArtifactListItem } from '@/convex/artifacts/queries';
 import { useT } from '@/lib/i18n/client';
 
-import { useCanvas, type CanvasContentType } from './canvas-context';
-
-const TYPE_ICONS: Record<
-  CanvasContentType,
-  ComponentType<{ className?: string }>
-> = {
-  code: Code,
-  html: Globe,
-  mermaid: GitBranch,
-  svg: ImageIcon,
-  markdown: FileText,
-};
+import { useCanvas } from './canvas-context';
+import { CANVAS_TYPE_ICONS } from './icon-map';
 
 interface ArtifactBarProps {
   organizationId: string;
@@ -46,7 +29,7 @@ function ArtifactBarComponent({ organizationId, threadId }: ArtifactBarProps) {
   // Pull focus to each newly-created artifact exactly once. If the AI calls
   // artifact_create multiple times in a turn, we follow whichever one
   // appeared most recently — ChatGPT-Canvas behaviour. We key off
-  // `createdAt` (immutable) so an artifact_edit revision does not
+  // `createdAt` (immutable) so a subsequent artifact_file_update revision does not
   // re-trigger the switch; the existing `useQuery` subscription updates
   // the open canvas in place.
   const autoOpenedRef = useRef(new Set<string>());
@@ -74,7 +57,7 @@ function ArtifactBarComponent({ organizationId, threadId }: ArtifactBarProps) {
         {t('artifacts.barTitle')}
       </span>
       {artifacts.map((artifact) => {
-        const Icon = TYPE_ICONS[artifact.type];
+        const Icon = CANVAS_TYPE_ICONS[artifact.type];
         const isStreaming = artifact.liveStreamMode !== undefined;
         const isOpen = openArtifactId === artifact._id;
         return (
@@ -92,9 +75,11 @@ function ArtifactBarComponent({ organizationId, threadId }: ArtifactBarProps) {
               <Icon className="size-3.5" aria-hidden="true" />
             )}
             <span className="max-w-[14rem] truncate">{artifact.title}</span>
-            <Badge variant="outline" className="h-4 px-1 text-[10px]">
-              v{artifact.revision}
-            </Badge>
+            {artifact.fileCount > 1 && (
+              <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                {t('artifacts.fileCount', { count: artifact.fileCount })}
+              </Badge>
+            )}
           </Button>
         );
       })}

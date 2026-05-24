@@ -121,6 +121,7 @@ services/crawler/
 services/rag/
 services/db/
 services/proxy/
+services/sandbox/
 packages/tale_knowledge/
 packages/tale_shared/
 packages/tale_telemetry/
@@ -135,6 +136,7 @@ examples/
 !services/rag/package.json
 !services/db/package.json
 !services/proxy/package.json
+!services/sandbox/package.json
 !packages/tale_knowledge/package.json
 !packages/tale_shared/package.json
 !packages/tale_telemetry/package.json

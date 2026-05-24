@@ -11,6 +11,15 @@ on:
       - 'services/rag/uv.lock'
       - 'services/rag/pyproject.toml'
       - 'packages/*/pyproject.toml'
+      # Dockerfile + dockerignore changes alter what trivy's misconfig
+      # scanner sees on the fs-scan path; .trivyignore.yaml changes can
+      # silently un-suppress findings. Round-2 R2-B11 found this branch
+      # added new Dockerfiles + a trivyignore without re-triggering the
+      # security scan — PRs went out blind.
+      - 'services/*/Dockerfile'
+      - 'services/*/Dockerfile.dockerignore'
+      - '.trivyignore.yaml'
+      - '.trivyignore'
       - '.github/workflows/security.yml'
   push:
     branches:
@@ -22,6 +31,10 @@ on:
       - 'services/rag/uv.lock'
       - 'services/rag/pyproject.toml'
       - 'packages/*/pyproject.toml'
+      - 'services/*/Dockerfile'
+      - 'services/*/Dockerfile.dockerignore'
+      - '.trivyignore.yaml'
+      - '.trivyignore'
       - '.github/workflows/security.yml'
   schedule:
     - cron: '0 3 * * 1' # Monday 03:00 UTC
@@ -83,7 +96,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -93,6 +106,9 @@ jobs:
           exit-code: '0'
           scanners: 'vuln,secret,misconfig'
           ignore-unfixed: true
+          # Per-path misconfig suppressions live in .trivyignore.yaml; the
+          # plain .trivyignore is auto-detected but cannot scope by path.
+          trivyignores: '.trivyignore.yaml'
           # Skip handlebars Dockerfile templates: handlebars syntax confuses
           # the misconfig scanner. The generated Dockerfiles are scanned
           # downstream when each service runs its own build.

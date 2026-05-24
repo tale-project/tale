@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockMutateAsync = vi.fn();
 
@@ -9,12 +9,12 @@ vi.mock('./mutations', () => ({
 }));
 
 const mockFreezeActiveStream = vi.fn();
-const mockConsumeFrozenDisplayText = vi.fn();
+const mockConsumeFrozenDisplayLength = vi.fn();
 const mockResetGlobalFreeze = vi.fn();
 
 vi.mock('./use-stream-buffer', () => ({
   freezeActiveStream: (...args: unknown[]) => mockFreezeActiveStream(...args),
-  consumeFrozenDisplayText: () => mockConsumeFrozenDisplayText(),
+  consumeFrozenDisplayLength: () => mockConsumeFrozenDisplayLength(),
   resetGlobalFreeze: () => mockResetGlobalFreeze(),
 }));
 
@@ -28,11 +28,11 @@ describe('useStopGenerating — happy path', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockMutateAsync.mockResolvedValue(null);
-    mockConsumeFrozenDisplayText.mockReturnValue(null);
+    mockConsumeFrozenDisplayLength.mockReturnValue(null);
   });
 
-  it('calls freezeActiveStream, consumeFrozenDisplayText, and cancelGeneration on stop', () => {
-    mockConsumeFrozenDisplayText.mockReturnValue('Hello, this is partial');
+  it('calls freezeActiveStream, consumeFrozenDisplayLength, and cancelGeneration on stop', () => {
+    mockConsumeFrozenDisplayLength.mockReturnValue(22);
 
     const { result } = renderHook(() =>
       useStopGenerating({ threadId: 'thread-1' }),
@@ -41,15 +41,15 @@ describe('useStopGenerating — happy path', () => {
     act(() => result.current.stopGenerating());
 
     expect(mockFreezeActiveStream).toHaveBeenCalledOnce();
-    expect(mockConsumeFrozenDisplayText).toHaveBeenCalledOnce();
+    expect(mockConsumeFrozenDisplayLength).toHaveBeenCalledOnce();
     expect(mockMutateAsync).toHaveBeenCalledWith({
       threadId: 'thread-1',
-      displayedContent: 'Hello, this is partial',
+      displayedLength: 22,
     });
   });
 
-  it('passes null displayedContent when no text was captured', () => {
-    mockConsumeFrozenDisplayText.mockReturnValue(null);
+  it('passes null displayedLength when no length was captured', () => {
+    mockConsumeFrozenDisplayLength.mockReturnValue(null);
 
     const { result } = renderHook(() =>
       useStopGenerating({ threadId: 'thread-1' }),
@@ -59,16 +59,16 @@ describe('useStopGenerating — happy path', () => {
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
       threadId: 'thread-1',
-      displayedContent: null,
+      displayedLength: null,
     });
   });
 
   it('calls operations in the correct order: freeze → consume → mutate', () => {
     const callOrder: string[] = [];
     mockFreezeActiveStream.mockImplementation(() => callOrder.push('freeze'));
-    mockConsumeFrozenDisplayText.mockImplementation(() => {
+    mockConsumeFrozenDisplayLength.mockImplementation(() => {
       callOrder.push('consume');
-      return 'partial text';
+      return 12;
     });
     mockMutateAsync.mockImplementation(() => {
       callOrder.push('mutate');
@@ -132,7 +132,7 @@ describe('useStopGenerating — edge cases', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockMutateAsync.mockResolvedValue(null);
-    mockConsumeFrozenDisplayText.mockReturnValue(null);
+    mockConsumeFrozenDisplayLength.mockReturnValue(null);
   });
 
   it('does nothing when threadId is undefined', () => {
@@ -158,8 +158,8 @@ describe('useStopGenerating — edge cases', () => {
     expect(mockMutateAsync).toHaveBeenCalledOnce();
   });
 
-  it('passes empty string displayedContent through (not treated as null)', () => {
-    mockConsumeFrozenDisplayText.mockReturnValue('');
+  it('passes displayedLength=0 through (not coerced to null) — backend treats it as no-snapshot', () => {
+    mockConsumeFrozenDisplayLength.mockReturnValue(0);
 
     const { result } = renderHook(() =>
       useStopGenerating({ threadId: 'thread-1' }),
@@ -169,11 +169,11 @@ describe('useStopGenerating — edge cases', () => {
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
       threadId: 'thread-1',
-      displayedContent: '',
+      displayedLength: 0,
     });
   });
 
-  it('does not crash when mutation rejects', async () => {
+  it('does not crash when mutation rejects', () => {
     mockMutateAsync.mockRejectedValue(new Error('Network error'));
 
     const { result } = renderHook(() =>
@@ -185,7 +185,7 @@ describe('useStopGenerating — edge cases', () => {
 
     // freeze and consume should still have been called
     expect(mockFreezeActiveStream).toHaveBeenCalledOnce();
-    expect(mockConsumeFrozenDisplayText).toHaveBeenCalledOnce();
+    expect(mockConsumeFrozenDisplayLength).toHaveBeenCalledOnce();
   });
 
   it('resetCancelled is idempotent (calling multiple times is safe)', () => {
@@ -195,14 +195,12 @@ describe('useStopGenerating — edge cases', () => {
 
     act(() => result.current.stopGenerating());
 
-    // Reset multiple times
     act(() => {
       result.current.resetCancelled();
       result.current.resetCancelled();
       result.current.resetCancelled();
     });
 
-    // Should be able to stop again (exactly once)
     act(() => result.current.stopGenerating());
     expect(mockMutateAsync).toHaveBeenCalledTimes(2);
   });
@@ -213,11 +211,9 @@ describe('useStopGenerating — edge cases', () => {
       { initialProps: { threadId: undefined as string | undefined } },
     );
 
-    // First try with undefined — should do nothing
     act(() => result.current.stopGenerating());
     expect(mockMutateAsync).not.toHaveBeenCalled();
 
-    // Now provide a threadId
     rerender({ threadId: 'thread-1' });
     act(() => result.current.stopGenerating());
     expect(mockMutateAsync).toHaveBeenCalledOnce();
@@ -232,17 +228,14 @@ describe('useStopGenerating — edge cases', () => {
     act(() => result.current.stopGenerating());
     expect(mockMutateAsync).toHaveBeenCalledOnce();
 
-    // Switch threadId without resetting cancelled
     rerender({ threadId: 'thread-2' });
     act(() => result.current.stopGenerating());
 
-    // Should still be blocked by cancelled flag
     expect(mockMutateAsync).toHaveBeenCalledOnce();
   });
 
-  it('passes long displayedContent without truncation', () => {
-    const longContent = 'A'.repeat(10000);
-    mockConsumeFrozenDisplayText.mockReturnValue(longContent);
+  it('passes large displayedLength without modification', () => {
+    mockConsumeFrozenDisplayLength.mockReturnValue(100000);
 
     const { result } = renderHook(() =>
       useStopGenerating({ threadId: 'thread-1' }),
@@ -252,7 +245,7 @@ describe('useStopGenerating — edge cases', () => {
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
       threadId: 'thread-1',
-      displayedContent: longContent,
+      displayedLength: 100000,
     });
   });
 });

@@ -91,6 +91,19 @@ crons.cron(
   {},
 );
 
+// Sandbox watchdog — same shape as the transcription / video-link sweeps.
+// Convex hard-kills actions at the 30-min timeout without running the
+// action's finally; that leaves sandboxExecutions stuck at `status='running'`
+// and the slot they hold permanently shrinks the org's concurrent cap.
+// Heartbeat from `executeCode` keeps `heartbeatAt` fresh while the action
+// is alive; this cron flips rows older than 2× max-timeout to `failed`.
+crons.cron(
+  'recover stuck sandbox executions (every 5 min)',
+  '*/5 * * * *',
+  internal.sandbox.internal_mutations.recoverStuckSandboxes,
+  {},
+);
+
 // GDPR erasure watchdog (round-2 V5 P0-14) - the same shape as the
 // transcription watchdog above. Convex actions hard-stop at 30 min;
 // `gdprErasureRequests` rows whose subject has too many rows / RAG

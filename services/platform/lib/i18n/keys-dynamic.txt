@@ -51,3 +51,14 @@ websites.searchPlaceholder
 # sees `tTypes(key)` with `key` as a runtime variable, so every label entry
 # under the `piiTypes` namespace is dynamic from its perspective.
 piiTypes
+
+# Canvas runnable renderer + icon-map: `t(CANVAS_TYPE_LABEL_KEYS[type])` and
+# `t(`canvas.runStatus.${runStatus}`)` / `canvas.runErrorCode.${runErrorCode}`
+# / `canvas.runProgress.${runProgress.kind}` are all driven by the
+# CanvasContentType / SandboxRunStatus / SandboxErrorCode unions in
+# convex/sandbox/wire.ts. Adding new union members forces a rebuild that
+# covers the corresponding label key automatically.
+chat.canvas.typeLabel
+chat.canvas.runStatus
+chat.canvas.runErrorCode
+chat.canvas.runProgress

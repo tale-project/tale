@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MutationCtx } from '../_generated/server';
 
@@ -67,12 +67,10 @@ describe('cancelGeneration — happy path', () => {
 
     await cancelGeneration(ctx as unknown as MutationCtx, 'user_1', 'thread_1');
 
-    // Thread lookup
     expect(ctx.runQuery).toHaveBeenCalledWith('mock-getThread', {
       threadId: 'thread_1',
     });
 
-    // Should list active streams
     expect(mockListStreams).toHaveBeenCalledWith(
       ctx,
       expect.anything(),
@@ -82,7 +80,6 @@ describe('cancelGeneration — happy path', () => {
       }),
     );
 
-    // Should abort both streams
     expect(mockAbortStream).toHaveBeenCalledTimes(2);
     expect(mockAbortStream).toHaveBeenCalledWith(
       ctx,
@@ -102,7 +99,7 @@ describe('cancelGeneration — happy path', () => {
     );
   });
 
-  it('marks assistant message as success with displayedContent (ChatGPT-style)', async () => {
+  it('truncates string content to displayedLength (ChatGPT-style)', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [
@@ -118,29 +115,72 @@ describe('cancelGeneration — happy path', () => {
       ctx as unknown as MutationCtx,
       'user_1',
       'thread_1',
-      'Full long',
+      9,
     );
 
     expect(ctx.runMutation).toHaveBeenCalledWith('mock-updateMessage', {
       messageId: 'msg_1',
       patch: {
-        message: {
-          role: 'assistant',
-          content: 'Full long',
-        },
         status: 'success',
+        message: { role: 'assistant', content: 'Full long' },
       },
     });
   });
 
-  it('sets status to failed when displayedContent is null (no content shown)', async () => {
+  it('truncates array content while preserving non-text parts', async () => {
+    const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
+    const filePart = {
+      type: 'file',
+      data: 'data:image/png;base64,xxx',
+      mediaType: 'image/png',
+    };
+    const reasoningPart = { type: 'reasoning', text: 'thinking' };
+    mockListMessages.mockResolvedValue({
+      page: [
+        {
+          _id: 'msg_1',
+          message: {
+            role: 'assistant',
+            content: [
+              filePart,
+              { type: 'text', text: 'Here is the image you asked for' },
+              reasoningPart,
+            ],
+          },
+          text: 'Here is the image you asked for',
+        },
+      ],
+    });
+
+    await cancelGeneration(
+      ctx as unknown as MutationCtx,
+      'user_1',
+      'thread_1',
+      7,
+    );
+
+    expect(ctx.runMutation).toHaveBeenCalledWith('mock-updateMessage', {
+      messageId: 'msg_1',
+      patch: {
+        status: 'success',
+        message: {
+          role: 'assistant',
+          content: [filePart, { type: 'text', text: 'Here is' }, reasoningPart],
+        },
+      },
+    });
+  });
+
+  it('keeps streamed content when displayedLength is null but text was persisted', async () => {
+    // Snapshot raced (refs unregistered, e.g. mid-remount). Don't vaporise
+    // already-streamed deltas — preserve them.
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [
         {
           _id: 'msg_1',
-          message: { role: 'assistant', content: 'Some response' },
-          text: 'Some response',
+          message: { role: 'assistant', content: 'Some streamed reply' },
+          text: 'Some streamed reply',
         },
       ],
     });
@@ -152,14 +192,13 @@ describe('cancelGeneration — happy path', () => {
       null,
     );
 
-    expect(mockListMessages).toHaveBeenCalled();
     expect(ctx.runMutation).toHaveBeenCalledWith('mock-updateMessage', {
       messageId: 'msg_1',
-      patch: { status: 'failed' },
+      patch: { status: 'success' },
     });
   });
 
-  it('sets status to failed when displayedContent is undefined', async () => {
+  it('keeps streamed content when displayedLength is undefined but text was persisted', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [
@@ -178,7 +217,31 @@ describe('cancelGeneration — happy path', () => {
       undefined,
     );
 
-    expect(mockListMessages).toHaveBeenCalled();
+    expect(ctx.runMutation).toHaveBeenCalledWith('mock-updateMessage', {
+      messageId: 'msg_1',
+      patch: { status: 'success' },
+    });
+  });
+
+  it('marks failed when no displayedLength AND no streamed text (true early cancel)', async () => {
+    const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
+    mockListMessages.mockResolvedValue({
+      page: [
+        {
+          _id: 'msg_1',
+          message: { role: 'assistant', content: '' },
+          text: '',
+        },
+      ],
+    });
+
+    await cancelGeneration(
+      ctx as unknown as MutationCtx,
+      'user_1',
+      'thread_1',
+      null,
+    );
+
     expect(ctx.runMutation).toHaveBeenCalledWith('mock-updateMessage', {
       messageId: 'msg_1',
       patch: { status: 'failed' },
@@ -222,10 +285,9 @@ describe('cancelGeneration — happy path', () => {
       ctx as unknown as MutationCtx,
       'user_1',
       'thread_1',
-      'Latest',
+      6,
     );
 
-    // Should update the FIRST assistant message found (latest in page order)
     expect(ctx.runMutation).toHaveBeenCalledWith(
       'mock-updateMessage',
       expect.objectContaining({ messageId: 'msg_3' }),
@@ -282,7 +344,7 @@ describe('cancelGeneration — edge cases', () => {
     ).rejects.toThrow('Thread not found');
   });
 
-  it('marks as failed with empty string displayedContent (no visible text)', async () => {
+  it('treats displayedLength=0 as no snapshot (preserve streamed text if any)', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [
@@ -294,17 +356,16 @@ describe('cancelGeneration — edge cases', () => {
       ],
     });
 
-    // Empty string has no trim content — treated as no displayed content
     await cancelGeneration(
       ctx as unknown as MutationCtx,
       'user_1',
       'thread_1',
-      '',
+      0,
     );
 
     expect(ctx.runMutation).toHaveBeenCalledWith('mock-updateMessage', {
       messageId: 'msg_1',
-      patch: { status: 'failed' },
+      patch: { status: 'success' },
     });
   });
 
@@ -324,12 +385,10 @@ describe('cancelGeneration — edge cases', () => {
       ctx as unknown as MutationCtx,
       'user_1',
       'thread_1',
-      'some content',
+      12,
     );
 
-    // No updateMessage — no assistant message to update
     expect(ctx.runMutation).not.toHaveBeenCalled();
-    // No saveMessage — cancelledAt signal replaces sentinel messages
   });
 
   it('does not create message when no messages exist at all', async () => {
@@ -342,7 +401,7 @@ describe('cancelGeneration — edge cases', () => {
     expect(ctx.runMutation).not.toHaveBeenCalled();
   });
 
-  it('does not create message when no messages exist and displayedContent is null', async () => {
+  it('does not create message when no messages exist and displayedLength is null', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({ page: [] });
 
@@ -354,37 +413,6 @@ describe('cancelGeneration — edge cases', () => {
     );
 
     expect(ctx.runMutation).not.toHaveBeenCalled();
-  });
-
-  it('finds the first assistant message even without text property', async () => {
-    const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
-    mockListMessages.mockResolvedValue({
-      page: [
-        {
-          _id: 'msg_1',
-          message: { role: 'assistant', content: 'tool call result' },
-          text: undefined,
-        },
-        {
-          _id: 'msg_2',
-          message: { role: 'assistant', content: 'Visible response' },
-          text: 'Visible response',
-        },
-      ],
-    });
-
-    await cancelGeneration(
-      ctx as unknown as MutationCtx,
-      'user_1',
-      'thread_1',
-      null,
-    );
-
-    // Should find first assistant message (msg_1) and update its status
-    expect(ctx.runMutation).toHaveBeenCalledWith(
-      'mock-updateMessage',
-      expect.objectContaining({ messageId: 'msg_1' }),
-    );
   });
 
   it('aborts a single stream', async () => {
@@ -404,7 +432,7 @@ describe('cancelGeneration — edge cases', () => {
     );
   });
 
-  it('handles very long displayedContent', async () => {
+  it('handles very long displayedLength', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     const longContent = 'A'.repeat(50000);
     mockListMessages.mockResolvedValue({
@@ -421,30 +449,32 @@ describe('cancelGeneration — edge cases', () => {
       ctx as unknown as MutationCtx,
       'user_1',
       'thread_1',
-      longContent,
+      50000,
     );
 
     expect(ctx.runMutation).toHaveBeenCalledWith('mock-updateMessage', {
       messageId: 'msg_1',
       patch: {
-        message: { role: 'assistant', content: longContent },
         status: 'success',
+        message: { role: 'assistant', content: longContent },
       },
     });
   });
 
-  it('preserves multi-byte characters in displayedContent without corruption', async () => {
+  it('preserves multi-byte characters at the truncation boundary', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
-    const unicodeContent = 'Hello 🌍 世界! Here is some text with emoji 🎉🚀';
+    // Snapshot length on the client is also UTF-16; the backend's slice
+    // is symmetric so the result is whatever the client saw.
+    const fullText = 'Hello 🌍 世界! Here is some text with emoji 🎉🚀';
     mockListMessages.mockResolvedValue({
       page: [
         {
           _id: 'msg_1',
           message: {
             role: 'assistant',
-            content: unicodeContent + ' and more...',
+            content: fullText + ' and more...',
           },
-          text: unicodeContent + ' and more...',
+          text: fullText + ' and more...',
         },
       ],
     });
@@ -453,14 +483,14 @@ describe('cancelGeneration — edge cases', () => {
       ctx as unknown as MutationCtx,
       'user_1',
       'thread_1',
-      unicodeContent,
+      fullText.length,
     );
 
     expect(ctx.runMutation).toHaveBeenCalledWith('mock-updateMessage', {
       messageId: 'msg_1',
       patch: {
-        message: { role: 'assistant', content: unicodeContent },
         status: 'success',
+        message: { role: 'assistant', content: fullText },
       },
     });
   });
@@ -503,14 +533,13 @@ describe('cancelGeneration — edge cases', () => {
       ctx as unknown as MutationCtx,
       'user_1',
       'thread_1',
-      'Partial',
+      7,
     );
 
-    // Should NOT update the existing successful message
     expect(ctx.runMutation).not.toHaveBeenCalled();
   });
 
-  it('skips message creation when latest is successful and no displayedContent', async () => {
+  it('skips message creation when latest is successful and no displayedLength', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [

@@ -4,14 +4,9 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { useQuery } from 'convex/react';
 import {
-  Code,
   CopyIcon,
   CheckIcon,
-  FileText,
-  GitBranch,
   GitFork,
-  Globe,
-  Image as ImageIcon,
   Info,
   Pencil,
   Bookmark,
@@ -22,7 +17,6 @@ import {
 } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
-  type ComponentType,
   useRef,
   useState,
   useEffect,
@@ -55,7 +49,8 @@ import { injectCitationTags } from '../utils/inject-citation-tags';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
 import { AssistantMessageContent } from './assistant-message-content';
 import { BlockedNotice } from './blocked-notice';
-import { type CanvasContentType, useCanvas } from './canvas/canvas-context';
+import { useCanvas } from './canvas/canvas-context';
+import { CANVAS_TYPE_ICONS } from './canvas/icon-map';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
@@ -96,17 +91,6 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   isFreshSinceMount?: boolean;
 }
 
-const ARTIFACT_PILL_ICONS: Record<
-  CanvasContentType,
-  ComponentType<{ className?: string }>
-> = {
-  code: Code,
-  html: Globe,
-  mermaid: GitBranch,
-  svg: ImageIcon,
-  markdown: FileText,
-};
-
 interface MessageArtifactPillsProps {
   organizationId: string;
   threadId: string;
@@ -114,7 +98,7 @@ interface MessageArtifactPillsProps {
 }
 
 /**
- * Inline chips that surface artifact_create / artifact_edit tool calls inside
+ * Inline chips that surface artifact_create / file_* tool calls inside
  * the assistant bubble — without them, the only signal an artifact was just
  * touched is the ArtifactBar at the top of the chat, which is easy to miss
  * mid-conversation. We piggyback on the bar's `listByThread` subscription
@@ -146,7 +130,7 @@ function MessageArtifactPillsComponent({
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
       {matches.map((artifact) => {
-        const Icon = ARTIFACT_PILL_ICONS[artifact.type];
+        const Icon = CANVAS_TYPE_ICONS[artifact.type];
         return (
           <button
             key={artifact._id}
@@ -155,14 +139,15 @@ function MessageArtifactPillsComponent({
             className="hover:bg-muted/60 border-border inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors"
             aria-label={t('artifacts.touchedByMessage', {
               title: artifact.title,
-              revision: artifact.revision,
             })}
           >
             <Icon className="text-muted-foreground size-3.5" aria-hidden />
             <span className="max-w-[16rem] truncate">{artifact.title}</span>
-            <Badge variant="outline" className="h-4 px-1 text-[10px]">
-              v{artifact.revision}
-            </Badge>
+            {artifact.fileCount > 1 && (
+              <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                {t('artifacts.fileCount', { count: artifact.fileCount })}
+              </Badge>
+            )}
           </button>
         );
       })}

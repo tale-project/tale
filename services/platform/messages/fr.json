@@ -2408,13 +2408,82 @@
       "streamingWriting": "L'IA écrit…",
       "streamingPatch": "L'IA modifie…",
       "cancel": "Annuler la modification",
-      "streamingDuringEdit": "L'agent met à jour cet artéfact — ton brouillon est conservé. Clique sur Annuler pour le rejeter."
+      "streamingDuringEdit": "L'agent met à jour cet artéfact — ton brouillon est conservé. Clique sur Annuler pour le rejeter.",
+      "runDone": "Terminé",
+      "runStarted": "Démarré",
+      "runStale": "Code modifié",
+      "runFiles": "Fichiers",
+      "runStdout": "stdout ({chars} car.)",
+      "runStderr": "stderr ({chars} car.)",
+      "runOpenFile": "Ouvrir le fichier {name}",
+      "runResultEntryLabel": "Sortie",
+      "runResultSecondaryLabel": "Sortie pour {path}",
+      "runResultSecondaryCount": "{count, plural, one {# autre fichier} other {# autres fichiers}}",
+      "runStatus": {
+        "queued": "En file d'attente",
+        "installing": "Installation des dépendances",
+        "running": "En cours",
+        "completed": "Terminé",
+        "failed": "Échec",
+        "cancelled": "Annulé"
+      },
+      "runErrorCode": {
+        "TIMEOUT": "Délai dépassé",
+        "OOM": "Mémoire saturée",
+        "EGRESS_DENIED": "Réseau bloqué",
+        "INSTALL_FAILED": "Échec d'installation",
+        "PACKAGE_NOT_FOUND": "Paquet introuvable",
+        "QUOTA_EXCEEDED": "Quota dépassé",
+        "RUNTIME_ERROR": "Erreur d'exécution",
+        "SPAWNER_UNAVAILABLE": "Sandbox indisponible",
+        "CANCELLED": "Annulé",
+        "INPUT_REJECTED": "Entrée refusée",
+        "HARVEST_READ_FAILED": "Lecture de la sortie échouée",
+        "UPLOAD_FAILED": "Téléversement échoué",
+        "UPLOAD_QUOTA_EXCEEDED": "Quota de téléversement dépassé",
+        "UPLOAD_REPORT_FAILED": "Confirmation de téléversement échouée",
+        "PRE_STAGE_FAILED": "Préparation échouée",
+        "UPLOAD_INCOMPLETE": "Téléversement incomplet"
+      },
+      "runProgress": {
+        "queued": "En file d'attente",
+        "preparing": "Préparation de la sandbox",
+        "installingPackage": "Installation de {package}{version, select, undefined {} other { {version}}}",
+        "installing": "Installation des dépendances",
+        "running": "En cours"
+      },
+      "typeLabel": {
+        "code": "Code",
+        "html": "HTML",
+        "mermaid": "Mermaid",
+        "svg": "SVG",
+        "markdown": "Markdown",
+        "script_runnable": "Script (sandbox)",
+        "python_runnable": "Python (sandbox)",
+        "node_runnable": "Node (sandbox)"
+      },
+      "fileSidebar": {
+        "label": "Fichiers du projet",
+        "title": "Fichiers",
+        "expand": "Afficher les fichiers",
+        "collapse": "Masquer les fichiers",
+        "entryBadge": "entrée",
+        "streamingDot": "Écriture de ce fichier…",
+        "addFile": "Ajouter un fichier",
+        "addFilePlaceholder": "chemin/vers/fichier.ext",
+        "addFileConfirm": "Ajouter",
+        "addFileCancel": "Annuler",
+        "errorPathRequired": "Le chemin est requis.",
+        "errorPathExists": "Un fichier avec ce chemin existe déjà.",
+        "errorAddFailed": "Impossible d'ajouter le fichier."
+      }
     },
     "artifacts": {
       "barLabel": "Artéfacts dans ce fil",
       "barTitle": "Artéfacts",
       "openCard": "Ouvrir l'artéfact : {title}",
-      "touchedByMessage": "{title} (révision {revision})"
+      "touchedByMessage": "{title}",
+      "fileCount": "{count, plural, one {# fichier} other {# fichiers}}"
     },
     "branchNavigator": {
       "previous": "Branche précédente",

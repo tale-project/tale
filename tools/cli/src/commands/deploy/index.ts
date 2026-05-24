@@ -47,12 +47,20 @@ export function createDeployCommand(): Command {
       try {
         const projectDir = requireProject();
         await resolveOrAssignProjectContext(projectDir);
-        const { success: envSetupSuccess } = await ensureEnv({
-          deployDir: projectDir,
-        });
+        const { success: envSetupSuccess, regeneratedAutoSecrets } =
+          await ensureEnv({
+            deployDir: projectDir,
+          });
         if (!envSetupSuccess) {
           process.exit(1);
         }
+        // If ensureEnv had to mint missing auto-gen secrets headlessly
+        // (typical: a new `SANDBOX_TOKEN` for an existing deployment),
+        // force-recreate the running services so their in-memory env
+        // refreshes to the new value rather than keeping the stale null.
+        const forceRecreate =
+          regeneratedAutoSecrets !== undefined &&
+          regeneratedAutoSecrets.length > 0;
         const env = loadEnv(projectDir);
 
         const version = pkg.version.includes('-dev') ? 'latest' : pkg.version;
@@ -92,6 +100,7 @@ export function createDeployCommand(): Command {
           fresh: options.fresh,
           quiet: options.quiet,
           assumeYes: options.yes || options.migrateVolumes,
+          forceRecreate,
         });
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));

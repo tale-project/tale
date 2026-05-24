@@ -261,7 +261,32 @@ export function useChatVideoLinks(args: {
 
   const cancelJob = useCallback(
     async (jobId: Id<'videoLinkJobs'>) => {
-      await cancelMutation({ jobId });
+      // Hide the chip first so the click feels instant. The server
+      // mutation flips status='skipped' (including for terminal rows),
+      // but the subscription's re-emit lags the round-trip by 50-200ms
+      // — the local hide bridges that gap so the X feels immediate.
+      // Reverted on mutation failure (catch block below).
+      setHideJobIds((prev) => {
+        if (prev.has(jobId)) return prev;
+        const next = new Set(prev);
+        next.add(jobId);
+        return next;
+      });
+      try {
+        await cancelMutation({ jobId });
+      } catch (err) {
+        setHideJobIds((prev) => {
+          if (!prev.has(jobId)) return prev;
+          const next = new Set(prev);
+          next.delete(jobId);
+          return next;
+        });
+        console.error(
+          '[useChatVideoLinks] cancel failed:',
+          err instanceof Error ? err.message : err,
+        );
+        throw err;
+      }
     },
     [cancelMutation],
   );
