@@ -17,14 +17,13 @@ import type { IntegrationJsonConfig } from '../../lib/shared/schemas/integration
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action, internalAction } from '../_generated/server';
-import { authComponent } from '../auth';
+import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
   readFileSafe,
   readJsonFile,
   sha256,
 } from '../lib/file_io';
-import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import type { IntegrationReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -76,9 +75,10 @@ export const readIntegration = action({
   },
   returns: v.any(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const configResult = await readIntegrationConfigFile(orgSlug, args.slug);
     if (!configResult.ok) return configResult;
     const connectorCode = await readConnectorCode(orgSlug, args.slug);
@@ -100,10 +100,10 @@ export const listIntegrations = action({
   },
   returns: v.any(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const filterMode = args.filter ?? 'all';
     const dir = resolveIntegrationsDir(orgSlug);
 
@@ -206,14 +206,14 @@ export const saveIntegrationConfig = action({
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
     if (!validateIntegrationSlug(args.slug)) {
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const config = parseIntegrationJson(JSON.stringify(args.config));
     const newContent = serializeIntegrationJson(config);
     const filePath = resolveConfigPath(orgSlug, args.slug);
@@ -249,14 +249,14 @@ export const installIntegration = action({
     ctx,
     args,
   ): Promise<{ hash: string; credentialId: Id<'integrationCredentials'> }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
     if (!validateIntegrationSlug(args.slug)) {
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const result = await readIntegrationConfigFile(orgSlug, args.slug);
     if (!result.ok) {
       throw new Error(`Cannot install integration: ${result.message}`);
@@ -298,12 +298,11 @@ export const uninstallIntegration = action({
   },
   returns: v.object({ deleted: v.boolean() }),
   handler: async (ctx, args): Promise<{ deleted: boolean }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
     if (!validateIntegrationSlug(args.slug)) {
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
+
+    await requireOrgMembershipById(ctx, args.organizationId);
 
     const existing = await ctx.runQuery(
       internal.integrations.credential_queries.getBySlugInternal,
@@ -335,14 +334,14 @@ export const writeIntegrationFiles = action({
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
     if (!validateIntegrationSlug(args.slug)) {
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const config = parseIntegrationJson(JSON.stringify(args.config));
     const configContent = serializeIntegrationJson(config);
     const integrationDir = resolveIntegrationDir(orgSlug, args.slug);

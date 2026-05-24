@@ -26,41 +26,48 @@ export function useListProviders(
 }
 
 export function useReadProvider(
-  orgSlug: string,
+  organizationId: string,
   providerName: string,
   options?: QueryOptions,
 ) {
   return useActionQuery(
-    configKeys.detail('providers', orgSlug, providerName),
+    configKeys.detail('providers', organizationId, providerName),
     api.providers.file_actions.readProvider,
-    { orgSlug, providerName },
+    { organizationId, providerName },
     options,
   );
 }
 
 export function useHasProviderSecret(
-  orgSlug: string,
+  organizationId: string,
   providerName: string,
   options?: QueryOptions,
 ) {
   return useActionQuery(
-    ['config', 'providers', orgSlug, providerName, 'secret'],
+    ['config', 'providers', organizationId, providerName, 'secret'],
     api.providers.file_actions.hasProviderSecret,
-    { orgSlug, providerName },
+    { organizationId, providerName },
     options,
   );
 }
 
 export function useHasModelSecret(
-  orgSlug: string,
+  organizationId: string,
   providerName: string,
   modelId: string,
   options?: QueryOptions,
 ) {
   return useActionQuery(
-    ['config', 'providers', orgSlug, providerName, 'model-secret', modelId],
+    [
+      'config',
+      'providers',
+      organizationId,
+      providerName,
+      'model-secret',
+      modelId,
+    ],
     api.providers.file_actions.hasProviderSecret,
-    { orgSlug, providerName, modelId },
+    { organizationId, providerName, modelId },
     options,
   );
 }

@@ -51,6 +51,12 @@ vi.mock('../organizations/resolve_org_slug', () => ({
   resolveOrgSlug: vi.fn().mockResolvedValue('default'),
 }));
 
+const mockRequireOrgMembershipById = vi.fn();
+vi.mock('../lib/auth/require_org_membership', () => ({
+  requireOrgMembershipById: (...args: unknown[]) =>
+    mockRequireOrgMembershipById(...args),
+}));
+
 const mockAtomicWrite = vi.fn();
 const mockReadJsonFile = vi.fn();
 const mockReadFileSafe = vi.fn();
@@ -133,6 +139,14 @@ describe('deleteAgent', () => {
       email: 'a@b.com',
       name: 'A',
     });
+    mockRequireOrgMembershipById.mockResolvedValue({
+      orgId: 'org-123',
+      orgSlug: 'default',
+      userId: 'user-1',
+      email: 'a@b.com',
+      name: 'A',
+      member: { _id: 'm-1', role: 'admin' },
+    });
     mockUnlink.mockResolvedValue(undefined);
     mockRm.mockResolvedValue(undefined);
   });
@@ -166,7 +180,9 @@ describe('deleteAgent', () => {
   });
 
   it('throws when user is not authenticated', async () => {
-    mockGetAuthUser.mockResolvedValue(null);
+    mockRequireOrgMembershipById.mockRejectedValue(
+      new Error('Authentication required.'),
+    );
     const ctx = createMockCtx();
 
     await expect(
@@ -174,7 +190,7 @@ describe('deleteAgent', () => {
         ctx as never,
         { organizationId: 'org_test', agentName: 'my-agent' } as never,
       ),
-    ).rejects.toThrow('Unauthenticated');
+    ).rejects.toThrow('Authentication required.');
   });
 
   it('ignores ENOENT from unlink (file already absent)', async () => {
@@ -234,6 +250,14 @@ describe('duplicateAgent', () => {
       _id: 'user-1',
       email: 'a@b.com',
       name: 'A',
+    });
+    mockRequireOrgMembershipById.mockResolvedValue({
+      orgId: 'org-123',
+      orgSlug: 'default',
+      userId: 'user-1',
+      email: 'a@b.com',
+      name: 'A',
+      member: { _id: 'm-1', role: 'admin' },
     });
     mockReadJsonFile.mockResolvedValue({
       ok: true,
@@ -301,7 +325,9 @@ describe('duplicateAgent', () => {
   });
 
   it('throws when user is not authenticated', async () => {
-    mockGetAuthUser.mockResolvedValue(null);
+    mockRequireOrgMembershipById.mockRejectedValue(
+      new Error('Authentication required.'),
+    );
     const ctx = createMockCtx();
 
     await expect(
@@ -309,7 +335,7 @@ describe('duplicateAgent', () => {
         ctx as never,
         { organizationId: 'org_test', agentName: 'my-agent' } as never,
       ),
-    ).rejects.toThrow('Unauthenticated');
+    ).rejects.toThrow('Authentication required.');
   });
 
   it('propagates atomicWrite errors', async () => {

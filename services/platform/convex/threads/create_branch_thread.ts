@@ -59,7 +59,10 @@ export const createBranchThread = internalMutation({
     });
     const createdAt = thread?._creationTime ?? Date.now();
 
-    // Create threadMetadata for the branch (hidden from sidebar)
+    // Create threadMetadata for the branch (hidden from sidebar). Persist
+    // `organizationId` so the branch is correctly org-scoped for retention,
+    // listing, and cross-tenant filtering — without it `getThreadMetadata`
+    // returns null on every callerOrgId check and the branch orphans.
     await ctx.db.insert('threadMetadata', {
       threadId: branchThreadId,
       userId: args.userId,
@@ -69,6 +72,7 @@ export const createBranchThread = internalMutation({
       createdAt,
       updatedAt: createdAt,
       agentSlug: sourceMetadata.agentSlug,
+      organizationId: args.organizationId,
       isBranch: true,
       forkedFrom: args.sourceThreadId,
       ...(sourceMetadata.teamId && { teamId: sourceMetadata.teamId }),

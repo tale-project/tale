@@ -690,6 +690,22 @@ function handleChatError(error: unknown, model: string): Response {
 // ---------------------------------------------------------------------------
 
 export const modelsListHandler = httpAction(async (ctx, request) => {
+  // Rate limit — applied before auth so token-validity probing can't bypass.
+  const ip = extractClientIp(request.headers);
+  try {
+    await checkIpRateLimit(ctx, 'openai:models', ip);
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      return openAIErrorResponse(
+        'Rate limit exceeded',
+        'rate_limit_exceeded',
+        429,
+        'rate_limit_exceeded',
+      );
+    }
+    throw error;
+  }
+
   let user: { userId: string; email: string; name: string };
   try {
     user = await authenticateRequest(ctx, request);
@@ -718,6 +734,10 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
   } catch (error) {
     const msg =
       error instanceof Error ? error.message : 'Failed to resolve organization';
+    // "Not a member" → 403 (cross-tenant probe), other errors → 400.
+    if (msg.includes('Not a member')) {
+      return openAIErrorResponse(msg, 'permission_error', 403);
+    }
     return openAIErrorResponse(msg, 'invalid_request_error', 400);
   }
 

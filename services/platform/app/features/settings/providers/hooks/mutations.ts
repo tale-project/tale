@@ -5,30 +5,30 @@ import { api } from '@/convex/_generated/api';
 
 function useInvalidateProviders() {
   const queryClient = useQueryClient();
-  return (orgSlug: string) =>
+  return (organizationId: string) =>
     queryClient.invalidateQueries({
-      queryKey: ['config', 'providers', orgSlug],
+      queryKey: ['config', 'providers', organizationId],
     });
 }
 
 export function useSaveProvider() {
   const invalidate = useInvalidateProviders();
   return useConvexAction(api.providers.file_actions.saveProvider, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 
 export function useDeleteProvider() {
   const invalidate = useInvalidateProviders();
   return useConvexAction(api.providers.file_actions.deleteProvider, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 
 export function useSaveProviderSecret() {
   const invalidate = useInvalidateProviders();
   return useConvexAction(api.providers.file_actions.saveProviderSecret, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 

@@ -19,7 +19,6 @@ import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Text } from '@/app/components/ui/typography/text';
-import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { modelTagLiterals } from '@/lib/shared/schemas/providers';
@@ -64,8 +63,6 @@ export function ProviderAddPanel({
   const { t } = useT('settings');
   const navigate = useNavigate();
   const { t: tCommon } = useT('common');
-  const { data: organization } = useOrganization(organizationId);
-  const orgSlug = organization?.slug ?? '';
   const { mutateAsync: saveProvider } = useSaveProvider();
   const { mutateAsync: saveProviderSecret } = useSaveProviderSecret();
   const { mutateAsync: fetchModels, isPending: isFetching } =
@@ -212,7 +209,7 @@ export function ProviderAddPanel({
 
     setFetchError(null);
     try {
-      const result = await fetchModels({ orgSlug, baseUrl, apiKey });
+      const result = await fetchModels({ organizationId, baseUrl, apiKey });
       const ids = result.map((m) => m.id);
       setFetchedModels(ids);
       // Fetched models default to UNCHECKED. Selecting a row IS the add
@@ -230,7 +227,7 @@ export function ProviderAddPanel({
       setHasFetched(true);
       setFetchedCredentials({ baseUrl, apiKey });
     }
-  }, [fetchModels, getValues, orgSlug, t]);
+  }, [fetchModels, getValues, organizationId, t]);
 
   // A fetched model row's checkbox toggles its presence in the form.
   const handleToggleFetchedModel = useCallback(
@@ -449,13 +446,13 @@ export function ProviderAddPanel({
         // disk instead of a half-baked config-without-secret entry that
         // would otherwise show in the provider list with no way to flag it.
         await saveProviderSecret({
-          orgSlug,
+          organizationId,
           providerName: data.name,
           apiKey: data.apiKey,
           force: force || undefined,
         });
         await saveProvider({
-          orgSlug,
+          organizationId,
           providerName: data.name,
           config: {
             displayName: data.displayName,
@@ -504,7 +501,7 @@ export function ProviderAddPanel({
         setCreating(false);
       }
     },
-    [finalizeProvider, orgSlug, saveProvider, saveProviderSecret, t],
+    [finalizeProvider, organizationId, saveProvider, saveProviderSecret, t],
   );
 
   const onSubmit = async (data: FormData) => {

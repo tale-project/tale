@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
+import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 import { improveMessage as improveMessageHandler } from './improve_message';
 
@@ -19,10 +19,7 @@ export const improveMessage = action({
     ctx,
     args,
   ): Promise<{ improvedMessage: string; error?: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
-      throw new Error('Unauthenticated');
-    }
+    await requireOrgMembershipById(ctx, args.organizationId);
 
     // Resolve fast/chat model from provider files
     const { languageModel, modelData } = await resolveLanguageModelWithFallback(

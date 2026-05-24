@@ -21,8 +21,8 @@ import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-con
 import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
 import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
-import { authComponent } from '../auth';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
+import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
   generateHistoryTimestamp,
@@ -73,9 +73,10 @@ export const readAgent = action({
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<AgentReadResult> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     return readAgentFile(orgSlug, args.agentName);
   },
 });
@@ -86,10 +87,10 @@ export const listAgents = action({
   },
   returns: v.any(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const dir = resolveAgentsDir(orgSlug);
     let entries: string[];
     try {
@@ -151,14 +152,14 @@ export const saveAgent = action({
     ctx,
     args,
   ): Promise<{ hash: string; warnings?: string[] }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
     if (!validateAgentName(args.agentName)) {
       throw new Error(`Invalid agent name: ${args.agentName}`);
     }
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
     let config;
     try {
@@ -316,10 +317,10 @@ export const snapshotToHistory = action({
   },
   returns: v.union(v.object({ timestamp: v.string() }), v.null()),
   handler: async (ctx, args): Promise<{ timestamp: string } | null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const filePath = resolveAgentFilePath(orgSlug, args.agentName);
     const currentContent = await readFileSafe(filePath);
     if (!currentContent) return null;
@@ -344,10 +345,10 @@ export const duplicateAgent = action({
   },
   returns: v.object({ newAgentName: v.string() }),
   handler: async (ctx, args): Promise<{ newAgentName: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const source = await readAgentFile(orgSlug, args.agentName);
     if (!source.ok) {
       throw new Error(`Cannot duplicate: ${source.message}`);
@@ -445,14 +446,14 @@ export const deleteAgent = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
     if ((PROTECTED_AGENT_NAMES as readonly string[]).includes(args.agentName)) {
       throw new Error(`Agent '${args.agentName}' cannot be deleted`);
     }
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const filePath = resolveAgentFilePath(orgSlug, args.agentName);
     const historyDir = resolveHistoryDir(orgSlug, args.agentName);
 
@@ -479,10 +480,10 @@ export const listHistory = action({
   },
   returns: v.any(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const historyDir = resolveHistoryDir(orgSlug, args.agentName);
     let entries: string[];
     try {
@@ -510,10 +511,10 @@ export const readHistoryEntry = action({
   },
   returns: v.any(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const historyDir = resolveHistoryDir(orgSlug, args.agentName);
     const filePath = path.join(historyDir, `${args.timestamp}.json`);
 
@@ -548,10 +549,10 @@ export const restoreFromHistory = action({
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const historyDir = resolveHistoryDir(orgSlug, args.agentName);
     const historyPath = path.join(historyDir, `${args.timestamp}.json`);
     const agentPath = resolveAgentFilePath(orgSlug, args.agentName);
@@ -612,6 +613,7 @@ export const readAgentForChat = internalAction({
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<AgentReadResult> => {
+    // internalAction — trusted caller, no membership gate; just resolve slug.
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     return readAgentFile(orgSlug, args.agentName);
   },
@@ -632,6 +634,7 @@ export const resolveAgentConfig = internalAction({
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<SerializableAgentConfig> => {
+    // internalAction — trusted caller, no membership gate; just resolve slug.
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const [result, binding, orgLocale] = await Promise.all([
       readAgentFile(orgSlug, args.agentSlug),
@@ -761,9 +764,7 @@ export const translateAgentFields = action({
     translated: Record<string, string | string[]>;
     error?: string;
   }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
+    await requireOrgMembershipById(ctx, args.organizationId);
     const { translateFields } = await import('./translate_fields');
     return translateFields(ctx, args);
   },

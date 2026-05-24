@@ -38,17 +38,17 @@ interface ConfigModel {
 export function TestConnectionSheet({
   open,
   onOpenChange,
-  orgSlug,
+  organizationId,
   providerName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  orgSlug: string;
+  organizationId: string;
   providerName: string;
 }) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { data: providerData } = useReadProvider(orgSlug, providerName);
+  const { data: providerData } = useReadProvider(organizationId, providerName);
   const models: ConfigModel[] = providerData?.ok
     ? providerData.config.models
     : [];
@@ -62,7 +62,7 @@ export function TestConnectionSheet({
     setSystemError(null);
     try {
       const result = (await testConnection.mutateAsync({
-        orgSlug,
+        organizationId,
         providerName,
       })) as ProbeReport;
       setReport(result);
@@ -73,7 +73,7 @@ export function TestConnectionSheet({
     } finally {
       setRunning(false);
     }
-  }, [orgSlug, providerName, testConnection]);
+  }, [organizationId, providerName, testConnection]);
 
   // Auto-run on every open transition (covers both the detail-page case where
   // open toggles false → true and the providers-table case where the sheet is

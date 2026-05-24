@@ -43,11 +43,10 @@ export function useProviderConfig() {
 
 interface ProviderConfigProviderProps {
   /**
-   * Active organization slug. Required so saveConfig writes to the caller's
-   * org rather than a hardcoded `'default'` (which fails with
-   * `ORG_NOT_FOUND` / `ORG_FORBIDDEN` outside the default-org deployment).
+   * Better Auth organization id. Required so saveConfig writes to the
+   * caller's org rather than a hardcoded `'default'`.
    */
-  orgSlug: string;
+  organizationId: string;
   providerName: string;
   initialConfig: ProviderJson;
   /**
@@ -61,7 +60,7 @@ interface ProviderConfigProviderProps {
 }
 
 export function ProviderConfigProvider({
-  orgSlug,
+  organizationId,
   providerName,
   initialConfig,
   initialHash,
@@ -127,7 +126,7 @@ export function ProviderConfigProvider({
       setIsSaving(true);
       try {
         const result = await saveProvider.mutateAsync({
-          orgSlug,
+          organizationId,
           providerName,
           config: toSave,
           ...(hashRef.current ? { expectedHash: hashRef.current } : {}),
@@ -138,7 +137,7 @@ export function ProviderConfigProvider({
         setIsSaving(false);
       }
     },
-    [orgSlug, providerName, saveProvider],
+    [organizationId, providerName, saveProvider],
   );
 
   const value = useMemo<ProviderConfigContextValue>(

@@ -7,11 +7,11 @@
  * 3. Start chat on the forked thread with the user's message
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { api, internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
+import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 
 export const forkAndChat = action({
   args: {
@@ -35,15 +35,38 @@ export const forkAndChat = action({
     ctx,
     args,
   ): Promise<{ threadId: string; streamId: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const userId = String(authUser._id);
-
-    // Fork the shared thread (creates new thread with snapshot messages)
+    // Fork the shared thread first. `forkThread` already verifies the
+    // caller is a member of the source thread's org and writes the new
+    // thread under that same org. We then derive `organizationId` from the
+    // new thread's metadata rather than trusting `args.organizationId` — a
+    // multi-org user could otherwise pass a different (own) org id and
+    // split billing/agent-config from thread storage.
     const newThreadId = await ctx.runMutation(
       api.threads.mutations.forkThread,
       { shareToken: args.shareToken },
+    );
+
+    const forkedMetadata = await ctx.runQuery(
+      internal.threads.internal_queries.getThreadMetadata,
+      { threadId: newThreadId },
+    );
+    if (!forkedMetadata || !forkedMetadata.organizationId) {
+      throw new ConvexError({
+        code: 'THREAD_NOT_FOUND',
+        message: 'Forked thread is missing organization binding.',
+      });
+    }
+    const organizationId = forkedMetadata.organizationId;
+    if (args.organizationId !== organizationId) {
+      throw new ConvexError({
+        code: 'ORG_MISMATCH',
+        message: 'organizationId does not match forked-thread org.',
+      });
+    }
+
+    const { userId, email, name } = await requireOrgMembershipById(
+      ctx,
+      organizationId,
     );
 
     // Resolve agent config (requires Node runtime)
@@ -51,7 +74,7 @@ export const forkAndChat = action({
       internal.agents.file_actions.resolveAgentConfig,
       {
         agentSlug: args.agentSlug,
-        organizationId: args.organizationId,
+        organizationId,
         modelId: args.modelId,
       },
     );
@@ -61,10 +84,10 @@ export const forkAndChat = action({
       internal.agents.start_chat.startChat,
       {
         threadId: newThreadId,
-        organizationId: args.organizationId,
+        organizationId,
         userId,
-        userEmail: authUser.email,
-        userName: authUser.name,
+        userEmail: email,
+        userName: name,
         message: args.message,
         userContext: args.userContext,
         agentConfig,

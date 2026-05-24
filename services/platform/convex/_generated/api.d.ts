@@ -435,6 +435,7 @@ import type * as lib_attachments_index from "../lib/attachments/index.js";
 import type * as lib_attachments_process_attachments from "../lib/attachments/process_attachments.js";
 import type * as lib_attachments_register_files from "../lib/attachments/register_files.js";
 import type * as lib_attachments_types from "../lib/attachments/types.js";
+import type * as lib_auth_require_org_membership from "../lib/auth/require_org_membership.js";
 import type * as lib_cascades_personalization_cascade from "../lib/cascades/personalization_cascade.js";
 import type * as lib_config_store_actions from "../lib/config_store/actions.js";
 import type * as lib_config_store_store from "../lib/config_store/store.js";
@@ -1526,6 +1527,7 @@ declare const fullApi: ApiFromModules<{
   "lib/attachments/process_attachments": typeof lib_attachments_process_attachments;
   "lib/attachments/register_files": typeof lib_attachments_register_files;
   "lib/attachments/types": typeof lib_attachments_types;
+  "lib/auth/require_org_membership": typeof lib_auth_require_org_membership;
   "lib/cascades/personalization_cascade": typeof lib_cascades_personalization_cascade;
   "lib/config_store/actions": typeof lib_config_store_actions;
   "lib/config_store/store": typeof lib_config_store_store;

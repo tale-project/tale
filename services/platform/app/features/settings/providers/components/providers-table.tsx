@@ -14,7 +14,6 @@ import {
   DropdownMenu,
   type DropdownMenuGroup,
 } from '@/app/components/ui/overlays/dropdown-menu';
-import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -55,10 +54,9 @@ export function ProvidersTable({
   const { t: tEmpty } = useT('emptyStates');
   const { t: tCommon } = useT('common');
   const queryClient = useQueryClient();
-  const { data: organization } = useOrganization(organizationId);
-  const orgSlug = organization?.slug ?? '';
   const { locale } = useLocale();
-  const { providers: rawProviders, isLoading } = useListProviders(orgSlug);
+  const { providers: rawProviders, isLoading } =
+    useListProviders(organizationId);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editProvider, setEditProvider] = useState<ProviderRow | null>(null);
   const [testProvider, setTestProvider] = useState<ProviderRow | null>(null);
@@ -106,10 +104,10 @@ export function ProvidersTable({
   }, []);
 
   const handleDelete = useCallback(async () => {
-    if (!deleteProvider || !orgSlug) return;
+    if (!deleteProvider) return;
     try {
       await deleteProviderMutation.mutateAsync({
-        orgSlug,
+        organizationId,
         providerName: deleteProvider.name,
       });
       toast({ title: t('providers.deleted') });
@@ -118,7 +116,13 @@ export function ProvidersTable({
     } catch {
       toast({ title: t('providers.deleteFailed'), variant: 'destructive' });
     }
-  }, [deleteProvider, deleteProviderMutation, t, invalidateProviders, orgSlug]);
+  }, [
+    deleteProvider,
+    deleteProviderMutation,
+    t,
+    invalidateProviders,
+    organizationId,
+  ]);
 
   const columnsWithActions = useMemo(
     () => [
@@ -190,7 +194,7 @@ export function ProvidersTable({
           onOpenChange={(open) => {
             if (!open) setTestProvider(null);
           }}
-          orgSlug={orgSlug}
+          organizationId={organizationId}
           providerName={testProvider.name}
         />
       )}

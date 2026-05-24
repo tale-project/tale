@@ -7,11 +7,11 @@
  * 3. Trigger agent generation on the branch
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
-import { authComponent } from '../auth';
+import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 
 /**
  * Find the order of the edited message in the source thread.
@@ -77,10 +77,33 @@ export const editAndBranch = action({
     streamId: string;
     forkOrder: number;
   }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    // Derive `organizationId` from the source thread server-side rather than
+    // trusting the client. A multi-org user could otherwise pass their other
+    // org's id and bill / store artifacts under the wrong org. The arg
+    // remains on the wire for backward-compat but must match the source
+    // thread's org or we reject.
+    const sourceMetadata = await ctx.runQuery(
+      internal.threads.internal_queries.getThreadMetadata,
+      { threadId: args.sourceThreadId },
+    );
+    if (!sourceMetadata || !sourceMetadata.organizationId) {
+      throw new ConvexError({
+        code: 'THREAD_NOT_FOUND',
+        message: 'Source thread not found or has no organization binding.',
+      });
+    }
+    const organizationId = sourceMetadata.organizationId;
+    if (args.organizationId !== organizationId) {
+      throw new ConvexError({
+        code: 'ORG_MISMATCH',
+        message: 'organizationId does not match source thread org.',
+      });
+    }
 
-    const userId = String(authUser._id);
+    const { userId, email, name } = await requireOrgMembershipById(
+      ctx,
+      organizationId,
+    );
 
     // Get the order of the edited message (needed for branch record + frontend matching)
     const editedMessageOrder = await getEditedMessageOrder(
@@ -94,7 +117,7 @@ export const editAndBranch = action({
       internal.agents.file_actions.resolveAgentConfig,
       {
         agentSlug: args.agentSlug,
-        organizationId: args.organizationId,
+        organizationId,
         modelId: args.modelId,
       },
     );
@@ -104,7 +127,7 @@ export const editAndBranch = action({
       internal.threads.create_branch_thread.createBranchThread,
       {
         userId,
-        organizationId: args.organizationId,
+        organizationId,
         sourceThreadId: args.sourceThreadId,
         rootThreadId: args.rootThreadId,
         editedMessageId: args.editedMessageId,
@@ -118,10 +141,10 @@ export const editAndBranch = action({
       internal.agents.start_chat.startChat,
       {
         threadId: branchThreadId,
-        organizationId: args.organizationId,
+        organizationId,
         userId,
-        userEmail: authUser.email,
-        userName: authUser.name,
+        userEmail: email,
+        userName: name,
         message: args.newMessage,
         userContext: args.userContext,
         agentConfig,

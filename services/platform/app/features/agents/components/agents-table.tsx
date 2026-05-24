@@ -38,7 +38,7 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { agents: rawAgents, isLoading } = useListAgents('default');
+  const { agents: rawAgents, isLoading } = useListAgents(organizationId);
   const { i18n: i18nCtx } = useTranslation();
   const locale = i18nCtx.language;
 
