@@ -123,6 +123,19 @@ async function authenticateRequest(
   }
 }
 
+// Maps `resolveUserOrganization` errors to OpenAI-shaped responses.
+// "Not a member" → 403 permission_error (cross-tenant probe); anything else
+// → 400 invalid_request_error. Shared between chat and models handlers so
+// the two endpoints can't drift.
+function mapResolveOrgError(error: unknown): Response {
+  const msg =
+    error instanceof Error ? error.message : 'Failed to resolve organization';
+  if (msg.includes('Not a member')) {
+    return openAIErrorResponse(msg, 'permission_error', 403);
+  }
+  return openAIErrorResponse(msg, 'invalid_request_error', 400);
+}
+
 // ---------------------------------------------------------------------------
 // Build generation params from request body
 // ---------------------------------------------------------------------------
@@ -271,9 +284,7 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
       { userId: user.userId, orgSlug: orgSlugHeader ?? undefined },
     );
   } catch (error) {
-    const msg =
-      error instanceof Error ? error.message : 'Failed to resolve organization';
-    return openAIErrorResponse(msg, 'invalid_request_error', 400);
+    return mapResolveOrgError(error);
   }
 
   // Parse body
@@ -732,13 +743,7 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
       { userId: user.userId, orgSlug: orgSlugHeader ?? undefined },
     );
   } catch (error) {
-    const msg =
-      error instanceof Error ? error.message : 'Failed to resolve organization';
-    // "Not a member" → 403 (cross-tenant probe), other errors → 400.
-    if (msg.includes('Not a member')) {
-      return openAIErrorResponse(msg, 'permission_error', 403);
-    }
-    return openAIErrorResponse(msg, 'invalid_request_error', 400);
+    return mapResolveOrgError(error);
   }
 
   let models: Array<{

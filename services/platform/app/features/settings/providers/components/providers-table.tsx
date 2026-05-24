@@ -22,6 +22,7 @@ import { resolveProviderLocale } from '@/lib/shared/utils/resolve-provider-local
 import { useDeleteProvider } from '../hooks/mutations';
 import { useListProviders } from '../hooks/queries';
 import { useProvidersTableConfig } from '../hooks/use-providers-table-config';
+import { dispatchOrgAccessError } from '../utils/error-dispatch';
 import { ProviderAddPanel } from './provider-add-panel';
 import { ProviderDetailDrawer } from './provider-detail-drawer';
 import { ProviderEditPanel } from './provider-edit-panel';
@@ -53,6 +54,7 @@ export function ProvidersTable({
   const { t } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tCommon } = useT('common');
+  const { t: tAccessDenied } = useT('accessDenied');
   const queryClient = useQueryClient();
   const { locale } = useLocale();
   const { providers: rawProviders, isLoading } =
@@ -113,13 +115,17 @@ export function ProvidersTable({
       toast({ title: t('providers.deleted') });
       setDeleteProvider(null);
       invalidateProviders();
-    } catch {
-      toast({ title: t('providers.deleteFailed'), variant: 'destructive' });
+    } catch (err) {
+      if (!dispatchOrgAccessError(err, tAccessDenied)) {
+        console.error('[providers-table] delete failed', err);
+        toast({ title: t('providers.deleteFailed'), variant: 'destructive' });
+      }
     }
   }, [
     deleteProvider,
     deleteProviderMutation,
     t,
+    tAccessDenied,
     invalidateProviders,
     organizationId,
   ]);

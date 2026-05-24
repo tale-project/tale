@@ -3052,7 +3052,8 @@
     "knowledge": "Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.",
     "workspaceNotFound": "L'espace de travail que tu recherches n'existe pas ou a été supprimé.",
     "disabled": "Ton compte a été désactivé. Contacte le support pour obtenir de l'aide.",
-    "noMembership": "Tu n'es pas membre de cet espace de travail. Merci de contacter un administrateur pour obtenir l'accès."
+    "noMembership": "Tu n'es pas membre de cet espace de travail. Merci de contacter un administrateur pour obtenir l'accès.",
+    "unauthenticated": "Ta session a expiré. Reconnecte-toi pour continuer."
   },
   "metadata": {
     "suffix": "Tale",

@@ -17,6 +17,7 @@ import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organizatio
 import { useProviderConfig } from '../hooks/use-provider-config-context';
 import {
   dispatchForbiddenDeveloperSettings,
+  dispatchOrgAccessError,
   dispatchVersionConflict,
 } from '../utils/error-dispatch';
 
@@ -62,6 +63,7 @@ export function ProviderEditPanel({
   organizationId,
 }: ProviderEditPanelProps) {
   const { t } = useT('settings');
+  const { t: tAccessDenied } = useT('accessDenied');
   // Route through ProviderConfigContext rather than reading/writing the
   // provider directly. This way `expectedHash` round-trips and our save
   // doesn't silently revert sibling edits to providerOptions/models/defaults
@@ -173,13 +175,22 @@ export function ProviderEditPanel({
         toast({ title: t('providers.saved'), variant: 'success' });
         onOpenChange(false);
       } catch (err) {
+        if (dispatchOrgAccessError(err, tAccessDenied)) return;
         if (dispatchForbiddenDeveloperSettings(err, t)) return;
         if (dispatchVersionConflict(err, t)) return;
         console.error('[ProviderEditPanel] save failed', err);
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
-    [form, config.i18n, defaultLocale, saveConfig, t, onOpenChange],
+    [
+      form,
+      config.i18n,
+      defaultLocale,
+      saveConfig,
+      t,
+      tAccessDenied,
+      onOpenChange,
+    ],
   );
 
   const isValid = useMemo(() => {

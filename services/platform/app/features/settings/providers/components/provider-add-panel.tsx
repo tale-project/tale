@@ -28,7 +28,10 @@ import {
   useSaveProvider,
   useSaveProviderSecret,
 } from '../hooks/mutations';
-import { readConvexErrorData } from '../utils/error-dispatch';
+import {
+  dispatchOrgAccessError,
+  readConvexErrorData,
+} from '../utils/error-dispatch';
 import { modelTagLabel } from '../utils/model-tag-label';
 
 type ModelEntry = {
@@ -61,6 +64,7 @@ export function ProviderAddPanel({
   organizationId,
 }: ProviderAddPanelProps) {
   const { t } = useT('settings');
+  const { t: tAccessDenied } = useT('accessDenied');
   const navigate = useNavigate();
   const { t: tCommon } = useT('common');
   const { mutateAsync: saveProvider } = useSaveProvider();
@@ -486,6 +490,8 @@ export function ProviderAddPanel({
             title: t('providers.forbiddenDeveloperSettings'),
             variant: 'destructive',
           });
+        } else if (dispatchOrgAccessError(error, tAccessDenied)) {
+          setOverwritePrompt(null);
         } else {
           // Non-overwrite failure (e.g. saveProvider zod-shape on second
           // step, network error). Clear any open confirm dialog so the toast
@@ -501,7 +507,14 @@ export function ProviderAddPanel({
         setCreating(false);
       }
     },
-    [finalizeProvider, organizationId, saveProvider, saveProviderSecret, t],
+    [
+      finalizeProvider,
+      organizationId,
+      saveProvider,
+      saveProviderSecret,
+      t,
+      tAccessDenied,
+    ],
   );
 
   const onSubmit = async (data: FormData) => {

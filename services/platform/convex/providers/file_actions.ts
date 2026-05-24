@@ -368,7 +368,10 @@ export const listProviders = action({
     let entries: string[];
     try {
       entries = await readdir(dir);
-    } catch {
+    } catch (err) {
+      if (!isErrnoCode(err, 'ENOENT')) {
+        console.warn('[listProviders] readdir failed', dir, sanitizeError(err));
+      }
       return [];
     }
 
@@ -899,7 +902,25 @@ export const getAllModelIds = internalAction({
     let providers: ProviderWithSecrets[];
     try {
       providers = await loadAllProviders(orgSlug);
-    } catch {
+    } catch (err) {
+      // `loadAllProviders` deliberately attaches `{reason, details[]}` to
+      // `NoProviderAvailableError`. Don't drop that context — operators
+      // need to tell "no providers configured" (legitimate fresh org)
+      // from "config exists but won't load".
+      if (err instanceof NoProviderAvailableError) {
+        if (err.reason !== 'no_providers') {
+          console.warn(
+            '[getAllModelIds] loadAllProviders failed',
+            err.reason,
+            err.details,
+          );
+        }
+      } else {
+        console.warn(
+          '[getAllModelIds] loadAllProviders threw',
+          sanitizeError(err),
+        );
+      }
       return [];
     }
     const models: Array<{
@@ -1033,7 +1054,14 @@ export const getAllProviderConfigs = action({
     let entries: string[];
     try {
       entries = await readdir(dir);
-    } catch {
+    } catch (err) {
+      if (!isErrnoCode(err, 'ENOENT')) {
+        console.warn(
+          '[getAllProviderConfigs] readdir failed',
+          dir,
+          sanitizeError(err),
+        );
+      }
       return [];
     }
 

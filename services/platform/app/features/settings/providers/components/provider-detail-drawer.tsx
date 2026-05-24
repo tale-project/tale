@@ -54,6 +54,7 @@ import {
 } from '../hooks/use-provider-config-context';
 import {
   dispatchForbiddenDeveloperSettings,
+  dispatchOrgAccessError,
   dispatchVersionConflict,
   readConvexErrorData,
 } from '../utils/error-dispatch';
@@ -470,6 +471,7 @@ function ApiKeySection({
   maskedKey: string | null;
 }) {
   const { t } = useT('settings');
+  const { t: tAccessDenied } = useT('accessDenied');
   const hasSecret = maskedKey != null;
   const saveSecret = useSaveProviderSecret();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -515,7 +517,10 @@ function ApiKeySection({
           });
         } else {
           setOverwritePrompt(null);
-          if (!dispatchForbiddenDeveloperSettings(err, t)) {
+          if (
+            !dispatchOrgAccessError(err, tAccessDenied) &&
+            !dispatchForbiddenDeveloperSettings(err, t)
+          ) {
             toast({
               title: t('providers.secretSaveFailed'),
               variant: 'destructive',
@@ -526,7 +531,7 @@ function ApiKeySection({
         setSaving(false);
       }
     },
-    [apiKey, organizationId, providerName, saveSecret, t],
+    [apiKey, organizationId, providerName, saveSecret, t, tAccessDenied],
   );
 
   const handleSaveKey = useCallback(
@@ -684,6 +689,7 @@ function ModelsSection({
 }) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
+  const { t: tAccessDenied } = useT('accessDenied');
   const { config, saveConfig, isSaving } = useProviderConfig();
   const saveSecret = useSaveProviderSecret();
   const {
@@ -750,12 +756,13 @@ function ModelsSection({
       try {
         await saveConfig({ models: updatedModels });
       } catch (err) {
+        if (dispatchOrgAccessError(err, tAccessDenied)) return;
         if (dispatchForbiddenDeveloperSettings(err, t)) return;
         if (dispatchVersionConflict(err, t)) return;
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
-    [config.models, saveConfig, t],
+    [config.models, saveConfig, t, tAccessDenied],
   );
 
   const openAddDialog = useCallback(() => {
@@ -902,6 +909,7 @@ function ModelsSection({
         await saveConfig({ models: updatedModels });
         setDialogOpen(false);
       } catch (err) {
+        if (dispatchOrgAccessError(err, tAccessDenied)) return;
         if (dispatchForbiddenDeveloperSettings(err, t)) return;
         if (dispatchVersionConflict(err, t)) return;
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
@@ -917,6 +925,7 @@ function ModelsSection({
       providerName,
       modelKeyAction,
       t,
+      tAccessDenied,
     ],
   );
 
@@ -947,6 +956,7 @@ function ModelsSection({
       }
       setDeleteIndex(null);
     } catch (err) {
+      if (dispatchOrgAccessError(err, tAccessDenied)) return;
       if (dispatchForbiddenDeveloperSettings(err, t)) return;
       if (dispatchVersionConflict(err, t)) return;
       toast({ title: t('providers.saveFailed'), variant: 'destructive' });
@@ -960,6 +970,7 @@ function ModelsSection({
     organizationId,
     providerName,
     t,
+    tAccessDenied,
   ]);
 
   // Unified row list mirroring the add-panel layout: every configured model
