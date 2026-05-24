@@ -14,7 +14,6 @@ import {
   DropdownMenu,
   type DropdownMenuGroup,
 } from '@/app/components/ui/overlays/dropdown-menu';
-import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -24,6 +23,7 @@ import { useDeleteProvider } from '../hooks/mutations';
 import { useListProviders, useReadProvider } from '../hooks/queries';
 import { ProviderConfigProvider } from '../hooks/use-provider-config-context';
 import { useProvidersTableConfig } from '../hooks/use-providers-table-config';
+import { dispatchOrgAccessError } from '../utils/error-dispatch';
 import { ProviderAddPanel } from './provider-add-panel';
 import { ProviderDetailDrawer } from './provider-detail-drawer';
 import { ProviderEditPanel } from './provider-edit-panel';
@@ -55,11 +55,11 @@ export function ProvidersTable({
   const { t } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tCommon } = useT('common');
+  const { t: tAccessDenied } = useT('accessDenied');
   const queryClient = useQueryClient();
-  const { data: organization } = useOrganization(organizationId);
-  const orgSlug = organization?.slug ?? '';
   const { locale } = useLocale();
-  const { providers: rawProviders, isLoading } = useListProviders(orgSlug);
+  const { providers: rawProviders, isLoading } =
+    useListProviders(organizationId);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editProvider, setEditProvider] = useState<ProviderRow | null>(null);
   const [testProvider, setTestProvider] = useState<ProviderRow | null>(null);
@@ -107,19 +107,29 @@ export function ProvidersTable({
   }, []);
 
   const handleDelete = useCallback(async () => {
-    if (!deleteProvider || !orgSlug) return;
+    if (!deleteProvider) return;
     try {
       await deleteProviderMutation.mutateAsync({
-        orgSlug,
+        organizationId,
         providerName: deleteProvider.name,
       });
       toast({ title: t('providers.deleted') });
       setDeleteProvider(null);
       invalidateProviders();
-    } catch {
-      toast({ title: t('providers.deleteFailed'), variant: 'destructive' });
+    } catch (err) {
+      if (!dispatchOrgAccessError(err, tAccessDenied)) {
+        console.error('[providers-table] delete failed', err);
+        toast({ title: t('providers.deleteFailed'), variant: 'destructive' });
+      }
     }
-  }, [deleteProvider, deleteProviderMutation, t, invalidateProviders, orgSlug]);
+  }, [
+    deleteProvider,
+    deleteProviderMutation,
+    t,
+    tAccessDenied,
+    invalidateProviders,
+    organizationId,
+  ]);
 
   const columnsWithActions = useMemo(
     () => [
@@ -176,7 +186,6 @@ export function ProvidersTable({
 
       {editProvider && (
         <ProviderEditPanelLoader
-          orgSlug={orgSlug}
           providerName={editProvider.name}
           organizationId={organizationId}
           onClose={() => setEditProvider(null)}
@@ -189,7 +198,7 @@ export function ProvidersTable({
           onOpenChange={(open) => {
             if (!open) setTestProvider(null);
           }}
-          orgSlug={orgSlug}
+          organizationId={organizationId}
           providerName={testProvider.name}
         />
       )}
@@ -287,23 +296,19 @@ function ProviderRowActions({
  * `useProviderConfig` inside `ProviderEditPanel` throws.
  */
 function ProviderEditPanelLoader({
-  orgSlug,
   providerName,
   organizationId,
   onClose,
 }: {
-  orgSlug: string;
   providerName: string;
   organizationId: string;
   onClose: () => void;
 }) {
-  const { data } = useReadProvider(orgSlug, providerName, {
-    enabled: !!orgSlug,
-  });
+  const { data } = useReadProvider(organizationId, providerName);
   if (!data?.ok) return null;
   return (
     <ProviderConfigProvider
-      orgSlug={orgSlug}
+      organizationId={organizationId}
       providerName={providerName}
       initialConfig={data.config}
       initialHash={data.hash}

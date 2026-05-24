@@ -10,7 +10,6 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
-import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 
 export const triggerCompletionWithAgent = internalAction({
   args: {
@@ -20,11 +19,9 @@ export const triggerCompletionWithAgent = internalAction({
     messageContent: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const agentConfig = await ctx.runAction(
       internal.agents.file_actions.resolveAgentConfig,
       {
-        orgSlug,
         agentSlug: args.agentSlug,
         organizationId: args.organizationId,
       },

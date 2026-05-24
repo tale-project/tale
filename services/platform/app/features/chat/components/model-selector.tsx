@@ -52,7 +52,7 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents, isLoading: agentsLoading } = useChatAgents(organizationId);
   const { providers, isLoading: providersLoading } =
-    useListProviders('default');
+    useListProviders(organizationId);
   const { locale } = useLocale();
   const { selectedModelOverrides, setSelectedModelOverride } = useChatLayout();
   const [open, setOpen] = useState(false);

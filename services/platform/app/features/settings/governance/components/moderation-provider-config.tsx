@@ -960,7 +960,6 @@ function TestConnectionPanel({
     try {
       const r = await testMutation.mutateAsync({
         organizationId,
-        orgSlug: 'default',
         text,
       });
       setResult(r);

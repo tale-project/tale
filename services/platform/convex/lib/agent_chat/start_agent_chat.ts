@@ -22,7 +22,6 @@ import { createAuditLog } from '../../audit_logs/helpers';
 import { checkBudget } from '../../governance/budget_enforcement';
 import { resolveFeatureFlags } from '../../governance/feature_enforcement';
 import { resolveBudgetContext } from '../../governance/resolve_budget_context';
-import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { persistentStreaming } from '../../streaming/helpers';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
@@ -347,8 +346,6 @@ export async function startAgentChat(
     const imageAttachments = (actionAttachments ?? []).filter((a) =>
       a.fileType.startsWith('image/'),
     );
-    const orgSlug = await resolveOrgSlug(ctx, organizationId);
-
     debugLog('SCHEDULE_IMAGE_GENERATION', {
       threadId,
       model,
@@ -371,7 +368,6 @@ export async function startAgentChat(
         })),
         streamId: streamId || undefined,
         agentSlug: args.agentSlug,
-        orgSlug,
         organizationId,
         userId: thread?.userId,
       },

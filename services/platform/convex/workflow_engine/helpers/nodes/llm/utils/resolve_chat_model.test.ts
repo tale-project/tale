@@ -12,7 +12,7 @@ vi.mock('../../../../../providers/failover', () => ({
 import { resolveLanguageModelWithFallback } from '../../../../../providers/failover';
 
 const ctx = {} as ActionCtx;
-const orgSlug = 'acme';
+const organizationId = 'org_acme';
 
 const baseConfig: LLMNodeConfig = {
   name: 'step',
@@ -40,10 +40,10 @@ describe('resolveChatModel', () => {
     vi.mocked(resolveLanguageModelWithFallback).mockResolvedValue(
       stubResolved(),
     );
-    await resolveChatModel(ctx, baseConfig, orgSlug);
+    await resolveChatModel(ctx, baseConfig, organizationId);
     expect(resolveLanguageModelWithFallback).toHaveBeenCalledWith(ctx, {
       tag: 'chat',
-      orgSlug,
+      organizationId,
     });
   });
 
@@ -54,13 +54,13 @@ describe('resolveChatModel', () => {
     await resolveChatModel(
       ctx,
       { ...baseConfig, model: 'openrouter:anthropic/claude-haiku-4.5' },
-      orgSlug,
+      organizationId,
     );
     expect(resolveLanguageModelWithFallback).toHaveBeenCalledWith(ctx, {
       modelId: 'anthropic/claude-haiku-4.5',
       providerName: 'openrouter',
       tag: 'chat',
-      orgSlug,
+      organizationId,
     });
   });
 
@@ -68,12 +68,16 @@ describe('resolveChatModel', () => {
     vi.mocked(resolveLanguageModelWithFallback).mockResolvedValue(
       stubResolved(),
     );
-    await resolveChatModel(ctx, { ...baseConfig, model: 'gpt-5.2' }, orgSlug);
+    await resolveChatModel(
+      ctx,
+      { ...baseConfig, model: 'gpt-5.2' },
+      organizationId,
+    );
     expect(resolveLanguageModelWithFallback).toHaveBeenCalledWith(ctx, {
       modelId: 'gpt-5.2',
       providerName: undefined,
       tag: 'chat',
-      orgSlug,
+      organizationId,
     });
   });
 
@@ -81,10 +85,14 @@ describe('resolveChatModel', () => {
     vi.mocked(resolveLanguageModelWithFallback).mockResolvedValue(
       stubResolved(),
     );
-    await resolveChatModel(ctx, { ...baseConfig, model: '   ' }, orgSlug);
+    await resolveChatModel(
+      ctx,
+      { ...baseConfig, model: '   ' },
+      organizationId,
+    );
     expect(resolveLanguageModelWithFallback).toHaveBeenCalledWith(ctx, {
       tag: 'chat',
-      orgSlug,
+      organizationId,
     });
   });
 
@@ -95,13 +103,13 @@ describe('resolveChatModel', () => {
     await resolveChatModel(
       ctx,
       { ...baseConfig, model: '  openrouter:foo  ' },
-      orgSlug,
+      organizationId,
     );
     expect(resolveLanguageModelWithFallback).toHaveBeenCalledWith(ctx, {
       modelId: 'foo',
       providerName: 'openrouter',
       tag: 'chat',
-      orgSlug,
+      organizationId,
     });
   });
 });

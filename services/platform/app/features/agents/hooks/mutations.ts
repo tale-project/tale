@@ -6,8 +6,10 @@ import { api } from '@/convex/_generated/api';
 
 function useInvalidateAgents() {
   const queryClient = useQueryClient();
-  return (orgSlug: string) =>
-    queryClient.invalidateQueries({ queryKey: ['config', 'agents', orgSlug] });
+  return (organizationId: string) =>
+    queryClient.invalidateQueries({
+      queryKey: ['config', 'agents', organizationId],
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -17,7 +19,7 @@ function useInvalidateAgents() {
 export function useSaveAgent() {
   const invalidate = useInvalidateAgents();
   return useConvexAction(api.agents.file_actions.saveAgent, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 
@@ -28,21 +30,21 @@ export function useSnapshotToHistory() {
 export function useDuplicateAgent() {
   const invalidate = useInvalidateAgents();
   return useConvexAction(api.agents.file_actions.duplicateAgent, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 
 export function useDeleteAgent() {
   const invalidate = useInvalidateAgents();
   return useConvexAction(api.agents.file_actions.deleteAgent, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 
 export function useRestoreFromHistory() {
   const invalidate = useInvalidateAgents();
   return useConvexAction(api.agents.file_actions.restoreFromHistory, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 

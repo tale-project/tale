@@ -62,6 +62,7 @@ function MilkdownEditorInner({
   pendingMessage,
   hasMessageHistory = false,
   onMessageSent,
+  organizationId,
 }: MilkdownEditorInnerProps) {
   const { t: tConversations } = useT('conversations');
   const { user } = useAuth();
@@ -171,6 +172,7 @@ function MilkdownEditorInner({
         const result = await improveMessage({
           originalMessage: currentMarkdown,
           instruction: improveInstruction.trim() || undefined,
+          organizationId,
         });
 
         if (result.error) {
@@ -197,6 +199,7 @@ function MilkdownEditorInner({
     message,
     improveInstruction,
     improveMessage,
+    organizationId,
     tConversations,
   ]);
 

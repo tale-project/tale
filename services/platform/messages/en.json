@@ -3128,7 +3128,8 @@
     "knowledge": "Your account does not have permission to access knowledge.",
     "workspaceNotFound": "The workspace you're looking for doesn't exist or may have been removed.",
     "disabled": "Your account has been disabled. Contact support for assistance.",
-    "noMembership": "You are not a member of this workspace. Please contact an administrator for access."
+    "noMembership": "You are not a member of this workspace. Please contact an administrator for access.",
+    "unauthenticated": "Your session expired. Sign in again to continue."
   },
   "metadata": {
     "suffix": "Tale",

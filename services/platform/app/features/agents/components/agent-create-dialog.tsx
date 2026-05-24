@@ -41,7 +41,7 @@ export function CreateAgentDialog({
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const { mutateAsync: saveAgent } = useSaveAgent();
-  const { providers } = useListProviders('default');
+  const { providers } = useListProviders(organizationId);
   const { locale } = useLocale();
 
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -143,7 +143,7 @@ export function CreateAgentDialog({
 
     try {
       await saveAgent({
-        orgSlug: 'default',
+        organizationId,
         agentName: data.name,
         isNew: true,
         config: {

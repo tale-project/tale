@@ -15,7 +15,6 @@ import { SafeFetchError, safeFetchBinary } from '../lib/http/safe_fetch';
 import { rateLimiter } from '../lib/rate_limiter';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
-import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { checkProviderHostPolicy } from '../providers/file_actions';
 import { resolveTtsModel } from '../providers/resolve_model';
 import {
@@ -128,12 +127,10 @@ export const synthesizeChunk = action({
     // tier). A pre-reservation resolver failure (no provider, unknown
     // voice, etc.) returns a synthetic `failed` result with the
     // classified code — there's no chunk row to mark yet.
-    let orgSlug: string;
     let modelData;
     try {
-      orgSlug = await resolveOrgSlug(ctx, args.organizationId);
       modelData = await resolveTtsModel(ctx, {
-        orgSlug,
+        organizationId: args.organizationId,
         locale: args.locale,
       });
     } catch (err) {
@@ -492,19 +489,9 @@ export const getCapability = action({
       });
       throw err;
     }
-    let orgSlug: string;
-    try {
-      orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-    } catch (err) {
-      console.warn(
-        '[tts.getCapability] resolveOrgSlug failed',
-        sanitizeError(err),
-      );
-      return { available: false };
-    }
     try {
       const model = await resolveTtsModel(ctx, {
-        orgSlug,
+        organizationId: args.organizationId,
         locale: 'en',
       });
       return {

@@ -339,12 +339,12 @@ export const runAgentGeneration = internalAction({
             ? await resolveLanguageModelById(ctx, {
                 modelId: parsed.modelId,
                 providerName: parsed.providerName ?? agentConfig.provider,
-                orgSlug,
+                organizationId,
               })
             : await resolveLanguageModelWithFallback(ctx, {
                 providerName: agentConfig.provider,
                 tag: 'chat',
-                orgSlug,
+                organizationId,
               });
           const resolvedProvider = modelData.providerName;
           const resolvedModelId = modelData.modelId;

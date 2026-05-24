@@ -3128,7 +3128,8 @@
     "knowledge": "Dein Konto hat keine Berechtigung, auf Wissen zuzugreifen.",
     "workspaceNotFound": "Der gesuchte Workspace existiert nicht oder wurde möglicherweise entfernt.",
     "disabled": "Dein Konto wurde deaktiviert. Kontaktiere den Support für Unterstützung.",
-    "noMembership": "Du bist kein Mitglied dieses Workspace. Bitte kontaktiere einen Administrator für Zugriff."
+    "noMembership": "Du bist kein Mitglied dieses Workspace. Bitte kontaktiere einen Administrator für Zugriff.",
+    "unauthenticated": "Deine Sitzung ist abgelaufen. Melde dich erneut an, um fortzufahren."
   },
   "metadata": {
     "suffix": "Tale",

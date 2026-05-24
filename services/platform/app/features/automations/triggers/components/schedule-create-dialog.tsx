@@ -158,6 +158,7 @@ export function ScheduleCreateDialog({
     try {
       const result = await generateCron({
         naturalLanguage: naturalLanguage.trim(),
+        organizationId,
       });
       setValue('cronExpression', result.cronExpression, {
         shouldValidate: true,
@@ -167,7 +168,14 @@ export function ScheduleCreateDialog({
     } catch {
       setGenerateError(t('triggers.schedules.form.ai.generateError'));
     }
-  }, [naturalLanguage, isGenerating, generateCron, setValue, t]);
+  }, [
+    naturalLanguage,
+    isGenerating,
+    generateCron,
+    organizationId,
+    setValue,
+    t,
+  ]);
 
   const onSubmit = async (data: ScheduleFormData) => {
     let parsedVariables: Record<string, unknown> | undefined;

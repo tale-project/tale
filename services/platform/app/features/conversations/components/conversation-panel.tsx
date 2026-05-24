@@ -487,6 +487,7 @@ export function ConversationPanel({
               }}
               pendingMessage={pendingMessage}
               hasMessageHistory={displayMessages.length > 0}
+              organizationId={conversation.organizationId}
             />
           </div>
         ) : conversation.status === 'closed' ? (

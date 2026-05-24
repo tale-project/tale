@@ -21,6 +21,7 @@ export interface MessageEditorProps {
   onConversationResolved?: () => void;
   pendingMessage?: Pick<ConversationMessage, 'id' | 'content'>;
   hasMessageHistory?: boolean;
+  organizationId: string;
 }
 
 const FILE_TYPE_ICONS = {

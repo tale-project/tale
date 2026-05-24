@@ -32,9 +32,8 @@ export function AgentDeleteDialog({
     setIsDeleting(true);
     try {
       await deleteAgent({
-        orgSlug: 'default',
-        agentName,
         organizationId,
+        agentName,
       });
       toast({
         title: t('agents.agentDeleted'),

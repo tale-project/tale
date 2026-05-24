@@ -41,7 +41,13 @@ import {
   invalidateSecretsCache,
 } from '../lib/sops';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
-import { requireDeveloperSettingsAccess, requireOrgMembership } from './auth';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
+import {
+  requireDeveloperSettingsAccess,
+  requireDeveloperSettingsAccessById,
+  requireOrgMembership,
+  requireOrgMembershipById,
+} from './auth';
 import { NoProviderAvailableError } from './errors';
 import type { ProviderJson, ProviderReadResult } from './file_utils';
 import {
@@ -303,7 +309,7 @@ async function loadAllProviders(
 // ---------------------------------------------------------------------------
 
 export const readProvider = action({
-  args: { orgSlug: v.string(), providerName: v.string() },
+  args: { organizationId: v.string(), providerName: v.string() },
   returns: v.any(),
   handler: async (
     ctx,
@@ -313,8 +319,11 @@ export const readProvider = action({
   > => {
     // Returns the masked-key preview, so gate on developerSettings to match
     // the dashboard route that's the only legit consumer.
-    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
-    const result = await readProviderFile(args.orgSlug, args.providerName);
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
+    );
+    const result = await readProviderFile(orgSlug, args.providerName);
     if (!result.ok) return result;
 
     // Attach masked per-model API keys (modelId → masked key). Failures here
@@ -325,7 +334,7 @@ export const readProvider = action({
     const maskedModelKeys: Record<string, string> = {};
     try {
       const secretsPath = resolveProviderSecretsPath(
-        args.orgSlug,
+        orgSlug,
         args.providerName,
       );
       const raw = await decryptSecretsFile(secretsPath);
@@ -349,16 +358,20 @@ export const readProvider = action({
 });
 
 export const listProviders = action({
-  args: { orgSlug: v.string() },
+  args: { organizationId: v.string() },
   returns: v.any(),
   handler: async (ctx, args) => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    await requireOrgMembership(ctx, orgSlug);
 
-    const dir = resolveProvidersDir(args.orgSlug);
+    const dir = resolveProvidersDir(orgSlug);
     let entries: string[];
     try {
       entries = await readdir(dir);
-    } catch {
+    } catch (err) {
+      if (!isErrnoCode(err, 'ENOENT')) {
+        console.warn('[listProviders] readdir failed', dir, sanitizeError(err));
+      }
       return [];
     }
 
@@ -373,12 +386,12 @@ export const listProviders = action({
       jsonFiles.map(async (fileName) => {
         const name = providerNameFromFileName(fileName);
         if (!validateProviderName(name)) return null;
-        const result = await readProviderFile(args.orgSlug, name);
+        const result = await readProviderFile(orgSlug, name);
         if (result.ok) {
           // Try reading secrets to detect per-model API key overrides
           let modelKeys: Record<string, string> | undefined;
           try {
-            const secretsPath = resolveProviderSecretsPath(args.orgSlug, name);
+            const secretsPath = resolveProviderSecretsPath(orgSlug, name);
             const raw = await decryptSecretsFile(secretsPath);
             const secrets = parseProviderSecrets(raw);
             modelKeys = secrets.modelKeys;
@@ -425,7 +438,7 @@ export const listProviders = action({
 
 export const saveProvider = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     providerName: v.string(),
     config: v.any(),
     /**
@@ -440,7 +453,10 @@ export const saveProvider = action({
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
+    );
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);
@@ -472,7 +488,7 @@ export const saveProvider = action({
     // narrows the clobber window enough to surface concurrent edits to the
     // dashboard rather than silently overwriting them.
     if (args.expectedHash !== undefined) {
-      const existing = await readProviderFile(args.orgSlug, args.providerName);
+      const existing = await readProviderFile(orgSlug, args.providerName);
       const conflict = !existing.ok || existing.hash !== args.expectedHash;
       if (conflict) {
         throw new ConvexError({
@@ -483,22 +499,23 @@ export const saveProvider = action({
       }
     }
     const content = serializeProviderJson(config);
-    const filePath = resolveProviderFilePath(args.orgSlug, args.providerName);
+    const filePath = resolveProviderFilePath(orgSlug, args.providerName);
     await atomicWrite(filePath, content);
     return { hash: sha256(content) };
   },
 });
 
 export const deleteProvider = action({
-  args: { orgSlug: v.string(), providerName: v.string() },
+  args: { organizationId: v.string(), providerName: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const auth = await requireDeveloperSettingsAccess(ctx, args.orgSlug);
-    const filePath = resolveProviderFilePath(args.orgSlug, args.providerName);
-    const secretsPath = resolveProviderSecretsPath(
-      args.orgSlug,
-      args.providerName,
+    const auth = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
     );
+    const { orgSlug } = auth;
+    const filePath = resolveProviderFilePath(orgSlug, args.providerName);
+    const secretsPath = resolveProviderSecretsPath(orgSlug, args.providerName);
     // Order: secrets first, then public config. If the secrets unlink fails
     // (rare — EACCES / EIO on a network FS), the public file remains and the
     // entry stays visible in the provider list so the operator can retry the
@@ -560,7 +577,7 @@ export const deleteProvider = action({
 export const resolveModelData = internalAction({
   args: {
     modelId: v.string(),
-    orgSlug: v.optional(v.string()),
+    organizationId: v.string(),
     providerName: v.optional(v.string()),
   },
   returns: v.object({
@@ -596,8 +613,8 @@ export const resolveModelData = internalAction({
     ),
     providerOptions: v.optional(v.record(v.string(), v.any())),
   }),
-  handler: async (_ctx, args) => {
-    const orgSlug = args.orgSlug ?? 'default';
+  handler: async (ctx, args) => {
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const providers = await loadAllProviders(orgSlug);
 
     // Split off any `@<quant>` suffix so the provider config lookup uses the
@@ -721,7 +738,7 @@ export const resolveModelData = internalAction({
 export const resolveModelByTag = internalAction({
   args: {
     tag: v.string(),
-    orgSlug: v.optional(v.string()),
+    organizationId: v.string(),
     providerName: v.optional(v.string()),
   },
   returns: v.object({
@@ -757,8 +774,8 @@ export const resolveModelByTag = internalAction({
     ),
     providerOptions: v.optional(v.record(v.string(), v.any())),
   }),
-  handler: async (_ctx, args) => {
-    const orgSlug = args.orgSlug ?? 'default';
+  handler: async (ctx, args) => {
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const providers = await loadAllProviders(orgSlug);
 
     const candidates = args.providerName
@@ -870,7 +887,7 @@ export const resolveModelByTag = internalAction({
  * Used for cross-validation of agent supportedModels at config time.
  */
 export const getAllModelIds = internalAction({
-  args: { orgSlug: v.optional(v.string()) },
+  args: { organizationId: v.string() },
   returns: v.array(
     v.object({
       id: v.string(),
@@ -880,12 +897,30 @@ export const getAllModelIds = internalAction({
       quantizations: v.optional(v.array(v.string())),
     }),
   ),
-  handler: async (_ctx, args) => {
-    const orgSlug = args.orgSlug ?? 'default';
+  handler: async (ctx, args) => {
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     let providers: ProviderWithSecrets[];
     try {
       providers = await loadAllProviders(orgSlug);
-    } catch {
+    } catch (err) {
+      // `loadAllProviders` deliberately attaches `{reason, details[]}` to
+      // `NoProviderAvailableError`. Don't drop that context — operators
+      // need to tell "no providers configured" (legitimate fresh org)
+      // from "config exists but won't load".
+      if (err instanceof NoProviderAvailableError) {
+        if (err.reason !== 'no_providers') {
+          console.warn(
+            '[getAllModelIds] loadAllProviders failed',
+            err.reason,
+            err.details,
+          );
+        }
+      } else {
+        console.warn(
+          '[getAllModelIds] loadAllProviders threw',
+          sanitizeError(err),
+        );
+      }
       return [];
     }
     const models: Array<{
@@ -921,7 +956,7 @@ export const getAllModelIds = internalAction({
  * legitimate state, not a missing reference.
  */
 export const getAllConfiguredModelIds = internalAction({
-  args: { orgSlug: v.optional(v.string()) },
+  args: { organizationId: v.string() },
   returns: v.array(
     v.object({
       id: v.string(),
@@ -931,13 +966,23 @@ export const getAllConfiguredModelIds = internalAction({
       quantizations: v.optional(v.array(v.string())),
     }),
   ),
-  handler: async (_ctx, args) => {
-    const orgSlug = args.orgSlug ?? 'default';
+  handler: async (ctx, args) => {
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const dir = resolveProvidersDir(orgSlug);
     let entries: string[];
     try {
       entries = await readdir(dir);
-    } catch {
+    } catch (err) {
+      // Don't fail the caller (empty providers dir is legitimate on a fresh
+      // deployment) but surface the underlying error so operators can tell
+      // "no providers configured" from "providers dir unreadable".
+      if (!isErrnoCode(err, 'ENOENT')) {
+        console.warn(
+          '[getAllConfiguredModelIds] readdir failed',
+          dir,
+          sanitizeError(err),
+        );
+      }
       return [];
     }
     const jsonFiles = entries.filter(
@@ -956,9 +1001,25 @@ export const getAllConfiguredModelIds = internalAction({
     await Promise.all(
       jsonFiles.map(async (fileName) => {
         const name = providerNameFromFileName(fileName);
-        if (!validateProviderName(name)) return;
+        if (!validateProviderName(name)) {
+          console.warn(
+            '[getAllConfiguredModelIds] invalid provider name',
+            name,
+          );
+          return;
+        }
         const result = await readProviderFile(orgSlug, name);
-        if (!result.ok) return;
+        if (!result.ok) {
+          // Surface malformed/oversized/parse-failed provider files; saveAgent
+          // consumes this list for model validation and an empty list there
+          // is otherwise indistinguishable from "no providers configured".
+          console.warn(
+            '[getAllConfiguredModelIds] readProviderFile failed',
+            name,
+            result.message,
+          );
+          return;
+        }
         for (const m of result.config.models) {
           models.push({
             id: m.id,
@@ -981,16 +1042,26 @@ export const getAllConfiguredModelIds = internalAction({
  * Get all provider configs (public data only, no secrets).
  */
 export const getAllProviderConfigs = action({
-  args: { orgSlug: v.string() },
+  args: { organizationId: v.string() },
   returns: v.any(),
   handler: async (ctx, args) => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
-    const dir = resolveProvidersDir(args.orgSlug);
+    const dir = resolveProvidersDir(orgSlug);
     let entries: string[];
     try {
       entries = await readdir(dir);
-    } catch {
+    } catch (err) {
+      if (!isErrnoCode(err, 'ENOENT')) {
+        console.warn(
+          '[getAllProviderConfigs] readdir failed',
+          dir,
+          sanitizeError(err),
+        );
+      }
       return [];
     }
 
@@ -1005,7 +1076,7 @@ export const getAllProviderConfigs = action({
       jsonFiles.map(async (fileName) => {
         const name = providerNameFromFileName(fileName);
         if (!validateProviderName(name)) return null;
-        const result = await readProviderFile(args.orgSlug, name);
+        const result = await readProviderFile(orgSlug, name);
         if (!result.ok) return null;
         return {
           providerName: name,
@@ -1037,7 +1108,7 @@ export const getAllProviderConfigs = action({
  */
 export const fetchProviderModels = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     baseUrl: v.string(),
     apiKey: v.string(),
   },
@@ -1048,7 +1119,7 @@ export const fetchProviderModels = action({
     // authenticated user (`authComponent.getAuthUser`) and any baseUrl, which
     // allowed any logged-in member to issue authenticated GETs from inside
     // the Convex action runtime to internal services / cloud metadata.
-    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
+    await requireDeveloperSettingsAccessById(ctx, args.organizationId);
 
     // Normalize base URL: strip trailing slash, append /models if needed
     let url = args.baseUrl.replace(/\/+$/, '');
@@ -1139,19 +1210,19 @@ export const fetchProviderModels = action({
 // ---------------------------------------------------------------------------
 
 export const fetchConfiguredProviderModels = action({
-  args: { orgSlug: v.string(), providerName: v.string() },
+  args: { organizationId: v.string(), providerName: v.string() },
   returns: v.array(v.object({ id: v.string() })),
   handler: async (ctx, args): Promise<Array<{ id: string }>> => {
-    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
+    );
 
     if (!validateProviderName(args.providerName)) {
       throw new Error(`Invalid provider name: ${args.providerName}`);
     }
 
-    const configResult = await readProviderFile(
-      args.orgSlug,
-      args.providerName,
-    );
+    const configResult = await readProviderFile(orgSlug, args.providerName);
     if (!configResult.ok) {
       throw new ConvexError({
         code: 'PROVIDER_FETCH_FAILED',
@@ -1160,10 +1231,7 @@ export const fetchConfiguredProviderModels = action({
     }
     const config = configResult.config;
 
-    const secretsPath = resolveProviderSecretsPath(
-      args.orgSlug,
-      args.providerName,
-    );
+    const secretsPath = resolveProviderSecretsPath(orgSlug, args.providerName);
     let apiKey: string | undefined;
     try {
       const secrets = parseProviderSecrets(
@@ -1664,7 +1732,7 @@ function extractFromObject(value: unknown): string | null {
  * probing them is either expensive or requires real assets.
  */
 export const testProviderConnection = action({
-  args: { orgSlug: v.string(), providerName: v.string() },
+  args: { organizationId: v.string(), providerName: v.string() },
   returns: v.object({
     results: v.array(
       v.object({
@@ -1684,15 +1752,15 @@ export const testProviderConnection = action({
     // provider with the org's API key; gate on developerSettings to match
     // the write actions' threat model (a regular member calling this could
     // burn quota / trigger fraud signals in the org's name).
-    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
+    );
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);
 
-    const configResult = await readProviderFile(
-      args.orgSlug,
-      args.providerName,
-    );
+    const configResult = await readProviderFile(orgSlug, args.providerName);
     if (!configResult.ok) {
       throw new Error(
         `Cannot read provider "${args.providerName}": ${configResult.message}`,
@@ -1707,10 +1775,7 @@ export const testProviderConnection = action({
     // here and protects all four downstream probe helpers.
     checkProviderHostPolicy(config.baseUrl);
 
-    const secretsPath = resolveProviderSecretsPath(
-      args.orgSlug,
-      args.providerName,
-    );
+    const secretsPath = resolveProviderSecretsPath(orgSlug, args.providerName);
     const secrets = parseProviderSecrets(await decryptSecretsFile(secretsPath));
 
     const probes: Promise<ProbeResult>[] = [];
@@ -1840,7 +1905,7 @@ export const testProviderConnection = action({
  */
 export const saveProviderSecret = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     providerName: v.string(),
     apiKey: v.optional(v.string()),
     // Tightened from `v.any()` so a malformed payload (e.g. nested object
@@ -1854,15 +1919,16 @@ export const saveProviderSecret = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const auth = await requireDeveloperSettingsAccess(ctx, args.orgSlug);
+    const auth = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
+    );
+    const { orgSlug } = auth;
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);
 
-    const secretsPath = resolveProviderSecretsPath(
-      args.orgSlug,
-      args.providerName,
-    );
+    const secretsPath = resolveProviderSecretsPath(orgSlug, args.providerName);
 
     // Per-(orgSlug, providerName) advisory lock. `prepareMergedSecrets`
     // is read-modify-write on the secrets file with no transactional
@@ -1871,7 +1937,7 @@ export const saveProviderSecret = action({
     // process the lock serializes them; cross-process safety is a
     // follow-up that would require a real `expectedHash` round-trip
     // (also exposed via the read query).
-    const lockKey = `${args.orgSlug}:${args.providerName}`;
+    const lockKey = `${orgSlug}:${args.providerName}`;
     const previous = secretWriteLocks.get(lockKey);
     let release!: () => void;
     const next = new Promise<void>((resolve) => {
@@ -1901,7 +1967,7 @@ const secretWriteLocks = new Map<string, Promise<unknown>>();
 async function runSaveProviderSecret(
   ctx: ActionCtx,
   args: {
-    orgSlug: string;
+    organizationId: string;
     providerName: string;
     apiKey?: string;
     modelKeys?: Record<string, string>;
@@ -2056,7 +2122,7 @@ async function runSaveProviderSecret(
  */
 async function maybeAuditForceOverwrite(
   ctx: ActionCtx,
-  args: { orgSlug: string; providerName: string; force?: boolean },
+  args: { organizationId: string; providerName: string; force?: boolean },
   secretsPath: string,
   prepared: Awaited<ReturnType<typeof prepareMergedSecrets>>,
   auth: Awaited<ReturnType<typeof requireOrgMembership>>,
@@ -2097,19 +2163,19 @@ async function maybeAuditForceOverwrite(
  */
 export const hasProviderSecret = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     providerName: v.string(),
     modelId: v.optional(v.string()),
   },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args): Promise<string | null> => {
     // Returns the masked-key preview, gate on developerSettings.
-    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
-
-    const secretsPath = resolveProviderSecretsPath(
-      args.orgSlug,
-      args.providerName,
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
+      ctx,
+      args.organizationId,
     );
+
+    const secretsPath = resolveProviderSecretsPath(orgSlug, args.providerName);
 
     const { stat: statFile } = await import('node:fs/promises');
     try {

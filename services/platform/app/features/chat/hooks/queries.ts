@@ -174,8 +174,8 @@ function isComposerModeMeta(value: unknown): value is ComposerModeMeta {
   return typeof label === 'string' && label.length > 0;
 }
 
-export function useChatAgents(_organizationId: string) {
-  const { agents: rawAgents, isLoading } = useListAgents('default');
+export function useChatAgents(organizationId: string) {
+  const { agents: rawAgents, isLoading } = useListAgents(organizationId);
   const { i18n: i18nCtx } = useTranslation();
   const locale = i18nCtx.language;
 

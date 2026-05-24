@@ -1018,7 +1018,6 @@ export async function generateAgentResponse(
                               .internal_actions.runModerationProviderAction,
                             {
                               organizationId,
-                              orgSlug,
                               direction: 'output',
                               text,
                               endpoint: modConfig.endpoint,

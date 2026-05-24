@@ -252,6 +252,7 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
         rows={topAgents}
         isLoading={isLoading}
         onSelectAgent={setAgentSlug}
+        organizationId={organizationId}
       />
 
       <TopModelsTable

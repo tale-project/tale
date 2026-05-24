@@ -67,12 +67,11 @@ export interface ProcessAttachmentsConfig {
   toolName?: string;
   model?: string;
   /**
-   * Active org slug. Threaded through to `analyzeImageCached` so per-org
-   * provider config (and providerOptions) for the vision model is honored
-   * and the cache key is keyed per-org. Omit for system-level callers
-   * that should hit the global default org.
+   * Active org's Better Auth doc id. Threaded through to `analyzeImageCached`
+   * so per-org provider config (and providerOptions) for the vision model is
+   * honored and the cache key is keyed per-org.
    */
-  orgSlug?: string;
+  organizationId: string;
 }
 
 /**
@@ -247,7 +246,7 @@ export async function processAttachments(
           fileId: attachment.fileId,
           fileName: attachment.fileName,
           question: userText,
-          orgSlug: config.orgSlug,
+          organizationId: config.organizationId,
         });
 
         if (result.success) {

@@ -6,13 +6,14 @@ import { CronExpressionParser } from 'cron-parser';
 import { z } from 'zod/v4';
 
 import { action } from '../../_generated/server';
-import { authComponent } from '../../auth';
+import { requireOrgMembershipById } from '../../lib/auth/require_org_membership';
 import { buildCallProviderOptions } from '../../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../../providers/failover';
 
 export const generateCronExpression = action({
   args: {
     naturalLanguage: v.string(),
+    organizationId: v.string(),
   },
   returns: v.object({
     cronExpression: v.string(),
@@ -22,21 +23,19 @@ export const generateCronExpression = action({
     ctx,
     args,
   ): Promise<{ cronExpression: string; description: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
-      throw new Error('Unauthenticated');
-    }
-
     const input = args.naturalLanguage.trim();
     if (!input) {
       throw new Error('Please enter a schedule description.');
     }
+
+    await requireOrgMembershipById(ctx, args.organizationId);
 
     // Resolve chat model from provider files
     const { languageModel, modelData } = await resolveLanguageModelWithFallback(
       ctx,
       {
         tag: 'chat',
+        organizationId: args.organizationId,
       },
     );
     const callProviderOptions = buildCallProviderOptions(modelData);

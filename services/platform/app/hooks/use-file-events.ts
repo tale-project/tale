@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
+import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { getEnv } from '@/lib/env';
 
 import { configKeys } from './config-query-keys';
@@ -17,8 +18,21 @@ import { configKeys } from './config-query-keys';
  */
 export function useFileEvents() {
   const queryClient = useQueryClient();
-
   const enabled = getEnv('FILE_EVENTS_ENABLED');
+
+  // The wire payload carries `orgSlug` (the on-disk path segment), but the
+  // query cache is keyed by `organizationId` after the org-identity
+  // unification. Hold a slug→id map in a ref so the SSE listener can
+  // translate without re-subscribing each time memberships refresh.
+  const { organizations } = useUserOrganizationsWithDetails();
+  const slugToIdRef = useRef(new Map<string, string>());
+  useEffect(() => {
+    const next = new Map<string, string>();
+    for (const o of organizations ?? []) {
+      if (o.slug) next.set(o.slug, o.organizationId);
+    }
+    slugToIdRef.current = next;
+  }, [organizations]);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -41,12 +55,24 @@ export function useFileEvents() {
       // Skip the initial "connected" event
       if (data.type === 'connected') return;
 
-      // Invalidate all queries for this config type (+ org if present)
-      const prefix = data.orgSlug
-        ? ['config', data.type, data.orgSlug]
-        : configKeys.type(data.type);
+      // Events without an orgSlug (e.g. global branding) invalidate the
+      // whole config-type prefix.
+      if (!data.orgSlug) {
+        void queryClient.invalidateQueries({
+          queryKey: configKeys.type(data.type),
+        });
+        return;
+      }
 
-      void queryClient.invalidateQueries({ queryKey: prefix });
+      // Translate slug→id. If the slug doesn't match any org the current
+      // user is a member of, the event is for an org they can't see —
+      // skip silently rather than firing a no-op invalidation.
+      const organizationId = slugToIdRef.current.get(data.orgSlug);
+      if (!organizationId) return;
+
+      void queryClient.invalidateQueries({
+        queryKey: ['config', data.type, organizationId],
+      });
     });
 
     return () => es.close();

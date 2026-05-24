@@ -567,7 +567,6 @@ export async function sanitizeMessage(
         .runModerationProviderAction,
       {
         organizationId: meta.organizationId,
-        orgSlug: meta.orgSlug,
         direction,
         text: current,
         endpoint: snapshot.moderation.config.endpoint,

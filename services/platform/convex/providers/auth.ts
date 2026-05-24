@@ -26,6 +26,7 @@ import { defineAbilityFor } from '../../lib/permissions/ability';
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { authComponent } from '../auth';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 
 interface BetterAuthMember {
   _id: string;
@@ -35,6 +36,8 @@ interface BetterAuthMember {
 export interface ProviderActionAuth {
   /** Better Auth organization ID. */
   orgId: string;
+  /** Resolved human-readable slug — use for filesystem and SOPS paths. */
+  orgSlug: string;
   /** Better Auth user ID (string-coerced). */
   userId: string;
   /** Authenticated user's email, when available — used by audit logging. */
@@ -101,6 +104,7 @@ export async function requireOrgMembership(
 
   return {
     orgId,
+    orgSlug,
     userId,
     email: authUser.email,
     member,
@@ -131,4 +135,30 @@ export async function requireDeveloperSettingsAccess(
     });
   }
   return auth;
+}
+
+/**
+ * Same as `requireOrgMembership` but keyed by `organizationId` — used by the
+ * public provider actions that have migrated off `orgSlug` per the unified
+ * org-identity surface. Resolves the slug internally so legacy on-disk paths
+ * (`providers/<slug>/...`) continue to work without leaking the slug into the
+ * public API.
+ */
+export async function requireOrgMembershipById(
+  ctx: ActionCtx,
+  organizationId: string,
+): Promise<ProviderActionAuth> {
+  const orgSlug = await resolveOrgSlug(ctx, organizationId);
+  return requireOrgMembership(ctx, orgSlug);
+}
+
+/**
+ * Same as `requireDeveloperSettingsAccess` but keyed by `organizationId`.
+ */
+export async function requireDeveloperSettingsAccessById(
+  ctx: ActionCtx,
+  organizationId: string,
+): Promise<ProviderActionAuth> {
+  const orgSlug = await resolveOrgSlug(ctx, organizationId);
+  return requireDeveloperSettingsAccess(ctx, orgSlug);
 }

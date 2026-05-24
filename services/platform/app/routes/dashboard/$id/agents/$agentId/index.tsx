@@ -122,6 +122,7 @@ function GeneralTab() {
       const result = await translateMutation.mutateAsync({
         fields,
         targetLocale: target,
+        organizationId,
       });
       if (result.error) {
         toast({
@@ -158,6 +159,7 @@ function GeneralTab() {
     sourceDisplayName,
     sourceDescription,
     translateMutation,
+    organizationId,
     config.i18n,
     updateConfig,
     t,

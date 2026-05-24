@@ -33,11 +33,11 @@ interface FailoverParams {
   fallbackModelId?: string;
   fallbackProviderName?: string;
   /**
-   * Resolves providers from `/examples/{orgSlug}/providers/` so each org
-   * uses its own API keys / models. Omit for system-level callers with no
-   * org context — they fall back to the global default org.
+   * Better Auth org doc id — resolves providers from
+   * `/examples/{orgSlug}/providers/` so each org uses its own API keys / models.
+   * The slug is derived server-side from this id via `resolveOrgSlug`.
    */
-  orgSlug?: string;
+  organizationId: string;
 }
 
 interface ResolvedLanguageModel {
@@ -149,14 +149,14 @@ export async function resolveLanguageModelWithFallback(
         return await resolveLanguageModelById(ctx, {
           modelId: attempt.modelId,
           providerName: attempt.providerName,
-          orgSlug: params.orgSlug,
+          organizationId: params.organizationId,
         });
       }
       if (attempt.tag) {
         return await resolveLanguageModel(ctx, {
           tag: attempt.tag,
           providerName: attempt.providerName,
-          orgSlug: params.orgSlug,
+          organizationId: params.organizationId,
         });
       }
     } catch (err) {

@@ -104,12 +104,10 @@ function IntegrationsPage() {
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
 
-  const { data: organization, isLoading: isOrgLoading } =
-    useOrganization(organizationId);
-  const orgSlug = organization?.slug ?? '';
+  const { isLoading: isOrgLoading } = useOrganization(organizationId);
 
   const { integrations: fileIntegrations, isLoading: isIntegrationsLoading } =
-    useIntegrations(orgSlug);
+    useIntegrations(organizationId);
   const { data: credentials } = useIntegrationCredentials(organizationId);
   const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
 

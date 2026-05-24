@@ -31,7 +31,6 @@ import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Text } from '@/app/components/ui/typography/text';
-import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { modelTagLiterals } from '@/lib/shared/schemas/providers';
@@ -48,6 +47,7 @@ import {
 } from '../hooks/use-provider-config-context';
 import {
   dispatchForbiddenDeveloperSettings,
+  dispatchOrgAccessError,
   dispatchVersionConflict,
   readConvexErrorData,
 } from '../utils/error-dispatch';
@@ -76,15 +76,12 @@ export function ProviderDetailDrawer({
 }: ProviderDetailDrawerProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { data: organization, isLoading: isOrgLoading } =
-    useOrganization(organizationId);
-  const orgSlug = organization?.slug ?? '';
-  const enabled = open && !!orgSlug;
-  const { data, isLoading } = useReadProvider(orgSlug, providerName, {
+  const enabled = open;
+  const { data, isLoading } = useReadProvider(organizationId, providerName, {
     enabled,
   });
   const { data: maskedKey, error: secretError } = useHasProviderSecret(
-    orgSlug,
+    organizationId,
     providerName,
     { enabled },
   );
@@ -133,7 +130,7 @@ export function ProviderDetailDrawer({
           </div>
         )}
 
-        {isOrgLoading || isLoading ? (
+        {isLoading ? (
           <ProviderDetailSkeleton />
         ) : !data?.ok ? (
           <Stack gap={4}>
@@ -143,14 +140,13 @@ export function ProviderDetailDrawer({
           </Stack>
         ) : (
           <ProviderConfigProvider
-            orgSlug={orgSlug}
+            organizationId={organizationId}
             providerName={providerName}
             initialConfig={data.config}
             initialHash={data.hash}
           >
             <ProviderDetailBody
               organizationId={organizationId}
-              orgSlug={orgSlug}
               providerName={providerName}
               maskedKey={maskedKey ?? null}
               maskedModelKeys={data.maskedModelKeys ?? {}}
@@ -270,13 +266,11 @@ function ProviderDetailSkeleton() {
 
 function ProviderDetailBody({
   organizationId,
-  orgSlug,
   providerName,
   maskedKey,
   maskedModelKeys,
 }: {
   organizationId: string;
-  orgSlug: string;
   providerName: string;
   maskedKey: string | null;
   maskedModelKeys: Record<string, string>;
@@ -288,7 +282,7 @@ function ProviderDetailBody({
         organizationId={organizationId}
       />
       <ApiKeySection
-        orgSlug={orgSlug}
+        organizationId={organizationId}
         providerName={providerName}
         maskedKey={maskedKey}
       />
@@ -298,7 +292,7 @@ function ProviderDetailBody({
       />
       <ProviderOptionsSection />
       <ModelsSection
-        orgSlug={orgSlug}
+        organizationId={organizationId}
         providerName={providerName}
         maskedModelKeys={maskedModelKeys}
       />
@@ -487,15 +481,16 @@ function ProviderOptionsSection() {
 }
 
 function ApiKeySection({
-  orgSlug,
+  organizationId,
   providerName,
   maskedKey,
 }: {
-  orgSlug: string;
+  organizationId: string;
   providerName: string;
   maskedKey: string | null;
 }) {
   const { t } = useT('settings');
+  const { t: tAccessDenied } = useT('accessDenied');
   const hasSecret = maskedKey != null;
   const saveSecret = useSaveProviderSecret();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -511,11 +506,11 @@ function ApiKeySection({
 
   const performSave = useCallback(
     async (force: boolean) => {
-      if (!apiKey.trim() || !orgSlug) return;
+      if (!apiKey.trim() || !organizationId) return;
       setSaving(true);
       try {
         await saveSecret.mutateAsync({
-          orgSlug,
+          organizationId,
           providerName,
           apiKey: apiKey.trim(),
           force: force || undefined,
@@ -541,7 +536,10 @@ function ApiKeySection({
           });
         } else {
           setOverwritePrompt(null);
-          if (!dispatchForbiddenDeveloperSettings(err, t)) {
+          if (
+            !dispatchOrgAccessError(err, tAccessDenied) &&
+            !dispatchForbiddenDeveloperSettings(err, t)
+          ) {
             toast({
               title: t('providers.secretSaveFailed'),
               variant: 'destructive',
@@ -552,7 +550,7 @@ function ApiKeySection({
         setSaving(false);
       }
     },
-    [apiKey, orgSlug, providerName, saveSecret, t],
+    [apiKey, organizationId, providerName, saveSecret, t, tAccessDenied],
   );
 
   const handleSaveKey = useCallback(
@@ -649,7 +647,7 @@ function ApiKeySection({
       <TestConnectionSheet
         open={testDialogOpen}
         onOpenChange={setTestDialogOpen}
-        orgSlug={orgSlug}
+        organizationId={organizationId}
         providerName={providerName}
       />
 
@@ -711,16 +709,17 @@ const EMPTY_MODEL_FORM: ModelFormState = {
 };
 
 function ModelsSection({
-  orgSlug,
+  organizationId,
   providerName,
   maskedModelKeys,
 }: {
-  orgSlug: string;
+  organizationId: string;
   providerName: string;
   maskedModelKeys: Record<string, string>;
 }) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
+  const { t: tAccessDenied } = useT('accessDenied');
   const { config, saveConfig, isSaving } = useProviderConfig();
   const saveSecret = useSaveProviderSecret();
   const {
@@ -752,7 +751,10 @@ function ModelsSection({
   const handleFetchFromProvider = useCallback(async () => {
     setFetchError(null);
     try {
-      const result = await fetchProviderModels({ orgSlug, providerName });
+      const result = await fetchProviderModels({
+        organizationId,
+        providerName,
+      });
       setFetchedModelIds(result.map((m) => m.id));
       setHasFetched(true);
     } catch (err) {
@@ -765,7 +767,7 @@ function ModelsSection({
       // spinner stops and the user can retry via the Fetch button.
       setHasFetched(true);
     }
-  }, [fetchProviderModels, orgSlug, providerName, t]);
+  }, [fetchProviderModels, organizationId, providerName, t]);
 
   // Quick-add a fetched model: same shape as openAddDialog → submit, but
   // skipping the dialog. Defaults to a 'chat' tag matching the add-panel
@@ -784,12 +786,13 @@ function ModelsSection({
       try {
         await saveConfig({ models: updatedModels });
       } catch (err) {
+        if (dispatchOrgAccessError(err, tAccessDenied)) return;
         if (dispatchForbiddenDeveloperSettings(err, t)) return;
         if (dispatchVersionConflict(err, t)) return;
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
-    [config.models, saveConfig, t],
+    [config.models, saveConfig, t, tAccessDenied],
   );
 
   const openAddDialog = useCallback(() => {
@@ -915,11 +918,14 @@ function ModelsSection({
         // secret write fails (network blip, encryption error) we want to
         // bail out without having persisted a config row that references
         // a key the encrypted file doesn't have.
-        if ((form.apiKey.trim() || modelKeyAction === 'remove') && orgSlug) {
+        if (
+          (form.apiKey.trim() || modelKeyAction === 'remove') &&
+          organizationId
+        ) {
           setSavingSecret(true);
           try {
             await saveSecret.mutateAsync({
-              orgSlug,
+              organizationId,
               providerName,
               modelKeys: {
                 [form.id]:
@@ -933,6 +939,7 @@ function ModelsSection({
         await saveConfig({ models: updatedModels });
         setDialogOpen(false);
       } catch (err) {
+        if (dispatchOrgAccessError(err, tAccessDenied)) return;
         if (dispatchForbiddenDeveloperSettings(err, t)) return;
         if (dispatchVersionConflict(err, t)) return;
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
@@ -944,10 +951,11 @@ function ModelsSection({
       config.models,
       saveConfig,
       saveSecret,
-      orgSlug,
+      organizationId,
       providerName,
       modelKeyAction,
       t,
+      tAccessDenied,
     ],
   );
 
@@ -969,15 +977,16 @@ function ModelsSection({
         models: config.models.filter((_, i) => i !== deleteIndex),
         defaults: cleanedDefaultsOrUndef,
       });
-      if (deletedModel && orgSlug) {
+      if (deletedModel && organizationId) {
         await saveSecret.mutateAsync({
-          orgSlug,
+          organizationId,
           providerName,
           modelKeys: { [deletedModel.id]: '' },
         });
       }
       setDeleteIndex(null);
     } catch (err) {
+      if (dispatchOrgAccessError(err, tAccessDenied)) return;
       if (dispatchForbiddenDeveloperSettings(err, t)) return;
       if (dispatchVersionConflict(err, t)) return;
       toast({ title: t('providers.saveFailed'), variant: 'destructive' });
@@ -988,9 +997,10 @@ function ModelsSection({
     config.defaults,
     saveConfig,
     saveSecret,
-    orgSlug,
+    organizationId,
     providerName,
     t,
+    tAccessDenied,
   ]);
 
   // Unified row list mirroring the add-panel layout: every configured model

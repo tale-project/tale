@@ -6,7 +6,6 @@ import { internal } from '../../_generated/api';
 import { action } from '../../_generated/server';
 import { authComponent } from '../../auth';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
-import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 
 export const submitLocationResponse = action({
   args: {
@@ -56,11 +55,9 @@ export const submitLocationResponse = action({
     let resolvedAgentConfig: SerializableAgentConfig | undefined;
     if (approvalInfo.agentSlug) {
       try {
-        const orgSlug = await resolveOrgSlug(ctx, approvalInfo.organizationId);
         resolvedAgentConfig = await ctx.runAction(
           internal.agents.file_actions.resolveAgentConfig,
           {
-            orgSlug,
             agentSlug: approvalInfo.agentSlug,
             organizationId: approvalInfo.organizationId,
             modelId: args.modelId,

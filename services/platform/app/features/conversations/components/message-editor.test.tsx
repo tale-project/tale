@@ -112,14 +112,14 @@ describe('MessageEditor', () => {
   });
 
   it('renders the editor', () => {
-    render(<MessageEditor />);
+    render(<MessageEditor organizationId="org_test" />);
     expect(screen.getByTestId('milkdown-provider')).toBeInTheDocument();
   });
 
   it('remounts MilkdownProvider after successful send', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
 
-    render(<MessageEditor onSave={onSave} />);
+    render(<MessageEditor onSave={onSave} organizationId="org_test" />);
 
     const initialCount = renderCount;
 
@@ -136,7 +136,7 @@ describe('MessageEditor', () => {
     const storageKey = 'conversation-test-user-id-new';
     window.localStorage.setItem(storageKey, JSON.stringify('draft content'));
 
-    render(<MessageEditor onSave={onSave} />);
+    render(<MessageEditor onSave={onSave} organizationId="org_test" />);
 
     await act(async () => {
       capturedOnSend?.();
@@ -148,7 +148,7 @@ describe('MessageEditor', () => {
   it('does not remount MilkdownProvider when send fails', async () => {
     const onSave = vi.fn().mockRejectedValue(new Error('Send failed'));
 
-    render(<MessageEditor onSave={onSave} />);
+    render(<MessageEditor onSave={onSave} organizationId="org_test" />);
 
     const initialCount = renderCount;
 
@@ -161,7 +161,7 @@ describe('MessageEditor', () => {
 
   describe('accessibility', () => {
     it('passes axe audit', async () => {
-      const { container } = render(<MessageEditor />);
+      const { container } = render(<MessageEditor organizationId="org_test" />);
       await checkAccessibility(container);
     });
   });

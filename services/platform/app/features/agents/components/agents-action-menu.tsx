@@ -24,7 +24,7 @@ export function AgentsActionMenu({ organizationId }: AgentsActionMenuProps) {
   const [uploadOpen, setUploadOpen] = useState(false);
   const { t } = useT('settings');
   const { mutateAsync: saveAgent } = useSaveAgent();
-  const { agents } = useListAgents('default');
+  const { agents } = useListAgents(organizationId);
   const existingNames = useMemo(
     () => collectStringField(agents, 'name'),
     [agents],
@@ -67,11 +67,10 @@ export function AgentsActionMenu({ organizationId }: AgentsActionMenuProps) {
         getKey={(entry) => entry.baseName}
         onSaveOne={async (entry, { overwrite }) => {
           await saveAgent({
-            orgSlug: 'default',
+            organizationId,
             agentName: entry.baseName,
             isNew: !overwrite,
             config: entry.json,
-            organizationId,
           });
         }}
         onAfterAllSaved={() => {

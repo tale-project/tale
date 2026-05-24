@@ -30,15 +30,17 @@ interface TopAgentsTableProps {
   rows: TopAgentRow[];
   isLoading: boolean;
   onSelectAgent: (agentSlug: string) => void;
+  organizationId: string;
 }
 
 export function TopAgentsTable({
   rows,
   isLoading,
   onSelectAgent,
+  organizationId,
 }: TopAgentsTableProps) {
   const { t } = useT('analytics');
-  const { agents } = useListAgents('default');
+  const { agents } = useListAgents(organizationId);
   const { i18n: i18nCtx } = useTranslation();
   const locale = i18nCtx.language;
 

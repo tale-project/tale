@@ -58,7 +58,7 @@ describe('resolveTtsModel', () => {
             voicesByLocale: { en: 'alloy', de: 'nova', 'de-CH': 'shimmer' },
           }),
         ),
-        { orgSlug: 'default', locale: 'de-CH' },
+        { organizationId: 'org_test', locale: 'de-CH' },
       );
       expect(result.voice).toBe('shimmer');
     });
@@ -70,7 +70,7 @@ describe('resolveTtsModel', () => {
             voicesByLocale: { de: 'nova' },
           }),
         ),
-        { orgSlug: 'default', locale: 'de-CH' },
+        { organizationId: 'org_test', locale: 'de-CH' },
       );
       expect(result.voice).toBe('nova');
     });
@@ -83,7 +83,7 @@ describe('resolveTtsModel', () => {
             defaultVoice: 'fable',
           }),
         ),
-        { orgSlug: 'default', locale: 'ja' },
+        { organizationId: 'org_test', locale: 'ja' },
       );
       expect(result.voice).toBe('fable');
     });
@@ -97,7 +97,7 @@ describe('resolveTtsModel', () => {
               defaultVoice: undefined,
             }),
           ),
-          { orgSlug: 'default', locale: 'ja' },
+          { organizationId: 'org_test', locale: 'ja' },
         ),
       ).rejects.toThrow(/UNKNOWN_VOICE/);
     });
@@ -115,7 +115,7 @@ describe('resolveTtsModel', () => {
             },
           }),
         ),
-        { orgSlug: 'default', locale: 'de-CH' },
+        { organizationId: 'org_test', locale: 'de-CH' },
       );
       expect(result.instructions).toBe(
         'Sprich freundlich auf Schweizerdeutsch.',
@@ -130,7 +130,7 @@ describe('resolveTtsModel', () => {
             instructionsByLocale: { de: 'Sprich freundlich.' },
           }),
         ),
-        { orgSlug: 'default', locale: 'de-CH' },
+        { organizationId: 'org_test', locale: 'de-CH' },
       );
       expect(result.instructions).toBe('Sprich freundlich.');
     });
@@ -144,7 +144,7 @@ describe('resolveTtsModel', () => {
             defaultInstructions: 'Warm fallback voice.',
           }),
         ),
-        { orgSlug: 'default', locale: 'fr' },
+        { organizationId: 'org_test', locale: 'fr' },
       );
       expect(result.instructions).toBe('Warm fallback voice.');
     });
@@ -156,7 +156,7 @@ describe('resolveTtsModel', () => {
             voicesByLocale: { en: 'alloy' },
           }),
         ),
-        { orgSlug: 'default', locale: 'en' },
+        { organizationId: 'org_test', locale: 'en' },
       );
       expect(result.instructions).toBeUndefined();
     });
@@ -169,7 +169,7 @@ describe('resolveTtsModel', () => {
             instructionsByLocale: { de: 'Sprich freundlich.' },
           }),
         ),
-        { orgSlug: 'default', locale: 'en' },
+        { organizationId: 'org_test', locale: 'en' },
       );
       expect(result.instructions).toBeUndefined();
     });
@@ -184,7 +184,7 @@ describe('resolveTtsModel', () => {
             audioFormat: 'opus',
           }),
         ),
-        { orgSlug: 'default', locale: 'en' },
+        { organizationId: 'org_test', locale: 'en' },
       );
       expect(result.audioFormat).toBe('opus');
     });
@@ -197,7 +197,7 @@ describe('resolveTtsModel', () => {
             audioFormat: undefined,
           }),
         ),
-        { orgSlug: 'default', locale: 'en' },
+        { organizationId: 'org_test', locale: 'en' },
       );
       expect(result.audioFormat).toBe('mp3');
     });
@@ -216,29 +216,29 @@ describe('resolveTtsModel', () => {
       const { ctx, runAction } = makeCtxWithSpy(
         baseModelData({ voicesByLocale: { en: 'alloy' } }),
       );
-      await resolveTtsModel(ctx, { orgSlug: 'default', locale: 'en' });
+      await resolveTtsModel(ctx, { organizationId: 'org_test', locale: 'en' });
       expect(runAction).toHaveBeenCalledTimes(1);
       expect(runAction).toHaveBeenCalledWith(
         internal.providers.file_actions.resolveModelByTag,
         {
           tag: 'text-to-speech',
           providerName: undefined,
-          orgSlug: 'default',
+          organizationId: 'org_test',
         },
       );
     });
 
-    it('propagates orgSlug to the internal action', async () => {
+    it('propagates organizationId to the internal action', async () => {
       const { ctx, runAction } = makeCtxWithSpy(
         baseModelData({ voicesByLocale: { en: 'alloy' } }),
       );
       await resolveTtsModel(ctx, {
-        orgSlug: 'acme-prod',
+        organizationId: 'org_acme',
         locale: 'en',
       });
       expect(runAction).toHaveBeenCalledWith(
         internal.providers.file_actions.resolveModelByTag,
-        expect.objectContaining({ orgSlug: 'acme-prod' }),
+        expect.objectContaining({ organizationId: 'org_acme' }),
       );
     });
 
@@ -250,7 +250,7 @@ describe('resolveTtsModel', () => {
         }),
       );
       const result = await resolveTtsModel(ctx, {
-        orgSlug: 'default',
+        organizationId: 'org_test',
         locale: 'en',
         providerName: 'elevenlabs',
       });
@@ -270,7 +270,7 @@ describe('resolveTtsModel', () => {
       });
       const { ctx } = makeRejectingCtx(err);
       await expect(
-        resolveTtsModel(ctx, { orgSlug: 'default', locale: 'en' }),
+        resolveTtsModel(ctx, { organizationId: 'org_test', locale: 'en' }),
       ).rejects.toBe(err);
     });
 
@@ -282,7 +282,7 @@ describe('resolveTtsModel', () => {
       const { ctx } = makeRejectingCtx(err);
       await expect(
         resolveTtsModel(ctx, {
-          orgSlug: 'default',
+          organizationId: 'org_test',
           locale: 'en',
           providerName: 'elevenlabs',
         }),
@@ -293,7 +293,7 @@ describe('resolveTtsModel', () => {
       const err = new Error('runAction transport failed');
       const { ctx } = makeRejectingCtx(err);
       await expect(
-        resolveTtsModel(ctx, { orgSlug: 'default', locale: 'en' }),
+        resolveTtsModel(ctx, { organizationId: 'org_test', locale: 'en' }),
       ).rejects.toBe(err);
     });
   });

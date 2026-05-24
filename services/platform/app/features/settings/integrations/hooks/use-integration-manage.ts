@@ -133,6 +133,7 @@ export function useIntegrationManage(
   integration: Integration,
   onOpenChange: (open: boolean) => void,
   open: boolean,
+  organizationId: string,
 ) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -634,9 +635,8 @@ export function useIntegrationManage(
       const slug = integration.name ?? '';
       if (credentialId === slug && slug && integration.organizationId) {
         const installResult = await installFn({
-          orgSlug: 'default',
           slug,
-          organizationId: integration.organizationId,
+          organizationId,
         });
         credentialId = installResult.credentialId;
       }
@@ -693,6 +693,7 @@ export function useIntegrationManage(
     hasChanges,
     hasSqlConfigChanges,
     integration,
+    organizationId,
     buildCredentialPayload,
     buildSqlConnectionPayload,
     buildUpdateArgs,
@@ -751,9 +752,8 @@ export function useIntegrationManage(
       const slug = integration.name ?? '';
       if (credentialId === slug && slug && integration.organizationId) {
         const installResult = await installFn({
-          orgSlug: 'default',
           slug,
-          organizationId: integration.organizationId,
+          organizationId,
         });
         credentialId = installResult.credentialId;
       }
@@ -794,6 +794,7 @@ export function useIntegrationManage(
     integration._id,
     integration.name,
     integration.organizationId,
+    organizationId,
     saveOAuth2Credentials,
     installFn,
     t,
@@ -807,9 +808,8 @@ export function useIntegrationManage(
       const slug = integration.name ?? '';
       if (credentialId === slug && slug && integration.organizationId) {
         const installResult = await installFn({
-          orgSlug: 'default',
           slug,
-          organizationId: integration.organizationId,
+          organizationId,
         });
         credentialId = installResult.credentialId;
       }
@@ -831,6 +831,7 @@ export function useIntegrationManage(
     integration._id,
     integration.name,
     integration.organizationId,
+    organizationId,
     generateOAuth2Url,
     installFn,
     t,
@@ -846,9 +847,8 @@ export function useIntegrationManage(
   const handleUninstall = useCallback(async () => {
     try {
       await uninstallFn({
-        orgSlug: 'default',
         slug: integration.name ?? '',
-        organizationId: integration.organizationId ?? '',
+        organizationId,
       });
       void queryClient.invalidateQueries({
         queryKey: ['config', 'integrations'],
@@ -869,7 +869,7 @@ export function useIntegrationManage(
     } finally {
       setConfirmDelete(false);
     }
-  }, [uninstallFn, integration, onOpenChange, t, queryClient]);
+  }, [uninstallFn, integration, organizationId, onOpenChange, t, queryClient]);
 
   const operationCount =
     (integration.connector?.operations?.length ??

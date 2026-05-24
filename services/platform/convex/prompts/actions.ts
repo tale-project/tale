@@ -79,7 +79,7 @@ export const savePrompt = action({
     } else {
       const aiTitle = await ctx.runAction(
         internal.prompts.generate_title.generatePromptTitle,
-        { content: args.content },
+        { content: args.content, organizationId: args.organizationId },
       );
       title = aiTitle?.trim() || generateFallbackTitle();
     }

@@ -13,10 +13,20 @@ import { internalQuery } from '../_generated/server';
 import { citationItemValidator } from '../streaming/validators';
 
 /**
- * Resolve the user's organization.
+ * Resolve the user's organization for OpenAI-compatible endpoints.
  *
- * - If orgSlug is provided, look up the organization by slug and return its ID.
- * - If not, find the user's memberships and auto-select when exactly one exists.
+ * Resolution order:
+ * 1. If `orgSlug` header is provided, look up the org by slug AND verify the
+ *    caller is a non-disabled member. Without the membership check, an
+ *    authenticated API key holder for org A could enumerate any org by
+ *    passing `X-Organization-Slug: <orgB-slug>` (cross-tenant leak).
+ * 2. Otherwise, look up the user's memberships.
+ *    - Exactly one → return that org.
+ *    - Zero → throw "no memberships".
+ *    - Multiple → prefer the user's `lastActiveOrganizationId` if it points
+ *      to a current non-disabled membership; only throw if it doesn't.
+ *      Pre-fallback this returned a hard 400 even when the user had picked
+ *      an active org in the dashboard.
  */
 export const resolveUserOrganization = internalQuery({
   args: {
@@ -36,11 +46,33 @@ export const resolveUserOrganization = internalQuery({
 
       const orgRecord = isRecord(org) ? org : undefined;
       const orgId = orgRecord ? getString(orgRecord, '_id') : undefined;
-      if (!orgId) {
+      const canonicalSlug = orgRecord
+        ? getString(orgRecord, 'slug')
+        : undefined;
+      if (!orgId || !canonicalSlug) {
         throw new Error(`Organization not found: ${args.orgSlug}`);
       }
 
-      return { organizationId: orgId, orgSlug: args.orgSlug };
+      // Membership check — without this, any authenticated API key holder
+      // could enumerate any org's model catalog by guessing its slug.
+      const memberRes = await ctx.runQuery(
+        components.betterAuth.adapter.findMany,
+        {
+          model: 'member',
+          paginationOpts: { cursor: null, numItems: 1 },
+          where: [
+            { field: 'organizationId', value: orgId, operator: 'eq' },
+            { field: 'userId', value: args.userId, operator: 'eq' },
+          ],
+        },
+      );
+      const member = memberRes?.page?.[0];
+      if (!member || getString(member, 'role') === 'disabled') {
+        // Phrase aligns with handleChatError → 403 ('Not a member ...').
+        throw new Error(`Not a member of organization ${canonicalSlug}`);
+      }
+
+      return { organizationId: orgId, orgSlug: canonicalSlug };
     }
 
     // No slug provided — auto-resolve from user memberships
@@ -61,21 +93,49 @@ export const resolveUserOrganization = internalQuery({
       throw new Error('User has no organization memberships');
     }
 
-    if (members.length > 1) {
-      throw new Error(
-        'User belongs to multiple organizations. Provide X-Organization-Slug header.',
+    let pickedOrgId: string | undefined;
+    if (members.length === 1) {
+      pickedOrgId = getString(members[0], 'organizationId');
+    } else {
+      // Multi-org user: try the dashboard's lastActiveOrganizationId before
+      // forcing the caller to set X-Organization-Slug. Resolves the M3 UX
+      // regression where dev tools / scripts hit a hard 400 even though
+      // the user had clearly picked an active org in the UI.
+      const userRow = await ctx.runQuery(
+        components.betterAuth.adapter.findOne,
+        {
+          model: 'user',
+          where: [{ field: '_id', value: args.userId, operator: 'eq' }],
+        },
       );
+      const lastActive =
+        userRow && isRecord(userRow)
+          ? getString(userRow, 'lastActiveOrganizationId')
+          : undefined;
+      if (lastActive) {
+        const memberOfLastActive = members.find(
+          (m: Record<string, unknown>) =>
+            getString(m, 'organizationId') === lastActive,
+        );
+        if (memberOfLastActive) {
+          pickedOrgId = lastActive;
+        }
+      }
+      if (!pickedOrgId) {
+        throw new Error(
+          'User belongs to multiple organizations. Provide X-Organization-Slug header.',
+        );
+      }
     }
 
-    const orgId = getString(members[0], 'organizationId');
-    if (!orgId) {
+    if (!pickedOrgId) {
       throw new Error('Organization ID missing from membership record');
     }
 
     // Look up the slug for downstream use
     const org = await ctx.runQuery(components.betterAuth.adapter.findOne, {
       model: 'organization',
-      where: [{ field: '_id', value: orgId, operator: 'eq' }],
+      where: [{ field: '_id', value: pickedOrgId, operator: 'eq' }],
     });
 
     const orgRecord = isRecord(org) ? org : undefined;
@@ -84,7 +144,7 @@ export const resolveUserOrganization = internalQuery({
       throw new Error('Organization slug not found');
     }
 
-    return { organizationId: orgId, orgSlug: slug };
+    return { organizationId: pickedOrgId, orgSlug: slug };
   },
 });
 

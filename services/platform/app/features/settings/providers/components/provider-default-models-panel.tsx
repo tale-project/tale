@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Select } from '@/app/components/ui/forms/select';
 import { Text } from '@/app/components/ui/typography/text';
-import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -39,11 +38,7 @@ export function ProviderDefaultModelsPanel({
   providerName,
 }: ProviderDefaultModelsPanelProps) {
   const { t } = useT('settings');
-  const { data: organization } = useOrganization(organizationId);
-  const orgSlug = organization?.slug ?? '';
-  const { data } = useReadProvider(orgSlug, providerName, {
-    enabled: !!orgSlug,
-  });
+  const { data } = useReadProvider(organizationId, providerName);
   const { mutateAsync: saveProvider, isPending } = useSaveProvider();
 
   const [defaults, setDefaults] = useState<Record<string, string>>({});
@@ -63,7 +58,7 @@ export function ProviderDefaultModelsPanel({
       );
       try {
         await saveProvider({
-          orgSlug,
+          organizationId,
           providerName,
           config: {
             ...data.config,
@@ -80,7 +75,15 @@ export function ProviderDefaultModelsPanel({
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
-    [data, defaults, orgSlug, providerName, saveProvider, t, onOpenChange],
+    [
+      data,
+      defaults,
+      organizationId,
+      providerName,
+      saveProvider,
+      t,
+      onOpenChange,
+    ],
   );
 
   const isDirty =

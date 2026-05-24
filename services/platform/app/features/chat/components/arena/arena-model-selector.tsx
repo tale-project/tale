@@ -48,7 +48,7 @@ export function ArenaModelSelector({
   const { t } = useT('chat');
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents } = useChatAgents(organizationId);
-  const { providers } = useListProviders('default');
+  const { providers } = useListProviders(organizationId);
   const { locale } = useLocale();
   const { modelA, modelB, setModelA, setModelB } = useArenaMode();
   const [openA, setOpenA] = useState(false);

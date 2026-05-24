@@ -57,6 +57,7 @@ vi.mock('../hooks/use-provider-config-context', () => ({
 
 vi.mock('../utils/error-dispatch', () => ({
   dispatchForbiddenDeveloperSettings: () => false,
+  dispatchOrgAccessError: () => false,
   dispatchVersionConflict: () => false,
 }));
 

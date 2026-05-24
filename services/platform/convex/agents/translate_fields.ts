@@ -91,7 +91,11 @@ function flattenInput(fields: TranslateInput): {
  */
 export async function translateFields(
   ctx: ActionCtx,
-  args: { fields: TranslateInput; targetLocale: string },
+  args: {
+    fields: TranslateInput;
+    targetLocale: string;
+    organizationId: string;
+  },
 ): Promise<{ translated: TranslateOutput; error?: string }> {
   const { flat, reconstruct } = flattenInput(args.fields);
 
@@ -108,6 +112,7 @@ export async function translateFields(
     ctx,
     {
       tag: 'chat',
+      organizationId: args.organizationId,
     },
   );
 

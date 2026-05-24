@@ -18,6 +18,7 @@ interface TopAgentsFeedbackTableProps {
   rows: FeedbackAgentBucket[];
   isLoading: boolean;
   onSelectAgent: (agentSlug: string) => void;
+  organizationId: string;
 }
 
 function formatPercent(
@@ -40,9 +41,10 @@ export function TopAgentsFeedbackTable({
   rows,
   isLoading,
   onSelectAgent,
+  organizationId,
 }: TopAgentsFeedbackTableProps) {
   const { t } = useT('analytics');
-  const { agents } = useListAgents('default');
+  const { agents } = useListAgents(organizationId);
   const { i18n: i18nCtx } = useTranslation();
   const locale = i18nCtx.language;
 

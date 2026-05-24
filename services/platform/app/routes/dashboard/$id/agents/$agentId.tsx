@@ -33,7 +33,10 @@ function AgentDetailLayout() {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
 
-  const { data, isLoading, error, refetch } = useReadAgent('default', agentId);
+  const { data, isLoading, error, refetch } = useReadAgent(
+    organizationId,
+    agentId,
+  );
   const agentConfig = data?.ok ? data.config : null;
   const loadError = data && !data.ok ? data.message : (error?.message ?? null);
   const { i18n: i18nCtx } = useTranslation();

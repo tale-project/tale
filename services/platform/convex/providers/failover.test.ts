@@ -62,6 +62,7 @@ describe('resolveLanguageModelWithFallback', () => {
       tag: 'chat',
       fallbackModelId: 'haiku',
       fallbackProviderName: 'anthropic',
+      organizationId: 'org_test',
     });
     expect(out.languageModel.modelId).toBe('primary');
     expect(mockedById).toHaveBeenCalledTimes(1);
@@ -81,6 +82,7 @@ describe('resolveLanguageModelWithFallback', () => {
       providerName: 'openai',
       fallbackModelId: 'haiku',
       fallbackProviderName: 'anthropic',
+      organizationId: 'org_test',
     });
     expect(out.languageModel.modelId).toBe('fallback');
     expect(mockedById).toHaveBeenCalledTimes(2);
@@ -102,6 +104,7 @@ describe('resolveLanguageModelWithFallback', () => {
       tag: 'chat',
       fallbackModelId: 'haiku',
       fallbackProviderName: 'anthropic',
+      organizationId: 'org_test',
     });
     expect(out.languageModel.modelId).toBe('attempt3');
     expect(mockedByTag).toHaveBeenCalledWith(
@@ -128,6 +131,7 @@ describe('resolveLanguageModelWithFallback', () => {
       tag: 'chat',
       fallbackModelId: 'haiku',
       fallbackProviderName: 'anthropic',
+      organizationId: 'org_test',
     });
     expect(out.languageModel.modelId).toBe('attempt4');
     // last call: any provider, same tag
@@ -151,6 +155,7 @@ describe('resolveLanguageModelWithFallback', () => {
         tag: 'chat',
         fallbackModelId: 'haiku',
         fallbackProviderName: 'anthropic',
+        organizationId: 'org_test',
       }),
     ).rejects.toThrow('final boss');
   });
@@ -171,6 +176,7 @@ describe('resolveLanguageModelWithFallback', () => {
       modelId: 'gpt-4',
       providerName: 'openai',
       fallbackModelId: 'haiku',
+      organizationId: 'org_test',
     });
     expect(out.languageModel.modelId).toBe('fallback');
     // First call should be the fallback model, not the primary.
@@ -193,6 +199,7 @@ describe('resolveLanguageModelWithFallback', () => {
       tag: 'chat',
       fallbackModelId: 'gpt-3.5',
       fallbackProviderName: 'openai',
+      organizationId: 'org_test',
     });
     expect(out.languageModel.modelId).toBe('attempt4');
     // Only one tag search (Attempt 4 broad), no Attempt 3 same-provider tag search.
@@ -212,6 +219,7 @@ describe('resolveLanguageModelWithFallback', () => {
         tag: 'chat',
         fallbackModelId: 'haiku',
         fallbackProviderName: 'anthropic',
+        organizationId: 'org_test',
       }),
     ).rejects.toThrow();
 
@@ -239,6 +247,7 @@ describe('resolveLanguageModelWithFallback', () => {
       tag: 'chat',
       fallbackModelId: 'haiku',
       fallbackProviderName: 'openai', // same provider → no Attempt 3
+      organizationId: 'org_test',
     });
     expect(out.languageModel.modelId).toBe('attempt4');
     // Only one ById call (primary). Fallback filtered out by isOpen.
@@ -258,6 +267,7 @@ describe('resolveLanguageModelWithFallback', () => {
       modelId: 'gpt-4',
       providerName: 'openai',
       tag: 'chat',
+      organizationId: 'org_test',
     });
 
     expect(mockedRecordFailure).toHaveBeenCalledWith('openai', 'gpt-4');
@@ -271,6 +281,7 @@ describe('resolveLanguageModelWithFallback', () => {
       resolveLanguageModelWithFallback(fakeCtx, {
         modelId: 'gpt-4',
         providerName: 'openai',
+        organizationId: 'org_test',
       }),
     ).rejects.toMatchObject({
       data: expect.objectContaining({ code: 'NO_FAILOVER_ATTEMPTS' }),

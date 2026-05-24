@@ -8,57 +8,66 @@ import { api } from '@/convex/_generated/api';
 // ---------------------------------------------------------------------------
 
 interface QueryOptions {
-  /** When false the query is paused — used to skip the "orgSlug not yet
-   * resolved" first render so the action doesn't fire with an empty slug. */
+  /** When false the query is paused. */
   enabled?: boolean;
 }
 
-export function useListProviders(orgSlug: string, options?: QueryOptions) {
+export function useListProviders(
+  organizationId: string,
+  options?: QueryOptions,
+) {
   const { data, isLoading, error, refetch } = useActionQuery(
-    configKeys.list('providers', orgSlug),
+    configKeys.list('providers', organizationId),
     api.providers.file_actions.listProviders,
-    { orgSlug },
+    { organizationId },
     options,
   );
   return { providers: data ?? [], isLoading, error, refetch };
 }
 
 export function useReadProvider(
-  orgSlug: string,
+  organizationId: string,
   providerName: string,
   options?: QueryOptions,
 ) {
   return useActionQuery(
-    configKeys.detail('providers', orgSlug, providerName),
+    configKeys.detail('providers', organizationId, providerName),
     api.providers.file_actions.readProvider,
-    { orgSlug, providerName },
+    { organizationId, providerName },
     options,
   );
 }
 
 export function useHasProviderSecret(
-  orgSlug: string,
+  organizationId: string,
   providerName: string,
   options?: QueryOptions,
 ) {
   return useActionQuery(
-    ['config', 'providers', orgSlug, providerName, 'secret'],
+    ['config', 'providers', organizationId, providerName, 'secret'],
     api.providers.file_actions.hasProviderSecret,
-    { orgSlug, providerName },
+    { organizationId, providerName },
     options,
   );
 }
 
 export function useHasModelSecret(
-  orgSlug: string,
+  organizationId: string,
   providerName: string,
   modelId: string,
   options?: QueryOptions,
 ) {
   return useActionQuery(
-    ['config', 'providers', orgSlug, providerName, 'model-secret', modelId],
+    [
+      'config',
+      'providers',
+      organizationId,
+      providerName,
+      'model-secret',
+      modelId,
+    ],
     api.providers.file_actions.hasProviderSecret,
-    { orgSlug, providerName, modelId },
+    { organizationId, providerName, modelId },
     options,
   );
 }

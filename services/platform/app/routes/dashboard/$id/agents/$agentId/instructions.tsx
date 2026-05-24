@@ -52,7 +52,7 @@ function InstructionsTab() {
   const { t } = useT('settings');
   const { id: organizationId } = Route.useParams();
   const { config, updateConfig } = useAgentConfig();
-  const { providers } = useListProviders('default');
+  const { providers } = useListProviders(organizationId);
   const { data: organization } = useOrganization(organizationId);
   const translateMutation = useTranslateAgentFields();
   const { toast } = useToast();
@@ -114,6 +114,7 @@ function InstructionsTab() {
       const result = await translateMutation.mutateAsync({
         fields: { systemInstructions: sourceForTranslation },
         targetLocale: target,
+        organizationId,
       });
       if (
         result.error ||
@@ -150,6 +151,7 @@ function InstructionsTab() {
     defaultLocale,
     sourceForTranslation,
     translateMutation,
+    organizationId,
     toast,
     t,
     config.i18n,

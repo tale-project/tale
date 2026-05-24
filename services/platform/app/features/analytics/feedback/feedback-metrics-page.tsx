@@ -278,6 +278,7 @@ export function FeedbackMetricsPage({
         rows={stats.topAgents}
         isLoading={false}
         onSelectAgent={(slug) => onSelectAgent(slug)}
+        organizationId={organizationId}
       />
 
       <TopModelsFeedbackTable

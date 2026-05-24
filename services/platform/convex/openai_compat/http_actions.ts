@@ -123,6 +123,19 @@ async function authenticateRequest(
   }
 }
 
+// Maps `resolveUserOrganization` errors to OpenAI-shaped responses.
+// "Not a member" → 403 permission_error (cross-tenant probe); anything else
+// → 400 invalid_request_error. Shared between chat and models handlers so
+// the two endpoints can't drift.
+function mapResolveOrgError(error: unknown): Response {
+  const msg =
+    error instanceof Error ? error.message : 'Failed to resolve organization';
+  if (msg.includes('Not a member')) {
+    return openAIErrorResponse(msg, 'permission_error', 403);
+  }
+  return openAIErrorResponse(msg, 'invalid_request_error', 400);
+}
+
 // ---------------------------------------------------------------------------
 // Build generation params from request body
 // ---------------------------------------------------------------------------
@@ -271,9 +284,7 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
       { userId: user.userId, orgSlug: orgSlugHeader ?? undefined },
     );
   } catch (error) {
-    const msg =
-      error instanceof Error ? error.message : 'Failed to resolve organization';
-    return openAIErrorResponse(msg, 'invalid_request_error', 400);
+    return mapResolveOrgError(error);
   }
 
   // Parse body
@@ -690,8 +701,25 @@ function handleChatError(error: unknown, model: string): Response {
 // ---------------------------------------------------------------------------
 
 export const modelsListHandler = httpAction(async (ctx, request) => {
+  // Rate limit — applied before auth so token-validity probing can't bypass.
+  const ip = extractClientIp(request.headers);
   try {
-    await authenticateRequest(ctx, request);
+    await checkIpRateLimit(ctx, 'openai:models', ip);
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      return openAIErrorResponse(
+        'Rate limit exceeded',
+        'rate_limit_exceeded',
+        429,
+        'rate_limit_exceeded',
+      );
+    }
+    throw error;
+  }
+
+  let user: { userId: string; email: string; name: string };
+  try {
+    user = await authenticateRequest(ctx, request);
   } catch (error) {
     if (error instanceof AuthError) {
       return openAIErrorResponse(
@@ -704,6 +732,20 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
     throw error;
   }
 
+  const orgSlugHeader =
+    request.headers.get('x-organization-slug') ??
+    request.headers.get('X-Organization-Slug');
+
+  let orgInfo: { organizationId: string; orgSlug: string };
+  try {
+    orgInfo = await ctx.runQuery(
+      internal.openai_compat.internal_queries.resolveUserOrganization,
+      { userId: user.userId, orgSlug: orgSlugHeader ?? undefined },
+    );
+  } catch (error) {
+    return mapResolveOrgError(error);
+  }
+
   let models: Array<{
     id: string;
     tags: string[];
@@ -713,7 +755,7 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
   try {
     models = await ctx.runAction(
       internal.providers.file_actions.getAllModelIds,
-      {},
+      { organizationId: orgInfo.organizationId },
     );
   } catch (error) {
     const msg =
