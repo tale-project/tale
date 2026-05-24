@@ -3965,42 +3965,42 @@
   "settings": {
     "menu": {
       "groups": {
-        "you": "You",
-        "workspace": "Workspace",
+        "you": "Du",
+        "workspace": "Arbeitsbereich",
         "governance": "Governance"
       },
       "account": {
-        "description": "Your profile, sign-in, and security."
+        "description": "Profil, Anmeldung und Sicherheit."
       },
       "personalization": {
-        "description": "How Tale adapts to you — memory, instructions, and voice."
+        "description": "Wie Tale sich an dich anpasst — Gedächtnis, Instruktionen und Stimme."
       },
       "organization": {
-        "description": "Workspace name, language, and identifiers."
+        "description": "Name des Arbeitsbereichs, Sprache und Identifikatoren."
       },
       "people": {
-        "description": "Members, roles, and teams."
+        "description": "Mitglieder, Rollen und Teams."
       },
       "branding": {
-        "description": "Logo, colors, and the name shown to your users."
+        "description": "Logo, Farben und der Name, den deine Nutzer sehen."
       },
       "integrations": {
-        "description": "Connect external apps and MCP servers."
+        "description": "Verbinde externe Apps und MCP-Server."
       },
       "providers": {
-        "description": "Bring your own API keys for OpenAI, Anthropic, and others."
+        "description": "Eigene API-Schlüssel für OpenAI, Anthropic und andere mitbringen."
       },
       "apiKeys": {
-        "description": "Programmatic access tokens for the Tale API."
+        "description": "Programmatische Zugriffstoken für die Tale-API."
       },
       "governance": {
-        "description": "Policies, security, audit logs, and data retention."
+        "description": "Richtlinien, Sicherheit, Audit-Logs und Datenaufbewahrung."
       }
     },
     "account": {
       "profile": {
-        "title": "Profile",
-        "description": "Your display name and email — visible to your teammates.",
+        "title": "Profil",
+        "description": "Dein Anzeigename und deine E-Mail — sichtbar für deine Teamkollegen.",
         "name": "Anzeigename",
         "namePlaceholder": "Gib deinen Namen ein",
         "email": "E-Mail",
@@ -4008,7 +4008,7 @@
       },
       "security": {
         "title": "Sicherheit",
-        "description": "Password and two-factor authentication."
+        "description": "Passwort und Zwei-Faktor-Authentifizierung."
       }
     },
     "organization": {

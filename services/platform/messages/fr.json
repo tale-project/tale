@@ -3965,42 +3965,42 @@
   "settings": {
     "menu": {
       "groups": {
-        "you": "You",
-        "workspace": "Workspace",
-        "governance": "Governance"
+        "you": "Toi",
+        "workspace": "Espace de travail",
+        "governance": "Gouvernance"
       },
       "account": {
-        "description": "Your profile, sign-in, and security."
+        "description": "Ton profil, ta connexion et ta sécurité."
       },
       "personalization": {
-        "description": "How Tale adapts to you — memory, instructions, and voice."
+        "description": "Comment Tale s'adapte à toi — mémoire, instructions et voix."
       },
       "organization": {
-        "description": "Workspace name, language, and identifiers."
+        "description": "Nom de l'espace de travail, langue et identifiants."
       },
       "people": {
-        "description": "Members, roles, and teams."
+        "description": "Membres, rôles et équipes."
       },
       "branding": {
-        "description": "Logo, colors, and the name shown to your users."
+        "description": "Logo, couleurs et nom affiché à tes utilisateurs."
       },
       "integrations": {
-        "description": "Connect external apps and MCP servers."
+        "description": "Connecte des applications externes et des serveurs MCP."
       },
       "providers": {
-        "description": "Bring your own API keys for OpenAI, Anthropic, and others."
+        "description": "Utilise tes propres clés API pour OpenAI, Anthropic et d'autres."
       },
       "apiKeys": {
-        "description": "Programmatic access tokens for the Tale API."
+        "description": "Jetons d'accès programmatique à l'API Tale."
       },
       "governance": {
-        "description": "Policies, security, audit logs, and data retention."
+        "description": "Politiques, sécurité, journaux d'audit et conservation des données."
       }
     },
     "account": {
       "profile": {
-        "title": "Profile",
-        "description": "Your display name and email — visible to your teammates.",
+        "title": "Profil",
+        "description": "Ton nom d'affichage et ton courriel — visibles par tes coéquipiers.",
         "name": "Nom d'affichage",
         "namePlaceholder": "Entre ton nom",
         "email": "Courriel",
@@ -4008,7 +4008,7 @@
       },
       "security": {
         "title": "Sécurité",
-        "description": "Password and two-factor authentication."
+        "description": "Mot de passe et authentification à deux facteurs."
       }
     },
     "organization": {

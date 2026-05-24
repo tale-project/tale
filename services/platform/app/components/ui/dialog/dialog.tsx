@@ -9,6 +9,13 @@ import * as React from 'react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+// Tracks dialog nesting so a child Dialog opened from inside another
+// Dialog doesn't stack a second 80%-black overlay on top of the parent's.
+// Two `bg-black/80` overlays composite to ~96% black — the screen reads
+// as fully dark. Outer dialog renders the backdrop; nested dialogs skip
+// it and rely on the outer's overlay for the dim effect.
+const DialogDepthContext = React.createContext(0);
+
 // =============================================================================
 // Variants
 // =============================================================================
@@ -146,97 +153,103 @@ export function Dialog({
   trigger,
   preventCloseAutoFocus = false,
 }: DialogProps) {
+  const parentDepth = React.useContext(DialogDepthContext);
+  const isNested = parentDepth > 0;
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       {trigger && (
         <DialogPrimitive.Trigger asChild>{trigger}</DialogPrimitive.Trigger>
       )}
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay
-          className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80"
-          onClick={(e) => e.stopPropagation()}
-        />
-        <DialogPrimitive.Content
-          className={cn(dialogContentVariants({ size }), className)}
-          onClick={(e) => e.stopPropagation()}
-          {...(customHeader || !description
-            ? { 'aria-describedby': undefined }
-            : {})}
-          onCloseAutoFocus={
-            preventCloseAutoFocus ? (e) => e.preventDefault() : undefined
-          }
-        >
-          {!hideClose && !customHeader && (
-            <div className="absolute top-4 right-4">
-              <DialogCloseButton />
-            </div>
+        <DialogDepthContext.Provider value={parentDepth + 1}>
+          {!isNested && (
+            <DialogPrimitive.Overlay
+              className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80"
+              onClick={(e) => e.stopPropagation()}
+            />
           )}
-          {customHeader ? (
-            <>
-              <VisuallyHidden>
-                <DialogPrimitive.Title>{title}</DialogPrimitive.Title>
-                {description && (
-                  <DialogPrimitive.Description>
-                    {description}
-                  </DialogPrimitive.Description>
-                )}
-              </VisuallyHidden>
-              {customHeader}
-            </>
-          ) : (
-            <div
-              className={cn(
-                'flex flex-col space-y-2 text-left',
-                !hideClose && 'pr-8',
-                headerActions && 'flex-row items-start justify-between gap-4',
-                headerClassName,
-              )}
-            >
-              <div
-                className={cn(
-                  'flex items-center gap-3',
-                  headerActions &&
-                    'flex-col items-start space-y-2 gap-0 flex-1 min-w-0',
-                )}
-              >
-                {icon && <div className="shrink-0">{icon}</div>}
-                <div
-                  className={cn(
-                    'flex flex-col space-y-2',
-                    headerActions && 'min-w-0',
-                  )}
-                >
-                  <DialogPrimitive.Title className="text-base leading-none font-semibold tracking-tight">
-                    {title}
-                  </DialogPrimitive.Title>
+          <DialogPrimitive.Content
+            className={cn(dialogContentVariants({ size }), className)}
+            onClick={(e) => e.stopPropagation()}
+            {...(customHeader || !description
+              ? { 'aria-describedby': undefined }
+              : {})}
+            onCloseAutoFocus={
+              preventCloseAutoFocus ? (e) => e.preventDefault() : undefined
+            }
+          >
+            {!hideClose && !customHeader && (
+              <div className="absolute top-4 right-4">
+                <DialogCloseButton />
+              </div>
+            )}
+            {customHeader ? (
+              <>
+                <VisuallyHidden>
+                  <DialogPrimitive.Title>{title}</DialogPrimitive.Title>
                   {description && (
-                    <DialogPrimitive.Description className="text-muted-foreground text-sm">
+                    <DialogPrimitive.Description>
                       {description}
                     </DialogPrimitive.Description>
                   )}
+                </VisuallyHidden>
+                {customHeader}
+              </>
+            ) : (
+              <div
+                className={cn(
+                  'flex flex-col space-y-2 text-left',
+                  !hideClose && 'pr-8',
+                  headerActions && 'flex-row items-start justify-between gap-4',
+                  headerClassName,
+                )}
+              >
+                <div
+                  className={cn(
+                    'flex items-center gap-3',
+                    headerActions &&
+                      'flex-col items-start space-y-2 gap-0 flex-1 min-w-0',
+                  )}
+                >
+                  {icon && <div className="shrink-0">{icon}</div>}
+                  <div
+                    className={cn(
+                      'flex flex-col space-y-2',
+                      headerActions && 'min-w-0',
+                    )}
+                  >
+                    <DialogPrimitive.Title className="text-base leading-none font-semibold tracking-tight">
+                      {title}
+                    </DialogPrimitive.Title>
+                    {description && (
+                      <DialogPrimitive.Description className="text-muted-foreground text-sm">
+                        {description}
+                      </DialogPrimitive.Description>
+                    )}
+                  </div>
                 </div>
+                {headerActions && (
+                  <div className="-mt-1 flex items-center gap-1">
+                    {headerActions}
+                  </div>
+                )}
               </div>
-              {headerActions && (
-                <div className="-mt-1 flex items-center gap-1">
-                  {headerActions}
-                </div>
-              )}
+            )}
+            <div className="-mx-2 -my-1 min-h-0 flex-1 overflow-y-auto px-2 py-1">
+              {children}
             </div>
-          )}
-          <div className="-mx-2 -my-1 min-h-0 flex-1 overflow-y-auto px-2 py-1">
-            {children}
-          </div>
-          {footer && (
-            <div
-              className={cn(
-                'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2 shrink-0',
-                footerClassName,
-              )}
-            >
-              {footer}
-            </div>
-          )}
-        </DialogPrimitive.Content>
+            {footer && (
+              <div
+                className={cn(
+                  'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2 shrink-0',
+                  footerClassName,
+                )}
+              >
+                {footer}
+              </div>
+            )}
+          </DialogPrimitive.Content>
+        </DialogDepthContext.Provider>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );

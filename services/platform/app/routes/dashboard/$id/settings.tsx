@@ -31,6 +31,15 @@ function SettingsLayout() {
 
   const settingsRoot = `/dashboard/${organizationId}/settings`;
   const isAtIndex = location.pathname === settingsRoot;
+  // Show the mobile back-to-settings link only when we're at a direct child of
+  // `/settings` (e.g. `/settings/account`). Deeper routes — `governance/<sub>`,
+  // `integrations/<sub>` — own their own intra-section back link and would
+  // otherwise stack two "Back" bars on top of each other.
+  const settingsPath = location.pathname.startsWith(`${settingsRoot}/`)
+    ? location.pathname.slice(settingsRoot.length + 1)
+    : '';
+  const isDirectChild =
+    settingsPath !== '' && !settingsPath.replace(/\/$/, '').includes('/');
   const isUserScope =
     location.pathname.includes('/settings/account') ||
     location.pathname.includes('/settings/personalization');
@@ -50,7 +59,7 @@ function SettingsLayout() {
         </>
       }
     >
-      {!isAtIndex && (
+      {!isAtIndex && isDirectChild && (
         <Link
           to="/dashboard/$id/settings"
           params={{ id: organizationId }}

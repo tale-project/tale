@@ -55,12 +55,21 @@ export interface UserButtonProps {
   label?: string;
   /** Optional custom tooltip text (defaults to "Manage account") */
   tooltipText?: string;
+  /**
+   * Called whenever a dropdown item navigates to a different route. Lets a
+   * parent surface (e.g. the mobile navigation Sheet) close itself so the
+   * destination page isn't covered by a stale overlay. Theme / locale /
+   * org-switcher toggles deliberately do NOT call this — they don't change
+   * the current route.
+   */
+  onNavigate?: () => void;
 }
 
 export function UserButton({
   align = 'start',
   label,
   tooltipText,
+  onNavigate,
 }: UserButtonProps) {
   const { t } = useT('auth');
   const { t: tNav } = useT('navigation');
@@ -313,6 +322,7 @@ export function UserButton({
                         to: '/dashboard/$id/chat',
                         params: { id: organizationId },
                       });
+                      onNavigate?.();
                     }
                   },
                   options: [
@@ -345,6 +355,7 @@ export function UserButton({
               to: '/dashboard/$id/settings/account',
               params: { id: organizationId },
             });
+            onNavigate?.();
           },
           className: 'py-2.5',
         },
@@ -357,6 +368,7 @@ export function UserButton({
               to: '/dashboard/$id/settings/organization',
               params: { id: organizationId },
             });
+            onNavigate?.();
           },
           className: 'py-2.5',
         },
@@ -498,6 +510,7 @@ export function UserButton({
     lastSeenVersion,
     markChangelogSeen,
     hasUnseenVersion,
+    onNavigate,
   ]);
 
   const triggerContent = (

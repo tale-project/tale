@@ -162,7 +162,10 @@ export function MobileNavigation({ organizationId }: MobileNavigationProps) {
             </NavigationMenuList>
           </div>
           <div className="border-border flex shrink-0 flex-col gap-1 border-t px-4 py-3">
-            <UserButton label={tNav('account')} />
+            <UserButton
+              label={tNav('account')}
+              onNavigate={() => setIsOpen(false)}
+            />
           </div>
         </NavigationMenu>
       </Sheet>
