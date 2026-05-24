@@ -169,6 +169,11 @@ export function AgentNavigation({
       dirtyKeys: AGENT_TAB_DIRTY_KEYS.tools,
     },
     {
+      label: t('agents.navigation.skills', { defaultValue: 'Skills' }),
+      href: `${basePath}/skills`,
+      matchMode: 'exact',
+    },
+    {
       label: t('agents.navigation.knowledge'),
       href: `${basePath}/knowledge`,
       matchMode: 'exact',

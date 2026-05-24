@@ -69,6 +69,15 @@ export const sandboxExecutionsTable = defineTable({
   // generator's output chip. Optional for back-compat with rows written
   // before the column existed.
   path: v.optional(v.string()),
+  // For `skill_run` invocations: the skill slug (mutually exclusive with
+  // artifactId — a row is either artifact-bound or skill-bound). Lets
+  // forensics enumerate "all runs of skill X" without substring-grepping
+  // `purpose`. Populated by `skill_run_tool.ts`.
+  skillSlug: v.optional(v.string()),
+  // sha256 of SKILL.md at execution time. Detects whether the skill was
+  // edited between bind-time snapshot and runtime — important for
+  // reproducing failures after an SKILL.md update.
+  skillVersionHash: v.optional(v.string()),
 
   language: sandboxLanguageValidator,
   purpose: v.optional(v.string()),
@@ -192,6 +201,8 @@ export const sandboxExecutionsTable = defineTable({
   .index('by_organizationId', ['organizationId'])
   .index('by_status', ['status'])
   .index('by_artifactId', ['artifactId'])
+  // For skill_run forensics: "all runs of skill X" without substring grep.
+  .index('by_organizationId_and_skillSlug', ['organizationId', 'skillSlug'])
   // For the user-Stop cascade in `cancel_generation.ts` — locates every
   // non-terminal execution on the cancelled thread so the action can call
   // `spawnerCancel` on each before the SDK abort would leave them running

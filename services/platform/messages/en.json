@@ -3397,6 +3397,10 @@
       "title": "Agents",
       "description": "Create and manage AI agents for customer service."
     },
+    "skills": {
+      "title": "Skills",
+      "description": "Reusable instruction bundles you can attach to agents — playbooks plus optional sandbox scripts."
+    },
     "integrations": {
       "title": "Integrations",
       "description": "Connect third-party services."

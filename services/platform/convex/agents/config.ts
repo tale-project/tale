@@ -76,6 +76,13 @@ export function toSerializableConfig(
       .filter((f) => f.ragStatus === 'completed')
       .map((f) => String(f.fileId)),
     delegateSlugs: config.delegates,
+    skillBindingsResolved: config.skillBindingsResolved?.map((s) => ({
+      slug: s.slug,
+      versionHash: s.versionHash,
+      toolNames: s.toolNames,
+      integrationBindings: s.integrationBindings,
+      workflowBindings: s.workflowBindings,
+    })),
     structuredResponsesEnabled: config.structuredResponsesEnabled ?? false,
     timeoutMs: config.timeoutMs,
     outputReserve: config.outputReserve,

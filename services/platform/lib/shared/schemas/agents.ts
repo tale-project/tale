@@ -60,6 +60,32 @@ export const agentJsonSchema = z
     integrationBindings: z.array(z.string()).optional(),
     delegates: z.array(z.string()).optional(),
     workflows: z.array(z.string()).optional(),
+    skillBindings: z
+      .array(
+        z
+          .string()
+          .min(1)
+          .max(64)
+          .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
+      )
+      .max(10)
+      .optional(),
+    skillBindingsResolved: z
+      .array(
+        z.object({
+          slug: z
+            .string()
+            .min(1)
+            .max(64)
+            .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
+          versionHash: z.string().min(64).max(64),
+          toolNames: z.array(z.string()).default([]),
+          integrationBindings: z.array(z.string()).default([]),
+          workflowBindings: z.array(z.string()).default([]),
+        }),
+      )
+      .max(10)
+      .optional(),
     supportedModels: z
       .array(
         z.string().min(1).refine(isValidModelRef, {
@@ -148,6 +174,8 @@ export const agentJsonSchema = z
         'integrationBindings',
         'workflows',
         'delegates',
+        'skillBindings',
+        'skillBindingsResolved',
       ];
       for (const key of disallowed) {
         const value = data[key];

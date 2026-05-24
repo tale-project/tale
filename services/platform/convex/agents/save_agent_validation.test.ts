@@ -219,6 +219,92 @@ describe('full save round-trip with stripNulls', () => {
     }
   });
 
+  // -------------------------------------------------------------------------
+  // skillBindings + skillBindingsResolved (added in the Skills feature)
+  // -------------------------------------------------------------------------
+
+  it('accepts skillBindings as a kebab-case slug array', () => {
+    const config = {
+      ...BASE_CONFIG,
+      skillBindings: ['code-reviewer', 'pdf-extractor'],
+    };
+    const result = agentJsonSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.skillBindings).toEqual([
+        'code-reviewer',
+        'pdf-extractor',
+      ]);
+    }
+  });
+
+  it('rejects skillBindings entries that are not valid skill slugs', () => {
+    for (const bad of ['code_reviewer', '-leading', 'trailing-', 'UPPER']) {
+      const result = agentJsonSchema.safeParse({
+        ...BASE_CONFIG,
+        skillBindings: [bad],
+      });
+      expect(result.success, `expected ${bad} to be rejected`).toBe(false);
+    }
+  });
+
+  it('rejects more than 10 skillBindings on a single agent', () => {
+    const tooMany = Array.from({ length: 11 }, (_, i) => `skill-${i}`);
+    const result = agentJsonSchema.safeParse({
+      ...BASE_CONFIG,
+      skillBindings: tooMany,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts a well-formed skillBindingsResolved snapshot', () => {
+    const config = {
+      ...BASE_CONFIG,
+      skillBindings: ['code-reviewer'],
+      skillBindingsResolved: [
+        {
+          slug: 'code-reviewer',
+          versionHash: 'a'.repeat(64),
+          toolNames: ['rag_search'],
+          integrationBindings: [],
+          workflowBindings: [],
+        },
+      ],
+    };
+    const result = agentJsonSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.skillBindingsResolved).toHaveLength(1);
+    }
+  });
+
+  it('rejects a skillBindingsResolved entry with a malformed versionHash', () => {
+    const result = agentJsonSchema.safeParse({
+      ...BASE_CONFIG,
+      skillBindings: ['code-reviewer'],
+      skillBindingsResolved: [
+        {
+          slug: 'code-reviewer',
+          versionHash: 'short',
+          toolNames: [],
+          integrationBindings: [],
+          workflowBindings: [],
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects skillBindings on an image-generation agent (disallow list)', () => {
+    const result = agentJsonSchema.safeParse({
+      ...BASE_CONFIG,
+      primaryBehavior: 'image-generation',
+      systemInstructions: 'Generate an image.',
+      skillBindings: ['code-reviewer'],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('handles config where optional fields are null (transport artifact)', () => {
     const config = {
       ...BASE_CONFIG,

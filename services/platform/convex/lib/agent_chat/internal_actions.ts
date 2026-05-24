@@ -64,6 +64,11 @@ import {
   classifyProviderError,
 } from '../error_classification';
 import { buildCallProviderOptions } from '../provider_options';
+import {
+  buildSkillContext,
+  mergeSkillDependencies,
+  type SkillSnapshot,
+} from './skills_runtime';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
 
@@ -104,6 +109,17 @@ const serializableAgentConfigValidator = v.object({
    */
   agentProjectIds: v.optional(v.array(v.string())),
   delegateSlugs: v.optional(v.array(v.string())),
+  skillBindingsResolved: v.optional(
+    v.array(
+      v.object({
+        slug: v.string(),
+        versionHash: v.string(),
+        toolNames: v.array(v.string()),
+        integrationBindings: v.array(v.string()),
+        workflowBindings: v.array(v.string()),
+      }),
+    ),
+  ),
   structuredResponsesEnabled: v.optional(v.boolean()),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
@@ -210,44 +226,53 @@ export const runAgentGeneration = internalAction({
     try {
       const toolBuildStart = Date.now();
 
-      // Build all tool categories and fetch governance policy in parallel.
-      // Each builder is independent, so running them concurrently saves
-      // ~300-1200ms depending on the number of bindings.
-      //
-      // `orgSlug` and `orgLocale` are resolved in the same outer Promise.all
-      // and threaded into the delegation+workflow builders below. Both
-      // builders need orgSlug, and delegation needs orgLocale — resolving
-      // them once here avoids duplicate queries when both run.
-      const [
-        integrationExtraTools,
-        orgSlug,
-        orgLocale,
-        governanceResult,
-        mcpExtraTools,
-      ] = await Promise.all([
-        buildIntegrationTools(ctx, agentConfig, organizationId),
-        resolveOrgSlug(ctx, organizationId),
-        ctx.runQuery(
-          internal.organizations.internal_queries.getOrganizationDefaultLocale,
-          { organizationId },
-        ),
-        fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
-        buildMcpTools(ctx, organizationId),
-      ]);
+      // Stage 1: org-level resources + skill snapshot. Skills must resolve
+      // BEFORE integration/workflow build because they extend the agent's
+      // effective binding set via `mergeSkillDependencies`.
+      const [orgSlug, orgLocale, governanceResult, mcpExtraTools] =
+        await Promise.all([
+          resolveOrgSlug(ctx, organizationId),
+          ctx.runQuery(
+            internal.organizations.internal_queries
+              .getOrganizationDefaultLocale,
+            { organizationId },
+          ),
+          fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
+          buildMcpTools(ctx, organizationId),
+        ]);
 
-      // Delegation and workflows depend on orgSlug (+ orgLocale for
-      // delegation), so they run after the slug is resolved but in parallel
-      // with each other.
-      const [delegationResult, workflowExtraTools] = await Promise.all([
-        buildDelegationTools(
-          ctx,
-          agentConfig,
-          organizationId,
-          orgSlug,
-          orgLocale,
-        ),
-        buildWorkflowTools(ctx, agentConfig, orgSlug),
-      ]);
+      // N=0 zero-cost contract: `buildSkillContext` short-circuits when the
+      // agent has no bound skills, so this is free for skill-less agents.
+      const skillSnapshot: SkillSnapshot = await buildSkillContext(
+        ctx,
+        agentConfig,
+        orgSlug,
+      );
+
+      // Stage 2: merge skill-declared dependencies (trust the snapshot, NOT
+      // the live frontmatter — see plan D4). `mergeSkillDependencies`
+      // throws if the post-merge tool count would exceed
+      // `MAX_TRANSITIVE_TOOLS`, surfacing accidental skill-binding sprawl
+      // as a clear error rather than a context-budget mystery.
+      const effectiveConfig = mergeSkillDependencies(
+        agentConfig,
+        skillSnapshot,
+      );
+
+      // Stage 3: build dependent tool categories using the merged config so
+      // skill-declared integrations / workflows are picked up.
+      const [integrationExtraTools, delegationResult, workflowExtraTools] =
+        await Promise.all([
+          buildIntegrationTools(ctx, effectiveConfig, organizationId),
+          buildDelegationTools(
+            ctx,
+            effectiveConfig,
+            organizationId,
+            orgSlug,
+            orgLocale,
+          ),
+          buildWorkflowTools(ctx, effectiveConfig, orgSlug),
+        ]);
 
       // Extract delegation tools and instructions append
       let delegationExtraTools: Record<string, unknown> | undefined;
@@ -279,19 +304,25 @@ export const runAgentGeneration = internalAction({
         hasGovernance: !!(mandatoryPrefix || mandatorySuffix),
       });
 
-      // Merge all extra tools
-      const allExtraTools: Record<string, unknown> | undefined =
+      // Merge all extra tools. Skill built-ins (`expand_skill`,
+      // `read_skill_file`) are spliced in last so they cannot be shadowed by
+      // an integration / workflow / delegation tool sharing the same
+      // reserved name — defense-in-depth for the reserved-name set.
+      const hasAnyExtra =
         integrationExtraTools ||
         delegationExtraTools ||
         workflowExtraTools ||
-        mcpExtraTools
-          ? {
-              ...integrationExtraTools,
-              ...delegationExtraTools,
-              ...workflowExtraTools,
-              ...mcpExtraTools,
-            }
-          : undefined;
+        mcpExtraTools ||
+        Object.keys(skillSnapshot.builtInTools).length > 0;
+      const allExtraTools: Record<string, unknown> | undefined = hasAnyExtra
+        ? {
+            ...integrationExtraTools,
+            ...delegationExtraTools,
+            ...workflowExtraTools,
+            ...mcpExtraTools,
+            ...skillSnapshot.builtInTools,
+          }
+        : undefined;
 
       // Combine instructions with delegation agent descriptions
       let finalInstructions = delegationInstructionsAppend
@@ -304,6 +335,13 @@ export const runAgentGeneration = internalAction({
       }
       if (mandatorySuffix) {
         finalInstructions = finalInstructions + '\n\n' + mandatorySuffix;
+      }
+      // Append the "Available Skills" suffix AFTER governance so the
+      // governance/persona prefix stays cache-stable across skill edits
+      // (plan Phase 5 ordering). Empty string when no skills bound.
+      if (skillSnapshot.systemPromptAppend) {
+        finalInstructions =
+          finalInstructions + skillSnapshot.systemPromptAppend;
       }
 
       // Build hooks object from FunctionHandle strings

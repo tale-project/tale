@@ -165,6 +165,11 @@ export async function init(options: InitOptions): Promise<void> {
   }
   await writeEmbeddedFiles(providerConfigFiles, join(target, 'providers'));
 
+  // Copy skills from embedded examples
+  logger.step('Copying skill bundles...');
+  const skillFiles = getEmbeddedExamples('skills');
+  await writeEmbeddedFiles(skillFiles, join(target, 'skills'));
+
   // Compute checksums
   logger.step('Computing file checksums...');
   const allFiles = new Map<string, string>();
@@ -180,6 +185,9 @@ export async function init(options: InitOptions): Promise<void> {
   }
   for (const [relPath, content] of providerConfigFiles) {
     allFiles.set(join('providers', relPath), computeContentHash(content));
+  }
+  for (const [relPath, content] of skillFiles) {
+    allFiles.set(join('skills', relPath), computeContentHash(content));
   }
   allFiles.set(join('branding', 'branding.json'), computeContentHash('{}\n'));
 

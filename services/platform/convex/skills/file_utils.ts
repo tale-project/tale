@@ -1,0 +1,289 @@
+'use node';
+
+/**
+ * Skill file utilities.
+ *
+ * Pure helpers for resolving paths, validating slugs/asset paths, and
+ * reading/serializing SKILL.md content. Mirrors the pattern in
+ * agents/file_utils.ts and integrations/file_utils.ts but uses Markdown +
+ * YAML frontmatter as the wire format (per agentskills.io spec).
+ *
+ * Org isolation: default org sits at `${SKILLS_DIR}/`; other orgs live
+ * under `${SKILLS_DIR}/@<orgSlug>/` — same `@` prefix convention used by
+ * integrations. Every resolver applies a path-traversal guard plus a
+ * `verifyPathWithinBase` realpath check so symlinks planted in the bundle
+ * cannot escape the skill's directory.
+ */
+
+import { constants, open, stat } from 'node:fs/promises';
+import path from 'node:path';
+
+import { stringify as stringifyYaml } from 'yaml';
+
+import {
+  parseSkillMd,
+  frontmatterToRaw,
+  type SkillFrontmatter,
+} from '../../lib/shared/schemas/skills';
+import { sha256, validateOrgSlug, verifyPathWithinBase } from '../lib/file_io';
+
+export { sha256, parseSkillMd };
+export type { SkillFrontmatter };
+
+/** Skill slug — same regex as the frontmatter `name` field. */
+const SKILL_SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const MAX_SLUG_LENGTH = 64;
+
+/** Per-file size cap. SKILL.md itself plus any individual bundle asset. */
+export const MAX_SKILL_MD_BYTES = 256 * 1024; // 256 KB
+/** Max number of asset files in a skill bundle (excludes SKILL.md). */
+export const MAX_SKILL_ASSETS = 32;
+/** Hard cap on total bundle byte count (SKILL.md + every asset). */
+export const MAX_TOTAL_BUNDLE_BYTES = 1 * 1024 * 1024; // 1 MB
+
+/**
+ * Canonical bundle subdirectories per agentskills.io spec. Skills may store
+ * assets under any of these (or directly in the skill root) — the runtime
+ * does not enforce a specific layout, this constant just documents intent.
+ */
+export const SKILL_BUNDLE_SUBDIRS = [
+  'scripts',
+  'references',
+  'assets',
+] as const;
+
+export type SkillReadResult =
+  | {
+      ok: true;
+      meta: SkillFrontmatter;
+      body: string;
+      versionHash: string;
+    }
+  | {
+      ok: false;
+      error:
+        | 'not_found'
+        | 'corrupted'
+        | 'too_large'
+        | 'symlink'
+        | 'inaccessible';
+      message: string;
+    };
+
+export function validateSkillSlug(slug: string): boolean {
+  if (slug.length === 0 || slug.length > MAX_SLUG_LENGTH) return false;
+  return SKILL_SLUG_REGEX.test(slug);
+}
+
+function getBaseDir(): string {
+  const dir = process.env.SKILLS_DIR;
+  if (dir) return dir;
+  const configDir = process.env.TALE_CONFIG_DIR;
+  if (configDir) return path.join(configDir, 'skills');
+  throw new Error(
+    'Neither TALE_CONFIG_DIR nor SKILLS_DIR environment variable is set. ' +
+      'Set TALE_CONFIG_DIR in .env to the root config directory ' +
+      '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
+  );
+}
+
+/**
+ * Resolve the skills directory for an organization. Default org uses the
+ * base directly; every other org lives under a `@<orgSlug>/` prefix —
+ * matches the convention enforced by integrations and agents.
+ */
+export function resolveSkillsDir(orgSlug: string): string {
+  if (!validateOrgSlug(orgSlug)) {
+    throw new Error(`Invalid org slug: ${orgSlug}`);
+  }
+  const baseDir = getBaseDir();
+  if (orgSlug === 'default') return baseDir;
+  return path.join(baseDir, `@${orgSlug}`);
+}
+
+export function resolveSkillDir(orgSlug: string, slug: string): string {
+  if (!validateSkillSlug(slug)) {
+    throw new Error(`Invalid skill slug: ${slug}`);
+  }
+  const dir = resolveSkillsDir(orgSlug);
+  const resolved = path.resolve(dir, slug);
+  const expectedPrefix = path.resolve(dir);
+  if (
+    !resolved.startsWith(expectedPrefix + path.sep) &&
+    resolved !== expectedPrefix
+  ) {
+    throw new Error(`Path traversal detected: ${slug}`);
+  }
+  return resolved;
+}
+
+export function resolveSkillMdPath(orgSlug: string, slug: string): string {
+  return path.join(resolveSkillDir(orgSlug, slug), 'SKILL.md');
+}
+
+/**
+ * Resolve a bundle-asset path, guarding against every flavor of traversal:
+ * absolute paths, `..` segments, leading-`.` segments, Windows drive
+ * letters, NUL bytes, oversized paths. The caller MUST `await
+ * verifyPathWithinBase(resolved, skillDir)` before any I/O — see
+ * {@link resolveSkillAssetPathChecked} for the safe variant.
+ */
+export function resolveSkillAssetPath(
+  orgSlug: string,
+  slug: string,
+  relPath: string,
+): string {
+  validateAssetRelPath(relPath);
+  const skillDir = resolveSkillDir(orgSlug, slug);
+  const resolved = path.resolve(skillDir, relPath);
+  const expectedPrefix = path.resolve(skillDir);
+  if (
+    !resolved.startsWith(expectedPrefix + path.sep) &&
+    resolved !== expectedPrefix
+  ) {
+    throw new Error(`Path traversal detected: ${relPath}`);
+  }
+  if (resolved === path.join(expectedPrefix, 'SKILL.md')) {
+    throw new Error(
+      'SKILL.md is not editable via the asset path; use the skill markdown writer instead',
+    );
+  }
+  return resolved;
+}
+
+/**
+ * Safe variant of {@link resolveSkillAssetPath} that also realpath-checks
+ * the parent directory after resolution. Use this on every read/write of a
+ * bundle file so a symlink planted as an intermediate directory cannot
+ * escape the skill root.
+ */
+export async function resolveSkillAssetPathChecked(
+  orgSlug: string,
+  slug: string,
+  relPath: string,
+): Promise<string> {
+  const skillDir = resolveSkillDir(orgSlug, slug);
+  const resolved = resolveSkillAssetPath(orgSlug, slug, relPath);
+  await verifyPathWithinBase(resolved, skillDir);
+  return resolved;
+}
+
+function validateAssetRelPath(relPath: string): void {
+  if (relPath.length === 0 || relPath.length > 200) {
+    throw new Error('Asset path must be 1..200 characters');
+  }
+  if (relPath.includes('\0')) {
+    throw new Error('Asset path must not contain NUL bytes');
+  }
+  if (path.isAbsolute(relPath)) {
+    throw new Error('Asset path must be relative');
+  }
+  // Reject Windows drive prefixes even on POSIX (defense-in-depth).
+  if (/^[A-Za-z]:/.test(relPath)) {
+    throw new Error('Asset path must not contain a drive prefix');
+  }
+  const segments = relPath.split(/[\\/]+/);
+  for (const seg of segments) {
+    if (seg === '' || seg === '..') {
+      throw new Error('Asset path must not contain `..` or empty segments');
+    }
+    if (seg.startsWith('.')) {
+      throw new Error('Asset path segments must not start with `.`');
+    }
+  }
+}
+
+/**
+ * Read a `SKILL.md`, returning the parsed frontmatter + body + content
+ * hash. Mirrors the symlink/size/encoding protections of
+ * `readJsonFile` but for the markdown shape — and computes
+ * `versionHash = sha256(SKILL.md content)` so the runtime snapshot can
+ * detect skill drift between bind time and execution time.
+ */
+export async function readSkillMd(
+  orgSlug: string,
+  slug: string,
+): Promise<SkillReadResult> {
+  const filePath = resolveSkillMdPath(orgSlug, slug);
+  try {
+    const lst = await stat(filePath).catch(() => null);
+    if (lst === null) {
+      return { ok: false, error: 'not_found', message: `SKILL.md not found` };
+    }
+    if (lst.size > MAX_SKILL_MD_BYTES) {
+      return {
+        ok: false,
+        error: 'too_large',
+        message: `SKILL.md exceeds ${MAX_SKILL_MD_BYTES} bytes`,
+      };
+    }
+
+    let content: string;
+    try {
+      const fd = await open(
+        filePath,
+        constants.O_RDONLY | constants.O_NOFOLLOW,
+      );
+      try {
+        content = await fd.readFile('utf-8');
+      } finally {
+        await fd.close();
+      }
+    } catch (err) {
+      const code = err instanceof Error && 'code' in err ? err.code : undefined;
+      if (code === 'ELOOP' || code === 'EMLINK') {
+        return {
+          ok: false,
+          error: 'symlink',
+          message: 'SKILL.md is a symlink (rejected)',
+        };
+      }
+      if (code === 'ENOENT') {
+        return { ok: false, error: 'not_found', message: 'SKILL.md not found' };
+      }
+      return {
+        ok: false,
+        error: 'inaccessible',
+        message: err instanceof Error ? err.message : String(err),
+      };
+    }
+
+    try {
+      const { meta, body } = parseSkillMd(content);
+      return {
+        ok: true,
+        meta,
+        body,
+        versionHash: sha256(content),
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        error: 'corrupted',
+        message: err instanceof Error ? err.message : String(err),
+      };
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      error: 'inaccessible',
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Serialize a frontmatter + body pair back into the on-disk SKILL.md
+ * format. Round-trips unknown community fields exactly as parsed.
+ */
+export function serializeSkillMd(meta: SkillFrontmatter, body: string): string {
+  const raw = frontmatterToRaw(meta);
+  const yamlText = stringifyYaml(raw, {
+    lineWidth: 100,
+    minContentWidth: 20,
+    defaultStringType: 'PLAIN',
+    defaultKeyType: 'PLAIN',
+  });
+  const sep = body.startsWith('\n') ? '' : '\n';
+  return `---\n${yamlText}---${sep}${body.endsWith('\n') ? body : body + '\n'}`;
+}

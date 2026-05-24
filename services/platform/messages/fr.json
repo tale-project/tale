@@ -3398,6 +3398,10 @@
       "title": "Agents",
       "description": "Crée et gère des agents IA pour le service client."
     },
+    "skills": {
+      "title": "Skills",
+      "description": "Recettes réutilisables à attacher aux agents — playbooks plus scripts sandbox optionnels."
+    },
     "integrations": {
       "title": "Intégrations",
       "description": "Connecte des services tiers."

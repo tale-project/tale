@@ -3397,6 +3397,10 @@
       "title": "Agenten",
       "description": "KI-Agents für den Kundenservice erstellen und verwalten."
     },
+    "skills": {
+      "title": "Skills",
+      "description": "Wiederverwendbare Anleitungspakete für Agents — Playbooks plus optionale Sandbox-Skripte."
+    },
     "integrations": {
       "title": "Integrationen",
       "description": "Drittanbieter-Dienste verbinden."
