@@ -12,13 +12,10 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
-COPY packages/i18n/package.json ./packages/i18n/
-COPY packages/seo/package.json ./packages/seo/
 COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
 COPY packages/tale_shared/package.json ./packages/tale_shared/
 COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
 COPY packages/ui/package.json ./packages/ui/
-COPY packages/webui/package.json ./packages/webui/
 COPY services/platform/package.json ./services/platform/
 COPY services/crawler/package.json ./services/crawler/
 COPY services/rag/package.json ./services/rag/
@@ -42,10 +39,7 @@ FROM workspace-deps AS builder
 WORKDIR /app
 
 COPY tsconfig.base.json ./
-COPY packages/i18n ./packages/i18n
-COPY packages/seo ./packages/seo
 COPY packages/ui ./packages/ui
-COPY packages/webui ./packages/webui
 COPY services/web ./services/web
 
 ARG WEB_DOCS_URL=https://tale.dev/docs
@@ -60,7 +54,7 @@ WORKDIR /app/services/web
 # available in the runner stage, so this MUST run in the builder.
 RUN bun --bun vite build \
     && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr \
-    && bun --bun /app/packages/seo/bin/compile.ts ./scripts/seo.config.ts --out dist-seo \
+    && bun --bun /app/packages/ui/bin/seo-compile.ts ./scripts/seo.config.ts --out dist-seo \
     && bun build server.ts --target=bun --outfile=server.js --external bun --external canvas
 WORKDIR /app
 

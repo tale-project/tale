@@ -95,17 +95,14 @@ jobs:
               - 'services/convex/**'
             web:
               - 'services/web/**'
-              - 'packages/webui/**'
               - 'packages/ui/**'
             docs:
               - 'services/docs/**'
               - 'docs/**'
-              - 'packages/webui/**'
               - 'packages/ui/**'
             storybook:
               - 'services/platform/**'
               - 'packages/ui/**'
-              - 'packages/webui/**'
             sandbox:
               - 'services/sandbox/**'
             sandbox-egress:

@@ -73,6 +73,13 @@ export default {
       },
       entry: ['src/components/**/*.{ts,tsx}', 'src/**/*.stories.{ts,tsx}'],
       project: ['**/*.{ts,tsx}'],
+      ignoreDependencies: [
+        // Type-only import in src/{pwa,seo/runtime}/vite-plugin.ts. Declared
+        // as an optional peer so consumers without a vite-driven service
+        // don't have to install it; knip flags optional peers that are
+        // referenced, which is exactly the pattern we want here.
+        'vite',
+      ],
     },
     'tools/cli': {
       project: ['**/*.ts'],

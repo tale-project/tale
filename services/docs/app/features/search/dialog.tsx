@@ -40,7 +40,7 @@ interface SearchDialogProps {
   sectionLabel?: (sectionKey: string) => string;
 }
 
-export interface SearchDialogLabels {
+interface SearchDialogLabels {
   title: string;
   placeholder: string;
   empty: string;
