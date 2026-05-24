@@ -3,8 +3,7 @@
 import { Badge } from '@tale/ui/badge';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { Heading } from '@tale/ui/heading';
-import { Center } from '@tale/ui/layout';
-import { Stack, HStack } from '@tale/ui/layout';
+import { Center, HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Code, Database, Key, Globe, Pencil, Puzzle, Zap } from 'lucide-react';
 import { useCallback, useMemo, useRef } from 'react';

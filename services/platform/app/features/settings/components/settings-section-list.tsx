@@ -49,7 +49,10 @@ export function SettingsSectionList({
               {group.label}
             </div>
           )}
-          <ul className="border-border bg-card flex flex-col rounded-lg border">
+          <ul
+            role="list"
+            className="border-border bg-card flex flex-col rounded-lg border"
+          >
             {group.items.map((item, index) => {
               const Icon = item.icon;
               return (

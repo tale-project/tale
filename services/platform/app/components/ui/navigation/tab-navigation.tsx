@@ -143,9 +143,14 @@ export function TabNavigation({
     const clamped = Math.max(0, Math.min(target, max));
     if (Math.abs(nav.scrollLeft - clamped) < 1) return;
 
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     nav.scrollTo({
       left: clamped,
-      behavior: hasInitialized.current ? 'smooth' : 'auto',
+      behavior:
+        prefersReducedMotion || !hasInitialized.current ? 'auto' : 'smooth',
     });
   }, [activeIndex]);
 

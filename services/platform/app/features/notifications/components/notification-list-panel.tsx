@@ -188,7 +188,7 @@ export function NotificationListPanel({
             {status === 'LoadingFirstPage' ? t('loading') : t('empty')}
           </div>
         ) : (
-          <ul className="divide-border divide-y">
+          <ul role="list" className="divide-border divide-y">
             {items.map((n) => {
               const params = isRecord(n.params) ? n.params : undefined;
               const title = t(stripNsPrefix(n.titleKey), params);
@@ -246,10 +246,13 @@ export function NotificationListPanel({
                       aria-hidden
                     />
                     {!n.read && !isExpanded && (
-                      <span
-                        aria-label={t('ariaUnread')}
-                        className="mt-1.5 size-2 shrink-0 rounded-full bg-sky-500"
-                      />
+                      <>
+                        <span className="sr-only">{t('ariaUnread')}</span>
+                        <span
+                          aria-hidden="true"
+                          className="mt-1.5 size-2 shrink-0 rounded-full bg-sky-500"
+                        />
+                      </>
                     )}
                   </button>
 

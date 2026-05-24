@@ -148,17 +148,30 @@ function GovernanceLayout() {
   if (isMobile && isAtIndex) {
     return (
       <nav aria-label={t('title')} className="flex flex-col gap-2">
-        <ul className="border-border bg-card flex flex-col rounded-lg border">
+        <ul
+          role="list"
+          className="border-border bg-card flex flex-col rounded-lg border"
+        >
           {navItems.map((item, index) => {
             const Icon = item.icon;
+            const isFirst = index === 0;
+            const isLast = index === navItems.length - 1;
             return (
               <li
                 key={item.slug}
-                className={cn(index > 0 && 'border-border border-t')}
+                className={cn(
+                  index > 0 && 'border-border border-t',
+                  isFirst && 'rounded-t-lg',
+                  isLast && 'rounded-b-lg',
+                )}
               >
                 <Link
                   to={item.href}
-                  className="hover:bg-muted/40 flex min-h-12 items-center gap-3 px-3 py-2.5 transition-colors first:rounded-t-lg last:rounded-b-lg"
+                  className={cn(
+                    'hover:bg-muted/40 flex min-h-12 items-center gap-3 px-3 py-2.5 transition-colors',
+                    isFirst && 'rounded-t-lg',
+                    isLast && 'rounded-b-lg',
+                  )}
                 >
                   <Icon
                     aria-hidden="true"

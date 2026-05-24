@@ -31,13 +31,16 @@ import { getDefaultSettingsRoute } from '@/lib/permissions/get-default-settings-
 
 export const Route = createFileRoute('/dashboard/$id/settings/')({
   loader: async ({ context, params }) => {
-    const memberContext = (await context.queryClient
+    const memberContext = await context.queryClient
       .ensureQueryData(
         convexQuery(api.members.queries.getCurrentMemberContext, {
           organizationId: params.id,
         }),
       )
-      .catch(() => null)) as { role?: string } | null;
+      .catch((error: unknown) => {
+        console.warn('Failed to load member context for settings index', error);
+        return null;
+      });
 
     return { role: memberContext?.role ?? null };
   },

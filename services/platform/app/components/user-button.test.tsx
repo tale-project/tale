@@ -106,6 +106,22 @@ vi.mock('@/app/hooks/use-team-filter', () => ({
   useOptionalTeamFilter: () => mockTeamFilter,
 }));
 
+// Mock notifications and PWA hooks — both were added when user-button gained
+// a notifications view and an "Install app" entry. The component renders
+// `useNotificationsUnreadCount` (TanStack Query under the hood, which needs
+// a QueryClient) and `useInstallPrompt` (touches window APIs).
+vi.mock('@/app/features/notifications/hooks/queries', () => ({
+  useNotificationsUnreadCount: () => ({ data: 0 }),
+}));
+
+vi.mock('@tale/ui/pwa/use-install-prompt', () => ({
+  useInstallPrompt: () => ({
+    canInstall: false,
+    isInstalled: false,
+    promptInstall: vi.fn().mockResolvedValue('unavailable' as const),
+  }),
+}));
+
 // Mock router
 vi.mock('@tanstack/react-router', () => ({
   useRouter: () => ({ preloadRoute: vi.fn() }),

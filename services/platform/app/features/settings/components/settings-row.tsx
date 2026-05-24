@@ -13,8 +13,6 @@ interface SettingsRowProps extends Omit<
   description?: ReactNode;
   /** Right-side control (switch, button, copy field, link). */
   children: ReactNode;
-  /** Render as a clickable link/button that fills the row. */
-  asChild?: boolean;
 }
 
 /**
