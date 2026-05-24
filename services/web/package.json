@@ -17,7 +17,9 @@
     "typecheck": "bunx tsc --noEmit",
     "test": "bunx vitest --run --passWithNoTests",
     "test:watch": "bunx vitest",
-    "test:coverage": "bunx vitest --coverage --passWithNoTests"
+    "test:coverage": "bunx vitest --coverage --passWithNoTests",
+    "storybook": "bunx --bun storybook dev -p 6010",
+    "storybook:build": "bunx --bun storybook build -o storybook-static"
   },
   "dependencies": {
     "@tale/ui": "workspace:*",

@@ -17,7 +17,9 @@
     "lint:fix": "bunx oxlint --type-aware --fix",
     "typecheck": "bunx tsc --noEmit",
     "test": "bunx vitest --run --passWithNoTests",
-    "test:watch": "bunx vitest"
+    "test:watch": "bunx vitest",
+    "storybook": "bunx --bun storybook dev -p 6011",
+    "storybook:build": "bunx --bun storybook build -o storybook-static"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.15",

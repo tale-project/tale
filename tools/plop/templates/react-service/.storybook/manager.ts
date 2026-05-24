@@ -1,8 +1,3 @@
-import { addons } from 'storybook/manager-api';
+import { applyStorybookManagerConfig } from '@tale/ui/storybook/manager';
 
-addons.setConfig({
-  showToolbar: true,
-  sidebar: {
-    showRoots: true,
-  },
-});
+applyStorybookManagerConfig();
