@@ -37,6 +37,8 @@ export function registerDockerService(plop: NodePlopAPI): void {
         'package.json.hbs',
         'Dockerfile.hbs',
         'Dockerfile.dockerignore.hbs',
+        'docker-entrypoint.sh.hbs',
+        'entrypoint.sh.hbs',
         '.gitignore',
         'README.md.hbs',
       ];

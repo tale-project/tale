@@ -1,0 +1,22 @@
+#!/bin/sh
+# services/{{kebabCase name}}/docker-entrypoint.sh
+#
+# Container-level bootstrap for {{titleCase name}}. Convention used across
+# Tale's docker services:
+#
+#   docker-entrypoint.sh — runs as PID 1 with whatever privileges the
+#                          image was launched with. Owns environment
+#                          checks, host-side directory perms, and any
+#                          security setup (capability drops, etc).
+#                          Then `exec`s `entrypoint.sh`.
+#
+#   entrypoint.sh        — app-level launch. Replaces this process with
+#                          the actual server so signals reach it
+#                          directly and `docker stop` shuts down cleanly.
+
+set -e
+
+# Add container-level setup here (env loads, perm fixes, etc.) before
+# handing off to the app entrypoint.
+
+exec /entrypoint.sh "$@"

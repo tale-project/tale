@@ -65,7 +65,7 @@ RUN mkdir -p /etc/postgresql/conf.d \
 #
 # Scripts live ONLY under /etc/postgresql/init-scripts/ — the entrypoint
 # wrapper runs them idempotently on every container start (see
-# docker-entrypoint-wrapper.sh). They must NOT be placed in
+# docker-entrypoint.sh). They must NOT be placed in
 # /docker-entrypoint-initdb.d/: the upstream entrypoint runs that directory
 # against a temporary local-only server during initdb, while the wrapper's
 # background loop probes the same socket and races in to run them too —
@@ -76,9 +76,9 @@ COPY services/db/init-scripts/ /etc/postgresql/init-scripts/
 # Copy custom PostgreSQL configuration
 COPY services/db/postgresql.conf /etc/postgresql/postgresql.conf
 
-# Copy entrypoint wrapper script and set permissions
-COPY services/db/docker-entrypoint-wrapper.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint-wrapper.sh \
+# Copy entrypoint script and set permissions
+COPY services/db/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
     && chown -R postgres:postgres /etc/postgresql \
                                    /var/lib/postgresql/backup
 
@@ -107,5 +107,5 @@ EXPOSE 5432
 HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=10 \
     CMD pg_isready -U ${DB_USER:-tale} -d ${DB_NAME:-tale} && test -f /tmp/.db_ready || exit 1
 
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint-wrapper.sh"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["postgres"]

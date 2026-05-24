@@ -95,8 +95,10 @@ ENV NODE_ENV=production
 # Build the SPA, then precompile the SEO + LLM artifact set into
 # `dist-seo/`. The runtime stage serves these via @tale/ui's precompiled
 # SEO server, so no source markdown is needed at request time.
-RUN cd services/platform && bun --bun vite build \
+WORKDIR /app/services/platform
+RUN bun --bun vite build \
     && bun --bun /app/packages/ui/bin/seo-compile.ts ./scripts/seo.config.ts --out dist-seo
+WORKDIR /app
 
 # Server-side files copied after vite build to avoid invalidating the build cache
 COPY services/platform/server.ts \
@@ -126,7 +128,8 @@ COPY --from=workspace-deps /app/tools/cli/package.json /tmp/workspace/tools/cli/
 COPY --from=workspace-deps /app/tools/plop/package.json /tmp/workspace/tools/plop/
 COPY --from=workspace-deps /app/patches/ /tmp/workspace/patches/
 
-RUN cd /tmp/workspace && HUSKY=0 bun install --production \
+WORKDIR /tmp/workspace
+RUN HUSKY=0 bun install --production \
     && rm -rf /app/node_modules \
     && mv /tmp/workspace/node_modules /app/node_modules \
     && rm -rf /app/node_modules/@swc/core* \

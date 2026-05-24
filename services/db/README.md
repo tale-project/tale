@@ -21,7 +21,7 @@ Healthcheck runs `pg_isready` plus a `/tmp/.db_ready` marker written after init 
 
 ## Configuration
 
-Tunables come from `DB_*` environment variables (mapped to PostgreSQL settings by `docker-entrypoint-wrapper.sh`):
+Tunables come from `DB_*` environment variables (mapped to PostgreSQL settings by `docker-entrypoint.sh`):
 
 - `DB_NAME`, `DB_USER`, `DB_PASSWORD` (required)
 - `DB_MAX_CONNECTIONS`, `DB_SHARED_BUFFERS`, `DB_EFFECTIVE_CACHE_SIZE`, `DB_MAINTENANCE_WORK_MEM`, `DB_WORK_MEM`
@@ -39,6 +39,6 @@ bun run shell --filter=@tale/db        # psql into the running container
 ## Layout
 
 - `Dockerfile` — multi-stage build on ParadeDB PG16
-- `docker-entrypoint-wrapper.sh` — maps `DB_*` vars onto PostgreSQL CLI flags, then invokes upstream entrypoint
+- `docker-entrypoint.sh` — maps `DB_*` vars onto PostgreSQL CLI flags, then invokes upstream entrypoint
 - `init-scripts/` — first-boot SQL (extensions, databases, grants)
 - `postgresql.conf` — base PostgreSQL configuration

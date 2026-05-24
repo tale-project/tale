@@ -68,6 +68,13 @@ RUN bun install --frozen-lockfile --production
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
+# Two-file entrypoint pair. `docker-entrypoint.sh` owns container-level
+# bootstrap (host-side directory perms, env init); `entrypoint.sh` owns
+# the app launch and is what gets `exec`'d into PID 1.
+COPY services/sandbox/docker-entrypoint.sh /docker-entrypoint.sh
+COPY services/sandbox/entrypoint.sh /entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh /entrypoint.sh
+
 ARG VERSION
 LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="tale-sandbox" \
@@ -90,4 +97,4 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=15s \
 # Root by design — see header comment. The docker socket is the boundary.
 USER root
 
-CMD ["bun", "src/server.ts"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

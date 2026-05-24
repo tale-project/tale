@@ -1,0 +1,19 @@
+#!/bin/sh
+# services/{{kebabCase name}}/entrypoint.sh
+#
+# App-level launch for {{titleCase name}}. `docker-entrypoint.sh` runs
+# first and `exec`s us with whatever args the Dockerfile CMD (or a
+# `docker run … COMMAND` override) passed in.
+#
+# Replace the placeholder `sleep infinity` with the actual server
+# launch — e.g. `exec uvicorn app.main:app --host 0.0.0.0 --port 8000`
+# or `exec node server.js`. Keep the `exec` so signals reach the server
+# directly and `docker stop` shuts down cleanly.
+
+set -e
+
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
+
+exec sleep infinity
