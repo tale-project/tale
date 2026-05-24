@@ -177,7 +177,7 @@
     "i18next-icu": "2.4.3",
     "jsdom": "29.0.2",
     "lucide-react": "1.8.0",
-    "mermaid": "11.14.0",
+    "mermaid": "11.15.0",
     "micromark": "4.0.2",
     "micromark-core-commonmark": "2.0.3",
     "micromark-util-classify-character": "2.0.1",
