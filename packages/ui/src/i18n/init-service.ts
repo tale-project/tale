@@ -4,8 +4,8 @@ import { collectRegionalBundles } from './regional-bundles';
 type Bundle = Record<string, Record<string, unknown>>;
 
 /**
- * Translation bundles shipped by a frontend package (`@tale/ui`,
- * `@tale/webui`, …). Mirrors the shape the host service uses for its
+ * Translation bundles shipped by a frontend package (e.g. `@tale/ui`).
+ * Mirrors the shape the host service uses for its
  * own translations: per-locale namespace trees plus an optional
  * cross-locale `global` for keys that read the same in every language
  * (e.g. `languageSwitcher.locales.*` — the language names display in

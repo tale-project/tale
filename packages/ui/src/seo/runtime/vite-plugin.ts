@@ -6,7 +6,7 @@
  * middleware.
  *
  * In production the same server is wired into `startReactServer` from
- * `@tale/webui/server`. Vite is an optional peer dependency.
+ * `@tale/ui/server`. Vite is an optional peer dependency.
  */
 
 import type { Plugin } from 'vite';
