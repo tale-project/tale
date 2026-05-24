@@ -424,8 +424,8 @@ process.exit(0);
  */
 // Defaults for the pre-stage fetch. Overridable so unit tests can run
 // with tighter values without waiting on real timeouts.
-export const PRIOR_FETCH_DEFAULT_TIMEOUT_MS = 30_000;
-export const PRIOR_FETCH_DEFAULT_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
+const PRIOR_FETCH_DEFAULT_TIMEOUT_MS = 30_000;
+const PRIOR_FETCH_DEFAULT_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
 
 interface StagePriorOpts {
   timeoutMs?: number;
