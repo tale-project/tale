@@ -16,10 +16,17 @@ interface OnlineGateProps {
 }
 
 /**
- * Full-screen overlay that appears when the browser is offline or Convex has
- * been disconnected for longer than the grace window. Mounted once near the
- * router root. The overlay is additive — children continue to render
- * underneath so transient blips don't unmount the app.
+ * Full-screen overlay that appears when Convex has been disconnected for
+ * longer than the grace window. Mounted once near the router root. The
+ * overlay is additive — children continue to render underneath so transient
+ * blips don't unmount the app.
+ *
+ * `navigator.onLine` is deliberately NOT consulted: it reports
+ * device-level external connectivity, but the platform's only hard
+ * dependency at runtime is the Convex websocket. A laptop without
+ * external internet but a healthy local Convex backend (the common
+ * `bun run dev` setup, or the offline-first self-hosted appliance) is
+ * fully functional and shouldn't be blocked by the overlay.
  */
 export function OnlineGate({ children }: OnlineGateProps) {
   const offline = useOfflineState();
@@ -27,31 +34,15 @@ export function OnlineGate({ children }: OnlineGateProps) {
   return (
     <>
       {children}
-      {offline.state !== 'online' && <OfflineOverlay state={offline.state} />}
+      {offline && <OfflineOverlay />}
     </>
   );
 }
 
-type OfflineState = 'online' | 'browser-offline' | 'convex-disconnected';
-
-function useOfflineState(): { state: OfflineState } {
+function useOfflineState(): boolean {
   const connection = useConvexConnectionState();
-  const [browserOnline, setBrowserOnline] = useState(() =>
-    typeof navigator === 'undefined' ? true : navigator.onLine,
-  );
   const [convexStale, setConvexStale] = useState(false);
   const graceTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    const handleOnline = () => setBrowserOnline(true);
-    const handleOffline = () => setBrowserOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
 
   useEffect(() => {
     if (connection.isWebSocketConnected) {
@@ -75,18 +66,11 @@ function useOfflineState(): { state: OfflineState } {
     };
   }, [connection.isWebSocketConnected]);
 
-  if (!browserOnline) return { state: 'browser-offline' };
-  if (convexStale) return { state: 'convex-disconnected' };
-  return { state: 'online' };
+  return convexStale;
 }
 
-interface OfflineOverlayProps {
-  state: Exclude<OfflineState, 'online'>;
-}
-
-function OfflineOverlay({ state }: OfflineOverlayProps) {
+function OfflineOverlay() {
   const { t } = useT('connectivity');
-  const isReconnecting = state === 'convex-disconnected';
 
   return (
     <div
@@ -111,23 +95,17 @@ function OfflineOverlay({ state }: OfflineOverlayProps) {
           id="online-gate-title"
           className="text-foreground text-2xl leading-tight font-semibold tracking-tight"
         >
-          {isReconnecting ? t('reconnectingTitle') : t('offlineTitle')}
+          {t('reconnectingTitle')}
         </h2>
         <p
           id="online-gate-description"
           className="text-muted-foreground mt-3 text-base leading-relaxed"
         >
-          {isReconnecting
-            ? t('reconnectingDescription')
-            : t('offlineDescription')}
+          {t('reconnectingDescription')}
         </p>
         <div className="mt-6">
-          <StatusIndicator
-            variant={isReconnecting ? 'warning' : 'error'}
-            pulse
-            size="md"
-          >
-            {isReconnecting ? t('statusReconnecting') : t('statusOffline')}
+          <StatusIndicator variant="warning" pulse size="md">
+            {t('statusReconnecting')}
           </StatusIndicator>
         </div>
         <Button

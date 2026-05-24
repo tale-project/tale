@@ -1464,12 +1464,9 @@
     "requiresIntegration": "Benötigt {name}"
   },
   "connectivity": {
-    "offlineTitle": "Du bist offline",
-    "offlineDescription": "Tale benötigt eine Internetverbindung. Sobald du wieder online bist, geht es weiter.",
     "reconnectingTitle": "Verbindung wird wiederhergestellt…",
     "reconnectingDescription": "Die Verbindung zu Tale ist abgebrochen. Einen Moment, wir versuchen es erneut.",
     "retry": "Erneut versuchen",
-    "statusOffline": "Offline",
     "statusReconnecting": "Verbinde"
   },
   "conversations": {

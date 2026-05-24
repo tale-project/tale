@@ -1464,12 +1464,9 @@
     "requiresIntegration": "Requires {name}"
   },
   "connectivity": {
-    "offlineTitle": "You're offline",
-    "offlineDescription": "Tale needs an internet connection. We'll reconnect as soon as you're back online.",
     "reconnectingTitle": "Reconnecting…",
     "reconnectingDescription": "Lost connection to Tale. Hold on while we get you back.",
     "retry": "Try again",
-    "statusOffline": "Offline",
     "statusReconnecting": "Reconnecting"
   },
   "conversations": {

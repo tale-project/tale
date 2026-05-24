@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
 import { act, render, screen } from '@/test/utils/render';
@@ -17,17 +17,20 @@ vi.mock('@/app/hooks/use-convex-connection-state', () => ({
 
 const { OnlineGate } = await import('./online-gate');
 
-describe('OnlineGate', () => {
-  function resetState() {
-    connectionState.isWebSocketConnected = true;
-    Object.defineProperty(window.navigator, 'onLine', {
-      configurable: true,
-      value: true,
-    });
-  }
+// Matches the grace window in online-gate.tsx; bumped a few ms here to
+// dodge timer-rounding flakiness across vitest's fake-timer backends.
+const GRACE_MS = 3_100;
 
-  it('renders children when online', () => {
-    resetState();
+describe('OnlineGate', () => {
+  beforeEach(() => {
+    connectionState.isWebSocketConnected = true;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('renders children when Convex is connected', () => {
     render(
       <OnlineGate>
         <p>Hello</p>
@@ -37,30 +40,70 @@ describe('OnlineGate', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
-  it('shows offline overlay when navigator goes offline', () => {
-    resetState();
-    render(
+  it('does not show the overlay before the grace window elapses', () => {
+    vi.useFakeTimers();
+    const { rerender } = render(
       <OnlineGate>
         <p>Hello</p>
       </OnlineGate>,
     );
-
+    connectionState.isWebSocketConnected = false;
+    rerender(
+      <OnlineGate>
+        <p>Hello</p>
+      </OnlineGate>,
+    );
     act(() => {
-      Object.defineProperty(window.navigator, 'onLine', {
-        configurable: true,
-        value: false,
-      });
-      window.dispatchEvent(new Event('offline'));
+      vi.advanceTimersByTime(GRACE_MS - 500);
     });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
 
+  it('shows the overlay after Convex stays disconnected past the grace window', () => {
+    vi.useFakeTimers();
+    const { rerender } = render(
+      <OnlineGate>
+        <p>Hello</p>
+      </OnlineGate>,
+    );
+    connectionState.isWebSocketConnected = false;
+    rerender(
+      <OnlineGate>
+        <p>Hello</p>
+      </OnlineGate>,
+    );
+    act(() => {
+      vi.advanceTimersByTime(GRACE_MS);
+    });
     const overlay = screen.getByRole('alertdialog');
     expect(overlay).toBeVisible();
     expect(overlay).toHaveAttribute('aria-modal', 'true');
     expect(overlay).toHaveAttribute('aria-live', 'polite');
   });
 
-  it('clears the overlay when navigator comes back online', () => {
-    resetState();
+  it('clears the overlay when Convex reconnects', () => {
+    vi.useFakeTimers();
+    connectionState.isWebSocketConnected = false;
+    const { rerender } = render(
+      <OnlineGate>
+        <p>Hello</p>
+      </OnlineGate>,
+    );
+    act(() => {
+      vi.advanceTimersByTime(GRACE_MS);
+    });
+    expect(screen.getByRole('alertdialog')).toBeVisible();
+
+    connectionState.isWebSocketConnected = true;
+    rerender(
+      <OnlineGate>
+        <p>Hello</p>
+      </OnlineGate>,
+    );
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('ignores navigator.onLine — Convex on localhost stays reachable even when the device reports offline', () => {
     Object.defineProperty(window.navigator, 'onLine', {
       configurable: true,
       value: false,
@@ -70,22 +113,15 @@ describe('OnlineGate', () => {
         <p>Hello</p>
       </OnlineGate>,
     );
-    expect(screen.getByRole('alertdialog')).toBeVisible();
-
-    act(() => {
-      Object.defineProperty(window.navigator, 'onLine', {
-        configurable: true,
-        value: true,
-      });
-      window.dispatchEvent(new Event('online'));
-    });
-
     expect(screen.queryByRole('alertdialog')).toBeNull();
+    Object.defineProperty(window.navigator, 'onLine', {
+      configurable: true,
+      value: true,
+    });
   });
 
   describe('accessibility', () => {
-    it('passes axe audit while online', async () => {
-      resetState();
+    it('passes axe audit while connected', async () => {
       const { container } = render(
         <OnlineGate>
           <p>Hello</p>
@@ -94,17 +130,18 @@ describe('OnlineGate', () => {
       await checkAccessibility(container);
     });
 
-    it('passes axe audit while offline', async () => {
-      resetState();
-      Object.defineProperty(window.navigator, 'onLine', {
-        configurable: true,
-        value: false,
-      });
+    it('passes axe audit while the overlay is visible', async () => {
+      vi.useFakeTimers();
+      connectionState.isWebSocketConnected = false;
       const { container } = render(
         <OnlineGate>
           <p>Hello</p>
         </OnlineGate>,
       );
+      act(() => {
+        vi.advanceTimersByTime(GRACE_MS);
+      });
+      vi.useRealTimers();
       await checkAccessibility(container);
     });
   });

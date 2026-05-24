@@ -1464,12 +1464,9 @@
     "requiresIntegration": "Nécessite {name}"
   },
   "connectivity": {
-    "offlineTitle": "Tu es hors ligne",
-    "offlineDescription": "Tale a besoin d'une connexion Internet. Nous reprenons dès que tu seras de retour en ligne.",
     "reconnectingTitle": "Reconnexion…",
     "reconnectingDescription": "La connexion à Tale est interrompue. Patiente, on s'en occupe.",
     "retry": "Réessayer",
-    "statusOffline": "Hors ligne",
     "statusReconnecting": "Reconnexion"
   },
   "conversations": {
