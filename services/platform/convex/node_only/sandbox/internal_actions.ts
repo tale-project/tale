@@ -330,6 +330,7 @@ export const executeCode = internalAction({
         storageId: v.id('_storage'),
         size: v.number(),
         contentType: v.string(),
+        sha256: v.optional(v.string()),
       }),
     ),
     steps: v.optional(v.array(sandboxStepResultValidator)),
