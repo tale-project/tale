@@ -32,6 +32,11 @@ vi.mock('../_generated/api', () => ({
       mutations: { cleanupAgentBinding: 'cleanupAgentBinding' },
       internal_queries: { getBindingByAgent: 'getBindingByAgent' },
     },
+    organizations: {
+      internal_queries: {
+        getOrganizationDefaultLocale: 'getOrganizationDefaultLocale',
+      },
+    },
   },
 }));
 
@@ -40,6 +45,10 @@ vi.mock('../auth', () => ({
   authComponent: {
     getAuthUser: (...args: unknown[]) => mockGetAuthUser(...args),
   },
+}));
+
+vi.mock('../organizations/resolve_org_slug', () => ({
+  resolveOrgSlug: vi.fn().mockResolvedValue('default'),
 }));
 
 const mockAtomicWrite = vi.fn();
@@ -133,7 +142,7 @@ describe('deleteAgent', () => {
 
     await deleteHandler(
       ctx as never,
-      { orgSlug: 'default', agentName: 'my-agent' } as never,
+      { organizationId: 'org_test', agentName: 'my-agent' } as never,
     );
 
     expect(mockUnlink).toHaveBeenCalledWith('/data/agents/my-agent.json');
@@ -149,7 +158,7 @@ describe('deleteAgent', () => {
     await expect(
       deleteHandler(
         ctx as never,
-        { orgSlug: 'default', agentName: 'chat-agent' } as never,
+        { organizationId: 'org_test', agentName: 'chat-agent' } as never,
       ),
     ).rejects.toThrow("Agent 'chat-agent' cannot be deleted");
 
@@ -163,7 +172,7 @@ describe('deleteAgent', () => {
     await expect(
       deleteHandler(
         ctx as never,
-        { orgSlug: 'default', agentName: 'my-agent' } as never,
+        { organizationId: 'org_test', agentName: 'my-agent' } as never,
       ),
     ).rejects.toThrow('Unauthenticated');
   });
@@ -176,7 +185,7 @@ describe('deleteAgent', () => {
     await expect(
       deleteHandler(
         ctx as never,
-        { orgSlug: 'default', agentName: 'my-agent' } as never,
+        { organizationId: 'org_test', agentName: 'my-agent' } as never,
       ),
     ).resolves.toBeNull();
   });
@@ -191,20 +200,19 @@ describe('deleteAgent', () => {
     await expect(
       deleteHandler(
         ctx as never,
-        { orgSlug: 'default', agentName: 'my-agent' } as never,
+        { organizationId: 'org_test', agentName: 'my-agent' } as never,
       ),
     ).rejects.toThrow('Permission denied');
   });
 
-  it('cleans up DB binding when organizationId is provided', async () => {
+  it('cleans up the DB binding for the deleted agent', async () => {
     const ctx = createMockCtx();
 
     await deleteHandler(
       ctx as never,
       {
-        orgSlug: 'default',
-        agentName: 'my-agent',
         organizationId: 'org-123',
+        agentName: 'my-agent',
       } as never,
     );
 
@@ -212,17 +220,6 @@ describe('deleteAgent', () => {
       organizationId: 'org-123',
       agentSlug: 'my-agent',
     });
-  });
-
-  it('skips DB cleanup when organizationId is not provided', async () => {
-    const ctx = createMockCtx();
-
-    await deleteHandler(
-      ctx as never,
-      { orgSlug: 'default', agentName: 'my-agent' } as never,
-    );
-
-    expect(ctx.runMutation).not.toHaveBeenCalled();
   });
 });
 
@@ -252,7 +249,7 @@ describe('duplicateAgent', () => {
 
     const result = await duplicateHandler(
       ctx as never,
-      { orgSlug: 'default', agentName: 'my-agent' } as never,
+      { organizationId: 'org_test', agentName: 'my-agent' } as never,
     );
 
     expect(result).toEqual({ newAgentName: 'my-agent-copy' });
@@ -268,7 +265,7 @@ describe('duplicateAgent', () => {
 
     const result = await duplicateHandler(
       ctx as never,
-      { orgSlug: 'default', agentName: 'my-agent' } as never,
+      { organizationId: 'org_test', agentName: 'my-agent' } as never,
     );
 
     expect(result).toEqual({ newAgentName: 'my-agent-copy-2' });
@@ -279,7 +276,7 @@ describe('duplicateAgent', () => {
 
     await duplicateHandler(
       ctx as never,
-      { orgSlug: 'default', agentName: 'my-agent' } as never,
+      { organizationId: 'org_test', agentName: 'my-agent' } as never,
     );
 
     const writtenContent = mockAtomicWrite.mock.calls[0][1];
@@ -298,7 +295,7 @@ describe('duplicateAgent', () => {
     await expect(
       duplicateHandler(
         ctx as never,
-        { orgSlug: 'default', agentName: 'my-agent' } as never,
+        { organizationId: 'org_test', agentName: 'my-agent' } as never,
       ),
     ).rejects.toThrow('Cannot duplicate');
   });
@@ -310,7 +307,7 @@ describe('duplicateAgent', () => {
     await expect(
       duplicateHandler(
         ctx as never,
-        { orgSlug: 'default', agentName: 'my-agent' } as never,
+        { organizationId: 'org_test', agentName: 'my-agent' } as never,
       ),
     ).rejects.toThrow('Unauthenticated');
   });
@@ -322,7 +319,7 @@ describe('duplicateAgent', () => {
     await expect(
       duplicateHandler(
         ctx as never,
-        { orgSlug: 'default', agentName: 'my-agent' } as never,
+        { organizationId: 'org_test', agentName: 'my-agent' } as never,
       ),
     ).rejects.toThrow('Disk full');
   });

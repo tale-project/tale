@@ -13,6 +13,7 @@ import { resolveLanguageModelWithFallback } from '../../providers/failover';
 export const generateCronExpression = action({
   args: {
     naturalLanguage: v.string(),
+    organizationId: v.string(),
   },
   returns: v.object({
     cronExpression: v.string(),
@@ -37,6 +38,7 @@ export const generateCronExpression = action({
       ctx,
       {
         tag: 'chat',
+        organizationId: args.organizationId,
       },
     );
     const callProviderOptions = buildCallProviderOptions(modelData);

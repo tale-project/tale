@@ -31,8 +31,8 @@ export interface AnalyzeImageParams {
   question?: string;
   /** Original file name (for display purposes) */
   fileName?: string;
-  /** Org slug for provider resolution (multi-tenant); defaults to 'default'. */
-  orgSlug?: string;
+  /** Better Auth org doc id for provider resolution (multi-tenant). */
+  organizationId: string;
 }
 
 export interface AnalyzeImageResult {
@@ -51,16 +51,16 @@ export async function analyzeImage(
   ctx: ActionCtx,
   params: AnalyzeImageParams,
 ): Promise<AnalyzeImageResult> {
-  const { fileId, question, fileName, orgSlug } = params;
+  const { fileId, question, fileName, organizationId } = params;
 
   debugLog('analyzeImage starting', { fileId, question, fileName });
 
-  // Resolve vision model from provider files — use org's providers when given.
+  // Resolve vision model from provider files for this org.
   const { languageModel, modelData } = await resolveLanguageModelWithFallback(
     ctx,
     {
       tag: 'vision',
-      orgSlug,
+      organizationId,
     },
   );
   const visionModelId = modelData.modelId;
@@ -193,14 +193,13 @@ export async function analyzeImageCached(
   ctx: ActionCtx,
   params: AnalyzeImageParams,
 ): Promise<AnalyzeImageResult> {
-  // `orgSlug` is part of the cache key — different orgs may resolve the
-  // vision tag to different models with different providerOptions, so a
-  // shared cache hit across orgs would silently misroute. Omitted args
-  // (system-level callers) hash to the same key as before.
+  // `organizationId` is part of the cache key — different orgs may resolve
+  // the vision tag to different models with different providerOptions, so a
+  // shared cache hit across orgs would silently misroute.
   return await imageAnalysisCache.fetch(ctx, {
     fileId: params.fileId,
     question: params.question,
     fileName: params.fileName,
-    orgSlug: params.orgSlug,
+    organizationId: params.organizationId,
   });
 }

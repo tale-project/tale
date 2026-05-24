@@ -55,7 +55,6 @@ export const editAndBranch = action({
     editedMessageId: v.string(),
     newMessage: v.string(),
     organizationId: v.string(),
-    orgSlug: v.string(),
     agentSlug: v.string(),
     modelId: v.optional(v.string()),
     userContext: v.optional(
@@ -94,7 +93,6 @@ export const editAndBranch = action({
     const agentConfig = await ctx.runAction(
       internal.agents.file_actions.resolveAgentConfig,
       {
-        orgSlug: args.orgSlug,
         agentSlug: args.agentSlug,
         organizationId: args.organizationId,
         modelId: args.modelId,

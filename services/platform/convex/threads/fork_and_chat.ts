@@ -18,7 +18,6 @@ export const forkAndChat = action({
     shareToken: v.string(),
     message: v.string(),
     agentSlug: v.string(),
-    orgSlug: v.string(),
     organizationId: v.string(),
     modelId: v.optional(v.string()),
     userContext: v.optional(
@@ -51,7 +50,6 @@ export const forkAndChat = action({
     const agentConfig = await ctx.runAction(
       internal.agents.file_actions.resolveAgentConfig,
       {
-        orgSlug: args.orgSlug,
         agentSlug: args.agentSlug,
         organizationId: args.organizationId,
         modelId: args.modelId,

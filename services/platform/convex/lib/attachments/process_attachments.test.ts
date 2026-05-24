@@ -84,6 +84,7 @@ describe('processAttachments', () => {
   it('returns empty result for no attachments', async () => {
     const result = await processAttachments(makeFakeCtx(), [], 'hello', {
       model: 'test-model',
+      organizationId: 'org_test',
     });
     expect(result.parsedDocuments).toEqual([]);
     expect(result.promptContent).toBeUndefined();
@@ -105,7 +106,7 @@ describe('processAttachments', () => {
         makeFakeCtx(),
         attachments,
         'Compare these documents',
-        { model: 'test-model' },
+        { model: 'test-model', organizationId: 'org_test' },
       );
 
       expect(result.parsedDocuments).toHaveLength(2);
@@ -136,7 +137,7 @@ describe('processAttachments', () => {
         makeFakeCtx(),
         attachments,
         'Summarize this document',
-        { model: 'test-model' },
+        { model: 'test-model', organizationId: 'org_test' },
       );
 
       expect(result.parsedDocuments).toHaveLength(1);
@@ -169,6 +170,7 @@ describe('processAttachments', () => {
 
       await processAttachments(makeFakeCtx(), attachments, 'analyze', {
         model: 'test-model',
+        organizationId: 'org_test',
         debugLog,
       });
 
@@ -190,6 +192,7 @@ describe('processAttachments', () => {
 
       await processAttachments(makeFakeCtx(), [makeAttachment()], 'analyze', {
         model: 'test-model',
+        organizationId: 'org_test',
         debugLog,
       });
 

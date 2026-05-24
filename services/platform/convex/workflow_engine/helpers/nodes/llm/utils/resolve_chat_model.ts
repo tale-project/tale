@@ -18,7 +18,7 @@ import type { LLMNodeConfig } from '../../../../types';
 export async function resolveChatModel(
   ctx: ActionCtx,
   config: LLMNodeConfig,
-  orgSlug: string,
+  organizationId: string,
 ) {
   const explicit = typeof config.model === 'string' ? config.model.trim() : '';
   if (explicit.length > 0) {
@@ -27,10 +27,13 @@ export async function resolveChatModel(
       modelId,
       providerName,
       tag: 'chat',
-      orgSlug,
+      organizationId,
     });
   }
-  return resolveLanguageModelWithFallback(ctx, { tag: 'chat', orgSlug });
+  return resolveLanguageModelWithFallback(ctx, {
+    tag: 'chat',
+    organizationId,
+  });
 }
 
 /**

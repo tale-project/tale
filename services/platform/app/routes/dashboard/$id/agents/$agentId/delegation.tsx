@@ -34,6 +34,7 @@ interface AgentListEntry {
 
 function DelegationTab() {
   const { t } = useT('settings');
+  const { id: organizationId } = Route.useParams();
   const { config, updateConfig, agentName } = useAgentConfig();
   const { i18n: i18nCtx } = useTranslation();
   const locale = i18nCtx.language;
@@ -52,7 +53,7 @@ function DelegationTab() {
       try {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex action returns AgentListEntry[] but typed as any
         const agents = (await listAgentsRef.current.mutateAsync({
-          orgSlug: 'default',
+          organizationId,
         })) as AgentListEntry[];
         if (!cancelled) {
           // Skip self + entries that carry an error shape (have `status` but no
@@ -62,8 +63,8 @@ function DelegationTab() {
             agents.filter((a) => a.name !== agentName && !('status' in a)),
           );
         }
-      } catch {
-        // Silently handle — empty list shown
+      } catch (err) {
+        console.error('[delegation listAgents]', err);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -73,7 +74,7 @@ function DelegationTab() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentName]);
+  }, [agentName, organizationId]);
 
   const delegateOptions = useMemo(
     () =>

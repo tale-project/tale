@@ -192,6 +192,7 @@ export function Integrations({
             if (!open) setManagingIntegration(null);
           }}
           integration={managingIntegration}
+          organizationId={organizationId}
         />
       )}
     </Stack>

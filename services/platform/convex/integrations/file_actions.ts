@@ -24,6 +24,7 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import type { IntegrationReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -70,19 +71,17 @@ async function readConnectorCode(
 
 export const readIntegration = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     slug: v.string(),
   },
   returns: v.any(),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    const configResult = await readIntegrationConfigFile(
-      args.orgSlug,
-      args.slug,
-    );
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const configResult = await readIntegrationConfigFile(orgSlug, args.slug);
     if (!configResult.ok) return configResult;
-    const connectorCode = await readConnectorCode(args.orgSlug, args.slug);
+    const connectorCode = await readConnectorCode(orgSlug, args.slug);
     return {
       ok: true,
       config: configResult.config,
@@ -94,8 +93,7 @@ export const readIntegration = action({
 
 export const listIntegrations = action({
   args: {
-    orgSlug: v.string(),
-    organizationId: v.optional(v.string()),
+    organizationId: v.string(),
     filter: v.optional(
       v.union(v.literal('installed'), v.literal('templates'), v.literal('all')),
     ),
@@ -105,8 +103,9 @@ export const listIntegrations = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const filterMode = args.filter ?? 'all';
-    const dir = resolveIntegrationsDir(args.orgSlug);
+    const dir = resolveIntegrationsDir(orgSlug);
 
     let entries: string[];
     try {
@@ -130,19 +129,17 @@ export const listIntegrations = action({
     // credential row exists for its slug in this organization. Fetching the
     // credential set once avoids N queries inside the dir.map loop.
     const installedSlugs = new Set<string>();
-    if (args.organizationId) {
-      const credentials = await ctx.runQuery(
-        internal.integrations.credential_queries.listInternal,
-        { organizationId: args.organizationId },
-      );
-      for (const cred of credentials as Array<{ slug: string }>) {
-        installedSlugs.add(cred.slug);
-      }
+    const credentials = await ctx.runQuery(
+      internal.integrations.credential_queries.listInternal,
+      { organizationId: args.organizationId },
+    );
+    for (const cred of credentials as Array<{ slug: string }>) {
+      installedSlugs.add(cred.slug);
     }
 
     const results = await Promise.all(
       dirs.map(async (slug) => {
-        const result = await readIntegrationConfigFile(args.orgSlug, slug);
+        const result = await readIntegrationConfigFile(orgSlug, slug);
         if (result.ok) {
           const installed = installedSlugs.has(slug);
           if (filterMode === 'installed' && !installed) return null;
@@ -150,7 +147,7 @@ export const listIntegrations = action({
 
           // Read icon.svg as data URI if it exists
           const iconPath = path.join(
-            resolveIntegrationDir(args.orgSlug, slug),
+            resolveIntegrationDir(orgSlug, slug),
             'icon.svg',
           );
           const iconContent = await readFileSafe(iconPath);
@@ -202,7 +199,7 @@ export const listIntegrations = action({
  */
 export const saveIntegrationConfig = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     slug: v.string(),
     config: v.any(),
     expectedHash: v.optional(v.string()),
@@ -216,9 +213,10 @@ export const saveIntegrationConfig = action({
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
 
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const config = parseIntegrationJson(JSON.stringify(args.config));
     const newContent = serializeIntegrationJson(config);
-    const filePath = resolveConfigPath(args.orgSlug, args.slug);
+    const filePath = resolveConfigPath(orgSlug, args.slug);
 
     // Compare-and-swap
     if (args.expectedHash) {
@@ -240,7 +238,6 @@ export const saveIntegrationConfig = action({
 
 export const installIntegration = action({
   args: {
-    orgSlug: v.string(),
     slug: v.string(),
     organizationId: v.string(),
   },
@@ -259,7 +256,8 @@ export const installIntegration = action({
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
 
-    const result = await readIntegrationConfigFile(args.orgSlug, args.slug);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const result = await readIntegrationConfigFile(orgSlug, args.slug);
     if (!result.ok) {
       throw new Error(`Cannot install integration: ${result.message}`);
     }
@@ -295,7 +293,6 @@ export const installIntegration = action({
 
 export const uninstallIntegration = action({
   args: {
-    orgSlug: v.string(),
     slug: v.string(),
     organizationId: v.string(),
   },
@@ -331,7 +328,7 @@ export const uninstallIntegration = action({
  */
 export const writeIntegrationFiles = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     slug: v.string(),
     config: v.any(),
     connectorCode: v.optional(v.string()),
@@ -345,9 +342,10 @@ export const writeIntegrationFiles = action({
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
 
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const config = parseIntegrationJson(JSON.stringify(args.config));
     const configContent = serializeIntegrationJson(config);
-    const integrationDir = resolveIntegrationDir(args.orgSlug, args.slug);
+    const integrationDir = resolveIntegrationDir(orgSlug, args.slug);
 
     const { mkdir } = await import('node:fs/promises');
     await mkdir(integrationDir, { recursive: true });

@@ -184,7 +184,7 @@ export const chatDirectModel = internalAction({
     const resolved = await resolveLanguageModelWithFallback(ctx, {
       modelId: args.modelId,
       tag: 'chat',
-      orgSlug,
+      organizationId: args.organizationId,
     });
 
     // Convert client tools to AI SDK format if provided

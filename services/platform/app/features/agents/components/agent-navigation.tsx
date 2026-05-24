@@ -126,7 +126,7 @@ export function AgentNavigation({
     try {
       // Best-effort history snapshot — do not block save on failure
       await snapshotAction
-        .mutateAsync({ orgSlug: 'default', agentName: agentId })
+        .mutateAsync({ organizationId, agentName: agentId })
         .catch((err) => console.error('[agent history snapshot]', err));
 
       // Client-side normalize mirrors what `saveAgent` applies server-side
@@ -135,10 +135,9 @@ export function AgentNavigation({
       const normalized = normalizeAgentConfig(config, orgDefaultLocale);
 
       await saveAction.mutateAsync({
-        orgSlug: 'default',
+        organizationId,
         agentName: agentId,
         config,
-        organizationId,
       });
 
       overrideConfig(normalized);
@@ -180,7 +179,7 @@ export function AgentNavigation({
     try {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex action returns HistoryEntry[]
       const entries = (await listHistoryAction.mutateAsync({
-        orgSlug: 'default',
+        organizationId,
         agentName: agentId,
       })) as HistoryEntry[];
       setHistoryEntries(entries);
@@ -193,13 +192,13 @@ export function AgentNavigation({
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [agentId, listHistoryAction, t]);
+  }, [agentId, listHistoryAction, organizationId, t]);
 
   const handleSelectEntry = useCallback(
     async (entry: HistoryEntry) => {
       try {
         const result = await readHistoryAction.mutateAsync({
-          orgSlug: 'default',
+          organizationId,
           agentName: agentId,
           timestamp: entry.timestamp,
         });
@@ -224,7 +223,7 @@ export function AgentNavigation({
         });
       }
     },
-    [agentId, readHistoryAction, t],
+    [agentId, readHistoryAction, organizationId, t],
   );
 
   const handleRestore = useCallback(async () => {
@@ -232,7 +231,7 @@ export function AgentNavigation({
     setIsRestoring(true);
     try {
       await restoreAction.mutateAsync({
-        orgSlug: 'default',
+        organizationId,
         agentName: agentId,
         timestamp: selectedEntry.timestamp,
       });
@@ -259,6 +258,7 @@ export function AgentNavigation({
   }, [
     agentId,
     onSaved,
+    organizationId,
     overrideConfig,
     restoreAction,
     selectedEntry,

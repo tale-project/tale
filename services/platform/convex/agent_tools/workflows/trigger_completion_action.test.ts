@@ -62,7 +62,6 @@ describe('triggerCompletionWithAgent', () => {
     );
 
     expect(ctx.runAction).toHaveBeenCalledWith('mock-resolveAgentConfig', {
-      orgSlug: 'default',
       agentSlug: 'my-agent',
       organizationId: 'org-1',
     });

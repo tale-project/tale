@@ -28,16 +28,23 @@ interface IntegrationPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   integration: Integration;
+  organizationId: string;
 }
 
 export function IntegrationPanel({
   open,
   onOpenChange,
   integration,
+  organizationId,
 }: IntegrationPanelProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const manage = useIntegrationManage(integration, onOpenChange, open);
+  const manage = useIntegrationManage(
+    integration,
+    onOpenChange,
+    open,
+    organizationId,
+  );
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   // Lazy-load connector code from disk when panel opens
@@ -57,7 +64,7 @@ export function IntegrationPanel({
     const slug = integration.name ?? '';
     if (!slug) return;
     setIsLoadingCode(true);
-    void readIntegrationFn({ orgSlug: 'default', slug })
+    void readIntegrationFn({ organizationId, slug })
       .then((result) => {
         if (
           result &&
@@ -80,7 +87,7 @@ export function IntegrationPanel({
       .finally(() => {
         setIsLoadingCode(false);
       });
-  }, [open, integration.name, readIntegrationFn]);
+  }, [open, integration.name, organizationId, readIntegrationFn]);
 
   const enrichedIntegration = useMemo(() => {
     if (!connectorCode) return integration;

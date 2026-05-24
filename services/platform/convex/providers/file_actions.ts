@@ -41,6 +41,7 @@ import {
   invalidateSecretsCache,
 } from '../lib/sops';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { requireDeveloperSettingsAccess, requireOrgMembership } from './auth';
 import { NoProviderAvailableError } from './errors';
 import type { ProviderJson, ProviderReadResult } from './file_utils';
@@ -349,12 +350,13 @@ export const readProvider = action({
 });
 
 export const listProviders = action({
-  args: { orgSlug: v.string() },
+  args: { organizationId: v.string() },
   returns: v.any(),
   handler: async (ctx, args) => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    await requireOrgMembership(ctx, orgSlug);
 
-    const dir = resolveProvidersDir(args.orgSlug);
+    const dir = resolveProvidersDir(orgSlug);
     let entries: string[];
     try {
       entries = await readdir(dir);
@@ -373,12 +375,12 @@ export const listProviders = action({
       jsonFiles.map(async (fileName) => {
         const name = providerNameFromFileName(fileName);
         if (!validateProviderName(name)) return null;
-        const result = await readProviderFile(args.orgSlug, name);
+        const result = await readProviderFile(orgSlug, name);
         if (result.ok) {
           // Try reading secrets to detect per-model API key overrides
           let modelKeys: Record<string, string> | undefined;
           try {
-            const secretsPath = resolveProviderSecretsPath(args.orgSlug, name);
+            const secretsPath = resolveProviderSecretsPath(orgSlug, name);
             const raw = await decryptSecretsFile(secretsPath);
             const secrets = parseProviderSecrets(raw);
             modelKeys = secrets.modelKeys;
@@ -560,7 +562,7 @@ export const deleteProvider = action({
 export const resolveModelData = internalAction({
   args: {
     modelId: v.string(),
-    orgSlug: v.optional(v.string()),
+    organizationId: v.string(),
     providerName: v.optional(v.string()),
   },
   returns: v.object({
@@ -596,8 +598,8 @@ export const resolveModelData = internalAction({
     ),
     providerOptions: v.optional(v.record(v.string(), v.any())),
   }),
-  handler: async (_ctx, args) => {
-    const orgSlug = args.orgSlug ?? 'default';
+  handler: async (ctx, args) => {
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const providers = await loadAllProviders(orgSlug);
 
     // Split off any `@<quant>` suffix so the provider config lookup uses the
@@ -721,7 +723,7 @@ export const resolveModelData = internalAction({
 export const resolveModelByTag = internalAction({
   args: {
     tag: v.string(),
-    orgSlug: v.optional(v.string()),
+    organizationId: v.string(),
     providerName: v.optional(v.string()),
   },
   returns: v.object({
@@ -757,8 +759,8 @@ export const resolveModelByTag = internalAction({
     ),
     providerOptions: v.optional(v.record(v.string(), v.any())),
   }),
-  handler: async (_ctx, args) => {
-    const orgSlug = args.orgSlug ?? 'default';
+  handler: async (ctx, args) => {
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const providers = await loadAllProviders(orgSlug);
 
     const candidates = args.providerName
@@ -870,7 +872,7 @@ export const resolveModelByTag = internalAction({
  * Used for cross-validation of agent supportedModels at config time.
  */
 export const getAllModelIds = internalAction({
-  args: { orgSlug: v.optional(v.string()) },
+  args: { organizationId: v.string() },
   returns: v.array(
     v.object({
       id: v.string(),
@@ -880,8 +882,8 @@ export const getAllModelIds = internalAction({
       quantizations: v.optional(v.array(v.string())),
     }),
   ),
-  handler: async (_ctx, args) => {
-    const orgSlug = args.orgSlug ?? 'default';
+  handler: async (ctx, args) => {
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     let providers: ProviderWithSecrets[];
     try {
       providers = await loadAllProviders(orgSlug);
@@ -921,7 +923,7 @@ export const getAllModelIds = internalAction({
  * legitimate state, not a missing reference.
  */
 export const getAllConfiguredModelIds = internalAction({
-  args: { orgSlug: v.optional(v.string()) },
+  args: { organizationId: v.string() },
   returns: v.array(
     v.object({
       id: v.string(),
@@ -931,8 +933,8 @@ export const getAllConfiguredModelIds = internalAction({
       quantizations: v.optional(v.array(v.string())),
     }),
   ),
-  handler: async (_ctx, args) => {
-    const orgSlug = args.orgSlug ?? 'default';
+  handler: async (ctx, args) => {
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const dir = resolveProvidersDir(orgSlug);
     let entries: string[];
     try {

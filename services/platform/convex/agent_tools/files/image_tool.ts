@@ -8,7 +8,6 @@ import { z } from 'zod/v4';
 
 import { createDebugLog } from '../../lib/debug_log';
 import { toId } from '../../lib/type_cast_helpers';
-import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import type { ToolDefinition } from '../types';
 import { analyzeImage } from './helpers/analyze_image';
 
@@ -65,13 +64,15 @@ CRITICAL RULES:
       debugLog('tool:image analyze start', { fileId, question });
 
       try {
-        const orgSlug = ctx.organizationId
-          ? await resolveOrgSlug(ctx, ctx.organizationId)
-          : undefined;
+        if (!ctx.organizationId) {
+          throw new Error(
+            'image tool requires ctx.organizationId; missing org context.',
+          );
+        }
         const result = await analyzeImage(ctx, {
           fileId: toId<'_storage'>(fileId),
           question,
-          orgSlug,
+          organizationId: ctx.organizationId,
         });
 
         return {

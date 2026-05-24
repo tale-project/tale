@@ -65,7 +65,7 @@ function hasExposeAsCapability(value: unknown): value is {
 export function useIntegrationReadiness(
   organizationId: string,
 ): IntegrationReadiness {
-  const { integrations } = useIntegrations('default');
+  const { integrations } = useIntegrations(organizationId);
   const { data: credentials } = useIntegrationCredentials(organizationId);
 
   return useMemo(() => {
@@ -114,7 +114,7 @@ export function getAgentMissingIntegrations(
 export function useComposerCapabilities(
   organizationId: string,
 ): CapabilityEntry[] {
-  const { integrations } = useIntegrations('default');
+  const { integrations } = useIntegrations(organizationId);
   const readiness = useIntegrationReadiness(organizationId);
 
   return useMemo<CapabilityEntry[]>(() => {

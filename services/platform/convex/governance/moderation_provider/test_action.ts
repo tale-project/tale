@@ -51,7 +51,6 @@ interface TestResult {
 export const testModerationProvider = action({
   args: {
     organizationId: v.string(),
-    orgSlug: v.string(),
     text: v.string(),
     direction: v.optional(v.union(v.literal('input'), v.literal('output'))),
   },
@@ -116,7 +115,6 @@ export const testModerationProvider = action({
         .runModerationProviderAction,
       {
         organizationId: args.organizationId,
-        orgSlug: args.orgSlug,
         direction,
         text: args.text,
         endpoint: mod.config.endpoint,

@@ -338,7 +338,7 @@ export function DefaultModelEditor({
   );
   const upsertMutation = useUpsertGovernancePolicy();
   const { teams } = useOrgTeams();
-  const { providers } = useListProviders('default');
+  const { providers } = useListProviders(organizationId);
 
   const accessConfig = useMemo(
     () => parseModelAccessConfig(accessPolicy?.config),

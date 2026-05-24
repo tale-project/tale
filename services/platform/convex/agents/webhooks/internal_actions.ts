@@ -95,7 +95,6 @@ export const chatViaWebhook = internalAction({
     const agentConfig = await ctx.runAction(
       internal.agents.file_actions.resolveAgentConfig,
       {
-        orgSlug,
         agentSlug: args.agentSlug,
         organizationId: args.organizationId,
         modelId: args.preferredModel,

@@ -63,10 +63,8 @@ export const runImageGeneration = internalAction({
     streamId: v.optional(v.string()),
     /** Agent slug for telemetry/audit. */
     agentSlug: v.optional(v.string()),
-    /** Org slug for provider resolution. */
-    orgSlug: v.optional(v.string()),
-    /** For usage ledger. */
-    organizationId: v.optional(v.string()),
+    /** Better Auth org doc id — drives provider resolution and usage ledger. */
+    organizationId: v.string(),
     userId: v.optional(v.string()),
     teamIds: v.optional(v.array(v.string())),
   },
@@ -83,11 +81,11 @@ export const runImageGeneration = internalAction({
         resolved = await resolveImageModelById(ctx, {
           modelId,
           providerName,
-          orgSlug: args.orgSlug,
+          organizationId: args.organizationId,
         });
       } else {
         resolved = await resolveImageModelByTag(ctx, {
-          orgSlug: args.orgSlug,
+          organizationId: args.organizationId,
         });
       }
 

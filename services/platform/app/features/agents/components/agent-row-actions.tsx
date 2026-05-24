@@ -38,9 +38,8 @@ export function AgentRowActions({
     setIsDuplicating(true);
     try {
       await duplicateAgent({
-        orgSlug: 'default',
-        agentName,
         organizationId,
+        agentName,
       });
       toast({
         title: t('agents.agentDuplicated'),

@@ -8,7 +8,6 @@ import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
 import { classifyError } from '../lib/error_classification';
-import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import type { ResolvedModelData } from '../providers/resolve_model';
 import { resolveTranscriptionModel } from '../providers/resolve_model';
 import { uploadFile } from '../workflow_engine/action_defs/rag/helpers/upload_file_direct';
@@ -386,8 +385,9 @@ export const transcribeAudio = internalAction({
 
       await patchProgress(ctx, args.storageId, 'compressing');
 
-      const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-      const modelData = await resolveTranscriptionModel(ctx, { orgSlug });
+      const modelData = await resolveTranscriptionModel(ctx, {
+        organizationId: args.organizationId,
+      });
 
       const origBlob = await ctx.storage.get(args.storageId);
       if (!origBlob) {

@@ -236,6 +236,7 @@ function ConversationStartersTab() {
       const result = await translateMutation.mutateAsync({
         fields: { conversationStarters: sourceStarters },
         targetLocale,
+        organizationId,
       });
 
       if (result.error) {

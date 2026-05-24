@@ -306,7 +306,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   const upsertMutation = useUpsertGovernancePolicy();
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
-  const { providers } = useListProviders('default');
+  const { providers } = useListProviders(organizationId);
 
   const memberOptions = useMemo(
     () =>

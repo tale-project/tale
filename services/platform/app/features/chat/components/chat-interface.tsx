@@ -329,7 +329,7 @@ export function ChatInterface({
   const isImageGenAgent =
     activeAgentMeta?.primaryBehavior === 'image-generation';
   const threadImages = useThreadImages(isImageGenAgent ? messages : undefined);
-  const { providers: providersForEdit } = useListProviders('default');
+  const { providers: providersForEdit } = useListProviders(organizationId);
   const activeModelRef = effectiveAgent?.name
     ? (selectedModelOverrides[effectiveAgent.name] ??
       activeAgentMeta?.supportedModels?.[0])
@@ -841,7 +841,6 @@ export function ChatInterface({
         editedMessageId: editingMessage.id,
         newMessage: newContent,
         organizationId,
-        orgSlug: 'default',
         agentSlug: effectiveAgent.name,
         modelId,
         userContext,

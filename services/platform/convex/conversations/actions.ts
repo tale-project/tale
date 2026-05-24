@@ -9,6 +9,7 @@ export const improveMessage = action({
   args: {
     originalMessage: v.string(),
     instruction: v.optional(v.string()),
+    organizationId: v.string(),
   },
   returns: v.object({
     improvedMessage: v.string(),
@@ -28,6 +29,7 @@ export const improveMessage = action({
       ctx,
       {
         tag: 'chat',
+        organizationId: args.organizationId,
       },
     );
 

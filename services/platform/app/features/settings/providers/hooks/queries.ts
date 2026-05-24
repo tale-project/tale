@@ -8,16 +8,18 @@ import { api } from '@/convex/_generated/api';
 // ---------------------------------------------------------------------------
 
 interface QueryOptions {
-  /** When false the query is paused — used to skip the "orgSlug not yet
-   * resolved" first render so the action doesn't fire with an empty slug. */
+  /** When false the query is paused. */
   enabled?: boolean;
 }
 
-export function useListProviders(orgSlug: string, options?: QueryOptions) {
+export function useListProviders(
+  organizationId: string,
+  options?: QueryOptions,
+) {
   const { data, isLoading, error, refetch } = useActionQuery(
-    configKeys.list('providers', orgSlug),
+    configKeys.list('providers', organizationId),
     api.providers.file_actions.listProviders,
-    { orgSlug },
+    { organizationId },
     options,
   );
   return { providers: data ?? [], isLoading, error, refetch };

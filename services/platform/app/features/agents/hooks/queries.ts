@@ -9,28 +9,28 @@ import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 // invalidated by SSE file events and mutation onSuccess)
 // ---------------------------------------------------------------------------
 
-export function useListAgents(orgSlug: string) {
+export function useListAgents(organizationId: string) {
   const { data, isLoading, error, refetch } = useActionQuery(
-    configKeys.list('agents', orgSlug),
+    configKeys.list('agents', organizationId),
     api.agents.file_actions.listAgents,
-    { orgSlug },
+    { organizationId },
   );
   return { agents: data, isLoading, error, refetch };
 }
 
-export function useReadAgent(orgSlug: string, agentName: string) {
+export function useReadAgent(organizationId: string, agentName: string) {
   return useActionQuery(
-    configKeys.detail('agents', orgSlug, agentName),
+    configKeys.detail('agents', organizationId, agentName),
     api.agents.file_actions.readAgent,
-    { orgSlug, agentName },
+    { organizationId, agentName },
   );
 }
 
-export function useAgentHistory(orgSlug: string, agentName: string) {
+export function useAgentHistory(organizationId: string, agentName: string) {
   const { data, isLoading, error, refetch } = useActionQuery(
-    configKeys.history('agents', orgSlug, agentName),
+    configKeys.history('agents', organizationId, agentName),
     api.agents.file_actions.listHistory,
-    { orgSlug, agentName },
+    { organizationId, agentName },
   );
   return { history: data, isLoading, error, refetch };
 }

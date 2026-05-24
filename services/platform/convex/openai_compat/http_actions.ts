@@ -690,8 +690,9 @@ function handleChatError(error: unknown, model: string): Response {
 // ---------------------------------------------------------------------------
 
 export const modelsListHandler = httpAction(async (ctx, request) => {
+  let user: { userId: string; email: string; name: string };
   try {
-    await authenticateRequest(ctx, request);
+    user = await authenticateRequest(ctx, request);
   } catch (error) {
     if (error instanceof AuthError) {
       return openAIErrorResponse(
@@ -704,6 +705,22 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
     throw error;
   }
 
+  const orgSlugHeader =
+    request.headers.get('x-organization-slug') ??
+    request.headers.get('X-Organization-Slug');
+
+  let orgInfo: { organizationId: string; orgSlug: string };
+  try {
+    orgInfo = await ctx.runQuery(
+      internal.openai_compat.internal_queries.resolveUserOrganization,
+      { userId: user.userId, orgSlug: orgSlugHeader ?? undefined },
+    );
+  } catch (error) {
+    const msg =
+      error instanceof Error ? error.message : 'Failed to resolve organization';
+    return openAIErrorResponse(msg, 'invalid_request_error', 400);
+  }
+
   let models: Array<{
     id: string;
     tags: string[];
@@ -713,7 +730,7 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
   try {
     models = await ctx.runAction(
       internal.providers.file_actions.getAllModelIds,
-      {},
+      { organizationId: orgInfo.organizationId },
     );
   } catch (error) {
     const msg =

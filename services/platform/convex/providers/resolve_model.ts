@@ -317,13 +317,11 @@ function createLanguageModel(modelData: ResolvedModelData): LanguageModelV3 {
  * `{baseUrl}/audio/transcriptions` directly because `@ai-sdk/openai-compatible`
  * has no transcription primitive.
  *
- * `orgSlug` is REQUIRED (not optional) to avoid silently falling back to the
- * `'default'` org when called from a scheduled action — multi-org isolation
- * depends on this.
+ * `organizationId` is REQUIRED — multi-org isolation depends on this.
  */
 export async function resolveTranscriptionModel(
   ctx: ActionCtx,
-  opts: { orgSlug: string; providerName?: string },
+  opts: { organizationId: string; providerName?: string },
 ): Promise<ResolvedModelData> {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by file_actions contract
   const modelData = (await ctx.runAction(
@@ -331,7 +329,7 @@ export async function resolveTranscriptionModel(
     {
       tag: 'transcription',
       providerName: opts.providerName,
-      orgSlug: opts.orgSlug,
+      organizationId: opts.organizationId,
     },
   )) as ResolvedModelData;
   return modelData;
@@ -363,7 +361,7 @@ export interface ResolvedTtsModel extends ResolvedModelData {
  */
 export async function resolveTtsModel(
   ctx: ActionCtx,
-  opts: { orgSlug: string; locale: string; providerName?: string },
+  opts: { organizationId: string; locale: string; providerName?: string },
 ): Promise<ResolvedTtsModel> {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by file_actions contract
   const modelData = (await ctx.runAction(
@@ -371,7 +369,7 @@ export async function resolveTtsModel(
     {
       tag: 'text-to-speech',
       providerName: opts.providerName,
-      orgSlug: opts.orgSlug,
+      organizationId: opts.organizationId,
     },
   )) as ResolvedModelData;
 
@@ -403,12 +401,11 @@ export async function resolveTtsModel(
 /**
  * Resolve a language model by tag (e.g., 'chat', 'vision').
  * Searches all providers (or a specific one if providerName is given).
- * Pass `orgSlug` to resolve from the caller org's provider files; omit to
- * fall back to the global "default" org (for system-level calls).
+ * `organizationId` is REQUIRED — multi-org isolation depends on this.
  */
 export async function resolveLanguageModel(
   ctx: ActionCtx,
-  opts: { tag: string; providerName?: string; orgSlug?: string },
+  opts: { tag: string; providerName?: string; organizationId: string },
 ): Promise<ResolvedLanguageModel> {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by file_actions contract
   const modelData = (await ctx.runAction(
@@ -416,7 +413,7 @@ export async function resolveLanguageModel(
     {
       tag: opts.tag,
       providerName: opts.providerName,
-      orgSlug: opts.orgSlug,
+      organizationId: opts.organizationId,
     },
   )) as ResolvedModelData;
   return { languageModel: createLanguageModel(modelData), modelData };
@@ -425,12 +422,11 @@ export async function resolveLanguageModel(
 /**
  * Resolve a language model by explicit model ID.
  * Searches all providers (or a specific one if providerName is given).
- * Pass `orgSlug` to resolve from the caller org's provider files; omit to
- * fall back to the global "default" org (for system-level calls).
+ * `organizationId` is REQUIRED — multi-org isolation depends on this.
  */
 export async function resolveLanguageModelById(
   ctx: ActionCtx,
-  opts: { modelId: string; providerName?: string; orgSlug?: string },
+  opts: { modelId: string; providerName?: string; organizationId: string },
 ): Promise<ResolvedLanguageModel> {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelData returns v.any() but shape is guaranteed by file_actions contract
   const modelData = (await ctx.runAction(
@@ -438,7 +434,7 @@ export async function resolveLanguageModelById(
     {
       modelId: opts.modelId,
       providerName: opts.providerName,
-      orgSlug: opts.orgSlug,
+      organizationId: opts.organizationId,
     },
   )) as ResolvedModelData;
   return { languageModel: createLanguageModel(modelData), modelData };
@@ -484,7 +480,7 @@ function buildImageResolution(
  */
 export async function resolveImageModelById(
   ctx: ActionCtx,
-  opts: { modelId: string; providerName?: string; orgSlug?: string },
+  opts: { modelId: string; providerName?: string; organizationId: string },
 ): Promise<ResolvedImageModel> {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelData returns v.any() but shape is guaranteed by file_actions contract
   const modelData = (await ctx.runAction(
@@ -492,7 +488,7 @@ export async function resolveImageModelById(
     {
       modelId: opts.modelId,
       providerName: opts.providerName,
-      orgSlug: opts.orgSlug,
+      organizationId: opts.organizationId,
     },
   )) as ResolvedModelData;
   if (!modelData.tags.includes('image-generation')) {
@@ -510,7 +506,7 @@ export async function resolveImageModelById(
  */
 export async function resolveImageModelByTag(
   ctx: ActionCtx,
-  opts: { providerName?: string; orgSlug?: string } = {},
+  opts: { providerName?: string; organizationId: string },
 ): Promise<ResolvedImageModel> {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by file_actions contract
   const modelData = (await ctx.runAction(
@@ -518,7 +514,7 @@ export async function resolveImageModelByTag(
     {
       tag: 'image-generation',
       providerName: opts.providerName,
-      orgSlug: opts.orgSlug,
+      organizationId: opts.organizationId,
     },
   )) as ResolvedModelData;
   return buildImageResolution(modelData);

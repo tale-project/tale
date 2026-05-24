@@ -11,7 +11,6 @@ import { parseModelRef } from '../../../../../lib/shared/utils/model-ref';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import { buildCallProviderOptions } from '../../../../lib/provider_options';
-import { resolveOrgSlug } from '../../../../organizations/resolve_org_slug';
 import { recordFailure } from '../../../../providers/circuit_breaker';
 import {
   isTransientProviderError,
@@ -54,8 +53,6 @@ export async function executeLLMNode(
   threadId?: string,
   stepSlug?: string,
 ): Promise<StepExecutionResult> {
-  const orgSlug = await resolveOrgSlug(ctx, organizationId);
-
   const explicit = typeof config.model === 'string' ? config.model.trim() : '';
   const chainEntries = Array.isArray(config.models)
     ? config.models
@@ -83,7 +80,7 @@ export async function executeLLMNode(
       try {
         const { languageModel, modelData } = await resolveLanguageModelById(
           ctx,
-          { modelId, providerName, orgSlug },
+          { modelId, providerName, organizationId },
         );
         assertChatTag(modelData, ref);
         const normalizedConfig = validateAndNormalizeConfig(
@@ -139,7 +136,7 @@ export async function executeLLMNode(
   const { languageModel, modelData: chatModelData } = await resolveChatModel(
     ctx,
     config,
-    orgSlug,
+    organizationId,
   );
   assertChatTag(chatModelData, config.model);
   const normalizedConfig = validateAndNormalizeConfig(

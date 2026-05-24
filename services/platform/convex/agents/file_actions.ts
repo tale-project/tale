@@ -32,6 +32,7 @@ import {
   sha256,
 } from '../lib/file_io';
 import { stripNulls } from '../lib/strip_nulls';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import type { AgentJsonConfig, AgentReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -67,27 +68,29 @@ async function readAgentFile(
 
 export const readAgent = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     agentName: v.string(),
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<AgentReadResult> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    return readAgentFile(args.orgSlug, args.agentName);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    return readAgentFile(orgSlug, args.agentName);
   },
 });
 
 export const listAgents = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
   },
   returns: v.any(),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const dir = resolveAgentsDir(args.orgSlug);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const dir = resolveAgentsDir(orgSlug);
     let entries: string[];
     try {
       entries = await readdir(dir);
@@ -103,7 +106,7 @@ export const listAgents = action({
       jsonFiles.map(async (fileName) => {
         const agentName = agentNameFromFileName(fileName);
         if (!validateAgentName(agentName)) return null;
-        const result = await readAgentFile(args.orgSlug, agentName);
+        const result = await readAgentFile(orgSlug, agentName);
         if (result.ok) {
           return {
             name: agentName,
@@ -134,18 +137,11 @@ export const listAgents = action({
 
 export const saveAgent = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     agentName: v.string(),
     config: v.any(),
     isNew: v.optional(v.boolean()),
     oldAgentName: v.optional(v.string()),
-    /**
-     * Better Auth organization ID — used to resolve the org's `defaultLocale`
-     * so the write-boundary normalization retires top-level translatables
-     * against the right locale. Optional for backward compat; when omitted,
-     * normalization falls back to the app default locale (`en`).
-     */
-    organizationId: v.optional(v.string()),
   },
   returns: v.object({
     hash: v.string(),
@@ -161,6 +157,8 @@ export const saveAgent = action({
     if (!validateAgentName(args.agentName)) {
       throw new Error(`Invalid agent name: ${args.agentName}`);
     }
+
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
 
     let config;
     try {
@@ -184,7 +182,7 @@ export const saveAgent = action({
     // Runtime invocation enforces key availability separately.
     const allModels = await ctx.runAction(
       internal.providers.file_actions.getAllConfiguredModelIds,
-      { orgSlug: args.orgSlug },
+      { organizationId: args.organizationId },
     );
     const byProvider = new Map<string, Set<string>>();
     const modelTagLookup = new Map<string, string[]>();
@@ -261,22 +259,20 @@ export const saveAgent = action({
     // (2) mutual exclusion between top-level and i18n[defaultLocale] per
     // translatable field. Lets the UI write "naive" payloads (both layers
     // populated); the server is the single source of truth for canonicalization.
-    const orgLocale = args.organizationId
-      ? await ctx.runQuery(
-          internal.organizations.internal_queries.getOrganizationDefaultLocale,
-          { organizationId: args.organizationId },
-        )
-      : undefined;
+    const orgLocale = await ctx.runQuery(
+      internal.organizations.internal_queries.getOrganizationDefaultLocale,
+      { organizationId: args.organizationId },
+    );
     const normalized = normalizeAgentConfig(config, orgLocale);
     if (JSON.stringify(config) !== JSON.stringify(normalized)) {
       console.warn('[saveAgent] normalized config before write', {
-        orgSlug: args.orgSlug,
+        orgSlug,
         agentName: args.agentName,
       });
     }
 
     const content = serializeAgentJson(normalized);
-    const filePath = resolveAgentFilePath(args.orgSlug, args.agentName);
+    const filePath = resolveAgentFilePath(orgSlug, args.agentName);
 
     if (args.isNew) {
       const existing = await readFileSafe(filePath);
@@ -300,7 +296,7 @@ export const saveAgent = action({
           message: `Agent '${args.agentName}' already exists`,
         });
       }
-      const oldFilePath = resolveAgentFilePath(args.orgSlug, args.oldAgentName);
+      const oldFilePath = resolveAgentFilePath(orgSlug, args.oldAgentName);
       await unlink(oldFilePath).catch(() => {});
     }
 
@@ -315,7 +311,7 @@ export const saveAgent = action({
 
 export const snapshotToHistory = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     agentName: v.string(),
   },
   returns: v.union(v.object({ timestamp: v.string() }), v.null()),
@@ -323,11 +319,12 @@ export const snapshotToHistory = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const filePath = resolveAgentFilePath(args.orgSlug, args.agentName);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const filePath = resolveAgentFilePath(orgSlug, args.agentName);
     const currentContent = await readFileSafe(filePath);
     if (!currentContent) return null;
 
-    const historyDir = resolveHistoryDir(args.orgSlug, args.agentName);
+    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
     await mkdir(historyDir, { recursive: true });
 
     const timestamp = generateHistoryTimestamp();
@@ -342,22 +339,21 @@ export const snapshotToHistory = action({
 
 export const duplicateAgent = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     agentName: v.string(),
-    /** See `saveAgent`. */
-    organizationId: v.optional(v.string()),
   },
   returns: v.object({ newAgentName: v.string() }),
   handler: async (ctx, args): Promise<{ newAgentName: string }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const source = await readAgentFile(args.orgSlug, args.agentName);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const source = await readAgentFile(orgSlug, args.agentName);
     if (!source.ok) {
       throw new Error(`Cannot duplicate: ${source.message}`);
     }
 
-    const dir = resolveAgentsDir(args.orgSlug);
+    const dir = resolveAgentsDir(orgSlug);
     let entries: string[];
     try {
       entries = await readdir(dir);
@@ -377,12 +373,10 @@ export const duplicateAgent = action({
       counter++;
     }
 
-    const orgLocale = args.organizationId
-      ? await ctx.runQuery(
-          internal.organizations.internal_queries.getOrganizationDefaultLocale,
-          { organizationId: args.organizationId },
-        )
-      : undefined;
+    const orgLocale = await ctx.runQuery(
+      internal.organizations.internal_queries.getOrganizationDefaultLocale,
+      { organizationId: args.organizationId },
+    );
 
     // Suffix each populated i18n displayName so the copy is visibly a copy in
     // every locale the source agent has. Top-level displayName is only used
@@ -437,7 +431,7 @@ export const duplicateAgent = action({
 
     const normalized = normalizeAgentConfig(draft, orgLocale);
     const content = serializeAgentJson(normalized);
-    const filePath = resolveAgentFilePath(args.orgSlug, newName);
+    const filePath = resolveAgentFilePath(orgSlug, newName);
     await atomicWrite(filePath, content);
 
     return { newAgentName: newName };
@@ -446,9 +440,8 @@ export const duplicateAgent = action({
 
 export const deleteAgent = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     agentName: v.string(),
-    organizationId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -459,8 +452,9 @@ export const deleteAgent = action({
       throw new Error(`Agent '${args.agentName}' cannot be deleted`);
     }
 
-    const filePath = resolveAgentFilePath(args.orgSlug, args.agentName);
-    const historyDir = resolveHistoryDir(args.orgSlug, args.agentName);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const filePath = resolveAgentFilePath(orgSlug, args.agentName);
+    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
 
     await unlink(filePath).catch((err) => {
       if (err instanceof Error && 'code' in err && err.code !== 'ENOENT') {
@@ -469,12 +463,10 @@ export const deleteAgent = action({
     });
     await rm(historyDir, { recursive: true, force: true });
 
-    if (args.organizationId) {
-      await ctx.runMutation(internal.agents.mutations.cleanupAgentBinding, {
-        organizationId: args.organizationId,
-        agentSlug: args.agentName,
-      });
-    }
+    await ctx.runMutation(internal.agents.mutations.cleanupAgentBinding, {
+      organizationId: args.organizationId,
+      agentSlug: args.agentName,
+    });
 
     return null;
   },
@@ -482,7 +474,7 @@ export const deleteAgent = action({
 
 export const listHistory = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     agentName: v.string(),
   },
   returns: v.any(),
@@ -490,7 +482,8 @@ export const listHistory = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const historyDir = resolveHistoryDir(args.orgSlug, args.agentName);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
     let entries: string[];
     try {
       entries = await readdir(historyDir);
@@ -511,7 +504,7 @@ export const listHistory = action({
 
 export const readHistoryEntry = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     agentName: v.string(),
     timestamp: v.string(),
   },
@@ -520,7 +513,8 @@ export const readHistoryEntry = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const historyDir = resolveHistoryDir(args.orgSlug, args.agentName);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
     const filePath = path.join(historyDir, `${args.timestamp}.json`);
 
     const resolved = path.resolve(filePath);
@@ -548,7 +542,7 @@ export const readHistoryEntry = action({
 
 export const restoreFromHistory = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     agentName: v.string(),
     timestamp: v.string(),
   },
@@ -557,9 +551,10 @@ export const restoreFromHistory = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const historyDir = resolveHistoryDir(args.orgSlug, args.agentName);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
     const historyPath = path.join(historyDir, `${args.timestamp}.json`);
-    const agentPath = resolveAgentFilePath(args.orgSlug, args.agentName);
+    const agentPath = resolveAgentFilePath(orgSlug, args.agentName);
 
     const resolved = path.resolve(historyPath);
     if (!resolved.startsWith(path.resolve(historyDir))) {
@@ -612,12 +607,13 @@ export const restoreFromHistory = action({
 
 export const readAgentForChat = internalAction({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     agentName: v.string(),
   },
   returns: v.any(),
-  handler: async (_ctx, args): Promise<AgentReadResult> => {
-    return readAgentFile(args.orgSlug, args.agentName);
+  handler: async (ctx, args): Promise<AgentReadResult> => {
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    return readAgentFile(orgSlug, args.agentName);
   },
 });
 
@@ -630,15 +626,15 @@ export const readAgentForChat = internalAction({
  */
 export const resolveAgentConfig = internalAction({
   args: {
-    orgSlug: v.string(),
     agentSlug: v.string(),
     organizationId: v.string(),
     modelId: v.optional(v.string()),
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<SerializableAgentConfig> => {
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const [result, binding, orgLocale] = await Promise.all([
-      readAgentFile(args.orgSlug, args.agentSlug),
+      readAgentFile(orgSlug, args.agentSlug),
       ctx.runQuery(internal.agents.internal_queries.getBindingByAgent, {
         organizationId: args.organizationId,
         agentSlug: args.agentSlug,
@@ -657,7 +653,7 @@ export const resolveAgentConfig = internalAction({
     // qualified ("provider:model") and unqualified entries are supported.
     const allModels = await ctx.runAction(
       internal.providers.file_actions.getAllModelIds,
-      { orgSlug: args.orgSlug },
+      { organizationId: args.organizationId },
     );
 
     const byProvider = new Map<string, Set<string>>();
@@ -752,6 +748,7 @@ export const translateAgentFields = action({
   args: {
     fields: v.record(v.string(), v.union(v.string(), v.array(v.string()))),
     targetLocale: v.string(),
+    organizationId: v.string(),
   },
   returns: v.object({
     translated: v.record(v.string(), v.union(v.string(), v.array(v.string()))),

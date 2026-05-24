@@ -19,6 +19,8 @@ export interface AnalyzeImageByUrlParams {
   imageUrl: string;
   /** The question or instruction for analyzing the image */
   question?: string;
+  /** Better Auth org doc id for provider resolution. */
+  organizationId: string;
 }
 
 /**
@@ -30,7 +32,7 @@ export async function analyzeImageByUrl(
   ctx: ActionCtx,
   params: AnalyzeImageByUrlParams,
 ): Promise<AnalyzeImageResult> {
-  const { imageUrl, question } = params;
+  const { imageUrl, question, organizationId } = params;
 
   debugLog('analyzeImageByUrl starting', {
     imageUrl: imageUrl.slice(0, 100),
@@ -42,6 +44,7 @@ export async function analyzeImageByUrl(
     ctx,
     {
       tag: 'vision',
+      organizationId,
     },
   );
   const visionModelId = modelData.modelId;

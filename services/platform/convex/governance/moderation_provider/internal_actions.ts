@@ -131,7 +131,6 @@ function resolveMappings(
 export const runModerationProviderAction = internalAction({
   args: {
     organizationId: v.string(),
-    orgSlug: v.string(),
     direction: directionValidator,
     text: v.string(),
     endpoint: endpointValidator,

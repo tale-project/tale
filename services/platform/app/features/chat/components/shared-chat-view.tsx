@@ -93,7 +93,6 @@ export function SharedChatView({
           shareToken,
           message,
           agentSlug,
-          orgSlug: 'default',
           organizationId,
         });
 

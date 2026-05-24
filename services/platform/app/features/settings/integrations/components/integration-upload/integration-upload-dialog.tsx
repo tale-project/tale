@@ -53,14 +53,14 @@ export function IntegrationUploadDialog({
       const slug = config.name;
 
       await writeFilesFn({
-        orgSlug: 'default',
+        organizationId,
         slug,
         config,
         connectorCode:
           connectorCode.trim().length > 0 ? connectorCode : undefined,
       });
 
-      await installFn({ orgSlug: 'default', slug, organizationId });
+      await installFn({ slug, organizationId });
 
       toast({
         title: t('integrations.upload.createSuccess'),

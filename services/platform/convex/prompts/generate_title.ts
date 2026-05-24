@@ -43,6 +43,7 @@ function createTitleGenerator(languageModel: LanguageModelV3): Agent {
 export const generatePromptTitle = internalAction({
   args: {
     content: v.string(),
+    organizationId: v.string(),
   },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args): Promise<string | null> => {
@@ -51,6 +52,7 @@ export const generatePromptTitle = internalAction({
         const { languageModel, modelData } =
           await resolveLanguageModelWithFallback(ctx, {
             tag: 'chat',
+            organizationId: args.organizationId,
           });
 
         const generator = createTitleGenerator(languageModel);
