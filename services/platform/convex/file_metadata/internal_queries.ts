@@ -16,6 +16,50 @@ export const getByStorageId = internalQuery({
 });
 
 /**
+ * Chat-uploaded attachments belonging to a single thread, filtered down
+ * to rows the sandbox can usefully stage:
+ *  - same org + same thread
+ *  - skip Document Hub rows (`documentId` set — those belong to the
+ *    org-wide knowledge surface, not the chat-attachment lane)
+ *  - skip video-link / agent-synthesized rows (already accessible via
+ *    the transcript path; raw blobs aren't useful for skill_run)
+ *  - skip rows in `trashed` lifecycle so a deleted attachment doesn't
+ *    spookily reappear in a sandbox workspace
+ *
+ * Used by `executeCode` when `stageThreadAttachments` is on, so a
+ * `skill_run` invocation can operate on the user's most recent
+ * uploads without each skill author having to thread the file IDs
+ * by hand.
+ */
+export const listChatAttachmentsForThread = internalQuery({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+  },
+  async handler(ctx, args) {
+    const rows = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_organizationId_and_threadId', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('threadId', args.threadId),
+      )
+      .collect();
+    return rows
+      .filter((r) => r.documentId === undefined)
+      .filter((r) => r.source !== 'video_link')
+      .filter((r) => r.lifecycleStatus !== 'trashed')
+      .map((r) => ({
+        _id: r._id,
+        storageId: r.storageId,
+        fileName: r.fileName,
+        contentType: r.contentType,
+        size: r.size,
+      }));
+  },
+});
+
+/**
  * Filter a list of storage ids down to ones the caller is authorized
  * to poke RAG status for. Used by the public action
  * `checkFileRagStatuses` to prevent (a) anonymous attackers from

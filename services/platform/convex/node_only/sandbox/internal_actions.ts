@@ -314,6 +314,18 @@ export const executeCode = internalAction({
         fromRun: v.string(),
       }),
     ),
+    /**
+     * When true (and `threadId` is set), every chat-uploaded attachment
+     * on the calling thread is staged into `/workspace/output/` before
+     * user code runs — same mechanism that artifact pre-stage uses for
+     * prior outputs. Used by `skill_run` so a bound skill can operate
+     * on whatever the user just attached without each skill author
+     * threading storage IDs by hand.
+     *
+     * Off by default for artifact-driven runs (`runCode` etc.) so the
+     * existing prior-output staging contract is unchanged.
+     */
+    stageThreadAttachments: v.optional(v.boolean()),
   },
   returns: v.object({
     executionId: v.id('sandboxExecutions'),
@@ -751,6 +763,78 @@ export const executeCode = internalAction({
         priorOutputSkippedNote = `[tale-sandbox] prior-output pre-stage failed: ${err instanceof Error ? err.message : String(err)}\n`;
       }
     }
+    // Thread-attachment staging — additive to artifact pre-stage. When
+    // `skill_run` (or any caller) sets `stageThreadAttachments`, every
+    // chat-uploaded file on the thread is appended to
+    // `priorOutputDownloads` so the spawner fetches and lands it in
+    // `/workspace/output/<filename>` before user code runs.
+    //
+    // Filenames collide only if two attachments share a basename — the
+    // spawner already de-duplicates by overwriting in the order it
+    // receives, so the LAST appended file wins. Order matters: we put
+    // artifact prior outputs first (existing semantic), thread
+    // attachments after, so a chat upload with the same name as a
+    // prior output replaces it (the user's most recent intent wins).
+    //
+    // Skipped reasons collected here flow through the same stderr-tail
+    // channel as the artifact-side skipped notes so the LLM sees a
+    // uniform "what didn't stage" surface.
+    if (args.stageThreadAttachments === true && args.threadId !== undefined) {
+      try {
+        const attachments = await ctx.runQuery(
+          internal.file_metadata.internal_queries.listChatAttachmentsForThread,
+          {
+            organizationId: args.organizationId,
+            threadId: args.threadId,
+          },
+        );
+        const skippedNames: string[] = [];
+        for (const f of attachments) {
+          let rawUrl: string | null;
+          try {
+            rawUrl = await ctx.storage.getUrl(f.storageId);
+          } catch (urlErr) {
+            console.warn(
+              `[sandbox.preStage] thread-attachment getUrl(${f.storageId}) failed for ${f.fileName}:`,
+              urlErr,
+            );
+            skippedNames.push(f.fileName);
+            continue;
+          }
+          if (rawUrl === null) {
+            skippedNames.push(f.fileName);
+            continue;
+          }
+          priorOutputDownloads.push({
+            name: f.fileName,
+            url: toSandboxStorageUrl(rawUrl),
+          });
+        }
+        if (priorOutputDownloads.length > 0) {
+          console.info(
+            `[sandbox.preStage] STAGED thread=${args.threadId} attachments=${JSON.stringify(attachments.map((a) => a.fileName))}`,
+          );
+        }
+        if (skippedNames.length > 0) {
+          const note = `[tale-sandbox] thread attachments missing in storage, skipped: ${skippedNames.join(', ')}\n`;
+          priorOutputSkippedNote =
+            priorOutputSkippedNote === undefined
+              ? note
+              : `${priorOutputSkippedNote}${note}`;
+        }
+      } catch (err) {
+        console.warn(
+          '[sandbox.executeCode] thread-attachment pre-stage failed:',
+          err,
+        );
+        const note = `[tale-sandbox] thread-attachment pre-stage failed: ${err instanceof Error ? err.message : String(err)}\n`;
+        priorOutputSkippedNote =
+          priorOutputSkippedNote === undefined
+            ? note
+            : `${priorOutputSkippedNote}${note}`;
+      }
+    }
+
     if (priorOutputSkippedNote !== undefined && onStderrTail !== undefined) {
       // Route the note through the live-tail channel so it lands in the
       // canvas stderr panel alongside the script's own output.

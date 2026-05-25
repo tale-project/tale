@@ -499,7 +499,7 @@ function createSkillRunTool(bySlug: Map<string, SkillRuntimeEntry>) {
     name: 'skill_run' as const,
     tool: createTool({
       description:
-        "**skill_run** — execute one or more scripts from a bound skill bundle in the platform sandbox (Python 3.12 / Node 24). Returns the run outcome including stdout/stderr previews and any output files. The `packages` argument may only enable a subset of what the skill's SKILL.md frontmatter already declares — you cannot add new packages from the tool call.\n\n**MODES**: pass `path` for single-script execution, or `steps: [{path}, ...]` for multi-step sequential execution in the same container. Mutually exclusive.\n\n**OUTPUT FILES**: any file written under `/workspace/output/` in the sandbox is uploaded to the thread's file storage and returned in `files`. Wall-clock cap default 30s, max 300s. Memory cap 1 GB.\n\nCall this only when an `expand_skill` response identified `executableFiles` you want to execute, or when the skill body explicitly tells you to run a script.",
+        "**skill_run** — execute one or more scripts from a bound skill bundle in the platform sandbox (Python 3.12 / Node 24). Returns the run outcome including stdout/stderr previews and any output files. The `packages` argument may only enable a subset of what the skill's SKILL.md frontmatter already declares — you cannot add new packages from the tool call.\n\n**MODES**: pass `path` for single-script execution, or `steps: [{path}, ...]` for multi-step sequential execution in the same container. Mutually exclusive.\n\n**INPUT FILES**: every chat-uploaded attachment on the current thread is staged into `/workspace/output/<filename>` before the script runs. Skills can glob there (e.g. `glob.glob('/workspace/output/*.pdf')`) to operate on the user's uploads with no extra plumbing.\n\n**OUTPUT FILES**: any file written under `/workspace/output/` in the sandbox is uploaded to the thread's file storage and returned in `files` (staged inputs that the script overwrites or rewrites count as outputs too).\n\nWall-clock cap default 30s, max 300s. Memory cap 1 GB.\n\nCall this only when an `expand_skill` response identified `executableFiles` you want to execute, or when the skill body explicitly tells you to run a script.",
       inputSchema: z
         .object({
           skillSlug: z
@@ -723,6 +723,12 @@ function createSkillRunTool(bySlug: Map<string, SkillRuntimeEntry>) {
           skillVersionHash: entry.versionHashLive,
           // artifactId is intentionally omitted — executeCode short-circuits
           // every artifact-bound code path when this is undefined.
+          // Stage every chat-uploaded attachment on the calling thread
+          // into /workspace/output/ before the bundle scripts run. Skills
+          // declare their inputs in SKILL.md ("the user attached PDFs, I
+          // glob /workspace/output/*.pdf"), so the platform owns the
+          // staging step rather than each script reinventing it.
+          stageThreadAttachments: true,
         };
         if (isSingleStep) {
           sandboxArgs.entryPath = stepPaths[0];
