@@ -248,7 +248,7 @@ wait_for_healthy() {
     done
 }
 
-SERVICES=(db convex crawler rag platform proxy sandbox sandbox-egress)
+SERVICES=(db convex crawler rag platform proxy sandbox sandbox-egress smoke-fileserver)
 HEALTH_FAILED=0
 
 for svc in "${SERVICES[@]}"; do
@@ -400,12 +400,14 @@ else
     # left in the spawner's in-flight registry from a previous run) doesn't
     # return 409 Duplicate.
     SMOKE_EXEC_ID="smoke-$$-$(date +%s)$(date +%N | head -c 6)"
-    # New contract (post-wobbly-origami): source ships in `files[]`,
-    # `entryPath` names the file to exec, and `outputUploadSlots` + the
-    # upload-URL endpoints are required even when no outputs are produced.
-    # `print(1)` writes nothing under /workspace/output/, so the endpoint
-    # URLs are never actually called — placeholders satisfy the validator.
-    SANDBOX_BODY="{\"executionId\":\"${SMOKE_EXEC_ID}\",\"organizationId\":\"smoke\",\"language\":\"python\",\"files\":[{\"path\":\"main.py\",\"content\":\"print(1)\"}],\"entryPath\":\"main.py\",\"timeoutMs\":30000,\"outputUploadSlots\":[],\"outputUrlEndpoint\":\"http://platform:3000/api/sandbox/output_upload_url\",\"reportUploadedEndpoint\":\"http://platform:3000/api/sandbox/record_uploaded\"}"
+    # New contract (post-wobbly-origami): source ships in `files[]` as a
+    # URL the spawner GETs (binary-safe; inline `content` was removed in
+    # b9fd30c8a). `smoke-fileserver` (compose.test.yml) hosts a 1-line
+    # `print(1)` over HTTP on the internal network. `entryPath` names the
+    # file to exec, and `outputUploadSlots` + the upload-URL endpoints are
+    # required even when no outputs are produced — `print(1)` writes
+    # nothing under /workspace/output/ so they're never actually called.
+    SANDBOX_BODY="{\"executionId\":\"${SMOKE_EXEC_ID}\",\"organizationId\":\"smoke\",\"language\":\"python\",\"files\":[{\"path\":\"main.py\",\"url\":\"http://smoke-fileserver:8000/main.py\"}],\"entryPath\":\"main.py\",\"timeoutMs\":30000,\"outputUploadSlots\":[],\"outputUrlEndpoint\":\"http://platform:3000/api/sandbox/output_upload_url\",\"reportUploadedEndpoint\":\"http://platform:3000/api/sandbox/record_uploaded\"}"
     SANDBOX_TS=$(($(date +%s%N) / 1000000))
     SANDBOX_PATH="/v1/execute"
     # New signing contract (auth.ts): METHOD\npath\ntimestamp\nsha256Hex(body)

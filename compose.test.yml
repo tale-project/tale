@@ -103,3 +103,29 @@ services:
     ports:
       - '10080:80'
       - '10443:443'
+
+  # Smoke-test-only sidecar.
+  #
+  # The sandbox `/v1/execute` contract takes `files[].url` (the spawner GETs
+  # the bytes; inline `content` was removed in b9fd30c8a for binary safety).
+  # This container hosts a 1-line `print(1)` Python source over HTTP on the
+  # internal network so the e2e probe in tests/container-smoke-test.sh can
+  # supply a real URL without needing an external fixture host.
+  smoke-fileserver:
+    image: python:3.12-alpine
+    networks:
+      - internal
+    command:
+      - sh
+      - -c
+      - "mkdir -p /srv && printf 'print(1)\\n' > /srv/main.py && cd /srv && exec python3 -m http.server 8000"
+    healthcheck:
+      # Use 127.0.0.1 — busybox wget on Alpine resolves `localhost` to ::1
+      # first, but Python's http.server binds IPv4 only, so `localhost`
+      # connects refused.
+      test:
+        ['CMD-SHELL', 'wget -q -O- http://127.0.0.1:8000/main.py >/dev/null']
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
