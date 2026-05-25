@@ -87,7 +87,12 @@ describe('parseSkillMd — kebab-case wire format & normalization', () => {
     expect(meta.workflowBindings).toEqual(['send-summary']);
   });
 
-  it('normalizes role-restriction and shared-with-team-ids', () => {
+  it('preserves role-restriction and shared-with-team-ids under .unknown', () => {
+    // These were typed fields in earlier rounds but never had enforcement —
+    // a skill author writing `role-restriction: admin_developer` got no
+    // actual access control. Removed from the typed schema; now round-trip
+    // via `.unknown` so existing SKILL.md files continue to parse but stop
+    // implying access semantics they never had.
     const fm = [
       'name: dev-skill',
       'description: developer-only',
@@ -97,8 +102,8 @@ describe('parseSkillMd — kebab-case wire format & normalization', () => {
       '  - infra',
     ].join('\n');
     const { meta } = parseSkillMd(wrap(fm));
-    expect(meta.roleRestriction).toBe('admin_developer');
-    expect(meta.sharedWithTeamIds).toEqual(['eng', 'infra']);
+    expect(meta.unknown['role-restriction']).toBe('admin_developer');
+    expect(meta.unknown['shared-with-team-ids']).toEqual(['eng', 'infra']);
   });
 
   it('reads packages frontmatter into normalized shape', () => {
@@ -118,17 +123,24 @@ describe('parseSkillMd — kebab-case wire format & normalization', () => {
 
 describe('parseSkillMd — passthrough for community fields', () => {
   it('preserves unknown frontmatter fields under .unknown', () => {
+    // `allowed-tools` is intentionally NOT a typed field — it was parsed
+    // in earlier rounds but never read at runtime, so it now round-trips
+    // via `.unknown` (matching the agentskills.io spec allowance for both
+    // array and string forms — Tale just doesn't act on either).
+    // `disable-model-invocation` IS typed because the runtime honors it.
     const fm = [
       'name: ok',
       'description: x',
-      'allowed-tools: Read Bash',
+      'allowed-tools:',
+      '  - Read',
+      '  - Bash',
       'when-to-use: "When user asks foo"',
       'disable-model-invocation: false',
     ].join('\n');
     const { meta } = parseSkillMd(wrap(fm));
-    expect(meta.unknown['allowed-tools']).toBe('Read Bash');
+    expect(meta.unknown['allowed-tools']).toEqual(['Read', 'Bash']);
     expect(meta.unknown['when-to-use']).toBe('When user asks foo');
-    expect(meta.unknown['disable-model-invocation']).toBe(false);
+    expect(meta.disableModelInvocation).toBe(false);
   });
 });
 

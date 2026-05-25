@@ -50,20 +50,23 @@ function snapshotWith(
       },
     ]),
   );
+  // Mirror production: bySlug and resolved are populated in lockstep for
+  // every successfully-loaded skill. See skills_runtime.ts:181-234.
+  const entries = bindings.map((b) => ({
+    slug: b.slug,
+    description: 'desc',
+    disableModelInvocation: false,
+    body: 'body',
+    versionHashLive: 'h'.repeat(64),
+    versionHashSnapshot: 'h'.repeat(64),
+    driftDetected: false,
+    declaredPackages: { python: [], node: [] },
+    files: [],
+    executableFiles: [],
+  }));
   return {
-    entries: bindings.map((b) => ({
-      slug: b.slug,
-      description: 'desc',
-      disableModelInvocation: false,
-      body: 'body',
-      versionHashLive: 'h'.repeat(64),
-      versionHashSnapshot: 'h'.repeat(64),
-      driftDetected: false,
-      declaredPackages: { python: [], node: [] },
-      files: [],
-      executableFiles: [],
-    })),
-    bySlug: new Map(),
+    entries,
+    bySlug: new Map(entries.map((e) => [e.slug, e])),
     resolved,
     builtInTools: {},
     systemPromptAppend: 'x',
@@ -172,8 +175,12 @@ describe('mergeSkillDependencies', () => {
   });
 
   it('allows exactly MAX_TRANSITIVE_TOOLS total', () => {
+    // Three built-in skill tools (expand_skill, read_skill_file, skill_run)
+    // count against the same cap (see skills_runtime.ts:300-303), so the
+    // largest legal skill-tool count is MAX_TRANSITIVE_TOOLS - 3.
+    const BUILT_IN_SKILL_TOOL_COUNT = 3;
     const tools = Array.from(
-      { length: MAX_TRANSITIVE_TOOLS },
+      { length: MAX_TRANSITIVE_TOOLS - BUILT_IN_SKILL_TOOL_COUNT },
       (_, i) => `tool-${i}`,
     );
     const cfg: AgentConfigForSkills = { convexToolNames: [] };
