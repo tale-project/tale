@@ -1,12 +1,13 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
+import { z } from 'zod';
 
+import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useToast } from '@/app/hooks/use-toast';
@@ -20,7 +21,13 @@ interface SystemPromptEditorProps {
   organizationId: string;
 }
 
+interface SystemPromptForm {
+  mandatoryPrefixPrompt: string;
+  mandatorySuffixPrompt: string;
+}
+
 const MAX_CHARS = 10_000;
+const FORM_ID = 'governance-system-prompt-form';
 
 export function SystemPromptEditor({
   organizationId,
@@ -34,10 +41,22 @@ export function SystemPromptEditor({
   );
   const upsertMutation = useUpsertGovernancePolicy();
 
-  const savedConfig = useMemo(() => {
-    if (!policy)
-      return { mandatoryPrefixPrompt: '', mandatorySuffixPrompt: '' };
-    const config = isRecord(policy.config) ? policy.config : {};
+  const schema = useMemo(
+    () =>
+      z.object({
+        mandatoryPrefixPrompt: z
+          .string()
+          .max(MAX_CHARS, t('systemPrompt.charLimitExceeded')),
+        mandatorySuffixPrompt: z
+          .string()
+          .max(MAX_CHARS, t('systemPrompt.charLimitExceeded')),
+      }),
+    [t],
+  );
+
+  const data = useMemo<SystemPromptForm | undefined>(() => {
+    if (isLoading) return undefined;
+    const config = isRecord(policy?.config) ? policy.config : {};
     return {
       mandatoryPrefixPrompt:
         typeof config.mandatoryPrefixPrompt === 'string'
@@ -48,51 +67,52 @@ export function SystemPromptEditor({
           ? config.mandatorySuffixPrompt
           : '',
     };
-  }, [policy]);
+  }, [isLoading, policy]);
 
-  const [prefix, setPrefix] = useState('');
-  const [suffix, setSuffix] = useState('');
+  const save = useCallback(
+    async (values: SystemPromptForm) => {
+      try {
+        await upsertMutation.mutateAsync({
+          organizationId,
+          policyType: 'system_prompt',
+          config: {
+            mandatoryPrefixPrompt: values.mandatoryPrefixPrompt.trim(),
+            mandatorySuffixPrompt: values.mandatorySuffixPrompt.trim(),
+          },
+        });
+        toast({
+          title: t('toastSavedTitle'),
+          description: t('systemPrompt.saved'),
+          variant: 'success',
+        });
+      } catch (err) {
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description: t('systemPrompt.saveFailed'),
+          variant: 'destructive',
+        });
+        throw err;
+      }
+    },
+    [organizationId, t, toast, upsertMutation],
+  );
 
-  useEffect(() => {
-    setPrefix(savedConfig.mandatoryPrefixPrompt);
-    setSuffix(savedConfig.mandatorySuffixPrompt);
-  }, [savedConfig]);
+  const editor = useFormEditor<SystemPromptForm>({
+    data,
+    schema,
+    save,
+  });
 
-  const hasChanges =
-    prefix !== savedConfig.mandatoryPrefixPrompt ||
-    suffix !== savedConfig.mandatorySuffixPrompt;
-
-  const prefixOverLimit = prefix.length > MAX_CHARS;
-  const suffixOverLimit = suffix.length > MAX_CHARS;
-  const canSave =
-    hasChanges &&
-    !upsertMutation.isPending &&
-    !prefixOverLimit &&
-    !suffixOverLimit;
-
-  const handleSave = useCallback(async () => {
-    try {
-      await upsertMutation.mutateAsync({
-        organizationId,
-        policyType: 'system_prompt',
-        config: {
-          mandatoryPrefixPrompt: prefix.trim(),
-          mandatorySuffixPrompt: suffix.trim(),
-        },
-      });
-      toast({
-        title: t('toastSavedTitle'),
-        description: t('systemPrompt.saved'),
-        variant: 'success',
-      });
-    } catch {
-      toast({
-        title: t('toastSaveFailedTitle'),
-        description: t('systemPrompt.saveFailed'),
-        variant: 'destructive',
-      });
-    }
-  }, [organizationId, prefix, suffix, upsertMutation, toast, t]);
+  const {
+    form: {
+      register,
+      handleSubmit,
+      watch,
+      formState: { errors },
+    },
+  } = editor;
+  const prefixValue = watch('mandatoryPrefixPrompt') ?? '';
+  const suffixValue = watch('mandatorySuffixPrompt') ?? '';
 
   const skeleton = (
     <div className="flex flex-col gap-4">
@@ -104,13 +124,11 @@ export function SystemPromptEditor({
         <div className="flex flex-col gap-2">
           <Skeleton className="h-4 w-36" />
           <Skeleton className="mb-2 h-4 w-96 max-w-full" />
-
           <Skeleton className="h-[100px] w-full rounded-md" />
         </div>
         <div className="flex flex-col gap-2">
           <Skeleton className="h-4 w-36" />
           <Skeleton className="mb-2 h-4 w-96 max-w-full" />
-
           <Skeleton className="h-[100px] w-full rounded-md" />
         </div>
       </div>
@@ -125,61 +143,58 @@ export function SystemPromptEditor({
     <PageSection
       title={t('systemPrompt.title')}
       description={t('systemPrompt.description')}
-      action={
-        hasChanges ? (
-          <Button onClick={handleSave} disabled={!canSave} size="sm">
-            {upsertMutation.isPending
-              ? t('systemPrompt.saving')
-              : t('systemPrompt.save')}
-          </Button>
-        ) : undefined
-      }
     >
-      <Stack gap={6} className="max-w-2xl">
-        <FormSection
-          label={t('systemPrompt.prefixLabel')}
-          description={t('systemPrompt.prefixDescription')}
-        >
-          <Textarea
-            value={prefix}
-            onChange={(e) => setPrefix(e.target.value)}
-            placeholder={t('systemPrompt.prefixPlaceholder')}
-            rows={4}
-            aria-label={t('systemPrompt.prefixLabel')}
-            errorMessage={
-              prefixOverLimit ? t('systemPrompt.charLimitExceeded') : undefined
-            }
-          />
-          <Text variant="muted" className="text-xs">
-            {t('systemPrompt.charCount', {
-              count: prefix.length,
-              max: MAX_CHARS,
-            })}
-          </Text>
-        </FormSection>
+      <form id={FORM_ID} onSubmit={handleSubmit((values) => save(values))}>
+        <fieldset disabled={editor.isLoading} className="contents">
+          <Stack gap={6} className="max-w-2xl">
+            <FormSection
+              label={t('systemPrompt.prefixLabel')}
+              description={t('systemPrompt.prefixDescription')}
+            >
+              <Textarea
+                placeholder={t('systemPrompt.prefixPlaceholder')}
+                rows={4}
+                aria-label={t('systemPrompt.prefixLabel')}
+                errorMessage={errors.mandatoryPrefixPrompt?.message}
+                {...register('mandatoryPrefixPrompt')}
+              />
+              <Text variant="muted" className="text-xs">
+                {t('systemPrompt.charCount', {
+                  count: prefixValue.length,
+                  max: MAX_CHARS,
+                })}
+              </Text>
+            </FormSection>
 
-        <FormSection
-          label={t('systemPrompt.suffixLabel')}
-          description={t('systemPrompt.suffixDescription')}
-        >
-          <Textarea
-            value={suffix}
-            onChange={(e) => setSuffix(e.target.value)}
-            placeholder={t('systemPrompt.suffixPlaceholder')}
-            rows={4}
-            aria-label={t('systemPrompt.suffixLabel')}
-            errorMessage={
-              suffixOverLimit ? t('systemPrompt.charLimitExceeded') : undefined
-            }
-          />
-          <Text variant="muted" className="text-xs">
-            {t('systemPrompt.charCount', {
-              count: suffix.length,
-              max: MAX_CHARS,
-            })}
-          </Text>
-        </FormSection>
-      </Stack>
+            <FormSection
+              label={t('systemPrompt.suffixLabel')}
+              description={t('systemPrompt.suffixDescription')}
+            >
+              <Textarea
+                placeholder={t('systemPrompt.suffixPlaceholder')}
+                rows={4}
+                aria-label={t('systemPrompt.suffixLabel')}
+                errorMessage={errors.mandatorySuffixPrompt?.message}
+                {...register('mandatorySuffixPrompt')}
+              />
+              <Text variant="muted" className="text-xs">
+                {t('systemPrompt.charCount', {
+                  count: suffixValue.length,
+                  max: MAX_CHARS,
+                })}
+              </Text>
+            </FormSection>
+
+            <HStack justify="end">
+              <EditorActions
+                controller={editor}
+                formId={FORM_ID}
+                entityKind="governance_system_prompt"
+              />
+            </HStack>
+          </Stack>
+        </fieldset>
+      </form>
     </PageSection>
   );
 }

@@ -75,7 +75,6 @@ export const projectColorSchema = z.enum(PROJECT_COLORS);
 
 /** Tristate mode for agents/models restriction. */
 export const projectModeSchema = z.enum(['all', 'recommended', 'restricted']);
-export type ProjectMode = z.infer<typeof projectModeSchema>;
 
 /** Knowledge mode mirrors the agent knowledge mode set. */
 export const projectKnowledgeModeSchema = z.enum([
@@ -84,29 +83,19 @@ export const projectKnowledgeModeSchema = z.enum([
   'context',
   'both',
 ]);
-export type ProjectKnowledgeMode = z.infer<typeof projectKnowledgeModeSchema>;
-
-export const projectIntegrationsModeSchema = z.enum(['all', 'restricted']);
-export type ProjectIntegrationsMode = z.infer<
-  typeof projectIntegrationsModeSchema
->;
 
 /**
- * Hard caps mirrored on the Convex mutation boundary. Token budget for
- * instructions is ~1200; using 6000 chars as a generous overhead since
- * a token is typically 4 chars in English. Truncation to the token
- * budget happens at chat-time in `buildProjectInstructions`.
+ * Hard caps mirrored on the Convex mutation boundary. Truncation to the
+ * token budget happens at chat-time in `buildProjectInstructions`.
  */
 export const PROJECT_NAME_MAX = 80;
 export const PROJECT_DESCRIPTION_MAX = 500;
 export const PROJECT_INSTRUCTIONS_MAX_CHARS = 6000;
-export const PROJECT_INSTRUCTIONS_TOKEN_BUDGET = 1200;
 export const PROJECT_SHARED_TEAMS_MAX = 20;
 export const PROJECT_RECOMMENDED_AGENTS_MAX = 20;
-export const PROJECT_ALLOWED_AGENTS_MAX = 50;
-export const PROJECT_RECOMMENDED_MODELS_MAX = 10;
-export const PROJECT_ALLOWED_MODELS_MAX = 50;
-export const PROJECT_ALLOWED_INTEGRATIONS_MAX = 50;
+const PROJECT_ALLOWED_AGENTS_MAX = 50;
+const PROJECT_RECOMMENDED_MODELS_MAX = 10;
+const PROJECT_ALLOWED_MODELS_MAX = 50;
 
 const projectNameSchema = z.string().trim().min(1).max(PROJECT_NAME_MAX);
 
@@ -131,12 +120,6 @@ const modelRefSchema = z.string().min(1).refine(isValidModelRef, {
   message: 'Invalid model ref (expected "[provider:]model-id")',
 });
 
-const integrationSlugSchema = z
-  .string()
-  .min(1)
-  .max(120)
-  .regex(/^[a-z0-9][a-z0-9_-]*$/);
-
 export const createProjectInputSchema = z.object({
   organizationId: z.string().min(1),
   name: projectNameSchema,
@@ -146,7 +129,6 @@ export const createProjectInputSchema = z.object({
   teamId: teamIdSchema.optional(),
   sharedWithTeamIds: sharedWithTeamIdsSchema.optional(),
 });
-export type CreateProjectInput = z.infer<typeof createProjectInputSchema>;
 
 export const updateProjectIdentitySchema = z
   .object({
@@ -156,31 +138,15 @@ export const updateProjectIdentitySchema = z
     color: projectColorSchema.nullable(),
   })
   .partial();
-export type UpdateProjectIdentityInput = z.infer<
-  typeof updateProjectIdentitySchema
->;
 
 export const updateProjectInstructionsSchema = z.object({
   instructions: projectInstructionsSchema,
 });
-export type UpdateProjectInstructionsInput = z.infer<
-  typeof updateProjectInstructionsSchema
->;
 
 export const updateProjectSharingSchema = z.object({
   teamId: teamIdSchema.nullable().optional(),
   sharedWithTeamIds: sharedWithTeamIdsSchema.optional(),
 });
-export type UpdateProjectSharingInput = z.infer<
-  typeof updateProjectSharingSchema
->;
-
-export const updateProjectKnowledgeModeSchema = z.object({
-  knowledgeMode: projectKnowledgeModeSchema,
-});
-export type UpdateProjectKnowledgeModeInput = z.infer<
-  typeof updateProjectKnowledgeModeSchema
->;
 
 export const updateProjectAgentSettingsSchema = z.object({
   agentMode: projectModeSchema,
@@ -193,9 +159,6 @@ export const updateProjectAgentSettingsSchema = z.object({
     .max(PROJECT_ALLOWED_AGENTS_MAX)
     .optional(),
 });
-export type UpdateProjectAgentSettingsInput = z.infer<
-  typeof updateProjectAgentSettingsSchema
->;
 
 export const updateProjectModelSettingsSchema = z.object({
   modelMode: projectModeSchema,
@@ -208,23 +171,8 @@ export const updateProjectModelSettingsSchema = z.object({
     .max(PROJECT_ALLOWED_MODELS_MAX)
     .optional(),
 });
-export type UpdateProjectModelSettingsInput = z.infer<
-  typeof updateProjectModelSettingsSchema
->;
-
-export const updateProjectIntegrationsSchema = z.object({
-  integrationsMode: projectIntegrationsModeSchema,
-  allowedIntegrationSlugs: z
-    .array(integrationSlugSchema)
-    .max(PROJECT_ALLOWED_INTEGRATIONS_MAX)
-    .optional(),
-});
-export type UpdateProjectIntegrationsInput = z.infer<
-  typeof updateProjectIntegrationsSchema
->;
 
 export const deleteProjectInputSchema = z.object({
   mode: z.enum(['detach', 'cascade']),
   confirmPhrase: z.string().optional(),
 });
-export type DeleteProjectInput = z.infer<typeof deleteProjectInputSchema>;

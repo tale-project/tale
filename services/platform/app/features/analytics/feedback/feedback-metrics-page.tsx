@@ -3,7 +3,6 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
@@ -16,6 +15,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { ArenaSummary } from './arena-summary';
+import { FeedbackMetricsPageSkeleton } from './feedback-metrics-page-skeleton';
 import { FeedbackSummaryCards } from './feedback-summary-cards';
 import { FilterChips } from './filter-chips';
 import { RecentFeedbackTable } from './recent-feedback-table';
@@ -137,14 +137,7 @@ export function FeedbackMetricsPage({
   const hasFilters = !!(agentSlug || model || provider);
 
   if (statsLoading) {
-    return (
-      <Stack gap={6} aria-busy="true">
-        <Skeleton className="h-10 w-full max-w-2xl rounded-md" />
-        <Skeleton className="h-32 w-full rounded-lg" />
-        <Skeleton className="h-66 w-full rounded-md" />
-        <Skeleton className="h-66 w-full rounded-md" />
-      </Stack>
-    );
+    return <FeedbackMetricsPageSkeleton />;
   }
 
   if (statsError) {

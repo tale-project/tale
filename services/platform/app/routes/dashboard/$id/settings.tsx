@@ -12,6 +12,7 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { PageLayout } from '@/app/components/layout/page-layout';
+import { ActiveEditorProvider } from '@/app/components/ui/editor';
 import { SettingsNavigation } from '@/app/features/settings/components/settings-navigation';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -50,36 +51,38 @@ function SettingsLayout() {
   const headerTitle = isUserScope ? tNav('userSettings') : tNav('orgSettings');
 
   return (
-    <PageLayout
-      organizationId={organizationId}
-      header={
-        <>
-          <AdaptiveHeaderRoot standalone={false}>
-            <AdaptiveHeaderTitle>{headerTitle}</AdaptiveHeaderTitle>
-          </AdaptiveHeaderRoot>
-          <div className="hidden md:block">
-            <SettingsNavigation organizationId={organizationId} />
-          </div>
-        </>
-      }
-    >
-      {!isAtIndex && isDirectChild && (
-        <Link
-          to={
-            isUserScope
-              ? '/dashboard/$id/settings/personal'
-              : '/dashboard/$id/settings'
-          }
-          params={{ id: organizationId }}
-          className="text-muted-foreground hover:text-foreground border-border flex items-center gap-1.5 border-b px-4 py-2.5 text-sm font-medium md:hidden"
-        >
-          <ChevronLeft aria-hidden="true" className="size-4" />
-          {tCommon('actions.back')}
-        </Link>
-      )}
-      <ContentArea className="min-h-0 flex-1" variant="page" gap={6}>
-        <Outlet />
-      </ContentArea>
-    </PageLayout>
+    <ActiveEditorProvider>
+      <PageLayout
+        organizationId={organizationId}
+        header={
+          <>
+            <AdaptiveHeaderRoot standalone={false}>
+              <AdaptiveHeaderTitle>{headerTitle}</AdaptiveHeaderTitle>
+            </AdaptiveHeaderRoot>
+            <div className="hidden md:block">
+              <SettingsNavigation organizationId={organizationId} />
+            </div>
+          </>
+        }
+      >
+        {!isAtIndex && isDirectChild && (
+          <Link
+            to={
+              isUserScope
+                ? '/dashboard/$id/settings/personal'
+                : '/dashboard/$id/settings'
+            }
+            params={{ id: organizationId }}
+            className="text-muted-foreground hover:text-foreground border-border flex items-center gap-1.5 border-b px-4 py-2.5 text-sm font-medium md:hidden"
+          >
+            <ChevronLeft aria-hidden="true" className="size-4" />
+            {tCommon('actions.back')}
+          </Link>
+        )}
+        <ContentArea className="min-h-0 flex-1" variant="page" gap={6}>
+          <Outlet />
+        </ContentArea>
+      </PageLayout>
+    </ActiveEditorProvider>
   );
 }

@@ -1,18 +1,20 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
+import { HStack } from '@tale/ui/layout';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row } from '@tanstack/react-table';
-import { FolderKanban } from 'lucide-react';
+import { Folder, Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
 import { useProjects, type ProjectListItem } from '../hooks/queries';
-import { ProjectAvatar } from './project-avatar';
 import { ProjectCreateDialog } from './project-create-dialog';
+import { ProjectRowActions } from './project-row-actions';
 
 interface ProjectsTableProps {
   organizationId: string;
@@ -43,6 +45,8 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
 
   const handleRowClick = useCallback(
     (row: Row<ProjectListItem>) => {
+      // Skip navigation when the click came from a row-action menu trigger
+      // (event bubbles up otherwise; the menu is in the same row).
       void navigate({
         to: '/dashboard/$id/projects/$projectId',
         params: { id: organizationId, projectId: String(row.original._id) },
@@ -62,29 +66,18 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         accessorKey: 'name',
         header: t('list.columnName'),
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <ProjectAvatar
-              name={row.original.name}
-              icon={row.original.icon}
-              color={row.original.color}
-              size={24}
-            />
-            <div className="flex min-w-0 flex-col">
-              <span className="truncate text-sm font-medium">
-                {row.original.name}
-                {row.original.archivedAt ? (
-                  <span className="text-muted-foreground ml-2 text-xs">
-                    ({t('settings.archiveButton')})
-                  </span>
-                ) : null}
+          // U2: no folder icon. Description was previously shown below the
+          // name but is now removed per follow-up feedback — it's available
+          // on the project detail page, and the row stays single-line so
+          // the table density matches customers/agents.
+          <span className="truncate text-sm font-medium">
+            {row.original.name}
+            {row.original.archivedAt ? (
+              <span className="text-muted-foreground ml-2 text-xs">
+                ({t('archived.badge')})
               </span>
-              {row.original.description ? (
-                <span className="text-muted-foreground truncate text-xs">
-                  {row.original.description}
-                </span>
-              ) : null}
-            </div>
-          </div>
+            ) : null}
+          </span>
         ),
       },
       {
@@ -117,8 +110,32 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
           </span>
         ),
       },
+      {
+        id: 'actions',
+        header: '',
+        // Matches the canonical pattern shared by agents / customers /
+        // documents / vendors / products / websites tables: `isAction`
+        // meta flag + right-justified HStack. The DataTable applies the
+        // platform's standard action-cell width + alignment from this
+        // meta hint.
+        meta: { isAction: true },
+        size: 56,
+        cell: ({ row }) => (
+          <HStack justify="end">
+            <ProjectRowActions
+              organizationId={organizationId}
+              projectId={row.original._id}
+              projectName={row.original.name}
+              isArchived={Boolean(row.original.archivedAt)}
+              canEdit={row.original.canEdit}
+              canAdminister={row.original.canAdminister}
+            />
+          </HStack>
+        ),
+        enableSorting: false,
+      },
     ],
-    [t, locale],
+    [t, locale, organizationId],
   );
 
   const list = useListPage<ProjectListItem>({
@@ -141,22 +158,22 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         columns={columns}
         onRowClick={handleRowClick}
         actionMenu={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setIncludeArchived((v) => !v)}
-            >
-              {includeArchived ? '✓ ' : ''}
-              {t('list.showArchived')}
-            </Button>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              {t('list.createButton')}
-            </Button>
+          <div className="flex items-center gap-3">
+            <Checkbox
+              id="projects-show-archived"
+              checked={includeArchived}
+              onCheckedChange={(v) => setIncludeArchived(Boolean(v))}
+              label={t('list.showArchived')}
+            />
+            <DataTableActionMenu
+              label={t('list.createButton')}
+              icon={Plus}
+              onClick={() => setCreateOpen(true)}
+            />
           </div>
         }
         emptyState={{
-          icon: FolderKanban,
+          icon: Folder,
           title: t('list.emptyTitle'),
           description: t('list.emptyDescription'),
         }}

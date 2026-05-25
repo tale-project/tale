@@ -160,7 +160,7 @@ const categoryConfig = {
 function ConversationsListSkeleton() {
   return (
     <div className="divide-border divide-y border-b">
-      {Array.from({ length: 8 }).map((_, i) => (
+      {Array.from({ length: 12 }).map((_, i) => (
         <div key={i} className="p-4">
           <div className="flex items-start gap-3">
             <div className="mt-1 flex items-center">

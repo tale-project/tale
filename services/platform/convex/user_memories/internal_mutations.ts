@@ -22,11 +22,12 @@ interface WriteProposalResult {
  * public auth (the caller is the chat action runtime, which has already
  * validated the user) but still enforces:
  *
- *  - Same kill-switch gate as the read path: org feature flag,
- *    `prefs.enabled === true`, and `!threadMetadata.disablePersonalization`.
- *    Default-OFF: a missing prefs row blocks the write. Membership is
- *    transitively covered because `cascadeOnMemberRemoved` deletes the
- *    user's prefs row when they leave the org.
+ *  - Same memories gate as the read path: `user_memories` org policy,
+ *    `prefs.memoriesEnabled === true`, and
+ *    `!threadMetadata.disablePersonalization`. Default-OFF: missing org
+ *    policy + no user opt-in blocks the write. Membership is transitively
+ *    covered because `cascadeOnMemberRemoved` deletes the user's prefs
+ *    row when they leave the org.
  *  - Content shape: same regex/token caps the public mutations apply.
  *  - Rate limits: per-thread (≤ 3 pending) and per-(user, org) per 24h
  *    (≤ 20 proposals total).
@@ -70,22 +71,22 @@ export const writeProposal = internalMutation({
       );
     };
 
-    // Read+write symmetry: same gate as buildUserPersonalization. Blocks
-    // when the org has not opted in, the user has not enabled
-    // personalization (default-OFF), the thread has been opted out, or
+    // Read+write symmetry: same memories gate as buildUserPersonalization.
+    // Blocks when the org has not opted in, the user has not enabled
+    // memories (default-OFF), the thread has been opted out, or
     // (transitively) the user is no longer an org member — the cascade
     // hook deletes their prefs row on removal.
-    const allowed = await evaluatePersonalizationGates(ctx, {
+    const gates = await evaluatePersonalizationGates(ctx, {
       userId: args.userId,
       organizationId: args.organizationId,
       threadId: args.threadId,
     });
-    if (!allowed) {
+    if (!gates.memories) {
       await audit('denied');
       return {
         ok: false,
         reason:
-          'Personalization is not enabled for this user, organization, or thread.',
+          'Memories are not enabled for this user, organization, or thread.',
       };
     }
 

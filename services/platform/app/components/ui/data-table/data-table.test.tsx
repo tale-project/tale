@@ -82,7 +82,7 @@ describe('DataTable loading states', () => {
       );
 
       const skeletons = getSkeletonRows();
-      expect(skeletons.length).toBe(3);
+      expect(skeletons.length).toBe(5);
     });
   });
 

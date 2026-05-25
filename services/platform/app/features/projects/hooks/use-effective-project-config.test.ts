@@ -23,10 +23,17 @@ function makeProject(
 }
 
 describe('deriveEffectiveProjectConfig', () => {
-  it('defaults to "all" for a null project', () => {
+  it('defaults to "recommended" for a null project (legacy "all" maps the same way)', () => {
     const cfg = deriveEffectiveProjectConfig(null);
-    expect(cfg.agentMode).toBe('all');
-    expect(cfg.modelMode).toBe('all');
+    expect(cfg.agentMode).toBe('recommended');
+    expect(cfg.modelMode).toBe('recommended');
+    expect(cfg.recommendedAgentSlugs).toEqual([]);
+    expect(cfg.allowedAgentSlugs).toBeNull();
+  });
+
+  it('maps a stored "all" mode onto "recommended" with no pinned items', () => {
+    const cfg = deriveEffectiveProjectConfig(makeProject({ agentMode: 'all' }));
+    expect(cfg.agentMode).toBe('recommended');
     expect(cfg.recommendedAgentSlugs).toEqual([]);
     expect(cfg.allowedAgentSlugs).toBeNull();
   });
@@ -80,7 +87,7 @@ describe('deriveEffectiveProjectConfig', () => {
     expect(result.map((r) => r.slug)).toEqual(['allowed-1', 'allowed-2']);
   });
 
-  it('does not filter in "all" or "recommended" modes', () => {
+  it('does not filter in "recommended" mode (including legacy "all" rows)', () => {
     const cfgAll = deriveEffectiveProjectConfig(
       makeProject({ agentMode: 'all' }),
     );

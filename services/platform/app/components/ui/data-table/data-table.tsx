@@ -379,7 +379,7 @@ export function DataTable<TData, TValue = unknown>({
   // Number of skeleton rows to render based on current state
   const skeletonRowCount =
     tableBodyState === 'loading'
-      ? 3
+      ? 5
       : tableBodyState === 'skeleton'
         ? (approxRowCount ?? 0)
         : 0;

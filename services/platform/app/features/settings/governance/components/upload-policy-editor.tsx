@@ -1,11 +1,12 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { Skeleton } from '@tale/ui/skeleton';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { z } from 'zod';
 
+import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -23,6 +24,16 @@ import { useGovernancePolicy } from '../hooks/queries';
 interface UploadPolicyEditorProps {
   organizationId: string;
 }
+
+interface UploadPolicyForm {
+  allowedExtensions: string;
+  blockedExtensions: string;
+  allowedMimeTypes: string;
+  maxFileSizeMB: string;
+  maxVolumeGB: string;
+}
+
+const FORM_ID = 'governance-upload-policy-form';
 
 function parseConfig(raw: unknown): UploadPolicyConfig {
   const obj = isRecord(raw) ? raw : {};
@@ -44,6 +55,37 @@ function stringToExtensions(value: string): string[] | undefined {
     .filter(Boolean);
 }
 
+function buildConfig(
+  values: UploadPolicyForm,
+  enabledValue: boolean,
+): UploadPolicyConfig {
+  const config: UploadPolicyConfig = { enabled: enabledValue };
+
+  const allowed = stringToExtensions(values.allowedExtensions);
+  if (allowed) config.allowedExtensions = allowed;
+
+  const blocked = stringToExtensions(values.blockedExtensions);
+  if (blocked) config.blockedExtensions = blocked;
+
+  const mimes = values.allowedMimeTypes
+    .split(/[,\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (mimes.length > 0) config.allowedMimeTypes = mimes;
+
+  const sizeMB = Number(values.maxFileSizeMB);
+  if (values.maxFileSizeMB && !Number.isNaN(sizeMB) && sizeMB > 0) {
+    config.maxFileSizeBytes = sizeMB * 1024 * 1024;
+  }
+
+  const volGB = Number(values.maxVolumeGB);
+  if (values.maxVolumeGB && !Number.isNaN(volGB) && volGB > 0) {
+    config.maxTotalVolumeBytesPerUser = volGB * 1024 * 1024 * 1024;
+  }
+
+  return config;
+}
+
 export function UploadPolicyEditor({
   organizationId,
 }: UploadPolicyEditorProps) {
@@ -58,84 +100,110 @@ export function UploadPolicyEditor({
   const upsertMutation = useUpsertGovernancePolicy();
 
   const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
-
-  const [enabled, setEnabled] = useState(false);
-  const [allowedExtensions, setAllowedExtensions] = useState('');
-  const [blockedExtensions, setBlockedExtensions] = useState('');
-  const [allowedMimeTypes, setAllowedMimeTypes] = useState('');
-  const [maxFileSizeMB, setMaxFileSizeMB] = useState('');
-  const [maxVolumeGB, setMaxVolumeGB] = useState('');
-
-  useEffect(() => {
-    setEnabled(savedConfig.enabled);
-    setAllowedExtensions(extensionsToString(savedConfig.allowedExtensions));
-    setBlockedExtensions(extensionsToString(savedConfig.blockedExtensions));
-    setAllowedMimeTypes(savedConfig.allowedMimeTypes?.join(', ') ?? '');
-    setMaxFileSizeMB(
-      savedConfig.maxFileSizeBytes != null
-        ? String(savedConfig.maxFileSizeBytes / (1024 * 1024))
-        : '',
-    );
-    setMaxVolumeGB(
-      savedConfig.maxTotalVolumeBytesPerUser != null
-        ? String(savedConfig.maxTotalVolumeBytesPerUser / (1024 * 1024 * 1024))
-        : '',
-    );
-  }, [savedConfig]);
-
   const cannotManage = ability.cannot('write', 'orgSettings');
 
-  const buildConfig = useCallback(
-    (enabledValue: boolean): UploadPolicyConfig => {
-      const config: UploadPolicyConfig = { enabled: enabledValue };
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    if (!isLoading) setEnabled(savedConfig.enabled);
+  }, [isLoading, savedConfig]);
 
-      const allowed = stringToExtensions(allowedExtensions);
-      if (allowed) config.allowedExtensions = allowed;
-
-      const blocked = stringToExtensions(blockedExtensions);
-      if (blocked) config.blockedExtensions = blocked;
-
-      const mimes = allowedMimeTypes
-        .split(/[,\s]+/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (mimes.length > 0) config.allowedMimeTypes = mimes;
-
-      const sizeMB = Number(maxFileSizeMB);
-      if (maxFileSizeMB && !Number.isNaN(sizeMB) && sizeMB > 0) {
-        config.maxFileSizeBytes = sizeMB * 1024 * 1024;
-      }
-
-      const volGB = Number(maxVolumeGB);
-      if (maxVolumeGB && !Number.isNaN(volGB) && volGB > 0) {
-        config.maxTotalVolumeBytesPerUser = volGB * 1024 * 1024 * 1024;
-      }
-
-      return config;
-    },
-    [
-      allowedExtensions,
-      blockedExtensions,
-      allowedMimeTypes,
-      maxFileSizeMB,
-      maxVolumeGB,
-    ],
+  const schema = useMemo(
+    () =>
+      z.object({
+        allowedExtensions: z.string(),
+        blockedExtensions: z.string(),
+        allowedMimeTypes: z.string(),
+        maxFileSizeMB: z.string().refine(
+          (v) => {
+            if (!v.trim()) return true;
+            const n = Number(v);
+            return !Number.isNaN(n) && n >= 0;
+          },
+          { message: t('uploadPolicy.invalidMaxFileSize') },
+        ),
+        maxVolumeGB: z.string().refine(
+          (v) => {
+            if (!v.trim()) return true;
+            const n = Number(v);
+            return !Number.isNaN(n) && n >= 0;
+          },
+          { message: t('uploadPolicy.invalidMaxVolume') },
+        ),
+      }),
+    [t],
   );
 
-  const saveConfig = useCallback(
-    async (config: UploadPolicyConfig) => {
+  const data = useMemo<UploadPolicyForm | undefined>(() => {
+    if (isLoading) return undefined;
+    return {
+      allowedExtensions: extensionsToString(savedConfig.allowedExtensions),
+      blockedExtensions: extensionsToString(savedConfig.blockedExtensions),
+      allowedMimeTypes: savedConfig.allowedMimeTypes?.join(', ') ?? '',
+      maxFileSizeMB:
+        savedConfig.maxFileSizeBytes != null
+          ? String(savedConfig.maxFileSizeBytes / (1024 * 1024))
+          : '',
+      maxVolumeGB:
+        savedConfig.maxTotalVolumeBytesPerUser != null
+          ? String(
+              savedConfig.maxTotalVolumeBytesPerUser / (1024 * 1024 * 1024),
+            )
+          : '',
+    };
+  }, [isLoading, savedConfig]);
+
+  const save = useCallback(
+    async (values: UploadPolicyForm) => {
       try {
         await upsertMutation.mutateAsync({
           organizationId,
           policyType: 'upload_policy',
-          config,
+          config: buildConfig(values, enabled),
         });
         toast({
           title: t('toastSavedTitle'),
           description: t('uploadPolicy.saved'),
           variant: 'success',
         });
-      } catch {
+      } catch (err) {
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description: t('uploadPolicy.saveFailed'),
+          variant: 'destructive',
+        });
+        throw err;
+      }
+    },
+    [enabled, organizationId, t, toast, upsertMutation],
+  );
+
+  const editor = useFormEditor<UploadPolicyForm>({
+    data,
+    schema,
+    save,
+  });
+
+  const {
+    form: {
+      register,
+      handleSubmit,
+      getValues,
+      formState: { errors },
+    },
+  } = editor;
+
+  const handleToggleEnabled = useCallback(
+    async (next: boolean) => {
+      setEnabled(next);
+      try {
+        await upsertMutation.mutateAsync({
+          organizationId,
+          policyType: 'upload_policy',
+          config: buildConfig(getValues(), next),
+        });
+      } catch (err) {
+        console.error('[uploadPolicy toggle]', err);
+        setEnabled(!next);
         toast({
           title: t('toastSaveFailedTitle'),
           description: t('uploadPolicy.saveFailed'),
@@ -143,19 +211,7 @@ export function UploadPolicyEditor({
         });
       }
     },
-    [organizationId, upsertMutation, toast, t],
-  );
-
-  const handleSave = useCallback(async () => {
-    await saveConfig(buildConfig(enabled));
-  }, [saveConfig, buildConfig, enabled]);
-
-  const handleToggleEnabled = useCallback(
-    (checked: boolean) => {
-      setEnabled(checked);
-      void saveConfig(buildConfig(checked));
-    },
-    [saveConfig, buildConfig],
+    [getValues, organizationId, t, toast, upsertMutation],
   );
 
   const skeleton = (
@@ -218,71 +274,71 @@ export function UploadPolicyEditor({
       }
     >
       {enabled && (
-        <Stack gap={6} className="max-w-2xl">
-          <Stack gap={4}>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Input
-                label={t('uploadPolicy.allowedExtensions')}
-                value={allowedExtensions}
-                onChange={(e) => setAllowedExtensions(e.target.value)}
-                placeholder={t('uploadPolicy.extensionPlaceholder')}
-                disabled={cannotManage}
-                size="sm"
-              />
-              <Input
-                label={t('uploadPolicy.blockedExtensions')}
-                value={blockedExtensions}
-                onChange={(e) => setBlockedExtensions(e.target.value)}
-                placeholder={t('uploadPolicy.extensionPlaceholder')}
-                disabled={cannotManage}
-                size="sm"
-              />
-            </div>
-
-            <Input
-              label={t('uploadPolicy.allowedMimeTypes')}
-              value={allowedMimeTypes}
-              onChange={(e) => setAllowedMimeTypes(e.target.value)}
-              placeholder={t('uploadPolicy.mimeTypePlaceholder')}
-              disabled={cannotManage}
-              size="sm"
-            />
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Input
-                label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
-                type="number"
-                value={maxFileSizeMB}
-                onChange={(e) => setMaxFileSizeMB(e.target.value)}
-                disabled={cannotManage}
-                size="sm"
-                min={0}
-                step={1}
-              />
-              <Input
-                label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
-                type="number"
-                value={maxVolumeGB}
-                onChange={(e) => setMaxVolumeGB(e.target.value)}
-                disabled={cannotManage}
-                size="sm"
-                min={0}
-                step={0.1}
-              />
-            </div>
-          </Stack>
-
-          <Button
-            onClick={handleSave}
-            disabled={cannotManage || upsertMutation.isPending}
-            size="sm"
-            className="self-start"
+        <form id={FORM_ID} onSubmit={handleSubmit((values) => save(values))}>
+          <fieldset
+            disabled={cannotManage || editor.isLoading}
+            className="contents"
           >
-            {upsertMutation.isPending
-              ? t('systemPrompt.saving')
-              : t('systemPrompt.save')}
-          </Button>
-        </Stack>
+            <Stack gap={6} className="max-w-2xl">
+              <Stack gap={4}>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Input
+                    label={t('uploadPolicy.allowedExtensions')}
+                    placeholder={t('uploadPolicy.extensionPlaceholder')}
+                    size="sm"
+                    errorMessage={errors.allowedExtensions?.message}
+                    {...register('allowedExtensions')}
+                  />
+                  <Input
+                    label={t('uploadPolicy.blockedExtensions')}
+                    placeholder={t('uploadPolicy.extensionPlaceholder')}
+                    size="sm"
+                    errorMessage={errors.blockedExtensions?.message}
+                    {...register('blockedExtensions')}
+                  />
+                </div>
+
+                <Input
+                  label={t('uploadPolicy.allowedMimeTypes')}
+                  placeholder={t('uploadPolicy.mimeTypePlaceholder')}
+                  size="sm"
+                  errorMessage={errors.allowedMimeTypes?.message}
+                  {...register('allowedMimeTypes')}
+                />
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Input
+                    label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
+                    type="number"
+                    size="sm"
+                    min={0}
+                    step={1}
+                    errorMessage={errors.maxFileSizeMB?.message}
+                    {...register('maxFileSizeMB')}
+                  />
+                  <Input
+                    label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
+                    type="number"
+                    size="sm"
+                    min={0}
+                    step={0.1}
+                    errorMessage={errors.maxVolumeGB?.message}
+                    {...register('maxVolumeGB')}
+                  />
+                </div>
+              </Stack>
+
+              <HStack justify="end">
+                <EditorActions
+                  controller={editor}
+                  formId={FORM_ID}
+                  canEdit={!cannotManage}
+                  entityKind="governance_upload_policy"
+                />
+              </HStack>
+            </Stack>
+          </fieldset>
+        </form>
       )}
     </PageSection>
   );

@@ -14,6 +14,7 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { DashboardShellSkeleton } from '@/app/components/layout/dashboard-shell-skeleton';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
+import { DirtyBlockerProvider } from '@/app/components/ui/editor';
 import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
 import {
@@ -178,49 +179,51 @@ function DashboardLayout() {
     <AbilityContext.Provider value={ability}>
       <AbilityLoadingContext.Provider value={isLoading}>
         <TeamFilterProvider organizationId={organizationId}>
-          <AdaptiveHeaderProvider>
-            <div className="flex size-full flex-col overflow-hidden md:flex-row">
-              <div className="bg-background flex items-center gap-2 p-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] md:hidden">
-                <MobileNavigation organizationId={organizationId} />
-                <AdaptiveHeaderSlot />
-              </div>
+          <DirtyBlockerProvider>
+            <AdaptiveHeaderProvider>
+              <div className="flex size-full flex-col overflow-hidden md:flex-row">
+                <div className="bg-background flex items-center gap-2 p-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] md:hidden">
+                  <MobileNavigation organizationId={organizationId} />
+                  <AdaptiveHeaderSlot />
+                </div>
 
-              <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
-                <Navigation organizationId={organizationId} />
-              </div>
+                <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
+                  <Navigation organizationId={organizationId} />
+                </div>
 
-              <main
-                id="main-content"
-                className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(var(--safe-bottom)+var(--mobile-nav-height,3.5rem))] md:border-l md:pb-0"
-              >
-                {hasRole && (
-                  <TwoFactorGraceBanner organizationId={organizationId} />
-                )}
-                {hasRole && (
-                  <TwoFactorLowBackupCodesBanner
-                    organizationId={organizationId}
-                  />
-                )}
-                {hasRole && <ChangelogToastTrigger />}
-                {isSwitching ? (
-                  <FullPageCenter>
-                    <VStack gap={3} align="center">
-                      <Spinner
-                        size="lg"
-                        label={tSettings('organization.switchingLabel')}
-                      />
-                      <Text variant="muted" className="text-sm">
-                        {tSettings('organization.switching')}
-                      </Text>
-                    </VStack>
-                  </FullPageCenter>
-                ) : (
-                  <Outlet />
-                )}
-              </main>
-            </div>
-            {hasRole && <MobileBottomNav organizationId={organizationId} />}
-          </AdaptiveHeaderProvider>
+                <main
+                  id="main-content"
+                  className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(var(--safe-bottom)+var(--mobile-nav-height,3.5rem))] md:border-l md:pb-0"
+                >
+                  {hasRole && (
+                    <TwoFactorGraceBanner organizationId={organizationId} />
+                  )}
+                  {hasRole && (
+                    <TwoFactorLowBackupCodesBanner
+                      organizationId={organizationId}
+                    />
+                  )}
+                  {hasRole && <ChangelogToastTrigger />}
+                  {isSwitching ? (
+                    <FullPageCenter>
+                      <VStack gap={3} align="center">
+                        <Spinner
+                          size="lg"
+                          label={tSettings('organization.switchingLabel')}
+                        />
+                        <Text variant="muted" className="text-sm">
+                          {tSettings('organization.switching')}
+                        </Text>
+                      </VStack>
+                    </FullPageCenter>
+                  ) : (
+                    <Outlet />
+                  )}
+                </main>
+              </div>
+              {hasRole && <MobileBottomNav organizationId={organizationId} />}
+            </AdaptiveHeaderProvider>
+          </DirtyBlockerProvider>
         </TeamFilterProvider>
       </AbilityLoadingContext.Provider>
     </AbilityContext.Provider>

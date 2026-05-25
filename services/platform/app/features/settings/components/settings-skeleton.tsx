@@ -2,6 +2,7 @@
 
 import { Skeleton } from '@tale/ui/skeleton';
 
+import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { cn } from '@/lib/utils/cn';
 
 // =============================================================================
@@ -166,26 +167,37 @@ interface SettingsPageSkeletonProps extends BaseSkeletonProps {
   sections?: number;
   /** Hide the page header (use when wrapping inside an existing `<SettingsPage>`). */
   hideHeader?: boolean;
+  /** Right-aligned action placeholder (mirrors `<SettingsPage headerAction>`). */
+  headerAction?: React.ReactNode;
 }
 
 /**
  * Page skeleton — mirrors `<SettingsPage>`:
- *  outer `flex flex-col gap-8`, header `flex flex-col gap-1` with h1 (`h-6`)
- *  and description (`h-5`), then sections stacked at `gap-8`.
+ *  outer `flex flex-col gap-8`, header `flex flex-col gap-3 sm:flex-row …`
+ *  with h1 (`h-6`) + description (`h-5`) and optional right-aligned action
+ *  cluster, then children stacked at `gap-8`.
  */
 export function SettingsPageSkeleton({
   sections = 2,
   hideHeader = false,
+  headerAction,
   children,
   className,
 }: SettingsPageSkeletonProps) {
   return (
     <div className={cn('flex w-full flex-col gap-8', className)}>
       {!hideHeader && (
-        <div className="flex flex-col gap-1">
-          <Skeleton className="h-6 w-40" />
-          <Skeleton className="h-5 w-80 max-w-full" />
-        </div>
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+          <div className="flex min-w-0 flex-col gap-1">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-5 w-80 max-w-full" />
+          </div>
+          {headerAction && (
+            <div className="flex shrink-0 items-center justify-end">
+              {headerAction}
+            </div>
+          )}
+        </header>
       )}
       <div className="flex flex-col gap-8">
         {children ??
@@ -198,38 +210,31 @@ export function SettingsPageSkeleton({
 }
 
 /**
- * Table skeleton — search row + bordered table with N rows. Matches the
- * common shape used by Members / Teams / API keys / Providers / Trash.
+ * Generic settings-table skeleton — uses the real `DataTableSkeleton` so the
+ * search row, header heights, cell padding and outer border match the
+ * production `<DataTable>` (no layout shift on swap). Used by API keys /
+ * Providers / Members / Teams / Trash list pages.
+ *
+ * For tables with custom columns (e.g. audit logs), prefer rendering
+ * `DataTableSkeleton` directly with the real `ColumnDef[]` so column widths
+ * line up exactly.
  */
 export function SettingsTableSkeleton({
   rows = 5,
   className,
 }: BaseSkeletonProps & { rows?: number }) {
   return (
-    <div className={cn('flex flex-col gap-4', className)}>
-      <div className="flex items-center justify-between gap-3">
-        <Skeleton className="h-10 max-w-sm flex-1" />
-        <Skeleton className="h-10 w-32 shrink-0" />
-      </div>
-      <div className="border-border overflow-hidden rounded-lg border">
-        <div className="bg-muted/40 flex items-center gap-4 px-4 py-3">
-          <Skeleton className="h-4 w-1/3" />
-          <Skeleton className="h-4 w-1/4" />
-          <Skeleton className="ml-auto h-4 w-16" />
-        </div>
-        {Array.from({ length: rows }).map((_, i) => (
-          <div
-            key={i}
-            className="border-border flex items-center gap-4 border-t px-4 py-3"
-          >
-            <Skeleton className="size-9 shrink-0 rounded-full" />
-            <Skeleton className="h-4 w-1/3" />
-            <Skeleton className="h-4 w-1/4" />
-            <Skeleton className="ml-auto h-8 w-20" />
-          </div>
-        ))}
-      </div>
-    </div>
+    <DataTableSkeleton
+      className={className}
+      rows={rows}
+      searchPlaceholder=" "
+      columns={[
+        { skeleton: { type: 'avatar-text' } },
+        { skeleton: { type: 'text' } },
+        { skeleton: { type: 'badge' } },
+        { isAction: true, size: 56 },
+      ]}
+    />
   );
 }
 

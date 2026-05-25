@@ -558,8 +558,16 @@ export function ModerationProviderConfigView({
 
   if (isLoading) {
     return (
-      <PageSection title={t('moderationProvider.title')}>
-        <Skeleton className="h-32 w-full" />
+      <PageSection
+        title={t('moderationProvider.title')}
+        description={t('moderationProvider.description')}
+        action={<Skeleton className="h-[1.15rem] w-8 rounded-full" />}
+      >
+        <div className="flex flex-col gap-4">
+          <Skeleton className="h-10 w-full max-w-sm" />
+          <Skeleton className="h-10 w-full max-w-sm" />
+          <Skeleton className="h-64 w-full rounded-md" />
+        </div>
       </PageSection>
     );
   }

@@ -6,6 +6,11 @@ import { History } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import {
+  EditorActions,
+  useActiveEditor,
+  useRegisterDirtySource,
+} from '@/app/components/ui/editor';
+import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
@@ -42,7 +47,11 @@ export function AutomationNavigation({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { formatDate } = useFormatDate();
-  const { config } = useWorkflowConfig();
+  const { config, isDirty } = useWorkflowConfig();
+
+  // Surface dirty state to the page-level blocker so navigation away from
+  // the editor with unsaved workflow edits triggers the unified confirm.
+  useRegisterDirtySource(isDirty);
 
   const listHistoryAction = useConvexAction(
     api.workflows.file_actions.listHistory,
@@ -213,22 +222,24 @@ export function AutomationNavigation({
         standalone={false}
         ariaLabel={tCommon('aria.automationsNavigation')}
       >
-        <div className="ml-auto flex items-center gap-2">
-          <DropdownMenu
-            trigger={
-              <Button variant="secondary" size="sm" className="h-8 text-sm">
-                <History className="mr-1.5 size-3.5" aria-hidden="true" />
-                {t('navigation.history')}
-              </Button>
-            }
-            items={historyMenuItems}
-            align="end"
-            contentClassName="w-64"
-            onOpenChange={(open) => {
-              if (open) void handleLoadHistory();
-            }}
-          />
-        </div>
+        <AutomationEditorActionsSlot
+          history={
+            <DropdownMenu
+              trigger={
+                <Button variant="secondary" size="sm" className="h-8 text-sm">
+                  <History className="mr-1.5 size-3.5" aria-hidden="true" />
+                  {t('navigation.history')}
+                </Button>
+              }
+              items={historyMenuItems}
+              align="end"
+              contentClassName="w-64"
+              onOpenChange={(open) => {
+                if (open) void handleLoadHistory();
+              }}
+            />
+          }
+        />
       </TabNavigation>
 
       {snapshotConfig && selectedEntry && (
@@ -243,5 +254,29 @@ export function AutomationNavigation({
         />
       )}
     </>
+  );
+}
+
+/**
+ * Reads the active child controller (Configuration form, future tab forms)
+ * and renders the unified Save/Discard cluster in the tab strip alongside
+ * the History menu. Tabs without forms (Editor, Executions, Triggers) leave
+ * the active editor null and only the History button shows.
+ */
+function AutomationEditorActionsSlot({
+  history,
+}: {
+  history: React.ReactNode;
+}) {
+  const controller = useActiveEditor();
+  if (!controller) {
+    return <div className="ml-auto flex items-center gap-2">{history}</div>;
+  }
+  return (
+    <EditorActions
+      controller={controller}
+      entityKind="automation"
+      history={history}
+    />
   );
 }

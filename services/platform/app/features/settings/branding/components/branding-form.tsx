@@ -1,12 +1,14 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
-import { useCallback, useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
+import {
+  useFormEditor,
+  useRegisterActiveEditor,
+} from '@/app/components/ui/editor';
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
@@ -60,10 +62,8 @@ export function BrandingForm({
   const snapshotHistory = useSnapshotBrandingHistory();
   const deleteImage = useDeleteImage();
 
-  const form = useForm({
-    resolver: zodResolver(brandingFormSchema),
-    mode: 'onChange',
-    defaultValues: {
+  const data = useMemo<BrandingFormData>(
+    () => ({
       appName: branding?.appName ?? '',
       textLogo: branding?.textLogo ?? '',
       brandColor: branding?.brandColor ?? '',
@@ -71,11 +71,56 @@ export function BrandingForm({
       logoFilename: branding?.logoFilename ?? '',
       faviconLightFilename: branding?.faviconLightFilename ?? '',
       faviconDarkFilename: branding?.faviconDarkFilename ?? '',
+    }),
+    [branding],
+  );
+
+  const save = useCallback(
+    async (values: BrandingFormData) => {
+      try {
+        const config = {
+          appName: values.appName || undefined,
+          textLogo: values.textLogo || undefined,
+          brandColor: values.brandColor || undefined,
+          accentColor: values.accentColor || undefined,
+          logoFilename: values.logoFilename || undefined,
+          faviconLightFilename: values.faviconLightFilename || undefined,
+          faviconDarkFilename: values.faviconDarkFilename || undefined,
+        };
+        // Snapshot the prior baseline AFTER save succeeds (fix to inherited
+        // snapshot-then-save bug). Best-effort; failure is non-fatal.
+        await saveBranding.mutateAsync({ config });
+        snapshotHistory
+          .mutateAsync({})
+          .catch((e) => console.warn('[branding history snapshot]', e));
+        onSaved?.();
+        void refetchBranding();
+        toast({
+          title: tToast('success.brandingUpdated'),
+          variant: 'success',
+        });
+      } catch (err) {
+        toast({
+          title: tToast('error.brandingUpdateFailed'),
+          variant: 'destructive',
+        });
+        throw err;
+      }
     },
+    [onSaved, refetchBranding, saveBranding, snapshotHistory, toast, tToast],
+  );
+
+  const editor = useFormEditor<BrandingFormData>({
+    data,
+    schema: brandingFormSchema,
+    save,
   });
 
-  const { formState, handleSubmit, register, watch, setValue } = form;
-  const { isSubmitting, isDirty, isValid } = formState;
+  useRegisterActiveEditor(editor);
+
+  const {
+    form: { handleSubmit, register, watch, setValue, formState },
+  } = editor;
 
   const watchedValues = watch();
 
@@ -105,49 +150,6 @@ export function BrandingForm({
     onPreviewChange,
   ]);
 
-  const onSubmit = useCallback(
-    async (data: BrandingFormData) => {
-      try {
-        await snapshotHistory.mutateAsync({});
-
-        await saveBranding.mutateAsync({
-          config: {
-            appName: data.appName || undefined,
-            textLogo: data.textLogo || undefined,
-            brandColor: data.brandColor || undefined,
-            accentColor: data.accentColor || undefined,
-            logoFilename: data.logoFilename || undefined,
-            faviconLightFilename: data.faviconLightFilename || undefined,
-            faviconDarkFilename: data.faviconDarkFilename || undefined,
-          },
-        });
-
-        form.reset(data);
-        onSaved?.();
-        void refetchBranding();
-
-        toast({
-          title: tToast('success.brandingUpdated'),
-          variant: 'success',
-        });
-      } catch {
-        toast({
-          title: tToast('error.brandingUpdateFailed'),
-          variant: 'destructive',
-        });
-      }
-    },
-    [
-      saveBranding,
-      snapshotHistory,
-      form,
-      toast,
-      tToast,
-      onSaved,
-      refetchBranding,
-    ],
-  );
-
   const handleBrandColorChange = useCallback(
     (value: string) => {
       setValue('brandColor', value, { shouldDirty: true });
@@ -162,7 +164,10 @@ export function BrandingForm({
     [setValue],
   );
 
-  const handleReset = useCallback(async () => {
+  // Clear branding wipes the form fields AND deletes the uploaded image
+  // blobs. Distinct from the per-row Discard which only reverts unsaved
+  // edits — clearing is a destructive, server-mutating action.
+  const handleClearBranding = useCallback(async () => {
     const opts = { shouldDirty: true };
     setValue('appName', '', opts);
     setValue('textLogo', '', opts);
@@ -190,7 +195,8 @@ export function BrandingForm({
 
   return (
     <Form
-      onSubmit={handleSubmit(onSubmit)}
+      id="branding-form"
+      onSubmit={handleSubmit((values) => save(values))}
       className="w-full max-w-sm shrink-0 space-y-0"
     >
       <div className="flex h-full flex-col justify-between">
@@ -292,33 +298,16 @@ export function BrandingForm({
           />
         </FormSection>
 
-        {isDirty && (
-          <HStack
-            justify="between"
-            className="bg-background/80 sticky bottom-0 z-40 -mx-4 mt-4 px-4 py-3 backdrop-blur-md"
-          >
-            {hasAnyBranding && (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleReset}
-              >
-                {tCommon('actions.reset')}
-              </Button>
-            )}
-            <div className="ml-auto">
-              <Button
-                type="submit"
-                size="sm"
-                isLoading={isSubmitting}
-                disabled={!isValid}
-              >
-                {isSubmitting
-                  ? tCommon('actions.saving')
-                  : tCommon('actions.saveChanges')}
-              </Button>
-            </div>
+        {hasAnyBranding && (
+          <HStack justify="start" className="mt-4">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleClearBranding()}
+            >
+              {tCommon('actions.clearAll')}
+            </Button>
           </HStack>
         )}
       </div>

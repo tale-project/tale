@@ -74,7 +74,11 @@
       "footNote": "Wir integrieren mit {logos} und mehr — unsere Expertise deckt den Rest ab.",
       "integrationsPrefix": "Wir integrieren mit",
       "integrationsSuffix": "und mehr — unsere Expertise deckt den Rest ab.",
-      "integrations": ["Microsoft", "Google", "Atlassian"]
+      "integrations": [
+        "Microsoft",
+        "Google",
+        "Atlassian"
+      ]
     },
     "tagline": {
       "title": "Deine Infrastruktur. Deine Daten. Deine Regeln.",
@@ -379,9 +383,9 @@
         "zen5Info": "AMDs x86-CPU-Mikroarchitektur der 5. Generation (2024).",
         "int4Info": "4-Bit-Integer-Quantisierung — minimaler Präzisionsverlust, ~4× weniger Speicherbedarf.",
         "m2nvmeInfo": "m.2-NVMe-SSDs in einem ZFS-RAID-Pool — schneller, redundanter Speicher.",
-        "nqInfo": "Node Quality",
-        "naInfo": "Node Application",
-        "nsInfo": "Node Speed",
+        "nqInfo": "Quality-Node",
+        "naInfo": "Application-Node",
+        "nsInfo": "Speed-Node",
         "mqInfo": "Multi-Node Quality",
         "mhInfo": "Multi-Node Hybrid",
         "msInfo": "Multi-Node Speed",

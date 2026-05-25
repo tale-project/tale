@@ -20,6 +20,7 @@ import { z } from 'zod';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
+import { ActiveEditorProvider } from '@/app/components/ui/editor';
 import { AutomationAIChatPanel } from '@/app/features/automations/components/automation-ai-chat-panel';
 import { AutomationNavigation } from '@/app/features/automations/components/automation-navigation';
 import { useReadWorkflow } from '@/app/features/automations/hooks/file-queries';
@@ -213,14 +214,16 @@ function AutomationDetailLayout() {
 
   return (
     <WorkflowConfigProvider workflowSlug={workflowSlug} initialConfig={config}>
-      <AutomationDetailInner
-        organizationId={organizationId}
-        amId={amId}
-        workflowSlug={workflowSlug}
-        onRefetch={async () => {
-          await refetch();
-        }}
-      />
+      <ActiveEditorProvider>
+        <AutomationDetailInner
+          organizationId={organizationId}
+          amId={amId}
+          workflowSlug={workflowSlug}
+          onRefetch={async () => {
+            await refetch();
+          }}
+        />
+      </ActiveEditorProvider>
     </WorkflowConfigProvider>
   );
 }

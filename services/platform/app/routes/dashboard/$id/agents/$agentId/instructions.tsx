@@ -274,7 +274,6 @@ function InstructionsTab() {
           c.tags.includes('embedding') && !c.tags.includes('chat');
         const viaProvider = t('agents.form.viaProvider', {
           provider: c.providerName,
-          defaultValue: `via ${c.providerName}`,
         });
         const variantSuffix = c.quantization
           ? ` — ${getVariantBadgeLabel(c.quantization)}`
@@ -362,7 +361,6 @@ function InstructionsTab() {
               currentValue
                 ? t('agents.form.systemInstructionsCharCount', {
                     count: currentValue.length,
-                    defaultValue: `${currentValue.length} characters`,
                   })
                 : undefined
             }

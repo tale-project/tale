@@ -54,10 +54,12 @@ export function useAuditLogTableConfig(
         header: t('logs.audit.columns.action'),
         cell: ({ row }) => (
           <Text as="span" variant="label">
-            {row.original.action.replace(/_/g, ' ')}
+            {t('logs.audit.actionLabels.' + row.original.action, {
+              defaultValue: row.original.action.replace(/_/g, ' '),
+            })}
           </Text>
         ),
-        size: 160,
+        size: 240,
       },
       {
         accessorKey: 'actorEmail',
@@ -84,7 +86,9 @@ export function useAuditLogTableConfig(
         header: t('logs.audit.columns.resource'),
         cell: ({ row }) => (
           <Text as="span" variant="body" className="capitalize">
-            {row.original.resourceType}
+            {t('logs.audit.resourceTypeLabels.' + row.original.resourceType, {
+              defaultValue: row.original.resourceType.replace(/_/g, ' '),
+            })}
           </Text>
         ),
         size: 120,
@@ -110,7 +114,7 @@ export function useAuditLogTableConfig(
         meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) => (
           <Badge variant="outline" className="capitalize">
-            {row.original.category}
+            {t('logs.audit.categoryLabels.' + row.original.category)}
           </Badge>
         ),
         size: 100,
@@ -131,7 +135,7 @@ export function useAuditLogTableConfig(
                     : 'destructive'
               }
             >
-              {status}
+              {t('logs.audit.statusLabels.' + status)}
             </Badge>
           );
         },

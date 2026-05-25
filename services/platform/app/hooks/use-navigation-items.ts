@@ -6,7 +6,7 @@ import {
   BrainIcon,
   Network,
   Bot,
-  FolderKanban,
+  Folder,
 } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -47,7 +47,7 @@ export function useNavigationItems(businessId: string): NavItem[] {
         to: '/dashboard/$id/projects',
         params: { id: businessId },
         href: `/dashboard/${businessId}/projects`,
-        icon: FolderKanban,
+        icon: Folder,
         can: ['read', 'projects'],
       },
       {

@@ -150,3 +150,44 @@ projects.threads.title
 projects.threads.shareSuccess
 projects.threads.unshareSuccess
 projects.threads.shareError
+
+# Audit-log table renders action / actorType / category / status / resourceType
+# from the stored audit row (closed enum sets in convex/audit_logs/schema.ts;
+# 109 action codes emitted across convex/**). See
+# audit-log-table.tsx + use-audit-log-table-config.tsx.
+settings.logs.audit.actionLabels
+settings.logs.audit.actorTypeLabels
+settings.logs.audit.categoryLabels
+settings.logs.audit.resourceTypeLabels
+settings.logs.audit.statusLabels
+
+# Projects: additional planned-but-not-yet-wired keys for v1+ surfaces
+# (instructions editor save indicators, notFound screen, danger zone, etc.).
+# Remove once the corresponding components ship.
+projects.instructions.saveError
+projects.instructions.savedIndicator
+projects.instructions.savingIndicator
+projects.navigation.settings
+projects.notFound.backCta
+projects.notFound.description
+projects.notFound.retryCta
+projects.notFound.title
+projects.overview.statsHeading
+projects.overview.statsIndexed
+projects.overview.statsShared
+projects.settings.dangerZone
+projects.settings.deleteButton
+projects.settings.deleteDescription
+projects.settings.saveSubmitting
+
+# Editor remote-update merge dialog: keys live ahead of the dialog being wired.
+common.editor.adoptRemote
+common.editor.keepMine
+common.editor.remoteUpdateAvailable
+common.editor.remoteUpdateDiffTitle
+
+# Settings → Agents: unsaved-changes dialog (keys ahead of dialog wiring).
+settings.agents.unsavedChanges.description
+settings.agents.unsavedChanges.leave
+settings.agents.unsavedChanges.stay
+settings.agents.unsavedChanges.title

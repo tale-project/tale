@@ -538,7 +538,7 @@ export function JsonInput({
           </div>
           {editing.isDirty && (
             <span className="font-medium text-amber-600">
-              {t('unsavedChanges')}
+              {t('unsavedChanges.title')}
             </span>
           )}
         </Text>

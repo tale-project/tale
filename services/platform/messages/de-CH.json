@@ -1,18 +1,4 @@
 {
-  "common": {
-    "actions": {
-      "close": "Schliessen"
-    },
-    "aria": {
-      "close": "Schliessen",
-      "zoomIn": "Vergrössern"
-    }
-  },
-  "tables": {
-    "headers": {
-      "size": "Grösse"
-    }
-  },
   "auth": {
     "validation": {
       "passwordUppercase": "Passwort muss einen Grossbuchstaben enthalten"
@@ -26,18 +12,6 @@
       "description": "Dein Passwort ist gemäss der Rotationsrichtlinie der Organisation abgelaufen. Lege ein neues Passwort fest, um fortzufahren."
     }
   },
-  "settings": {
-    "agents": {
-      "knowledge": {
-        "fileTooLarge": "Datei zu gross"
-      }
-    },
-    "integrations": {
-      "sso": {
-        "excludeGroupsLabel": "Gruppen ausschliessen"
-      }
-    }
-  },
   "automations": {
     "triggers": {
       "schedules": {
@@ -47,6 +21,23 @@
     "sidePanel": {
       "close": "Panel schliessen",
       "resizePanel": "Panel-Grösse ändern"
+    }
+  },
+  "chat": {
+    "budgetWarningDismiss": "Schliessen",
+    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB.",
+    "canvas": {
+      "close": "Canvas schliessen",
+      "resizeHandle": "Canvas-Grösse ändern"
+    }
+  },
+  "common": {
+    "actions": {
+      "close": "Schliessen"
+    },
+    "aria": {
+      "close": "Schliessen",
+      "zoomIn": "Vergrössern"
     }
   },
   "conversations": {
@@ -60,18 +51,6 @@
       }
     }
   },
-  "todoList": {
-    "paneClose": "Plan schliessen",
-    "paneResizeHandle": "Planbereich vergrössern"
-  },
-  "chat": {
-    "budgetWarningDismiss": "Schliessen",
-    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB.",
-    "canvas": {
-      "close": "Canvas schliessen",
-      "resizeHandle": "Canvas-Grösse ändern"
-    }
-  },
   "documents": {
     "preview": {
       "closePreview": "Vorschau schliessen",
@@ -82,11 +61,6 @@
     "upload": {
       "fileTooLarge": "Datei zu gross",
       "fileSizeExceeded": "Datei {name} überschreitet das Limit von {maxSize} MB. Aktuelle Grösse: {currentSize} MB"
-    }
-  },
-  "twoFactor": {
-    "setup": {
-      "qrInstructions": "Scanne den QR-Code mit einer Authenticator-App (Google Authenticator, 1Password, Authy) und gib anschliessend den 6-stelligen Code unten ein."
     }
   },
   "governance": {
@@ -106,12 +80,41 @@
     "contentSafety": {
       "wordsDescription": "Ein Wort oder eine Phrase pro Zeile. Gross-/Kleinschreibung egal. Für CJK/Thai/Laotisch wird automatisch Teilstring-Matching verwendet; andere Schriften nutzen Unicode-basierte Wortgrenzen."
     },
+    "legalHold": {
+      "sections": {
+        "releaseRequests": {
+          "description": "Ausstehende Anträge müssen von einem anderen Admin genehmigt werden. Genehmigte Anträge warten anschliessend die Cooldown-Phase ab."
+        },
+        "matters": {
+          "description": "Holds nach Fall gruppieren. Beim Schliessen eines Falls werden Freigabeanträge für alle verknüpften Holds eingereicht (weiterhin mit Vier-Augen-Genehmigung)."
+        }
+      },
+      "actions": {
+        "closeMatter": "Fall schliessen"
+      },
+      "dialogs": {
+        "rejectRelease": {
+          "description": "Die Ablehnung schliesst den Antrag, ohne den Hold freizugeben."
+        },
+        "upsertMatter": {
+          "description": "Verwandte Holds unter einem Fall gruppieren. Beim späteren Schliessen werden Freigabeanträge für alle verknüpften Holds eingereicht."
+        },
+        "closeMatter": {
+          "title": "Fall schliessen",
+          "description": "Beim Schliessen werden Freigabeanträge für {count} aktive verknüpfte Hold(s) eingereicht. Jede Freigabe benötigt weiterhin Vier-Augen-Genehmigung.",
+          "submit": "Fall schliessen"
+        }
+      }
+    },
     "dataSubjectRequests": {
       "reasonCodes": {
         "unlawful_processing": {
           "label": "Unrechtmässige Verarbeitung"
         }
       }
+    },
+    "dsarPolicy": {
+      "ownerOnlyNotice": "Nur der Owner kann diese Richtlinie ändern. Admins können sie lesen. Jede Lockerung der Schutzmassnahmen (kürzere Karenzzeit, Deaktivieren der Doppelfreigabe, Anheben des täglichen Limits) wird 24 Stunden lang gestaffelt, damit jeder Admin sie zurücksetzen kann."
     }
   },
   "personalization": {
@@ -125,345 +128,44 @@
       }
     }
   },
-  "piiTypes": {
-    "email": "E-Mail",
-    "phone": "Telefon",
-    "creditCard": "Kreditkarte",
-    "cvc": "Karten-CVC",
-    "iban": "IBAN",
-    "ipAddress": "IP-Adresse",
-    "ssn": "SSN",
-    "dateOfBirth": "Geburtsdatum",
-    "address": "Adresse",
-    "de-personalausweis": "Personalausweis",
-    "at-passport": "Reisepass AT",
-    "fr-nir": "Sozialversicherungs-Nr.",
-    "fr-passport": "Reisepass FR",
-    "it-codice-fiscale": "Steuernummer",
-    "it-passport": "Reisepass IT",
-    "nl-bsn": "BSN",
-    "nl-passport": "Reisepass NL",
-    "es-dni": "DNI",
-    "es-nie": "NIE",
-    "es-passport": "Reisepass ES",
-    "pt-nif": "NIF",
-    "br-cpf": "CPF",
-    "pt-passport": "Reisepass PT",
-    "se-personnummer": "Personnummer",
-    "se-passport": "Reisepass SE",
-    "pl-pesel": "PESEL",
-    "pl-passport": "Reisepass PL",
-    "uk-nino": "NI-Nummer",
-    "ca-sin": "SIN",
-    "ie-pps": "PPS-Nummer",
-    "ca-passport": "Reisepass CA",
-    "ru-snils": "SNILS",
-    "ru-inn-individual": "INN",
-    "ru-passport": "Reisepass RU",
-    "ua-inn": "Steuer-ID",
-    "jp-my-number": "My Number",
-    "jp-passport": "Reisepass JP",
-    "cn-resident-id": "CN-Ausweis",
-    "cn-passport": "Reisepass CN",
-    "tw-id": "TW-Ausweis",
-    "kr-rrn": "KR-RRN",
-    "kr-passport": "Reisepass KR",
-    "sa-national-id": "SA-Ausweis",
-    "eg-national-id": "EG-Ausweis",
-    "il-teudat-zehut": "IL-Ausweis",
-    "tr-tckn": "TC-Kimlik",
-    "gr-amka": "AMKA",
-    "in-aadhaar": "Aadhaar",
-    "in-pan": "PAN",
-    "in-passport": "Reisepass IN",
-    "id-nik": "NIK",
-    "th-national-id": "TH-Ausweis",
-    "cz-birth-number": "Geburtsnummer",
-    "fi-hetu": "HETU",
-    "dk-cpr": "CPR",
-    "no-fodselsnummer": "Geburtsnummer",
-    "ro-cnp": "CNP",
-    "ir-national-id": "IR-Ausweis",
-    "pk-cnic": "CNIC",
-    "lt-personal-code": "Personencode",
-    "ch-ahv": "AHV-Nummer",
-    "ch-uid": "UID",
-    "de-steuer-id": "Steuer-ID",
-    "us-passport": "Reisepass US",
-    "uk-nhs": "NHS-Nummer",
-    "au-tfn": "TFN",
-    "au-medicare": "Medicare-Nummer",
-    "nz-ird": "IRD-Nummer",
-    "za-id": "ZA-Ausweis",
-    "hk-hkid": "HKID",
-    "sg-nric": "NRIC",
-    "fr-siret": "SIRET",
-    "be-nrn": "BE-NRN",
-    "it-piva": "Partita IVA",
-    "se-orgnr": "Org.-Nr. SE",
-    "ar-cuil": "CUIL/CUIT",
-    "mx-curp": "CURP",
-    "mx-rfc": "RFC",
-    "cl-rut": "RUT",
-    "co-cc": "Cédula",
-    "_unknown": "Vertraulich"
+  "prompts": {
+    "form": {
+      "bytesOverLimitAlert": "Inhalt überschreitet das Grössenlimit. Kürze den Prompt, um zu speichern."
+    }
   },
-  "piiConfigPanel": {
-    "modeLabel": "Modus",
-    "modeTokenize": "Tokenisieren",
-    "modeMask": "Maskieren",
-    "modeBlock": "Blockieren",
-    "modeTokenizeDesc": "Personendaten vor dem Senden durch indizierte Token ersetzen und die Originale in der Antwort wiederherstellen.",
-    "modeMaskDesc": "Personendaten durch generische Platzhalter ersetzen. Einweg — die Originale lassen sich nicht mehr wiederherstellen.",
-    "modeBlockDesc": "Die Nachricht direkt ablehnen, sobald Personendaten erkannt werden. Der Nutzer sieht eine Sperrmeldung statt einer Antwort.",
-    "patternsTitle": "Erkennungsmuster",
-    "patternsDescription": "Lege fest, welche Arten von personenbezogenen Daten die Erkennung suchen soll.",
-    "customPatternsTitle": "Eigene Regex-Regeln",
-    "customPatternsDescription": "Ergänze Muster, die die eingebauten nicht abdecken. Jede Regel braucht einen Namen, einen regulären Ausdruck und den Ersatztext für den Maskiermodus.",
-    "customPatternNameLabel": "Name",
-    "customPatternNamePlaceholder": "z. B. Mitarbeiternummer",
-    "customPatternRegexLabel": "Muster",
-    "customPatternRegexPlaceholder": "z. B. EMP-\\d{6}",
-    "customPatternReplacementLabel": "Ersatztext",
-    "customPatternReplacementPlaceholder": "z. B. [MITARBEITER_ID]",
-    "customPatternInvalidRegex": "Dieser reguläre Ausdruck ist ungültig.",
-    "addCustomPattern": "Eigenes Muster hinzufügen",
-    "removeCustomPattern": "Entfernen",
-    "saveCustomPattern": "Muster speichern",
-    "cancelCustomPattern": "Abbrechen",
-    "previewTitle": "Live-Vorschau",
-    "previewDescription": "Probiere die aktuelle Konfiguration an echtem Text aus. Die Erkennung läuft bei jedem Tastendruck.",
-    "inputTitle": "Dein Text",
-    "inputHint": "Tippe oder füge einen Satz ein — Personendaten werden live erkannt.",
-    "detectedTitle": "Erkannt",
-    "detectedHint": "Bewege den Mauszeiger über eine Markierung, um den Datentyp zu sehen.",
-    "tokenizedTitle": "An die KI gesendet",
-    "tokenizedHint": "Personendaten durch indizierte Token ersetzt — nur diese Version sieht das KI-Modell.",
-    "maskedTitle": "Maskierte Ausgabe",
-    "maskedHint": "Personendaten durch generische Platzhalter ersetzt. Diese Version wird gesendet und gespeichert.",
-    "aiTitle": "KI-Antwort (Mock)",
-    "aiHint": "Bearbeitbar — verschiebe Token, um den Rückweg zu testen.",
-    "restoredTitle": "Wiederhergestellte Antwort",
-    "restoredHint": "Token wieder durch deine Originaldaten ersetzt. Grüne Markierungen zeigen, was wiederhergestellt wurde.",
-    "blockTitle": "Nachricht blockiert",
-    "blockHint": "Personendaten erkannt — die Nachricht würde abgelehnt und nicht an die KI gesendet.",
-    "blockBody": "Deine Eingabe enthält Daten, die die Richtlinie nicht erlaubt. Entferne die markierten Stellen und versuche es erneut.",
-    "blockPassTitle": "Keine Personendaten erkannt",
-    "blockPassBody": "Der Text würde unverändert weitergeleitet.",
-    "detectionCount": "Erkennungen",
-    "noPii": "Keine Personendaten erkannt — der Text würde unverändert weitergeleitet.",
-    "noPatternsEnabled": "Keine Erkennungsmuster aktiv. Aktiviere mindestens eines oben, damit Erkennungen erscheinen."
+  "settings": {
+    "agents": {
+      "knowledge": {
+        "fileTooLarge": "Datei zu gross"
+      }
+    },
+    "integrations": {
+      "sso": {
+        "excludeGroupsLabel": "Gruppen ausschliessen"
+      }
+    }
+  },
+  "tables": {
+    "headers": {
+      "size": "Grösse"
+    }
+  },
+  "todoList": {
+    "paneClose": "Plan schliessen",
+    "paneResizeHandle": "Planbereich vergrössern"
+  },
+  "twoFactor": {
+    "setup": {
+      "qrInstructions": "Scanne den QR-Code mit einer Authenticator-App (Google Authenticator, 1Password, Authy) und gib anschliessend den 6-stelligen Code unten ein."
+    }
   },
   "projects": {
-    "title": "Projects",
-    "navigation": {
-      "list": "All projects",
-      "overview": "Overview",
-      "files": "Files",
-      "instructions": "Instructions",
-      "threads": "Chats",
-      "agents": "Agents & Models",
-      "settings": "Settings"
-    },
-    "list": {
-      "title": "Projects",
-      "subtitle": "Shared workspaces for files, instructions, and chats.",
-      "createButton": "New project",
-      "emptyTitle": "No projects yet",
-      "emptyDescription": "Create a project to share files, instructions, and chats with your team.",
-      "emptyCta": "Create your first project",
-      "searchPlaceholder": "Search projects…",
-      "showArchived": "Show archived",
-      "columnName": "Name",
-      "columnSharing": "Sharing",
-      "columnFiles": "Files",
-      "columnChats": "Chats",
-      "columnActivity": "Last activity",
-      "sharingOrgWide": "Org-wide",
-      "sharingTeamPrefix": "Team:",
-      "sharingMultipleTeams": "{count} teams"
-    },
-    "create": {
-      "title": "Create project",
-      "nameLabel": "Project name",
-      "namePlaceholder": "e.g. Q2 Sales Hiring",
-      "descriptionLabel": "Description",
-      "descriptionPlaceholder": "Optional — what's this project for?",
-      "teamLabel": "Owning team",
-      "teamPlaceholder": "Select a team (optional, defaults to org-wide)",
-      "iconLabel": "Icon",
-      "colorLabel": "Color",
-      "submit": "Create project",
-      "submitting": "Creating…",
-      "successToast": "Project created",
-      "errorToast": "Couldn't create project"
-    },
-    "overview": {
-      "statsHeading": "Stats",
-      "statsFiles": "{count, plural, one {# file} other {# files}}",
-      "statsChats": "{count, plural, one {# chat} other {# chats}}",
-      "statsShared": "{count, plural, one {# shared} other {# shared}}",
-      "statsIndexed": "{count, plural, one {# RAG-indexed} other {# RAG-indexed}}",
-      "newChatCta": "New chat in this project",
-      "instructionsExcerpt": "Project knowledge",
-      "instructionsExcerptEmpty": "No project instructions yet.",
-      "instructionsExcerptEdit": "Edit instructions →",
-      "sharingHeading": "Sharing",
-      "recentChats": "Recent chats in this project",
-      "recentChatsEmpty": "No chats yet. Start one to see it here.",
-      "recentChatsViewAll": "View all",
-      "lastActivity": "Last activity {when}",
-      "lastActivityNever": "No activity yet",
-      "getStartedHeading": "Get started",
-      "getStartedFilesTitle": "Add files",
-      "getStartedFilesBody": "Upload reference material; it's available to every chat.",
-      "getStartedInstructionsTitle": "Write instructions",
-      "getStartedInstructionsBody": "Set context that applies to every chat in this project.",
-      "getStartedShareTitle": "Invite team",
-      "getStartedShareBody": "Share with other teams or make it org-wide."
-    },
-    "instructions": {
-      "label": "Instructions",
-      "placeholder": "Write context that should apply to every chat in this project…",
-      "tokenCountSuffix": "characters used",
-      "tokenCapWarning": "Approaching the {cap}-character limit",
-      "tokenCapError": "Exceeds the {cap}-character limit",
-      "savedIndicator": "Saved",
-      "savingIndicator": "Saving…",
-      "saveError": "Couldn't save instructions"
-    },
-    "files": {
-      "title": "Files",
-      "addButton": "Add file",
-      "emptyTitle": "No files yet",
-      "emptyDescription": "Upload reference material to make it available to every chat in this project.",
-      "ragStatusQueued": "Queued",
-      "ragStatusRunning": "Indexing…",
-      "ragStatusCompleted": "Indexed",
-      "ragStatusFailed": "Failed",
-      "detachAction": "Remove from project",
-      "detachSuccess": "Document removed from project",
-      "detachError": "Couldn't remove document",
-      "attachSuccess": "Document added to project",
-      "attachError": "Couldn't add document"
-    },
-    "threads": {
-      "title": "Chats",
-      "yourChats": "Your chats",
-      "sharedWithProject": "Shared with project",
-      "emptyYours": "You haven't started any chats in this project yet.",
-      "emptyShared": "No shared chats yet.",
-      "shareToggle": "Share with project",
-      "shareToggleDisclosure": "Sharing this chat hides your personal memories and instructions from the responses other members will see.",
-      "shareSuccess": "Chat shared with project",
-      "unshareSuccess": "Chat hidden from project",
-      "shareError": "Couldn't update sharing"
-    },
     "agents": {
-      "agentsHeading": "Agents",
-      "modelsHeading": "Models",
-      "integrationsHeading": "Integrations",
-      "modeAll": "All",
-      "modeAllDescription": "Members see every agent they have access to.",
-      "modeRecommended": "Recommended",
-      "modeRecommendedDescription": "Pin some to the top.",
-      "modeRestricted": "Restricted",
-      "modeRestrictedDescription": "Only allow listed items.",
-      "recommendedListLabel": "Recommended (drag to reorder; first is default)",
-      "allowedListLabel": "Allowed",
-      "addAgent": "Add agent",
-      "addModel": "Add model",
-      "emptyAdminTitle": "No agents available in this project",
-      "emptyAdminBody": "The current restrictions exclude every agent your team can access.",
-      "emptyAdminCta": "Open project settings",
-      "emptyMemberTitle": "No agents available in this project",
-      "emptyMemberBody": "Your project admin has restricted access. Contact them to request access to the agents you need.",
-      "emptyModelsAdminTitle": "No models available in this project",
-      "emptyModelsAdminBody": "The current restrictions exclude every model your team can access.",
-      "emptyModelsMemberTitle": "No models available in this project",
-      "emptyModelsMemberBody": "Your project admin has restricted model access. Contact them to request access.",
-      "saveSuccess": "Saved",
-      "saveError": "Couldn't save settings",
-      "lockoutWarning": "Some members may have no usable agents/models after these restrictions are applied. They'll see an empty-state in the composer.",
-      "recommendedBadge": "Recommended"
-    },
-    "settings": {
-      "identity": "Identity",
-      "name": "Name",
-      "description": "Description",
-      "iconColor": "Icon / Color",
-      "sharing": "Sharing",
-      "owningTeam": "Owning team",
-      "owningTeamHelp": "Members of this team get full access. Admins of the org always have access.",
-      "alsoSharedWith": "Also shared with",
-      "alsoSharedWithHelp": "Pick additional teams that should see this project.",
-      "visibility": "Visibility",
-      "visibilityTeam": "Team-only",
-      "visibilityShared": "Specific teams",
-      "visibilityOrgWide": "Org-wide",
-      "knowledge": "Knowledge",
-      "knowledgeMode": "Knowledge mode",
-      "knowledgeModeOff": "Off — files are not used",
-      "knowledgeModeTool": "Tool — agent decides when to search",
-      "knowledgeModeContext": "Context — auto-injected into every chat",
-      "knowledgeModeBoth": "Both",
-      "dangerZone": "Danger zone",
-      "archiveButton": "Archive project",
-      "archiveSuccess": "Project archived",
-      "archiveError": "Couldn't archive project",
-      "restoreButton": "Restore project",
-      "restoreSuccess": "Project restored",
-      "restoreError": "Couldn't restore project",
-      "deleteButton": "Delete project",
-      "deleteDialogTitle": "Delete project",
-      "deleteDialogDescription": "This project will be deleted. Decide what happens to its files and chats.",
-      "deleteModeDetach": "Detach files and chats — they become library docs and personal chats.",
-      "deleteModeCascade": "Also delete attached files and project-shared chats.",
-      "deleteCascadeCheckbox": "Also delete attached files and project-shared chats",
-      "deleteConfirmPhrase": "Type the project name to confirm",
-      "deleteSubmit": "Delete project",
-      "deleteSuccess": "Project deleted",
-      "deleteError": "Couldn't delete project",
-      "saveSuccess": "Saved",
-      "saveError": "Couldn't save settings"
-    },
-    "composer": {
-      "chipLabel": "Project: {name}",
-      "exitProject": "Exit project context",
-      "moveTo": "Move to project…",
-      "removeFromProject": "Remove from project",
-      "moveSuccess": "Chat moved",
-      "moveError": "Couldn't move chat"
-    },
-    "picker": {
-      "title": "Move to project",
-      "searchPlaceholder": "Search projects…",
-      "createNew": "Create new project…",
-      "removeFromProject": "Remove from project",
-      "empty": "No projects yet. Create one to get started."
+      "emptyAdminBody": "Die aktuellen Einschränkungen schliessen jeden Agenten aus, auf den dein Team Zugriff hat.",
+      "emptyModelsAdminBody": "Die aktuellen Einschränkungen schliessen jedes Modell aus, auf das dein Team Zugriff hat."
     },
     "errors": {
-      "PROJECT_FORBIDDEN": "You don't have access to this project.",
-      "PROJECT_NOT_FOUND": "We couldn't find that project. It may have been deleted.",
-      "PROJECT_MISMATCH": "This chat is in a different project. Switch context to continue.",
-      "PROJECT_AGENT_NOT_ALLOWED": "{agentName} isn't available in this project. Pick another agent.",
-      "PROJECT_MODEL_NOT_ALLOWED": "{modelName} isn't available in this project. Pick another model.",
-      "PROJECT_NAME_INVALID": "Project name must be 1–80 characters.",
-      "PROJECT_DESCRIPTION_INVALID": "Description is too long.",
-      "PROJECT_INSTRUCTIONS_TOO_LONG": "Instructions exceed the {cap}-character limit. Trim before saving.",
-      "PROJECT_LEGAL_HOLD": "This project is under legal hold and cannot be deleted.",
-      "PROJECT_CONFIRM_PHRASE_MISMATCH": "Type the project name exactly to confirm.",
-      "PROJECT_SHARING_INVALID": "Sharing settings are invalid.",
-      "PROJECT_TEAM_INVALID": "Team not found in your organization.",
-      "DOCUMENT_SCOPE_CONFLICT": "This document is already in a team library. Detach it first.",
-      "DOCUMENT_NOT_FOUND": "Document not found.",
-      "RBAC_FORBIDDEN": "Editor or admin role required to make this change.",
-      "ROLE_FORBIDDEN": "Only admins can change sharing or delete the project.",
-      "THREAD_FORBIDDEN": "You can only modify your own chats.",
-      "THREAD_NOT_FOUND": "Chat not found.",
-      "THREAD_NOT_IN_PROJECT": "This chat isn't in a project.",
-      "ORG_FORBIDDEN": "That resource belongs to a different organization.",
-      "THREAD_NO_ORG": "This chat isn't linked to an organization yet."
+      "RATE_LIMITED": "Das passiert grad zu oft. Versuch es gleich nochmal."
     }
   }
 }

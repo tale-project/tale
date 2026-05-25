@@ -143,11 +143,28 @@ export function TwoFactorPolicyEditor({
 
   if (isLoading || !initializedRef.current) {
     return (
-      <div aria-busy="true" className="space-y-3 py-4">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-4 w-72" />
-        <Skeleton className="h-10 w-full" />
-      </div>
+      <PageSection
+        title={t('twoFactorPolicy.title')}
+        description={t('twoFactorPolicy.description')}
+        action={<Skeleton className="h-[1.15rem] w-8 rounded-full" />}
+      >
+        <Stack gap={6} className="max-w-2xl">
+          <Stack gap={4}>
+            <div className="flex flex-col gap-1.5">
+              <Skeleton className="h-3.5 w-40" />
+              <Skeleton className="h-8 w-full max-w-sm rounded-md" />
+            </div>
+            <Skeleton className="h-3 w-64 max-w-full" />
+            <div className="flex items-center justify-between gap-6">
+              <div className="flex min-w-0 flex-col gap-1">
+                <Skeleton className="h-3.5 w-40" />
+                <Skeleton className="h-3 w-64 max-w-full" />
+              </div>
+              <Skeleton className="h-[1.15rem] w-8 shrink-0 rounded-full" />
+            </div>
+          </Stack>
+        </Stack>
+      </PageSection>
     );
   }
 

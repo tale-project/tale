@@ -2,15 +2,21 @@ import { Heading } from '@tale/ui/heading';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
+import { useMemo } from 'react';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { PageLayout } from '@/app/components/layout/page-layout';
 import {
+  ActiveEditorProvider,
+  EditorActions,
+  useActiveEditor,
+} from '@/app/components/ui/editor';
+import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
-import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
+import { ProjectTabSkeleton } from '@/app/features/projects/components/project-tab-skeleton';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useT } from '@/lib/i18n/client';
@@ -27,38 +33,42 @@ function ProjectDetailLayout() {
 
   const { project, isLoading } = useProject(asProjectId(projectId));
 
-  const tabs: TabNavigationItem[] = [
-    {
-      label: t('navigation.overview'),
-      href: `/dashboard/${organizationId}/projects/${projectId}`,
-      matchMode: 'exact',
-    },
-    {
-      label: t('navigation.files'),
-      href: `/dashboard/${organizationId}/projects/${projectId}/files`,
-      matchMode: 'exact',
-    },
-    {
-      label: t('navigation.instructions'),
-      href: `/dashboard/${organizationId}/projects/${projectId}/instructions`,
-      matchMode: 'exact',
-    },
-    {
-      label: t('navigation.threads'),
-      href: `/dashboard/${organizationId}/projects/${projectId}/threads`,
-      matchMode: 'exact',
-    },
-    {
-      label: t('navigation.agents'),
-      href: `/dashboard/${organizationId}/projects/${projectId}/agents`,
-      matchMode: 'exact',
-    },
-    {
-      label: t('navigation.settings'),
-      href: `/dashboard/${organizationId}/projects/${projectId}/settings`,
-      matchMode: 'exact',
-    },
-  ];
+  // Memoize the tabs array — `TabNavigation` feeds it through a chain of
+  // memos that bottom out at a `ResizeObserver` effect; a fresh array every
+  // render kicks that effect (and the observer it owns) every render.
+  const tabs = useMemo<TabNavigationItem[]>(
+    () => [
+      {
+        label: t('navigation.overview'),
+        href: `/dashboard/${organizationId}/projects/${projectId}`,
+        matchMode: 'exact',
+      },
+      {
+        label: t('navigation.threads'),
+        href: `/dashboard/${organizationId}/projects/${projectId}/threads`,
+        matchMode: 'exact',
+      },
+      {
+        label: t('navigation.instructions'),
+        href: `/dashboard/${organizationId}/projects/${projectId}/instructions`,
+        matchMode: 'exact',
+      },
+      {
+        label: t('navigation.files'),
+        href: `/dashboard/${organizationId}/projects/${projectId}/files`,
+        matchMode: 'exact',
+      },
+      {
+        label: t('navigation.agents'),
+        href: `/dashboard/${organizationId}/projects/${projectId}/agents`,
+        matchMode: 'exact',
+      },
+      // U8: Settings tab merged into Overview. Identity edit + Sharing live
+      // in the Overview header now; Archive/Delete are in the 3-dot row menu
+      // on the projects list page.
+    ],
+    [t, organizationId, projectId],
+  );
 
   if (isLoading) {
     return (
@@ -81,16 +91,12 @@ function ProjectDetailLayout() {
             <TabNavigation
               items={tabs}
               standalone={false}
-              ariaLabel={tCommon('aria.projectsNavigation', {
-                defaultValue: 'Projects navigation',
-              })}
+              ariaLabel={tCommon('aria.projectsNavigation')}
             />
           </>
         }
       >
-        <ContentArea variant="narrow" className="py-4">
-          <Skeleton className="h-8 w-full" />
-        </ContentArea>
+        <ProjectTabSkeleton />
       </PageLayout>
     );
   }
@@ -106,44 +112,52 @@ function ProjectDetailLayout() {
   }
 
   return (
-    <PageLayout
-      header={
-        <>
-          <AdaptiveHeaderRoot standalone={false} className="gap-2">
-            <Heading level={1} size="base" truncate>
-              <Link
-                to="/dashboard/$id/projects"
-                params={{ id: organizationId }}
-                className={cn(
-                  'hidden md:inline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
-                  'text-muted-foreground cursor-pointer',
-                )}
-              >
-                {t('title')}&nbsp;&nbsp;
-              </Link>
-              <span className="text-foreground inline-flex items-center gap-2">
-                <span className="hidden md:inline">/&nbsp;</span>
-                <ProjectAvatar
-                  name={project.name}
-                  icon={project.icon}
-                  color={project.color}
-                  size={20}
-                />
-                {project.name}
-              </span>
-            </Heading>
-          </AdaptiveHeaderRoot>
-          <TabNavigation
-            items={tabs}
-            standalone={false}
-            ariaLabel={tCommon('aria.projectsNavigation', {
-              defaultValue: 'Projects navigation',
-            })}
-          />
-        </>
-      }
-    >
-      <Outlet />
-    </PageLayout>
+    <ActiveEditorProvider>
+      <PageLayout
+        header={
+          <>
+            <AdaptiveHeaderRoot standalone={false} className="gap-2">
+              <Heading level={1} size="base" truncate>
+                <Link
+                  to="/dashboard/$id/projects"
+                  params={{ id: organizationId }}
+                  className={cn(
+                    'hidden md:inline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+                    'text-muted-foreground cursor-pointer',
+                  )}
+                >
+                  {t('title')}&nbsp;&nbsp;
+                </Link>
+                <span className="text-foreground inline-flex items-center gap-2">
+                  <span className="hidden md:inline">/&nbsp;</span>
+                  {project.name}
+                </span>
+              </Heading>
+            </AdaptiveHeaderRoot>
+            <TabNavigation
+              items={tabs}
+              standalone={false}
+              ariaLabel={tCommon('aria.projectsNavigation')}
+            >
+              <ProjectEditorActionsSlot />
+            </TabNavigation>
+          </>
+        }
+      >
+        <Outlet />
+      </PageLayout>
+    </ActiveEditorProvider>
   );
+}
+
+/**
+ * Reads the active child controller (Overview identity-edit form,
+ * Instructions textarea) and renders the unified Save/Discard cluster in the
+ * tab strip. Tabs without forms (Files, Threads, Agents) clear the active
+ * editor and the cluster doesn't render.
+ */
+function ProjectEditorActionsSlot() {
+  const controller = useActiveEditor();
+  if (!controller) return null;
+  return <EditorActions controller={controller} entityKind="project" />;
 }

@@ -35,17 +35,41 @@ function intersect(rbac: string[], allowed: string[] | null): string[] {
 export function deriveEffectiveProjectConfig(
   project: ProjectListItem | null,
 ): EffectiveProjectConfig {
-  const agentMode = project?.agentMode ?? 'all';
-  const modelMode = project?.modelMode ?? 'all';
-  const recommendedAgentSlugs = project?.recommendedAgentSlugs ?? [];
+  // Legacy `'all'` rows (or missing mode) are equivalent to `'recommended'`
+  // with an empty list — same effective access, but the UI no longer offers
+  // an `'all'` choice.
+  const storedAgentMode = project?.agentMode;
+  const storedModelMode = project?.modelMode;
+  const agentMode: 'all' | 'recommended' | 'restricted' =
+    storedAgentMode === 'restricted'
+      ? 'restricted'
+      : storedAgentMode === 'recommended'
+        ? 'recommended'
+        : 'recommended';
+  const modelMode: 'all' | 'recommended' | 'restricted' =
+    storedModelMode === 'restricted'
+      ? 'restricted'
+      : storedModelMode === 'recommended'
+        ? 'recommended'
+        : 'recommended';
+  // In `restricted` mode the canonical list lives in `allowedAgentSlugs`
+  // (UI mirrors it into `recommendedAgentSlugs` for the order); fall back
+  // to the recommended slot so the order is still honoured for prioritization.
+  const recommendedAgentSlugs =
+    agentMode === 'restricted'
+      ? (project?.recommendedAgentSlugs ?? project?.allowedAgentSlugs ?? [])
+      : (project?.recommendedAgentSlugs ?? []);
   const allowedAgentSlugs =
     agentMode === 'restricted' ? (project?.allowedAgentSlugs ?? []) : null;
-  const recommendedModels = project?.recommendedModels ?? [];
+  const recommendedModels =
+    modelMode === 'restricted'
+      ? (project?.recommendedModels ?? project?.allowedModels ?? [])
+      : (project?.recommendedModels ?? []);
   const allowedModels =
     modelMode === 'restricted' ? (project?.allowedModels ?? []) : null;
 
   function prioritizeAgents<T extends { slug: string }>(items: T[]): T[] {
-    if (agentMode === 'all' && recommendedAgentSlugs.length === 0) {
+    if (recommendedAgentSlugs.length === 0) {
       return items;
     }
     const priority = new Map<string, number>();
@@ -61,7 +85,7 @@ export function deriveEffectiveProjectConfig(
   }
 
   function prioritizeModels<T extends { id: string }>(items: T[]): T[] {
-    if (modelMode === 'all' && recommendedModels.length === 0) return items;
+    if (recommendedModels.length === 0) return items;
     const priority = new Map<string, number>();
     recommendedModels.forEach((s, i) => priority.set(s, i));
     return [...items].sort((a, b) => {

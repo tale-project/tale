@@ -114,6 +114,17 @@ describe('projects error-code ↔ i18n key consistency', () => {
       'PROJECT_DESCRIPTION_INVALID',
       'PROJECT_SHARING_INVALID',
       'PROJECT_TEAM_INVALID',
+      // Thrown via a ternary in unified_chat.ts; the regex above only
+      // matches literals at the immediate `code:` position so it can't
+      // see ternary branches.
+      'PROJECT_ORG_MISMATCH',
+      // H3: recommended-not-subset validation throws this; same
+      // regex-misses-ternary reason as above for one of the branches.
+      'PROJECT_RECOMMENDED_NOT_SUBSET',
+      // §6 rate-limit code thrown via `mapRateLimitError`; not a literal
+      // at the regex match position, and intentionally lives outside the
+      // PROJECT_/DOCUMENT_/THREAD_ namespaces so the regex skips it.
+      'RATE_LIMITED',
     ]);
 
     const orphans: string[] = [];

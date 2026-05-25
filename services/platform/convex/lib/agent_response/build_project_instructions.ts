@@ -47,6 +47,26 @@ export function sanitizeForPromptInjection(raw: string): string {
 }
 
 /**
+ * Lighter-weight defense for content that lands in the model context AS-IS
+ * (RAG search snippets, retrieved document chunks). Strips only the
+ * platform's reserved wrapper tags so an uploaded document containing
+ * `<system>…</system>` can't escape its wrapper — but does NOT XML-escape
+ * `<`, `>`, `&`, since that would mangle legitimate code blocks, HTML
+ * examples, and JSON in retrieved documents.
+ *
+ * Use for: RAG result content, retrieved document chunks, any content
+ * that came from user-uploaded files and is presented to the model
+ * outside an `<untrusted>` wrapper.
+ */
+export function stripReservedPromptTags(raw: string): string {
+  let s = raw;
+  for (const pat of RESERVED_TAG_PATTERNS) {
+    s = s.replace(pat, '');
+  }
+  return s;
+}
+
+/**
  * Truncate text to a token budget, by halving search, to stay
  * cache-friendly. Returns the truncated text and the actual token count.
  */

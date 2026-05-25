@@ -62,3 +62,7 @@ export function useRestoreProject() {
 export function useDeleteProject() {
   return useConvexMutation(api.projects.mutations.deleteProject);
 }
+
+export function useDuplicateProject() {
+  return useConvexMutation(api.projects.mutations.duplicateProject);
+}

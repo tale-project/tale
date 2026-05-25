@@ -523,18 +523,22 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     [allModelOptions],
   );
 
-  const skeleton = (
-    <div className="flex items-start justify-between gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Skeleton className="h-6 w-32" />
-        <Skeleton className="h-4 w-80 max-w-full" />
-      </div>
-      <Skeleton className="h-6 w-11 rounded-full" />
-    </div>
-  );
-
   if (isLoading || !initializedRef.current) {
-    return <div aria-busy="true">{skeleton}</div>;
+    return (
+      <PageSection
+        title={t('modelAccess.title')}
+        description={t('modelAccess.description')}
+        action={<Skeleton className="h-[1.15rem] w-8 rounded-full" />}
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Skeleton className="h-3.5 w-32" />
+            <Skeleton className="h-8 w-full max-w-sm rounded-md" />
+          </div>
+          <Skeleton className="h-48 w-full rounded-md" />
+        </div>
+      </PageSection>
+    );
   }
 
   return (

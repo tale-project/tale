@@ -1,6 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
-import { mutation } from '../_generated/server';
+import { mutation, type MutationCtx } from '../_generated/server';
 import { estimateTokens } from '../lib/context_management/estimate_tokens';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
@@ -72,10 +72,10 @@ export const upsertMyPreferences = mutation({
       });
       return existing._id;
     }
-    // Leave `enabled` undefined: writing custom instructions without
-    // explicitly toggling means the user is still following the org
-    // default. `setEnabled` is the only path that records an explicit
-    // user opt-in/out.
+    // Leave both `*Enabled` flags undefined: writing custom instructions
+    // without explicitly toggling means the user is still following the
+    // org defaults. `setCustomInstructionsEnabled` / `setMemoriesEnabled`
+    // are the only paths that record an explicit user opt-in/out.
     return await ctx.db.insert('userPreferences', {
       userId: authUser.userId,
       organizationId: args.organizationId,
@@ -85,7 +85,36 @@ export const upsertMyPreferences = mutation({
   },
 });
 
-export const setEnabled = mutation({
+async function setFeatureEnabled(
+  ctx: MutationCtx,
+  authUserId: string,
+  organizationId: string,
+  patch: {
+    customInstructionsEnabled?: boolean;
+    memoriesEnabled?: boolean;
+  },
+) {
+  const now = Date.now();
+  const existing = await ctx.db
+    .query('userPreferences')
+    .withIndex('by_userId_organizationId', (q) =>
+      q.eq('userId', authUserId).eq('organizationId', organizationId),
+    )
+    .first();
+  if (existing) {
+    await ctx.db.patch(existing._id, { ...patch, updatedAt: now });
+    return existing._id;
+  }
+  return await ctx.db.insert('userPreferences', {
+    userId: authUserId,
+    organizationId,
+    customInstructions: '',
+    ...patch,
+    updatedAt: now,
+  });
+}
+
+export const setCustomInstructionsEnabled = mutation({
   args: {
     organizationId: v.string(),
     enabled: v.boolean(),
@@ -98,29 +127,27 @@ export const setEnabled = mutation({
       authUser.userId,
       args.organizationId,
     );
+    return setFeatureEnabled(ctx, authUser.userId, args.organizationId, {
+      customInstructionsEnabled: args.enabled,
+    });
+  },
+});
 
-    const now = Date.now();
-    const existing = await ctx.db
-      .query('userPreferences')
-      .withIndex('by_userId_organizationId', (q) =>
-        q
-          .eq('userId', authUser.userId)
-          .eq('organizationId', args.organizationId),
-      )
-      .first();
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        enabled: args.enabled,
-        updatedAt: now,
-      });
-      return existing._id;
-    }
-    return await ctx.db.insert('userPreferences', {
-      userId: authUser.userId,
-      organizationId: args.organizationId,
-      customInstructions: '',
-      enabled: args.enabled,
-      updatedAt: now,
+export const setMemoriesEnabled = mutation({
+  args: {
+    organizationId: v.string(),
+    enabled: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await requireAuthenticatedUser(ctx);
+    await assertSelfAndOrgMember(
+      ctx,
+      authUser,
+      authUser.userId,
+      args.organizationId,
+    );
+    return setFeatureEnabled(ctx, authUser.userId, args.organizationId, {
+      memoriesEnabled: args.enabled,
     });
   },
 });

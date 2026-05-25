@@ -18,11 +18,15 @@ export const POLICY_TYPES = [
   'two_factor_policy',
   'chat_filter',
   'moderation_provider',
+  'custom_instructions',
+  'user_memories',
+  // Legacy combined toggle; `migrations/split_personalization_toggle`
+  // drains rows of this type into the two split policies above.
   'personalization',
-  // Org-level default for the voice-output (TTS) feature. Mirrors the
-  // personalization tier: missing row → effective default ON; row with
-  // `config.enabled === false` is the org-wide kill switch admins use to
-  // block voice for the whole tenant (e.g., during a billing freeze).
+  // Org-level default for the voice-output (TTS) feature. Missing row →
+  // effective default ON; row with `config.enabled === false` is the
+  // org-wide kill switch admins use to block voice for the whole tenant
+  // (e.g., during a billing freeze).
   'voice_output',
   // Phase 12 — admin-customizable confidentiality notice.
   'data_classification_notice',
@@ -33,11 +37,18 @@ export const POLICY_TYPES = [
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
-// Org-level default for the personalization feature (custom instructions +
-// memories + propose_memory tool). Per-user `userPreferences.enabled` may
-// override this default; absent user preference falls back to this value.
-// Missing row entirely → effective default is OFF.
-export const personalizationConfigSchema = z.object({
+// Org-level default for the custom-instructions feature. Per-user
+// `userPreferences.customInstructionsEnabled` may override this default;
+// absent user preference falls back to this value. Missing row entirely →
+// effective default is OFF.
+export const customInstructionsConfigSchema = z.object({
+  enabled: z.boolean(),
+});
+
+// Org-level default for the user-memories feature (memory injection +
+// the `propose_memory` agent tool). Per-user
+// `userPreferences.memoriesEnabled` may override; missing row → OFF.
+export const userMemoriesConfigSchema = z.object({
   enabled: z.boolean(),
 });
 

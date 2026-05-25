@@ -83,6 +83,8 @@ interface SelectProps extends Omit<
   description?: ReactNode;
   /** Additional class name for the trigger */
   className?: string;
+  /** Additional class name for the outer label+trigger+description wrapper. */
+  wrapperClassName?: string;
   /** ID for the trigger element */
   id?: string;
   /** Content position */
@@ -107,6 +109,7 @@ export const Select = forwardRef<
       size = 'default',
       description,
       className,
+      wrapperClassName,
       id: providedId,
       position = 'popper',
       sideOffset,
@@ -188,11 +191,15 @@ export const Select = forwardRef<
     );
 
     if (!label && !description) {
-      return trigger;
+      return wrapperClassName ? (
+        <div className={wrapperClassName}>{trigger}</div>
+      ) : (
+        trigger
+      );
     }
 
     return (
-      <div className="flex flex-col gap-1.5">
+      <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
         {label && (
           <Label htmlFor={id} required={required} error={error}>
             {label}

@@ -19,6 +19,10 @@ import { mutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import {
+  checkUserRateLimit,
+  RateLimitExceededError,
+} from '../lib/rate_limiter/helpers';
 import { getOrganizationMember } from '../lib/rls';
 import { checkProjectAccess, isOrgWideProject } from './access';
 import { PROJECT_AUDIT_ACTIONS, PROJECT_RESOURCE_TYPE } from './audit_actions';
@@ -32,6 +36,17 @@ const PROJECT_NAME_MAX = 80;
 const PROJECT_DESCRIPTION_MAX = 500;
 const PROJECT_INSTRUCTIONS_MAX_CHARS = 6000;
 const PROJECT_SHARED_TEAMS_MAX = 20;
+
+/** Map rate-limiter exceptions to a structured ConvexError the UI handles. */
+function mapRateLimitError(error: unknown): never {
+  if (error instanceof RateLimitExceededError) {
+    throw new ConvexError({
+      code: 'RATE_LIMITED',
+      data: { retryAfterMs: error.retryAfter },
+    });
+  }
+  throw error;
+}
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
@@ -143,6 +158,66 @@ function diff(
   return changed;
 }
 
+/**
+ * Array-element diff used in audit metadata for slug-list mutations.
+ * Compliance dashboards consume `added` / `removed` instead of parsing
+ * `previousState` / `newState` arrays.
+ */
+function arrayDiff(
+  previous: string[] | undefined,
+  next: string[] | undefined,
+): { added: string[]; removed: string[] } {
+  const prev = new Set(previous ?? []);
+  const nxt = new Set(next ?? []);
+  const added: string[] = [];
+  const removed: string[] = [];
+  for (const item of nxt) if (!prev.has(item)) added.push(item);
+  for (const item of prev) if (!nxt.has(item)) removed.push(item);
+  return { added, removed };
+}
+
+/**
+ * Reject duplicate `teamId ∈ sharedWithTeamIds` and dupes inside the array.
+ * `checkProjectAccess`'s downstream `Set` dedupe tolerates either, but the API
+ * surface should reject so audit `previousState`/`newState` diffs stay clean.
+ */
+function validateSharing(
+  teamId: string | null | undefined,
+  sharedWithTeamIds: string[] | undefined,
+): void {
+  if (!sharedWithTeamIds) return;
+  if (sharedWithTeamIds.length > PROJECT_SHARED_TEAMS_MAX) {
+    throw new ConvexError({ code: 'PROJECT_SHARING_INVALID' });
+  }
+  const set = new Set(sharedWithTeamIds);
+  if (set.size !== sharedWithTeamIds.length) {
+    throw new ConvexError({ code: 'PROJECT_SHARING_INVALID' });
+  }
+  if (teamId && set.has(teamId)) {
+    throw new ConvexError({ code: 'PROJECT_SHARING_INVALID' });
+  }
+}
+
+/**
+ * For `restricted` mode, every recommended item must be a subset of allowed.
+ * (UI prevents but the API surface should reject so we don't store an
+ * inconsistent state.)
+ */
+function validateRecommendedSubsetOfAllowed(
+  mode: 'all' | 'recommended' | 'restricted',
+  recommended: string[] | undefined,
+  allowed: string[] | undefined,
+): void {
+  if (mode !== 'restricted') return;
+  if (!recommended || recommended.length === 0) return;
+  const allowedSet = new Set(allowed ?? []);
+  for (const item of recommended) {
+    if (!allowedSet.has(item)) {
+      throw new ConvexError({ code: 'PROJECT_RECOMMENDED_NOT_SUBSET' });
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Create
 // ---------------------------------------------------------------------------
@@ -166,12 +241,16 @@ export const createProject = mutation({
       throw new ConvexError({ code: 'RBAC_FORBIDDEN' });
     }
 
+    try {
+      await checkUserRateLimit(ctx, 'project:create', auth.userId);
+    } catch (error) {
+      mapRateLimitError(error);
+    }
+
     const name = validateName(args.name);
     const description = validateDescription(args.description);
     const sharedWithTeamIds = args.sharedWithTeamIds ?? [];
-    if (sharedWithTeamIds.length > PROJECT_SHARED_TEAMS_MAX) {
-      throw new ConvexError({ code: 'PROJECT_SHARING_INVALID' });
-    }
+    validateSharing(args.teamId, args.sharedWithTeamIds);
 
     const now = Date.now();
     const projectId = await ctx.db.insert('projects', {
@@ -344,12 +423,10 @@ export const updateProjectSharing = mutation({
     assertAdmin(auth);
 
     const sharedWithTeamIds = args.sharedWithTeamIds;
-    if (
-      sharedWithTeamIds !== undefined &&
-      sharedWithTeamIds.length > PROJECT_SHARED_TEAMS_MAX
-    ) {
-      throw new ConvexError({ code: 'PROJECT_SHARING_INVALID' });
-    }
+    // H2: reject duplicate teamId + dupes inside the array.
+    const effectiveTeamId =
+      args.teamId === null ? null : (args.teamId ?? project.teamId ?? null);
+    validateSharing(effectiveTeamId, sharedWithTeamIds);
 
     const patch: Partial<Doc<'projects'>> = { updatedAt: Date.now() };
     const previousState = {
@@ -466,6 +543,13 @@ export const updateProjectAgentSettings = mutation({
       allowedAgentSlugs: args.allowedAgentSlugs ?? [],
     };
 
+    // H3: recommended must be a subset of allowed in restricted mode.
+    validateRecommendedSubsetOfAllowed(
+      args.agentMode,
+      newState.recommendedAgentSlugs,
+      newState.allowedAgentSlugs,
+    );
+
     await ctx.db.patch(args.projectId, {
       agentMode: args.agentMode,
       recommendedAgentSlugs:
@@ -478,6 +562,16 @@ export const updateProjectAgentSettings = mutation({
           : undefined,
       updatedAt: Date.now(),
     });
+
+    // H8: log slug diffs explicitly alongside previous/new state.
+    const recommendedDiff = arrayDiff(
+      previousState.recommendedAgentSlugs,
+      newState.recommendedAgentSlugs,
+    );
+    const allowedDiff = arrayDiff(
+      previousState.allowedAgentSlugs,
+      newState.allowedAgentSlugs,
+    );
 
     await createAuditLog(ctx, {
       organizationId: project.organizationId,
@@ -492,6 +586,12 @@ export const updateProjectAgentSettings = mutation({
       previousState,
       newState,
       changedFields: diff(previousState, newState),
+      metadata: {
+        recommendedAdded: recommendedDiff.added,
+        recommendedRemoved: recommendedDiff.removed,
+        allowedAdded: allowedDiff.added,
+        allowedRemoved: allowedDiff.removed,
+      },
       status: 'success',
     });
 
@@ -527,6 +627,13 @@ export const updateProjectModelSettings = mutation({
       allowedModels: args.allowedModels ?? [],
     };
 
+    // H3: recommended must be a subset of allowed in restricted mode.
+    validateRecommendedSubsetOfAllowed(
+      args.modelMode,
+      newState.recommendedModels,
+      newState.allowedModels,
+    );
+
     await ctx.db.patch(args.projectId, {
       modelMode: args.modelMode,
       recommendedModels:
@@ -537,6 +644,16 @@ export const updateProjectModelSettings = mutation({
         newState.allowedModels.length > 0 ? newState.allowedModels : undefined,
       updatedAt: Date.now(),
     });
+
+    // H8: log slug diffs explicitly alongside previous/new state.
+    const recommendedDiff = arrayDiff(
+      previousState.recommendedModels,
+      newState.recommendedModels,
+    );
+    const allowedDiff = arrayDiff(
+      previousState.allowedModels,
+      newState.allowedModels,
+    );
 
     await createAuditLog(ctx, {
       organizationId: project.organizationId,
@@ -551,6 +668,12 @@ export const updateProjectModelSettings = mutation({
       previousState,
       newState,
       changedFields: diff(previousState, newState),
+      metadata: {
+        recommendedAdded: recommendedDiff.added,
+        recommendedRemoved: recommendedDiff.removed,
+        allowedAdded: allowedDiff.added,
+        allowedRemoved: allowedDiff.removed,
+      },
       status: 'success',
     });
 
@@ -592,6 +715,12 @@ export const updateProjectIntegrationSettings = mutation({
       updatedAt: Date.now(),
     });
 
+    // H8: log slug diffs explicitly alongside previous/new state.
+    const allowedDiff = arrayDiff(
+      previousState.allowedIntegrationSlugs,
+      newState.allowedIntegrationSlugs,
+    );
+
     await createAuditLog(ctx, {
       organizationId: project.organizationId,
       actorId: auth.userId,
@@ -605,6 +734,10 @@ export const updateProjectIntegrationSettings = mutation({
       previousState,
       newState,
       changedFields: diff(previousState, newState),
+      metadata: {
+        allowedAdded: allowedDiff.added,
+        allowedRemoved: allowedDiff.removed,
+      },
       status: 'success',
     });
 
@@ -635,6 +768,13 @@ export const attachDocumentToProject = mutation({
 
     const previousTeamId = doc.teamId ?? null;
 
+    // H7: Convex mutations are serializable single-transaction OCC — the
+    // read at L759 + patch below execute atomically against a consistent
+    // snapshot, with automatic retry on conflict. The read-then-patch
+    // sequence here cannot violate the projectId/teamId mutual-exclusivity
+    // invariant under concurrent writers; the loser's transaction retries
+    // and sees the winner's state.
+    //
     // Mutual exclusivity: a document carries `teamId` OR `projectId`, never
     // both. If the document is already in a team library we throw rather
     // than silently moving it — the UI shows DOCUMENT_SCOPE_CONFLICT
@@ -982,11 +1122,23 @@ export const deleteProject = mutation({
     assertAdmin(auth);
 
     if (args.mode === 'cascade') {
+      // H1: case-insensitive compare so "Q2 Sales" vs stored "Q2 sales"
+      // doesn't reject right before a destructive op.
+      const expected = project.name.trim();
+      const actual = (args.confirmPhrase ?? '').trim();
       if (
-        !args.confirmPhrase ||
-        args.confirmPhrase.trim() !== project.name.trim()
+        actual.length === 0 ||
+        expected.localeCompare(actual, undefined, { sensitivity: 'base' }) !== 0
       ) {
         throw new ConvexError({ code: 'PROJECT_CONFIRM_PHRASE_MISMATCH' });
+      }
+
+      // §6: rate-limit cascade deletes. They touch every doc + thread,
+      // so a runaway loop is expensive. 5/min/user (token bucket).
+      try {
+        await checkUserRateLimit(ctx, 'project:delete-cascade', auth.userId);
+      } catch (error) {
+        mapRateLimitError(error);
       }
     }
 
@@ -1080,5 +1232,108 @@ export const deleteProject = mutation({
       cascadedDocCount,
       cascadedThreadCount,
     };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Duplicate (U1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Duplicate a project: copies identity (with " (copy)" suffix), instructions,
+ * knowledge mode, agent/model/integration mode + lists, and sharing config.
+ *
+ * Does NOT copy:
+ *   - files (separate sharing semantics; user must explicitly attach)
+ *   - threads (per-user; chats are owner-bound)
+ *   - archivedAt (always lands as a fresh project)
+ *
+ * Audit log emits `project.created` with `metadata.duplicatedFrom` so the
+ * provenance chain stays queryable.
+ */
+export const duplicateProject = mutation({
+  args: {
+    projectId: v.id('projects'),
+    name: v.optional(v.string()),
+  },
+  returns: v.id('projects'),
+  handler: async (ctx, args) => {
+    const source = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, source.organizationId);
+    assertReadable(source, auth);
+
+    // Editor+ in the org can duplicate (matches createProject).
+    if (auth.role === 'member' || auth.role === 'disabled' || !auth.role) {
+      throw new ConvexError({ code: 'RBAC_FORBIDDEN' });
+    }
+
+    // §6: same rate limit bucket as createProject — duplication is a
+    // create in spirit and the storage cost is the same.
+    try {
+      await checkUserRateLimit(ctx, 'project:create', auth.userId);
+    } catch (error) {
+      mapRateLimitError(error);
+    }
+
+    // Derive the new name. If caller provides one, validate it; otherwise
+    // append " (copy)" suffix, truncating from the source name if needed.
+    let nextName: string;
+    if (args.name !== undefined) {
+      nextName = validateName(args.name);
+    } else {
+      const suffix = ' (copy)';
+      const room = PROJECT_NAME_MAX - suffix.length;
+      const base =
+        source.name.length > room ? source.name.slice(0, room) : source.name;
+      nextName = `${base}${suffix}`;
+    }
+
+    const now = Date.now();
+    const newProjectId = await ctx.db.insert('projects', {
+      organizationId: source.organizationId,
+      name: nextName,
+      description: source.description,
+      icon: source.icon,
+      color: source.color,
+      teamId: source.teamId,
+      sharedWithTeamIds: source.sharedWithTeamIds,
+      instructions: source.instructions,
+      knowledgeMode: source.knowledgeMode,
+      agentMode: source.agentMode,
+      recommendedAgentSlugs: source.recommendedAgentSlugs,
+      allowedAgentSlugs: source.allowedAgentSlugs,
+      modelMode: source.modelMode,
+      recommendedModels: source.recommendedModels,
+      allowedModels: source.allowedModels,
+      integrationsMode: source.integrationsMode,
+      allowedIntegrationSlugs: source.allowedIntegrationSlugs,
+      createdBy: auth.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: source.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.created,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(newProjectId),
+      resourceName: nextName,
+      newState: {
+        name: nextName,
+        teamId: source.teamId ?? null,
+        sharedWithTeamIds: source.sharedWithTeamIds ?? [],
+      },
+      metadata: {
+        isOrgWide: isOrgWideProject(source),
+        duplicatedFrom: String(args.projectId),
+      },
+      status: 'success',
+    });
+
+    return newProjectId;
   },
 });

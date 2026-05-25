@@ -19,6 +19,7 @@ import { z } from 'zod/v4';
 
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { internal } from '../../_generated/api';
+import { stripReservedPromptTags } from '../../lib/agent_response/sanitize_prompt';
 import { createDebugLog } from '../../lib/debug_log';
 import { ragFetch } from '../../lib/helpers/rag_config';
 import { toId } from '../../lib/type_cast_helpers';
@@ -294,10 +295,16 @@ RESPONSE (list_indexed):
         }
         const result = await fetchJson<RetrieveResponse>(response);
 
-        let text = (result.chunks ?? [])
-          .sort((a, b) => a.index - b.index)
-          .map((c) => c.content)
-          .join('\n');
+        // SEC1: retrieved chunks land in the model context as-is. Strip
+        // reserved wrapper tags (same defense as the search-path sanitizer)
+        // so a `<system>…</system>` in an uploaded doc can't escape the
+        // surrounding agent system prompt.
+        let text = stripReservedPromptTags(
+          (result.chunks ?? [])
+            .sort((a, b) => a.index - b.index)
+            .map((c) => c.content)
+            .join('\n'),
+        );
 
         // Prompt-injection defense: when the retrieved document is a
         // video-link transcript (attacker-controlled caption text + chapter
@@ -436,18 +443,29 @@ RESPONSE (list_indexed):
 
         const result = await fetchJson<SearchResponse>(response);
 
+        // SEC1: project-attached docs (and any user-uploaded RAG file) may
+        // contain `<system>…</system>` or other reserved wrapper tags an
+        // attacker crafted to escape the agent's surrounding system prompt.
+        // Strip reserved patterns from every hit's content before further
+        // wrapping/formatting. Pure removal (no XML escape) so legitimate
+        // code blocks / JSON / HTML examples in trusted docs are unaffected.
+        const sanitizedResults: SearchResult[] = result.results.map((r) => ({
+          ...r,
+          content: stripReservedPromptTags(r.content),
+        }));
+
         // Prompt-injection defense: per-hit wrap for any result that maps
         // back to a video-link transcript. The RAG service returns chunk
         // text with attacker-controlled caption/chapter content; without
         // wrapping it lands in the agent context outside the TRUST RULES
         // system prompt's reach. Batch-query Convex once with all hit
         // file_ids; non-video-link hits are unchanged.
-        const candidateIds = result.results
+        const candidateIds = sanitizedResults
           .map((r) => r.file_id)
           .filter(
             (id): id is string => typeof id === 'string' && id.length > 0,
           );
-        const wrappedResults: SearchResult[] = result.results;
+        const wrappedResults: SearchResult[] = sanitizedResults;
         if (candidateIds.length > 0) {
           const videoSourcesSearch = await ctx.runQuery(
             internal.file_metadata.internal_queries.lookupVideoLinkSources,

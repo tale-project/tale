@@ -3,6 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import {
   budgetConfigSchema,
   chatFilterConfigSchema,
+  customInstructionsConfigSchema,
   dataNoticeConfigSchema,
   defaultModelsConfigSchema,
   featureFlagsConfigSchema,
@@ -10,12 +11,12 @@ import {
   modelAccessConfigSchema,
   moderationProviderConfigSchema,
   passwordPolicyConfigSchema,
-  personalizationConfigSchema,
   piiConfigSchema,
   retentionPolicyConfigSchema,
   systemPromptConfigSchema,
   twoFactorPolicyConfigSchema,
   uploadPolicyConfigSchema,
+  userMemoriesConfigSchema,
   voiceOutputConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-guards';
@@ -252,11 +253,20 @@ export const upsertPolicy = mutation({
       }
     }
 
-    if (args.policyType === 'personalization') {
-      const parsed = personalizationConfigSchema.safeParse(args.config);
+    if (args.policyType === 'custom_instructions') {
+      const parsed = customInstructionsConfigSchema.safeParse(args.config);
       if (!parsed.success) {
         throw new Error(
-          `Invalid personalization configuration: ${parsed.error.message}`,
+          `Invalid custom_instructions configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'user_memories') {
+      const parsed = userMemoriesConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid user_memories configuration: ${parsed.error.message}`,
         );
       }
     }
@@ -266,6 +276,24 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid voice_output configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'custom_instructions') {
+      const parsed = customInstructionsConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid custom_instructions configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'user_memories') {
+      const parsed = userMemoriesConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid user_memories configuration: ${parsed.error.message}`,
         );
       }
     }

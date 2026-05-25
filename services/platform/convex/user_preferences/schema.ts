@@ -2,27 +2,38 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 /**
- * Per-user, per-org personalization preferences: a tri-state `enabled`
- * override and free-form `customInstructions` text prepended to every
- * chat's system prompt when active.
+ * Per-user, per-org personalization preferences. Two independently
+ * gated features share this row:
+ *  - `customInstructions` — free-form text prepended to every chat's
+ *    system prompt when `customInstructionsEnabled` resolves true.
+ *  - `userMemories` (separate table) — injected and proposable when
+ *    `memoriesEnabled` resolves true.
  *
- * Scope is `(userId, organizationId)`: the same human gets a separate row
- * for every org they belong to. This is the user-private scoping pattern,
- * orthogonal to org roles — admins cannot read another user's row.
+ * Scope is `(userId, organizationId)`: the same human gets a separate
+ * row for every org they belong to. This is the user-private scoping
+ * pattern, orthogonal to org roles — admins cannot read another user's
+ * row.
  *
- * `enabled` is tri-state:
- *  - `undefined` (or row missing) → follow the org default (`policyType:
- *    'personalization'` row in `governancePolicies`).
+ * Each *Enabled field is tri-state:
+ *  - `undefined` (or row missing) → follow the matching org default
+ *    (`custom_instructions` / `user_memories` policy rows in
+ *    `governancePolicies`).
  *  - `true` / `false`             → user has explicitly opted in/out;
- *    overrides the org default.
+ *    overrides the org default for THAT feature only.
  *
  * System default is OFF: when both the org default is missing and the
- * user has not opted in, personalization stays off.
+ * user has not opted in, that feature stays off.
  */
 export const userPreferencesTable = defineTable({
   userId: v.string(),
   organizationId: v.string(),
   customInstructions: v.string(),
+  customInstructionsEnabled: v.optional(v.boolean()),
+  memoriesEnabled: v.optional(v.boolean()),
+  // Legacy slot retained so the schema validates pre-split rows during
+  // the deploy window in which
+  // `migrations/split_personalization_toggle` drains it into both
+  // `*Enabled` fields.
   enabled: v.optional(v.boolean()),
   /**
    * Global default for voice-mode TTS output on new conversations.

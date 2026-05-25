@@ -108,7 +108,7 @@ export function AutomationTester({
 
     toast({
       title: t('tester.dryRun.button'),
-      description: 'Dry run is not yet supported for file-based workflows.',
+      description: t('tester.dryRun.fileBasedUnsupported'),
       variant: 'destructive',
     });
     setIsDryRunning(false);

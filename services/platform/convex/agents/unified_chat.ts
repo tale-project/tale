@@ -133,7 +133,9 @@ export const chatWithAgent = action({
           code:
             projectAccess.reason === 'not_found'
               ? 'PROJECT_NOT_FOUND'
-              : 'PROJECT_FORBIDDEN',
+              : projectAccess.reason === 'org_mismatch'
+                ? 'PROJECT_ORG_MISMATCH'
+                : 'PROJECT_FORBIDDEN',
         });
       }
     }

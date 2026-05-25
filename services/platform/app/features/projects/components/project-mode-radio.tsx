@@ -6,7 +6,11 @@ import { useId } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
-export type ProjectModeRadioValue = 'all' | 'recommended' | 'restricted';
+// `'all'` is a legacy value still accepted by the backend for older project
+// rows; the UI no longer offers it as a choice (single-list model). Read
+// paths that need to display a stored `'all'` should map it to
+// `'recommended'` before passing into this radio.
+export type ProjectModeRadioValue = 'recommended' | 'restricted';
 
 export interface ProjectModeRadioOption {
   value: ProjectModeRadioValue;

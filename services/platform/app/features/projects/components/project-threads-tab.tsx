@@ -1,12 +1,18 @@
 'use client';
 
-import { Heading } from '@tale/ui/heading';
-import { Stack, HStack } from '@tale/ui/layout';
+import { Button } from '@tale/ui/button';
+import { EmptyPlaceholder } from '@tale/ui/empty-placeholder';
+import { HStack } from '@tale/ui/layout';
+import { PageSection } from '@tale/ui/page-section';
+import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import { MessageSquare } from 'lucide-react';
 
+import { ContentArea } from '@/app/components/layout/content-area';
+import { FormSection } from '@/app/components/ui/forms/form-section';
+import { Switch } from '@/app/components/ui/forms/switch';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -25,6 +31,7 @@ export function ProjectThreadsTab({
   projectId,
 }: ProjectThreadsTabProps) {
   const { t } = useT('projects');
+  const navigate = useNavigate();
   const { data: currentUser } = useCurrentUser();
   const userId = currentUser?.userId;
   const { yours, shared: sharedThreads } = useProjectThreadSegments(
@@ -32,6 +39,14 @@ export function ProjectThreadsTab({
     userId,
   );
   const { mutateAsync: setShared } = useSetThreadSharedWithProject();
+
+  const handleNewChat = () => {
+    void navigate({
+      to: '/dashboard/$id/chat',
+      params: { id: organizationId },
+      search: { projectId: String(projectId) },
+    });
+  };
 
   const handleToggleShare = async (threadId: string, nextShared: boolean) => {
     try {
@@ -61,23 +76,35 @@ export function ProjectThreadsTab({
   };
 
   return (
-    <Stack gap={6} className="p-6">
-      <section>
-        <Heading level={2} size="base" className="mb-3">
-          {t('threads.yourChats')}
-        </Heading>
+    <ContentArea variant="narrow" gap={6}>
+      <StickySectionHeader
+        title={t('threads.yourChats')}
+        description={t('threads.shareToggleDisclosure')}
+        action={
+          <Button onClick={handleNewChat} size="sm">
+            {t('overview.newChatCta')}
+          </Button>
+        }
+      />
+
+      <FormSection>
         {yours.length === 0 ? (
-          <Text variant="muted">{t('threads.emptyYours')}</Text>
+          <EmptyPlaceholder icon={MessageSquare}>
+            {t('threads.emptyYours')}
+          </EmptyPlaceholder>
         ) : (
-          <Stack gap={2}>
+          <div className="divide-y rounded-lg border">
             {yours.map((thread) => (
               <HStack
                 key={thread._id}
                 gap={3}
                 align="center"
-                className="border-border rounded-md border p-3"
+                className="px-4 py-3"
               >
-                <MessageSquare className="text-muted-foreground size-4 shrink-0" />
+                <MessageSquare
+                  className="text-muted-foreground size-4 shrink-0"
+                  aria-hidden="true"
+                />
                 <Link
                   to="/dashboard/$id/chat/$threadId"
                   params={{
@@ -88,41 +115,41 @@ export function ProjectThreadsTab({
                 >
                   {thread.title ?? thread.threadId}
                 </Link>
-                <label className="flex items-center gap-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={thread.sharedWithProject === true}
-                    onChange={(e) =>
-                      handleToggleShare(thread.threadId, e.target.checked)
-                    }
-                  />
-                  <span>{t('threads.shareToggle')}</span>
-                </label>
+                <Switch
+                  checked={thread.sharedWithProject === true}
+                  onCheckedChange={(checked) =>
+                    void handleToggleShare(thread.threadId, checked)
+                  }
+                  label={t('threads.shareToggle')}
+                />
               </HStack>
             ))}
-          </Stack>
+          </div>
         )}
-        <Text variant="caption" className="text-muted-foreground mt-2">
-          {t('threads.shareToggleDisclosure')}
-        </Text>
-      </section>
+      </FormSection>
 
-      <section>
-        <Heading level={2} size="base" className="mb-3">
-          {t('threads.sharedWithProject')}
-        </Heading>
+      <PageSection
+        title={t('threads.sharedWithProject')}
+        gap={6}
+        className="mt-8 border-t pt-8"
+      >
         {sharedThreads.length === 0 ? (
-          <Text variant="muted">{t('threads.emptyShared')}</Text>
+          <EmptyPlaceholder icon={MessageSquare}>
+            {t('threads.emptyShared')}
+          </EmptyPlaceholder>
         ) : (
-          <Stack gap={2}>
+          <div className="divide-y rounded-lg border">
             {sharedThreads.map((thread) => (
               <HStack
                 key={thread._id}
                 gap={3}
                 align="center"
-                className="border-border rounded-md border p-3"
+                className="px-4 py-3"
               >
-                <MessageSquare className="text-muted-foreground size-4 shrink-0" />
+                <MessageSquare
+                  className="text-muted-foreground size-4 shrink-0"
+                  aria-hidden="true"
+                />
                 <Link
                   to="/dashboard/$id/chat/$threadId"
                   params={{
@@ -136,9 +163,9 @@ export function ProjectThreadsTab({
                 <Text variant="caption">{thread.userId.slice(0, 8)}</Text>
               </HStack>
             ))}
-          </Stack>
+          </div>
         )}
-      </section>
-    </Stack>
+      </PageSection>
+    </ContentArea>
   );
 }

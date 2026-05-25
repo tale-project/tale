@@ -9,7 +9,6 @@ import {
 } from './project-mode-radio';
 
 const OPTIONS: ProjectModeRadioOption[] = [
-  { value: 'all', label: 'All', description: 'Everyone sees everything.' },
   {
     value: 'recommended',
     label: 'Recommended',
@@ -23,11 +22,14 @@ const OPTIONS: ProjectModeRadioOption[] = [
 ];
 
 describe('ProjectModeRadio', () => {
-  it('renders three radio options with the expected labels', () => {
+  it('renders the radio options with the expected labels', () => {
     render(
-      <ProjectModeRadio value="all" onChange={vi.fn()} options={OPTIONS} />,
+      <ProjectModeRadio
+        value="recommended"
+        onChange={vi.fn()}
+        options={OPTIONS}
+      />,
     );
-    expect(screen.getByRole('radio', { name: /All/ })).not.toBe(null);
     expect(screen.getByRole('radio', { name: /Recommended/ })).not.toBe(null);
     expect(screen.getByRole('radio', { name: /Restricted/ })).not.toBe(null);
   });
@@ -49,7 +51,11 @@ describe('ProjectModeRadio', () => {
   it('fires onChange with the new value when a different option is clicked', () => {
     const onChange = vi.fn();
     render(
-      <ProjectModeRadio value="all" onChange={onChange} options={OPTIONS} />,
+      <ProjectModeRadio
+        value="recommended"
+        onChange={onChange}
+        options={OPTIONS}
+      />,
     );
     const restricted = screen.getByRole('radio', { name: /Restricted/ });
     fireEvent.click(restricted);
@@ -59,9 +65,13 @@ describe('ProjectModeRadio', () => {
   it('does not fire onChange when clicking the already-selected option', () => {
     const onChange = vi.fn();
     render(
-      <ProjectModeRadio value="all" onChange={onChange} options={OPTIONS} />,
+      <ProjectModeRadio
+        value="recommended"
+        onChange={onChange}
+        options={OPTIONS}
+      />,
     );
-    fireEvent.click(screen.getByRole('radio', { name: /All/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Recommended/ }));
     // jsdom fires change only on transition; clicking the already-checked
     // radio does not produce a synthetic onChange.
     expect(onChange).not.toHaveBeenCalled();
@@ -70,7 +80,7 @@ describe('ProjectModeRadio', () => {
   it('disables every radio when disabled is true', () => {
     render(
       <ProjectModeRadio
-        value="all"
+        value="recommended"
         onChange={vi.fn()}
         options={OPTIONS}
         disabled
@@ -83,7 +93,7 @@ describe('ProjectModeRadio', () => {
   it('groups the radios via role="radiogroup" and exposes the legend', () => {
     render(
       <ProjectModeRadio
-        value="all"
+        value="recommended"
         onChange={vi.fn()}
         options={OPTIONS}
         legend="Agent mode"
@@ -98,7 +108,7 @@ describe('ProjectModeRadio', () => {
     it('passes axe audit', async () => {
       const { container } = render(
         <ProjectModeRadio
-          value="all"
+          value="recommended"
           onChange={vi.fn()}
           options={OPTIONS}
           legend="Agent mode"

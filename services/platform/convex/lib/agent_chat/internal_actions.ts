@@ -378,20 +378,22 @@ export const runAgentGeneration = internalAction({
             });
           }
 
-          // Read+write symmetry: only attach `propose_memory` when ALL
-          // runtime kill-switches agree. Same gate as buildUserPersonalization
-          // (org feature flag, prefs.enabled === true, threadDisablePersonalization).
-          // The agent-level `personalizationMode === 'off'` short-circuits
-          // before we hit the DB.
+          // Read+write symmetry: only attach `propose_memory` when the
+          // memories gate is on (org `user_memories` policy,
+          // `prefs.memoriesEnabled === true`, and no thread veto). The
+          // agent-level `personalizationMode === 'off'` short-circuits
+          // before we hit the DB and disables BOTH features.
           const personalizationActive =
             userId &&
             organizationId &&
             agentConfig.personalizationMode !== 'off'
-              ? await ctx.runQuery(
-                  internal.personalization.internal_queries
-                    .isPersonalizationActiveForChat,
-                  { userId, organizationId, threadId },
-                )
+              ? (
+                  await ctx.runQuery(
+                    internal.personalization.internal_queries
+                      .isPersonalizationActiveForChat,
+                    { userId, organizationId, threadId },
+                  )
+                ).memories
               : false;
 
           // Create agent factory function from serializable config

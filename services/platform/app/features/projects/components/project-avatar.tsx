@@ -45,7 +45,7 @@ const COLOR_BG: Record<ProjectColor, string> = {
 };
 
 const DEFAULT_COLOR: ProjectColor = 'gray';
-const DEFAULT_ICON: ProjectIcon = 'FolderKanban';
+const DEFAULT_ICON: ProjectIcon = 'Folder';
 
 export interface ProjectAvatarProps {
   name: string;

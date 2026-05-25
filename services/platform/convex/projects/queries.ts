@@ -87,6 +87,16 @@ const projectListItemValidator = v.object({
  * Filters per-row by `hasProjectAccess`. Returns enriched rows with
  * per-row access flags so the UI can gate edit/admin affordances without
  * a second query.
+ *
+ * S2: when `includeArchived` is false (the common path) we use the
+ * `by_organization_archived` index with `archivedAt: undefined` so the
+ * scan never visits archived rows. The fallback path (include archived)
+ * walks `by_organization_updatedAt` to preserve recency ordering.
+ *
+ * Performance note: this query is unpaginated. For orgs with thousands of
+ * projects, follow up with `paginationOptsValidator` (see
+ * `convex/threads/list_threads.ts` for the pattern). UI today consumes
+ * the full list and filters in-memory.
  */
 export const listProjects = query({
   args: {
@@ -97,13 +107,22 @@ export const listProjects = query({
   handler: async (ctx, args) => {
     const auth = await getAuthContext(ctx, args.organizationId);
 
-    const rows = await ctx.db
-      .query('projects')
-      .withIndex('by_organization_updatedAt', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .order('desc')
-      .collect();
+    const rows = args.includeArchived
+      ? await ctx.db
+          .query('projects')
+          .withIndex('by_organization_updatedAt', (q) =>
+            q.eq('organizationId', args.organizationId),
+          )
+          .order('desc')
+          .collect()
+      : await ctx.db
+          .query('projects')
+          .withIndex('by_organization_archived', (q) =>
+            q
+              .eq('organizationId', args.organizationId)
+              .eq('archivedAt', undefined),
+          )
+          .collect();
 
     const visible: Array<
       Doc<'projects'> & {
@@ -114,7 +133,6 @@ export const listProjects = query({
     > = [];
 
     for (const row of rows) {
-      if (!args.includeArchived && row.archivedAt) continue;
       if (!hasProjectAccess(row, auth.teamIds, auth.role)) continue;
       const access = checkProjectAccess(row, auth.teamIds, auth.role);
       visible.push({
@@ -123,6 +141,12 @@ export const listProjects = query({
         canEdit: access.canEdit,
         canAdminister: access.canAdminister,
       });
+    }
+
+    // When using by_organization_archived, the rows come out in insertion
+    // order — sort by updatedAt desc to match the includeArchived branch.
+    if (!args.includeArchived) {
+      visible.sort((a, b) => b.updatedAt - a.updatedAt);
     }
 
     return visible;
@@ -160,8 +184,16 @@ export const getProject = query({
 });
 
 /**
- * Counts for the Overview tab. Computed via index reads only.
+ * Counts for the Overview tab.
+ *
+ * H5: capped at 500 docs + 500 threads to bound memory for very large
+ * projects. The UI surfaces a `truncated` flag and renders "500+" in the
+ * count cells when the cap is hit. Follow-up if metrics show frequent
+ * truncation: maintain counter-style fields on the project row at
+ * mutation time for O(1) overview.
  */
+const PROJECT_STATS_CAP = 500;
+
 export const getProjectStats = query({
   args: { projectId: v.id('projects') },
   returns: v.union(
@@ -171,6 +203,7 @@ export const getProjectStats = query({
       threadCount: v.number(),
       sharedThreadCount: v.number(),
       lastActivityAt: v.union(v.number(), v.null()),
+      truncated: v.boolean(),
     }),
     v.null(),
   ),
@@ -180,6 +213,7 @@ export const getProjectStats = query({
     const auth = await getAuthContext(ctx, project.organizationId);
     if (!hasProjectAccess(project, auth.teamIds, auth.role)) return null;
 
+    // Take one extra so we can detect truncation without a second query.
     const docs = await ctx.db
       .query('documents')
       .withIndex('by_organizationId_and_projectId', (q) =>
@@ -187,8 +221,10 @@ export const getProjectStats = query({
           .eq('organizationId', project.organizationId)
           .eq('projectId', args.projectId),
       )
-      .collect();
-    const indexedFileCount = docs.filter((d) => d.indexed === true).length;
+      .take(PROJECT_STATS_CAP + 1);
+    const docsTruncated = docs.length > PROJECT_STATS_CAP;
+    const docsPage = docsTruncated ? docs.slice(0, PROJECT_STATS_CAP) : docs;
+    const indexedFileCount = docsPage.filter((d) => d.indexed === true).length;
 
     const threads = await ctx.db
       .query('threadMetadata')
@@ -197,15 +233,19 @@ export const getProjectStats = query({
           .eq('organizationId', project.organizationId)
           .eq('projectId', args.projectId),
       )
-      .collect();
-    const sharedThreadCount = threads.filter(
+      .take(PROJECT_STATS_CAP + 1);
+    const threadsTruncated = threads.length > PROJECT_STATS_CAP;
+    const threadsPage = threadsTruncated
+      ? threads.slice(0, PROJECT_STATS_CAP)
+      : threads;
+    const sharedThreadCount = threadsPage.filter(
       (t) => t.sharedWithProject === true,
     ).length;
 
     const allActivityTimestamps: number[] = [
       project.updatedAt,
-      ...docs.map((d) => d._creationTime),
-      ...threads.map((t) => t.updatedAt ?? t.createdAt),
+      ...docsPage.map((d) => d._creationTime),
+      ...threadsPage.map((t) => t.updatedAt ?? t.createdAt),
     ].filter((n): n is number => typeof n === 'number');
 
     const lastActivityAt =
@@ -214,11 +254,12 @@ export const getProjectStats = query({
         : null;
 
     return {
-      fileCount: docs.length,
+      fileCount: docsPage.length,
       indexedFileCount,
-      threadCount: threads.length,
+      threadCount: threadsPage.length,
       sharedThreadCount,
       lastActivityAt,
+      truncated: docsTruncated || threadsTruncated,
     };
   },
 });
@@ -341,6 +382,12 @@ export const listProjectThreads = query({
 /**
  * Lightweight project search used by the in-composer ProjectPicker.
  * Hits the search index and post-filters by access.
+ *
+ * H9: We over-fetch `limit * 2` because the Convex search index can't
+ * pre-filter by team membership. In high-deny orgs (many small teams,
+ * caller in few of them) the post-filter can drop the result count below
+ * `limit`. Acceptable trade-off; bump the multiplier if metrics show
+ * frequently truncated returns.
  */
 export const searchProjects = query({
   args: {
@@ -387,6 +434,11 @@ export const searchProjects = query({
 /**
  * Sidebar projects: capped list of the user's most-recently-updated
  * non-archived projects.
+ *
+ * S4: caps the walk at `limit * 5` rows considered. In very large orgs
+ * with team segmentation, the post-filter may drop many rows; without the
+ * ceiling, an extreme worst case would walk the entire index. The ceiling
+ * keeps the scan bounded.
  */
 export const listSidebarProjects = query({
   args: {
@@ -405,6 +457,7 @@ export const listSidebarProjects = query({
   handler: async (ctx, args) => {
     const auth = await getAuthContext(ctx, args.organizationId);
     const limit = Math.min(Math.max(args.limit ?? 8, 1), 50);
+    const scanCeiling = limit * 5;
 
     const rows = await ctx.db
       .query('projects')
@@ -412,7 +465,7 @@ export const listSidebarProjects = query({
         q.eq('organizationId', args.organizationId),
       )
       .order('desc')
-      .collect();
+      .take(scanCeiling);
 
     const result: Array<{
       _id: Id<'projects'>;

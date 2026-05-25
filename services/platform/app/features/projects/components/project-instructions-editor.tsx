@@ -1,10 +1,16 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
+import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
+import { ContentArea } from '@/app/components/layout/content-area';
+import {
+  useFormEditor,
+  useRegisterActiveEditor,
+} from '@/app/components/ui/editor';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -19,7 +25,11 @@ interface ProjectInstructionsEditorProps {
   projectId: Id<'projects'>;
 }
 
-type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+interface InstructionsForm {
+  instructions: string;
+}
+
+const FORM_ID = 'project-instructions-form';
 
 export function ProjectInstructionsEditor({
   projectId,
@@ -27,105 +37,119 @@ export function ProjectInstructionsEditor({
   const { t } = useT('projects');
   const { project } = useProject(projectId);
   const { mutateAsync: updateInstructions } = useUpdateProjectInstructions();
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const [value, setValue] = useState(project?.instructions ?? '');
-  const [saveState, setSaveState] = useState<SaveState>('idle');
-
-  // Sync local state when project changes
-  useEffect(() => {
-    setValue(project?.instructions ?? '');
-  }, [project?.instructions]);
+  const data = useMemo<InstructionsForm | undefined>(
+    () => (project ? { instructions: project.instructions ?? '' } : undefined),
+    [project],
+  );
 
   const canEdit = project?.canEdit ?? false;
+
+  const save = useCallback(
+    async ({ instructions }: InstructionsForm) => {
+      try {
+        await updateInstructions({ projectId, instructions });
+      } catch (error) {
+        if (error instanceof ConvexError) {
+          const code = error.data?.code;
+          if (code === 'PROJECT_INSTRUCTIONS_TOO_LONG') {
+            toast({
+              title: t('errors.PROJECT_INSTRUCTIONS_TOO_LONG', {
+                cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
+              }),
+              variant: 'destructive',
+            });
+          }
+        } else {
+          console.error('updateProjectInstructions failed', error);
+        }
+        throw error;
+      }
+    },
+    [projectId, t, updateInstructions],
+  );
+
+  const editor = useFormEditor<InstructionsForm>({
+    data,
+    save,
+  });
+
+  const value = editor.form.watch('instructions') ?? '';
   const charCount = value.length;
   const overLimit = charCount > PROJECT_INSTRUCTIONS_MAX_CHARS;
   const nearLimit =
     charCount > PROJECT_INSTRUCTIONS_MAX_CHARS * 0.8 && !overLimit;
 
-  const handleBlur = useCallback(async () => {
-    if (!canEdit || overLimit) return;
-    if (value === (project?.instructions ?? '')) return;
-    setSaveState('saving');
-    try {
-      await updateInstructions({ projectId, instructions: value });
-      setSaveState('saved');
-      window.setTimeout(() => setSaveState('idle'), 2000);
-    } catch (error) {
-      setSaveState('error');
-      if (error instanceof ConvexError) {
-        const code = error.data?.code;
-        if (code === 'PROJECT_INSTRUCTIONS_TOO_LONG') {
-          toast({
-            title: t('errors.PROJECT_INSTRUCTIONS_TOO_LONG', {
-              cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
-            }),
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
-      console.error('updateProjectInstructions failed', error);
-      toast({
-        title: t('instructions.saveError'),
-        variant: 'destructive',
-      });
-    }
-  }, [
-    canEdit,
-    overLimit,
-    value,
-    project?.instructions,
-    updateInstructions,
-    projectId,
-    t,
-  ]);
+  // Surface this editor's controller to the project layout's tab-strip
+  // Save/Discard cluster. The cluster swaps in/out as the user switches
+  // between Overview/Instructions tabs.
+  useRegisterActiveEditor({
+    ...editor,
+    isValid: !overLimit && editor.isValid,
+  });
 
   if (!project) return null;
 
   return (
-    <Stack gap={2} className="p-6">
-      <Textarea
-        id="project-instructions"
-        label={t('instructions.label')}
-        placeholder={t('instructions.placeholder')}
-        rows={16}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={handleBlur}
-        disabled={!canEdit}
+    <ContentArea variant="narrow" gap={6}>
+      <StickySectionHeader
+        title={t('instructions.label')}
+        description={t('instructions.placeholder')}
       />
-      <div className="flex items-center justify-between">
-        <Text
-          variant="caption"
-          className={cn(
-            overLimit && 'text-destructive',
-            nearLimit && 'text-amber-600',
-          )}
-        >
-          {charCount} / {PROJECT_INSTRUCTIONS_MAX_CHARS}{' '}
-          {t('instructions.tokenCountSuffix')}
-          {overLimit
-            ? ' — ' +
-              t('instructions.tokenCapError', {
-                cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
-              })
-            : nearLimit
-              ? ' — ' +
-                t('instructions.tokenCapWarning', {
-                  cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
-                })
-              : ''}
-        </Text>
-        {saveState === 'saving' ? (
-          <Text variant="caption" className="text-muted-foreground">
-            {t('instructions.savingIndicator')}
-          </Text>
-        ) : saveState === 'saved' ? (
-          <Text variant="caption" className="text-emerald-600">
-            ✓ {t('instructions.savedIndicator')}
-          </Text>
-        ) : null}
-      </div>
-    </Stack>
+
+      <form
+        id={FORM_ID}
+        onSubmit={editor.form.handleSubmit((values) => save(values))}
+      >
+        <fieldset disabled={!canEdit || editor.isLoading} className="contents">
+          <FormSection>
+            {(() => {
+              // Merge the local ref with RHF's `register('instructions').ref`
+              // so we keep both (focus-suppress sync via textareaRef + RHF's
+              // internal field binding). Plain spread would overwrite our
+              // ref because `register(...).ref` is its own property.
+              const reg = editor.form.register('instructions');
+              return (
+                <Textarea
+                  id="project-instructions"
+                  label={t('instructions.label')}
+                  placeholder={t('instructions.placeholder')}
+                  rows={16}
+                  {...reg}
+                  ref={(node: HTMLTextAreaElement | null) => {
+                    reg.ref(node);
+                    textareaRef.current = node;
+                  }}
+                />
+              );
+            })()}
+            <div className="flex items-center justify-between">
+              <Text
+                variant="caption"
+                className={cn(
+                  overLimit && 'text-destructive',
+                  nearLimit && 'text-amber-600',
+                )}
+              >
+                {charCount} / {PROJECT_INSTRUCTIONS_MAX_CHARS}{' '}
+                {t('instructions.tokenCountSuffix')}
+                {overLimit
+                  ? ' — ' +
+                    t('instructions.tokenCapError', {
+                      cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
+                    })
+                  : nearLimit
+                    ? ' — ' +
+                      t('instructions.tokenCapWarning', {
+                        cap: PROJECT_INSTRUCTIONS_MAX_CHARS,
+                      })
+                    : ''}
+              </Text>
+            </div>
+          </FormSection>
+        </fieldset>
+      </form>
+    </ContentArea>
   );
 }

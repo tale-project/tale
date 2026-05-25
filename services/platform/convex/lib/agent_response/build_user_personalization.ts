@@ -68,16 +68,16 @@ const EMPTY: UserPersonalization = {
 
 /**
  * Build the user personalization block to inject between agent_instructions
- * and thread_context in the system prompt. Returns empty when the
- * effective personalization state for this (user, org, thread) is OFF.
+ * and thread_context in the system prompt. Returns empty when both
+ * features are gated off for this (user, org, thread).
  *
- * The effective state combines the org default (`policyType:
- * 'personalization'`), the user's tri-state override
- * (`userPreferences.enabled`), and the thread-level veto
- * (`threadMetadata.disablePersonalization`). See
- * `evaluatePersonalizationGates` for the merge rules. Callers also
- * strip the `propose_memory` tool whenever this returns empty (handled
- * in generate_response.ts).
+ * Each feature has its own org default (`custom_instructions` /
+ * `user_memories` policy rows), per-user tri-state override
+ * (`userPreferences.customInstructionsEnabled` / `memoriesEnabled`), and
+ * shares the thread-level veto (`threadMetadata.disablePersonalization`).
+ * See `evaluatePersonalizationGates` for the merge rules. Tool stripping
+ * for `propose_memory` is gated on the memories flag specifically
+ * (handled in `internal_actions.ts`).
  */
 export async function buildUserPersonalization(
   ctx: GenericActionCtx<DataModel>,
@@ -97,10 +97,14 @@ export async function buildUserPersonalization(
       },
     );
 
-    if (!data.effective) return EMPTY;
+    if (!data.customInstructionsEffective && !data.memoriesEffective) {
+      return EMPTY;
+    }
 
     const prefs = data.preferences;
-    const customInstructions = (prefs?.customInstructions ?? '').trim();
+    const customInstructions = data.customInstructionsEffective
+      ? (prefs?.customInstructions ?? '').trim()
+      : '';
     const customTokens = customInstructions
       ? Math.min(
           estimateTokens(customInstructions),
