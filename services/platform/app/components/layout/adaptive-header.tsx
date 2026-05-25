@@ -1,5 +1,6 @@
 'use client';
 
+import { HStack } from '@tale/ui/layout';
 import {
   createContext,
   useContext,
@@ -9,7 +10,6 @@ import {
   type ReactNode,
 } from 'react';
 
-import { HStack } from '@/app/components/ui/layout/layout';
 import { cn } from '@/lib/utils/cn';
 
 // =============================================================================

@@ -1,15 +1,15 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { PageSection } from '@tale/ui/page-section';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { AlertTriangle, Ban, Lock } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { DsarGovernanceConfig } from '@/lib/shared/schemas/governance';

@@ -1,5 +1,7 @@
 'use client';
 
+import { TableBody, TableCell } from '@tale/ui/table';
+import { Text } from '@tale/ui/text';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   useState,
@@ -11,9 +13,7 @@ import {
   type ReactElement,
 } from 'react';
 
-import { TableBody, TableCell } from '@/app/components/ui/data-display/table';
 import { Select } from '@/app/components/ui/forms/select';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

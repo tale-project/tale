@@ -1,10 +1,10 @@
+import { PageSection } from '@tale/ui/page-section';
+import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { ToolSelector } from '@/app/features/agents/components/tool-selector';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useT } from '@/lib/i18n/client';

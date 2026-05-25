@@ -1,6 +1,8 @@
 'use client';
 
+import { VStack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { useQuery } from 'convex/react';
 import {
   AudioLines,
@@ -19,8 +21,6 @@ import {
 import { memo, useState } from 'react';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { VStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';

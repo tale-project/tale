@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocation } from '@tanstack/react-router';
+
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -13,16 +15,26 @@ interface SettingsNavigationProps {
 
 type SettingsLabelKey =
   | 'organization'
-  | 'teams'
+  | 'people'
   | 'integrations'
-  | 'mcpServers'
   | 'providers'
   | 'apiKeys'
   | 'branding'
   | 'governance'
-  | 'logs'
   | 'personalization'
   | 'account';
+
+const USER_KEYS: ReadonlySet<SettingsLabelKey> = new Set([
+  'account',
+  'personalization',
+]);
+
+function isUserScope(pathname: string): boolean {
+  return (
+    pathname.includes('/settings/account') ||
+    pathname.includes('/settings/personalization')
+  );
+}
 
 export function SettingsNavigation({
   organizationId,
@@ -30,8 +42,20 @@ export function SettingsNavigation({
 }: SettingsNavigationProps) {
   const { t } = useT('navigation');
   const { t: tCommon } = useT('common');
+  const location = useLocation();
+  const userScope = isUserScope(location.pathname);
 
   const allItems: (TabNavigationItem & { labelKey: SettingsLabelKey })[] = [
+    {
+      labelKey: 'account',
+      label: t('account'),
+      href: `/dashboard/${organizationId}/settings/account`,
+    },
+    {
+      labelKey: 'personalization',
+      label: t('personalization'),
+      href: `/dashboard/${organizationId}/settings/personalization`,
+    },
     {
       labelKey: 'organization',
       label: t('organization'),
@@ -39,9 +63,16 @@ export function SettingsNavigation({
       can: ['read', 'orgSettings'],
     },
     {
-      labelKey: 'teams',
-      label: t('teams'),
-      href: `/dashboard/${organizationId}/settings/teams`,
+      labelKey: 'people',
+      label: t('people'),
+      href: `/dashboard/${organizationId}/settings/people`,
+      can: ['read', 'orgSettings'],
+      matchMode: 'startsWith',
+    },
+    {
+      labelKey: 'branding',
+      label: t('branding'),
+      href: `/dashboard/${organizationId}/settings/branding`,
       can: ['read', 'orgSettings'],
     },
     {
@@ -49,12 +80,7 @@ export function SettingsNavigation({
       label: t('integrations'),
       href: `/dashboard/${organizationId}/settings/integrations`,
       can: ['read', 'developerSettings'],
-    },
-    {
-      labelKey: 'mcpServers',
-      label: t('mcpServers'),
-      href: `/dashboard/${organizationId}/settings/mcp-servers`,
-      can: ['read', 'developerSettings'],
+      matchMode: 'startsWith',
     },
     {
       labelKey: 'providers',
@@ -70,39 +96,19 @@ export function SettingsNavigation({
       can: ['read', 'developerSettings'],
     },
     {
-      labelKey: 'branding',
-      label: t('branding'),
-      href: `/dashboard/${organizationId}/settings/branding`,
-      can: ['read', 'orgSettings'],
-    },
-    {
       labelKey: 'governance',
       label: t('governance'),
       href: `/dashboard/${organizationId}/settings/governance`,
       can: ['read', 'orgSettings'],
       matchMode: 'startsWith',
     },
-    {
-      labelKey: 'logs',
-      label: t('logs'),
-      href: `/dashboard/${organizationId}/settings/logs`,
-      can: ['read', 'orgSettings'],
-    },
-    {
-      labelKey: 'personalization',
-      label: t('personalization'),
-      href: `/dashboard/${organizationId}/settings/personalization`,
-    },
-    {
-      labelKey: 'account',
-      label: t('account'),
-      href: `/dashboard/${organizationId}/settings/account`,
-    },
   ];
 
-  const navigationItems = allItems.filter(
-    (item) => showAccountTab || item.labelKey !== 'account',
-  );
+  const navigationItems = allItems.filter((item) => {
+    if (!showAccountTab && item.labelKey === 'account') return false;
+    const inUserScope = USER_KEYS.has(item.labelKey);
+    return userScope ? inUserScope : !inUserScope;
+  });
 
   return (
     <TabNavigation

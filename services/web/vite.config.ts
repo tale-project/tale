@@ -1,4 +1,4 @@
-import { artifactsPlugin } from '@tale/seo/vite-plugin-artifacts';
+import { artifactsPlugin } from '@tale/ui/seo/vite-plugin-artifacts';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
@@ -53,7 +53,6 @@ export default defineConfig({
   ssr: {
     noExternal: [
       '@tale/ui',
-      '@tale/webui',
       '@tanstack/react-router',
       'framer-motion',
       'lucide-react',

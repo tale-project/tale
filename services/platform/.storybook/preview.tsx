@@ -1,6 +1,10 @@
-import { withThemeByClassName } from '@storybook/addon-themes';
 import type { Preview } from '@storybook/react';
 import { AppShell } from '@tale/ui/app-shell';
+import {
+  sharedStorybookInitialGlobals,
+  sharedStorybookParameters,
+  themeClassDecorator,
+} from '@tale/ui/storybook/preview';
 import { ThemeContext } from '@tale/ui/theme';
 import {
   RouterProvider,
@@ -44,7 +48,8 @@ function WithProviders({
   context: Parameters<DecoratorFunction>[1];
 }) {
   const [router] = useState(createStoryRouter);
-  const resolvedTheme = context.globals.theme === 'dark' ? 'dark' : 'light';
+  const resolvedTheme: 'dark' | 'light' =
+    context.globals.theme === 'dark' ? 'dark' : 'light';
 
   const themeValue = useMemo(
     () => ({
@@ -65,33 +70,12 @@ function WithProviders({
 }
 
 const preview: Preview = {
-  parameters: {
-    controls: {
-      matchers: {
-        color: /(background|color)$/i,
-        date: /Date$/i,
-      },
-    },
-    layout: 'centered',
-    a11y: {
-      options: {
-        runOnly: {
-          type: 'tag',
-          values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'best-practice'],
-        },
-      },
-    },
-  },
+  parameters: sharedStorybookParameters,
   decorators: [
     (Story, context) => <WithProviders Story={Story} context={context} />,
-    withThemeByClassName({
-      themes: { light: '', dark: 'dark' },
-      defaultTheme: 'light',
-    }),
+    themeClassDecorator,
   ],
-  initialGlobals: {
-    theme: 'light',
-  },
+  initialGlobals: sharedStorybookInitialGlobals,
 };
 
 export default preview;

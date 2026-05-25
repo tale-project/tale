@@ -1,4 +1,3 @@
-import { withThemeByClassName } from '@storybook/addon-themes';
 import type { Preview } from '@storybook/react';
 import {
   RouterProvider,
@@ -11,15 +10,20 @@ import type { DecoratorFunction } from 'storybook/internal/types';
 
 import { initServiceI18n } from '../src/i18n/init-service';
 import { uiMessages } from '../src/i18n/messages';
+import {
+  sharedStorybookInitialGlobals,
+  sharedStorybookParameters,
+  themeClassDecorator,
+} from '../src/storybook/preview';
 import { ThemeContext } from '../src/theme';
 
 import '../src/globals.css';
 import '../src/markdown/globals.css';
 
 // Bootstraps i18next with the package's own bundles so any story whose
-// component calls `useT(...)` resolves real translations instead of
-// rendering raw key names. Service consumers initialise the same way
-// from their `lib/i18n/i18n.ts`; Storybook is the standalone harness.
+// component calls `useT(...)` resolves real translations instead of rendering
+// raw key names. Service consumers initialise the same way from their
+// `lib/i18n/i18n.ts`; Storybook is the standalone harness.
 initServiceI18n({
   bundles: { en: {}, de: {}, fr: {} },
   regional: {},
@@ -48,7 +52,8 @@ function WithProviders({
   context: Parameters<DecoratorFunction>[1];
 }) {
   const [router] = useState(createStoryRouter);
-  const resolvedTheme = context.globals.theme === 'dark' ? 'dark' : 'light';
+  const resolvedTheme: 'dark' | 'light' =
+    context.globals.theme === 'dark' ? 'dark' : 'light';
   const themeValue = useMemo(
     () => ({
       theme: resolvedTheme,
@@ -65,33 +70,12 @@ function WithProviders({
 }
 
 const preview: Preview = {
-  parameters: {
-    controls: {
-      matchers: {
-        color: /(background|color)$/i,
-        date: /Date$/i,
-      },
-    },
-    layout: 'centered',
-    a11y: {
-      options: {
-        runOnly: {
-          type: 'tag',
-          values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'best-practice'],
-        },
-      },
-    },
-  },
+  parameters: sharedStorybookParameters,
   decorators: [
     (Story, context) => <WithProviders Story={Story} context={context} />,
-    withThemeByClassName({
-      themes: { light: '', dark: 'dark' },
-      defaultTheme: 'light',
-    }),
+    themeClassDecorator,
   ],
-  initialGlobals: {
-    theme: 'light',
-  },
+  initialGlobals: sharedStorybookInitialGlobals,
 };
 
 export default preview;

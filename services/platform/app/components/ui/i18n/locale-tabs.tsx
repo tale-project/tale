@@ -1,7 +1,7 @@
+import { Tabs, type TabItem } from '@tale/ui/tabs';
 import { Languages, Loader2 } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { Tabs, type TabItem } from '@/app/components/ui/navigation/tabs';
 import { useT } from '@/lib/i18n/client';
 import { SUPPORTED_LOCALES } from '@/lib/shared/constants/locales';
 

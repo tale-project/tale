@@ -126,6 +126,34 @@ export function TabNavigation({
     updateIndicator();
   }, [updateIndicator]);
 
+  // Scroll the active tab into view when it's offscreen — important on
+  // narrow viewports where the tab strip overflows horizontally. Without
+  // this, opening a settings sub-page (e.g. /settings/account) on mobile
+  // can leave the active tab hidden off the right edge. Adjusts `scrollLeft`
+  // directly so we never scroll an outer container.
+  useEffect(() => {
+    const nav = navRef.current;
+    const active = itemRefs.current[activeIndex];
+    if (!nav || !active) return;
+    if (nav.scrollWidth <= nav.clientWidth) return;
+
+    const target =
+      active.offsetLeft + active.offsetWidth / 2 - nav.clientWidth / 2;
+    const max = nav.scrollWidth - nav.clientWidth;
+    const clamped = Math.max(0, Math.min(target, max));
+    if (Math.abs(nav.scrollLeft - clamped) < 1) return;
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    nav.scrollTo({
+      left: clamped,
+      behavior:
+        prefersReducedMotion || !hasInitialized.current ? 'auto' : 'smooth',
+    });
+  }, [activeIndex]);
+
   // Combine refs for resize observation
   const allRefs = useMemo(() => {
     const refs: (HTMLElement | null)[] = [

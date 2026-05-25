@@ -1,6 +1,9 @@
 'use client';
 
+import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
+import { HStack, Stack, VStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import {
   Search,
   Play,
@@ -12,9 +15,6 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 
 import { JsonInput } from '@/app/components/ui/forms/json-input';
-import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
-import { HStack, Stack, VStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

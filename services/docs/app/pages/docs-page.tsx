@@ -1,20 +1,20 @@
-import {
-  buildArticleJsonLd,
-  buildBreadcrumbListJsonLd,
-} from '@tale/seo/builders/json-ld';
-import { pageAsMarkdown } from '@tale/seo/builders/page-as-markdown';
 import { markdownComponents } from '@tale/ui/markdown/components/registry';
 import { extractToc } from '@tale/ui/markdown/extract-toc';
 import { readingTimeMinutes } from '@tale/ui/markdown/reading-time';
 import { RoutedMarkdown } from '@tale/ui/markdown/routed-markdown';
-import { PageActions } from '@tale/webui/ai/page-actions';
-import { useDocumentMeta } from '@tale/webui/seo/document-meta';
+import {
+  buildArticleJsonLd,
+  buildBreadcrumbListJsonLd,
+} from '@tale/ui/seo/builders/json-ld';
+import { pageAsMarkdown } from '@tale/ui/seo/builders/page-as-markdown';
+import { useDocumentMeta } from '@tale/ui/seo/document-meta';
 import { useMemo } from 'react';
 
 import { DocsBreadcrumbs } from '@/app/components/docs/docs-breadcrumbs';
 import { DocsPrevNext } from '@/app/components/docs/docs-prev-next';
 import { DocsToc } from '@/app/components/docs/docs-toc';
 import { EditOnGithub } from '@/app/components/docs/edit-on-github';
+import { PageActions } from '@/app/features/page-actions/page-actions';
 import { getDocPage } from '@/lib/content/loader';
 import { flattenNav } from '@/lib/content/nav';
 import { docMarkdownUrl, docPath, docUrl, SITE_URL } from '@/lib/content/paths';

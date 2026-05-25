@@ -3,6 +3,8 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { HStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { parseISO, formatISO } from 'date-fns';
@@ -11,8 +13,6 @@ import { useState, useMemo, useCallback, memo } from 'react';
 
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';

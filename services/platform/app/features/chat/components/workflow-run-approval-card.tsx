@@ -1,7 +1,10 @@
 'use client';
 
+import { ActionRow } from '@tale/ui/action-row';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { HStack, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import {
   ArrowLeft,
@@ -24,10 +27,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { ActionRow } from '@/app/components/ui/layout/action-row';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Text } from '@/app/components/ui/typography/text';
 import {
   useExecuteApprovedWorkflowRun,
   useUpdateApprovalStatus,

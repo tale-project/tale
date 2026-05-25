@@ -1,0 +1,136 @@
+'use client';
+
+import * as TabsPrimitive from '@radix-ui/react-tabs';
+import { cva } from 'class-variance-authority';
+import { type ReactNode } from 'react';
+
+import { cn } from '../../lib/cn';
+
+export interface TabItem {
+  value: string;
+  label: ReactNode;
+  content?: ReactNode;
+  disabled?: boolean;
+  /** Accessible name for triggers with icon-only labels. */
+  ariaLabel?: string;
+}
+
+interface TabsProps {
+  items: TabItem[];
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+  className?: string;
+  listClassName?: string;
+  triggerClassName?: string;
+  /** Visual style variant */
+  variant?: 'pill' | 'underline';
+  /**
+   * Distribute the tabs evenly across the full row width (`justify-around`)
+   * instead of packing them on the left. Useful when the row already
+   * occupies a full panel — e.g. a settings drawer's tab strip — where
+   * left-packing leaves an unbalanced gap to the right.
+   */
+  equalWidth?: boolean;
+  /** Optional actions rendered to the right of the tab list */
+  actions?: ReactNode;
+}
+
+// `min-w-0` lets the flex child shrink past its content width so the
+// horizontal scroller engages on narrow viewports (without it the row
+// forces the parent to grow). Items pack `justify-start` by default so
+// the locale-style 3-tab case doesn't stretch across the full row; the
+// `equalWidth` variant exists for surfaces (provider drawer) that want
+// each tab to take an even share of the available width.
+//
+// Width differs per variant:
+//   - pill: `inline-flex w-fit` — the rounded `bg-muted` row hugs the
+//     pills and doesn't bleed into empty space to the right of the row.
+//   - underline: `flex flex-1` — the bottom border spans the full row
+//     width so the underline reads as the page's section divider.
+const listVariants = cva(
+  'scrollbar-hide min-w-0 max-w-full items-center overflow-x-auto text-muted-foreground',
+  {
+    variants: {
+      variant: {
+        pill: 'inline-flex w-fit bg-muted rounded-lg p-1',
+        underline: 'flex flex-1 border-b border-border gap-4',
+      },
+      equalWidth: {
+        true: 'justify-around',
+        false: 'justify-start',
+      },
+    },
+    defaultVariants: { variant: 'pill', equalWidth: false },
+  },
+);
+
+const triggerVariants = cva(
+  'focus-visible:ring-ring inline-flex items-center justify-center text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50',
+  {
+    variants: {
+      variant: {
+        pill: 'rounded-md px-3 py-1 transition-all data-[state=active]:bg-tab data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+        underline:
+          'relative border-b-2 border-transparent px-1 pb-2 transition-colors data-[state=active]:border-primary data-[state=active]:text-foreground',
+      },
+    },
+    defaultVariants: { variant: 'pill' },
+  },
+);
+
+export function Tabs({
+  items,
+  value,
+  defaultValue,
+  onValueChange,
+  className,
+  listClassName,
+  triggerClassName,
+  variant = 'pill',
+  equalWidth = false,
+  actions,
+}: TabsProps) {
+  const hasContent = items.some((item) => item.content !== undefined);
+
+  return (
+    <TabsPrimitive.Root
+      value={value}
+      defaultValue={defaultValue}
+      onValueChange={onValueChange}
+      className={className}
+    >
+      <div className="flex min-w-0 items-center justify-between gap-4">
+        <TabsPrimitive.List
+          className={cn(listVariants({ variant, equalWidth }), listClassName)}
+        >
+          {items.map((item) => (
+            <TabsPrimitive.Trigger
+              key={item.value}
+              value={item.value}
+              disabled={item.disabled}
+              aria-label={item.ariaLabel}
+              className={cn(triggerVariants({ variant }), triggerClassName)}
+            >
+              {item.label}
+            </TabsPrimitive.Trigger>
+          ))}
+        </TabsPrimitive.List>
+        {actions && <div className="shrink-0">{actions}</div>}
+      </div>
+      {hasContent &&
+        items.map(
+          (item) =>
+            item.content !== undefined && (
+              <TabsPrimitive.Content
+                key={item.value}
+                value={item.value}
+                className="focus-visible:ring-ring mt-5 flex min-h-0 flex-1 flex-col focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+              >
+                {item.content}
+              </TabsPrimitive.Content>
+            ),
+        )}
+    </TabsPrimitive.Root>
+  );
+}

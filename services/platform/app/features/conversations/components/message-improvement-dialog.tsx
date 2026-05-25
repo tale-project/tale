@@ -1,9 +1,9 @@
 'use client';
 
+import { PageSection } from '@tale/ui/page-section';
 import ReactMarkdown from 'react-markdown';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { PageSection } from '@/app/components/ui/layout/page-section';
 import { useT } from '@/lib/i18n/client';
 
 interface MessageImprovementDialogProps {

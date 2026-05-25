@@ -1,10 +1,10 @@
 'use client';
 
+import { PageSection } from '@tale/ui/page-section';
 import { Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { PageSection } from '@/app/components/ui/layout/page-section';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 

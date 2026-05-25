@@ -1,12 +1,12 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Text } from '@tale/ui/text';
 import { useCallback, useState, type ReactNode } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { RetentionPolicyConfig } from '@/lib/shared/schemas/governance';

@@ -1,5 +1,7 @@
 'use client';
 
+import { HStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { ComponentType } from 'react';
 
@@ -9,8 +11,6 @@ import {
   TableDateCell,
 } from '@/app/components/ui/data-display/table-date-cell';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { i18n } from '@/lib/i18n/i18n';
 import { startCase } from '@/lib/utils/string';
 

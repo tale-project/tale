@@ -1,12 +1,12 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import type { UsePaginatedQueryResult } from 'convex/react';
 import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
@@ -269,7 +269,7 @@ function DetailRow({
   isError?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-4">
       <Text as="span" variant="muted" className="font-medium">
         {label}
       </Text>

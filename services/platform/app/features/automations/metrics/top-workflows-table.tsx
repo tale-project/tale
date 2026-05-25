@@ -1,5 +1,6 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { formatDistanceToNow } from 'date-fns';
@@ -7,7 +8,6 @@ import { BarChart3 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';

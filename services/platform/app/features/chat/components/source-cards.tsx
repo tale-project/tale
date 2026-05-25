@@ -1,12 +1,12 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { useQuery } from 'convex/react';
 import { FileText, Globe, ChevronDown, ChevronUp } from 'lucide-react';
 import { memo, useState, useCallback, useMemo } from 'react';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Text } from '@/app/components/ui/typography/text';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';

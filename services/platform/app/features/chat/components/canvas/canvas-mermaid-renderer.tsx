@@ -1,10 +1,10 @@
 'use client';
 
 import { Spinner } from '@tale/ui/spinner';
+import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
 import { memo, useEffect, useRef, useState } from 'react';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

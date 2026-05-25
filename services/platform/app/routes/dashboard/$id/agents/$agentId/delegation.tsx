@@ -1,13 +1,13 @@
+import { Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { StickySectionHeader } from '@tale/ui/sticky-section-header';
+import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
-import { Text } from '@/app/components/ui/typography/text';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';

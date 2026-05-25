@@ -1,14 +1,11 @@
 'use client';
 
+import { Heading } from '@tale/ui/heading';
+import { Stack } from '@tale/ui/layout';
+import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
+import { Text } from '@tale/ui/text';
 import { useMemo } from 'react';
 
-import {
-  type StatGridItem,
-  StatGrid,
-} from '@/app/components/ui/data-display/stat-grid';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Doc } from '@/convex/_generated/dataModel';
 import type { CustomerInfo } from '@/convex/conversations/types';

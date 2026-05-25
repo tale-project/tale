@@ -80,7 +80,6 @@ services:
       - ./services/docs/lib:/app/services/docs/lib
       - ./services/docs/messages:/app/services/docs/messages
       - ./services/docs/scripts:/app/services/docs/scripts
-      - ./packages/webui:/app/packages/webui
     environment:
       - NODE_ENV=development
 

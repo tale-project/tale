@@ -1,6 +1,10 @@
-import { withThemeByClassName } from '@storybook/addon-themes';
 import type { Preview } from '@storybook/react';
 import { AppShell } from '@tale/ui/app-shell';
+import {
+  sharedStorybookInitialGlobals,
+  sharedStorybookParameters,
+  themeClassDecorator,
+} from '@tale/ui/storybook/preview';
 import {
   RouterProvider,
   createMemoryHistory,
@@ -42,33 +46,12 @@ function WithProviders({
 }
 
 const preview: Preview = {
-  parameters: {
-    controls: {
-      matchers: {
-        color: /(background|color)$/i,
-        date: /Date$/i,
-      },
-    },
-    layout: 'centered',
-    a11y: {
-      options: {
-        runOnly: {
-          type: 'tag',
-          values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'best-practice'],
-        },
-      },
-    },
-  },
+  parameters: sharedStorybookParameters,
   decorators: [
     (Story) => <WithProviders Story={Story} />,
-    withThemeByClassName({
-      themes: { light: '', dark: 'dark' },
-      defaultTheme: 'light',
-    }),
+    themeClassDecorator,
   ],
-  initialGlobals: {
-    theme: 'light',
-  },
+  initialGlobals: sharedStorybookInitialGlobals,
 };
 
 export default preview;

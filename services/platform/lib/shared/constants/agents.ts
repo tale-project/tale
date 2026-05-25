@@ -3,7 +3,7 @@ export const MAX_CONVERSATION_STARTER_LENGTH = 200;
 
 /** Locales for which an agent can ship localized metadata
  *  (display name, description, conversation starters, system instructions).
- *  Intentionally inlined (vs. re-exported from `@tale/i18n/locales`) because
+ *  Intentionally inlined (vs. re-exported from `@tale/ui/i18n/locales`) because
  *  Convex's deploy bundler doesn't resolve workspace-package subpath exports
  *  through transitive re-exports — and `agents.ts` is reachable from convex
  *  code (e.g. `convex/agents/file_actions.ts`). Tracks the UI's

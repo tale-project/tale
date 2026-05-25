@@ -9,27 +9,41 @@ import * as React from 'react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+// Tracks dialog nesting so a child Dialog opened from inside another
+// Dialog doesn't stack a second 80%-black overlay on top of the parent's.
+// Two `bg-black/80` overlays composite to ~96% black — the screen reads
+// as fully dark. Outer dialog renders the backdrop; nested dialogs skip
+// it and rely on the outer's overlay for the dim effect.
+const DialogDepthContext = React.createContext(0);
+
 // =============================================================================
 // Variants
 // =============================================================================
 
 const dialogContentVariants = cva(
-  // `flex flex-col` + explicit `max-h-[90vh]` keeps the dialog from escaping
-  // the viewport even when its body is tall (e.g. the endpoint editor in
-  // governance). Header and footer are rendered outside the overflow wrapper
-  // below so they stay pinned while the middle section scrolls — without
-  // this, Radix centers a tall dialog by translate-y-[-50%] and clips both
-  // ends of it, hiding the footer buttons.
-  'fixed left-[50%] top-[50%] z-50 flex flex-col w-full border-none translate-x-[-50%] translate-y-[-50%] gap-4 ring-1 ring-border bg-card p-4 sm:p-6 pt-5 shadow-lg max-h-[90vh] duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-2xl',
+  // Mobile: bottom sheet anchored to the viewport bottom with safe-area-aware
+  // padding. md+: classic centered dialog. `dvh` keeps iOS Safari's dynamic
+  // chrome from clipping the dialog at the top or bottom. Header and footer
+  // are rendered outside the overflow wrapper below so they stay pinned
+  // while the middle section scrolls.
+  'fixed z-50 flex flex-col border-none gap-4 ring-1 ring-border bg-card shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none ' +
+    // Mobile: bottom sheet
+    'inset-x-0 bottom-0 top-auto left-0 right-0 w-full max-w-full max-h-[88dvh] rounded-t-2xl rounded-b-none p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4 ' +
+    // md+: centered dialog. `md:left-1/2 md:right-auto` is the correct
+    // horizontal centering pair — pairing them with `md:inset-x-auto`
+    // (which sets BOTH left+right to auto) caused the inset shorthand to
+    // overwrite the left positioning, anchoring the dialog at the viewport
+    // edge instead of the centre.
+    'md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-full md:-translate-x-1/2 md:-translate-y-1/2 md:max-h-[90dvh] md:p-6 md:pb-6 md:pt-5 md:rounded-2xl md:data-[state=open]:zoom-in-95 md:data-[state=closed]:zoom-out-95 md:data-[state=open]:slide-in-from-bottom-0 md:data-[state=closed]:slide-out-to-bottom-0',
   {
     variants: {
       size: {
-        sm: 'max-w-sm',
-        default: 'max-w-[24rem]',
-        md: 'max-w-md',
-        lg: 'max-w-lg',
-        xl: 'max-w-xl',
-        wide: 'max-w-[1100px] w-[95vw]',
+        sm: 'md:max-w-sm',
+        default: 'md:max-w-[24rem]',
+        md: 'md:max-w-md',
+        lg: 'md:max-w-lg',
+        xl: 'md:max-w-xl',
+        wide: 'md:max-w-[1100px] md:w-[95vw]',
       },
     },
     defaultVariants: {
@@ -139,97 +153,103 @@ export function Dialog({
   trigger,
   preventCloseAutoFocus = false,
 }: DialogProps) {
+  const parentDepth = React.useContext(DialogDepthContext);
+  const isNested = parentDepth > 0;
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       {trigger && (
         <DialogPrimitive.Trigger asChild>{trigger}</DialogPrimitive.Trigger>
       )}
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay
-          className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80"
-          onClick={(e) => e.stopPropagation()}
-        />
-        <DialogPrimitive.Content
-          className={cn(dialogContentVariants({ size }), className)}
-          onClick={(e) => e.stopPropagation()}
-          {...(customHeader || !description
-            ? { 'aria-describedby': undefined }
-            : {})}
-          onCloseAutoFocus={
-            preventCloseAutoFocus ? (e) => e.preventDefault() : undefined
-          }
-        >
-          {!hideClose && !customHeader && (
-            <div className="absolute top-4 right-4">
-              <DialogCloseButton />
-            </div>
+        <DialogDepthContext.Provider value={parentDepth + 1}>
+          {!isNested && (
+            <DialogPrimitive.Overlay
+              className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80"
+              onClick={(e) => e.stopPropagation()}
+            />
           )}
-          {customHeader ? (
-            <>
-              <VisuallyHidden>
-                <DialogPrimitive.Title>{title}</DialogPrimitive.Title>
-                {description && (
-                  <DialogPrimitive.Description>
-                    {description}
-                  </DialogPrimitive.Description>
-                )}
-              </VisuallyHidden>
-              {customHeader}
-            </>
-          ) : (
-            <div
-              className={cn(
-                'flex flex-col space-y-2 text-left',
-                !hideClose && 'pr-8',
-                headerActions && 'flex-row items-start justify-between gap-4',
-                headerClassName,
-              )}
-            >
-              <div
-                className={cn(
-                  'flex items-center gap-3',
-                  headerActions &&
-                    'flex-col items-start space-y-2 gap-0 flex-1 min-w-0',
-                )}
-              >
-                {icon && <div className="shrink-0">{icon}</div>}
-                <div
-                  className={cn(
-                    'flex flex-col space-y-2',
-                    headerActions && 'min-w-0',
-                  )}
-                >
-                  <DialogPrimitive.Title className="text-base leading-none font-semibold tracking-tight">
-                    {title}
-                  </DialogPrimitive.Title>
+          <DialogPrimitive.Content
+            className={cn(dialogContentVariants({ size }), className)}
+            onClick={(e) => e.stopPropagation()}
+            {...(customHeader || !description
+              ? { 'aria-describedby': undefined }
+              : {})}
+            onCloseAutoFocus={
+              preventCloseAutoFocus ? (e) => e.preventDefault() : undefined
+            }
+          >
+            {!hideClose && !customHeader && (
+              <div className="absolute top-4 right-4">
+                <DialogCloseButton />
+              </div>
+            )}
+            {customHeader ? (
+              <>
+                <VisuallyHidden>
+                  <DialogPrimitive.Title>{title}</DialogPrimitive.Title>
                   {description && (
-                    <DialogPrimitive.Description className="text-muted-foreground text-sm">
+                    <DialogPrimitive.Description>
                       {description}
                     </DialogPrimitive.Description>
                   )}
+                </VisuallyHidden>
+                {customHeader}
+              </>
+            ) : (
+              <div
+                className={cn(
+                  'flex flex-col space-y-2 text-left',
+                  !hideClose && 'pr-8',
+                  headerActions && 'flex-row items-start justify-between gap-4',
+                  headerClassName,
+                )}
+              >
+                <div
+                  className={cn(
+                    'flex items-center gap-3',
+                    headerActions &&
+                      'flex-col items-start space-y-2 gap-0 flex-1 min-w-0',
+                  )}
+                >
+                  {icon && <div className="shrink-0">{icon}</div>}
+                  <div
+                    className={cn(
+                      'flex flex-col space-y-2',
+                      headerActions && 'min-w-0',
+                    )}
+                  >
+                    <DialogPrimitive.Title className="text-base leading-none font-semibold tracking-tight">
+                      {title}
+                    </DialogPrimitive.Title>
+                    {description && (
+                      <DialogPrimitive.Description className="text-muted-foreground text-sm">
+                        {description}
+                      </DialogPrimitive.Description>
+                    )}
+                  </div>
                 </div>
+                {headerActions && (
+                  <div className="-mt-1 flex items-center gap-1">
+                    {headerActions}
+                  </div>
+                )}
               </div>
-              {headerActions && (
-                <div className="-mt-1 flex items-center gap-1">
-                  {headerActions}
-                </div>
-              )}
+            )}
+            <div className="-mx-2 -my-1 min-h-0 flex-1 overflow-y-auto px-2 py-1">
+              {children}
             </div>
-          )}
-          <div className="-mx-2 -my-1 min-h-0 flex-1 overflow-y-auto px-2 py-1">
-            {children}
-          </div>
-          {footer && (
-            <div
-              className={cn(
-                'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2 shrink-0',
-                footerClassName,
-              )}
-            >
-              {footer}
-            </div>
-          )}
-        </DialogPrimitive.Content>
+            {footer && (
+              <div
+                className={cn(
+                  'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2 shrink-0',
+                  footerClassName,
+                )}
+              >
+                {footer}
+              </div>
+            )}
+          </DialogPrimitive.Content>
+        </DialogDepthContext.Provider>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );

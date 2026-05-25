@@ -10,9 +10,9 @@
 
 import { Button } from '@tale/ui/button';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { memo, useMemo } from 'react';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { parseFollowUpItems } from '@/lib/utils/parse-follow-up-items';

@@ -7,6 +7,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { BrandingProvider } from '@/app/components/branding/branding-provider';
+import { OnlineGate } from '@/app/components/connectivity/online-gate';
+import { SwUpdateListener } from '@/app/components/connectivity/sw-update-listener';
 import { BackupCodesDialogProvider } from '@/app/features/settings/account/components/backup-codes-dialog-provider';
 import { authClient } from '@/lib/auth-client';
 import { i18n } from '@/lib/i18n/i18n';
@@ -37,7 +39,10 @@ createRoot(root).render(
             <LazyMotion features={domAnimation} strict>
               <BrandingProvider>
                 <BackupCodesDialogProvider>
-                  <RouterProvider router={router} />
+                  <OnlineGate>
+                    <RouterProvider router={router} />
+                  </OnlineGate>
+                  <SwUpdateListener />
                 </BackupCodesDialogProvider>
               </BrandingProvider>
             </LazyMotion>

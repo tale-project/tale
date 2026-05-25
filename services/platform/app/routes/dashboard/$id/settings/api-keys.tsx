@@ -3,6 +3,8 @@ import { createFileRoute } from '@tanstack/react-router';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { ApiKeysTable } from '@/app/features/settings/api-keys/components/api-keys-table';
 import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
+import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsListPageSkeleton } from '@/app/features/settings/components/settings-skeleton';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -17,17 +19,28 @@ export const Route = createFileRoute('/dashboard/$id/settings/api-keys')({
 function ApiKeysSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
+  const { t: tNav } = useT('navigation');
+  const { t: tSettings } = useT('settings');
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
 
   const { data: apiKeys } = useApiKeys(organizationId);
 
-  if (abilityLoading) return null;
+  if (abilityLoading) {
+    return <SettingsListPageSkeleton />;
+  }
 
   if (ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={t('apiKeys')} />;
   }
 
-  return <ApiKeysTable apiKeys={apiKeys} organizationId={organizationId} />;
+  return (
+    <SettingsPage
+      title={tNav('apiKeys')}
+      description={tSettings('menu.apiKeys.description')}
+    >
+      <ApiKeysTable apiKeys={apiKeys} organizationId={organizationId} />
+    </SettingsPage>
+  );
 }

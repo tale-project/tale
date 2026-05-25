@@ -1,6 +1,6 @@
 // Bun server: serves the prebuilt docs SPA from `./dist` and the
 // precompiled SEO + LLM artifact set from `./dist-seo` via
-// `createPrecompiledServer` (`@tale/seo`). All artifacts were
+// `createPrecompiledServer` (`@tale/ui/seo`). All artifacts were
 // materialised in the Docker builder stage — the runtime image has no
 // source markdown and never reads from `/docs`.
 //
@@ -10,11 +10,11 @@
 
 import { resolve } from 'node:path';
 
-import { createPrecompiledServer } from '@tale/seo';
+import { createPrecompiledServer } from '@tale/ui/seo';
 import {
   defaultReactServerSecurityHeaders,
   startReactServer,
-} from '@tale/webui/server';
+} from '@tale/ui/server';
 
 const BASE_PATH = (process.env.DOCS_BASE_URL ?? '/').replace(/\/+$/, '');
 

@@ -1,7 +1,6 @@
 import { LocaleSync } from '@tale/ui/i18n/sync';
+import { SkipLink } from '@tale/ui/skip-link';
 import { ThemeAssetSync, useTheme } from '@tale/ui/theme';
-import { SkipLink } from '@tale/webui/layout/skip-link';
-import { SearchDialog } from '@tale/webui/search/dialog';
 import {
   createRootRoute,
   Outlet,
@@ -13,6 +12,8 @@ import { DocsFooter } from '@/app/components/docs/docs-footer';
 import { DocsHeader } from '@/app/components/docs/docs-header';
 import { DocsSidebar } from '@/app/components/docs/docs-sidebar';
 import { ScrollToTop } from '@/app/components/docs/scroll-to-top';
+import { SwUpdateBanner } from '@/app/components/docs/sw-update-banner';
+import { SearchDialog } from '@/app/features/search/dialog';
 import { useT } from '@/lib/i18n/client';
 import {
   detectInitialLocale,
@@ -141,6 +142,7 @@ function RootLayout() {
       </div>
       <DocsFooter />
       <ScrollToTop />
+      <SwUpdateBanner />
       <SearchDialog
         locale={locale}
         open={searchOpen}

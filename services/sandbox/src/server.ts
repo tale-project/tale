@@ -393,7 +393,12 @@ async function main(): Promise<void> {
   // boot the spawner still starts (its /health probe will surface the
   // real problem), but a hot daemon means the first call will get
   // image-not-found if we never pull. Failure is logged inside ensureImage.
-  await ensureImage(cfg.runtimeImage);
+  // `SANDBOX_SKIP_IMAGE_WARMUP=1` skips the pull entirely — used by the
+  // local `bun run dev` script where the runtime image is built ad-hoc
+  // and never published to a registry, so the pull is guaranteed to 404.
+  if (process.env.SANDBOX_SKIP_IMAGE_WARMUP !== '1') {
+    await ensureImage(cfg.runtimeImage);
+  }
 
   const stopPeriodic = startPeriodicSweep(cfg);
 

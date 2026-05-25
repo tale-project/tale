@@ -1,15 +1,15 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { VStack } from '@tale/ui/layout';
 import { Accordion } from '@tale/ui/markdown/components/accordion';
 import { Spinner } from '@tale/ui/spinner';
+import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
 import { useAction } from 'convex/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 
-import { VStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { ReleaseBody } from '@/app/features/changelog/components/release-body';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { api } from '@/convex/_generated/api';

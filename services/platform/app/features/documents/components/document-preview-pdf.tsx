@@ -1,5 +1,6 @@
 'use client';
 
+import { HStack } from '@tale/ui/layout';
 import {
   ChevronUp,
   ChevronDown,
@@ -28,7 +29,6 @@ import React, {
   useState,
 } from 'react';
 
-import { HStack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
 
 import { PreviewPane } from './preview-pane';

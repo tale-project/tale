@@ -1,8 +1,8 @@
 'use client';
 
+import { ProgressBar } from '@tale/ui/progress-bar';
 import { useCallback, useState } from 'react';
 
-import { ProgressBar } from '@/app/components/ui/feedback/progress-bar';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 

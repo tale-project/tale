@@ -2,6 +2,9 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { HStack } from '@tale/ui/layout';
+import { Tabs } from '@tale/ui/tabs';
+import { Text } from '@tale/ui/text';
 import { AlertTriangle } from 'lucide-react';
 import {
   useCallback,
@@ -16,9 +19,6 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Tabs } from '@/app/components/ui/navigation/tabs';
-import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';

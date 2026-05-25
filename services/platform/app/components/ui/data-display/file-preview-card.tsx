@@ -1,9 +1,9 @@
 'use client';
 
 import { IconButton } from '@tale/ui/icon-button';
+import { Text } from '@tale/ui/text';
 import { XIcon } from 'lucide-react';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';

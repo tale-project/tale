@@ -1,22 +1,64 @@
 import { convexQuery } from '@convex-dev/react-query';
-import { createFileRoute, redirect } from '@tanstack/react-router';
+import { useIsMobile } from '@tale/ui/use-is-mobile';
+import {
+  createFileRoute,
+  useLoaderData,
+  useNavigate,
+} from '@tanstack/react-router';
+import { useEffect } from 'react';
 
+import { SettingsSectionList } from '@/app/features/settings/components/settings-section-list';
+import { useSettingsMenuGroups } from '@/app/features/settings/components/use-settings-menu-groups';
 import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
 import { getDefaultSettingsRoute } from '@/lib/permissions/get-default-settings-route';
 
 export const Route = createFileRoute('/dashboard/$id/settings/')({
   loader: async ({ context, params }) => {
-    const memberContext = (await context.queryClient
+    const memberContext = await context.queryClient
       .ensureQueryData(
         convexQuery(api.members.queries.getCurrentMemberContext, {
           organizationId: params.id,
         }),
       )
-      .catch(() => null)) as { role?: string } | null;
+      .catch((error: unknown) => {
+        console.warn('Failed to load member context for settings index', error);
+        return null;
+      });
 
-    throw redirect({
-      to: getDefaultSettingsRoute(memberContext?.role ?? null),
-      params: { id: params.id },
-    });
+    return { role: memberContext?.role ?? null };
   },
+  component: SettingsIndex,
 });
+
+/**
+ * Workspace settings overview (mobile). Shows the `workspace` + `governance`
+ * groups — the personal-settings counterpart lives at
+ * `/settings/personal`. Desktop bounces to the default permission-aware
+ * leaf so the user lands on something useful instead of an empty list.
+ */
+function SettingsIndex() {
+  const { id: organizationId } = Route.useParams();
+  const { role } = useLoaderData({ from: Route.id });
+  const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const { t: tNav } = useT('navigation');
+
+  useEffect(() => {
+    if (!isMobile) {
+      void navigate({
+        to: getDefaultSettingsRoute(role),
+        params: { id: organizationId },
+        replace: true,
+      });
+    }
+  }, [isMobile, navigate, organizationId, role]);
+
+  const groups = useSettingsMenuGroups(organizationId, 'workspace');
+
+  if (!isMobile) return null;
+
+  return (
+    <SettingsSectionList groups={groups} ariaLabel={tNav('orgSettings')} />
+  );
+}

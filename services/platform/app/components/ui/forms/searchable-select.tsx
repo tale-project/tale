@@ -1,6 +1,8 @@
 'use client';
 
 import * as PopoverPrimitive from '@radix-ui/react-popover';
+import { Description } from '@tale/ui/description';
+import { Text } from '@tale/ui/text';
 import { Check, ChevronDown, Circle, Search } from 'lucide-react';
 import {
   type KeyboardEvent,
@@ -13,10 +15,8 @@ import {
   useState,
 } from 'react';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';
 
-import { Description } from './description';
 import { Label } from './label';
 import { selectTriggerClasses, type SelectTriggerSize } from './select';
 

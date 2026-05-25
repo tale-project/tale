@@ -128,8 +128,13 @@ export function useSpeechToText({
     recognition.addEventListener('error', ((event: Event) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SpeechRecognition 'error' event is typed as SpeechRecognitionErrorEvent
       const e = event as unknown as SpeechRecognitionErrorEvent;
-      // "aborted" is expected when we call stop/abort
-      if (e.error !== 'aborted') {
+      // "aborted" is expected when we call stop/abort. "no-speech" is the
+      // recognition timing out on silence — surfacing it would lead the
+      // button to show a misleading "not supported" toast, when the API
+      // is working fine and simply heard nothing. The follow-up "end"
+      // event still flips isListening back to false, so the button
+      // returns to its idle state on its own.
+      if (e.error !== 'aborted' && e.error !== 'no-speech') {
         setError(e.error);
       }
       setIsListening(false);

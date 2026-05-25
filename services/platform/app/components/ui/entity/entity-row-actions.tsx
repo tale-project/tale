@@ -1,16 +1,16 @@
 'use client';
 
+import {
+  DropdownMenu,
+  type DropdownMenuItem,
+  type DropdownMenuGroup,
+} from '@tale/ui/dropdown-menu';
 import { IconButton } from '@tale/ui/icon-button';
 import type { LucideIcon } from 'lucide-react';
 import { MoreVertical } from 'lucide-react';
 import * as React from 'react';
 import { useState, useCallback, useMemo } from 'react';
 
-import {
-  DropdownMenu,
-  type DropdownMenuItem,
-  type DropdownMenuGroup,
-} from '@/app/components/ui/overlays/dropdown-menu';
 import { useT } from '@/lib/i18n/client';
 import { buildRecord } from '@/lib/utils/type-guards';
 

@@ -12,7 +12,9 @@ vi.mock('@/lib/i18n/client', () => ({
       const translations: Record<string, string> = {
         'dictation.start': 'Start dictation',
         'dictation.stop': 'Stop dictation',
+        'dictation.transcribing': 'Transcribing',
         'dictation.permissionDenied': 'Microphone access denied',
+        'dictation.transcriptionFailed': 'Could not transcribe',
       };
       return translations[key] ?? key;
     },
@@ -44,6 +46,24 @@ vi.mock('../hooks/use-speech-to-text', () => ({
   },
 }));
 
+// The MediaRecorder fallback hook is exercised in its own test; here we just
+// stub it so DictationButton renders predictably while we test the Web Speech
+// branch. `mockRecorderSupported` lets a test simulate a browser where
+// neither path is available.
+let mockRecorderSupported = false;
+let mockRecorderIsTranscribing = false;
+
+vi.mock('../hooks/use-media-recorder-dictation', () => ({
+  useMediaRecorderDictation: () => ({
+    isListening: false,
+    isTranscribing: mockRecorderIsTranscribing,
+    isSupported: mockRecorderSupported,
+    error: null,
+    startListening: vi.fn(),
+    stopListening: vi.fn(),
+  }),
+}));
+
 let mockOnTranscriptRef: ((t: string) => void) | null = null;
 
 afterEach(cleanup);
@@ -53,32 +73,48 @@ beforeEach(() => {
   mockIsListening = false;
   mockIsSupported = true;
   mockError = null;
+  mockRecorderSupported = false;
+  mockRecorderIsTranscribing = false;
   mockOnTranscriptRef = null;
 });
+
+const orgId = 'org_test';
 
 describe('DictationButton', () => {
   describe('rendering', () => {
     it('renders microphone button when supported', () => {
-      render(<DictationButton onTranscript={vi.fn()} />);
+      render(<DictationButton organizationId={orgId} onTranscript={vi.fn()} />);
       expect(screen.getByLabelText('Start dictation')).toBeInTheDocument();
     });
 
-    it('returns null when speech recognition is not supported', () => {
+    it('returns null when neither Web Speech nor MediaRecorder is available', () => {
       mockIsSupported = false;
-      const { container } = render(<DictationButton onTranscript={vi.fn()} />);
+      mockRecorderSupported = false;
+      const { container } = render(
+        <DictationButton organizationId={orgId} onTranscript={vi.fn()} />,
+      );
       expect(container.innerHTML).toBe('');
+    });
+
+    it('renders microphone button via MediaRecorder fallback when Web Speech is missing', () => {
+      mockIsSupported = false;
+      mockRecorderSupported = true;
+      render(<DictationButton organizationId={orgId} onTranscript={vi.fn()} />);
+      expect(screen.getByLabelText('Start dictation')).toBeInTheDocument();
     });
 
     it('shows stop label when listening', () => {
       mockIsListening = true;
-      render(<DictationButton onTranscript={vi.fn()} />);
+      render(<DictationButton organizationId={orgId} onTranscript={vi.fn()} />);
       expect(screen.getByLabelText('Stop dictation')).toBeInTheDocument();
     });
   });
 
   describe('interaction', () => {
     it('calls startListening on click when not listening', async () => {
-      const { user } = render(<DictationButton onTranscript={vi.fn()} />);
+      const { user } = render(
+        <DictationButton organizationId={orgId} onTranscript={vi.fn()} />,
+      );
 
       await user.click(screen.getByLabelText('Start dictation'));
 
@@ -87,7 +123,9 @@ describe('DictationButton', () => {
 
     it('calls stopListening on click when listening', async () => {
       mockIsListening = true;
-      const { user } = render(<DictationButton onTranscript={vi.fn()} />);
+      const { user } = render(
+        <DictationButton organizationId={orgId} onTranscript={vi.fn()} />,
+      );
 
       await user.click(screen.getByLabelText('Stop dictation'));
 
@@ -96,7 +134,11 @@ describe('DictationButton', () => {
 
     it('does not call startListening when disabled', async () => {
       const { user } = render(
-        <DictationButton onTranscript={vi.fn()} disabled />,
+        <DictationButton
+          organizationId={orgId}
+          onTranscript={vi.fn()}
+          disabled
+        />,
       );
 
       const button = screen.getByLabelText('Start dictation');
@@ -107,7 +149,9 @@ describe('DictationButton', () => {
 
     it('forwards transcript to onTranscript prop', () => {
       const onTranscript = vi.fn();
-      render(<DictationButton onTranscript={onTranscript} />);
+      render(
+        <DictationButton organizationId={orgId} onTranscript={onTranscript} />,
+      );
 
       mockOnTranscriptRef?.('hello world');
 
@@ -117,7 +161,7 @@ describe('DictationButton', () => {
 
   describe('aria-pressed', () => {
     it('sets aria-pressed to false when not listening', () => {
-      render(<DictationButton onTranscript={vi.fn()} />);
+      render(<DictationButton organizationId={orgId} onTranscript={vi.fn()} />);
       expect(screen.getByLabelText('Start dictation')).toHaveAttribute(
         'aria-pressed',
         'false',
@@ -126,7 +170,7 @@ describe('DictationButton', () => {
 
     it('sets aria-pressed to true when listening', () => {
       mockIsListening = true;
-      render(<DictationButton onTranscript={vi.fn()} />);
+      render(<DictationButton organizationId={orgId} onTranscript={vi.fn()} />);
       expect(screen.getByLabelText('Stop dictation')).toHaveAttribute(
         'aria-pressed',
         'true',
@@ -136,20 +180,38 @@ describe('DictationButton', () => {
 
   describe('accessibility', () => {
     it('passes axe audit', async () => {
-      const { container } = render(<DictationButton onTranscript={vi.fn()} />);
+      const { container } = render(
+        <DictationButton organizationId={orgId} onTranscript={vi.fn()} />,
+      );
       await checkAccessibility(container);
     });
 
     it('passes axe audit when disabled', async () => {
       const { container } = render(
-        <DictationButton onTranscript={vi.fn()} disabled />,
+        <DictationButton
+          organizationId={orgId}
+          onTranscript={vi.fn()}
+          disabled
+        />,
       );
       await checkAccessibility(container);
     });
 
     it('passes axe audit when listening', async () => {
       mockIsListening = true;
-      const { container } = render(<DictationButton onTranscript={vi.fn()} />);
+      const { container } = render(
+        <DictationButton organizationId={orgId} onTranscript={vi.fn()} />,
+      );
+      await checkAccessibility(container);
+    });
+
+    it('passes axe audit when transcribing via the MediaRecorder fallback', async () => {
+      mockIsSupported = false;
+      mockRecorderSupported = true;
+      mockRecorderIsTranscribing = true;
+      const { container } = render(
+        <DictationButton organizationId={orgId} onTranscript={vi.fn()} />,
+      );
       await checkAccessibility(container);
     });
   });

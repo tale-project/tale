@@ -1,10 +1,10 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { useMemo } from 'react';
 
 import { Select } from '@/app/components/ui/forms/select';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';

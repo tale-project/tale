@@ -1,63 +1,66 @@
-import {
-  ALL_LOCALES,
-  isUrlPrefixedLocale,
-  localizedPath,
-  REGIONAL_LOCALES,
-  SUPPORTED_LOCALES,
-  URL_PREFIXED_LOCALES,
-  type Locale,
-  type RegionalLocale,
-  type SupportedLocale,
-  type UrlPrefixedLocale,
-} from '@tale/i18n/locales';
+/**
+ * Cross-service locale model. Both `services/web` and `services/docs` render in
+ * the same three base locales (English at the canonical path, German and
+ * French at `/de/...` / `/fr/...`) plus zero or more regional variants
+ * resolved client-side (e.g. `de-CH`). Regional variants never appear in
+ * URLs — they only override message bundles when the browser advertises a
+ * matching region. Add a new variant by listing it in `REGIONAL_LOCALES`
+ * and dropping a `<locale>.json` file in each app's `messages/`.
+ */
 
-import { defaultLocale } from './config';
+const SUPPORTED_LOCALES = ['en', 'de', 'fr'] as const;
+export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
-const REGIONAL_OVERRIDES: ReadonlySet<RegionalLocale> = new Set(
-  REGIONAL_LOCALES,
-);
+const URL_PREFIXED_LOCALES = ['de', 'fr'] as const;
+export type UrlPrefixedLocale = (typeof URL_PREFIXED_LOCALES)[number];
 
-function isRegionalLocale(value: string): value is RegionalLocale {
-  return (REGIONAL_OVERRIDES as ReadonlySet<string>).has(value);
+const URL_PREFIXED_SET: ReadonlySet<string> = new Set(URL_PREFIXED_LOCALES);
+
+export function isUrlPrefixedLocale(value: string): value is UrlPrefixedLocale {
+  return URL_PREFIXED_SET.has(value);
 }
 
-function getBrowserRegion(): string | null {
-  if (typeof navigator === 'undefined') return null;
-  const tag = navigator.language;
-  if (typeof tag !== 'string') return null;
-  const dash = tag.indexOf('-');
-  return dash >= 0 ? tag.slice(dash + 1).toUpperCase() : null;
+export const REGIONAL_LOCALES = ['de-CH'] as const;
+export type RegionalLocale = (typeof REGIONAL_LOCALES)[number];
+
+export const ALL_LOCALES = [...SUPPORTED_LOCALES, ...REGIONAL_LOCALES] as const;
+export type Locale = (typeof ALL_LOCALES)[number];
+
+/** All locales that may legitimately appear as a `tale_locale` cookie value
+ *  on the marketing/docs sites. URL-prefixed locales plus the canonical
+ *  default ('en'). Anything else is ignored and re-detected. */
+const COOKIE_LOCALES_SET: ReadonlySet<string> = new Set<string>([
+  'en',
+  ...URL_PREFIXED_LOCALES,
+]);
+
+export function isCookieLocale(value: string): value is SupportedLocale {
+  return COOKIE_LOCALES_SET.has(value);
 }
 
-export function resolveRegionalLocale(
-  base: SupportedLocale,
-): SupportedLocale | RegionalLocale {
-  const region = getBrowserRegion();
-  if (!region) return base;
-  const candidate = `${base}-${region}`;
-  return isRegionalLocale(candidate) ? candidate : base;
-}
-
-function localeFromPathname(pathname: string): SupportedLocale {
-  const segment = pathname.split('/').find((s) => s.length > 0);
-  if (segment !== undefined && isUrlPrefixedLocale(segment)) {
-    return segment;
+/**
+ * Builds the rendered URL for a canonical (English-default) path under the
+ * given locale. English keeps the canonical path verbatim; URL-prefixed
+ * locales (`de`, `fr`) prepend the language segment. Used by client-side
+ * link helpers to render the right URL without hardcoding the prefix rule
+ * at every callsite.
+ *
+ * @example
+ * localizedPath('en', '/pricing')  // '/pricing'
+ * localizedPath('de', '/pricing')  // '/de/pricing'
+ * localizedPath('fr', '/')         // '/fr'
+ */
+export function localizedPath(
+  locale: SupportedLocale,
+  pathname: string,
+): string {
+  // Normalize root first so callers passing `''` get a valid `/` for English
+  // and `/de` / `/fr` for the prefixed locales (instead of an empty string).
+  if (pathname === '/' || pathname === '') {
+    return locale === 'en' ? '/' : `/${locale}`;
   }
-  return defaultLocale;
+  if (locale === 'en') return pathname;
+  return `/${locale}${pathname}`;
 }
 
-export function detectInitialLocale(pathname?: string): SupportedLocale {
-  if (pathname !== undefined) return localeFromPathname(pathname);
-  if (typeof window === 'undefined') return defaultLocale;
-  return localeFromPathname(window.location.pathname);
-}
-
-export {
-  ALL_LOCALES,
-  isUrlPrefixedLocale,
-  localizedPath,
-  REGIONAL_LOCALES,
-  SUPPORTED_LOCALES,
-  URL_PREFIXED_LOCALES,
-};
-export type { Locale, RegionalLocale, SupportedLocale, UrlPrefixedLocale };
+export { SUPPORTED_LOCALES, URL_PREFIXED_LOCALES };

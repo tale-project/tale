@@ -1,6 +1,7 @@
 'use client';
 
 import * as SelectPrimitive from '@radix-ui/react-select';
+import { Description } from '@tale/ui/description';
 import { cva } from 'class-variance-authority';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ComponentPropsWithoutRef, ComponentRef, ReactNode } from 'react';
@@ -8,7 +9,6 @@ import { forwardRef, useId } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
-import { Description } from './description';
 import { Label } from './label';
 
 const selectContentVariants = cva(
@@ -50,7 +50,7 @@ export function selectTriggerClasses({
   error?: boolean;
 } = {}) {
   return cn(
-    'flex w-full items-center justify-between whitespace-nowrap rounded-lg border border-transparent bg-input px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 ring-1 ring-border focus-visible:ring-primary transition-[border-color,box-shadow] duration-150',
+    'flex w-full items-center justify-between whitespace-nowrap rounded-lg border border-transparent bg-input px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 ring-1 ring-border focus-visible:ring-primary transition-[border-color,box-shadow] duration-150',
     error && 'border-destructive focus-visible:ring-destructive',
     size === 'default' && 'h-10',
     size === 'sm' && 'h-8',

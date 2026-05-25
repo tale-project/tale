@@ -1,18 +1,18 @@
 // Bun server for the Tale marketing site. Serves the prebuilt SPA from
 // `./dist` and the precompiled SEO + LLM artifacts from `./dist-seo` via
-// `createPrecompiledServer` (`@tale/seo`). Marketing routes were
+// `createPrecompiledServer` (`@tale/ui/seo`). Marketing routes were
 // SSR-rendered and converted to markdown in the Docker builder stage —
 // no SSR happens at request time. Plus a Discord-webhook proxy for form
 // submissions. The boilerplate (locale negotiation, static serving,
-// `/api/health`, security headers) lives in `@tale/webui/server`.
+// `/api/health`, security headers) lives in `@tale/ui/server`.
 
 import { resolve } from 'node:path';
 
-import { createPrecompiledServer } from '@tale/seo';
+import { createPrecompiledServer } from '@tale/ui/seo';
 import {
   defaultReactServerSecurityHeaders,
   startReactServer,
-} from '@tale/webui/server';
+} from '@tale/ui/server';
 
 import { buildDiscordPayload } from './lib/forms/discord-embeds';
 import { checkRateLimit } from './lib/forms/rate-limit';

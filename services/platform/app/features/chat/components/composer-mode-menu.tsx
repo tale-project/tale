@@ -1,15 +1,15 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { useNavigate } from '@tanstack/react-router';
-import { Check, Paperclip, Plus, Swords } from 'lucide-react';
-import { type ReactNode, useCallback, useMemo } from 'react';
-
 import {
   DropdownMenu,
   type DropdownMenuGroup,
   type DropdownMenuItem,
-} from '@/app/components/ui/overlays/dropdown-menu';
+} from '@tale/ui/dropdown-menu';
+import { useNavigate } from '@tanstack/react-router';
+import { Check, Paperclip, Plus, Swords } from 'lucide-react';
+import { type ReactNode, useCallback, useMemo } from 'react';
+
 import { useT } from '@/lib/i18n/client';
 
 import { useChatLayout } from '../context/chat-layout-context';

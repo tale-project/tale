@@ -2,11 +2,11 @@
 
 import { Button } from '@tale/ui/button';
 import { Spinner } from '@tale/ui/spinner';
+import { Text } from '@tale/ui/text';
 import { ArrowRightLeft } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Text } from '@/app/components/ui/typography/text';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';

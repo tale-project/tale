@@ -1,11 +1,11 @@
 'use client';
 
+import { Description } from '@tale/ui/description';
+import { HStack } from '@tale/ui/layout';
 import { Check, Copy } from 'lucide-react';
 import * as React from 'react';
 
-import { Description } from '@/app/components/ui/forms/description';
 import { Label } from '@/app/components/ui/forms/label';
-import { HStack } from '@/app/components/ui/layout/layout';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

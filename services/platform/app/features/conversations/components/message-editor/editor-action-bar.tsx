@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { HStack } from '@tale/ui/layout';
 import {
   LoaderCircleIcon,
   PaperclipIcon,
@@ -9,7 +10,6 @@ import {
 } from 'lucide-react';
 import { memo, useRef } from 'react';
 
-import { HStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
 

@@ -153,8 +153,8 @@ export const Truncated: Story = {
     children: 'This is a very long badge text that will be truncated',
   },
   render: (args) => (
-    <div className="w-32">
-      <Badge {...args} />
+    <div className="flex w-32">
+      <Badge {...args} className="max-w-full" />
     </div>
   ),
   parameters: {

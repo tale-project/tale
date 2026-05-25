@@ -1,10 +1,10 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Text } from '@tale/ui/text';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 

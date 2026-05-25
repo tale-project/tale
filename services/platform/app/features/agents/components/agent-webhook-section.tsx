@@ -1,19 +1,19 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { CodeBlock } from '@tale/ui/code-block';
+import { PageSection } from '@tale/ui/page-section';
+import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Check, Code, Copy, Plus, Trash2, Webhook } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { CodeBlock } from '@/app/components/ui/data-display/code-block';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Alert } from '@/app/components/ui/feedback/alert';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';

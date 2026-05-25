@@ -1,5 +1,7 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import {
   CircleDotIcon,
@@ -16,8 +18,6 @@ import {
   useSyncExternalStore,
 } from 'react';
 
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useActiveHoldTargetIds } from '@/app/features/settings/governance/hooks/queries';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';

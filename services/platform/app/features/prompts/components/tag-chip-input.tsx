@@ -1,10 +1,10 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { X } from 'lucide-react';
 import { useCallback, useId, useState, type KeyboardEvent } from 'react';
 
 import { Input } from '@/app/components/ui/forms/input';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

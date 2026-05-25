@@ -1,12 +1,12 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Heading } from '@tale/ui/heading';
+import { HStack } from '@tale/ui/layout';
 import { Sparkles, X } from 'lucide-react';
 import { useRef, useEffect } from 'react';
 
 import { PanelHeader } from '@/app/components/layout/panel-header';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Heading } from '@/app/components/ui/typography/heading';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

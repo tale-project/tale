@@ -31,8 +31,9 @@ RUN apk add --no-cache tinyproxy gettext ca-certificates iptables curl && \
     chown -R nobody:nobody /var/log/tinyproxy
 
 COPY services/sandbox-egress/tinyproxy.conf.template /etc/tinyproxy/tinyproxy.conf.template
+COPY services/sandbox-egress/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-egress/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh /entrypoint.sh
 
 EXPOSE 3128
 
@@ -43,4 +44,4 @@ EXPOSE 3128
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
   CMD nc -z 127.0.0.1 3128 || exit 1
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

@@ -164,9 +164,10 @@ describe('AgentSelector', () => {
     // actual label height to avoid vertical jitter on resolve.
     const skeleton = within(trigger).getByRole('status');
     expect(skeleton).toHaveClass('h-3.5', 'w-20');
-    // Trigger has a min-width pin so loading→loaded never reflows for the
-    // common label range.
-    expect(trigger).toHaveClass('min-w-40');
+    // Trigger has a min-width pin (from `sm` up) so loading→loaded never
+    // reflows for the common label range. Mobile drops the pin so the
+    // composer toolbar fits — see the source comment in agent-selector.tsx.
+    expect(trigger).toHaveClass('sm:min-w-40');
   });
 
   it('shows "Add agent" button when user has write permission', async () => {

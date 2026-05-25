@@ -1,5 +1,6 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { useMemo } from 'react';
 import {
   Bar,
@@ -12,7 +13,6 @@ import {
   YAxis,
 } from 'recharts';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 

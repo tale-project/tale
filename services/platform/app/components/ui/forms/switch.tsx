@@ -1,6 +1,7 @@
 'use client';
 
 import * as SwitchPrimitive from '@radix-ui/react-switch';
+import { Description } from '@tale/ui/description';
 import {
   forwardRef,
   ComponentRef,
@@ -11,7 +12,6 @@ import {
 
 import { cn } from '@/lib/utils/cn';
 
-import { Description } from './description';
 import { Label } from './label';
 
 interface SwitchProps extends ComponentPropsWithoutRef<

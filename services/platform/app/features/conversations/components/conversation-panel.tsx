@@ -1,7 +1,10 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { EmptyState } from '@tale/ui/empty-state';
+import { Center, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import {
   AlertTriangleIcon,
   ArchiveIcon,
@@ -14,9 +17,6 @@ import {
 import { useEffect, useRef, useState } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
-import { EmptyState } from '@/app/components/ui/feedback/empty-state';
-import { Center, Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';

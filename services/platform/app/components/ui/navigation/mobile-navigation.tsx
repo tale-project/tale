@@ -1,15 +1,14 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Text } from '@tale/ui/text';
 import { Link, useLocation } from '@tanstack/react-router';
 import { Menu } from 'lucide-react';
 import { useState } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
-import { OrganizationButton } from '@/app/components/organization-button';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Text } from '@/app/components/ui/typography/text';
 import { UserButton } from '@/app/components/user-button';
 import { useAbility } from '@/app/hooks/use-ability';
 import {
@@ -162,9 +161,11 @@ export function MobileNavigation({ organizationId }: MobileNavigationProps) {
               ))}
             </NavigationMenuList>
           </div>
-          <div className="border-border flex flex-shrink-0 flex-col gap-1 border-t px-4 py-3">
-            <UserButton label={tNav('account')} />
-            <OrganizationButton label={tNav('orgSwitcher.label')} />
+          <div className="border-border flex shrink-0 flex-col gap-1 border-t px-4 py-3">
+            <UserButton
+              label={tNav('account')}
+              onNavigate={() => setIsOpen(false)}
+            />
           </div>
         </NavigationMenu>
       </Sheet>

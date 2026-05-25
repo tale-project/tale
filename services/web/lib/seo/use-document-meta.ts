@@ -1,4 +1,4 @@
-import { useDocumentMeta as useDocumentMetaBase } from '@tale/webui/seo/document-meta';
+import { useDocumentMeta as useDocumentMetaBase } from '@tale/ui/seo/document-meta';
 
 interface DocumentMeta {
   title: string;

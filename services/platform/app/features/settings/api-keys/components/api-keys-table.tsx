@@ -1,10 +1,10 @@
 'use client';
 
 import { buttonVariants } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { BookOpen, Key } from 'lucide-react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 

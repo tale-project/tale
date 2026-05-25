@@ -1,6 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { HStack, VStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { X, ArrowUp, CircleStop, Eye, Loader } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
@@ -17,9 +19,7 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Text } from '@/app/components/ui/typography/text';
 import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -402,7 +402,7 @@ export function ChatInput({
           style={{ display: 'none' }}
         />
 
-        <div className="bg-background border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-2xl border px-5 pt-4">
+        <div className="bg-background border-border sm:border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-xl border px-3 pt-3 sm:rounded-2xl sm:px-5 sm:pt-4">
           {videoLinkJobs.length > 0 && (
             <HStack gap={1} wrap className="mb-2">
               {videoLinkJobs.map((job) => (
@@ -732,7 +732,7 @@ export function ChatInput({
               onCompositionEnd={() => {
                 isComposingRef.current = false;
               }}
-              className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="text-foreground placeholder:text-muted-foreground relative min-h-[72px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[100px]"
               disabled={inputDisabled}
               placeholder=""
               aria-labelledby={textareaLabelId}
@@ -741,13 +741,17 @@ export function ChatInput({
               <Text
                 as="div"
                 variant="muted"
-                className="pointer-events-none absolute top-0 left-0 flex items-center gap-1"
+                className="pointer-events-none absolute top-0 right-0 left-0 flex items-center gap-1"
               >
-                {defaultPlaceholder}
-                <div className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
-                  <EnterKeyIcon className="size-3" />
-                </div>
-                {tDialogs('toSend')}
+                <span className="truncate">{defaultPlaceholder}</span>
+                {/* The Enter-to-send hint is irrelevant on touch keyboards
+                    and only crowds the placeholder on narrow viewports. */}
+                <span className="hidden shrink-0 items-center gap-1 sm:inline-flex">
+                  <span className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
+                    <EnterKeyIcon className="size-3" />
+                  </span>
+                  {tDialogs('toSend')}
+                </span>
               </Text>
             )}
             {disabled && (
@@ -765,8 +769,16 @@ export function ChatInput({
             )}
           </div>
 
-          <HStack justify="between" align="center" className="flex-1 pb-3">
-            <HStack gap={0} align="center">
+          <HStack
+            justify="between"
+            align="center"
+            className="flex-1 gap-2 pb-3 sm:gap-4"
+          >
+            <HStack
+              gap={0}
+              align="center"
+              className="scrollbar-hide min-w-0 flex-1 overflow-x-auto"
+            >
               <ComposerModeMenu
                 organizationId={organizationId}
                 onAttachFile={() => fileInputRef.current?.click()}
@@ -791,8 +803,9 @@ export function ChatInput({
               )}
               <ComposerCapabilityPills organizationId={organizationId} />
             </HStack>
-            <HStack gap={1} align="center">
+            <HStack gap={1} align="center" className="shrink-0">
               <DictationButton
+                organizationId={organizationId}
                 disabled={inputDisabled}
                 lang={speechLang}
                 onTranscript={handleTranscript}

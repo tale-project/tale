@@ -1,11 +1,11 @@
 'use client';
 
+import { Center } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ZoomPanViewer } from '@/app/components/ui/data-display/zoom-pan-viewer';
-import { Center } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import { PreviewPane } from './preview-pane';

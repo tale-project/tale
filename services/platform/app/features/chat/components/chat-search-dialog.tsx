@@ -1,12 +1,12 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { LoaderCircleIcon, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Input } from '@/app/components/ui/forms/input';
-import { Text } from '@/app/components/ui/typography/text';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';

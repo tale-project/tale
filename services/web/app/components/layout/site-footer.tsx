@@ -2,7 +2,7 @@ import { TaleLogo } from '@tale/ui/logo';
 import {
   type FooterColumn,
   SiteFooter as SiteFooterShell,
-} from '@tale/webui/layout/site-footer';
+} from '@tale/ui/site-footer';
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 

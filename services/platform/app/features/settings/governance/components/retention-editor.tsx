@@ -1,12 +1,12 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { PageSection } from '@tale/ui/page-section';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { Pencil } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Text } from '@/app/components/ui/typography/text';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import {

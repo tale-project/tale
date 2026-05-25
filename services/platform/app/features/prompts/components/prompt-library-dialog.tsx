@@ -1,15 +1,15 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { HStack } from '@tale/ui/layout';
+import { Tabs } from '@tale/ui/tabs';
+import { Text } from '@tale/ui/text';
 import { BookOpen, History, Plus, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Input } from '@/app/components/ui/forms/input';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Tabs } from '@/app/components/ui/navigation/tabs';
-import { Text } from '@/app/components/ui/typography/text';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useDebounce } from '@/app/hooks/use-debounce';

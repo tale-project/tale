@@ -7,7 +7,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseFrontmatter } from '@tale/webui/utils/parse-frontmatter';
+import { parseFrontmatter } from '@tale/ui/parse-frontmatter';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const CONTENT_ROOT = resolve(SCRIPT_DIR, '..', '..', '..', 'docs');

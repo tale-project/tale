@@ -1,17 +1,17 @@
 import { Button } from '@tale/ui/button';
+import { CodeBlock } from '@tale/ui/code-block';
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { HStack } from '@tale/ui/layout';
+import { PageSection } from '@tale/ui/page-section';
 import { createFileRoute } from '@tanstack/react-router';
 import { BookOpen } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { CodeBlock } from '@/app/components/ui/data-display/code-block';
 import { ModelSelector } from '@/app/components/ui/forms/model-selector';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { LocaleTabs } from '@/app/components/ui/i18n/locale-tabs';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useTranslateAgentFields } from '@/app/features/agents/hooks/mutations';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';

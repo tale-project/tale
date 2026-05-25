@@ -2,6 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
+import { Tabs } from '@tale/ui/tabs';
 import { useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import { useMemo, useState, useCallback } from 'react';
@@ -11,8 +13,6 @@ import { z } from 'zod';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';

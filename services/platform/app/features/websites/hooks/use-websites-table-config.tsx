@@ -1,11 +1,11 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { HStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { Globe, Loader } from 'lucide-react';
 
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
 import { WebsiteRowActions } from '../components/website-row-actions';

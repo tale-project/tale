@@ -1,11 +1,11 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { Clock, AlertCircle, Paperclip, Download, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { EmailPreview } from '@/app/components/ui/data-display/email-preview';
 import { Image } from '@/app/components/ui/data-display/image';
-import { Text } from '@/app/components/ui/typography/text';
 import {
   formatFileSize,
   middleEllipsis,

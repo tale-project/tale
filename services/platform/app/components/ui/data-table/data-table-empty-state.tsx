@@ -1,7 +1,6 @@
+import { VStack, Center } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import type { ComponentType, ReactNode } from 'react';
-
-import { VStack, Center } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 
 export interface DataTableEmptyStateProps {
   /** Icon to display */

@@ -3,6 +3,17 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// jsdom doesn't ship ResizeObserver; `MobileBottomNav` uses it to publish the
+// nav's measured height as a CSS var. Stub before the layout (and its mobile
+// subtree) mount.
+class MockResizeObserver {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+}
+globalThis.ResizeObserver =
+  MockResizeObserver as unknown as typeof ResizeObserver;
+
 // --- Mocks ---
 
 const mockUseParams = vi.fn(() => ({ id: 'test-org-id' }));
@@ -100,6 +111,7 @@ vi.mock('@/app/components/branding/branding-provider', () => ({
   BrandingProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
+  useBrandingContext: () => ({ accentColor: undefined, logoUrl: undefined }),
 }));
 
 vi.mock('@/app/components/layout/adaptive-header', () => ({

@@ -151,7 +151,7 @@ export const DotOnly: Story = {
 
 export const InContext: Story = {
   render: () => (
-    <div className="space-y-4">
+    <div className="w-full max-w-sm space-y-4">
       <div className="flex items-center justify-between rounded-lg border p-3">
         <span className="font-medium">API server</span>
         <StatusIndicator variant="success" size="sm">

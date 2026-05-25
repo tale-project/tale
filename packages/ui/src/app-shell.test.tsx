@@ -1,9 +1,9 @@
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { waitFor } from '@testing-library/react';
 import i18next from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useLocale } from '@/i18n/locale-provider';
 import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 

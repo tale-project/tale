@@ -1,6 +1,6 @@
 import { Button } from '@tale/ui/button';
 import { TaleLogo } from '@tale/ui/logo';
-import { SiteHeader as SiteHeaderShell } from '@tale/webui/layout/site-header';
+import { SiteHeader as SiteHeaderShell } from '@tale/ui/site-header';
 
 import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { DOCS_URL } from '@/lib/docs-url';

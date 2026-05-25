@@ -1,8 +1,8 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { useTranslation } from 'react-i18next';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 
@@ -43,13 +43,15 @@ export function ArenaSummary({ byVerdict, total }: ArenaSummaryProps) {
       <Text as="h3" className="text-foreground text-base font-semibold">
         {tAnalytics('feedback.arena.title')}
       </Text>
-      <div className="border-border grid grid-cols-3 overflow-hidden rounded-lg border">
+      <div className="border-border grid grid-cols-1 overflow-hidden rounded-lg border sm:grid-cols-3">
         {cells.map((cell, idx) => (
           <div
             key={cell.key}
             className={
               'flex flex-col gap-1 px-5 py-6 ' +
-              (idx === cells.length - 1 ? '' : 'border-border border-r')
+              (idx === cells.length - 1
+                ? ''
+                : 'border-border border-b sm:border-r sm:border-b-0')
             }
           >
             <Text className="text-muted-foreground text-sm">

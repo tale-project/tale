@@ -1,11 +1,11 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Heading } from '@tale/ui/heading';
 import { Position } from '@xyflow/react';
 import { Repeat } from 'lucide-react';
 import React from 'react';
 
-import { Heading } from '@/app/components/ui/typography/heading';
 import { useT } from '@/lib/i18n/client';
 
 import { InvisibleHandle } from './invisible-handle';

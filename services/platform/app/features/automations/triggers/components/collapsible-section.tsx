@@ -1,10 +1,10 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Heading } from '@tale/ui/heading';
 import { ChevronRight, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
-import { Heading } from '@/app/components/ui/typography/heading';
 import { cn } from '@/lib/utils/cn';
 
 interface CollapsibleSectionProps {

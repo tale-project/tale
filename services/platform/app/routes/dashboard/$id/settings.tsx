@@ -1,4 +1,10 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router';
+import {
+  Link,
+  Outlet,
+  createFileRoute,
+  useLocation,
+} from '@tanstack/react-router';
+import { ChevronLeft } from 'lucide-react';
 
 import {
   AdaptiveHeaderRoot,
@@ -19,7 +25,29 @@ export const Route = createFileRoute('/dashboard/$id/settings')({
 
 function SettingsLayout() {
   const { id: organizationId } = Route.useParams();
-  const { t } = useT('settings');
+  const { t: tNav } = useT('navigation');
+  const { t: tCommon } = useT('common');
+  const location = useLocation();
+
+  const settingsRoot = `/dashboard/${organizationId}/settings`;
+  const personalRoot = `${settingsRoot}/personal`;
+  const isAtIndex =
+    location.pathname === settingsRoot || location.pathname === personalRoot;
+  // Show the mobile back-to-settings link only when we're at a direct child of
+  // `/settings` (e.g. `/settings/account`). Deeper routes — `governance/<sub>`,
+  // `integrations/<sub>` — own their own intra-section back link and would
+  // otherwise stack two "Back" bars on top of each other.
+  const settingsPath = location.pathname.startsWith(`${settingsRoot}/`)
+    ? location.pathname.slice(settingsRoot.length + 1)
+    : '';
+  const isDirectChild =
+    settingsPath !== '' && !settingsPath.replace(/\/$/, '').includes('/');
+  const isUserScope =
+    location.pathname.includes('/settings/account') ||
+    location.pathname.includes('/settings/personalization') ||
+    location.pathname.endsWith('/settings/personal') ||
+    location.pathname.includes('/settings/personal/');
+  const headerTitle = isUserScope ? tNav('userSettings') : tNav('orgSettings');
 
   return (
     <PageLayout
@@ -27,12 +55,28 @@ function SettingsLayout() {
       header={
         <>
           <AdaptiveHeaderRoot standalone={false}>
-            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+            <AdaptiveHeaderTitle>{headerTitle}</AdaptiveHeaderTitle>
           </AdaptiveHeaderRoot>
-          <SettingsNavigation organizationId={organizationId} />
+          <div className="hidden md:block">
+            <SettingsNavigation organizationId={organizationId} />
+          </div>
         </>
       }
     >
+      {!isAtIndex && isDirectChild && (
+        <Link
+          to={
+            isUserScope
+              ? '/dashboard/$id/settings/personal'
+              : '/dashboard/$id/settings'
+          }
+          params={{ id: organizationId }}
+          className="text-muted-foreground hover:text-foreground border-border flex items-center gap-1.5 border-b px-4 py-2.5 text-sm font-medium md:hidden"
+        >
+          <ChevronLeft aria-hidden="true" className="size-4" />
+          {tCommon('actions.back')}
+        </Link>
+      )}
       <ContentArea className="min-h-0 flex-1" variant="page" gap={6}>
         <Outlet />
       </ContentArea>

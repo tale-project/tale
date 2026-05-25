@@ -1,9 +1,9 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { Info } from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Text } from '@/app/components/ui/typography/text';
 
 interface ChartCardHeaderProps {
   title: string;

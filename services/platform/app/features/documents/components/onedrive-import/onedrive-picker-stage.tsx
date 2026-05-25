@@ -1,15 +1,15 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack, HStack } from '@tale/ui/layout';
+import { SectionHeader } from '@tale/ui/section-header';
+import { Tabs } from '@tale/ui/tabs';
+import { Text } from '@tale/ui/text';
 import { Home } from 'lucide-react';
 
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { SectionHeader } from '@/app/components/ui/layout/section-header';
-import { Tabs } from '@/app/components/ui/navigation/tabs';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import { OneDriveFileTable } from './onedrive-file-table';

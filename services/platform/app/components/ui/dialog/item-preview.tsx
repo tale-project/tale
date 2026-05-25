@@ -1,9 +1,9 @@
 'use client';
 
-import { cn } from '@/lib/utils/cn';
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 
-import { Stack } from '../layout/layout';
-import { Text } from '../typography/text';
+import { cn } from '@/lib/utils/cn';
 
 export interface ItemPreviewProps {
   /** Primary text (e.g., item name) */

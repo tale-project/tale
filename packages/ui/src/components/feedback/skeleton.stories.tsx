@@ -145,13 +145,13 @@ export const CardSkeleton: Story = {
 
 export const TableRowSkeleton: Story = {
   render: () => (
-    <div className="w-full max-w-lg space-y-3">
+    <div className="w-full max-w-lg space-y-3 overflow-x-auto">
       {[1, 2, 3].map((i) => (
         <div key={i} className="flex items-center gap-4 p-2">
-          <Skeleton className="h-4 w-16" />
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-16 shrink-0" />
+          <Skeleton className="h-4 w-32 shrink-0" />
+          <Skeleton className="h-4 w-24 shrink-0" />
+          <Skeleton className="h-4 w-20 shrink-0" />
         </div>
       ))}
     </div>

@@ -1,1 +1,1 @@
-export { SiteContainer } from '@tale/webui/layout/site-container';
+export { SiteContainer } from '@tale/ui/site-container';

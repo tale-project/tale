@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { HStack } from '@tale/ui/layout';
 import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
@@ -9,8 +10,7 @@ import { useBrandingContext } from '@/app/components/branding/branding-provider'
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
+import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -209,37 +209,18 @@ export function BrandingForm({
             wrapperClassName="w-full"
           />
 
-          <div className="flex flex-col gap-2">
-            <label
-              htmlFor="branding-text-logo"
-              className="text-foreground text-sm leading-5 font-medium"
-            >
-              {t('branding.textLogo')}{' '}
-              <Text as="span" variant="caption" className="font-normal">
-                {t('branding.textLogoOptional')}
-              </Text>
-            </label>
-            <Input
-              id="branding-text-logo"
-              placeholder={t('branding.textLogoPlaceholder')}
-              {...register('textLogo')}
-              wrapperClassName="w-full"
-            />
-          </div>
+          <Input
+            id="branding-text-logo"
+            label={`${t('branding.textLogo')} ${t('branding.textLogoOptional')}`}
+            placeholder={t('branding.textLogoPlaceholder')}
+            {...register('textLogo')}
+            wrapperClassName="w-full"
+          />
 
-          <HStack justify="between" align="center">
-            <div className="flex flex-col gap-1">
-              <Text
-                as="span"
-                variant="label"
-                className="leading-6 tracking-tight"
-              >
-                {t('branding.logo')}
-              </Text>
-              <Text as="span" variant="caption" className="tracking-tight">
-                {t('branding.logoDescription')}
-              </Text>
-            </div>
+          <SettingsRow
+            label={t('branding.logo')}
+            description={t('branding.logoDescription')}
+          >
             <ImageUploadField
               currentUrl={branding?.logoUrl}
               imageType="logo"
@@ -253,21 +234,12 @@ export function BrandingForm({
               size="md"
               ariaLabel={t('branding.uploadLogo')}
             />
-          </HStack>
+          </SettingsRow>
 
-          <HStack justify="between" align="center">
-            <div className="flex flex-col gap-1">
-              <Text
-                as="span"
-                variant="label"
-                className="leading-6 tracking-tight"
-              >
-                {t('branding.favicon')}
-              </Text>
-              <Text as="span" variant="caption" className="tracking-tight">
-                {t('branding.faviconDescription')}
-              </Text>
-            </div>
+          <SettingsRow
+            label={t('branding.favicon')}
+            description={t('branding.faviconDescription')}
+          >
             <HStack gap={2}>
               <ImageUploadField
                 currentUrl={branding?.faviconLightUrl}
@@ -303,7 +275,7 @@ export function BrandingForm({
                 ariaLabel={`${t('branding.uploadFavicon')} (${t('branding.dark')})`}
               />
             </HStack>
-          </HStack>
+          </SettingsRow>
 
           <ColorPickerInput
             id="branding-brand-color"

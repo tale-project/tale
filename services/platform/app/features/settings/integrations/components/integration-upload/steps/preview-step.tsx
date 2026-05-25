@@ -1,15 +1,14 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { Heading } from '@tale/ui/heading';
+import { Center, HStack, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { Code, Database, Key, Globe, Pencil, Puzzle, Zap } from 'lucide-react';
 import { useCallback, useMemo, useRef } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
-import { Center } from '@/app/components/ui/layout/layout';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 

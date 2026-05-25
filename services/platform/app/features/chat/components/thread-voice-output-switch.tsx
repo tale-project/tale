@@ -1,10 +1,10 @@
 'use client';
 
+import type { DropdownMenuCheckboxItem } from '@tale/ui/dropdown-menu';
 import { useMutation } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { useCallback } from 'react';
 
-import type { DropdownMenuCheckboxItem } from '@/app/components/ui/overlays/dropdown-menu';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';

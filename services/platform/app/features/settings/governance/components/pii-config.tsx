@@ -1,10 +1,10 @@
 'use client';
 
+import { PageSection } from '@tale/ui/page-section';
 import { Skeleton } from '@tale/ui/skeleton';
 import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 
 import { Switch } from '@/app/components/ui/forms/switch';
-import { PageSection } from '@/app/components/ui/layout/page-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';

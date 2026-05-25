@@ -1,18 +1,15 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Heading } from '@tale/ui/heading';
+import { HStack } from '@tale/ui/layout';
 import { Separator } from '@tale/ui/separator';
+import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
+import { Text } from '@tale/ui/text';
 import { useMemo } from 'react';
 
-import {
-  type StatGridItem,
-  StatGrid,
-} from '@/app/components/ui/data-display/stat-grid';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { formatCurrency } from '@/lib/utils/format/number';

@@ -7,8 +7,8 @@
  * restart, including SSR-rendered marketing pages.
  */
 
-import { createOnDemandServer, type ArtifactsServer } from '@tale/seo';
-import { TALE_DOCS_URL, TALE_SITE_URL } from '@tale/seo/globals';
+import { createOnDemandServer, type ArtifactsServer } from '@tale/ui/seo';
+import { TALE_DOCS_URL, TALE_SITE_URL } from '@tale/ui/seo/globals';
 
 import { enumerateLegalRoutes } from '../../scripts/legal-routes';
 import {

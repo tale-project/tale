@@ -16,13 +16,13 @@
 
 /*
  * Canonical shared stylesheet for the Tale monorepo. Every other globals.css
- * (platform, web, docs, templates, @tale/webui) is a single-line import of
- * this file. Service-specific overrides live in sibling stylesheets next to
- * each service's globals.css and are imported separately from main.tsx.
+ * (platform, web, docs, templates) is a single-line import of this file.
+ * Service-specific overrides live in sibling stylesheets next to each
+ * service's globals.css and are imported separately from main.tsx.
  *
  * Two token systems coexist:
  *   1. @tale/ui base tokens (`--color-bg-base`, `--color-accent-base`, ...)
- *      consumed by @tale/ui + @tale/webui components.
+ *      consumed by @tale/ui components.
  *   2. HSL legacy tokens (`--background`, `--primary`, `--chart-N`, ...)
  *      consumed by the platform app and the shadcn-style components that
  *      pre-date the @tale/ui design system.
@@ -144,6 +144,15 @@
 }
 
 :root {
+  /* iOS safe-area insets exposed as CSS variables so components can read them
+     via arbitrary-value utilities (e.g. `pt-[var(--safe-top)]`). The `env()`
+     fallback is 0 on browsers without `viewport-fit=cover`, so they degrade
+     to a flat layout. Set via the viewport meta in services/platform/index.html. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
   --background: 0 0% 98.8%;
   --foreground: 240 10% 3.9%;
   --card: 0 0% 100%;

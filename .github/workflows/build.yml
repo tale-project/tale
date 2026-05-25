@@ -95,17 +95,14 @@ jobs:
               - 'services/convex/**'
             web:
               - 'services/web/**'
-              - 'packages/webui/**'
               - 'packages/ui/**'
             docs:
               - 'services/docs/**'
               - 'docs/**'
-              - 'packages/webui/**'
               - 'packages/ui/**'
             storybook:
               - 'services/platform/**'
               - 'packages/ui/**'
-              - 'packages/webui/**'
             sandbox:
               - 'services/sandbox/**'
             sandbox-egress:
@@ -597,16 +594,17 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Trivy vulnerability scan per changed service (non-blocking).
-  # Push-to-main only — PRs rely on security.yml's filesystem scan only.
-  # NOTE: PRs do NOT run image-level CVE scans; web/docs Dockerfiles are not
-  # image-scanned anywhere on CI today (release.yml builds them but doesn't
-  # scan). Track adding image scans to web/docs as a follow-up.
+  # Runs on push-to-main and on non-fork PRs (fork PRs can't push images, so
+  # there's nothing to pull and scan). Without the PR run, GHAS's aggregated
+  # "Code scanning results / Trivy" check flags `8 configurations not found`
+  # because the per-image SARIF categories declared by `main` never report
+  # back on PRs.
   # Reuses the image built and pushed by the `build` job instead of rebuilding.
   # ---------------------------------------------------------------------------
   vulnerability-scan:
     name: Scan ${{ matrix.service }}
     needs: [changes, build]
-    if: github.event_name == 'push' && needs.changes.outputs.scannable_services != '[]'
+    if: needs.changes.outputs.scannable_services != '[]' && github.event.pull_request.head.repo.fork != true
     runs-on: ubuntu-latest
     permissions:
       contents: read

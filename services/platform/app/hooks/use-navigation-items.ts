@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  MessageCircle,
-  Inbox,
-  BrainIcon,
-  Network,
-  Bot,
-  Settings,
-} from 'lucide-react';
+import { MessageCircle, Inbox, BrainIcon, Network, Bot } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -128,13 +121,6 @@ export function useNavigationItems(businessId: string): NavItem[] {
         href: `/dashboard/${businessId}/automations`,
         icon: Network,
         can: ['write', 'wfDefinitions'],
-      },
-      {
-        label: tNav('settings'),
-        to: '/dashboard/$id/settings',
-        params: { id: businessId },
-        href: `/dashboard/${businessId}/settings`,
-        icon: Settings,
       },
     ],
     [businessId, tNav, tKnowledge, tConversations],

@@ -24,7 +24,7 @@ interface LocaleSyncProps {
  *     route renders `<LocaleSync locale={...} />` inside the I18nProvider.
  *   - platform / template services: locale comes from the user's saved
  *     preference + browser detection (`useLocale()` from
- *     `@tale/ui/i18n/locale-provider`); the service's `I18nProvider` renders
+ *     `@tale/i18n/locale-provider`); the service's `I18nProvider` renders
  *     `<LocaleSync />` once the detected value is known.
  *
  * Reads the i18n instance via `useTranslation()` so it picks up whichever

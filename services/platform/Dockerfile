@@ -19,13 +19,10 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
-COPY packages/i18n/package.json ./packages/i18n/
-COPY packages/seo/package.json ./packages/seo/
 COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
 COPY packages/tale_shared/package.json ./packages/tale_shared/
 COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
 COPY packages/ui/package.json ./packages/ui/
-COPY packages/webui/package.json ./packages/webui/
 COPY services/platform/package.json ./services/platform/
 COPY services/crawler/package.json ./services/crawler/
 COPY services/rag/package.json ./services/rag/
@@ -69,10 +66,7 @@ COPY services/platform/vite.config.ts \
      services/platform/package.json \
      ./services/platform/
 
-COPY packages/i18n ./packages/i18n
-COPY packages/seo ./packages/seo
 COPY packages/ui ./packages/ui
-COPY packages/webui ./packages/webui
 
 COPY services/platform/app ./services/platform/app
 COPY services/platform/lib ./services/platform/lib
@@ -99,10 +93,12 @@ COPY services/platform/status-probe.ts ./services/platform/
 ENV NODE_ENV=production
 
 # Build the SPA, then precompile the SEO + LLM artifact set into
-# `dist-seo/`. The runtime stage serves these via @tale/seo's
-# precompiled server, so no source markdown is needed at request time.
-RUN cd services/platform && bun --bun vite build \
-    && bun --bun /app/packages/seo/bin/compile.ts ./scripts/seo.config.ts --out dist-seo
+# `dist-seo/`. The runtime stage serves these via @tale/ui's precompiled
+# SEO server, so no source markdown is needed at request time.
+WORKDIR /app/services/platform
+RUN bun --bun vite build \
+    && bun --bun /app/packages/ui/bin/seo-compile.ts ./scripts/seo.config.ts --out dist-seo
+WORKDIR /app
 
 # Server-side files copied after vite build to avoid invalidating the build cache
 COPY services/platform/server.ts \
@@ -116,13 +112,10 @@ COPY services/platform/server.ts \
 FROM builder AS pruner
 
 COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp/workspace/
-COPY --from=workspace-deps /app/packages/i18n/package.json /tmp/workspace/packages/i18n/
-COPY --from=workspace-deps /app/packages/seo/package.json /tmp/workspace/packages/seo/
 COPY --from=workspace-deps /app/packages/tale_knowledge/package.json /tmp/workspace/packages/tale_knowledge/
 COPY --from=workspace-deps /app/packages/tale_shared/package.json /tmp/workspace/packages/tale_shared/
 COPY --from=workspace-deps /app/packages/tale_telemetry/package.json /tmp/workspace/packages/tale_telemetry/
 COPY --from=workspace-deps /app/packages/ui/package.json /tmp/workspace/packages/ui/
-COPY --from=workspace-deps /app/packages/webui/package.json /tmp/workspace/packages/webui/
 COPY --from=workspace-deps /app/services/platform/package.json /tmp/workspace/services/platform/
 COPY --from=workspace-deps /app/services/crawler/package.json /tmp/workspace/services/crawler/
 COPY --from=workspace-deps /app/services/rag/package.json /tmp/workspace/services/rag/
@@ -135,7 +128,8 @@ COPY --from=workspace-deps /app/tools/cli/package.json /tmp/workspace/tools/cli/
 COPY --from=workspace-deps /app/tools/plop/package.json /tmp/workspace/tools/plop/
 COPY --from=workspace-deps /app/patches/ /tmp/workspace/patches/
 
-RUN cd /tmp/workspace && HUSKY=0 bun install --production \
+WORKDIR /tmp/workspace
+RUN HUSKY=0 bun install --production \
     && rm -rf /app/node_modules \
     && mv /tmp/workspace/node_modules /app/node_modules \
     && rm -rf /app/node_modules/@swc/core* \
@@ -249,8 +243,8 @@ COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
 # Workspace packages backing the `@tale/*` symlinks in node_modules. The
 # platform runs `bun server.ts` unbundled, so server-side imports of
-# `@tale/seo/*` resolve at runtime through these directories — the docs +
-# web Dockerfiles bundle their server.ts and don't need this.
+# `@tale/ui/seo/*` resolve at runtime through these directories — the
+# docs + web Dockerfiles bundle their server.ts and don't need this.
 COPY --from=pruner --chown=app:app /app/packages ./packages
 COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
 COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/generate-admin-key.sh /app/services/platform/reset-owner.sh /app/services/platform/reset-owner.ts /app/services/platform/env.sh ./

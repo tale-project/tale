@@ -1,14 +1,14 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { EmptyState } from '@tale/ui/empty-state';
+import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { Settings, Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { EmptyState } from '@/app/components/ui/feedback/empty-state';
 import { Select } from '@/app/components/ui/forms/select';
-import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';

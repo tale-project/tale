@@ -1,3 +1,5 @@
+import { Heading } from '@tale/ui/heading';
+import { Center } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import {
   createFileRoute,
@@ -18,8 +20,6 @@ import { z } from 'zod';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { Center } from '@/app/components/ui/layout/layout';
-import { Heading } from '@/app/components/ui/typography/heading';
 import { AutomationAIChatPanel } from '@/app/features/automations/components/automation-ai-chat-panel';
 import { AutomationNavigation } from '@/app/features/automations/components/automation-navigation';
 import { useReadWorkflow } from '@/app/features/automations/hooks/file-queries';

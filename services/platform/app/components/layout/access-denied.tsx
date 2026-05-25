@@ -1,7 +1,8 @@
 'use client';
 
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
+import { Heading } from '@tale/ui/heading';
+import { Text } from '@tale/ui/text';
+
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

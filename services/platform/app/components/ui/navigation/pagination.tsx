@@ -1,12 +1,12 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Text } from '@tale/ui/text';
 import { useNavigate, useLocation, useSearch } from '@tanstack/react-router';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useState, useEffect, useTransition } from 'react';
 
 import { Select } from '@/app/components/ui/forms/select';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 interface PaginationProps {

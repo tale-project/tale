@@ -1,6 +1,10 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { HStack, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
+
+import '@xyflow/react/dist/style.css';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -24,8 +28,6 @@ import {
   AlertTriangle,
   Plus,
 } from 'lucide-react';
-
-import '@xyflow/react/dist/style.css';
 import React, {
   useEffect,
   useMemo,
@@ -34,8 +36,6 @@ import React, {
   useCallback,
 } from 'react';
 
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useUrlState } from '@/app/hooks/use-url-state';
 import { Doc } from '@/convex/_generated/dataModel';

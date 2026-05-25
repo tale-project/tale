@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { Text } from '@tale/ui/text';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -12,10 +13,10 @@ import { Field } from '@/app/components/ui/forms/field';
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Text } from '@/app/components/ui/typography/text';
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
+import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSaveBar } from '@/app/features/settings/components/settings-save-bar';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -43,26 +44,24 @@ interface SetPasswordFormData {
 }
 
 export function AccountForm() {
-  // Intentionally don't gate on `isLoading` — a session rotation (e.g.
-  // TOTP enrolment's verify step rotates the session and briefly puts
-  // auth-dependent queries back into loading) would unmount the whole
-  // form and wipe any in-progress state in its children (like the
-  // backup-codes dialog in TwoFactorSection). `PasswordSection` already
-  // tolerates `hasCredential=false` during the first load.
+  const { t: tNav } = useT('navigation');
+  const { t: tSettings } = useT('settings');
   const { data: hasCredential } = useHasCredentialAccount();
 
   return (
-    <Stack>
+    <SettingsPage
+      title={tNav('account')}
+      description={tSettings('menu.account.description')}
+    >
       <ProfileSection />
       <PasswordSection hasCredential={hasCredential ?? false} />
       <TwoFactorSection />
-    </Stack>
+    </SettingsPage>
   );
 }
 
 function ProfileSection() {
   const { t: tSettings } = useT('settings');
-  const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
   const { user } = useAuth();
   const { mutateAsync: updateUserName } = useUpdateUserName();
@@ -116,39 +115,34 @@ function ProfileSection() {
   };
 
   return (
-    <>
-      <Form onSubmit={handleSubmit(onSubmit)} className="space-y-0">
-        <HStack
-          gap={3}
-          align="end"
-          justify="between"
-          className="sticky bottom-0 z-40"
-        >
-          <Input
-            id="display-name"
-            label={tSettings('account.profile.name')}
-            placeholder={tSettings('account.profile.namePlaceholder')}
-            disabled={isSubmitting}
-            errorMessage={errors.name?.message}
-            wrapperClassName="max-w-sm flex-1"
-            {...register('name')}
-          />
-          {isDirty && (
-            <Button type="submit" disabled={isSubmitting || !isValid}>
-              {isSubmitting
-                ? tCommon('actions.saving')
-                : tCommon('actions.saveChanges')}
-            </Button>
-          )}
-        </HStack>
+    <SettingsSection
+      title={tSettings('account.profile.title')}
+      description={tSettings('account.profile.description')}
+    >
+      <Form id="account-profile-form" onSubmit={handleSubmit(onSubmit)}>
+        <Input
+          id="display-name"
+          label={tSettings('account.profile.name')}
+          placeholder={tSettings('account.profile.namePlaceholder')}
+          disabled={isSubmitting}
+          errorMessage={errors.name?.message}
+          wrapperClassName="max-w-sm"
+          {...register('name')}
+        />
+        <Field label={tSettings('account.profile.email')}>
+          <Text variant="muted" as="span">
+            {user?.email ?? ''}
+          </Text>
+        </Field>
       </Form>
-
-      <Field label={tSettings('account.profile.email')}>
-        <Text variant="muted" as="span">
-          {user?.email ?? ''}
-        </Text>
-      </Field>
-    </>
+      <SettingsSaveBar
+        isDirty={isDirty}
+        isSubmitting={isSubmitting}
+        isValid={isValid}
+        onDiscard={() => reset()}
+        formId="account-profile-form"
+      />
+    </SettingsSection>
   );
 }
 
@@ -162,10 +156,9 @@ function PasswordSection({ hasCredential }: PasswordSectionProps) {
   const [open, setOpen] = useState(false);
 
   return (
-    <PageSection
+    <SettingsSection
       title={tSettings('account.security.title')}
-      titleSize="base"
-      className="pt-4"
+      description={tSettings('account.security.description')}
     >
       <div>
         <Button variant="secondary" onClick={() => setOpen(true)}>
@@ -180,7 +173,7 @@ function PasswordSection({ hasCredential }: PasswordSectionProps) {
       ) : (
         <SetPasswordDialog open={open} onOpenChange={setOpen} />
       )}
-    </PageSection>
+    </SettingsSection>
   );
 }
 

@@ -1,9 +1,9 @@
 'use client';
 
+import { Text } from '@tale/ui/text';
 import { XIcon } from 'lucide-react';
 import { memo } from 'react';
 
-import { Text } from '@/app/components/ui/typography/text';
 import {
   formatFileSize,
   middleEllipsis,

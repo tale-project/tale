@@ -2,7 +2,11 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { Heading } from '@tale/ui/heading';
 import { IconButton } from '@tale/ui/icon-button';
+import { HStack, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { useAction } from 'convex/react';
 import {
   CheckCircle2,
@@ -17,14 +21,7 @@ import {
 import { useCallback, useMemo, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import {
-  DropdownMenu,
-  type DropdownMenuGroup,
-} from '@/app/components/ui/overlays/dropdown-menu';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';

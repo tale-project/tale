@@ -3,10 +3,10 @@
 import { Badge } from '@tale/ui/badge';
 import { Button, LinkButton } from '@tale/ui/button';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { ChevronDown, ChevronRight, ExternalLink, Plus } from 'lucide-react';
 import { useState } from 'react';
 
-import { Text } from '@/app/components/ui/typography/text';
 import { CreateAutomationDialog } from '@/app/features/automations/components/automation-create-dialog';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';

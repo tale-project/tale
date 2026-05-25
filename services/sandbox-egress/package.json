@@ -1,0 +1,12 @@
+{
+  "name": "@tale/sandbox-egress",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tale sandbox egress proxy — tinyproxy + IP-layer SSRF firewall",
+  "scripts": {
+    "serve": "docker compose up sandbox-egress",
+    "docker:build": "docker build -t tale-sandbox-egress -f services/sandbox-egress/Dockerfile ../../",
+    "logs": "docker compose logs -f sandbox-egress",
+    "shell": "docker compose exec sandbox-egress sh"
+  }
+}

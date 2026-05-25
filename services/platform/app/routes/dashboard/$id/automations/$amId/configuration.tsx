@@ -1,5 +1,7 @@
 import { Button } from '@tale/ui/button';
+import { Grid } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -9,8 +11,6 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Grid } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useSaveWorkflow } from '@/app/features/automations/hooks/file-mutations';
 import { useReadWorkflow } from '@/app/features/automations/hooks/file-queries';
 import { toast } from '@/app/hooks/use-toast';

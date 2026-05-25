@@ -17,8 +17,8 @@ import type {
   ArtifactSection,
   CompileToDiskParams,
   OptionalPage,
-} from '@tale/seo';
-import { TALE_GITHUB_URL } from '@tale/seo/globals';
+} from '@tale/ui/seo';
+import { TALE_GITHUB_URL } from '@tale/ui/seo/globals';
 
 import { listAllContent, type ContentRecord } from '../../scripts/walk-content';
 import { DEFAULT_DOCS_SITE_URL } from '../site-url';

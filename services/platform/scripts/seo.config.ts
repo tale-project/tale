@@ -1,13 +1,13 @@
 /**
  * Build-time SEO config for the platform service. Consumed by
- * `tale-seo-compile` (`@tale/seo/bin/compile`) during the Docker builder
+ * `tale-seo-compile` (`@tale/ui/seo/bin/compile`) during the Docker builder
  * stage to materialise `dist-seo/`.
  *
  * Platform content is synthetic — all routes carry inline bodies — so
  * no `loadBody` is needed.
  */
 
-import type { CompileToDiskParams } from '@tale/seo';
+import type { CompileToDiskParams } from '@tale/ui/seo';
 
 import {
   PLATFORM_SITE_DESCRIPTION,

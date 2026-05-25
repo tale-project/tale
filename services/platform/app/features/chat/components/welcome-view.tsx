@@ -1,6 +1,7 @@
 'use client';
 
-import { Heading } from '@/app/components/ui/typography/heading';
+import { Heading } from '@tale/ui/heading';
+
 import { useT } from '@/lib/i18n/client';
 
 import { WelcomeContentSkeleton } from './welcome-content-skeleton';

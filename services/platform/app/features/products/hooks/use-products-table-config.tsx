@@ -1,7 +1,8 @@
 'use client';
 
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
+import { HStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
+
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 import type { Doc } from '@/convex/_generated/dataModel';
 

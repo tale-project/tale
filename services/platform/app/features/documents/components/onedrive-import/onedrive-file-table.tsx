@@ -1,13 +1,13 @@
 'use client';
 
+import { HStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';

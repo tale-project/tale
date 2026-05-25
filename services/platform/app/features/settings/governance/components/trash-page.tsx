@@ -1,7 +1,9 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { PageSection } from '@tale/ui/page-section';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { Undo2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -11,8 +13,6 @@ import {
   type FilterConfig,
 } from '@/app/components/ui/data-table/data-table-filters';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Text } from '@/app/components/ui/typography/text';
 import { useRestoreSoftDeletedRow } from '@/app/features/settings/governance/hooks/mutations';
 import { useListTrashedRows } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';

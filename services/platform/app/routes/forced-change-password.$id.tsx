@@ -1,5 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { Heading } from '@tale/ui/heading';
+import { Stack, VStack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
@@ -9,10 +12,7 @@ import { ValidationCheckList } from '@/app/components/ui/feedback/validation-che
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { Stack, VStack } from '@/app/components/ui/layout/layout';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { useUpdatePassword } from '@/app/features/settings/account/hooks/mutations';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -146,7 +146,7 @@ function ForcedChangePasswordPage() {
     <VStack
       gap={0}
       align="stretch"
-      className="bg-background text-foreground min-h-screen"
+      className="bg-background text-foreground min-h-dvh"
     >
       <div className="px-4 pt-8 pb-16 sm:px-8">
         <LogoLink href="/" />

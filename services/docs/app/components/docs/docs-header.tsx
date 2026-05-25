@@ -1,5 +1,5 @@
 import { TaleLogo } from '@tale/ui/logo';
-import { SiteHeader } from '@tale/webui/layout/site-header';
+import { SiteHeader } from '@tale/ui/site-header';
 import { Link } from '@tanstack/react-router';
 import { Search } from 'lucide-react';
 import { useEffect, useState } from 'react';

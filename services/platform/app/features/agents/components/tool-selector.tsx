@@ -1,13 +1,13 @@
 'use client';
 
+import { Grid, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Grid, Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import type { ToolName } from '@/convex/agent_tools/tool_names';
 import { useT } from '@/lib/i18n/client';
 

@@ -1,6 +1,6 @@
 /**
  * Build-time SEO config for the marketing site. Consumed by
- * `tale-seo-compile` (`@tale/seo/bin/compile`) during the Docker builder
+ * `tale-seo-compile` (`@tale/ui/seo/bin/compile`) during the Docker builder
  * stage to materialise `dist-seo/`.
  *
  * Marketing routes need the prebuilt SSR bundle at
@@ -15,8 +15,8 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import type { CompileToDiskParams } from '@tale/seo';
-import { TALE_DOCS_URL, TALE_SITE_URL } from '@tale/seo/globals';
+import type { CompileToDiskParams } from '@tale/ui/seo';
+import { TALE_DOCS_URL, TALE_SITE_URL } from '@tale/ui/seo/globals';
 
 import {
   buildWebSections,

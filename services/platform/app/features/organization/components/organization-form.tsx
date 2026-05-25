@@ -2,6 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { Heading } from '@tale/ui/heading';
+import { VStack, Center } from '@tale/ui/layout';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useMutation } from 'convex/react';
@@ -11,9 +13,7 @@ import { z } from 'zod';
 
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
-import { VStack, Center } from '@/app/components/ui/layout/layout';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
-import { Heading } from '@/app/components/ui/typography/heading';
 import { UserButton } from '@/app/components/user-button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';

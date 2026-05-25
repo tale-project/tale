@@ -1,14 +1,14 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Description } from '@tale/ui/description';
+import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
 import { Code2, Info, Save, X } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { z } from 'zod';
 
-import { Description } from '@/app/components/ui/forms/description';
 import { Label } from '@/app/components/ui/forms/label';
-import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

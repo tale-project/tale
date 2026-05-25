@@ -11,6 +11,11 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tailwind-preset.ts"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts",
+    "tailwind-preset.ts"
+  ],
   "exclude": ["node_modules", "storybook-static"]
 }

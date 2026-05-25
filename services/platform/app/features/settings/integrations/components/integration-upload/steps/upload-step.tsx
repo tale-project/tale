@@ -1,11 +1,11 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { Upload, AlertCircle } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

@@ -1,6 +1,7 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import { SettingsListPageSkeleton } from '@/app/features/settings/components/settings-skeleton';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -17,7 +18,9 @@ function ProvidersLayout() {
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
 
-  if (abilityLoading) return null;
+  if (abilityLoading) {
+    return <SettingsListPageSkeleton />;
+  }
 
   if (ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={t('integrations')} />;

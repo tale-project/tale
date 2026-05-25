@@ -1,7 +1,9 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Popover } from '@tale/ui/popover';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { Circle, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import type { DateRange } from 'react-day-picker';
@@ -12,8 +14,6 @@ import { FilterSection } from '@/app/components/ui/filters/filter-section';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { Popover } from '@/app/components/ui/overlays/popover';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';

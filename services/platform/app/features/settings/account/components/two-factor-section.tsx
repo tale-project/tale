@@ -1,14 +1,14 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { HStack, Stack, VStack } from '@tale/ui/layout';
+import { PageSection } from '@tale/ui/page-section';
+import { Text } from '@tale/ui/text';
 import { QRCodeSVG } from 'qrcode.react';
 import { useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
-import { HStack, Stack, VStack } from '@/app/components/ui/layout/layout';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Text } from '@/app/components/ui/typography/text';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
