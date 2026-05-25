@@ -72,7 +72,7 @@ export function SkillDetailSidebar({
             return (
               <li key={s.slug}>
                 <Link
-                  to="/dashboard/$id/skills/$skillSlug"
+                  to="/dashboard/$id/settings/skills/$skillSlug"
                   params={{ id: organizationId, skillSlug: s.slug }}
                   className={
                     isActive

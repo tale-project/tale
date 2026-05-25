@@ -43,7 +43,9 @@ import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 import { isRecord } from '@/lib/utils/type-guards';
 
-export const Route = createFileRoute('/dashboard/$id/skills/$skillSlug')({
+export const Route = createFileRoute(
+  '/dashboard/$id/settings/skills/$skillSlug',
+)({
   head: () => ({
     meta: seo('skills'),
   }),
@@ -146,7 +148,7 @@ function SkillDetailPage() {
         variant: 'success',
       });
       void navigate({
-        to: '/dashboard/$id/skills/$skillSlug',
+        to: '/dashboard/$id/settings/skills/$skillSlug',
         params: { id: organizationId, skillSlug: newSlug },
       });
     } catch (error) {
@@ -309,7 +311,7 @@ function SkillDetailPage() {
           </Heading>
           {errorMessage ? <Text variant="muted">{errorMessage}</Text> : null}
           <Link
-            to="/dashboard/$id/skills"
+            to="/dashboard/$id/settings/skills"
             params={{ id: organizationId }}
             className="underline"
           >
@@ -336,7 +338,7 @@ function SkillDetailPage() {
             size="icon"
             onClick={() =>
               void navigate({
-                to: '/dashboard/$id/skills',
+                to: '/dashboard/$id/settings/skills',
                 params: { id: organizationId },
               })
             }
@@ -773,7 +775,7 @@ function SkillDetailPage() {
         expectedHash={hash}
         onDeleted={() =>
           void navigate({
-            to: '/dashboard/$id/skills',
+            to: '/dashboard/$id/settings/skills',
             params: { id: organizationId },
           })
         }

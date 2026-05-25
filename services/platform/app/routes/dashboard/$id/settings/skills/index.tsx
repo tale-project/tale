@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { SkillsTable } from '@/app/features/skills/components/skills-table';
 import { seo } from '@/lib/utils/seo';
 
-export const Route = createFileRoute('/dashboard/$id/skills/')({
+export const Route = createFileRoute('/dashboard/$id/settings/skills/')({
   head: () => ({
     meta: seo('skills'),
   }),

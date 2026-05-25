@@ -25,7 +25,6 @@ import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up';
 import { Route as AuthLogInRouteImport } from './routes/_auth/log-in';
 import { Route as Auth2faRouteImport } from './routes/_auth/2fa';
 import { Route as DashboardIdIndexRouteImport } from './routes/dashboard/$id/index';
-import { Route as DashboardIdSkillsRouteImport } from './routes/dashboard/$id/skills';
 import { Route as DashboardIdSettingsRouteImport } from './routes/dashboard/$id/settings';
 import { Route as DashboardIdCustomAgentsRouteImport } from './routes/dashboard/$id/custom-agents';
 import { Route as DashboardIdConversationsRouteImport } from './routes/dashboard/$id/conversations';
@@ -33,14 +32,13 @@ import { Route as DashboardIdChatRouteImport } from './routes/dashboard/$id/chat
 import { Route as DashboardIdAutomationsRouteImport } from './routes/dashboard/$id/automations';
 import { Route as DashboardIdAgentsRouteImport } from './routes/dashboard/$id/agents';
 import { Route as DashboardIdKnowledgeRouteImport } from './routes/dashboard/$id/_knowledge';
-import { Route as DashboardIdSkillsIndexRouteImport } from './routes/dashboard/$id/skills/index';
 import { Route as DashboardIdSettingsIndexRouteImport } from './routes/dashboard/$id/settings/index';
 import { Route as DashboardIdProjectsIndexRouteImport } from './routes/dashboard/$id/projects/index';
 import { Route as DashboardIdChatIndexRouteImport } from './routes/dashboard/$id/chat/index';
 import { Route as DashboardIdAutomationsIndexRouteImport } from './routes/dashboard/$id/automations/index';
 import { Route as DashboardIdAgentsIndexRouteImport } from './routes/dashboard/$id/agents/index';
-import { Route as DashboardIdSkillsSkillSlugRouteImport } from './routes/dashboard/$id/skills/$skillSlug';
 import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams';
+import { Route as DashboardIdSettingsSkillsRouteImport } from './routes/dashboard/$id/settings/skills';
 import { Route as DashboardIdSettingsProvidersRouteImport } from './routes/dashboard/$id/settings/providers';
 import { Route as DashboardIdSettingsPersonalizationRouteImport } from './routes/dashboard/$id/settings/personalization';
 import { Route as DashboardIdSettingsPersonalRouteImport } from './routes/dashboard/$id/settings/personal';
@@ -65,10 +63,12 @@ import { Route as DashboardIdKnowledgeProductsRouteImport } from './routes/dashb
 import { Route as DashboardIdKnowledgeDocumentsRouteImport } from './routes/dashboard/$id/_knowledge/documents';
 import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dashboard/$id/_knowledge/customers';
 import { Route as DashboardIdSettingsGovernanceRouteRouteImport } from './routes/dashboard/$id/settings/governance/route';
+import { Route as DashboardIdSettingsSkillsIndexRouteImport } from './routes/dashboard/$id/settings/skills/index';
 import { Route as DashboardIdSettingsProvidersIndexRouteImport } from './routes/dashboard/$id/settings/providers/index';
 import { Route as DashboardIdSettingsGovernanceIndexRouteImport } from './routes/dashboard/$id/settings/governance/index';
 import { Route as DashboardIdProjectsProjectIdIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/index';
 import { Route as DashboardIdAgentsAgentIdIndexRouteImport } from './routes/dashboard/$id/agents/$agentId/index';
+import { Route as DashboardIdSettingsSkillsSkillSlugRouteImport } from './routes/dashboard/$id/settings/skills/$skillSlug';
 import { Route as DashboardIdSettingsProvidersProviderNameRouteImport } from './routes/dashboard/$id/settings/providers/$providerName';
 import { Route as DashboardIdSettingsGovernanceUsageRouteImport } from './routes/dashboard/$id/settings/governance/usage';
 import { Route as DashboardIdSettingsGovernanceTrashRouteImport } from './routes/dashboard/$id/settings/governance/trash';
@@ -178,11 +178,6 @@ const DashboardIdIndexRoute = DashboardIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardIdRoute,
 } as any);
-const DashboardIdSkillsRoute = DashboardIdSkillsRouteImport.update({
-  id: '/skills',
-  path: '/skills',
-  getParentRoute: () => DashboardIdRoute,
-} as any);
 const DashboardIdSettingsRoute = DashboardIdSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -218,11 +213,6 @@ const DashboardIdKnowledgeRoute = DashboardIdKnowledgeRouteImport.update({
   id: '/_knowledge',
   getParentRoute: () => DashboardIdRoute,
 } as any);
-const DashboardIdSkillsIndexRoute = DashboardIdSkillsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => DashboardIdSkillsRoute,
-} as any);
 const DashboardIdSettingsIndexRoute =
   DashboardIdSettingsIndexRouteImport.update({
     id: '/',
@@ -251,16 +241,16 @@ const DashboardIdAgentsIndexRoute = DashboardIdAgentsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardIdAgentsRoute,
 } as any);
-const DashboardIdSkillsSkillSlugRoute =
-  DashboardIdSkillsSkillSlugRouteImport.update({
-    id: '/$skillSlug',
-    path: '/$skillSlug',
-    getParentRoute: () => DashboardIdSkillsRoute,
-  } as any);
 const DashboardIdSettingsTeamsRoute =
   DashboardIdSettingsTeamsRouteImport.update({
     id: '/teams',
     path: '/teams',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any);
+const DashboardIdSettingsSkillsRoute =
+  DashboardIdSettingsSkillsRouteImport.update({
+    id: '/skills',
+    path: '/skills',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any);
 const DashboardIdSettingsProvidersRoute =
@@ -405,6 +395,12 @@ const DashboardIdSettingsGovernanceRouteRoute =
     path: '/governance',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any);
+const DashboardIdSettingsSkillsIndexRoute =
+  DashboardIdSettingsSkillsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => DashboardIdSettingsSkillsRoute,
+  } as any);
 const DashboardIdSettingsProvidersIndexRoute =
   DashboardIdSettingsProvidersIndexRouteImport.update({
     id: '/',
@@ -428,6 +424,12 @@ const DashboardIdAgentsAgentIdIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
+  } as any);
+const DashboardIdSettingsSkillsSkillSlugRoute =
+  DashboardIdSettingsSkillsSkillSlugRouteImport.update({
+    id: '/$skillSlug',
+    path: '/$skillSlug',
+    getParentRoute: () => DashboardIdSettingsSkillsRoute,
   } as any);
 const DashboardIdSettingsProvidersProviderNameRoute =
   DashboardIdSettingsProvidersProviderNameRouteImport.update({
@@ -620,7 +622,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren;
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute;
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren;
-  '/dashboard/$id/skills': typeof DashboardIdSkillsRouteWithChildren;
   '/dashboard/$id/': typeof DashboardIdIndexRoute;
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute;
@@ -646,14 +647,13 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/personal': typeof DashboardIdSettingsPersonalRoute;
   '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren;
+  '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsRouteWithChildren;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
-  '/dashboard/$id/skills/$skillSlug': typeof DashboardIdSkillsSkillSlugRoute;
   '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute;
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute;
   '/dashboard/$id/projects/': typeof DashboardIdProjectsIndexRoute;
   '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute;
-  '/dashboard/$id/skills/': typeof DashboardIdSkillsIndexRoute;
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute;
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
@@ -681,10 +681,12 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
+  '/dashboard/$id/settings/skills/$skillSlug': typeof DashboardIdSettingsSkillsSkillSlugRoute;
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute;
   '/dashboard/$id/projects/$projectId/': typeof DashboardIdProjectsProjectIdIndexRoute;
   '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute;
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute;
+  '/dashboard/$id/settings/skills/': typeof DashboardIdSettingsSkillsIndexRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
 }
 export interface FileRoutesByTo {
@@ -724,13 +726,11 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/personal': typeof DashboardIdSettingsPersonalRoute;
   '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
-  '/dashboard/$id/skills/$skillSlug': typeof DashboardIdSkillsSkillSlugRoute;
   '/dashboard/$id/agents': typeof DashboardIdAgentsIndexRoute;
   '/dashboard/$id/automations': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat': typeof DashboardIdChatIndexRoute;
   '/dashboard/$id/projects': typeof DashboardIdProjectsIndexRoute;
   '/dashboard/$id/settings': typeof DashboardIdSettingsIndexRoute;
-  '/dashboard/$id/skills': typeof DashboardIdSkillsIndexRoute;
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute;
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
@@ -758,10 +758,12 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
+  '/dashboard/$id/settings/skills/$skillSlug': typeof DashboardIdSettingsSkillsSkillSlugRoute;
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdIndexRoute;
   '/dashboard/$id/projects/$projectId': typeof DashboardIdProjectsProjectIdIndexRoute;
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceIndexRoute;
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersIndexRoute;
+  '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsIndexRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
 }
 export interface FileRoutesById {
@@ -788,7 +790,6 @@ export interface FileRoutesById {
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren;
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute;
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren;
-  '/dashboard/$id/skills': typeof DashboardIdSkillsRouteWithChildren;
   '/dashboard/$id/': typeof DashboardIdIndexRoute;
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
   '/dashboard/$id/_knowledge/customers': typeof DashboardIdKnowledgeCustomersRoute;
@@ -814,14 +815,13 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/personal': typeof DashboardIdSettingsPersonalRoute;
   '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren;
+  '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsRouteWithChildren;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
-  '/dashboard/$id/skills/$skillSlug': typeof DashboardIdSkillsSkillSlugRoute;
   '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute;
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute;
   '/dashboard/$id/projects/': typeof DashboardIdProjectsIndexRoute;
   '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute;
-  '/dashboard/$id/skills/': typeof DashboardIdSkillsIndexRoute;
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute;
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
@@ -849,10 +849,12 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
+  '/dashboard/$id/settings/skills/$skillSlug': typeof DashboardIdSettingsSkillsSkillSlugRoute;
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute;
   '/dashboard/$id/projects/$projectId/': typeof DashboardIdProjectsProjectIdIndexRoute;
   '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute;
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute;
+  '/dashboard/$id/settings/skills/': typeof DashboardIdSettingsSkillsIndexRoute;
   '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
 }
 export interface FileRouteTypes {
@@ -878,7 +880,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/conversations'
     | '/dashboard/$id/custom-agents'
     | '/dashboard/$id/settings'
-    | '/dashboard/$id/skills'
     | '/dashboard/$id/'
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/customers'
@@ -904,14 +905,13 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/personal'
     | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/providers'
+    | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/settings/teams'
-    | '/dashboard/$id/skills/$skillSlug'
     | '/dashboard/$id/agents/'
     | '/dashboard/$id/automations/'
     | '/dashboard/$id/chat/'
     | '/dashboard/$id/projects/'
     | '/dashboard/$id/settings/'
-    | '/dashboard/$id/skills/'
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/agents/$agentId/conversation-starters'
     | '/dashboard/$id/agents/$agentId/delegation'
@@ -939,10 +939,12 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/trash'
     | '/dashboard/$id/settings/governance/usage'
     | '/dashboard/$id/settings/providers/$providerName'
+    | '/dashboard/$id/settings/skills/$skillSlug'
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/projects/$projectId/'
     | '/dashboard/$id/settings/governance/'
     | '/dashboard/$id/settings/providers/'
+    | '/dashboard/$id/settings/skills/'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId';
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -982,13 +984,11 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/personal'
     | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/teams'
-    | '/dashboard/$id/skills/$skillSlug'
     | '/dashboard/$id/agents'
     | '/dashboard/$id/automations'
     | '/dashboard/$id/chat'
     | '/dashboard/$id/projects'
     | '/dashboard/$id/settings'
-    | '/dashboard/$id/skills'
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/agents/$agentId/conversation-starters'
     | '/dashboard/$id/agents/$agentId/delegation'
@@ -1016,10 +1016,12 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/trash'
     | '/dashboard/$id/settings/governance/usage'
     | '/dashboard/$id/settings/providers/$providerName'
+    | '/dashboard/$id/settings/skills/$skillSlug'
     | '/dashboard/$id/agents/$agentId'
     | '/dashboard/$id/projects/$projectId'
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/providers'
+    | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId';
   id:
     | '__root__'
@@ -1045,7 +1047,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/conversations'
     | '/dashboard/$id/custom-agents'
     | '/dashboard/$id/settings'
-    | '/dashboard/$id/skills'
     | '/dashboard/$id/'
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/_knowledge/customers'
@@ -1071,14 +1072,13 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/personal'
     | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/providers'
+    | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/settings/teams'
-    | '/dashboard/$id/skills/$skillSlug'
     | '/dashboard/$id/agents/'
     | '/dashboard/$id/automations/'
     | '/dashboard/$id/chat/'
     | '/dashboard/$id/projects/'
     | '/dashboard/$id/settings/'
-    | '/dashboard/$id/skills/'
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/agents/$agentId/conversation-starters'
     | '/dashboard/$id/agents/$agentId/delegation'
@@ -1106,10 +1106,12 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/trash'
     | '/dashboard/$id/settings/governance/usage'
     | '/dashboard/$id/settings/providers/$providerName'
+    | '/dashboard/$id/settings/skills/$skillSlug'
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/projects/$projectId/'
     | '/dashboard/$id/settings/governance/'
     | '/dashboard/$id/settings/providers/'
+    | '/dashboard/$id/settings/skills/'
     | '/dashboard/$id/settings/governance/data-subject-requests/$requestId';
   fileRoutesById: FileRoutesById;
 }
@@ -1237,13 +1239,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdIndexRouteImport;
       parentRoute: typeof DashboardIdRoute;
     };
-    '/dashboard/$id/skills': {
-      id: '/dashboard/$id/skills';
-      path: '/skills';
-      fullPath: '/dashboard/$id/skills';
-      preLoaderRoute: typeof DashboardIdSkillsRouteImport;
-      parentRoute: typeof DashboardIdRoute;
-    };
     '/dashboard/$id/settings': {
       id: '/dashboard/$id/settings';
       path: '/settings';
@@ -1293,13 +1288,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdKnowledgeRouteImport;
       parentRoute: typeof DashboardIdRoute;
     };
-    '/dashboard/$id/skills/': {
-      id: '/dashboard/$id/skills/';
-      path: '/';
-      fullPath: '/dashboard/$id/skills/';
-      preLoaderRoute: typeof DashboardIdSkillsIndexRouteImport;
-      parentRoute: typeof DashboardIdSkillsRoute;
-    };
     '/dashboard/$id/settings/': {
       id: '/dashboard/$id/settings/';
       path: '/';
@@ -1335,18 +1323,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdAgentsIndexRouteImport;
       parentRoute: typeof DashboardIdAgentsRoute;
     };
-    '/dashboard/$id/skills/$skillSlug': {
-      id: '/dashboard/$id/skills/$skillSlug';
-      path: '/$skillSlug';
-      fullPath: '/dashboard/$id/skills/$skillSlug';
-      preLoaderRoute: typeof DashboardIdSkillsSkillSlugRouteImport;
-      parentRoute: typeof DashboardIdSkillsRoute;
-    };
     '/dashboard/$id/settings/teams': {
       id: '/dashboard/$id/settings/teams';
       path: '/teams';
       fullPath: '/dashboard/$id/settings/teams';
       preLoaderRoute: typeof DashboardIdSettingsTeamsRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
+    '/dashboard/$id/settings/skills': {
+      id: '/dashboard/$id/settings/skills';
+      path: '/skills';
+      fullPath: '/dashboard/$id/settings/skills';
+      preLoaderRoute: typeof DashboardIdSettingsSkillsRouteImport;
       parentRoute: typeof DashboardIdSettingsRoute;
     };
     '/dashboard/$id/settings/providers': {
@@ -1517,6 +1505,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsGovernanceRouteRouteImport;
       parentRoute: typeof DashboardIdSettingsRoute;
     };
+    '/dashboard/$id/settings/skills/': {
+      id: '/dashboard/$id/settings/skills/';
+      path: '/';
+      fullPath: '/dashboard/$id/settings/skills/';
+      preLoaderRoute: typeof DashboardIdSettingsSkillsIndexRouteImport;
+      parentRoute: typeof DashboardIdSettingsSkillsRoute;
+    };
     '/dashboard/$id/settings/providers/': {
       id: '/dashboard/$id/settings/providers/';
       path: '/';
@@ -1544,6 +1539,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/$id/agents/$agentId/';
       preLoaderRoute: typeof DashboardIdAgentsAgentIdIndexRouteImport;
       parentRoute: typeof DashboardIdAgentsAgentIdRoute;
+    };
+    '/dashboard/$id/settings/skills/$skillSlug': {
+      id: '/dashboard/$id/settings/skills/$skillSlug';
+      path: '/$skillSlug';
+      fullPath: '/dashboard/$id/settings/skills/$skillSlug';
+      preLoaderRoute: typeof DashboardIdSettingsSkillsSkillSlugRouteImport;
+      parentRoute: typeof DashboardIdSettingsSkillsRoute;
     };
     '/dashboard/$id/settings/providers/$providerName': {
       id: '/dashboard/$id/settings/providers/$providerName';
@@ -1970,6 +1972,23 @@ const DashboardIdSettingsProvidersRouteWithChildren =
     DashboardIdSettingsProvidersRouteChildren,
   );
 
+interface DashboardIdSettingsSkillsRouteChildren {
+  DashboardIdSettingsSkillsSkillSlugRoute: typeof DashboardIdSettingsSkillsSkillSlugRoute;
+  DashboardIdSettingsSkillsIndexRoute: typeof DashboardIdSettingsSkillsIndexRoute;
+}
+
+const DashboardIdSettingsSkillsRouteChildren: DashboardIdSettingsSkillsRouteChildren =
+  {
+    DashboardIdSettingsSkillsSkillSlugRoute:
+      DashboardIdSettingsSkillsSkillSlugRoute,
+    DashboardIdSettingsSkillsIndexRoute: DashboardIdSettingsSkillsIndexRoute,
+  };
+
+const DashboardIdSettingsSkillsRouteWithChildren =
+  DashboardIdSettingsSkillsRoute._addFileChildren(
+    DashboardIdSettingsSkillsRouteChildren,
+  );
+
 interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsGovernanceRouteRoute: typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
   DashboardIdSettingsAccountRoute: typeof DashboardIdSettingsAccountRoute;
@@ -1984,6 +2003,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsPersonalRoute: typeof DashboardIdSettingsPersonalRoute;
   DashboardIdSettingsPersonalizationRoute: typeof DashboardIdSettingsPersonalizationRoute;
   DashboardIdSettingsProvidersRoute: typeof DashboardIdSettingsProvidersRouteWithChildren;
+  DashboardIdSettingsSkillsRoute: typeof DashboardIdSettingsSkillsRouteWithChildren;
   DashboardIdSettingsTeamsRoute: typeof DashboardIdSettingsTeamsRoute;
   DashboardIdSettingsIndexRoute: typeof DashboardIdSettingsIndexRoute;
 }
@@ -2005,25 +2025,13 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
     DashboardIdSettingsPersonalizationRoute,
   DashboardIdSettingsProvidersRoute:
     DashboardIdSettingsProvidersRouteWithChildren,
+  DashboardIdSettingsSkillsRoute: DashboardIdSettingsSkillsRouteWithChildren,
   DashboardIdSettingsTeamsRoute: DashboardIdSettingsTeamsRoute,
   DashboardIdSettingsIndexRoute: DashboardIdSettingsIndexRoute,
 };
 
 const DashboardIdSettingsRouteWithChildren =
   DashboardIdSettingsRoute._addFileChildren(DashboardIdSettingsRouteChildren);
-
-interface DashboardIdSkillsRouteChildren {
-  DashboardIdSkillsSkillSlugRoute: typeof DashboardIdSkillsSkillSlugRoute;
-  DashboardIdSkillsIndexRoute: typeof DashboardIdSkillsIndexRoute;
-}
-
-const DashboardIdSkillsRouteChildren: DashboardIdSkillsRouteChildren = {
-  DashboardIdSkillsSkillSlugRoute: DashboardIdSkillsSkillSlugRoute,
-  DashboardIdSkillsIndexRoute: DashboardIdSkillsIndexRoute,
-};
-
-const DashboardIdSkillsRouteWithChildren =
-  DashboardIdSkillsRoute._addFileChildren(DashboardIdSkillsRouteChildren);
 
 interface DashboardIdProjectsProjectIdRouteChildren {
   DashboardIdProjectsProjectIdAgentsRoute: typeof DashboardIdProjectsProjectIdAgentsRoute;
@@ -2063,7 +2071,6 @@ interface DashboardIdRouteChildren {
   DashboardIdConversationsRoute: typeof DashboardIdConversationsRouteWithChildren;
   DashboardIdCustomAgentsRoute: typeof DashboardIdCustomAgentsRoute;
   DashboardIdSettingsRoute: typeof DashboardIdSettingsRouteWithChildren;
-  DashboardIdSkillsRoute: typeof DashboardIdSkillsRouteWithChildren;
   DashboardIdIndexRoute: typeof DashboardIdIndexRoute;
   DashboardIdProjectsProjectIdRoute: typeof DashboardIdProjectsProjectIdRouteWithChildren;
   DashboardIdProjectsIndexRoute: typeof DashboardIdProjectsIndexRoute;
@@ -2077,7 +2084,6 @@ const DashboardIdRouteChildren: DashboardIdRouteChildren = {
   DashboardIdConversationsRoute: DashboardIdConversationsRouteWithChildren,
   DashboardIdCustomAgentsRoute: DashboardIdCustomAgentsRoute,
   DashboardIdSettingsRoute: DashboardIdSettingsRouteWithChildren,
-  DashboardIdSkillsRoute: DashboardIdSkillsRouteWithChildren,
   DashboardIdIndexRoute: DashboardIdIndexRoute,
   DashboardIdProjectsProjectIdRoute:
     DashboardIdProjectsProjectIdRouteWithChildren,

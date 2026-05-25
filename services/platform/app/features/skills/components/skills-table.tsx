@@ -73,7 +73,7 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
   const handleRowClick = useCallback(
     (row: Row<SkillRow>) => {
       void navigate({
-        to: '/dashboard/$id/skills/$skillSlug',
+        to: '/dashboard/$id/settings/skills/$skillSlug',
         params: {
           id: organizationId,
           skillSlug: row.original.slug,

@@ -106,7 +106,7 @@ export function CreateSkillDialog({
         variant: 'success',
       });
       void navigate({
-        to: '/dashboard/$id/skills/$skillSlug',
+        to: '/dashboard/$id/settings/skills/$skillSlug',
         params: { id: organizationId, skillSlug: data.slug },
       });
     } catch (error) {

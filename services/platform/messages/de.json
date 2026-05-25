@@ -4390,7 +4390,6 @@
       }
     },
     "skills": {
-      "title": "Skills",
       "createSkill": "Skill erstellen",
       "searchPlaceholder": "Skills suchen…",
       "deleteSkill": "Skill löschen",
