@@ -2,6 +2,7 @@
 
 import { Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { memo } from 'react';
 
@@ -24,6 +25,16 @@ interface FileViewerRouterProps {
   threadId: string | undefined;
   organizationId: string;
   path: string | null;
+  /**
+   * When set, bypasses the storage fetch and renders this content directly.
+   * Used during streaming `file_write` tool calls before the file lands.
+   */
+  liveContent?: string;
+  /**
+   * Defaults to `'utf-8'`. For `'base64'`, we don't preview content — show
+   * a "Writing…" placeholder until the file lands.
+   */
+  liveEncoding?: 'utf-8' | 'base64';
 }
 
 type RenderKind =
@@ -76,9 +87,18 @@ function FileViewerRouterComponent({
   threadId,
   organizationId,
   path,
+  liveContent,
+  liveEncoding = 'utf-8',
 }: FileViewerRouterProps) {
   const { t } = useT('chat');
-  const result = useThreadFileContent({ threadId, organizationId, path });
+  const isLive = liveContent !== undefined;
+  // Disable the storage fetch while we're in live-streaming mode — there's
+  // nothing in `_storage` yet and we have the content in-memory.
+  const result = useThreadFileContent({
+    threadId,
+    organizationId,
+    path: isLive ? null : path,
+  });
 
   if (!path) {
     return (
@@ -88,6 +108,32 @@ function FileViewerRouterComponent({
         </Text>
       </Stack>
     );
+  }
+
+  if (isLive) {
+    if (liveEncoding === 'base64') {
+      return (
+        <Stack gap={3} className="h-full items-center justify-center p-8">
+          <Spinner />
+          <Text variant="caption" className="font-mono">
+            {path}
+          </Text>
+          <Text variant="muted" className="text-sm">
+            {t('canvas.writing', { defaultValue: 'Writing…' })}
+          </Text>
+        </Stack>
+      );
+    }
+    const kind = resolveKind(undefined, path, undefined);
+    const text = liveContent ?? '';
+    if (kind === 'html') return <HtmlViewer html={text} />;
+    if (kind === 'svg') return <SvgViewer svg={text} />;
+    if (kind === 'mermaid') return <MermaidViewer code={text} />;
+    if (kind === 'markdown') return <MarkdownViewer content={text} />;
+    // `image` and `attachment` paths never get here for utf-8 streaming —
+    // a binary file should have `liveEncoding === 'base64'`. Fall back to
+    // CodeViewer so the bytes at least render rather than silently nothing.
+    return <CodeViewer path={path} content={text} showWrapToggle />;
   }
 
   if (result.status === 'loading') {

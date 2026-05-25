@@ -22,6 +22,7 @@ import {
   ChatLayoutProvider,
   useChatLayout,
 } from '@/app/features/chat/context/chat-layout-context';
+import { StreamingToolProvider } from '@/app/features/chat/context/streaming-tool-context';
 import { CanvasPane } from '@/app/features/workspace/components/canvas-pane';
 import {
   WorkspaceProvider,
@@ -308,7 +309,9 @@ function ChatLayout() {
     <ChatLayoutProvider organizationId={organizationId}>
       <ArenaModeProvider>
         <WorkspaceProvider>
-          <ChatLayoutContent organizationId={organizationId} />
+          <StreamingToolProvider>
+            <ChatLayoutContent organizationId={organizationId} />
+          </StreamingToolProvider>
         </WorkspaceProvider>
       </ArenaModeProvider>
     </ChatLayoutProvider>

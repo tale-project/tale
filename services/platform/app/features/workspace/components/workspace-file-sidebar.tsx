@@ -22,6 +22,8 @@ interface WorkspaceFileSidebarProps {
   files: ThreadFileItem[];
   activePath: string | null;
   onSelect: (path: string) => void;
+  /** Paths currently being streamed by a `file_write` tool. Marks the row with a pulse + "Writing…" meta. */
+  streamingPaths?: Set<string>;
 }
 
 type SourceKey = 'run_output' | 'agent_write' | 'user_upload';
@@ -74,6 +76,7 @@ function WorkspaceFileSidebarComponent({
   files,
   activePath,
   onSelect,
+  streamingPaths,
 }: WorkspaceFileSidebarProps) {
   const { t } = useT('chat');
   const { locale } = useLocale();
@@ -156,6 +159,7 @@ function WorkspaceFileSidebarComponent({
               <ul className="flex flex-col py-0.5">
                 {items.map((f) => {
                   const isActive = f.path === activePath;
+                  const isStreaming = streamingPaths?.has(f.path) ?? false;
                   const filename = f.path.split('/').pop() ?? f.path;
                   const dir = f.path.includes('/')
                     ? f.path.slice(0, f.path.lastIndexOf('/'))
@@ -171,10 +175,27 @@ function WorkspaceFileSidebarComponent({
                         )}
                         aria-current={isActive ? 'true' : undefined}
                       >
-                        <span className="truncate font-mono">{filename}</span>
+                        <span className="flex items-center gap-1.5 truncate font-mono">
+                          {isStreaming && (
+                            <span
+                              className="bg-primary inline-block size-1.5 shrink-0 animate-pulse rounded-full"
+                              aria-hidden="true"
+                            />
+                          )}
+                          <span className="truncate">{filename}</span>
+                        </span>
                         <span className="text-muted-foreground flex items-center gap-1 truncate text-[10px]">
                           {dir && <span className="truncate">{dir}/</span>}
-                          <span>· {formatBytes(f.size, locale)}</span>
+                          {isStreaming ? (
+                            <span>
+                              ·{' '}
+                              {t('canvas.writing', {
+                                defaultValue: 'Writing…',
+                              })}
+                            </span>
+                          ) : (
+                            <span>· {formatBytes(f.size, locale)}</span>
+                          )}
                         </span>
                       </button>
                     </li>
