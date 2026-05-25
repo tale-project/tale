@@ -1140,6 +1140,10 @@
     "canvas": {
       "download": "Télécharger",
       "mermaidError": "Échec du rendu du diagramme",
+      "sourceRunOutput": "Sortie de code",
+      "sourceAgentWrite": "Fichiers IA",
+      "sourceUserUpload": "Téléversés",
+      "noFilesYet": "Aucun fichier pour le moment",
       "runStatus": {
         "queued": "En file d'attente",
         "installing": "Installation des dépendances",

@@ -22,22 +22,15 @@ import {
   ChatLayoutProvider,
   useChatLayout,
 } from '@/app/features/chat/context/chat-layout-context';
+import { CanvasPane } from '@/app/features/workspace/components/canvas-pane';
 import {
   WorkspaceProvider,
   useWorkspace,
 } from '@/app/features/workspace/components/workspace-context';
-import { WorkspaceFileSidebar } from '@/app/features/workspace/components/workspace-file-sidebar';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 import { seo } from '@/lib/utils/seo';
-
-// Placeholder canvas — the workspace sidebar requires a thread context and
-// file list; we'll wire that up when the chat layout passes the threadId
-// down. For now, render nothing so the right pane is empty until the
-// workspace integration lands.
-const CanvasPane = () => null;
-void WorkspaceFileSidebar;
 
 const PlanPane = lazyComponent(() =>
   import('@/app/features/chat/components/plan-pane/plan-pane').then((mod) => ({
@@ -302,7 +295,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
         </div>
 
         <PlanPane />
-        <CanvasPane />
+        <CanvasPane organizationId={organizationId} />
       </div>
     </PageLayout>
   );

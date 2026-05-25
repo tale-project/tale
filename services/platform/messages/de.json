@@ -1139,6 +1139,10 @@
     "canvas": {
       "download": "Herunterladen",
       "mermaidError": "Diagramm konnte nicht gerendert werden",
+      "sourceRunOutput": "Code-Ausgabe",
+      "sourceAgentWrite": "KI-Dateien",
+      "sourceUserUpload": "Hochgeladen",
+      "noFilesYet": "Noch keine Dateien",
       "runStatus": {
         "queued": "In Warteschlange",
         "installing": "Abhängigkeiten installieren",

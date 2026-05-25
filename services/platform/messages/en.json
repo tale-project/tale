@@ -1139,6 +1139,10 @@
     "canvas": {
       "download": "Download",
       "mermaidError": "Failed to render diagram",
+      "sourceRunOutput": "Code output",
+      "sourceAgentWrite": "AI files",
+      "sourceUserUpload": "Uploaded",
+      "noFilesYet": "No files yet",
       "runStatus": {
         "queued": "Queued",
         "installing": "Installing dependencies",
