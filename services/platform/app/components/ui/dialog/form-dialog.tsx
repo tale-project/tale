@@ -9,7 +9,7 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { Dialog } from './dialog';
+import { Dialog, type DialogSize } from './dialog';
 
 const preventDefaultSubmit = (e: React.FormEvent) => e.preventDefault();
 
@@ -52,6 +52,9 @@ export interface FormDialogProps {
   customFooter?: React.ReactNode;
   /** Use large dialog variant with scroll support */
   large?: boolean;
+  /** Forwarded to underlying Dialog. `wide` (1100px) is the right
+   * choice for surfaces that host code editors / large tables. */
+  size?: DialogSize;
   /** Optional trigger element that opens the dialog */
   trigger?: React.ReactNode;
   /** Enable error boundary (default: true) */
@@ -82,6 +85,7 @@ export function FormDialog({
   customHeader,
   customFooter,
   large = false,
+  size,
   trigger,
   enableErrorBoundary = true,
   onError,
@@ -161,6 +165,7 @@ export function FormDialog({
       onOpenChange={handleClose}
       title={title}
       description={description}
+      size={size}
       className={cn(large && 'max-h-[90vh] overflow-y-auto pr-2', className)}
       trigger={trigger}
       customHeader={customHeader}

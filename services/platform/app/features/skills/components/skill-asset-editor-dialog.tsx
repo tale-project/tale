@@ -66,6 +66,37 @@ function SkillAssetEditorForm({
   const [isSaving, setIsSaving] = useState(false);
   const [loadedHash, setLoadedHash] = useState<string | undefined>(undefined);
 
+  // Client-side path validation runs on blur so the user gets immediate
+  // feedback for `../`, leading-slash, or unsupported characters instead
+  // of waiting for a server round-trip. Server still validates as the
+  // trust boundary.
+  const validatePath = (raw: string): string | undefined => {
+    const value = raw.trim();
+    if (value.length === 0) {
+      return t('skills.asset.pathRequired', {
+        defaultValue: 'Path is required',
+      });
+    }
+    if (value.startsWith('/')) {
+      return t('skills.asset.pathNoLeadingSlash', {
+        defaultValue:
+          'Path must be relative — no leading slash. Use scripts/ / references/ / assets/.',
+      });
+    }
+    if (value.includes('..')) {
+      return t('skills.asset.pathNoTraversal', {
+        defaultValue: 'Path may not contain "..".',
+      });
+    }
+    if (!/^[a-zA-Z0-9._\-/]+$/.test(value)) {
+      return t('skills.asset.pathInvalidChars', {
+        defaultValue:
+          'Path may only contain letters, digits, dot, hyphen, underscore, and slash.',
+      });
+    }
+    return undefined;
+  };
+
   const { data: assetData } = useReadSkillAsset(
     organizationId,
     skillSlug,
@@ -112,7 +143,13 @@ function SkillAssetEditorForm({
   const handleSave = async () => {
     if (!canSave) return;
     const targetPath = isEditMode ? assetPath : pathInput.trim();
-    if (!targetPath) {
+    if (!isEditMode) {
+      const pathProblem = validatePath(pathInput);
+      if (pathProblem) {
+        setPathError(pathProblem);
+        return;
+      }
+    } else if (!targetPath) {
       setPathError(
         t('skills.asset.pathRequired', { defaultValue: 'Path is required' }),
       );
@@ -215,6 +252,7 @@ function SkillAssetEditorForm({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
+      size="wide"
       title={
         isEditMode
           ? // i18next interpolation uses the project-wide single-brace
@@ -264,7 +302,11 @@ function SkillAssetEditorForm({
               id="asset-path"
               label={t('skills.asset.path', { defaultValue: 'Path' })}
               value={pathInput}
-              onChange={(e) => setPathInput(e.target.value)}
+              onChange={(e) => {
+                setPathInput(e.target.value);
+                if (pathError) setPathError(undefined);
+              }}
+              onBlur={() => setPathError(validatePath(pathInput))}
               placeholder="scripts/run.py"
               errorMessage={pathError}
             />
@@ -283,14 +325,22 @@ function SkillAssetEditorForm({
             readOnly
           />
         )}
-        <Textarea
-          id="asset-content"
-          label={t('skills.asset.content', { defaultValue: 'Content' })}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={18}
-          className="font-mono text-sm"
-        />
+        {loadFailure !== null ? null : (
+          <Textarea
+            id="asset-content"
+            label={t('skills.asset.content', { defaultValue: 'Content' })}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault();
+                void handleSave();
+              }
+            }}
+            rows={24}
+            className="font-mono text-sm"
+          />
+        )}
       </Stack>
     </FormDialog>
   );

@@ -80,10 +80,11 @@ export function CreateSkillDialog({
     handleSubmit,
     reset,
     setError,
-    formState: { isSubmitting, errors },
+    formState: { isSubmitting, errors, isDirty, isValid },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: { slug: '', description: '' },
+    mode: 'onChange',
   });
 
   useEffect(() => {
@@ -99,7 +100,11 @@ export function CreateSkillDialog({
           name: data.slug,
           description: data.description,
         },
-        body: `# ${data.slug}\n\nDescribe when this skill applies and the steps to follow.\n`,
+        body: t('skills.bodyTemplate', {
+          defaultValue:
+            '# {slug}\n\nDescribe when this skill applies and the steps to follow.\n',
+          slug: data.slug,
+        }),
       });
       toast({
         title: t('skills.skillCreated', { defaultValue: 'Skill created' }),
@@ -158,12 +163,16 @@ export function CreateSkillDialog({
         defaultValue: 'Creating…',
       })}
       isSubmitting={isSubmitting}
+      isDirty={isDirty}
+      isValid={isValid}
+      confirmDiscardOnDirty
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input
         id="slug"
         label={t('skills.form.slug', { defaultValue: 'Slug' })}
         {...register('slug')}
+        autoFocus
         placeholder="code-reviewer"
         errorMessage={errors.slug?.message}
       />

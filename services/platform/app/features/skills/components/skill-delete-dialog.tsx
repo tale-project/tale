@@ -7,25 +7,16 @@ import { useState } from 'react';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { isRecord } from '@/lib/utils/type-guards';
 
 import { useDeleteSkill } from '../hooks/mutations';
 import { useFindAgentsBindingSkill } from '../hooks/queries';
 
-/**
- * Pull a ConvexError code out of an unknown caught value. Mirrors
- * `extractConvexErrorCode` in `app/features/chat/hooks/use-voice-output.ts`
- * — kept inline here because `instanceof ConvexError` is unreliable across
- * HMR / code-splitting boundaries (project docs warn against it).
- */
 function extractCode(err: unknown): string | undefined {
-  if (err && typeof err === 'object' && 'data' in err) {
-    const data = (err as { data?: unknown }).data;
-    if (data && typeof data === 'object' && 'code' in data) {
-      const code = (data as { code?: unknown }).code;
-      if (typeof code === 'string') return code;
-    }
-  }
-  return undefined;
+  if (!err || typeof err !== 'object' || !('data' in err)) return undefined;
+  const data = (err as { data?: unknown }).data;
+  if (!isRecord(data)) return undefined;
+  return typeof data.code === 'string' ? data.code : undefined;
 }
 
 interface SkillDeleteDialogProps {
@@ -99,6 +90,7 @@ export function SkillDeleteDialog({
     }
   };
 
+  const isResolvingRelated = open && relatedAgents === undefined;
   const hasRelated = Array.isArray(relatedAgents) && relatedAgents.length > 0;
 
   return (
@@ -110,11 +102,28 @@ export function SkillDeleteDialog({
         defaultValue:
           'This removes the skill bundle from disk. Agents bound to it will keep the binding entry and log a runtime warning until you re-edit them.',
       })}
+      preview={{ primary: skillSlug }}
+      warning={
+        hasRelated
+          ? t('skills.deleteWarningBindings', {
+              defaultValue:
+                '{count} agent(s) bind this skill and will log runtime warnings until re-edited.',
+              count: relatedAgents.length,
+            })
+          : undefined
+      }
       deleteText={t('skills.deleteSkill', { defaultValue: 'Delete skill' })}
       isDeleting={isDeleting}
+      disableDelete={isResolvingRelated}
       onDelete={handleConfirm}
     >
-      {hasRelated ? (
+      {isResolvingRelated ? (
+        <Text variant="muted" className="mt-2 text-xs">
+          {t('skills.deleteResolvingBindings', {
+            defaultValue: 'Checking which agents bind this skill…',
+          })}
+        </Text>
+      ) : hasRelated ? (
         <Stack gap={2} className="mt-2">
           <Text variant="label">
             {t('skills.relatedAgentsHeader', {
