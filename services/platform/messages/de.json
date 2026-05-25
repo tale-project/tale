@@ -401,7 +401,8 @@
     "renameTitle": "Automatisierung umbenennen",
     "navigation": {
       "editor": "Editor",
-      "history": "Verlauf"
+      "history": "Verlauf",
+      "openAssistant": "KI-Assistent öffnen"
     },
     "history": {
       "empty": "Keine Verlaufseinträge",

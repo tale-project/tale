@@ -255,6 +255,10 @@ function AutomationDetailInner({
     setIsAIChatOpen(false);
   }, []);
 
+  const handleOpenAIChat = useCallback(() => {
+    setIsAIChatOpen(true);
+  }, []);
+
   useEffect(() => {
     const handler = () => void onRefetch();
     window.addEventListener('workflow-updated', handler);
@@ -305,12 +309,14 @@ function AutomationDetailInner({
             automationId={amId}
             workflowSlug={workflowSlug}
             onRefetch={onRefetch}
+            isAssistantOpen={isAIChatOpen}
+            onOpenAssistant={handleOpenAIChat}
           />
         </>
       }
       organizationId={organizationId}
     >
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
           {isExactAutomationPage ? (
             <Suspense fallback={<AutomationStepsSkeleton />}>
@@ -321,6 +327,7 @@ function AutomationDetailInner({
                 steps={steps as Doc<'wfStepDefs'>[]}
                 organizationId={organizationId}
                 automationId={workflowSlug}
+                onOpenAIChat={handleOpenAIChat}
               />
             </Suspense>
           ) : (
@@ -336,6 +343,7 @@ function AutomationDetailInner({
             onClose={handleCloseAIChat}
             panelWidth={panelWidth}
             onPanelWidthChange={setPanelWidth}
+            overlay
           />
         )}
       </div>

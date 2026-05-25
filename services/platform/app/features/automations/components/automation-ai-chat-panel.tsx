@@ -20,6 +20,8 @@ interface AutomationAIChatPanelProps {
   onClose: () => void;
   panelWidth?: number;
   onPanelWidthChange?: (width: number) => void;
+  /** When true, the panel floats over the page content instead of taking layout space. */
+  overlay?: boolean;
 }
 
 export function AutomationAIChatPanel({
@@ -29,6 +31,7 @@ export function AutomationAIChatPanel({
   onClose,
   panelWidth,
   onPanelWidthChange,
+  overlay = false,
 }: AutomationAIChatPanelProps) {
   const { t } = useT('automations');
   const panelRef = useRef<HTMLDivElement>(null);
@@ -59,7 +62,12 @@ export function AutomationAIChatPanel({
       role="complementary"
       aria-label={t('sidePanel.aiAssistant')}
       style={{ '--panel-width': `${width}px` }}
-      className="bg-background border-border relative flex min-h-0 w-(--panel-width) flex-[0_0_auto] flex-col overflow-hidden border-l max-md:absolute max-md:inset-0 max-md:z-20 max-md:w-full"
+      className={cn(
+        'bg-background border-border flex min-h-0 w-(--panel-width) flex-col overflow-hidden border-l shadow-lg max-md:absolute max-md:inset-0 max-md:z-20 max-md:w-full max-md:shadow-none',
+        overlay
+          ? 'absolute top-0 right-0 bottom-0 z-20'
+          : 'relative flex-[0_0_auto] shadow-none',
+      )}
     >
       {/* Resize handle */}
       <div

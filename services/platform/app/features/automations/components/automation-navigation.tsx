@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
-import { History } from 'lucide-react';
+import { History, Sparkles } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import {
@@ -31,6 +31,8 @@ interface AutomationNavigationProps {
   automationId?: string;
   workflowSlug: string;
   onRefetch: () => Promise<void>;
+  isAssistantOpen?: boolean;
+  onOpenAssistant?: () => void;
 }
 
 interface HistoryEntry {
@@ -43,6 +45,8 @@ export function AutomationNavigation({
   automationId,
   workflowSlug,
   onRefetch,
+  isAssistantOpen,
+  onOpenAssistant,
 }: AutomationNavigationProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
@@ -52,6 +56,8 @@ export function AutomationNavigation({
   // Surface dirty state to the page-level blocker so navigation away from
   // the editor with unsaved workflow edits triggers the unified confirm.
   useRegisterDirtySource(isDirty);
+
+  const showOpenAssistantButton = !!onOpenAssistant && !isAssistantOpen;
 
   const listHistoryAction = useConvexAction(
     api.workflows.file_actions.listHistory,
@@ -215,6 +221,36 @@ export function AutomationNavigation({
     return null;
   }
 
+  const assistantButton = showOpenAssistantButton ? (
+    <Button
+      variant="secondary"
+      size="icon"
+      className="size-8"
+      onClick={onOpenAssistant}
+      aria-label={t('navigation.openAssistant')}
+      title={t('navigation.openAssistant')}
+    >
+      <Sparkles className="size-3.5 text-purple-600" aria-hidden="true" />
+    </Button>
+  ) : null;
+
+  const historyMenu = (
+    <DropdownMenu
+      trigger={
+        <Button variant="secondary" size="sm" className="h-8 text-sm">
+          <History className="mr-1.5 size-3.5" aria-hidden="true" />
+          {t('navigation.history')}
+        </Button>
+      }
+      items={historyMenuItems}
+      align="end"
+      contentClassName="w-64"
+      onOpenChange={(open) => {
+        if (open) void handleLoadHistory();
+      }}
+    />
+  );
+
   return (
     <>
       <TabNavigation
@@ -223,22 +259,8 @@ export function AutomationNavigation({
         ariaLabel={tCommon('aria.automationsNavigation')}
       >
         <AutomationEditorActionsSlot
-          history={
-            <DropdownMenu
-              trigger={
-                <Button variant="secondary" size="sm" className="h-8 text-sm">
-                  <History className="mr-1.5 size-3.5" aria-hidden="true" />
-                  {t('navigation.history')}
-                </Button>
-              }
-              items={historyMenuItems}
-              align="end"
-              contentClassName="w-64"
-              onOpenChange={(open) => {
-                if (open) void handleLoadHistory();
-              }}
-            />
-          }
+          assistant={assistantButton}
+          history={historyMenu}
         />
       </TabNavigation>
 
@@ -264,19 +286,31 @@ export function AutomationNavigation({
  * the active editor null and only the History button shows.
  */
 function AutomationEditorActionsSlot({
+  assistant,
   history,
 }: {
+  assistant?: React.ReactNode;
   history: React.ReactNode;
 }) {
   const controller = useActiveEditor();
   if (!controller) {
-    return <div className="ml-auto flex items-center gap-2">{history}</div>;
+    return (
+      <div className="ml-auto flex items-center gap-2">
+        {assistant}
+        {history}
+      </div>
+    );
   }
   return (
     <EditorActions
       controller={controller}
       entityKind="automation"
-      history={history}
+      history={
+        <>
+          {assistant}
+          {history}
+        </>
+      }
     />
   );
 }

@@ -402,7 +402,8 @@
     "renameTitle": "Renommer l'automatisation",
     "navigation": {
       "editor": "Éditeur",
-      "history": "Historique"
+      "history": "Historique",
+      "openAssistant": "Ouvrir l'assistant IA"
     },
     "history": {
       "empty": "Aucune entrée d'historique",
