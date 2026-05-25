@@ -3545,17 +3545,29 @@
       "description": "Help the assistant remember things about you across chats. Off by default — enable below.",
       "privacyLink": "Privacy notice",
       "orgDefault": {
-        "label": "Organization default (admin)",
-        "description": "When on, every member of this organization has personalization enabled by default. Members who explicitly opt out keep their choice.",
+        "customInstructions": {
+          "label": "Custom instructions default (admin)",
+          "description": "When on, every member of this organization has custom instructions enabled by default. Members who explicitly opt out keep their choice."
+        },
+        "memories": {
+          "label": "Memories default (admin)",
+          "description": "When on, every member of this organization has memories enabled by default. Members who explicitly opt out keep their choice."
+        },
         "toastUpdated": "Organization default updated."
       },
       "enable": {
-        "label": "Personalization",
-        "description": "When on, the assistant uses your custom instructions and saved memories. Turn off any time to stop injection.",
         "orgStateOn": "on",
         "orgStateOff": "off",
         "followingOrgDefault": "Following organization default ({state}).",
         "overridingOrgDefault": "Overriding organization default ({state})."
+      },
+      "customInstructionsToggle": {
+        "label": "Custom instructions",
+        "description": "When on, the assistant prepends your custom instructions to every reply."
+      },
+      "memoriesToggle": {
+        "label": "Memories",
+        "description": "When on, the assistant can save and reuse facts you approve about yourself across chats."
       },
       "customInstructions": {
         "title": "Custom instructions",

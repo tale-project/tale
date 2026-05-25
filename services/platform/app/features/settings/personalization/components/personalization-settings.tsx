@@ -38,7 +38,8 @@ import { isRecord } from '@/lib/utils/type-guards';
 import {
   useApprovePendingMemory,
   useDismissPendingMemory,
-  useSetPersonalizationEnabled,
+  useSetCustomInstructionsEnabled,
+  useSetMemoriesEnabled,
   useSoftDeleteMemory,
   useUpsertMyPreferences,
 } from '../hooks/mutations';
@@ -99,6 +100,24 @@ export function PersonalizationSettings() {
   return <PersonalizationSettingsInner organizationId={organizationId} />;
 }
 
+interface FeatureGate {
+  orgDefaultOn: boolean;
+  isFollowingDefault: boolean;
+  effective: boolean;
+}
+
+function resolveGate(
+  userExplicit: boolean | undefined,
+  orgDefaultOn: boolean,
+): FeatureGate {
+  const isFollowingDefault = userExplicit === undefined;
+  return {
+    orgDefaultOn,
+    isFollowingDefault,
+    effective: isFollowingDefault ? orgDefaultOn : userExplicit,
+  };
+}
+
 function PersonalizationSettingsInner({
   organizationId,
 }: {
@@ -124,10 +143,15 @@ function PersonalizationSettingsInner({
     organizationId,
   });
 
-  const orgDefaultOn = orgDefault === true;
-  const userExplicit = prefs?.enabled;
-  const isFollowingDefault = userExplicit === undefined;
-  const effective = isFollowingDefault ? orgDefaultOn : userExplicit;
+  const orgDefaultLoaded = orgDefault !== undefined;
+  const customInstructionsGate = resolveGate(
+    prefs?.customInstructionsEnabled,
+    orgDefault?.customInstructions === true,
+  );
+  const memoriesGate = resolveGate(
+    prefs?.memoriesEnabled,
+    orgDefault?.memories === true,
+  );
 
   return (
     <SettingsPage
@@ -147,27 +171,30 @@ function PersonalizationSettingsInner({
       }
       narrow
     >
-      <OrgDefaultSection organizationId={organizationId} />
-      <EnableSection
+      <OrgDefaultsSection organizationId={organizationId} />
+      <CustomInstructionsToggleSection
         organizationId={organizationId}
-        orgDefault={orgDefault}
-        orgDefaultOn={orgDefaultOn}
-        isFollowingDefault={isFollowingDefault}
-        effective={effective}
+        gate={customInstructionsGate}
+        orgDefaultLoaded={orgDefaultLoaded}
       />
-      {effective && (
+      {customInstructionsGate.effective && (
         <CustomInstructionsSection
           prefs={prefs ?? null}
           organizationId={organizationId}
         />
       )}
-      <VoiceOutputSection prefs={prefs} organizationId={organizationId} />
-      {effective && (
+      <MemoriesToggleSection
+        organizationId={organizationId}
+        gate={memoriesGate}
+        orgDefaultLoaded={orgDefaultLoaded}
+      />
+      {memoriesGate.effective && (
         <>
           <SavedMemoriesSection memories={approvedMemories ?? []} />
           <PendingMemoriesSection memories={pendingMemories ?? []} />
         </>
       )}
+      <VoiceOutputSection prefs={prefs} organizationId={organizationId} />
     </SettingsPage>
   );
 }
@@ -176,33 +203,110 @@ function readPolicyEnabled(config: unknown): boolean {
   return isRecord(config) && config['enabled'] === true;
 }
 
-function OrgDefaultSection({ organizationId }: { organizationId: string }) {
+function OrgDefaultsSection({ organizationId }: { organizationId: string }) {
   const { t } = useT('personalization');
   const { toast } = useToast();
   const ability = useAbility();
-  const { data: policy } = useGovernancePolicy(
+  const { data: customInstructionsPolicy } = useGovernancePolicy(
     organizationId,
-    'personalization',
+    'custom_instructions',
+  );
+  const { data: memoriesPolicy } = useGovernancePolicy(
+    organizationId,
+    'user_memories',
   );
   const upsertMutation = useUpsertGovernancePolicy();
 
   if (ability.cannot('write', 'orgSettings')) return null;
 
-  const enabled = readPolicyEnabled(policy?.config);
+  const onToggle = async (
+    policyType: 'custom_instructions' | 'user_memories',
+    next: boolean,
+  ) => {
+    try {
+      await upsertMutation.mutateAsync({
+        organizationId,
+        policyType,
+        config: { enabled: next },
+      });
+      toast({ title: t('page.orgDefault.toastUpdated') });
+    } catch (err) {
+      toast({
+        title: errorMessage(err, t('errors.saveFailed')),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return (
+    <>
+      <SettingsToggleRow
+        label={t('page.orgDefault.customInstructions.label')}
+        description={t('page.orgDefault.customInstructions.description')}
+        checked={readPolicyEnabled(customInstructionsPolicy?.config)}
+        onCheckedChange={(next) => onToggle('custom_instructions', next)}
+      />
+      <SettingsToggleRow
+        label={t('page.orgDefault.memories.label')}
+        description={t('page.orgDefault.memories.description')}
+        checked={readPolicyEnabled(memoriesPolicy?.config)}
+        onCheckedChange={(next) => onToggle('user_memories', next)}
+      />
+    </>
+  );
+}
+
+interface ToggleSectionProps {
+  organizationId: string;
+  gate: FeatureGate;
+  orgDefaultLoaded: boolean;
+}
+
+function buildOrgDefaultHint(
+  t: (key: string, vars?: Record<string, string>) => string,
+  orgDefaultLoaded: boolean,
+  gate: FeatureGate,
+  baseDescription: string,
+): ReactNode {
+  if (!orgDefaultLoaded) return baseDescription;
+  const orgStateLabel = gate.orgDefaultOn
+    ? t('page.enable.orgStateOn')
+    : t('page.enable.orgStateOff');
+  const hint = gate.isFollowingDefault
+    ? t('page.enable.followingOrgDefault', { state: orgStateLabel })
+    : t('page.enable.overridingOrgDefault', { state: orgStateLabel });
+  return (
+    <>
+      {baseDescription} <span className="text-muted-foreground">{hint}</span>
+    </>
+  );
+}
+
+function CustomInstructionsToggleSection({
+  organizationId,
+  gate,
+  orgDefaultLoaded,
+}: ToggleSectionProps) {
+  const { t } = useT('personalization');
+  const { toast } = useToast();
+  const { mutateAsync: setEnabled } = useSetCustomInstructionsEnabled();
+
+  const description = buildOrgDefaultHint(
+    t,
+    orgDefaultLoaded,
+    gate,
+    t('page.customInstructionsToggle.description'),
+  );
 
   return (
     <SettingsToggleRow
-      label={t('page.orgDefault.label')}
-      description={t('page.orgDefault.description')}
-      checked={enabled}
+      label={t('page.customInstructionsToggle.label')}
+      description={description}
+      checked={gate.effective}
       onCheckedChange={async (next) => {
         try {
-          await upsertMutation.mutateAsync({
-            organizationId,
-            policyType: 'personalization',
-            config: { enabled: next },
-          });
-          toast({ title: t('page.orgDefault.toastUpdated') });
+          await setEnabled({ organizationId, enabled: next });
+          toast({ title: t('toasts.preferencesUpdated') });
         } catch (err) {
           toast({
             title: errorMessage(err, t('errors.saveFailed')),
@@ -214,49 +318,27 @@ function OrgDefaultSection({ organizationId }: { organizationId: string }) {
   );
 }
 
-function EnableSection({
+function MemoriesToggleSection({
   organizationId,
-  orgDefault,
-  orgDefaultOn,
-  isFollowingDefault,
-  effective,
-}: {
-  organizationId: string;
-  orgDefault: boolean | undefined;
-  orgDefaultOn: boolean;
-  isFollowingDefault: boolean;
-  effective: boolean;
-}) {
+  gate,
+  orgDefaultLoaded,
+}: ToggleSectionProps) {
   const { t } = useT('personalization');
   const { toast } = useToast();
-  const { mutateAsync: setEnabled } = useSetPersonalizationEnabled();
+  const { mutateAsync: setEnabled } = useSetMemoriesEnabled();
 
-  const orgStateLabel = orgDefaultOn
-    ? t('page.enable.orgStateOn')
-    : t('page.enable.orgStateOff');
-  const hint = isFollowingDefault
-    ? t('page.enable.followingOrgDefault', { state: orgStateLabel })
-    : t('page.enable.overridingOrgDefault', { state: orgStateLabel });
-
-  // The org-default hint sits inside the toggle row's `description` slot so
-  // both lines share `aria-describedby`. Folding it into the description
-  // also lines it up with the label on the left rather than dangling under
-  // the right-aligned switch.
-  const description: ReactNode =
-    orgDefault === undefined ? (
-      t('page.enable.description')
-    ) : (
-      <>
-        {t('page.enable.description')}{' '}
-        <span className="text-muted-foreground">{hint}</span>
-      </>
-    );
+  const description = buildOrgDefaultHint(
+    t,
+    orgDefaultLoaded,
+    gate,
+    t('page.memoriesToggle.description'),
+  );
 
   return (
     <SettingsToggleRow
-      label={t('page.enable.label')}
+      label={t('page.memoriesToggle.label')}
       description={description}
-      checked={effective}
+      checked={gate.effective}
       onCheckedChange={async (next) => {
         try {
           await setEnabled({ organizationId, enabled: next });

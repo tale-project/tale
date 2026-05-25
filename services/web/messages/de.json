@@ -74,11 +74,7 @@
       "footNote": "Wir integrieren mit {logos} und mehr — unsere Expertise deckt den Rest ab.",
       "integrationsPrefix": "Wir integrieren mit",
       "integrationsSuffix": "und mehr — unsere Expertise deckt den Rest ab.",
-      "integrations": [
-        "Microsoft",
-        "Google",
-        "Atlassian"
-      ]
+      "integrations": ["Microsoft", "Google", "Atlassian"]
     },
     "tagline": {
       "title": "Deine Infrastruktur. Deine Daten. Deine Regeln.",

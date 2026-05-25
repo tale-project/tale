@@ -574,6 +574,7 @@ import type * as migrations_migrate_org_creators from "../migrations/migrate_org
 import type * as migrations_remove_deprecated_llm_fields from "../migrations/remove_deprecated_llm_fields.js";
 import type * as migrations_rename_org_slug from "../migrations/rename_org_slug.js";
 import type * as migrations_seed_applied_bounds from "../migrations/seed_applied_bounds.js";
+import type * as migrations_split_personalization_toggle from "../migrations/split_personalization_toggle.js";
 import type * as migrations_trigger_steps_to_start from "../migrations/trigger_steps_to_start.js";
 import type * as node_only_documents_internal_actions from "../node_only/documents/internal_actions.js";
 import type * as node_only_integration_sandbox_execute_integration_impl from "../node_only/integration_sandbox/execute_integration_impl.js";
@@ -1675,6 +1676,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/remove_deprecated_llm_fields": typeof migrations_remove_deprecated_llm_fields;
   "migrations/rename_org_slug": typeof migrations_rename_org_slug;
   "migrations/seed_applied_bounds": typeof migrations_seed_applied_bounds;
+  "migrations/split_personalization_toggle": typeof migrations_split_personalization_toggle;
   "migrations/trigger_steps_to_start": typeof migrations_trigger_steps_to_start;
   "node_only/documents/internal_actions": typeof node_only_documents_internal_actions;
   "node_only/integration_sandbox/execute_integration_impl": typeof node_only_integration_sandbox_execute_integration_impl;

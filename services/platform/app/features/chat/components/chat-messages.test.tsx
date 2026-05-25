@@ -16,7 +16,10 @@ vi.mock('convex/react', () => ({
 }));
 
 vi.mock('../hooks/use-personalization-active', () => ({
-  usePersonalizationActiveForThread: () => false,
+  usePersonalizationActiveForThread: () => ({
+    customInstructions: false,
+    memories: false,
+  }),
 }));
 
 vi.mock('./message-bubble', () => ({

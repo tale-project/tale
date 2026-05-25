@@ -74,11 +74,7 @@
       "footNote": "Nous nous intégrons avec {logos} et plus encore — notre expertise couvre le reste.",
       "integrationsPrefix": "Nous nous intégrons avec",
       "integrationsSuffix": "et plus encore — notre expertise couvre le reste.",
-      "integrations": [
-        "Microsoft",
-        "Google",
-        "Atlassian"
-      ]
+      "integrations": ["Microsoft", "Google", "Atlassian"]
     },
     "tagline": {
       "title": "Ton infrastructure. Tes données. Tes règles.",
