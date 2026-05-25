@@ -15,16 +15,18 @@ Plain bullets on a white background won't impress anyone. For every deck:
 
 `palette: <key>` in the outline frontmatter. Pick from this list — adding new ones means editing `scripts/generate.py`.
 
-| Key                  | Mood                              | Primary           | Secondary           | Accent           |
-| -------------------- | --------------------------------- | ----------------- | ------------------- | ---------------- |
-| `midnight-executive` | Corporate, finance, default       | `1E2761` (navy)   | `CADCFC` (ice blue) | `FFFFFF` (white) |
-| `forest-moss`        | Sustainability, agriculture, calm | `2C5F2D` (forest) | `97BC62` (moss)     | `F5F5F5` (cream) |
-| `coral-energy`       | Consumer, marketing, energetic    | `F96167` (coral)  | `F9E795` (gold)     | `2F3C7E` (navy)  |
-| `warm-terracotta`    | Hospitality, lifestyle, warm      | `B85042` (clay)   | `E7E8D1` (sand)     | `A7BEAE` (sage)  |
-| `charcoal-minimal`   | Editorial, premium, restrained    | `36454F` (slate)  | `F2F2F2` (offwhite) | `212121` (black) |
-| `teal-trust`         | Tech, healthcare, trustworthy     | `028090` (teal)   | `00A896` (seafoam)  | `02C39A` (mint)  |
-| `berry-cream`        | Beauty, fashion, soft             | `6D2E46` (berry)  | `A26769` (rose)     | `ECE2D0` (cream) |
-| `cherry-bold`        | Bold launches, statements         | `990011` (cherry) | `FCF6F5` (offwhite) | `2F3C7E` (navy)  |
+| Key                  | Mood                              | Primary           | Secondary             | Accent              |
+| -------------------- | --------------------------------- | ----------------- | --------------------- | ------------------- |
+| `midnight-executive` | Corporate, finance, default       | `1E2761` (navy)   | `CADCFC` (ice blue)   | `FFFFFF` (white)    |
+| `forest-moss`        | Sustainability, agriculture, calm | `2C5F2D` (forest) | `97BC62` (moss)       | `F5F5F5` (cream)    |
+| `coral-energy`       | Consumer, marketing, energetic    | `F96167` (coral)  | `F9E795` (gold)       | `2F3C7E` (navy)     |
+| `warm-terracotta`    | Hospitality, lifestyle, warm      | `B85042` (clay)   | `E7E8D1` (sand)       | `A7BEAE` (sage)     |
+| `charcoal-minimal`   | Editorial, premium, restrained    | `36454F` (slate)  | `F2F2F2` (offwhite)   | `212121` (black)    |
+| `teal-trust`         | Tech, healthcare, trustworthy     | `028090` (teal)   | `00A896` (seafoam)    | `02C39A` (mint)     |
+| `berry-cream`        | Beauty, fashion, soft             | `6D2E46` (berry)  | `A26769` (rose)       | `ECE2D0` (cream)    |
+| `cherry-bold`        | Bold launches, statements         | `990011` (cherry) | `FCF6F5` (offwhite)   | `2F3C7E` (navy)     |
+| `ocean-gradient`     | Saas, fintech, depth              | `065A82` (deep)   | `1C7293` (teal)       | `21295C` (midnight) |
+| `sage-calm`          | Wellness, mindful, restorative    | `84B59F` (sage)   | `69A297` (eucalyptus) | `50808E` (slate)    |
 
 ## Font pairings
 

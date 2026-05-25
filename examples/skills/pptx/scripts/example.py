@@ -54,6 +54,8 @@ PALETTES: dict[str, Palette] = {
     "teal-trust": Palette("028090", "00A896", "02C39A"),
     "berry-cream": Palette("6D2E46", "A26769", "ECE2D0"),
     "cherry-bold": Palette("990011", "FCF6F5", "2F3C7E"),
+    "ocean-gradient": Palette("065A82", "1C7293", "21295C"),
+    "sage-calm": Palette("84B59F", "69A297", "50808E"),
 }
 
 FONTS: dict[str, tuple[str, str]] = {
