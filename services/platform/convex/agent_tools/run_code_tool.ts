@@ -406,7 +406,9 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
 
       const success = run.status === 'completed';
       const message = success
-        ? `run_code succeeded; produced ${run.files.length} workspace file(s) in ${run.durationMs}ms. Files: ${run.files.map((f) => f.path).join(', ') || '(none)'}.`
+        ? run.files.length > 0
+          ? `run_code succeeded in ${run.durationMs}ms. Produced ${run.files.length} output file(s) at /workspace/output/: ${run.files.map((f) => f.path).join(', ')}.`
+          : `run_code succeeded in ${run.durationMs}ms. No output files produced.`
         : run.errorCode
           ? `run_code FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}. Read stderrPreview, fix the script via file_write, then call run_code again.`
           : `run_code finished with status=${run.status} and no output files.`;
