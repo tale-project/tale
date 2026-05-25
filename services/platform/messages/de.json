@@ -430,7 +430,6 @@
       "backoffHelp": "Verzögerung zwischen Wiederholungsversuchen in Millisekunden",
       "variables": "Variablen (JSON)",
       "variablesHelp": "Diese Variablen stehen allen Schritten der Automatisierung zur Verfügung",
-      "saveButton": "Konfiguration speichern",
       "validation": {
         "nameRequired": "Name ist erforderlich",
         "invalidJson": "Ungültiges JSON im Variablen-Feld"
@@ -1287,7 +1286,6 @@
     },
     "actions": {
       "save": "Speichern",
-      "saveChanges": "Änderungen speichern",
       "saving": "Speichern...",
       "saved": "Gespeichert",
       "cancel": "Abbrechen",
@@ -2045,8 +2043,6 @@
       "suffixPlaceholder": "Verbindliches Prompt-Suffix eingeben...",
       "charCount": "{count} / {max} Zeichen",
       "charLimitExceeded": "Zeichenlimit überschritten",
-      "save": "Speichern",
-      "saving": "Speichern...",
       "saved": "System-Prompt wurde aktualisiert",
       "saveFailed": "System-Prompt konnte nicht gespeichert werden"
     },
@@ -3499,7 +3495,6 @@
     "conversations": "Konversationen",
     "knowledge": "Wissen",
     "automations": "Automatisierungen",
-    "automationsShort": "Automation",
     "userSettings": "Einstellungen",
     "orgSettings": "Organisationseinstellungen",
     "notifications": "Benachrichtigungen",
@@ -5550,9 +5545,6 @@
       "statsIndexed": "{count, plural, one {# RAG-indexiert} other {# RAG-indexiert}}",
       "newChatCta": "Neuer Chat in diesem Projekt",
       "identityDescription": "Name und Beschreibung des Projekts erscheinen in der Projektliste und in der Chat-Seitenleiste.",
-      "instructionsExcerpt": "Projektwissen",
-      "instructionsExcerptEmpty": "Noch keine Projektanweisungen.",
-      "instructionsExcerptEdit": "Anweisungen bearbeiten →",
       "sharingHeading": "Freigabe",
       "recentChats": "Aktuelle Chats in diesem Projekt",
       "recentChatsEmpty": "Noch keine Chats. Starte einen, dann erscheint er hier.",

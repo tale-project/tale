@@ -430,7 +430,6 @@
       "backoffHelp": "Delay between retry attempts in milliseconds",
       "variables": "Variables (JSON)",
       "variablesHelp": "These variables will be available to all steps in the automation",
-      "saveButton": "Save configuration",
       "validation": {
         "nameRequired": "Name is required",
         "invalidJson": "Invalid JSON in variables field"
@@ -1287,7 +1286,6 @@
     },
     "actions": {
       "save": "Save",
-      "saveChanges": "Save changes",
       "saving": "Saving...",
       "saved": "Saved",
       "cancel": "Cancel",
@@ -2045,8 +2043,6 @@
       "suffixPlaceholder": "Enter the mandatory prompt suffix...",
       "charCount": "{count} / {max} characters",
       "charLimitExceeded": "Character limit exceeded",
-      "save": "Save",
-      "saving": "Saving...",
       "saved": "System prompt has been updated",
       "saveFailed": "Failed to save system prompt"
     },
@@ -3499,7 +3495,6 @@
     "conversations": "Conversations",
     "knowledge": "Knowledge",
     "automations": "Automations",
-    "automationsShort": "Automation",
     "userSettings": "Settings",
     "orgSettings": "Organization settings",
     "notifications": "Notifications",
@@ -4049,9 +4044,6 @@
       "statsIndexed": "{count, plural, one {# RAG-indexed} other {# RAG-indexed}}",
       "newChatCta": "New chat in this project",
       "identityDescription": "The project's name and description appear in the projects list and on the chat sidebar.",
-      "instructionsExcerpt": "Project knowledge",
-      "instructionsExcerptEmpty": "No project instructions yet.",
-      "instructionsExcerptEdit": "Edit instructions →",
       "sharingHeading": "Sharing",
       "recentChats": "Recent chats in this project",
       "recentChatsEmpty": "No chats yet. Start one to see it here.",

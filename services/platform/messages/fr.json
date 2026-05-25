@@ -431,7 +431,6 @@
       "backoffHelp": "Délai entre les tentatives en millisecondes",
       "variables": "Variables (JSON)",
       "variablesHelp": "Ces variables seront disponibles pour toutes les étapes de l'automatisation",
-      "saveButton": "Enregistrer la configuration",
       "validation": {
         "nameRequired": "Le nom est requis",
         "invalidJson": "JSON invalide dans le champ des variables"
@@ -1288,7 +1287,6 @@
     },
     "actions": {
       "save": "Enregistrer",
-      "saveChanges": "Enregistrer les modifications",
       "saving": "Enregistrement...",
       "saved": "Enregistré",
       "cancel": "Annuler",
@@ -2046,8 +2044,6 @@
       "suffixPlaceholder": "Saisir le suffixe obligatoire du prompt...",
       "charCount": "{count} / {max} caractères",
       "charLimitExceeded": "Limite de caractères dépassée",
-      "save": "Enregistrer",
-      "saving": "Enregistrement...",
       "saved": "Le prompt système a été mis à jour",
       "saveFailed": "Échec de l'enregistrement du prompt système"
     },
@@ -3500,7 +3496,6 @@
     "conversations": "Conversations",
     "knowledge": "Connaissances",
     "automations": "Automatisations",
-    "automationsShort": "Automation",
     "userSettings": "Paramètres",
     "orgSettings": "Paramètres de l'organisation",
     "notifications": "Notifications",
@@ -5551,9 +5546,6 @@
       "statsIndexed": "{count, plural, one {# indexé RAG} other {# indexés RAG}}",
       "newChatCta": "Nouveau chat dans ce projet",
       "identityDescription": "Le nom et la description du projet apparaissent dans la liste des projets et dans la barre latérale du chat.",
-      "instructionsExcerpt": "Connaissances du projet",
-      "instructionsExcerptEmpty": "Aucune instruction de projet pour l'instant.",
-      "instructionsExcerptEdit": "Modifier les instructions →",
       "sharingHeading": "Partage",
       "recentChats": "Chats récents dans ce projet",
       "recentChatsEmpty": "Aucun chat pour l'instant. Démarres-en un et il apparaîtra ici.",

@@ -92,12 +92,10 @@ describe('hasProjectAccess', () => {
     ).toBe(true);
   });
 
-  it('grants access to disabled role only via admin override (none here)', () => {
+  it('denies disabled role regardless of team membership', () => {
     expect(hasProjectAccess({ teamId: 'team-1' }, ['team-1'], 'disabled')).toBe(
-      true,
+      false,
     );
-    // Note: disabled users are blocked at the org-membership layer upstream;
-    // this helper does not re-check membership.
   });
 });
 

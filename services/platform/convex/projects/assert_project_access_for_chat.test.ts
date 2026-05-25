@@ -47,14 +47,9 @@ describe('chat-path access decision (project + role + teams)', () => {
     ).toBe(true);
   });
 
-  it('disabled role is denied via the upstream org-membership lookup', () => {
-    // hasProjectAccess itself does not re-check role disabled — that's
-    // done at `getOrganizationMember` boundary. We assert the helper's
-    // structural behavior: a disabled user in the owning team would
-    // technically pass the team gate, but they'd never get to the helper
-    // because membership lookup throws. Document the contract.
+  it('disabled role is denied at the project-access helper layer', () => {
     expect(hasProjectAccess({ teamId: 'team-X' }, ['team-X'], 'disabled')).toBe(
-      true,
+      false,
     );
   });
 });
