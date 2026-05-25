@@ -202,42 +202,6 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     timeoutMs = r.timeoutMs;
   }
 
-  // options: optional object with two optional booleans. We do NOT
-  // re-emit the field if it's empty — keeps the wire shape stable.
-  let options: ExecuteRequest['options'];
-  if (r.options !== undefined) {
-    if (
-      r.options === null ||
-      typeof r.options !== 'object' ||
-      Array.isArray(r.options)
-    ) {
-      return { ok: false, error: 'options must be an object' };
-    }
-    // Same wire-shape narrowing as `r` at the top of validateExecuteRequest.
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    const opts = r.options as Record<string, unknown>;
-    if (opts.allowSdist !== undefined && typeof opts.allowSdist !== 'boolean') {
-      return { ok: false, error: 'options.allowSdist must be a boolean' };
-    }
-    if (
-      opts.allowInstallScripts !== undefined &&
-      typeof opts.allowInstallScripts !== 'boolean'
-    ) {
-      return {
-        ok: false,
-        error: 'options.allowInstallScripts must be a boolean',
-      };
-    }
-    options = {
-      ...(opts.allowSdist !== undefined && {
-        allowSdist: opts.allowSdist,
-      }),
-      ...(opts.allowInstallScripts !== undefined && {
-        allowInstallScripts: opts.allowInstallScripts,
-      }),
-    };
-  }
-
   // files: required for both single-script and multi-script modes —
   // single-script needs the entry file, multi-script needs every step's
   // file. Per-path safety mirrors the platform's `validatePath` rules;
@@ -445,7 +409,6 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       ...(packages !== undefined && { packages }),
       ...(packagesByLang !== undefined && { packagesByLang }),
       ...(timeoutMs !== undefined && { timeoutMs }),
-      ...(options !== undefined && { options }),
       files,
       ...(entryPath !== undefined && { entryPath }),
       ...(steps !== undefined && { steps }),

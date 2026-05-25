@@ -118,10 +118,6 @@ export interface ExecuteRequest {
     node?: string[];
   };
   timeoutMs?: number;
-  options?: {
-    allowSdist?: boolean;
-    allowInstallScripts?: boolean;
-  };
   /**
    * Pre-allocated upload-slot URLs the spawner POSTs harvested output
    * files to. Length = platform's pre-alloc N (defaults to 2). When the

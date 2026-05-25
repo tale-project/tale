@@ -20,7 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       jq \
       bash \
     && rm -rf /var/lib/apt/lists/* \
-    && fc-cache -f
+    && fc-cache -f \
+    && ln -sf /usr/local/bin/python3 /usr/local/bin/python
 
 # uv — fast Python package installer/resolver. See https://github.com/astral-sh/uv
 COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv

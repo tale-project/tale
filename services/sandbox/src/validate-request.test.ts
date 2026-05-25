@@ -93,22 +93,6 @@ describe('validateExecuteRequest', () => {
     expect(r.ok).toBe(false);
   });
 
-  test('rejects non-boolean options.allowSdist', () => {
-    const r = validateExecuteRequest({
-      ...good,
-      options: { allowSdist: 'yes' },
-    });
-    expect(r.ok).toBe(false);
-  });
-
-  test('accepts options shape with both flags', () => {
-    const r = validateExecuteRequest({
-      ...good,
-      options: { allowSdist: true, allowInstallScripts: false },
-    });
-    expect(r.ok).toBe(true);
-  });
-
   test('preserves only known fields (drops unrecognized keys)', () => {
     const r = validateExecuteRequest({
       ...good,

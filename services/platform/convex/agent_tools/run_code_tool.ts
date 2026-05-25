@@ -158,8 +158,10 @@ WORKFLOW:
 3. Any file the script writes under \`/workspace/output/\` is harvested back into the thread workspace and appears in the canvas
 
 PACKAGES:
-- Pip specs go in \`packages.python\`, npm specs in \`packages.node\`
-- The org policy gates what packages can be installed — denied packages return a structured error so you can adapt.
+- Pip specs go in \`packages.python\`, npm specs in \`packages.node\` — these install **before** the script runs.
+- You can also install on demand from inside the script: \`subprocess.run([sys.executable, "-m", "pip", "install", "foo"])\` from Python, \`npm install -g bar\` from a bash step, etc. Installed packages are importable/requireable immediately on the next line.
+- A bash step can also drive \`python\` (alias for python3), \`node\`, \`pip\`, \`npm\` directly — same writable install paths as the language-specific steps.
+- The org policy gates what \`packages.python\` / \`packages.node\` can declare — denied packages return a structured error so you can adapt. Inline installs are governed by the sandbox egress allowlist instead.
 
 TIMEOUTS / LIMITS:
 - Default 30s wall-clock, max 300s

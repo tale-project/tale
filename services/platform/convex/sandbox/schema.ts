@@ -84,10 +84,10 @@ export const sandboxExecutionsTable = defineTable({
   codePreview: v.string(),
   codeStorageId: v.optional(v.id('_storage')),
   packages: v.array(v.string()),
-  // @deprecated post R2-B4: install options are no longer caller-controlled;
-  // the action hardcodes `{allowSdist: false, allowInstallScripts: false}`
-  // before invoking the spawner. Field retained for read-validation on legacy
-  // rows; new writes never set it to anything else.
+  // @deprecated — install-time guards (--only-binary, --ignore-scripts) were
+  // dropped; the ephemeral container is the security boundary and install-time
+  // flags added nothing on top. Field retained as optional for read-validation
+  // on legacy rows; new writes never set it.
   installOptions: v.optional(
     v.object({
       allowSdist: v.optional(v.boolean()),

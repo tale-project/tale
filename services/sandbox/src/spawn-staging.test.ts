@@ -285,7 +285,6 @@ describe('stageWorkspace', () => {
       hostDir,
       baseReq({
         packages: ['numpy', 'pandas'],
-        options: { allowSdist: false, allowInstallScripts: false },
       }),
     );
 
@@ -293,10 +292,12 @@ describe('stageWorkspace', () => {
       await readFile(join(hostDir, 'code', 'packages.json'), 'utf8'),
     );
     expect(pkgs).toEqual(['numpy', 'pandas']);
+    // options.json is reserved for future install-time flags; written as an
+    // empty object today so the entrypoint's positional arg shape stays stable.
     const opts = JSON.parse(
       await readFile(join(hostDir, 'code', 'options.json'), 'utf8'),
     );
-    expect(opts).toEqual({ allowSdist: false, allowInstallScripts: false });
+    expect(opts).toEqual({});
   });
 
   test('preserves binary payloads byte-for-byte (regression: legacy inline UTF-8 path mangled PPTX/XLSX/ZIP)', async () => {

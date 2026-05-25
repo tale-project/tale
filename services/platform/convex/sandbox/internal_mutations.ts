@@ -162,12 +162,6 @@ export const reserveSlotAndInsert = internalMutation({
     codePreview: v.string(),
     codeStorageId: v.optional(v.id('_storage')),
     packages: v.array(v.string()),
-    installOptions: v.optional(
-      v.object({
-        allowSdist: v.optional(v.boolean()),
-        allowInstallScripts: v.optional(v.boolean()),
-      }),
-    ),
     estimatedSeconds: v.number(),
   },
   returns: v.id('sandboxExecutions'),
@@ -247,15 +241,6 @@ export const reserveSlotAndInsert = internalMutation({
       ...(args.skillVersionHash !== undefined && {
         skillVersionHash: args.skillVersionHash,
       }),
-      // Normalize the audit field: always store an object with explicit
-      // booleans (default false) so a future read-side default-divergence
-      // can't quietly invert the meaning. The legacy conditional-spread
-      // stored either `undefined` or a partial object, depending on the
-      // caller's args shape.
-      installOptions: {
-        allowSdist: args.installOptions?.allowSdist ?? false,
-        allowInstallScripts: args.installOptions?.allowInstallScripts ?? false,
-      },
       language: args.language,
       ...(args.purpose !== undefined && { purpose: args.purpose }),
       codePreview: args.codePreview,

@@ -765,10 +765,9 @@ export async function stageWorkspace(
       JSON.stringify(single ?? []),
     );
   }
-  await writeFile(
-    join(codeDir, 'options.json'),
-    JSON.stringify(req.options ?? {}),
-  );
+  // options.json is reserved for future install-time flags; written as an
+  // empty object today so the entrypoint's positional arg shape stays stable.
+  await writeFile(join(codeDir, 'options.json'), '{}');
 
   // Spawner runs as root; the runtime container runs as nobody (65534) and
   // needs to read the staged files. Recursively `lchown` (not `chown`) so a
