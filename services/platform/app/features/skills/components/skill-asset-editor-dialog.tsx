@@ -11,6 +11,7 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { isRecord } from '@/lib/utils/type-guards';
 
 import { useWriteSkillAsset } from '../hooks/mutations';
 import { useReadSkillAsset } from '../hooks/queries';
@@ -24,7 +25,25 @@ interface SkillAssetEditorDialogProps {
   assetPath: string | null;
 }
 
-export function SkillAssetEditorDialog({
+/**
+ * Outer shell — keeps the inner editor mounted only while `open` is true,
+ * and keys it on the target asset path so React unmounts the form (and
+ * resets all local state) on every edit→close→create or edit-A→edit-B
+ * transition. This is what plugs the state-pollution + mid-load
+ * corruption windows; the previous implementation reused a single
+ * mounted form and synced state via effect, which created the
+ * "save-while-loading writes A's content to B's path" race.
+ */
+export function SkillAssetEditorDialog(props: SkillAssetEditorDialogProps) {
+  return (
+    <SkillAssetEditorForm
+      key={`${props.assetPath ?? '__create__'}|${props.open ? 'open' : 'closed'}`}
+      {...props}
+    />
+  );
+}
+
+function SkillAssetEditorForm({
   open,
   onOpenChange,
   organizationId,
@@ -48,26 +67,32 @@ export function SkillAssetEditorDialog({
     isEditMode ? assetPath : null,
   );
 
-  // Sync editor state with the loaded asset when editing.
+  // Hydrate state from the loaded asset on edit-mode mount. Because the
+  // outer shell keys this component on assetPath, this effect runs once
+  // per asset — no risk of a refetch clobbering active edits.
   useEffect(() => {
-    if (!isEditMode) {
-      if (!open) {
-        setPathInput('');
-        setContent('');
-        setLoadedHash(undefined);
-        setPathError(undefined);
-      }
-      return;
-    }
+    if (!isEditMode) return;
     if (assetData?.ok) {
       setPathInput(assetPath);
       setContent(assetData.content);
       setLoadedHash(assetData.hash);
     }
-  }, [assetData, assetPath, isEditMode, open]);
+  }, [assetData, assetPath, isEditMode]);
+
+  // Surface `ok:false` states (not_found, too_large) explicitly — saving
+  // with stale state on top of a missing/oversized file would otherwise
+  // silently overwrite or truncate.
+  const loadFailure: 'not_found' | 'too_large' | null =
+    isEditMode && assetData && !assetData.ok ? assetData.error : null;
+  const isLoading = isEditMode && assetData === undefined;
+  const canSave =
+    !isSaving &&
+    loadFailure === null &&
+    !isLoading &&
+    (isEditMode ? loadedHash !== undefined : true);
 
   const handleSave = async () => {
-    if (isSaving) return;
+    if (!canSave) return;
     const targetPath = isEditMode ? assetPath : pathInput.trim();
     if (!targetPath) {
       setPathError(
@@ -95,7 +120,13 @@ export function SkillAssetEditorDialog({
       onOpenChange(false);
     } catch (error) {
       if (error instanceof ConvexError) {
-        const code = error.data?.code;
+        // Narrow ConvexError.data through isRecord before reading
+        // string fields. Peer feature code uses the same defensive
+        // pattern (e.g. thread-voice-output-switch.tsx).
+        const data = isRecord(error.data) ? error.data : undefined;
+        const code = typeof data?.code === 'string' ? data.code : undefined;
+        const message =
+          typeof data?.message === 'string' ? data.message : undefined;
         if (code === 'CONFLICT') {
           toast({
             title: t('skills.asset.conflict', {
@@ -106,6 +137,16 @@ export function SkillAssetEditorDialog({
           });
           return;
         }
+        if (code === 'ALREADY_EXISTS') {
+          setPathError(
+            message ??
+              t('skills.asset.alreadyExists', {
+                defaultValue:
+                  'A file already exists at this path. Open it from the list to edit, or pick a new path.',
+              }),
+          );
+          return;
+        }
         if (
           code === 'BUNDLE_TOO_MANY_FILES' ||
           code === 'BUNDLE_TOO_LARGE' ||
@@ -113,7 +154,7 @@ export function SkillAssetEditorDialog({
         ) {
           toast({
             title:
-              error.data?.message ??
+              message ??
               t('skills.asset.sizeError', {
                 defaultValue: 'File would exceed the bundle size limit',
               }),
@@ -131,13 +172,13 @@ export function SkillAssetEditorDialog({
           return;
         }
       }
-      const message = error instanceof Error ? error.message : String(error);
+      const fallback = error instanceof Error ? error.message : String(error);
       // Path-traversal / invalid path errors arrive as Error not ConvexError.
       if (
-        message.includes('Asset path') ||
-        message.includes('Path traversal')
+        fallback.includes('Asset path') ||
+        fallback.includes('Path traversal')
       ) {
-        setPathError(message);
+        setPathError(fallback);
         return;
       }
       console.error(error);
@@ -170,6 +211,21 @@ export function SkillAssetEditorDialog({
       onSubmit={() => void handleSave()}
     >
       <Stack gap={4}>
+        {loadFailure === 'not_found' ? (
+          <Text variant="muted" className="text-destructive">
+            {t('skills.asset.loadNotFound', {
+              defaultValue:
+                'This file is no longer in the bundle. Close and create it from the list instead.',
+            })}
+          </Text>
+        ) : loadFailure === 'too_large' ? (
+          <Text variant="muted" className="text-destructive">
+            {t('skills.asset.loadTooLarge', {
+              defaultValue:
+                'This file is too large to edit in the browser. Replace it from the CLI or delete it here.',
+            })}
+          </Text>
+        ) : null}
         {!isEditMode ? (
           <>
             <Input

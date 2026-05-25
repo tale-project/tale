@@ -54,6 +54,7 @@ function snapshotWith(
     entries: bindings.map((b) => ({
       slug: b.slug,
       description: 'desc',
+      disableModelInvocation: false,
       body: 'body',
       versionHashLive: 'h'.repeat(64),
       versionHashSnapshot: 'h'.repeat(64),

@@ -6,6 +6,7 @@
     "apiKeys": "Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu verwalten.",
     "organization": "Du benötigst Admin-Berechtigungen, um auf die Organisationseinstellungen zuzugreifen.",
     "agents": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Agents zu verwalten.",
+    "skills": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Skills zu verwalten.",
     "branding": "Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen zuzugreifen.",
     "knowledge": "Dein Konto hat keine Berechtigung, auf Wissen zuzugreifen.",
     "workspaceNotFound": "Der gesuchte Workspace existiert nicht oder wurde möglicherweise entfernt.",
@@ -4185,7 +4186,7 @@
         "title": "Skills",
         "description": "Hänge wiederverwendbare Anleitungspakete an diesen Agent an. Die deklarierten Tool-, Integrations- und Workflow-Abhängigkeiten jedes Skills werden zum Bindungszeitpunkt als Snapshot eingefroren und zur Laufzeit in das effektive Set des Agents zusammengeführt.",
         "boundTitle": "Gebundene Skills",
-        "boundDescription": "Wenn der Agent läuft, werden Name + Beschreibung jedes gebundenen Skills in den System-Prompt eingefügt. Das Modell kann `expand_skill` aufrufen, um die vollständigen Anweisungen zu laden, `read_skill_file` für grosse Dateien und `skill_run`, um gebündelte Skripte in der Sandbox auszuführen."
+        "boundDescription": "Wenn der Agent läuft, werden Name + Beschreibung jedes gebundenen Skills in den System-Prompt eingefügt. Das Modell kann `expand_skill` aufrufen, um die vollständigen Anweisungen zu laden, `read_skill_file` für große Dateien und `skill_run`, um gebündelte Skripte in der Sandbox auszuführen."
       },
       "history": {
         "empty": "Keine Verlaufseinträge",
@@ -4388,6 +4389,7 @@
       }
     },
     "skills": {
+      "title": "Skills",
       "createSkill": "Skill erstellen",
       "searchPlaceholder": "Skills suchen…",
       "deleteSkill": "Skill löschen",
@@ -4402,9 +4404,9 @@
       "skillAlreadyExists": "Ein Skill mit diesem Slug existiert bereits",
       "conflict": "Dieser Skill wurde anderswo geändert. Lade neu, um die aktuelle Version zu sehen.",
       "validationError": "Ungültige Skill-Konfiguration",
-      "deleteConfirmation": "Dadurch wird das Skill-Bundle von der Festplatte entfernt. An ihn gebundene Agents behalten den Bindungseintrag und protokollieren zur Laufzeit eine Warnung, bis du sie erneut bearbeitest.",
+      "deleteConfirmation": "Dadurch wird das Skill-Bundle von der Festplatte entfernt. Daran gebundene Agents behalten den Bindungseintrag und protokollieren zur Laufzeit eine Warnung, bis du sie erneut bearbeitest.",
       "relatedAgentsHeader": "Gebunden von diesen Agents",
-      "headerChipLabel": "{count} Skills",
+      "headerChipLabel": "{count, plural, one {# Skill} other {# Skills}}",
       "headerChipAria": "Gebundene Skills ansehen",
       "headerChipTitle": "Skills für diesen Agent verfügbar",
       "columns": {
@@ -4434,10 +4436,10 @@
       },
       "bundle": {
         "empty": "Noch keine Bundle-Dateien.",
-        "uiHelp": "Bundle-Dateien liegen auf der Festplatte unter skills/<slug>/. UI-Änderungen verwenden atomare Writes mit CAS — gleichzeitige Plattenänderungen werden erkannt und als Konflikte gemeldet."
+        "uiHelp": "Bundle-Dateien liegen auf der Festplatte unter skills/<slug>/. UI-Änderungen verwenden atomare Schreibvorgänge mit Konflikterkennung — gleichzeitige Plattenänderungen werden erkannt und als Konflikte gemeldet."
       },
       "deps": {
-        "summary": "{count} deklarierte Abhängigkeiten",
+        "summary": "{count, plural, one {# deklarierte Abhängigkeit} other {# deklarierte Abhängigkeiten}}",
         "tools": "Tools",
         "integrations": "Integrationen",
         "workflows": "Workflows",
@@ -4450,9 +4452,9 @@
         "pathRequired": "Pfad ist erforderlich",
         "content": "Inhalt",
         "createTitle": "Neue Bundle-Datei",
-        "editTitle": "{{path}} bearbeiten",
-        "editAria": "{{path}} bearbeiten",
-        "deleteAria": "{{path}} löschen",
+        "editTitle": "{path} bearbeiten",
+        "editAria": "{path} bearbeiten",
+        "deleteAria": "{path} löschen",
         "deleteTitle": "Datei löschen",
         "deleteConfirmation": "Diese Datei dauerhaft aus dem Skill-Bundle entfernen. Dies kann nicht rückgängig gemacht werden.",
         "saved": "Datei gespeichert",
@@ -4460,13 +4462,13 @@
         "deleted": "Datei gelöscht",
         "deleteFailed": "Datei konnte nicht gelöscht werden",
         "conflict": "Diese Datei wurde anderswo geändert. Öffne sie erneut, um die aktuelle Version zu sehen.",
-        "sizeError": "Datei würde das Bundle-Grössenlimit überschreiten",
+        "sizeError": "Datei würde das Bundle-Größenlimit überschreiten",
         "notFound": "Skill nicht gefunden",
         "quota": "{used} / {max} Dateien · {bytes} / {byteMax} Bytes"
       },
       "selector": {
         "empty": "In dieser Organisation sind noch keine Skills verfügbar. Erstelle einen unter Skills.",
-        "deps": "{count} Abh.",
+        "deps": "{count, plural, one {# Abh.} other {# Abh.}}",
         "transitive": "Bindung aktiviert: {tools}{integrations}{workflows}"
       }
     },

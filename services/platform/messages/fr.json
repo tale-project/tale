@@ -6,6 +6,7 @@
     "apiKeys": "Tu dois disposer des permissions Admin ou Développeur pour gérer les clés API.",
     "organization": "Tu dois disposer des permissions Admin pour accéder aux paramètres de l'organisation.",
     "agents": "Tu dois disposer des permissions Admin ou Développeur pour gérer les agents.",
+    "skills": "Tu dois disposer des permissions Admin ou Développeur pour gérer les skills.",
     "branding": "Tu dois disposer des permissions Admin pour accéder aux paramètres de marque.",
     "knowledge": "Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.",
     "workspaceNotFound": "L'espace de travail que tu recherches n'existe pas ou a été supprimé.",
@@ -4389,6 +4390,7 @@
       }
     },
     "skills": {
+      "title": "Skills",
       "createSkill": "Créer un skill",
       "searchPlaceholder": "Rechercher des skills…",
       "deleteSkill": "Supprimer le skill",
@@ -4405,7 +4407,7 @@
       "validationError": "Configuration de skill invalide",
       "deleteConfirmation": "Cela retire le bundle du skill du disque. Les agents qui y sont attachés conserveront leur référence et émettront un avertissement à l'exécution jusqu'à ce que tu les modifies à nouveau.",
       "relatedAgentsHeader": "Attaché par ces agents",
-      "headerChipLabel": "{count} skills",
+      "headerChipLabel": "{count, plural, one {# skill} other {# skills}}",
       "headerChipAria": "Voir les skills attachés",
       "headerChipTitle": "Skills disponibles pour cet agent",
       "columns": {
@@ -4438,7 +4440,7 @@
         "uiHelp": "Les fichiers du bundle vivent sur le disque sous skills/<slug>/. Les modifications via l'UI utilisent des écritures atomiques avec CAS — les modifications concurrentes sur disque sont détectées et signalées comme conflits."
       },
       "deps": {
-        "summary": "{count} dépendances déclarées",
+        "summary": "{count, plural, one {# dépendance déclarée} other {# dépendances déclarées}}",
         "tools": "Outils",
         "integrations": "Intégrations",
         "workflows": "Workflows",
@@ -4451,9 +4453,9 @@
         "pathRequired": "Le chemin est requis",
         "content": "Contenu",
         "createTitle": "Nouveau fichier de bundle",
-        "editTitle": "Modifier {{path}}",
-        "editAria": "Modifier {{path}}",
-        "deleteAria": "Supprimer {{path}}",
+        "editTitle": "Modifier {path}",
+        "editAria": "Modifier {path}",
+        "deleteAria": "Supprimer {path}",
         "deleteTitle": "Supprimer le fichier",
         "deleteConfirmation": "Retire définitivement ce fichier du bundle du skill. Cette action est irréversible.",
         "saved": "Fichier enregistré",
@@ -4467,7 +4469,7 @@
       },
       "selector": {
         "empty": "Aucun skill disponible dans cette organisation pour l'instant. Crée-en un sous Skills.",
-        "deps": "{count} déps",
+        "deps": "{count, plural, one {# dép} other {# déps}}",
         "transitive": "L'attachement active : {tools}{integrations}{workflows}"
       }
     },

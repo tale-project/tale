@@ -1,19 +1,19 @@
 ---
 name: pdf-extractor
-description: Extract text from a PDF file the user has attached to the conversation. Use when the user asks "what does this PDF say", "summarize this PDF", or otherwise wants to read PDF contents back. Runs a Python script in the platform sandbox.
+description: Extract text from every PDF attached to the conversation. Use when the user asks "what does this PDF say", "summarize this PDF", or otherwise wants to read PDF contents back. Runs a Python script in the platform sandbox.
 packages:
   python:
-    - pypdf
+    - pypdf==5.1.0
 license: MIT
 ---
 
 # PDF Extractor
 
-You can extract text from a PDF the user attached to this thread.
+You can extract text from every PDF the user attached to this thread.
 
 ## When to invoke
 
-The user has attached a `.pdf` file (visible in the conversation attachments) AND wants you to read its content. Typical phrasings:
+The user has attached one or more `.pdf` files (visible in the conversation attachments) AND wants you to read their content. Typical phrasings:
 
 - "What does this PDF say?"
 - "Summarize this for me"
@@ -25,10 +25,10 @@ If the user attached a PDF but didn't ask about its content, **don't** invoke th
 
 Call `skill_run({ skillSlug: "pdf-extractor", path: "scripts/extract.py" })`.
 
-The script reads the PDF from `/workspace/output/<filename>.pdf` (the platform stages thread attachments there) and writes the extracted text to `/workspace/output/extracted.txt`. After the run completes, read the returned `extracted.txt` and answer the user's question from its content.
+The script reads **every** `*.pdf` file from `/workspace/output/` (the platform stages thread attachments there) and writes the combined extracted text to `/workspace/output/extracted.txt`, with `--- <filename> page N ---` banners between sections so you can attribute quotes back to the right document. After the run completes, read the returned `extracted.txt` and answer the user's question from its content.
 
 ## After the run
 
 - Confirm the returned `files` array contains `extracted.txt` and `success === true`. If not, surface the error to the user — don't pretend you read the PDF.
 - Keep your reply grounded in the extracted text. Quote sparingly. If the text is too long for the reply, summarize and offer to drill in.
-- If `runStderrPreview` mentions encryption or scanned-image PDFs, tell the user: this skill handles native-text PDFs only.
+- Encrypted PDFs are listed in `extracted.txt` as `[skipped: <filename> is encrypted]`. Tell the user this skill handles native-text PDFs only and skips encrypted/scanned-image ones.

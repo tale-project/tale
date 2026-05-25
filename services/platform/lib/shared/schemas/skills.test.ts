@@ -170,12 +170,19 @@ describe('parseSkillMd — YAML security', () => {
     ).toThrow(SkillFrontmatterError);
   });
 
-  it('rejects multi-document YAML in frontmatter', () => {
-    const fm = 'name: ok\ndescription: x\n---\nname: ok2';
-    // Two `---` lines inside the frontmatter region would close early and
-    // either succeed at the first doc or fail — either is acceptable for
-    // security; we just ensure the parser doesn't crash.
-    expect(() => parseSkillMd(wrap(fm))).not.toThrow(TypeError);
+  it('truncates frontmatter at the first inner `---` line (no document merging)', () => {
+    // Two `---` blocks inside the frontmatter region should close the
+    // frontmatter at the first inner `---` line. Anything after becomes
+    // body — it must NOT silently merge into the parsed metadata.
+    const { meta, body } = parseSkillMd(
+      wrap('name: ok\ndescription: first\n---\nname: ok2\ndescription: second'),
+    );
+    expect(meta.name).toBe('ok');
+    expect(meta.description).toBe('first');
+    // The second `name`/`description` falls through to the body — proves
+    // we are not concatenating documents into the metadata.
+    expect(body).toContain('name: ok2');
+    expect(body).toContain('description: second');
   });
 
   it('rejects non-mapping frontmatter (top-level array)', () => {

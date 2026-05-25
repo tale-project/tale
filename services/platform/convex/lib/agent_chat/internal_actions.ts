@@ -349,9 +349,11 @@ export const runAgentGeneration = internalAction({
         ? buildHooksFromConfig(hooksConfig)
         : undefined;
 
-      // Build tools summary for context window display
+      // Build tools summary for context window display.
+      // Read from effectiveConfig — agentConfig predates the skill merge
+      // and would omit skill-declared convex tools.
       const toolsSummary = buildToolsSummary(
-        agentConfig.convexToolNames,
+        effectiveConfig.convexToolNames,
         allExtraTools,
       );
 
@@ -441,7 +443,9 @@ export const runAgentGeneration = internalAction({
             // Drop `image` when the chat model handles images natively.
             const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
             const webSearchMode = agentConfig.webSearchMode ?? 'off';
-            const baseToolList = agentConfig.convexToolNames ?? [];
+            // Read from effectiveConfig so skill-declared convex tools
+            // (post-mergeSkillDependencies) actually reach the LLM.
+            const baseToolList = effectiveConfig.convexToolNames ?? [];
             const withPropose: string[] =
               personalizationActive && !baseToolList.includes('propose_memory')
                 ? [...baseToolList, 'propose_memory']
@@ -489,7 +493,7 @@ export const runAgentGeneration = internalAction({
               debugTag,
               enableStreaming,
               hooks,
-              convexToolNames: agentConfig.convexToolNames,
+              convexToolNames: effectiveConfig.convexToolNames,
               knowledgeMode: agentConfig.knowledgeMode,
               webSearchMode: agentConfig.webSearchMode,
               includeTeamKnowledge: agentConfig.includeTeamKnowledge,

@@ -1,13 +1,16 @@
 /**
  * Stricter variant of {@link requireOrgMembershipById} that additionally
- * requires the caller to hold an admin/owner role in Better Auth. Used to
- * gate skill creation, editing, and deletion — the dangerous operations
- * that should not be available to plain members.
+ * enforces the `developerSettings` CASL capability — matching the
+ * `requireDeveloperSettingsAccess` pattern in `providers/auth.ts`. Used to
+ * gate skill creation, editing, deletion, and any agent-config write that
+ * changes capability fields.
  *
- * Developer role: Better Auth supports a `developer` literal but the
- * platform does not currently provision one. The helper is named with
- * "developer" forward-compatibly so future role expansion lands here
- * without a rename. For v1 the effective allowlist is `{owner, admin}`.
+ * The capability — not a hardcoded role list — is the source of truth.
+ * `developer`, `admin`, and `owner` all hold `read developerSettings` per
+ * `lib/permissions/ability.ts`; if the role matrix is ever expanded to add
+ * (say) `auditor` with this capability, this gate picks it up without
+ * a code change. The `developer` role IS provisioned by Better Auth
+ * (see `convex/auth.ts:111-133, 236-253, 557`).
  *
  * NOTE: this file is intentionally NOT `'use node'` — it does only V8 work
  * (ctx.runQuery against Better Auth), so it can be imported from both Node
@@ -16,24 +19,26 @@
 
 import { ConvexError } from 'convex/values';
 
+import { defineAbilityFor } from '../../../lib/permissions/ability';
 import type { ActionCtx } from '../../_generated/server';
 import {
   requireOrgMembershipById,
   type OrgMembershipAuth,
 } from './require_org_membership';
 
-const ADMIN_DEVELOPER_ROLES = new Set(['owner', 'admin', 'developer']);
-
 export async function requireOrgAdminOrDeveloper(
   ctx: ActionCtx,
   organizationId: string,
 ): Promise<OrgMembershipAuth> {
   const auth = await requireOrgMembershipById(ctx, organizationId);
-  if (!ADMIN_DEVELOPER_ROLES.has(auth.member.role)) {
+  const ability = defineAbilityFor(auth.member.role);
+  if (ability.cannot('read', 'developerSettings')) {
+    // Distinct from the inner helper's `ORG_FORBIDDEN` so the UI can
+    // distinguish "not a member" from "wrong role" and surface different
+    // toasts. The settings/providers dispatcher already maps this code.
     throw new ConvexError({
-      code: 'ORG_FORBIDDEN',
-      message:
-        'This action requires admin, owner, or developer role on the organization.',
+      code: 'FORBIDDEN_DEVELOPER_SETTINGS',
+      message: `Role "${auth.member.role}" lacks the developer-settings capability required to perform this action.`,
     });
   }
   return auth;

@@ -300,7 +300,7 @@ export async function init(options: InitOptions): Promise<void> {
     logger.info(`  ${step++}. Run "cd ${target}" to enter your project`);
   }
   logger.info(
-    `  ${step++}. Edit agents/, workflows/, integrations/, and branding/ to customize your setup`,
+    `  ${step++}. Edit agents/, workflows/, integrations/, skills/, and branding/ to customize your setup`,
   );
   logger.info(
     `  ${step++}. Open the project in an AI-powered editor (Claude Code, Cursor, Copilot, or Windsurf) for guided config creation`,
@@ -315,6 +315,7 @@ const TALE_PROJECT_MARKERS = new Set([
   'agents',
   'workflows',
   'integrations',
+  'skills',
   '.tale',
   'branding',
 ]);

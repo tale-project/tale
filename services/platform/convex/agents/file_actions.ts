@@ -21,7 +21,9 @@ import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-con
 import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
 import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
+import { buildFreshSkillBindingsSnapshot } from '../lib/agent_chat/skills_runtime';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
+import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
@@ -174,6 +176,65 @@ export const saveAgent = action({
       }
       throw err;
     }
+
+    // ---------------------------------------------------------------------
+    // Capability gate + server-side snapshot rebuild.
+    //
+    // `skillBindingsResolved` is a trusted snapshot the runtime consumes
+    // verbatim (`mergeSkillDependencies`) — so it CANNOT come from the
+    // client. We:
+    //   1. detect whether the save changes capability fields,
+    //   2. require admin/developer if so (members can still rename or
+    //      tweak instructions on agents they own),
+    //   3. drop the client-supplied resolved array and rebuild it from
+    //      canonical SKILL.md files for each declared binding.
+    // ---------------------------------------------------------------------
+    const arrayEq = (
+      a: readonly string[] | undefined,
+      b: readonly string[] | undefined,
+    ): boolean => {
+      const aArr = a ?? [];
+      const bArr = b ?? [];
+      if (aArr.length !== bArr.length) return false;
+      const aSorted = [...aArr].sort();
+      const bSorted = [...bArr].sort();
+      return aSorted.every((v, i) => v === bSorted[i]);
+    };
+
+    const prevAgent = await readAgentFile(
+      orgSlug,
+      args.oldAgentName ?? args.agentName,
+    );
+    const isCapabilityChange =
+      args.isNew === true ||
+      !prevAgent.ok ||
+      !arrayEq(prevAgent.config.toolNames, config.toolNames) ||
+      !arrayEq(
+        prevAgent.config.integrationBindings,
+        config.integrationBindings,
+      ) ||
+      !arrayEq(prevAgent.config.workflows, config.workflows) ||
+      !arrayEq(prevAgent.config.delegates, config.delegates) ||
+      !arrayEq(prevAgent.config.skillBindings, config.skillBindings);
+
+    if (isCapabilityChange) {
+      await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    }
+
+    // Server-side rebuild of skillBindingsResolved from canonical SKILL.md.
+    // The client-supplied value is intentionally discarded — the runtime
+    // trusts this array to grant tools/integrations/workflows transitively,
+    // so the server must be the source of truth.
+    const rebuiltResolved = await buildFreshSkillBindingsSnapshot(
+      ctx,
+      orgSlug,
+      config.skillBindings ?? [],
+    );
+    config = {
+      ...config,
+      skillBindingsResolved:
+        rebuiltResolved.length > 0 ? rebuiltResolved : undefined,
+    };
 
     // Cross-validate supportedModels against provider model lists.
     // Qualified entries ("provider:model") must resolve strictly;

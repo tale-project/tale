@@ -25,7 +25,7 @@ import {
   validateAgentName,
   type AgentJsonConfig,
 } from '../agents/file_utils';
-import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
+import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { readJsonFile } from '../lib/file_io';
 
 export const findAgentsBindingSkill = action({
@@ -40,7 +40,10 @@ export const findAgentsBindingSkill = action({
     }),
   ),
   handler: async (ctx, args) => {
-    const { orgSlug } = await requireOrgMembershipById(
+    // Caller is the delete-skill confirmation dialog (admin/developer-only
+    // flow); match the gate used by every sibling skill action so the
+    // related-agents enumeration cannot be triggered by a plain member.
+    const { orgSlug } = await requireOrgAdminOrDeveloper(
       ctx,
       args.organizationId,
     );
@@ -48,7 +51,17 @@ export const findAgentsBindingSkill = action({
     let entries: string[];
     try {
       entries = await readdir(dir);
-    } catch {
+    } catch (err) {
+      // ENOENT is expected for orgs that have never created an agent; any
+      // other error (EACCES, EIO, etc.) deserves a log line so the operator
+      // sees why the related-agents list rendered empty.
+      const code = err instanceof Error && 'code' in err ? err.code : undefined;
+      if (code !== 'ENOENT') {
+        console.warn(
+          `[skills.find_related_agents] readdir(${dir}) failed:`,
+          err,
+        );
+      }
       return [];
     }
     const agentNames = entries

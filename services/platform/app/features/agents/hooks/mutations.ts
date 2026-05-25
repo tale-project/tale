@@ -6,10 +6,19 @@ import { api } from '@/convex/_generated/api';
 
 function useInvalidateAgents() {
   const queryClient = useQueryClient();
-  return (organizationId: string) =>
-    queryClient.invalidateQueries({
+  return (organizationId: string) => {
+    void queryClient.invalidateQueries({
       queryKey: ['config', 'agents', organizationId],
     });
+    // Skill bindings live on the agent JSON, so any agent-config write
+    // can change which skills are attached to a thread's agent. Refresh
+    // every skill-scoped cache entry that depends on agent state — the
+    // chat-header chip query and `useFindAgentsBindingSkill` are both
+    // keyed under this prefix.
+    void queryClient.invalidateQueries({
+      queryKey: ['config', 'skills', organizationId],
+    });
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -57,7 +66,10 @@ export function useTranslateAgentFields() {
 // ---------------------------------------------------------------------------
 
 export function useUpdateAgentBindings() {
-  return useConvexMutation(api.agents.mutations.updateAgentBindings);
+  const invalidate = useInvalidateAgents();
+  return useConvexMutation(api.agents.mutations.updateAgentBindings, {
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
+  });
 }
 
 export function useUpdateAgentSharing() {

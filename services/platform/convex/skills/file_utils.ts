@@ -15,7 +15,7 @@
  * cannot escape the skill's directory.
  */
 
-import { constants, open, stat } from 'node:fs/promises';
+import { constants, lstat, open } from 'node:fs/promises';
 import path from 'node:path';
 
 import { stringify as stringifyYaml } from 'yaml';
@@ -26,6 +26,13 @@ import {
   type SkillFrontmatter,
 } from '../../lib/shared/schemas/skills';
 import { sha256, validateOrgSlug, verifyPathWithinBase } from '../lib/file_io';
+
+/**
+ * Names reserved by the SKILL.md frontmatter schema. Duplicated here so
+ * `validateSkillSlug` enforces the same set at action-arg boundaries (where
+ * the SKILL.md isn't read yet, but the slug is used to resolve paths).
+ */
+const RESERVED_SKILL_SLUGS = new Set(['anthropic', 'claude']);
 
 export { sha256, parseSkillMd };
 export type { SkillFrontmatter };
@@ -72,7 +79,9 @@ export type SkillReadResult =
 
 export function validateSkillSlug(slug: string): boolean {
   if (slug.length === 0 || slug.length > MAX_SLUG_LENGTH) return false;
-  return SKILL_SLUG_REGEX.test(slug);
+  if (!SKILL_SLUG_REGEX.test(slug)) return false;
+  if (RESERVED_SKILL_SLUGS.has(slug)) return false;
+  return true;
 }
 
 function getBaseDir(): string {
@@ -143,7 +152,14 @@ export function resolveSkillAssetPath(
   ) {
     throw new Error(`Path traversal detected: ${relPath}`);
   }
-  if (resolved === path.join(expectedPrefix, 'SKILL.md')) {
+  // Case-fold the SKILL.md lockout — on case-insensitive filesystems (macOS
+  // default, Windows) `skill.md` resolves to the same inode as `SKILL.md`
+  // but a literal `===` compare would miss it.
+  const finalSegment = path.basename(resolved);
+  if (
+    path.dirname(resolved) === expectedPrefix &&
+    finalSegment.toLowerCase() === 'skill.md'
+  ) {
     throw new Error(
       'SKILL.md is not editable via the asset path; use the skill markdown writer instead',
     );
@@ -204,11 +220,34 @@ export async function readSkillMd(
   orgSlug: string,
   slug: string,
 ): Promise<SkillReadResult> {
+  const skillDir = resolveSkillDir(orgSlug, slug);
   const filePath = resolveSkillMdPath(orgSlug, slug);
   try {
-    const lst = await stat(filePath).catch(() => null);
+    // Realpath-check the slug directory: defends against a symlink planted
+    // at <base>/<slug> that points outside the skills tree. `O_NOFOLLOW`
+    // below only protects the final component, not intermediate dirs.
+    try {
+      await verifyPathWithinBase(skillDir, resolveSkillsDir(orgSlug));
+    } catch (err) {
+      return {
+        ok: false,
+        error: 'symlink',
+        message: err instanceof Error ? err.message : String(err),
+      };
+    }
+
+    // lstat (not stat) so a symlink at SKILL.md itself surfaces as a
+    // symlink check rather than dereferencing through to the target's size.
+    const lst = await lstat(filePath).catch(() => null);
     if (lst === null) {
       return { ok: false, error: 'not_found', message: `SKILL.md not found` };
+    }
+    if (lst.isSymbolicLink()) {
+      return {
+        ok: false,
+        error: 'symlink',
+        message: 'SKILL.md is a symlink (rejected)',
+      };
     }
     if (lst.size > MAX_SKILL_MD_BYTES) {
       return {

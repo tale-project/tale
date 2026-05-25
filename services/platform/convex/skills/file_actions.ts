@@ -322,7 +322,10 @@ export const readSkillAsset = action({
     if (content === null) {
       return { ok: false as const, error: 'not_found' as const };
     }
-    if (content.length > MAX_SKILL_MD_BYTES) {
+    // Multi-byte content can have .length (UTF-16 code units) below the cap
+    // while exceeding the byte cap that writes enforce. Mirror the write
+    // side so reads can never accept what writes would reject.
+    if (Buffer.byteLength(content, 'utf-8') > MAX_SKILL_MD_BYTES) {
       return { ok: false as const, error: 'too_large' as const };
     }
     return {
@@ -426,8 +429,11 @@ export const updateSkill = action({
     try {
       const prev = parseSkillMd(existing);
       prevDescription = prev.meta.description;
-    } catch {
-      // ignore — audit just won't have the previous description
+    } catch (err) {
+      console.warn(
+        `[skills.updateSkill] parseSkillMd failed for previous-state capture on slug=${args.slug}:`,
+        err,
+      );
     }
 
     const meta = validateMetaPayload(args.meta);
@@ -498,15 +504,23 @@ export const writeSkillAsset = action({
         message: `Asset exceeds per-file cap of ${MAX_SKILL_MD_BYTES} bytes`,
       });
     }
-    if (args.expectedHash !== undefined) {
-      const current = await readFileSafe(filePath);
-      if (current !== null && sha256(current) !== args.expectedHash) {
+    const current = await readFileSafe(filePath);
+    if (args.expectedHash === undefined) {
+      // Create mode (no expectedHash supplied). Mirror createSkill's
+      // refuse-if-exists guard — otherwise typing an existing asset path
+      // in the create dialog silently overwrites it.
+      if (current !== null) {
         throw new ConvexError({
-          code: 'CONFLICT',
-          message:
-            'Asset was modified externally since it was loaded. Reload and reapply your changes.',
+          code: 'ALREADY_EXISTS',
+          message: `Asset "${args.assetPath}" already exists. Open it from the list to edit, or choose a new path.`,
         });
       }
+    } else if (current !== null && sha256(current) !== args.expectedHash) {
+      throw new ConvexError({
+        code: 'CONFLICT',
+        message:
+          'Asset was modified externally since it was loaded. Reload and reapply your changes.',
+      });
     }
     await ensureBundleAllowsWrite(skillDir, args.assetPath, incomingBytes);
     await atomicWrite(filePath, args.content);
@@ -523,6 +537,7 @@ export const deleteSkillAsset = action({
     organizationId: v.string(),
     slug: v.string(),
     assetPath: v.string(),
+    expectedHash: v.optional(v.string()),
   },
   returns: v.object({ deleted: v.boolean() }),
   handler: async (ctx, args): Promise<{ deleted: boolean }> => {
@@ -538,6 +553,19 @@ export const deleteSkillAsset = action({
       args.slug,
       args.assetPath,
     );
+    // CAS on delete: if the caller passes expectedHash, the on-disk content
+    // must match. Defends against deleting an asset that changed between
+    // load and confirm. Symmetric with writeSkillAsset.
+    if (args.expectedHash !== undefined) {
+      const current = await readFileSafe(filePath);
+      if (current !== null && sha256(current) !== args.expectedHash) {
+        throw new ConvexError({
+          code: 'CONFLICT',
+          message:
+            'Asset was modified externally since it was loaded. Reload and reconfirm the delete.',
+        });
+      }
+    }
     try {
       await unlink(filePath);
       await logSkillAudit(ctx, auth, 'delete_skill_asset', args.slug, {
@@ -557,6 +585,7 @@ export const deleteSkill = action({
   args: {
     organizationId: v.string(),
     slug: v.string(),
+    expectedHash: v.optional(v.string()),
   },
   returns: v.object({ deleted: v.boolean() }),
   handler: async (ctx, args): Promise<{ deleted: boolean }> => {
@@ -568,15 +597,29 @@ export const deleteSkill = action({
     }
     const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
     const dir = resolveSkillDir(auth.orgSlug, args.slug);
-    try {
-      await rm(dir, { recursive: true, force: true });
-      await logSkillAudit(ctx, auth, 'delete_skill', args.slug);
-      return { deleted: true };
-    } catch (err) {
-      const code = err instanceof Error && 'code' in err ? err.code : undefined;
-      if (code === 'ENOENT') return { deleted: false };
-      throw err;
+    const skillMdPath = resolveSkillMdPath(auth.orgSlug, args.slug);
+
+    // CAS guard: the caller can pass the SKILL.md hash they last observed.
+    // If the file changed between load and confirm, refuse — the operator
+    // may be looking at a stale view of the skill they think they're deleting.
+    if (args.expectedHash !== undefined) {
+      const current = await readFileSafe(skillMdPath);
+      if (current !== null && sha256(current) !== args.expectedHash) {
+        throw new ConvexError({
+          code: 'CONFLICT',
+          message:
+            'Skill was modified externally since it was loaded. Reload and reconfirm the delete.',
+        });
+      }
     }
+
+    // Audit BEFORE the destructive rm so a missing audit row implies the
+    // delete didn't happen. `rm({force:true})` swallows ENOENT, so the
+    // post-rm branch that used to return `{deleted: false}` was unreachable
+    // — we now return `deleted: true` unconditionally on a non-throwing rm.
+    await logSkillAudit(ctx, auth, 'delete_skill', args.slug);
+    await rm(dir, { recursive: true, force: true });
+    return { deleted: true };
   },
 });
 

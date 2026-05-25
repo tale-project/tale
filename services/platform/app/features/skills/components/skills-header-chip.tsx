@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Skeleton } from '@tale/ui/skeleton';
 import { Sparkles } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -19,7 +20,8 @@ interface SkillsHeaderChipProps {
 /**
  * Shows "N skills" on the chat header when the agent bound to the current
  * thread has any `skillBindings`. Click opens a popover listing each
- * `slug — description`. Renders nothing when there are no skills.
+ * `slug — description`. Renders a small skeleton while the action query
+ * is in flight; collapses to `null` only once we *know* the count is zero.
  */
 export function SkillsHeaderChip({
   organizationId,
@@ -27,6 +29,9 @@ export function SkillsHeaderChip({
 }: SkillsHeaderChipProps) {
   const { t } = useT('settings');
   const { data } = useActionQuery(
+    // agentSlug is intentionally not in the key — the parent invalidates
+    // this prefix on every agent-config write, so a thread that swaps
+    // agents picks up the new chip count without refetch churn.
     ['config', 'skills', organizationId, 'thread', threadId],
     api.skills.get_thread_skills.getThreadAgentSkills,
     { organizationId, threadId },
@@ -35,6 +40,11 @@ export function SkillsHeaderChip({
     () => (data?.skills ?? []) as Array<{ slug: string; description: string }>,
     [data],
   );
+  // Render a skeleton while loading so the chip doesn't pop in on every
+  // chat-page mount. Only collapse to null when we know the count is 0.
+  if (data === undefined) {
+    return <Skeleton className="h-6 w-20 rounded-md" />;
+  }
   if (skills.length === 0) return null;
 
   return (

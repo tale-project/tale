@@ -78,10 +78,12 @@ export const agentJsonSchema = z
             .min(1)
             .max(64)
             .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
-          versionHash: z.string().min(64).max(64),
-          toolNames: z.array(z.string()).default([]),
-          integrationBindings: z.array(z.string()).default([]),
-          workflowBindings: z.array(z.string()).default([]),
+          versionHash: z.string().regex(/^[0-9a-f]{64}$/, {
+            message: 'versionHash must be a lowercase sha256 hex digest',
+          }),
+          toolNames: z.array(z.string().min(1)).default([]),
+          integrationBindings: z.array(z.string().min(1)).default([]),
+          workflowBindings: z.array(z.string().min(1)).default([]),
         }),
       )
       .max(10)
@@ -164,6 +166,24 @@ export const agentJsonSchema = z
           message:
             'systemInstructions is required for chat agents at top-level or in at least one i18n locale',
         });
+      }
+    }
+
+    // skillBindingsResolved entries must reference slugs the user actually bound.
+    // Defends against a client crafting a resolved snapshot whose slug was never
+    // declared in skillBindings — the runtime trusts the snapshot, so the schema
+    // is the right place to enforce shape consistency.
+    if (data.skillBindingsResolved && data.skillBindingsResolved.length > 0) {
+      const declared = new Set(data.skillBindings ?? []);
+      for (let i = 0; i < data.skillBindingsResolved.length; i++) {
+        const entry = data.skillBindingsResolved[i];
+        if (!declared.has(entry.slug)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['skillBindingsResolved', i, 'slug'],
+            message: `skillBindingsResolved entry "${entry.slug}" is not present in skillBindings`,
+          });
+        }
       }
     }
 

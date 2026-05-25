@@ -6,6 +6,7 @@
     "apiKeys": "You need Admin or Developer permissions to manage API keys.",
     "organization": "You need Admin permissions to access organization settings.",
     "agents": "You need Admin or Developer permissions to manage agents.",
+    "skills": "You need Admin or Developer permissions to manage skills.",
     "branding": "You need Admin permissions to access branding settings.",
     "knowledge": "Your account does not have permission to access knowledge.",
     "workspaceNotFound": "The workspace you're looking for doesn't exist or may have been removed.",
@@ -4645,6 +4646,7 @@
       }
     },
     "skills": {
+      "title": "Skills",
       "createSkill": "Create skill",
       "searchPlaceholder": "Search skills…",
       "deleteSkill": "Delete skill",
@@ -4661,7 +4663,7 @@
       "validationError": "Invalid skill configuration",
       "deleteConfirmation": "This removes the skill bundle from disk. Agents bound to it will keep the binding entry and log a runtime warning until you re-edit them.",
       "relatedAgentsHeader": "Bound by these agents",
-      "headerChipLabel": "{count} skills",
+      "headerChipLabel": "{count, plural, one {# skill} other {# skills}}",
       "headerChipAria": "View bound skills",
       "headerChipTitle": "Skills available to this agent",
       "columns": {
@@ -4694,7 +4696,7 @@
         "uiHelp": "Bundle files live on disk under skills/<slug>/. UI edits use atomic writes with CAS — concurrent disk edits are detected and surfaced as conflicts."
       },
       "deps": {
-        "summary": "{count} declared dependencies",
+        "summary": "{count, plural, one {# declared dependency} other {# declared dependencies}}",
         "tools": "Tools",
         "integrations": "Integrations",
         "workflows": "Workflows",
@@ -4707,9 +4709,9 @@
         "pathRequired": "Path is required",
         "content": "Content",
         "createTitle": "New bundle file",
-        "editTitle": "Edit {{path}}",
-        "editAria": "Edit {{path}}",
-        "deleteAria": "Delete {{path}}",
+        "editTitle": "Edit {path}",
+        "editAria": "Edit {path}",
+        "deleteAria": "Delete {path}",
         "deleteTitle": "Delete file",
         "deleteConfirmation": "Permanently remove this file from the skill bundle. This cannot be undone.",
         "saved": "File saved",
@@ -4723,7 +4725,7 @@
       },
       "selector": {
         "empty": "No skills available in this organization yet. Create one under Skills.",
-        "deps": "{count} deps",
+        "deps": "{count, plural, one {# dep} other {# deps}}",
         "transitive": "Binding enables: {tools}{integrations}{workflows}"
       }
     },

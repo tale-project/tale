@@ -338,6 +338,10 @@ run_seed() {
       local name="$(basename "$src_dir")"
       local dest_dir="$integrations_dir/$name"
       if [ "$FORCE_SEED" = "true" ]; then
+        # rm before cp: without this, `cp -r src/ dest` nests the bundle as
+        # `dest/<name>` instead of overwriting it, leaving stale files and
+        # doubling the on-disk layout per restart.
+        rm -rf "$dest_dir"
         cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name (forced)"; continue
       fi
       if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping integration $name (already exists)"; continue; fi
@@ -355,6 +359,9 @@ run_seed() {
       local name="$(basename "$src_dir")"
       local dest_dir="$skills_dir/$name"
       if [ "$FORCE_SEED" = "true" ]; then
+        # rm before cp — same fix as the integrations seed loop above:
+        # without it, FORCE_SEED nests the bundle and leaves stale files.
+        rm -rf "$dest_dir"
         cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name (forced)"; continue
       fi
       if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping skill $name (already exists)"; continue; fi

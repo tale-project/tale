@@ -18,6 +18,10 @@ const ALLOWED_ACTIONS = [
   'delete_skill',
   'write_skill_asset',
   'delete_skill_asset',
+  // `skill_run` invocations from `skills_runtime.ts:createSkillRunTool` —
+  // executes arbitrary bundle scripts so every call gets an org-visible
+  // audit row regardless of success/failure.
+  'execute_skill',
 ] as const;
 type AllowedAction = (typeof ALLOWED_ACTIONS)[number];
 

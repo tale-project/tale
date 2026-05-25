@@ -25,6 +25,7 @@ import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up';
 import { Route as AuthLogInRouteImport } from './routes/_auth/log-in';
 import { Route as Auth2faRouteImport } from './routes/_auth/2fa';
 import { Route as DashboardIdIndexRouteImport } from './routes/dashboard/$id/index';
+import { Route as DashboardIdSkillsRouteImport } from './routes/dashboard/$id/skills';
 import { Route as DashboardIdSettingsRouteImport } from './routes/dashboard/$id/settings';
 import { Route as DashboardIdCustomAgentsRouteImport } from './routes/dashboard/$id/custom-agents';
 import { Route as DashboardIdConversationsRouteImport } from './routes/dashboard/$id/conversations';
@@ -177,6 +178,11 @@ const DashboardIdIndexRoute = DashboardIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardIdRoute,
 } as any);
+const DashboardIdSkillsRoute = DashboardIdSkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
+  getParentRoute: () => DashboardIdRoute,
+} as any);
 const DashboardIdSettingsRoute = DashboardIdSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -213,9 +219,9 @@ const DashboardIdKnowledgeRoute = DashboardIdKnowledgeRouteImport.update({
   getParentRoute: () => DashboardIdRoute,
 } as any);
 const DashboardIdSkillsIndexRoute = DashboardIdSkillsIndexRouteImport.update({
-  id: '/skills/',
-  path: '/skills/',
-  getParentRoute: () => DashboardIdRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardIdSkillsRoute,
 } as any);
 const DashboardIdSettingsIndexRoute =
   DashboardIdSettingsIndexRouteImport.update({
@@ -247,9 +253,9 @@ const DashboardIdAgentsIndexRoute = DashboardIdAgentsIndexRouteImport.update({
 } as any);
 const DashboardIdSkillsSkillSlugRoute =
   DashboardIdSkillsSkillSlugRouteImport.update({
-    id: '/skills/$skillSlug',
-    path: '/skills/$skillSlug',
-    getParentRoute: () => DashboardIdRoute,
+    id: '/$skillSlug',
+    path: '/$skillSlug',
+    getParentRoute: () => DashboardIdSkillsRoute,
   } as any);
 const DashboardIdSettingsTeamsRoute =
   DashboardIdSettingsTeamsRouteImport.update({
@@ -614,6 +620,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren;
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute;
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren;
+  '/dashboard/$id/skills': typeof DashboardIdSkillsRouteWithChildren;
   '/dashboard/$id/': typeof DashboardIdIndexRoute;
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute;
@@ -781,6 +788,7 @@ export interface FileRoutesById {
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren;
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute;
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren;
+  '/dashboard/$id/skills': typeof DashboardIdSkillsRouteWithChildren;
   '/dashboard/$id/': typeof DashboardIdIndexRoute;
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
   '/dashboard/$id/_knowledge/customers': typeof DashboardIdKnowledgeCustomersRoute;
@@ -870,6 +878,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/conversations'
     | '/dashboard/$id/custom-agents'
     | '/dashboard/$id/settings'
+    | '/dashboard/$id/skills'
     | '/dashboard/$id/'
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/customers'
@@ -1036,6 +1045,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/conversations'
     | '/dashboard/$id/custom-agents'
     | '/dashboard/$id/settings'
+    | '/dashboard/$id/skills'
     | '/dashboard/$id/'
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/_knowledge/customers'
@@ -1227,6 +1237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdIndexRouteImport;
       parentRoute: typeof DashboardIdRoute;
     };
+    '/dashboard/$id/skills': {
+      id: '/dashboard/$id/skills';
+      path: '/skills';
+      fullPath: '/dashboard/$id/skills';
+      preLoaderRoute: typeof DashboardIdSkillsRouteImport;
+      parentRoute: typeof DashboardIdRoute;
+    };
     '/dashboard/$id/settings': {
       id: '/dashboard/$id/settings';
       path: '/settings';
@@ -1278,10 +1295,10 @@ declare module '@tanstack/react-router' {
     };
     '/dashboard/$id/skills/': {
       id: '/dashboard/$id/skills/';
-      path: '/skills';
+      path: '/';
       fullPath: '/dashboard/$id/skills/';
       preLoaderRoute: typeof DashboardIdSkillsIndexRouteImport;
-      parentRoute: typeof DashboardIdRoute;
+      parentRoute: typeof DashboardIdSkillsRoute;
     };
     '/dashboard/$id/settings/': {
       id: '/dashboard/$id/settings/';
@@ -1320,10 +1337,10 @@ declare module '@tanstack/react-router' {
     };
     '/dashboard/$id/skills/$skillSlug': {
       id: '/dashboard/$id/skills/$skillSlug';
-      path: '/skills/$skillSlug';
+      path: '/$skillSlug';
       fullPath: '/dashboard/$id/skills/$skillSlug';
       preLoaderRoute: typeof DashboardIdSkillsSkillSlugRouteImport;
-      parentRoute: typeof DashboardIdRoute;
+      parentRoute: typeof DashboardIdSkillsRoute;
     };
     '/dashboard/$id/settings/teams': {
       id: '/dashboard/$id/settings/teams';
@@ -1995,6 +2012,19 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
 const DashboardIdSettingsRouteWithChildren =
   DashboardIdSettingsRoute._addFileChildren(DashboardIdSettingsRouteChildren);
 
+interface DashboardIdSkillsRouteChildren {
+  DashboardIdSkillsSkillSlugRoute: typeof DashboardIdSkillsSkillSlugRoute;
+  DashboardIdSkillsIndexRoute: typeof DashboardIdSkillsIndexRoute;
+}
+
+const DashboardIdSkillsRouteChildren: DashboardIdSkillsRouteChildren = {
+  DashboardIdSkillsSkillSlugRoute: DashboardIdSkillsSkillSlugRoute,
+  DashboardIdSkillsIndexRoute: DashboardIdSkillsIndexRoute,
+};
+
+const DashboardIdSkillsRouteWithChildren =
+  DashboardIdSkillsRoute._addFileChildren(DashboardIdSkillsRouteChildren);
+
 interface DashboardIdProjectsProjectIdRouteChildren {
   DashboardIdProjectsProjectIdAgentsRoute: typeof DashboardIdProjectsProjectIdAgentsRoute;
   DashboardIdProjectsProjectIdFilesRoute: typeof DashboardIdProjectsProjectIdFilesRoute;
@@ -2033,11 +2063,10 @@ interface DashboardIdRouteChildren {
   DashboardIdConversationsRoute: typeof DashboardIdConversationsRouteWithChildren;
   DashboardIdCustomAgentsRoute: typeof DashboardIdCustomAgentsRoute;
   DashboardIdSettingsRoute: typeof DashboardIdSettingsRouteWithChildren;
+  DashboardIdSkillsRoute: typeof DashboardIdSkillsRouteWithChildren;
   DashboardIdIndexRoute: typeof DashboardIdIndexRoute;
   DashboardIdProjectsProjectIdRoute: typeof DashboardIdProjectsProjectIdRouteWithChildren;
-  DashboardIdSkillsSkillSlugRoute: typeof DashboardIdSkillsSkillSlugRoute;
   DashboardIdProjectsIndexRoute: typeof DashboardIdProjectsIndexRoute;
-  DashboardIdSkillsIndexRoute: typeof DashboardIdSkillsIndexRoute;
 }
 
 const DashboardIdRouteChildren: DashboardIdRouteChildren = {
@@ -2048,12 +2077,11 @@ const DashboardIdRouteChildren: DashboardIdRouteChildren = {
   DashboardIdConversationsRoute: DashboardIdConversationsRouteWithChildren,
   DashboardIdCustomAgentsRoute: DashboardIdCustomAgentsRoute,
   DashboardIdSettingsRoute: DashboardIdSettingsRouteWithChildren,
+  DashboardIdSkillsRoute: DashboardIdSkillsRouteWithChildren,
   DashboardIdIndexRoute: DashboardIdIndexRoute,
   DashboardIdProjectsProjectIdRoute:
     DashboardIdProjectsProjectIdRouteWithChildren,
-  DashboardIdSkillsSkillSlugRoute: DashboardIdSkillsSkillSlugRoute,
   DashboardIdProjectsIndexRoute: DashboardIdProjectsIndexRoute,
-  DashboardIdSkillsIndexRoute: DashboardIdSkillsIndexRoute,
 };
 
 const DashboardIdRouteWithChildren = DashboardIdRoute._addFileChildren(

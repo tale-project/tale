@@ -1,14 +1,19 @@
 import { Button } from '@tale/ui/button';
 import { Skeleton } from '@tale/ui/skeleton';
 import { useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import {
+  createFileRoute,
+  Link,
+  useBlocker,
+  useNavigate,
+} from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import { ArrowLeft } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
-import { PageLayout } from '@/app/components/layout/page-layout';
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -24,6 +29,7 @@ import {
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
+import { isRecord } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute('/dashboard/$id/skills/$skillSlug')({
   head: () => ({
@@ -43,25 +49,49 @@ function SkillDetailPage() {
   const { data: filesData } = useListSkillFiles(organizationId, skillSlug);
   const { mutateAsync: updateSkill } = useUpdateSkill();
 
+  // Server-side description + body, tracked in lockstep with `hash` so
+  // we can distinguish "loaded clean" from "user edited" without diffing
+  // every keystroke against the (potentially refetched) source.
+  const [loadedDescription, setLoadedDescription] = useState('');
+  const [loadedBody, setLoadedBody] = useState('');
   const [description, setDescription] = useState('');
   const [body, setBody] = useState('');
   const [hash, setHash] = useState<string | undefined>(undefined);
   const [isSaving, setIsSaving] = useState(false);
 
   const skill = data?.ok ? data : null;
+  const isDirty = description !== loadedDescription || body !== loadedBody;
 
-  // Sync local form state with loaded skill content. We re-run only when the
-  // hash changes so concurrent typing isn't clobbered by background refetch.
+  // Sync local form state with the loaded skill ONLY on first load or after
+  // an explicit reload — never while the user has dirty edits, otherwise
+  // a background refetch would clobber active typing. The hash-change check
+  // remains so post-save (where we know local === server) we pick up the
+  // new hash.
   useEffect(() => {
     if (!skill) return;
     if (skill.hash === hash) return;
+    if (isDirty) return; // never overwrite the user's in-flight edits
     setDescription(skill.meta.description);
     setBody(skill.body);
+    setLoadedDescription(skill.meta.description);
+    setLoadedBody(skill.body);
     setHash(skill.hash);
-  }, [skill, hash]);
+  }, [skill, hash, isDirty]);
+
+  const blocker = useBlocker({
+    shouldBlockFn: () => isDirty && !isSaving,
+    enableBeforeUnload: () => isDirty && !isSaving,
+    withResolver: true,
+  });
+
+  const handleDiscard = useCallback(() => {
+    if (!skill) return;
+    setDescription(loadedDescription);
+    setBody(loadedBody);
+  }, [skill, loadedDescription, loadedBody]);
 
   const handleSave = useCallback(async () => {
-    if (!skill || isSaving) return;
+    if (!skill || isSaving || !isDirty) return;
     setIsSaving(true);
     try {
       const result = await updateSkill({
@@ -75,6 +105,8 @@ function SkillDetailPage() {
         expectedHash: hash,
       });
       setHash(result.hash);
+      setLoadedDescription(description);
+      setLoadedBody(body);
       toast({
         title: t('skills.skillSaved', { defaultValue: 'Skill saved' }),
         variant: 'success',
@@ -84,7 +116,11 @@ function SkillDetailPage() {
       });
     } catch (error) {
       if (error instanceof ConvexError) {
-        const code = error.data?.code;
+        const errData = isRecord(error.data) ? error.data : undefined;
+        const code =
+          typeof errData?.code === 'string' ? errData.code : undefined;
+        const message =
+          typeof errData?.message === 'string' ? errData.message : undefined;
         if (code === 'CONFLICT') {
           toast({
             title: t('skills.conflict', {
@@ -99,7 +135,7 @@ function SkillDetailPage() {
         if (code === 'INVALID_FRONTMATTER' || code === 'TOO_LARGE') {
           toast({
             title:
-              error.data?.message ??
+              message ??
               t('skills.validationError', {
                 defaultValue: 'Invalid skill configuration',
               }),
@@ -121,6 +157,7 @@ function SkillDetailPage() {
   }, [
     skill,
     isSaving,
+    isDirty,
     updateSkill,
     organizationId,
     skillSlug,
@@ -134,36 +171,32 @@ function SkillDetailPage() {
 
   if (isLoading) {
     return (
-      <PageLayout>
-        <ContentArea>
-          <Skeleton className="h-24 w-full" />
-        </ContentArea>
-      </PageLayout>
+      <ContentArea>
+        <Skeleton className="h-24 w-full" />
+      </ContentArea>
     );
   }
 
   if (!skill) {
     const errorMessage = data && !data.ok ? data.message : undefined;
     return (
-      <PageLayout>
-        <ContentArea>
-          <Stack gap={4} className="p-4">
-            <Heading level={1}>
-              {t('skills.notFound', { defaultValue: 'Skill not found' })}
-            </Heading>
-            {errorMessage ? <Text variant="muted">{errorMessage}</Text> : null}
-            <Link
-              to="/dashboard/$id/skills"
-              params={{ id: organizationId }}
-              className="underline"
-            >
-              {t('skills.backToList', {
-                defaultValue: 'Back to skills',
-              })}
-            </Link>
-          </Stack>
-        </ContentArea>
-      </PageLayout>
+      <ContentArea>
+        <Stack gap={4} className="p-4">
+          <Heading level={1}>
+            {t('skills.notFound', { defaultValue: 'Skill not found' })}
+          </Heading>
+          {errorMessage ? <Text variant="muted">{errorMessage}</Text> : null}
+          <Link
+            to="/dashboard/$id/skills"
+            params={{ id: organizationId }}
+            className="underline"
+          >
+            {t('skills.backToList', {
+              defaultValue: 'Back to skills',
+            })}
+          </Link>
+        </Stack>
+      </ContentArea>
     );
   }
 
@@ -173,7 +206,7 @@ function SkillDetailPage() {
     (skill.meta.workflowBindings?.length ?? 0);
 
   return (
-    <PageLayout>
+    <>
       <AdaptiveHeaderRoot>
         <HStack gap={2} align="center" className="p-4">
           <Button
@@ -303,16 +336,44 @@ function SkillDetailPage() {
 
           <HStack gap={2} justify="end">
             <Button
+              variant="ghost"
+              onClick={handleDiscard}
+              disabled={!isDirty || isSaving}
+            >
+              {tCommon('discard', { defaultValue: 'Discard' })}
+            </Button>
+            <Button
               variant="primary"
               onClick={() => void handleSave()}
               isLoading={isSaving}
-              disabled={isSaving}
+              disabled={!isDirty || isSaving}
             >
               {tCommon('save')}
             </Button>
           </HStack>
         </Stack>
       </ContentArea>
-    </PageLayout>
+      <ConfirmDialog
+        open={blocker.status === 'blocked'}
+        onOpenChange={(open) => {
+          if (!open) blocker.reset?.();
+        }}
+        title={t('skills.unsavedChanges.title', {
+          defaultValue: 'Discard unsaved changes?',
+        })}
+        description={t('skills.unsavedChanges.description', {
+          defaultValue:
+            'You have unsaved edits on this skill. Leaving now will discard them.',
+        })}
+        confirmText={t('skills.unsavedChanges.leave', {
+          defaultValue: 'Discard and leave',
+        })}
+        cancelText={t('skills.unsavedChanges.stay', {
+          defaultValue: 'Keep editing',
+        })}
+        variant="destructive"
+        onConfirm={() => blocker.proceed?.()}
+      />
+    </>
   );
 }

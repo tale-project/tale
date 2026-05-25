@@ -641,6 +641,11 @@ const SYNC_DIRS = [
   'integrations',
   'branding',
   'providers',
+  // Skill bundles: SKILL.md + arbitrary assets per slug under skills/<slug>/.
+  // Without this entry, host-side edits to a skill (CLI / IDE) never reach
+  // the running container — the runtime reads from `${TALE_CONFIG_DIR}/skills`
+  // baked into the image at boot, not the host workspace.
+  'skills',
 ];
 
 async function syncProjectFiles(
