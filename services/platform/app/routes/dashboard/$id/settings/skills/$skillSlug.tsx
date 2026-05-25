@@ -742,7 +742,9 @@ function SkillDetailPage() {
                                 : 'outline'
                             }
                           >
-                            {row.action}
+                            {t(`skills.auditHistory.action.${row.action}`, {
+                              defaultValue: row.action,
+                            })}
                           </Badge>
                           <Stack gap={0} className="flex-1">
                             <Text variant="body" className="font-mono text-xs">

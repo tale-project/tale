@@ -4390,6 +4390,7 @@
       }
     },
     "skills": {
+      "title": "Skills",
       "createSkill": "Skill erstellen",
       "searchPlaceholder": "Skills suchen…",
       "deleteSkill": "Skill löschen",
@@ -4403,6 +4404,11 @@
       "skillDeleteFailed": "Skill konnte nicht gelöscht werden",
       "skillDeleteConflict": "Skill wurde geändert, seit du diesen Dialog geöffnet hast. Lade neu und versuche es noch einmal.",
       "skillAlreadyExists": "Ein Skill mit diesem Slug existiert bereits",
+      "skillDuplicated": "Skill als {slug} dupliziert",
+      "skillDuplicateFailed": "Skill konnte nicht dupliziert werden",
+      "bodyTemplate": "# {slug}\n\nBeschreibe, wann dieser Skill verwendet wird und welche Schritte zu folgen sind.\n",
+      "deleteWarningBindings": "{count} Agent(s) binden diesen Skill und protokollieren zur Laufzeit Warnungen, bis sie erneut bearbeitet werden.",
+      "deleteResolvingBindings": "Prüfe, welche Agents diesen Skill binden …",
       "unsavedChanges": {
         "title": "Nicht gespeicherte Änderungen verwerfen?",
         "description": "Du hast nicht gespeicherte Bearbeitungen an diesem Skill. Wenn du jetzt verlässt, gehen sie verloren.",
@@ -4416,10 +4422,14 @@
       "headerChipLabel": "{count, plural, one {# Skill} other {# Skills}}",
       "headerChipAria": "Gebundene Skills ansehen",
       "headerChipTitle": "Skills für diesen Agent verfügbar",
+      "actions": {
+        "duplicate": "Duplizieren"
+      },
       "columns": {
         "name": "Skill",
         "description": "Beschreibung",
-        "deps": "Abh."
+        "deps": "Abh.",
+        "loadError": "SKILL.md konnte nicht gelesen werden"
       },
       "createDialog": {
         "continue": "Erstellen",
@@ -4439,7 +4449,39 @@
         "overview": "Übersicht",
         "body": "Anweisungen (Body)",
         "bundle": "Bundle-Dateien",
-        "deps": "Deklarierte Abhängigkeiten"
+        "deps": "Deklarierte Abhängigkeiten",
+        "whereBound": "Wo dieser Skill gebunden ist",
+        "auditHistory": "Letzte Änderungen"
+      },
+      "metadata": {
+        "trigger": "Auslöser",
+        "triggerAuto": "Auto (vom Agent aufgerufen)",
+        "transitive": "Transitive Abhängigkeiten",
+        "bundleFiles": "Bundle-Dateien",
+        "license": "Lizenz"
+      },
+      "body": {
+        "viewEdit": "Bearbeiten",
+        "viewPreview": "Vorschau",
+        "viewToggle": "Body-Ansichtsmodus",
+        "previewEmpty": "(Body ist leer)"
+      },
+      "whereBound": {
+        "empty": "Derzeit bindet kein Agent diesen Skill. Bindungen erscheinen hier, sobald ein Entwickler den Skill zu einem Agent hinzufügt."
+      },
+      "auditHistory": {
+        "empty": "Noch keine Audit-Einträge für diesen Skill.",
+        "action": {
+          "create": "Erstellt",
+          "update": "Aktualisiert",
+          "delete": "Gelöscht"
+        }
+      },
+      "viewer": {
+        "toggleWrap": "Zeilenumbruch umschalten",
+        "imageNotice": "Bildvorschau ist im Browser nicht verfügbar. Verwende die CLI, um dieses Asset zu prüfen.",
+        "binaryNotice": "Dieser Dateityp ist im Browser nicht vorschaubar.",
+        "largeFile": "Große Datei — Syntax-Highlighting aus Leistungsgründen deaktiviert."
       },
       "bundle": {
         "empty": "Noch keine Bundle-Dateien.",
@@ -4454,7 +4496,8 @@
           "brokenTag": "(Ladefehler)"
         },
         "tree": {
-          "heading": "Bundle"
+          "heading": "Bundle",
+          "empty": "Nur SKILL.md — füge Dateien unter scripts/, references/ oder assets/ hinzu."
         }
       },
       "deps": {
@@ -4469,6 +4512,12 @@
         "path": "Pfad",
         "pathHelp": "Relativer Pfad innerhalb des Skill-Bundles. Verwende scripts/ für ausführbare Skripte, references/ für Dokumente, assets/ für Templates.",
         "pathRequired": "Pfad ist erforderlich",
+        "pathNoLeadingSlash": "Pfad muss relativ sein — kein führender Schrägstrich. Verwende scripts/ / references/ / assets/.",
+        "pathNoTraversal": "Pfad darf \"..\" nicht enthalten.",
+        "pathInvalidChars": "Pfad darf nur Buchstaben, Ziffern, Punkt, Bindestrich, Unterstrich und Schrägstrich enthalten.",
+        "alreadyExists": "Unter diesem Pfad existiert bereits eine Datei. Öffne sie aus der Liste, um sie zu bearbeiten, oder wähle einen neuen Pfad.",
+        "loadNotFound": "Diese Datei ist nicht mehr im Bundle. Schließe und erstelle sie stattdessen aus der Liste.",
+        "loadTooLarge": "Diese Datei ist zu groß, um im Browser bearbeitet zu werden. Ersetze sie über die CLI oder lösche sie hier.",
         "content": "Inhalt",
         "createTitle": "Neue Bundle-Datei",
         "editTitle": "{path} bearbeiten",
@@ -4486,9 +4535,15 @@
         "quota": "{used} / {max} Dateien · {bytes} / {byteMax} Bytes"
       },
       "selector": {
-        "empty": "In dieser Organisation sind noch keine Skills verfügbar. Erstelle einen unter Skills.",
+        "empty": "In dieser Organisation sind noch keine Skills verfügbar. Erstelle einen unter ",
         "deps": "{count, plural, one {# Abh.} other {# Abh.}}",
-        "transitive": "Bindung aktiviert: {tools}{integrations}{workflows}"
+        "transitive": "Bindung aktiviert: {tools}{integrations}{workflows}",
+        "transitiveTools": "Tools: {items}",
+        "transitiveIntegrations": "Integrationen: {items}",
+        "transitiveWorkflows": "Workflows: {items}",
+        "driftBadge": "Drift — erneut speichern, um zu aktualisieren",
+        "driftTooltip": "Der Funktionsumfang dieses Skills hat sich geändert, seit du ihn gebunden hast. Speichere, um den Snapshot zu aktualisieren.",
+        "openDetail": "{slug} in neuem Tab öffnen"
       }
     },
     "integrations": {

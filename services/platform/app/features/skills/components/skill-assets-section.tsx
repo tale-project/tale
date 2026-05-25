@@ -144,7 +144,7 @@ export function SkillAssetsSection({
                   icon={Pencil}
                   onClick={() => openEdit(f.path)}
                   aria-label={t('skills.asset.editAria', {
-                    defaultValue: 'Edit {{path}}',
+                    defaultValue: 'Edit {path}',
                     path: f.path,
                   })}
                 />
@@ -154,7 +154,7 @@ export function SkillAssetsSection({
                   icon={Trash2}
                   onClick={() => setDeleteTarget(f.path)}
                   aria-label={t('skills.asset.deleteAria', {
-                    defaultValue: 'Delete {{path}}',
+                    defaultValue: 'Delete {path}',
                     path: f.path,
                   })}
                 />

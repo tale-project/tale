@@ -4391,6 +4391,7 @@
       }
     },
     "skills": {
+      "title": "Skills",
       "createSkill": "Créer un skill",
       "searchPlaceholder": "Rechercher des skills…",
       "deleteSkill": "Supprimer le skill",
@@ -4404,6 +4405,11 @@
       "skillDeleteFailed": "Échec de la suppression du skill",
       "skillDeleteConflict": "Le skill a changé depuis l'ouverture de ce dialogue. Recharge et réessaie.",
       "skillAlreadyExists": "Un skill avec ce slug existe déjà",
+      "skillDuplicated": "Skill dupliqué en {slug}",
+      "skillDuplicateFailed": "Échec de la duplication du skill",
+      "bodyTemplate": "# {slug}\n\nDécris quand utiliser ce skill et les étapes à suivre.\n",
+      "deleteWarningBindings": "{count} agent(s) attachent ce skill et émettront des avertissements à l'exécution jusqu'à ce qu'ils soient modifiés à nouveau.",
+      "deleteResolvingBindings": "Vérification des agents qui attachent ce skill …",
       "unsavedChanges": {
         "title": "Abandonner les modifications non enregistrées ?",
         "description": "Tu as des modifications non enregistrées sur ce skill. Quitter maintenant les abandonnera.",
@@ -4417,10 +4423,14 @@
       "headerChipLabel": "{count, plural, one {# skill} other {# skills}}",
       "headerChipAria": "Voir les skills attachés",
       "headerChipTitle": "Skills disponibles pour cet agent",
+      "actions": {
+        "duplicate": "Dupliquer"
+      },
       "columns": {
         "name": "Skill",
         "description": "Description",
-        "deps": "Déps"
+        "deps": "Déps",
+        "loadError": "Impossible de lire SKILL.md"
       },
       "createDialog": {
         "continue": "Créer",
@@ -4440,7 +4450,39 @@
         "overview": "Aperçu",
         "body": "Instructions (corps)",
         "bundle": "Fichiers du bundle",
-        "deps": "Dépendances déclarées"
+        "deps": "Dépendances déclarées",
+        "whereBound": "Où ce skill est attaché",
+        "auditHistory": "Modifications récentes"
+      },
+      "metadata": {
+        "trigger": "Déclencheur",
+        "triggerAuto": "Auto (invoqué par l'agent)",
+        "transitive": "Dépendances transitives",
+        "bundleFiles": "Fichiers du bundle",
+        "license": "Licence"
+      },
+      "body": {
+        "viewEdit": "Modifier",
+        "viewPreview": "Aperçu",
+        "viewToggle": "Mode d'affichage du corps",
+        "previewEmpty": "(Le corps est vide)"
+      },
+      "whereBound": {
+        "empty": "Aucun agent n'attache actuellement ce skill. Les attachements apparaissent ici dès qu'un développeur ajoute le skill à un agent."
+      },
+      "auditHistory": {
+        "empty": "Aucune entrée d'audit pour l'instant pour ce skill.",
+        "action": {
+          "create": "Créé",
+          "update": "Mis à jour",
+          "delete": "Supprimé"
+        }
+      },
+      "viewer": {
+        "toggleWrap": "Basculer le retour à la ligne",
+        "imageNotice": "L'aperçu d'image n'est pas disponible dans le navigateur. Utilise la CLI pour inspecter cet asset.",
+        "binaryNotice": "Ce type de fichier n'est pas prévisualisable dans le navigateur.",
+        "largeFile": "Fichier volumineux — coloration syntaxique désactivée pour les performances."
       },
       "bundle": {
         "empty": "Aucun fichier de bundle pour l'instant.",
@@ -4455,7 +4497,8 @@
           "brokenTag": "(erreur de chargement)"
         },
         "tree": {
-          "heading": "Bundle"
+          "heading": "Bundle",
+          "empty": "Seulement SKILL.md — ajoute des fichiers sous scripts/, references/ ou assets/."
         }
       },
       "deps": {
@@ -4470,6 +4513,12 @@
         "path": "Chemin",
         "pathHelp": "Chemin relatif dans le bundle du skill. Utilise scripts/ pour les exécutables, references/ pour les docs, assets/ pour les modèles.",
         "pathRequired": "Le chemin est requis",
+        "pathNoLeadingSlash": "Le chemin doit être relatif — pas de slash initial. Utilise scripts/ / references/ / assets/.",
+        "pathNoTraversal": "Le chemin ne peut pas contenir \"..\".",
+        "pathInvalidChars": "Le chemin ne peut contenir que des lettres, chiffres, point, tiret, souligné et slash.",
+        "alreadyExists": "Un fichier existe déjà à ce chemin. Ouvre-le depuis la liste pour le modifier, ou choisis un nouveau chemin.",
+        "loadNotFound": "Ce fichier n'est plus dans le bundle. Ferme et crée-le depuis la liste à la place.",
+        "loadTooLarge": "Ce fichier est trop volumineux pour être édité dans le navigateur. Remplace-le via la CLI ou supprime-le ici.",
         "content": "Contenu",
         "createTitle": "Nouveau fichier de bundle",
         "editTitle": "Modifier {path}",
@@ -4487,9 +4536,15 @@
         "quota": "{used} / {max} fichiers · {bytes} / {byteMax} octets"
       },
       "selector": {
-        "empty": "Aucun skill disponible dans cette organisation pour l'instant. Crée-en un sous Skills.",
+        "empty": "Aucun skill disponible dans cette organisation pour l'instant. Crée-en un sous ",
         "deps": "{count, plural, one {# dép} other {# déps}}",
-        "transitive": "L'attachement active : {tools}{integrations}{workflows}"
+        "transitive": "L'attachement active : {tools}{integrations}{workflows}",
+        "transitiveTools": "Outils : {items}",
+        "transitiveIntegrations": "Intégrations : {items}",
+        "transitiveWorkflows": "Workflows : {items}",
+        "driftBadge": "Drift — enregistre à nouveau pour rafraîchir",
+        "driftTooltip": "La surface de capacités de ce skill a changé depuis que tu l'as attaché. Enregistre pour rafraîchir le snapshot.",
+        "openDetail": "Ouvrir {slug} dans un nouvel onglet"
       }
     },
     "integrations": {

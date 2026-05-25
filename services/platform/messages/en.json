@@ -4647,6 +4647,7 @@
       }
     },
     "skills": {
+      "title": "Skills",
       "createSkill": "Create skill",
       "searchPlaceholder": "Search skills…",
       "deleteSkill": "Delete skill",
@@ -4660,6 +4661,11 @@
       "skillDeleteFailed": "Failed to delete skill",
       "skillDeleteConflict": "Skill changed since you opened this dialog. Reload and retry.",
       "skillAlreadyExists": "A skill with this slug already exists",
+      "skillDuplicated": "Skill duplicated as {slug}",
+      "skillDuplicateFailed": "Failed to duplicate skill",
+      "bodyTemplate": "# {slug}\n\nDescribe when this skill applies and the steps to follow.\n",
+      "deleteWarningBindings": "{count} agent(s) bind this skill and will log runtime warnings until re-edited.",
+      "deleteResolvingBindings": "Checking which agents bind this skill…",
       "unsavedChanges": {
         "title": "Discard unsaved changes?",
         "description": "You have unsaved edits on this skill. Leaving now will discard them.",
@@ -4673,10 +4679,14 @@
       "headerChipLabel": "{count, plural, one {# skill} other {# skills}}",
       "headerChipAria": "View bound skills",
       "headerChipTitle": "Skills available to this agent",
+      "actions": {
+        "duplicate": "Duplicate"
+      },
       "columns": {
         "name": "Skill",
         "description": "Description",
-        "deps": "Deps"
+        "deps": "Deps",
+        "loadError": "Failed to read SKILL.md"
       },
       "createDialog": {
         "continue": "Create",
@@ -4696,7 +4706,39 @@
         "overview": "Overview",
         "body": "Instructions (body)",
         "bundle": "Bundle files",
-        "deps": "Declared dependencies"
+        "deps": "Declared dependencies",
+        "whereBound": "Where this skill is bound",
+        "auditHistory": "Recent changes"
+      },
+      "metadata": {
+        "trigger": "Trigger",
+        "triggerAuto": "Auto (agent-invoked)",
+        "transitive": "Transitive deps",
+        "bundleFiles": "Bundle files",
+        "license": "License"
+      },
+      "body": {
+        "viewEdit": "Edit",
+        "viewPreview": "Preview",
+        "viewToggle": "Body view mode",
+        "previewEmpty": "(Body is empty)"
+      },
+      "whereBound": {
+        "empty": "No agents currently bind this skill. Bindings show up here once a developer adds the skill to an agent."
+      },
+      "auditHistory": {
+        "empty": "No audit entries yet for this skill.",
+        "action": {
+          "create": "Created",
+          "update": "Updated",
+          "delete": "Deleted"
+        }
+      },
+      "viewer": {
+        "toggleWrap": "Toggle line wrap",
+        "imageNotice": "Image preview is not available in the browser. Use the CLI to inspect this asset.",
+        "binaryNotice": "This file type is not previewable in the browser.",
+        "largeFile": "Large file — syntax highlighting disabled for performance."
       },
       "bundle": {
         "empty": "No bundle files yet.",
@@ -4711,7 +4753,8 @@
           "brokenTag": "(load error)"
         },
         "tree": {
-          "heading": "Bundle"
+          "heading": "Bundle",
+          "empty": "Only SKILL.md — add files under scripts/, references/, or assets/."
         }
       },
       "deps": {
@@ -4726,6 +4769,12 @@
         "path": "Path",
         "pathHelp": "Relative path within the skill bundle. Use scripts/ for executables, references/ for docs, assets/ for templates.",
         "pathRequired": "Path is required",
+        "pathNoLeadingSlash": "Path must be relative — no leading slash. Use scripts/ / references/ / assets/.",
+        "pathNoTraversal": "Path may not contain \"..\".",
+        "pathInvalidChars": "Path may only contain letters, digits, dot, hyphen, underscore, and slash.",
+        "alreadyExists": "A file already exists at this path. Open it from the list to edit, or pick a new path.",
+        "loadNotFound": "This file is no longer in the bundle. Close and create it from the list instead.",
+        "loadTooLarge": "This file is too large to edit in the browser. Replace it from the CLI or delete it here.",
         "content": "Content",
         "createTitle": "New bundle file",
         "editTitle": "Edit {path}",
@@ -4743,9 +4792,15 @@
         "quota": "{used} / {max} files · {bytes} / {byteMax} bytes"
       },
       "selector": {
-        "empty": "No skills available in this organization yet. Create one under Skills.",
+        "empty": "No skills available in this organization yet. Create one under ",
         "deps": "{count, plural, one {# dep} other {# deps}}",
-        "transitive": "Binding enables: {tools}{integrations}{workflows}"
+        "transitive": "Binding enables: {tools}{integrations}{workflows}",
+        "transitiveTools": "Tools: {items}",
+        "transitiveIntegrations": "Integrations: {items}",
+        "transitiveWorkflows": "Workflows: {items}",
+        "driftBadge": "Drift — re-save to refresh",
+        "driftTooltip": "This skill's capability surface changed since you bound it. Save to refresh the snapshot.",
+        "openDetail": "Open {slug} in a new tab"
       }
     },
     "integrations": {
