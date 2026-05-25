@@ -1,12 +1,12 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Text } from '@/app/components/ui/typography/text';
 import { useListSkills } from '@/app/features/skills/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 

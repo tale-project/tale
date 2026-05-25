@@ -1,8 +1,8 @@
+import { PageSection } from '@tale/ui/page-section';
+import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { PageSection } from '@/app/components/ui/layout/page-section';
-import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { SkillSelector } from '@/app/features/agents/components/skill-selector';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useT } from '@/lib/i18n/client';

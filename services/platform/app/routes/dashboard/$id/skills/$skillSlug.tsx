@@ -1,5 +1,8 @@
 import { Button } from '@tale/ui/button';
+import { Heading } from '@tale/ui/heading';
+import { HStack, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   createFileRoute,
@@ -17,9 +20,6 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Heading } from '@/app/components/ui/typography/heading';
-import { Text } from '@/app/components/ui/typography/text';
 import { SkillAssetsSection } from '@/app/features/skills/components/skill-assets-section';
 import { useUpdateSkill } from '@/app/features/skills/hooks/mutations';
 import {

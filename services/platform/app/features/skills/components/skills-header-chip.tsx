@@ -1,13 +1,13 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Stack } from '@tale/ui/layout';
+import { Popover } from '@tale/ui/popover';
 import { Skeleton } from '@tale/ui/skeleton';
+import { Text } from '@tale/ui/text';
 import { Sparkles } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Popover } from '@/app/components/ui/overlays/popover';
-import { Text } from '@/app/components/ui/typography/text';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
