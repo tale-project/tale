@@ -17,6 +17,7 @@ import {
   ScrollText,
   Shield,
   ShieldAlert,
+  Terminal,
   Trash2,
   TrendingUp,
   type LucideIcon,
@@ -32,6 +33,7 @@ import { seo } from '@/lib/utils/seo';
 export const GOVERNANCE_GROUPS = [
   'content-models',
   'policies-limits',
+  'run-code-policy',
   'security-monitoring',
   'guardrails',
   'audit-logs',
@@ -48,6 +50,7 @@ interface GovernanceNavItem {
   labelKey:
     | 'contentAndModels'
     | 'policiesAndLimits'
+    | 'runCodePolicy'
     | 'securityAndMonitoring'
     | 'guardrails'
     | 'auditLogs'
@@ -62,6 +65,7 @@ interface GovernanceNavItem {
 const NAV_ITEMS: GovernanceNavItem[] = [
   { slug: 'content-models', labelKey: 'contentAndModels', icon: Brain },
   { slug: 'policies-limits', labelKey: 'policiesAndLimits', icon: Scale },
+  { slug: 'run-code-policy', labelKey: 'runCodePolicy', icon: Terminal },
   {
     slug: 'security-monitoring',
     labelKey: 'securityAndMonitoring',

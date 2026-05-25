@@ -31,7 +31,6 @@ import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
 import { getToolRegistryMap } from '../../agent_tools/tool_registry';
 import { createBoundWorkflowTool } from '../../agent_tools/workflows/create_bound_workflow_tool';
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
-import { skillBindingResolvedEntryValidator } from '../../agents/validators';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { recordFailure } from '../../providers/circuit_breaker';
 import {
@@ -65,7 +64,7 @@ import {
   classifyProviderError,
 } from '../error_classification';
 import { buildCallProviderOptions } from '../provider_options';
-import { buildSkillContext, mergeSkillDependencies } from './skills_runtime';
+import { buildSkillContext } from './skills_runtime';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
 
@@ -106,9 +105,6 @@ const serializableAgentConfigValidator = v.object({
    */
   agentProjectIds: v.optional(v.array(v.string())),
   delegateSlugs: v.optional(v.array(v.string())),
-  skillBindingsResolved: v.optional(
-    v.array(skillBindingResolvedEntryValidator),
-  ),
   structuredResponsesEnabled: v.optional(v.boolean()),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
@@ -216,16 +212,9 @@ export const runAgentGeneration = internalAction({
       const toolBuildStart = Date.now();
 
       // Stage 1: org-level resources + skill snapshot, all in parallel.
-      // `buildSkillContext` needs `orgSlug`, so it can't sit on the same
-      // Promise.all level — it goes in a second wave that depends only on
-      // `orgSlug`, while the orgLocale/governance/MCP fetches keep running.
-      // For the N=0 (no skills) case `buildSkillContext` returns
-      // EMPTY_SNAPSHOT synchronously, so there's no extra wait. For the
-      // N>0 case skill loading overlaps the remaining Stage-1 tasks
-      // instead of serializing behind them (prior shape did
-      // `await Promise.all([...])` then a separate `await buildSkillContext`,
-      // which blocked the rest of the turn — including Stage-3 integration
-      // build — even when there were no skills to load).
+      // Skills are no longer agent-bound and no longer grant transitive
+      // tools/integrations/workflows — `buildSkillContext` simply loads
+      // every org skill so the model can `expand_skill` any of them.
       const orgSlug = await resolveOrgSlug(ctx, organizationId);
       const [orgLocale, governanceResult, mcpExtraTools, skillSnapshot] =
         await Promise.all([
@@ -236,21 +225,12 @@ export const runAgentGeneration = internalAction({
           ),
           fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
           buildMcpTools(ctx, organizationId),
-          buildSkillContext(ctx, agentConfig, orgSlug),
+          buildSkillContext(ctx, orgSlug),
         ]);
 
-      // Stage 2: merge skill-declared dependencies (trust the snapshot, NOT
-      // the live frontmatter — see plan D4). `mergeSkillDependencies`
-      // throws if the post-merge tool count would exceed
-      // `MAX_TRANSITIVE_TOOLS`, surfacing accidental skill-binding sprawl
-      // as a clear error rather than a context-budget mystery.
-      const effectiveConfig = mergeSkillDependencies(
-        agentConfig,
-        skillSnapshot,
-      );
+      const effectiveConfig = agentConfig;
 
-      // Stage 3: build dependent tool categories using the merged config so
-      // skill-declared integrations / workflows are picked up.
+      // Stage 3: build dependent tool categories.
       const [integrationExtraTools, delegationResult, workflowExtraTools] =
         await Promise.all([
           buildIntegrationTools(ctx, effectiveConfig, organizationId),

@@ -47,21 +47,3 @@ export function useGetSkillAuditHistory(organizationId: string, slug: string) {
     { organizationId, slug },
   );
 }
-
-export function useFindAgentsBindingSkill(
-  organizationId: string,
-  skillSlug: string,
-  options?: { enabled?: boolean },
-) {
-  // This query does a full readdir + parse of every agent JSON, so it
-  // must be gated. The skill-delete dialog is mounted per row in the
-  // table, so leaving it always-on caused N+1 (50 skills × 50 agents on
-  // the listing render). Callers pass `enabled: open` to defer the
-  // lookup until the dialog actually opens.
-  return useActionQuery(
-    ['config', 'skills', organizationId, skillSlug, 'related-agents'],
-    api.skills.find_related_agents.findAgentsBindingSkill,
-    { organizationId, skillSlug },
-    { enabled: options?.enabled !== false },
-  );
-}

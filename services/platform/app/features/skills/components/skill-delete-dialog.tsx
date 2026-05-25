@@ -1,7 +1,5 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
@@ -10,7 +8,6 @@ import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useDeleteSkill } from '../hooks/mutations';
-import { useFindAgentsBindingSkill } from '../hooks/queries';
 
 function extractCode(err: unknown): string | undefined {
   if (!err || typeof err !== 'object' || !('data' in err)) return undefined;
@@ -44,14 +41,6 @@ export function SkillDeleteDialog({
 }: SkillDeleteDialogProps) {
   const { t } = useT('settings');
   const { mutateAsync: deleteSkill } = useDeleteSkill();
-  const { data: relatedAgents } = useFindAgentsBindingSkill(
-    organizationId,
-    skillSlug,
-    // Only fire the (heavy) readdir+parse-every-agent scan when the
-    // dialog actually opens. Without this, the table mounts one dialog
-    // per row so the query fires 50× on initial page load.
-    { enabled: open },
-  );
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleConfirm = async () => {
@@ -90,9 +79,6 @@ export function SkillDeleteDialog({
     }
   };
 
-  const isResolvingRelated = open && relatedAgents === undefined;
-  const hasRelated = Array.isArray(relatedAgents) && relatedAgents.length > 0;
-
   return (
     <DeleteDialog
       open={open}
@@ -100,53 +86,12 @@ export function SkillDeleteDialog({
       title={t('skills.deleteSkill', { defaultValue: 'Delete skill' })}
       description={t('skills.deleteConfirmation', {
         defaultValue:
-          'This removes the skill bundle from disk. Agents bound to it will keep the binding entry and log a runtime warning until you re-edit them.',
+          'This removes the skill bundle from disk. The skill will no longer be available to any agent in this organization.',
       })}
       preview={{ primary: skillSlug }}
-      warning={
-        hasRelated
-          ? t('skills.deleteWarningBindings', {
-              defaultValue:
-                '{count} agent(s) bind this skill and will log runtime warnings until re-edited.',
-              count: relatedAgents.length,
-            })
-          : undefined
-      }
       deleteText={t('skills.deleteSkill', { defaultValue: 'Delete skill' })}
       isDeleting={isDeleting}
-      disableDelete={isResolvingRelated}
       onDelete={handleConfirm}
-    >
-      {isResolvingRelated ? (
-        <Text variant="muted" className="mt-2 text-xs">
-          {t('skills.deleteResolvingBindings', {
-            defaultValue: 'Checking which agents bind this skill…',
-          })}
-        </Text>
-      ) : hasRelated ? (
-        <Stack gap={2} className="mt-2">
-          <Text variant="label">
-            {t('skills.relatedAgentsHeader', {
-              defaultValue: 'Bound by these agents',
-              count: relatedAgents.length,
-            })}
-          </Text>
-          <ul className="ml-4 list-disc">
-            {relatedAgents.map((a) => (
-              <li key={a.agentName}>
-                <Text as="span" variant="body">
-                  {a.displayName ?? a.agentName}
-                </Text>
-                {a.displayName ? (
-                  <Text as="span" variant="muted" className="ml-2">
-                    ({a.agentName})
-                  </Text>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </Stack>
-      ) : null}
-    </DeleteDialog>
+    />
   );
 }

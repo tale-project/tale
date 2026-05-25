@@ -31,7 +31,8 @@ export const listThreadFiles = internalQuery({
       )
       .order('desc')
       .collect();
-    if (args.prefix === undefined || args.prefix.length === 0) return rows;
-    return rows.filter((r) => r.path.startsWith(args.prefix!));
+    const prefix = args.prefix;
+    if (prefix === undefined || prefix.length === 0) return rows;
+    return rows.filter((r) => r.path.startsWith(prefix));
   },
 });

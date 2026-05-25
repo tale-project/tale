@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  parseSkillMd,
-  SkillFrontmatterError,
-  SKILL_RESERVED_TOOL_NAMES,
-} from './skills';
+import { parseSkillMd, SkillFrontmatterError } from './skills';
 
 function wrap(frontmatter: string, body = '\nBody here.\n'): string {
   return `---\n${frontmatter}\n---${body}`;
@@ -70,7 +66,10 @@ describe('parseSkillMd — description length', () => {
 });
 
 describe('parseSkillMd — kebab-case wire format & normalization', () => {
-  it('normalizes tool-names / integration-bindings / workflow-bindings', () => {
+  it('round-trips legacy tool-names / integration-bindings / workflow-bindings under .unknown', () => {
+    // These fields are no longer typed — skills are knowledge packs that
+    // don't grant capabilities. Existing SKILL.md authors who still write
+    // them get passthrough preservation but no semantic effect.
     const fm = [
       'name: code-reviewer',
       'description: Review code.',
@@ -82,9 +81,9 @@ describe('parseSkillMd — kebab-case wire format & normalization', () => {
       '  - send-summary',
     ].join('\n');
     const { meta } = parseSkillMd(wrap(fm));
-    expect(meta.toolNames).toEqual(['rag_search']);
-    expect(meta.integrationBindings).toEqual(['slack']);
-    expect(meta.workflowBindings).toEqual(['send-summary']);
+    expect(meta.unknown['tool-names']).toEqual(['rag_search']);
+    expect(meta.unknown['integration-bindings']).toEqual(['slack']);
+    expect(meta.unknown['workflow-bindings']).toEqual(['send-summary']);
   });
 
   it('preserves role-restriction and shared-with-team-ids under .unknown', () => {
@@ -106,18 +105,18 @@ describe('parseSkillMd — kebab-case wire format & normalization', () => {
     expect(meta.unknown['shared-with-team-ids']).toEqual(['eng', 'infra']);
   });
 
-  it('reads packages frontmatter into normalized shape', () => {
+  it('reads recommended-packages frontmatter into normalized shape', () => {
     const fm = [
       'name: pdf-extractor',
       'description: extract PDF text',
-      'packages:',
+      'recommended-packages:',
       '  python:',
       '    - pypdf',
       '  node: []',
     ].join('\n');
     const { meta } = parseSkillMd(wrap(fm));
-    expect(meta.packages?.python).toEqual(['pypdf']);
-    expect(meta.packages?.node).toEqual([]);
+    expect(meta.recommendedPackages?.python).toEqual(['pypdf']);
+    expect(meta.recommendedPackages?.node).toEqual([]);
   });
 });
 
@@ -206,15 +205,5 @@ describe('parseSkillMd — YAML security', () => {
   });
 });
 
-describe('SKILL_RESERVED_TOOL_NAMES', () => {
-  it('reserves the three built-in skill tool names', () => {
-    expect(SKILL_RESERVED_TOOL_NAMES.has('expand_skill')).toBe(true);
-    expect(SKILL_RESERVED_TOOL_NAMES.has('read_skill_file')).toBe(true);
-    expect(SKILL_RESERVED_TOOL_NAMES.has('skill_run')).toBe(true);
-  });
-
-  it('does not include arbitrary other names', () => {
-    expect(SKILL_RESERVED_TOOL_NAMES.has('rag_search')).toBe(false);
-    expect(SKILL_RESERVED_TOOL_NAMES.has('web')).toBe(false);
-  });
-});
+// SKILL_RESERVED_TOOL_NAMES retired with the skill_run tool — skills no
+// longer declare `tool-names` so there's nothing to reserve against.

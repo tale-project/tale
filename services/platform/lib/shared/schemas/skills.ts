@@ -39,21 +39,6 @@ export const RESERVED_SKILL_NAMES: ReadonlySet<string> = new Set([
 const PACKAGE_SPEC_MAX = 120;
 const PACKAGE_BUCKET_MAX = 20;
 
-/**
- * Reserved tool names skills cannot declare. Only the three built-ins
- * that the runtime actually splices into every effective tool set are
- * listed — `skill_run_script` / `skill_run_pipeline` were reserved
- * speculatively for a never-shipped multi-step skill executor; keeping
- * them in the reject set would block skill authors from naming
- * unrelated tools that happen to share the prefix, with no real
- * collision risk to defend against.
- */
-export const SKILL_RESERVED_TOOL_NAMES: ReadonlySet<string> = new Set([
-  'expand_skill',
-  'read_skill_file',
-  'skill_run',
-]);
-
 /** Raw frontmatter as it appears on disk (kebab-case keys, passthrough). */
 const rawFrontmatterSchema = z
   .object({
@@ -69,25 +54,14 @@ const rawFrontmatterSchema = z
         message: 'name cannot be a reserved word ("anthropic" or "claude")',
       }),
     description: z.string().min(1).max(1024),
-    'tool-names': z
-      .array(
-        z
-          .string()
-          .min(1)
-          .max(120)
-          .refine((s) => !SKILL_RESERVED_TOOL_NAMES.has(s), {
-            message:
-              'tool-names cannot shadow a built-in skill tool (expand_skill, read_skill_file, skill_run, skill_run_script, skill_run_pipeline)',
-          }),
-      )
-      .max(64)
-      .optional(),
-    'integration-bindings': z
-      .array(z.string().min(1).max(64))
-      .max(32)
-      .optional(),
-    'workflow-bindings': z.array(z.string().min(1).max(64)).max(32).optional(),
-    packages: z
+    /**
+     * Advisory `recommendedPackages` (on-disk: `recommended-packages`) —
+     * package specs the SKILL.md author suggests the model includes when
+     * calling `run_code`. NOT enforced or auto-installed; org-level
+     * `orgPackagePolicy` is the only gating mechanism. Skill UI may
+     * surface this as a hint.
+     */
+    'recommended-packages': z
       .object({
         python: z
           .array(z.string().min(1).max(PACKAGE_SPEC_MAX))
@@ -118,10 +92,14 @@ export type RawSkillFrontmatter = z.infer<typeof rawFrontmatterSchema>;
 export interface SkillFrontmatter {
   name: string;
   description: string;
-  toolNames?: string[];
-  integrationBindings?: string[];
-  workflowBindings?: string[];
-  packages?: {
+  /**
+   * Advisory list of pip / npm specs the skill author recommends including
+   * in a `run_code({packages})` call. The platform never auto-installs
+   * these — they're surfaced to the model via the SKILL.md text and to the
+   * UI as a hint. The org-level `orgPackagePolicy` is the only gating
+   * mechanism.
+   */
+  recommendedPackages?: {
     python?: string[];
     node?: string[];
   };
@@ -145,10 +123,7 @@ export interface SkillFrontmatter {
 const KNOWN_KEBAB_KEYS = new Set<string>([
   'name',
   'description',
-  'tool-names',
-  'integration-bindings',
-  'workflow-bindings',
-  'packages',
+  'recommended-packages',
   'license',
   'disable-model-invocation',
   'metadata',
@@ -166,14 +141,9 @@ function normalize(raw: RawSkillFrontmatter): SkillFrontmatter {
     description: raw.description,
     unknown,
   };
-  if (raw['tool-names'] !== undefined) out.toolNames = raw['tool-names'];
-  if (raw['integration-bindings'] !== undefined) {
-    out.integrationBindings = raw['integration-bindings'];
+  if (raw['recommended-packages'] !== undefined) {
+    out.recommendedPackages = raw['recommended-packages'];
   }
-  if (raw['workflow-bindings'] !== undefined) {
-    out.workflowBindings = raw['workflow-bindings'];
-  }
-  if (raw.packages !== undefined) out.packages = raw.packages;
   if (raw.license !== undefined) out.license = raw.license;
   if (raw['disable-model-invocation'] !== undefined) {
     out.disableModelInvocation = raw['disable-model-invocation'];
@@ -289,14 +259,9 @@ export function frontmatterToRaw(
     name: meta.name,
     description: meta.description,
   };
-  if (meta.toolNames !== undefined) raw['tool-names'] = meta.toolNames;
-  if (meta.integrationBindings !== undefined) {
-    raw['integration-bindings'] = meta.integrationBindings;
+  if (meta.recommendedPackages !== undefined) {
+    raw['recommended-packages'] = meta.recommendedPackages;
   }
-  if (meta.workflowBindings !== undefined) {
-    raw['workflow-bindings'] = meta.workflowBindings;
-  }
-  if (meta.packages !== undefined) raw.packages = meta.packages;
   if (meta.license !== undefined) raw.license = meta.license;
   if (meta.disableModelInvocation !== undefined) {
     raw['disable-model-invocation'] = meta.disableModelInvocation;

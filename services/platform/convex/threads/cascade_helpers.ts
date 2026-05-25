@@ -286,35 +286,7 @@ export async function cascadeDeleteThreadChildren(
     }
   }
 
-  // 7. artifacts (+ revisions, two-step lookup via artifactId)
-  if (organizationId) {
-    const artifactsPage = await ctx.db
-      .query('artifacts')
-      .withIndex('by_organizationId_and_thread', (q) =>
-        q.eq('organizationId', organizationId).eq('threadId', threadId),
-      )
-      .take(PAGE_SIZE);
-    for (const artifact of artifactsPage) {
-      const revisions = await ctx.db
-        .query('artifactRevisions')
-        .withIndex('by_artifact', (q) => q.eq('artifactId', artifact._id))
-        .take(PAGE_SIZE);
-      for (const rev of revisions) {
-        await ctx.db.delete(rev._id);
-      }
-      // If a single artifact has > PAGE_SIZE revisions, surface that as
-      // remaining so the caller re-invokes us; we'll resume from this
-      // artifact next round (its revisions still exist; the artifact row
-      // itself isn't deleted yet on this iteration).
-      if (revisions.length === PAGE_SIZE) {
-        return { done: false, remaining: 1 };
-      }
-      await ctx.db.delete(artifact._id);
-    }
-    if (artifactsPage.length === PAGE_SIZE) {
-      return { done: false, remaining: 1 };
-    }
-  }
+  // 7. (artifacts cascade removed — artifacts module deleted)
 
   // 7.5 chat-upload fileMetadata bound to this thread.
   //

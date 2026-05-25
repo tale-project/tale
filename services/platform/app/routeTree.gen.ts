@@ -73,6 +73,7 @@ import { Route as DashboardIdSettingsProvidersProviderNameRouteImport } from './
 import { Route as DashboardIdSettingsGovernanceUsageRouteImport } from './routes/dashboard/$id/settings/governance/usage';
 import { Route as DashboardIdSettingsGovernanceTrashRouteImport } from './routes/dashboard/$id/settings/governance/trash';
 import { Route as DashboardIdSettingsGovernanceSecurityMonitoringRouteImport } from './routes/dashboard/$id/settings/governance/security-monitoring';
+import { Route as DashboardIdSettingsGovernanceRunCodePolicyRouteImport } from './routes/dashboard/$id/settings/governance/run-code-policy';
 import { Route as DashboardIdSettingsGovernancePoliciesLimitsRouteImport } from './routes/dashboard/$id/settings/governance/policies-limits';
 import { Route as DashboardIdSettingsGovernanceLegalHoldRouteImport } from './routes/dashboard/$id/settings/governance/legal-hold';
 import { Route as DashboardIdSettingsGovernanceGuardrailsRouteImport } from './routes/dashboard/$id/settings/governance/guardrails';
@@ -90,7 +91,6 @@ import { Route as DashboardIdAutomationsAmIdExecutionsRouteImport } from './rout
 import { Route as DashboardIdAutomationsAmIdConfigurationRouteImport } from './routes/dashboard/$id/automations/$amId/configuration';
 import { Route as DashboardIdAgentsAgentIdWebhookRouteImport } from './routes/dashboard/$id/agents/$agentId/webhook';
 import { Route as DashboardIdAgentsAgentIdToolsRouteImport } from './routes/dashboard/$id/agents/$agentId/tools';
-import { Route as DashboardIdAgentsAgentIdSkillsRouteImport } from './routes/dashboard/$id/agents/$agentId/skills';
 import { Route as DashboardIdAgentsAgentIdKnowledgeRouteImport } from './routes/dashboard/$id/agents/$agentId/knowledge';
 import { Route as DashboardIdAgentsAgentIdInstructionsRouteImport } from './routes/dashboard/$id/agents/$agentId/instructions';
 import { Route as DashboardIdAgentsAgentIdDelegationRouteImport } from './routes/dashboard/$id/agents/$agentId/delegation';
@@ -455,6 +455,12 @@ const DashboardIdSettingsGovernanceSecurityMonitoringRoute =
     path: '/security-monitoring',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
   } as any);
+const DashboardIdSettingsGovernanceRunCodePolicyRoute =
+  DashboardIdSettingsGovernanceRunCodePolicyRouteImport.update({
+    id: '/run-code-policy',
+    path: '/run-code-policy',
+    getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
+  } as any);
 const DashboardIdSettingsGovernancePoliciesLimitsRoute =
   DashboardIdSettingsGovernancePoliciesLimitsRouteImport.update({
     id: '/policies-limits',
@@ -557,12 +563,6 @@ const DashboardIdAgentsAgentIdToolsRoute =
     path: '/tools',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
   } as any);
-const DashboardIdAgentsAgentIdSkillsRoute =
-  DashboardIdAgentsAgentIdSkillsRouteImport.update({
-    id: '/skills',
-    path: '/skills',
-    getParentRoute: () => DashboardIdAgentsAgentIdRoute,
-  } as any);
 const DashboardIdAgentsAgentIdKnowledgeRoute =
   DashboardIdAgentsAgentIdKnowledgeRouteImport.update({
     id: '/knowledge',
@@ -659,7 +659,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
   '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute;
   '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute;
-  '/dashboard/$id/agents/$agentId/skills': typeof DashboardIdAgentsAgentIdSkillsRoute;
   '/dashboard/$id/agents/$agentId/tools': typeof DashboardIdAgentsAgentIdToolsRoute;
   '/dashboard/$id/agents/$agentId/webhook': typeof DashboardIdAgentsAgentIdWebhookRoute;
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute;
@@ -677,6 +676,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
   '/dashboard/$id/settings/governance/legal-hold': typeof DashboardIdSettingsGovernanceLegalHoldRoute;
   '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute;
+  '/dashboard/$id/settings/governance/run-code-policy': typeof DashboardIdSettingsGovernanceRunCodePolicyRoute;
   '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
   '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
@@ -736,7 +736,6 @@ export interface FileRoutesByTo {
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
   '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute;
   '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute;
-  '/dashboard/$id/agents/$agentId/skills': typeof DashboardIdAgentsAgentIdSkillsRoute;
   '/dashboard/$id/agents/$agentId/tools': typeof DashboardIdAgentsAgentIdToolsRoute;
   '/dashboard/$id/agents/$agentId/webhook': typeof DashboardIdAgentsAgentIdWebhookRoute;
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute;
@@ -754,6 +753,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
   '/dashboard/$id/settings/governance/legal-hold': typeof DashboardIdSettingsGovernanceLegalHoldRoute;
   '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute;
+  '/dashboard/$id/settings/governance/run-code-policy': typeof DashboardIdSettingsGovernanceRunCodePolicyRoute;
   '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
   '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
@@ -827,7 +827,6 @@ export interface FileRoutesById {
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
   '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute;
   '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute;
-  '/dashboard/$id/agents/$agentId/skills': typeof DashboardIdAgentsAgentIdSkillsRoute;
   '/dashboard/$id/agents/$agentId/tools': typeof DashboardIdAgentsAgentIdToolsRoute;
   '/dashboard/$id/agents/$agentId/webhook': typeof DashboardIdAgentsAgentIdWebhookRoute;
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute;
@@ -845,6 +844,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
   '/dashboard/$id/settings/governance/legal-hold': typeof DashboardIdSettingsGovernanceLegalHoldRoute;
   '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute;
+  '/dashboard/$id/settings/governance/run-code-policy': typeof DashboardIdSettingsGovernanceRunCodePolicyRoute;
   '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
   '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
@@ -917,7 +917,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId/delegation'
     | '/dashboard/$id/agents/$agentId/instructions'
     | '/dashboard/$id/agents/$agentId/knowledge'
-    | '/dashboard/$id/agents/$agentId/skills'
     | '/dashboard/$id/agents/$agentId/tools'
     | '/dashboard/$id/agents/$agentId/webhook'
     | '/dashboard/$id/automations/$amId/configuration'
@@ -935,6 +934,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/guardrails'
     | '/dashboard/$id/settings/governance/legal-hold'
     | '/dashboard/$id/settings/governance/policies-limits'
+    | '/dashboard/$id/settings/governance/run-code-policy'
     | '/dashboard/$id/settings/governance/security-monitoring'
     | '/dashboard/$id/settings/governance/trash'
     | '/dashboard/$id/settings/governance/usage'
@@ -994,7 +994,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId/delegation'
     | '/dashboard/$id/agents/$agentId/instructions'
     | '/dashboard/$id/agents/$agentId/knowledge'
-    | '/dashboard/$id/agents/$agentId/skills'
     | '/dashboard/$id/agents/$agentId/tools'
     | '/dashboard/$id/agents/$agentId/webhook'
     | '/dashboard/$id/automations/$amId/configuration'
@@ -1012,6 +1011,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/guardrails'
     | '/dashboard/$id/settings/governance/legal-hold'
     | '/dashboard/$id/settings/governance/policies-limits'
+    | '/dashboard/$id/settings/governance/run-code-policy'
     | '/dashboard/$id/settings/governance/security-monitoring'
     | '/dashboard/$id/settings/governance/trash'
     | '/dashboard/$id/settings/governance/usage'
@@ -1084,7 +1084,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId/delegation'
     | '/dashboard/$id/agents/$agentId/instructions'
     | '/dashboard/$id/agents/$agentId/knowledge'
-    | '/dashboard/$id/agents/$agentId/skills'
     | '/dashboard/$id/agents/$agentId/tools'
     | '/dashboard/$id/agents/$agentId/webhook'
     | '/dashboard/$id/automations/$amId/configuration'
@@ -1102,6 +1101,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/guardrails'
     | '/dashboard/$id/settings/governance/legal-hold'
     | '/dashboard/$id/settings/governance/policies-limits'
+    | '/dashboard/$id/settings/governance/run-code-policy'
     | '/dashboard/$id/settings/governance/security-monitoring'
     | '/dashboard/$id/settings/governance/trash'
     | '/dashboard/$id/settings/governance/usage'
@@ -1575,6 +1575,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsGovernanceSecurityMonitoringRouteImport;
       parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
     };
+    '/dashboard/$id/settings/governance/run-code-policy': {
+      id: '/dashboard/$id/settings/governance/run-code-policy';
+      path: '/run-code-policy';
+      fullPath: '/dashboard/$id/settings/governance/run-code-policy';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceRunCodePolicyRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/settings/governance/policies-limits': {
       id: '/dashboard/$id/settings/governance/policies-limits';
       path: '/policies-limits';
@@ -1694,13 +1701,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdAgentsAgentIdToolsRouteImport;
       parentRoute: typeof DashboardIdAgentsAgentIdRoute;
     };
-    '/dashboard/$id/agents/$agentId/skills': {
-      id: '/dashboard/$id/agents/$agentId/skills';
-      path: '/skills';
-      fullPath: '/dashboard/$id/agents/$agentId/skills';
-      preLoaderRoute: typeof DashboardIdAgentsAgentIdSkillsRouteImport;
-      parentRoute: typeof DashboardIdAgentsAgentIdRoute;
-    };
     '/dashboard/$id/agents/$agentId/knowledge': {
       id: '/dashboard/$id/agents/$agentId/knowledge';
       path: '/knowledge';
@@ -1784,7 +1784,6 @@ interface DashboardIdAgentsAgentIdRouteChildren {
   DashboardIdAgentsAgentIdDelegationRoute: typeof DashboardIdAgentsAgentIdDelegationRoute;
   DashboardIdAgentsAgentIdInstructionsRoute: typeof DashboardIdAgentsAgentIdInstructionsRoute;
   DashboardIdAgentsAgentIdKnowledgeRoute: typeof DashboardIdAgentsAgentIdKnowledgeRoute;
-  DashboardIdAgentsAgentIdSkillsRoute: typeof DashboardIdAgentsAgentIdSkillsRoute;
   DashboardIdAgentsAgentIdToolsRoute: typeof DashboardIdAgentsAgentIdToolsRoute;
   DashboardIdAgentsAgentIdWebhookRoute: typeof DashboardIdAgentsAgentIdWebhookRoute;
   DashboardIdAgentsAgentIdIndexRoute: typeof DashboardIdAgentsAgentIdIndexRoute;
@@ -1800,7 +1799,6 @@ const DashboardIdAgentsAgentIdRouteChildren: DashboardIdAgentsAgentIdRouteChildr
       DashboardIdAgentsAgentIdInstructionsRoute,
     DashboardIdAgentsAgentIdKnowledgeRoute:
       DashboardIdAgentsAgentIdKnowledgeRoute,
-    DashboardIdAgentsAgentIdSkillsRoute: DashboardIdAgentsAgentIdSkillsRoute,
     DashboardIdAgentsAgentIdToolsRoute: DashboardIdAgentsAgentIdToolsRoute,
     DashboardIdAgentsAgentIdWebhookRoute: DashboardIdAgentsAgentIdWebhookRoute,
     DashboardIdAgentsAgentIdIndexRoute: DashboardIdAgentsAgentIdIndexRoute,
@@ -1917,6 +1915,7 @@ interface DashboardIdSettingsGovernanceRouteRouteChildren {
   DashboardIdSettingsGovernanceGuardrailsRoute: typeof DashboardIdSettingsGovernanceGuardrailsRoute;
   DashboardIdSettingsGovernanceLegalHoldRoute: typeof DashboardIdSettingsGovernanceLegalHoldRoute;
   DashboardIdSettingsGovernancePoliciesLimitsRoute: typeof DashboardIdSettingsGovernancePoliciesLimitsRoute;
+  DashboardIdSettingsGovernanceRunCodePolicyRoute: typeof DashboardIdSettingsGovernanceRunCodePolicyRoute;
   DashboardIdSettingsGovernanceSecurityMonitoringRoute: typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
   DashboardIdSettingsGovernanceTrashRoute: typeof DashboardIdSettingsGovernanceTrashRoute;
   DashboardIdSettingsGovernanceUsageRoute: typeof DashboardIdSettingsGovernanceUsageRoute;
@@ -1939,6 +1938,8 @@ const DashboardIdSettingsGovernanceRouteRouteChildren: DashboardIdSettingsGovern
       DashboardIdSettingsGovernanceLegalHoldRoute,
     DashboardIdSettingsGovernancePoliciesLimitsRoute:
       DashboardIdSettingsGovernancePoliciesLimitsRoute,
+    DashboardIdSettingsGovernanceRunCodePolicyRoute:
+      DashboardIdSettingsGovernanceRunCodePolicyRoute,
     DashboardIdSettingsGovernanceSecurityMonitoringRoute:
       DashboardIdSettingsGovernanceSecurityMonitoringRoute,
     DashboardIdSettingsGovernanceTrashRoute:

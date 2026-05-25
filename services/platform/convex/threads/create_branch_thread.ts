@@ -3,7 +3,6 @@ import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
-import { snapshotArtifactForBranch } from '../artifacts/snapshot_for_branch';
 import { getThreadMessages } from './get_thread_messages';
 
 export const createBranchThread = internalMutation({
@@ -134,97 +133,10 @@ export const createBranchThread = internalMutation({
     );
     messageIdMap.set(args.editedMessageId, editedBranchMessageId);
 
-    // Snapshot artifacts whose `createdByMessageId` is in the copied set
-    // into the branch thread. We capture each at its *latest in-scope
-    // revision* — not the parent's current `content` — so post-fork edits
-    // in the parent don't bleed into the branch.
-    const parentArtifacts = await ctx.db
-      .query('artifacts')
-      .withIndex('by_organizationId_and_thread', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('threadId', args.sourceThreadId),
-      )
-      .collect();
-
-    for (const source of parentArtifacts) {
-      const mappedCreatedByMessageId = messageIdMap.get(
-        source.createdByMessageId,
-      );
-      if (!mappedCreatedByMessageId) continue; // out of scope
-
-      // Walk artifactRevisions oldest→newest, accept revisions whose editor
-      // message is in scope (or 'user' edits, which carry no messageId but
-      // by revision-order monotonicity must have happened between the
-      // surrounding assistant edits). Stop at the first out-of-scope edit.
-      // While walking, keep the most recent in-scope file/content snapshot
-      // so we can branch at the revision the user actually forked at, not
-      // the source row's current state (which may include later edits made
-      // on the parent after the fork point).
-      let snapshotRev:
-        | {
-            revision: number;
-            editedByMessageId?: string;
-          }
-        | undefined;
-      let snapshotFiles:
-        | ReadonlyArray<{ path: string; content: string }>
-        | undefined;
-      let snapshotEntryFile: string | undefined;
-      let snapshotContent: string | undefined;
-      for await (const rev of ctx.db
-        .query('artifactRevisions')
-        .withIndex('by_artifact', (q) => q.eq('artifactId', source._id))
-        .order('asc')) {
-        const inScope =
-          rev.editedByMessageId === undefined ||
-          messageIdMap.has(rev.editedByMessageId);
-        if (!inScope) break;
-        snapshotRev = {
-          revision: rev.revision,
-          editedByMessageId: rev.editedByMessageId,
-        };
-        // Capture file/content state at this revision. `set_entry` rows
-        // omit `files` AND `content` (only entryFile changes) — for those
-        // we keep the previously-captured file state but update the entry
-        // pointer. `files` and legacy `content` are mutually exclusive in
-        // current writes (post-Phase A); legacy rows have only `content`.
-        if (rev.files !== undefined) {
-          snapshotFiles = rev.files;
-          if (rev.entryFile !== undefined) snapshotEntryFile = rev.entryFile;
-          // Don't carry a stale legacy `content` past a `files` revision.
-          snapshotContent = undefined;
-        } else if (rev.content !== undefined) {
-          snapshotContent = rev.content;
-          if (rev.entryFile !== undefined) snapshotEntryFile = rev.entryFile;
-        } else if (rev.entryFile !== undefined) {
-          // set_entry: only the entry pointer changed.
-          snapshotEntryFile = rev.entryFile;
-        }
-      }
-
-      const finalRevision = snapshotRev?.revision ?? source.revision;
-      const mappedLastEditedByMessageId = snapshotRev?.editedByMessageId
-        ? messageIdMap.get(snapshotRev.editedByMessageId)
-        : undefined;
-
-      await snapshotArtifactForBranch(ctx, {
-        source,
-        snapshotRevision: finalRevision,
-        targetThreadId: branchThreadId,
-        mappedCreatedByMessageId,
-        ...(mappedLastEditedByMessageId !== undefined && {
-          mappedLastEditedByMessageId,
-        }),
-        ...(snapshotFiles !== undefined && { revisionFiles: snapshotFiles }),
-        ...(snapshotEntryFile !== undefined && {
-          revisionEntryFile: snapshotEntryFile,
-        }),
-        ...(snapshotContent !== undefined && {
-          revisionContent: snapshotContent,
-        }),
-      });
-    }
+    // Artifact branch snapshotting removed — artifacts module deleted in
+    // the thread-workspace refactor. Branch threads start with an empty
+    // workspace; future versions may snapshot threadFiles instead.
+    void messageIdMap;
 
     return { branchThreadId, forkOrder: args.editedMessageOrder };
   },

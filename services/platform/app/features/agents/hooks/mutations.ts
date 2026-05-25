@@ -10,11 +10,9 @@ function useInvalidateAgents() {
     void queryClient.invalidateQueries({
       queryKey: ['config', 'agents', organizationId],
     });
-    // Skill bindings live on the agent JSON, so any agent-config write
-    // can change which skills are attached to a thread's agent. Refresh
-    // every skill-scoped cache entry that depends on agent state — the
-    // chat-header chip query and `useFindAgentsBindingSkill` are both
-    // keyed under this prefix.
+    // Refresh skill-scoped cache entries that depend on agent state.
+    // Skills themselves are org-wide and no longer agent-bound, but
+    // skill listings may surface agent-derived metadata.
     void queryClient.invalidateQueries({
       queryKey: ['config', 'skills', organizationId],
     });

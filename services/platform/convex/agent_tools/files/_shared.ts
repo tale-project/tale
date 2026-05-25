@@ -142,6 +142,23 @@ export function inferContentType(path: string): string {
 }
 
 /**
+ * Per-file runtime dispatcher. Maps a path's extension to the sandbox
+ * runtime that should execute it. Returns `null` for any extension the
+ * sandbox doesn't host an interpreter for.
+ *
+ * `.cjs` / `.mjs` resolve to `node` (Node treats them as commonjs / esm
+ * respectively — the entrypoint just runs `node <path>` and Node picks
+ * the right module system).
+ */
+export function inferStepLanguage(path: string): 'python' | 'node' | null {
+  const match = path.toLowerCase().match(/\.([a-z0-9]+)$/);
+  const ext = match ? match[1] : undefined;
+  if (ext === 'py') return 'python';
+  if (ext === 'js' || ext === 'cjs' || ext === 'mjs') return 'node';
+  return null;
+}
+
+/**
  * Per-bucket package spec refinement. Mirrors the artifact-side validator —
  * rejects empty strings, version-only specs, and prefix tokens (`python:` /
  * `node:`) that callers occasionally include by accident.

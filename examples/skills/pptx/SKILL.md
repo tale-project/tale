@@ -1,7 +1,7 @@
 ---
 name: pptx
-description: Create PowerPoint decks (.pptx) from a structured outline. Use any time the user asks for a slide deck, pitch deck, or presentation; says "make slides", "build a deck", "turn this into slides"; or attaches an outline they want rendered as a presentation. Returns the .pptx as a downloadable attachment. This skill creates from scratch — it does not read or edit existing .pptx files (the platform sandbox has no LibreOffice / markitdown).
-packages:
+description: Create PowerPoint decks (.pptx) from a structured outline. Use any time the user asks for a slide deck, pitch deck, or presentation; says "make slides", "build a deck", "turn this into slides"; or attaches an outline they want rendered as a presentation. This skill creates from scratch — it does not read or edit existing .pptx files (the sandbox has no LibreOffice / markitdown).
+recommended-packages:
   python:
     - python-pptx==1.0.2
 license: MIT
@@ -9,85 +9,58 @@ license: MIT
 
 # PPTX Skill
 
-## When to invoke
+You build .pptx decks by writing a Python script into the thread workspace and executing it with `run_code`. This skill ships a reference implementation and a design catalog — **read them, then write your own script**.
 
-The user wants a slide deck, e.g.:
+## When to use
 
 - "Make a 5-slide deck about Q3 results."
 - "Turn this outline into slides."
 - "Build a pitch deck for $TOPIC."
-- An `outline.md` is attached and they want it rendered.
 
-Do **not** invoke for:
+Don't use this skill to read or edit existing .pptx files — the sandbox can only create them.
 
-- Reading or summarizing an existing `.pptx` — the sandbox cannot extract text from PowerPoint files. Tell the user to copy/paste the content or export to markdown first.
-- Editing an existing `.pptx` — same constraint. This skill is create-from-scratch only.
-- Image-heavy decks the user specifies by reference image — the script only places text, shapes, and colors. To embed images, extend `scripts/generate.py`.
+## Workflow
 
-## How to invoke
+1. **Read the reference implementation.** Call `read_skill_file({ skillSlug: "pptx", path: "scripts/example.py" })`. It shows the full python-pptx pattern: palette/font catalogs, background fills, accent bars, title slide, content slides, speaker notes.
+2. **Read the design catalog.** Call `read_skill_file({ skillSlug: "pptx", path: "references/design.md" })` for the palette names, font pairings, and layout guidance. **Don't default to generic blue when the topic suggests a more specific palette.**
+3. **Write your own generator script** with `file_write`. Hardcode the user's outline (title, slide titles, bullets, speaker notes) directly into the script — don't try to parse markdown unless the user attached a real `outline.md` to the thread. Pick a palette that matches the topic's mood.
+4. **Execute it** with `run_code`, declaring `python-pptx==1.0.2` in `packages.python`. The script should write `deck.pptx` (or similar) into the workspace so the user can download it.
+5. **Confirm the result.** Check that `run_code` reported success and the deck file appears in the workspace. If it failed, surface the error — don't pretend the deck exists.
+
+## Worked example
 
 ```
-skill_run({ skillSlug: "pptx", path: "scripts/generate.py" })
+file_write({
+  path: "gen.py",
+  content: `
+from pptx import Presentation
+from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.util import Inches, Pt
+
+OUTLINE = {
+  "title": "Q3 Operations Review",
+  "palette": ("1E2761", "CADCFC", "FFFFFF"),  # midnight-executive
+  "slides": [
+    {"title": "Headline numbers", "bullets": ["Revenue +14% QoQ", "Churn down to 2.1%"], "notes": "EU mid-market drove the lift."},
+    {"title": "Risks", "bullets": ["Supply lead times volatile", "One Tier-1 renegotiating"]},
+  ],
+}
+# ... build slides per the pattern in scripts/example.py ...
+prs.save("deck.pptx")
+`,
+})
+
+run_code({
+  entryPath: "gen.py",
+  packages: { python: ["python-pptx==1.0.2"] },
+})
 ```
 
-The script writes `/workspace/output/deck.pptx`; the platform harvests it back to the thread as a downloadable attachment.
+The reference `scripts/example.py` is much fuller — copy the palette dict, the `add_background` / `add_accent_bar` / `style_run` helpers, and the title/content slide builders. You're not constrained to its markdown-parsing input mode; hardcode the user's outline directly.
 
-### Input modes
+## Notes
 
-The script auto-detects which input it has:
-
-1. **Outline attached** — first `outline.md` / `*.outline.md` in `/workspace/output/` is parsed. `# H1` becomes the deck title, each `## H2` starts a new slide, list items become bullets, prose between bullets and the next H2 becomes speaker notes.
-2. **No outline** — falls back to a 3-slide demo so a cold call still returns a visible artifact. Only rely on this if the user explicitly asks for a sample.
-
-Outline example:
-
-```markdown
-# Q3 Operations Review
-
-## Headline numbers
-
-- Revenue +14% QoQ
-- Churn down to 2.1%
-- Two enterprise renewals closed
-
-Driven primarily by the EU mid-market motion the team rebuilt in July.
-
-## Risks
-
-- Supply lead times still volatile
-- One Tier-1 customer renegotiating
-```
-
-### Picking a palette
-
-The script reads an optional `palette` and `font` selection from a top-level frontmatter block on `outline.md` (YAML):
-
-```markdown
----
-palette: midnight-executive
-font: georgia-calibri
----
-
-# Q3 Operations Review
-
-## Headline numbers
-
-...
-```
-
-If omitted, the script picks `midnight-executive` (navy + ice blue, white accent) and `georgia-calibri`. Read [references/design.md](references/design.md) for the full set of palettes, font pairings, and slide layout patterns the script supports. **Don't default to generic blue when the topic suggests a more specific palette.** Pick a palette that matches the topic's mood.
-
-## After the run
-
-- Confirm `success === true` and `files` contains `deck.pptx`. If not, surface the error from `stderrPreview` — do not pretend the deck was generated.
-- Quote the slide titles from `stdoutPreview` back to the user so they can spot-check the structure before opening the file.
-- If the demo fallback was used (no outline attached) and the user did not ask for a sample, follow up: "I produced a sample deck. To get one on your topic, share an outline with `# Title` / `## Slide`, or paste it inline and I'll attach it."
-- If the user wanted a richer deck (charts, images, branded layouts) tell them to extend `scripts/generate.py` — the skill is intentionally minimal so the bundle stays readable.
-
-## Sandbox constraints (read this before extending)
-
-- Python 3.12 with **only `python-pptx==1.0.2`** declared. To add fonts / images / charts you may need extra packages — add them to the SKILL.md `packages.python` list; `skill_run` refuses any package not declared here.
-- No LibreOffice, no `markitdown`, no `pdftoppm` — the reference design's visual-QA loop (render to images, inspect with a subagent) does not work in this sandbox. If you need that workflow, run python-pptx locally.
-- 30s default wall clock (300s max). One deck of < 50 slides finishes well under 5s; if you blow the budget you're probably embedding huge images.
-- 1 GB memory cap.
-- Files written outside `/workspace/output/` are not returned to the thread.
+- One deck of < 50 slides finishes well under 5s. If you blow the 30s wall clock you're probably embedding huge images.
+- To embed images or charts, extend the reference pattern — python-pptx supports both.
+- If the user attached an actual `outline.md` and asked you to render it, you can either parse it inside your script (see the example's `parse_outline`) or just read the file yourself with `file_read` and inline the content into your generator.

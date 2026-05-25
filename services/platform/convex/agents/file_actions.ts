@@ -21,7 +21,6 @@ import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-con
 import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
-import { buildFreshSkillBindingsSnapshot } from '../lib/agent_chat/skills_runtime';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import {
@@ -246,18 +245,10 @@ export const saveAgent = action({
       throw err;
     }
 
-    // ---------------------------------------------------------------------
-    // Capability gate + server-side snapshot rebuild.
-    //
-    // `skillBindingsResolved` is a trusted snapshot the runtime consumes
-    // verbatim (`mergeSkillDependencies`) — so it CANNOT come from the
-    // client. We:
-    //   1. detect whether the save changes capability fields,
-    //   2. require admin/developer if so (members can still rename or
-    //      tweak instructions on agents they own),
-    //   3. drop the client-supplied resolved array and rebuild it from
-    //      canonical SKILL.md files for each declared binding.
-    // ---------------------------------------------------------------------
+    // Capability-change gate — skills are no longer agent-bound, so the
+    // skillBindings array is ignored and we strip it on save. The
+    // remaining capability fields still need admin/developer auth to
+    // change.
     const arrayEq = (
       a: readonly string[] | undefined,
       b: readonly string[] | undefined,
@@ -283,41 +274,20 @@ export const saveAgent = action({
         config.integrationBindings,
       ) ||
       !arrayEq(prevAgent.config.workflows, config.workflows) ||
-      !arrayEq(prevAgent.config.delegates, config.delegates) ||
-      !arrayEq(prevAgent.config.skillBindings, config.skillBindings);
+      !arrayEq(prevAgent.config.delegates, config.delegates);
 
-    // Capture the actor's role from whichever gate fires — used by the
-    // audit emit below so the audit row records the exact role at the
-    // time of the write (developer vs admin), not just the actor id.
     const writeAuth: OrgMembershipAuth = isCapabilityChange
       ? await requireOrgAdminOrDeveloper(ctx, args.organizationId)
       : memberAuth;
 
-    // Server-side rebuild of skillBindingsResolved from canonical SKILL.md.
-    // The client-supplied value is intentionally discarded — the runtime
-    // trusts this array to grant tools/integrations/workflows transitively,
-    // so the server must be the source of truth.
-    const rebuiltResolved = await buildFreshSkillBindingsSnapshot(
-      ctx,
-      orgSlug,
-      config.skillBindings ?? [],
-    );
-    // Maintain the `resolved ⊂ bindings ⊆ rebuilt-slug-set` invariant so a
-    // skill deleted between bind-time and save-time stops appearing in
-    // `skillBindings` too. Without this, the runtime logs
-    // `skill_dangling` every turn forever for a slug the user can't see
-    // or remove via the selector. The list of trimmed slugs is surfaced
-    // back to the client as warnings so the user knows what disappeared.
-    const rebuiltSlugs = new Set(rebuiltResolved.map((b) => b.slug));
-    const declaredBindings = config.skillBindings ?? [];
-    const trimmedBindings = declaredBindings.filter((s) => rebuiltSlugs.has(s));
-    const droppedSlugs = declaredBindings.filter((s) => !rebuiltSlugs.has(s));
+    // Drop legacy skill-binding fields — the new model exposes all org
+    // skills to every agent, so per-agent binding has no effect.
     config = {
       ...config,
-      skillBindings: trimmedBindings.length > 0 ? trimmedBindings : undefined,
-      skillBindingsResolved:
-        rebuiltResolved.length > 0 ? rebuiltResolved : undefined,
+      skillBindings: undefined,
+      skillBindingsResolved: undefined,
     };
+    const droppedSlugs: string[] = [];
 
     // Cross-validate supportedModels against provider model lists.
     // Qualified entries ("provider:model") must resolve strictly;
@@ -575,23 +545,7 @@ export const duplicateAgent = action({
       ? `${legacyDisplayName}${suffix}`
       : undefined;
 
-    // Rebuild skillBindingsResolved from canonical SKILL.md instead of
-    // carrying the source agent's snapshot verbatim. Without this, a
-    // duplicate would inherit a stale snapshot if the source's skills had
-    // been edited (frontmatter widening) between bind-time and now —
-    // bypassing the trust boundary saveAgent enforces. Failed-to-load
-    // skills are dropped from BOTH the bindings list and the resolved set
-    // so the new agent has a clean, consistent capability surface.
-    const rebuiltResolved = await buildFreshSkillBindingsSnapshot(
-      ctx,
-      orgSlug,
-      source.config.skillBindings ?? [],
-    );
-    const rebuiltSlugs = new Set(rebuiltResolved.map((b) => b.slug));
-    const trimmedBindings = (source.config.skillBindings ?? []).filter((s) =>
-      rebuiltSlugs.has(s),
-    );
-
+    // Skills are no longer agent-bound; strip any legacy bindings on copy.
     const draft: AgentJsonConfig = {
       ...source.config,
       ...(suffixedTopLevel !== undefined
@@ -599,9 +553,8 @@ export const duplicateAgent = action({
         : {}),
       ...(nextI18n ? { i18n: nextI18n } : {}),
       visibleInChat: false,
-      skillBindings: trimmedBindings.length > 0 ? trimmedBindings : undefined,
-      skillBindingsResolved:
-        rebuiltResolved.length > 0 ? rebuiltResolved : undefined,
+      skillBindings: undefined,
+      skillBindingsResolved: undefined,
     };
 
     // If neither the legacy top-level nor any i18n locale had a displayName,

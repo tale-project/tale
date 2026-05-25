@@ -7,12 +7,12 @@ import { PanelRightClose, Telescope, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { useWorkspaceOptional } from '@/app/features/workspace/components/workspace-context';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useCanvasOptional } from '../canvas/canvas-context';
 import { TodoListCard } from '../todo-list-card';
 
 const MIN_WIDTH = 280;
@@ -35,8 +35,8 @@ function PlanPaneComponent() {
   const hasTodos = !!todosData && todosData.todos.length > 0;
   const counts = computeCounts(todosData?.todos ?? []);
 
-  const canvas = useCanvasOptional();
-  const isCanvasOpen = !!canvas?.isCanvasOpen;
+  const workspace = useWorkspaceOptional();
+  const isCanvasOpen = !!workspace?.isOpen;
 
   const [userDismissed, setUserDismissed] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -67,11 +67,11 @@ function PlanPaneComponent() {
   }, []);
 
   const handleStripOpen = useCallback(() => {
-    canvas?.closeCanvas();
+    workspace?.closeWorkspace();
     setIsMinimized(false);
     setUserDismissed(false);
     setIsOpen(true);
-  }, [canvas]);
+  }, [workspace]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

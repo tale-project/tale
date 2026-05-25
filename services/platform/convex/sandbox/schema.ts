@@ -57,12 +57,9 @@ export const sandboxExecutionsTable = defineTable({
   toolCallId: v.optional(v.string()),
   uploadedBy: v.string(),
   agentSlug: v.optional(v.string()),
-  // Back-link to the runnable artifact this execution belongs to. Optional
-  // because not every sandbox execution is artifact-bound (future free-form
-  // sandbox callers would leave this unset). Watchdog uses this to cascade
-  // failure to the artifact row when it reaps a stuck execution — otherwise
-  // the canvas spinner stays spinning until the audit row is GC'd.
-  artifactId: v.optional(v.id('artifacts')),
+  // @deprecated — artifacts module removed. Field kept (typed loosely) so
+  // existing rows pass the read validator after schema deploy.
+  artifactId: v.optional(v.string()),
   // For artifact-bound runs: which file path the LLM asked the sandbox to
   // execute (`main.js`, `verify.py`, …). Lets the canvas render the
   // latest-run-per-file panel so a verify run no longer clobbers the

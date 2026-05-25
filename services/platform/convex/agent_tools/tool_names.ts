@@ -10,16 +10,11 @@
  */
 
 export const TOOL_NAMES = [
-  'artifact_create',
-  'artifact_list',
-  'artifact_run',
-  'artifact_packages_add',
-  'artifact_file_create',
-  'artifact_file_update',
-  'artifact_file_delete',
-  'artifact_file_rename',
-  'artifact_file_read',
-  'artifact_file_list',
+  'file_write',
+  'file_read',
+  'file_list',
+  'file_delete',
+  'run_code',
   'customer_read',
   'product_read',
   'rag_search',

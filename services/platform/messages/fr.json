@@ -1138,37 +1138,8 @@
       "verdictError": "Échec de l'enregistrement du verdict"
     },
     "canvas": {
-      "close": "Fermer le canevas",
-      "edit": "Modifier",
-      "copy": "Copier",
       "download": "Télécharger",
-      "exportPdf": "Exporter en PDF",
-      "exportPdfFailed": "Échec de l'export PDF",
-      "copied": "Copié !",
       "mermaidError": "Échec du rendu du diagramme",
-      "resizeHandle": "Redimensionner le canevas",
-      "apply": "Appliquer les modifications",
-      "applied": "Modifications appliquées",
-      "applyFailed": "Échec de l'application des modifications",
-      "enterFullscreen": "Plein écran",
-      "exitFullscreen": "Quitter le plein écran",
-      "codeEditor": "Éditeur de code",
-      "markdownEditor": "Éditeur Markdown",
-      "mermaidEditor": "Éditeur Mermaid",
-      "streamingWriting": "L'IA écrit…",
-      "streamingPatch": "L'IA modifie…",
-      "cancel": "Annuler la modification",
-      "streamingDuringEdit": "L'agent met à jour cet artéfact — ton brouillon est conservé. Clique sur Annuler pour le rejeter.",
-      "runDone": "Terminé",
-      "runStarted": "Démarré",
-      "runStale": "Code modifié",
-      "runFiles": "Fichiers",
-      "runStdout": "stdout ({chars} car.)",
-      "runStderr": "stderr ({chars} car.)",
-      "runOpenFile": "Ouvrir le fichier {name}",
-      "runResultEntryLabel": "Sortie",
-      "runResultSecondaryLabel": "Sortie pour {path}",
-      "runResultSecondaryCount": "{count, plural, one {# autre fichier} other {# autres fichiers}}",
       "runStatus": {
         "queued": "En file d'attente",
         "installing": "Installation des dépendances",
@@ -1211,29 +1182,7 @@
         "script_runnable": "Script (sandbox)",
         "python_runnable": "Python (sandbox)",
         "node_runnable": "Node (sandbox)"
-      },
-      "fileSidebar": {
-        "label": "Fichiers du projet",
-        "title": "Fichiers",
-        "expand": "Afficher les fichiers",
-        "collapse": "Masquer les fichiers",
-        "entryBadge": "entrée",
-        "streamingDot": "Écriture de ce fichier…",
-        "addFile": "Ajouter un fichier",
-        "addFilePlaceholder": "chemin/vers/fichier.ext",
-        "addFileConfirm": "Ajouter",
-        "addFileCancel": "Annuler",
-        "errorPathRequired": "Le chemin est requis.",
-        "errorPathExists": "Un fichier avec ce chemin existe déjà.",
-        "errorAddFailed": "Impossible d'ajouter le fichier."
       }
-    },
-    "artifacts": {
-      "barLabel": "Artéfacts dans ce fil",
-      "barTitle": "Artéfacts",
-      "openCard": "Ouvrir l'artéfact : {title}",
-      "touchedByMessage": "{title}",
-      "fileCount": "{count, plural, one {# fichier} other {# fichiers}}"
     },
     "branchNavigator": {
       "previous": "Branche précédente",
@@ -2696,7 +2645,51 @@
       "feedback": "Retours",
       "auditLogs": "Journaux d'audit",
       "dataSubjectRequests": "Personnes concernées",
-      "policiesAndLimitsDescription": "Budgets, restrictions de téléversement, rétention des données, feature flags et sortie vocale."
+      "policiesAndLimitsDescription": "Budgets, restrictions de téléversement, rétention des données, feature flags et sortie vocale.",
+      "runCodePolicy": "Paquets run-code"
+    },
+    "runCodePolicy": {
+      "title": "Politique de paquets run-code",
+      "description": "Contrôle quels paquets Python et Node l'outil run_code peut installer à l'exécution. Le mode par défaut est liste de blocage avec une liste vide, ce qui autorise tous les paquets. Passer en mode liste d'autorisation oblige à énumérer chaque paquet de confiance — tout le reste est bloqué.",
+      "modeSectionTitle": "Mode par défaut",
+      "modeSectionDescription": "Choisissez la stratégie appliquée par run_code lorsqu'un paquet n'est pas explicitement mentionné dans la politique.",
+      "modeAllowlistLabel": "Liste d'autorisation",
+      "modeAllowlistDescription": "Seuls les paquets figurant dans les listes d'autorisation ci-dessous peuvent être installés. Tout le reste est rejeté.",
+      "modeDenylistLabel": "Liste de blocage",
+      "modeDenylistDescription": "Tous les paquets sont installables, à l'exception de ceux figurant dans les listes de blocage ci-dessous.",
+      "pythonSectionTitle": "Paquets Python",
+      "nodeSectionTitle": "Paquets Node",
+      "listsHint": "Un nom de paquet par ligne (ou séparé par des virgules). Les contraintes de version sont supprimées automatiquement — `pandas==2.1` correspond à `pandas`.",
+      "pythonAllowLabel": "Liste d'autorisation Python",
+      "pythonAllowDescription": "Utilisée lorsque le mode par défaut est Liste d'autorisation.",
+      "pythonDenyLabel": "Liste de blocage Python",
+      "pythonDenyDescription": "Utilisée lorsque le mode par défaut est Liste de blocage.",
+      "nodeAllowLabel": "Liste d'autorisation Node",
+      "nodeAllowDescription": "Utilisée lorsque le mode par défaut est Liste d'autorisation. Les paquets scopés (`@scope/pkg`) sont pris en charge.",
+      "nodeDenyLabel": "Liste de blocage Node",
+      "nodeDenyDescription": "Utilisée lorsque le mode par défaut est Liste de blocage. Les paquets scopés (`@scope/pkg`) sont pris en charge.",
+      "pythonPlaceholder": "pandas\nnumpy\nrequests",
+      "nodePlaceholder": "lodash\n@scope/pkg",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "saved": "Politique de paquets run-code mise à jour",
+      "saveFailed": "Échec de la mise à jour de la politique de paquets run-code",
+      "testerTitle": "Tester cette liste de paquets",
+      "testerDescription": "Collez des spécifications pip ou npm pour prévisualiser si chacune passerait sous la politique en cours d'édition. Utilise vos modifications non enregistrées, vous pouvez donc itérer avant d'enregistrer.",
+      "testerBucketLabel": "Catégorie",
+      "bucketPython": "Python (pip)",
+      "bucketNode": "Node (npm)",
+      "testerInputLabel": "Spécifications à tester",
+      "testerPlaceholderPython": "pandas==2.1, numpy>=1.26",
+      "testerPlaceholderNode": "lodash@4.17.21, @scope/pkg",
+      "testerButton": "Tester",
+      "testerBaseLabel": "Nom de base",
+      "testerAllowed": "Autorisé",
+      "testerDenied": "Refusé",
+      "reasonAllowlistMatch": "figure dans la liste d'autorisation",
+      "reasonAllowlistMiss": "absent de la liste d'autorisation (le mode liste d'autorisation refuse tout le reste)",
+      "reasonDenylistMatch": "figure dans la liste de blocage",
+      "reasonDenylistNotMatched": "absent de la liste de blocage"
     },
     "trash": {
       "title": "Corbeille",
@@ -4177,18 +4170,11 @@
         "general": "Général",
         "instructionsModel": "Instructions et modèle",
         "tools": "Outils",
-        "skills": "Skills",
         "knowledge": "Base de connaissances",
         "webhook": "Workers",
         "delegation": "Délégation",
         "conversationStarters": "Amorces",
         "history": "Historique"
-      },
-      "skills": {
-        "title": "Skills",
-        "description": "Attache des recettes réutilisables à cet agent. Les dépendances déclarées de chaque skill (outils, intégrations, workflows) sont figées au moment de l'attachement et fusionnées dans l'ensemble effectif de l'agent à l'exécution.",
-        "boundTitle": "Skills attachés",
-        "boundDescription": "Quand l'agent s'exécute, le nom et la description de chaque skill attaché sont injectés dans le prompt système. Le modèle peut appeler `expand_skill` pour charger les instructions complètes, `read_skill_file` pour les gros fichiers, et `skill_run` pour exécuter les scripts du bundle dans le sandbox."
       },
       "history": {
         "empty": "Aucune entrée d'historique",
@@ -4391,7 +4377,6 @@
       }
     },
     "skills": {
-      "title": "Skills",
       "createSkill": "Créer un skill",
       "searchPlaceholder": "Rechercher des skills…",
       "deleteSkill": "Supprimer le skill",
@@ -4408,8 +4393,6 @@
       "skillDuplicated": "Skill dupliqué en {slug}",
       "skillDuplicateFailed": "Échec de la duplication du skill",
       "bodyTemplate": "# {slug}\n\nDécris quand utiliser ce skill et les étapes à suivre.\n",
-      "deleteWarningBindings": "{count} agent(s) attachent ce skill et émettront des avertissements à l'exécution jusqu'à ce qu'ils soient modifiés à nouveau.",
-      "deleteResolvingBindings": "Vérification des agents qui attachent ce skill …",
       "unsavedChanges": {
         "title": "Abandonner les modifications non enregistrées ?",
         "description": "Tu as des modifications non enregistrées sur ce skill. Quitter maintenant les abandonnera.",
@@ -4419,17 +4402,12 @@
       "conflict": "Ce skill a été modifié ailleurs. Recharge pour voir la version actuelle.",
       "validationError": "Configuration de skill invalide",
       "deleteConfirmation": "Cela retire le bundle du skill du disque. Les agents qui y sont attachés conserveront leur référence et émettront un avertissement à l'exécution jusqu'à ce que tu les modifies à nouveau.",
-      "relatedAgentsHeader": "Attaché par ces agents",
-      "headerChipLabel": "{count, plural, one {# skill} other {# skills}}",
-      "headerChipAria": "Voir les skills attachés",
-      "headerChipTitle": "Skills disponibles pour cet agent",
       "actions": {
         "duplicate": "Dupliquer"
       },
       "columns": {
         "name": "Skill",
         "description": "Description",
-        "deps": "Déps",
         "loadError": "Impossible de lire SKILL.md"
       },
       "createDialog": {
@@ -4450,14 +4428,9 @@
         "overview": "Aperçu",
         "body": "Instructions (corps)",
         "bundle": "Fichiers du bundle",
-        "deps": "Dépendances déclarées",
-        "whereBound": "Où ce skill est attaché",
         "auditHistory": "Modifications récentes"
       },
       "metadata": {
-        "trigger": "Déclencheur",
-        "triggerAuto": "Auto (invoqué par l'agent)",
-        "transitive": "Dépendances transitives",
         "bundleFiles": "Fichiers du bundle",
         "license": "Licence"
       },
@@ -4466,9 +4439,6 @@
         "viewPreview": "Aperçu",
         "viewToggle": "Mode d'affichage du corps",
         "previewEmpty": "(Le corps est vide)"
-      },
-      "whereBound": {
-        "empty": "Aucun agent n'attache actuellement ce skill. Les attachements apparaissent ici dès qu'un développeur ajoute le skill à un agent."
       },
       "auditHistory": {
         "empty": "Aucune entrée d'audit pour l'instant pour ce skill.",
@@ -4502,13 +4472,6 @@
           "empty": "Seulement SKILL.md — ajoute des fichiers sous scripts/, references/ ou assets/."
         }
       },
-      "deps": {
-        "summary": "{count, plural, one {# dépendance déclarée} other {# dépendances déclarées}}",
-        "tools": "Outils",
-        "integrations": "Intégrations",
-        "workflows": "Workflows",
-        "help": "Modifie les dépendances déclarées dans le frontmatter SKILL.md (sous tool-names / integration-bindings / workflow-bindings)."
-      },
       "asset": {
         "add": "Ajouter un fichier",
         "path": "Chemin",
@@ -4534,16 +4497,6 @@
         "conflict": "Ce fichier a été modifié ailleurs. Rouvre-le pour voir la version actuelle.",
         "sizeError": "Le fichier dépasserait la limite de taille du bundle",
         "notFound": "Skill introuvable"
-      },
-      "selector": {
-        "empty": "Aucun skill disponible dans cette organisation pour l'instant. Crée-en un sous ",
-        "deps": "{count, plural, one {# dép} other {# déps}}",
-        "transitiveTools": "Outils : {items}",
-        "transitiveIntegrations": "Intégrations : {items}",
-        "transitiveWorkflows": "Workflows : {items}",
-        "driftBadge": "Drift — enregistre à nouveau pour rafraîchir",
-        "driftTooltip": "La surface de capacités de ce skill a changé depuis que tu l'as attaché. Enregistre pour rafraîchir le snapshot.",
-        "openDetail": "Ouvrir {slug} dans un nouvel onglet"
       }
     },
     "integrations": {

@@ -1137,37 +1137,8 @@
       "verdictError": "Bewertung konnte nicht gespeichert werden"
     },
     "canvas": {
-      "close": "Canvas schließen",
-      "edit": "Bearbeiten",
-      "copy": "Kopieren",
       "download": "Herunterladen",
-      "exportPdf": "Als PDF exportieren",
-      "exportPdfFailed": "PDF-Export fehlgeschlagen",
-      "copied": "Kopiert!",
       "mermaidError": "Diagramm konnte nicht gerendert werden",
-      "resizeHandle": "Canvas-Größe ändern",
-      "apply": "Änderungen übernehmen",
-      "applied": "Änderungen übernommen",
-      "applyFailed": "Änderungen konnten nicht übernommen werden",
-      "enterFullscreen": "Vollbild",
-      "exitFullscreen": "Vollbild verlassen",
-      "codeEditor": "Code-Editor",
-      "markdownEditor": "Markdown-Editor",
-      "mermaidEditor": "Mermaid-Editor",
-      "streamingWriting": "KI schreibt…",
-      "streamingPatch": "KI bearbeitet…",
-      "cancel": "Bearbeitung abbrechen",
-      "streamingDuringEdit": "Der Agent aktualisiert dieses Artefakt — dein Entwurf bleibt gespeichert. Klicke auf Abbrechen, um ihn zu verwerfen.",
-      "runDone": "Fertig",
-      "runStarted": "Gestartet",
-      "runStale": "Quellcode geändert",
-      "runFiles": "Dateien",
-      "runStdout": "stdout ({chars} Zeichen)",
-      "runStderr": "stderr ({chars} Zeichen)",
-      "runOpenFile": "Datei {name} öffnen",
-      "runResultEntryLabel": "Ausgabe",
-      "runResultSecondaryLabel": "Ausgabe für {path}",
-      "runResultSecondaryCount": "{count, plural, one {# weitere Datei} other {# weitere Dateien}}",
       "runStatus": {
         "queued": "In Warteschlange",
         "installing": "Abhängigkeiten installieren",
@@ -1210,29 +1181,7 @@
         "script_runnable": "Skript (Sandbox)",
         "python_runnable": "Python (Sandbox)",
         "node_runnable": "Node (Sandbox)"
-      },
-      "fileSidebar": {
-        "label": "Projektdateien",
-        "title": "Dateien",
-        "expand": "Dateien anzeigen",
-        "collapse": "Dateien ausblenden",
-        "entryBadge": "Einstieg",
-        "streamingDot": "Diese Datei wird geschrieben…",
-        "addFile": "Datei hinzufügen",
-        "addFilePlaceholder": "pfad/zur/datei.ext",
-        "addFileConfirm": "Hinzufügen",
-        "addFileCancel": "Abbrechen",
-        "errorPathRequired": "Pfad ist erforderlich.",
-        "errorPathExists": "Eine Datei mit diesem Pfad existiert bereits.",
-        "errorAddFailed": "Datei konnte nicht hinzugefügt werden."
       }
-    },
-    "artifacts": {
-      "barLabel": "Artefakte in diesem Thread",
-      "barTitle": "Artefakte",
-      "openCard": "Artefakt öffnen: {title}",
-      "touchedByMessage": "{title}",
-      "fileCount": "{count, plural, one {# Datei} other {# Dateien}}"
     },
     "branchNavigator": {
       "previous": "Vorheriger Zweig",
@@ -2695,7 +2644,51 @@
       "feedback": "Feedback",
       "auditLogs": "Audit-Logs",
       "dataSubjectRequests": "Anfragen betroffener Personen",
-      "policiesAndLimitsDescription": "Budgets, Upload-Beschränkungen, Datenaufbewahrung, Feature-Flags und Sprachausgabe."
+      "policiesAndLimitsDescription": "Budgets, Upload-Beschränkungen, Datenaufbewahrung, Feature-Flags und Sprachausgabe.",
+      "runCodePolicy": "Run-code-Pakete"
+    },
+    "runCodePolicy": {
+      "title": "Run-code-Paketrichtlinie",
+      "description": "Steuert, welche Python- und Node-Pakete das run_code-Tool zur Laufzeit installieren darf. Der Standardmodus ist Sperrliste mit leerer Liste, wodurch jedes Paket erlaubt ist. Im Modus Zulassungsliste muss jedes vertrauenswürdige Paket einzeln aufgeführt werden — alles andere wird blockiert.",
+      "modeSectionTitle": "Standardmodus",
+      "modeSectionDescription": "Wähle die Strategie, die run_code anwendet, wenn ein Paket nicht ausdrücklich in der Richtlinie erwähnt ist.",
+      "modeAllowlistLabel": "Zulassungsliste",
+      "modeAllowlistDescription": "Nur Pakete in den unten stehenden Zulassungslisten sind installierbar. Alles andere wird abgelehnt.",
+      "modeDenylistLabel": "Sperrliste",
+      "modeDenylistDescription": "Jedes Paket ist installierbar, außer denen in den unten stehenden Sperrlisten.",
+      "pythonSectionTitle": "Python-Pakete",
+      "nodeSectionTitle": "Node-Pakete",
+      "listsHint": "Ein Paketname pro Zeile (oder kommagetrennt). Versionsangaben werden automatisch entfernt — `pandas==2.1` entspricht `pandas`.",
+      "pythonAllowLabel": "Python-Zulassungsliste",
+      "pythonAllowDescription": "Wird verwendet, wenn der Standardmodus Zulassungsliste ist.",
+      "pythonDenyLabel": "Python-Sperrliste",
+      "pythonDenyDescription": "Wird verwendet, wenn der Standardmodus Sperrliste ist.",
+      "nodeAllowLabel": "Node-Zulassungsliste",
+      "nodeAllowDescription": "Wird verwendet, wenn der Standardmodus Zulassungsliste ist. Scoped-Pakete (`@scope/pkg`) werden unterstützt.",
+      "nodeDenyLabel": "Node-Sperrliste",
+      "nodeDenyDescription": "Wird verwendet, wenn der Standardmodus Sperrliste ist. Scoped-Pakete (`@scope/pkg`) werden unterstützt.",
+      "pythonPlaceholder": "pandas\nnumpy\nrequests",
+      "nodePlaceholder": "lodash\n@scope/pkg",
+      "save": "Speichern",
+      "saving": "Speichert …",
+      "saved": "Run-code-Paketrichtlinie aktualisiert",
+      "saveFailed": "Run-code-Paketrichtlinie konnte nicht aktualisiert werden",
+      "testerTitle": "Paketliste testen",
+      "testerDescription": "Füge pip- oder npm-Spezifikationen ein, um vorab zu sehen, ob sie unter der aktuellen Entwurfsrichtlinie durchgelassen würden. Verwendet ungespeicherte Änderungen, sodass du vor dem Speichern iterieren kannst.",
+      "testerBucketLabel": "Bereich",
+      "bucketPython": "Python (pip)",
+      "bucketNode": "Node (npm)",
+      "testerInputLabel": "Zu testende Spezifikationen",
+      "testerPlaceholderPython": "pandas==2.1, numpy>=1.26",
+      "testerPlaceholderNode": "lodash@4.17.21, @scope/pkg",
+      "testerButton": "Testen",
+      "testerBaseLabel": "Basisname",
+      "testerAllowed": "Erlaubt",
+      "testerDenied": "Abgelehnt",
+      "reasonAllowlistMatch": "passt zur Zulassungsliste",
+      "reasonAllowlistMiss": "nicht auf der Zulassungsliste (Modus Zulassungsliste lehnt alles andere ab)",
+      "reasonDenylistMatch": "passt zur Sperrliste",
+      "reasonDenylistNotMatched": "nicht auf der Sperrliste"
     },
     "trash": {
       "title": "Papierkorb",
@@ -4176,18 +4169,11 @@
         "general": "Allgemein",
         "instructionsModel": "Anweisungen & Modell",
         "tools": "Tools",
-        "skills": "Skills",
         "knowledge": "Wissen",
         "webhook": "Worker",
         "delegation": "Delegation",
         "conversationStarters": "Gesprächseinstiege",
         "history": "Verlauf"
-      },
-      "skills": {
-        "title": "Skills",
-        "description": "Hänge wiederverwendbare Anleitungspakete an diesen Agent an. Die deklarierten Tool-, Integrations- und Workflow-Abhängigkeiten jedes Skills werden zum Bindungszeitpunkt als Snapshot eingefroren und zur Laufzeit in das effektive Set des Agents zusammengeführt.",
-        "boundTitle": "Gebundene Skills",
-        "boundDescription": "Wenn der Agent läuft, werden Name + Beschreibung jedes gebundenen Skills in den System-Prompt eingefügt. Das Modell kann `expand_skill` aufrufen, um die vollständigen Anweisungen zu laden, `read_skill_file` für große Dateien und `skill_run`, um gebündelte Skripte in der Sandbox auszuführen."
       },
       "history": {
         "empty": "Keine Verlaufseinträge",
@@ -4390,7 +4376,6 @@
       }
     },
     "skills": {
-      "title": "Skills",
       "createSkill": "Skill erstellen",
       "searchPlaceholder": "Skills suchen…",
       "deleteSkill": "Skill löschen",
@@ -4407,8 +4392,6 @@
       "skillDuplicated": "Skill als {slug} dupliziert",
       "skillDuplicateFailed": "Skill konnte nicht dupliziert werden",
       "bodyTemplate": "# {slug}\n\nBeschreibe, wann dieser Skill verwendet wird und welche Schritte zu folgen sind.\n",
-      "deleteWarningBindings": "{count} Agent(s) binden diesen Skill und protokollieren zur Laufzeit Warnungen, bis sie erneut bearbeitet werden.",
-      "deleteResolvingBindings": "Prüfe, welche Agents diesen Skill binden …",
       "unsavedChanges": {
         "title": "Nicht gespeicherte Änderungen verwerfen?",
         "description": "Du hast nicht gespeicherte Bearbeitungen an diesem Skill. Wenn du jetzt verlässt, gehen sie verloren.",
@@ -4418,17 +4401,12 @@
       "conflict": "Dieser Skill wurde anderswo geändert. Lade neu, um die aktuelle Version zu sehen.",
       "validationError": "Ungültige Skill-Konfiguration",
       "deleteConfirmation": "Dadurch wird das Skill-Bundle von der Festplatte entfernt. Daran gebundene Agents behalten den Bindungseintrag und protokollieren zur Laufzeit eine Warnung, bis du sie erneut bearbeitest.",
-      "relatedAgentsHeader": "Gebunden von diesen Agents",
-      "headerChipLabel": "{count, plural, one {# Skill} other {# Skills}}",
-      "headerChipAria": "Gebundene Skills ansehen",
-      "headerChipTitle": "Skills für diesen Agent verfügbar",
       "actions": {
         "duplicate": "Duplizieren"
       },
       "columns": {
         "name": "Skill",
         "description": "Beschreibung",
-        "deps": "Abh.",
         "loadError": "SKILL.md konnte nicht gelesen werden"
       },
       "createDialog": {
@@ -4449,14 +4427,9 @@
         "overview": "Übersicht",
         "body": "Anweisungen (Body)",
         "bundle": "Bundle-Dateien",
-        "deps": "Deklarierte Abhängigkeiten",
-        "whereBound": "Wo dieser Skill gebunden ist",
         "auditHistory": "Letzte Änderungen"
       },
       "metadata": {
-        "trigger": "Auslöser",
-        "triggerAuto": "Auto (vom Agent aufgerufen)",
-        "transitive": "Transitive Abhängigkeiten",
         "bundleFiles": "Bundle-Dateien",
         "license": "Lizenz"
       },
@@ -4465,9 +4438,6 @@
         "viewPreview": "Vorschau",
         "viewToggle": "Body-Ansichtsmodus",
         "previewEmpty": "(Body ist leer)"
-      },
-      "whereBound": {
-        "empty": "Derzeit bindet kein Agent diesen Skill. Bindungen erscheinen hier, sobald ein Entwickler den Skill zu einem Agent hinzufügt."
       },
       "auditHistory": {
         "empty": "Noch keine Audit-Einträge für diesen Skill.",
@@ -4501,13 +4471,6 @@
           "empty": "Nur SKILL.md — füge Dateien unter scripts/, references/ oder assets/ hinzu."
         }
       },
-      "deps": {
-        "summary": "{count, plural, one {# deklarierte Abhängigkeit} other {# deklarierte Abhängigkeiten}}",
-        "tools": "Tools",
-        "integrations": "Integrationen",
-        "workflows": "Workflows",
-        "help": "Bearbeite die deklarierten Abhängigkeiten im SKILL.md-Frontmatter (unter tool-names / integration-bindings / workflow-bindings)."
-      },
       "asset": {
         "add": "Datei hinzufügen",
         "path": "Pfad",
@@ -4533,16 +4496,6 @@
         "conflict": "Diese Datei wurde anderswo geändert. Öffne sie erneut, um die aktuelle Version zu sehen.",
         "sizeError": "Datei würde das Bundle-Größenlimit überschreiten",
         "notFound": "Skill nicht gefunden"
-      },
-      "selector": {
-        "empty": "In dieser Organisation sind noch keine Skills verfügbar. Erstelle einen unter ",
-        "deps": "{count, plural, one {# Abh.} other {# Abh.}}",
-        "transitiveTools": "Tools: {items}",
-        "transitiveIntegrations": "Integrationen: {items}",
-        "transitiveWorkflows": "Workflows: {items}",
-        "driftBadge": "Drift — erneut speichern, um zu aktualisieren",
-        "driftTooltip": "Der Funktionsumfang dieses Skills hat sich geändert, seit du ihn gebunden hast. Speichere, um den Snapshot zu aktualisieren.",
-        "openDetail": "{slug} in neuem Tab öffnen"
       }
     },
     "integrations": {

@@ -1137,37 +1137,8 @@
       "verdictError": "Failed to record verdict"
     },
     "canvas": {
-      "close": "Close canvas",
-      "edit": "Edit",
-      "copy": "Copy",
       "download": "Download",
-      "exportPdf": "Export as PDF",
-      "exportPdfFailed": "Failed to export as PDF",
-      "copied": "Copied!",
       "mermaidError": "Failed to render diagram",
-      "resizeHandle": "Resize canvas",
-      "apply": "Apply changes",
-      "applied": "Changes applied",
-      "applyFailed": "Failed to apply changes",
-      "enterFullscreen": "Fullscreen",
-      "exitFullscreen": "Exit fullscreen",
-      "codeEditor": "Code editor",
-      "markdownEditor": "Markdown editor",
-      "mermaidEditor": "Mermaid editor",
-      "streamingWriting": "AI is writing…",
-      "streamingPatch": "AI is editing…",
-      "cancel": "Cancel edit",
-      "streamingDuringEdit": "Agent is updating this artifact — your draft is saved. Cancel to discard.",
-      "runDone": "Done",
-      "runStarted": "Started",
-      "runStale": "Source edited",
-      "runFiles": "Files",
-      "runStdout": "stdout ({chars} chars)",
-      "runStderr": "stderr ({chars} chars)",
-      "runOpenFile": "Open file {name}",
-      "runResultEntryLabel": "Run output",
-      "runResultSecondaryLabel": "Output for {path}",
-      "runResultSecondaryCount": "{count, plural, one {# other file} other {# other files}}",
       "runStatus": {
         "queued": "Queued",
         "installing": "Installing dependencies",
@@ -1210,29 +1181,7 @@
         "script_runnable": "Script (sandbox)",
         "python_runnable": "Python (sandbox)",
         "node_runnable": "Node (sandbox)"
-      },
-      "fileSidebar": {
-        "label": "Project files",
-        "title": "Files",
-        "expand": "Show files",
-        "collapse": "Hide files",
-        "entryBadge": "entry",
-        "streamingDot": "Writing this file…",
-        "addFile": "Add file",
-        "addFilePlaceholder": "path/to/file.ext",
-        "addFileConfirm": "Add",
-        "addFileCancel": "Cancel",
-        "errorPathRequired": "Path is required.",
-        "errorPathExists": "A file with this path already exists.",
-        "errorAddFailed": "Could not add the file."
       }
-    },
-    "artifacts": {
-      "barLabel": "Artifacts in this thread",
-      "barTitle": "Artifacts",
-      "openCard": "Open artifact: {title}",
-      "touchedByMessage": "{title}",
-      "fileCount": "{count, plural, one {# file} other {# files}}"
     },
     "branchNavigator": {
       "previous": "Previous branch",
@@ -2695,7 +2644,51 @@
       "feedback": "Feedback",
       "auditLogs": "Audit logs",
       "dataSubjectRequests": "Data subject requests",
-      "policiesAndLimitsDescription": "Budgets, upload restrictions, data retention, feature flags, and voice output."
+      "policiesAndLimitsDescription": "Budgets, upload restrictions, data retention, feature flags, and voice output.",
+      "runCodePolicy": "Run-code packages"
+    },
+    "runCodePolicy": {
+      "title": "Run-code package policy",
+      "description": "Controls which Python and Node packages the run_code tool may install at execution time. Default mode is denylist with an empty deny list, which allows every package. Switching to allowlist mode requires you to enumerate every package you trust — anything not on the list is blocked.",
+      "modeSectionTitle": "Default mode",
+      "modeSectionDescription": "Pick the strategy run_code uses when it sees a package the policy hasn't explicitly mentioned.",
+      "modeAllowlistLabel": "Allowlist",
+      "modeAllowlistDescription": "Only packages listed in the allow lists below are installable. Anything else is rejected.",
+      "modeDenylistLabel": "Denylist",
+      "modeDenylistDescription": "Every package is installable except those listed in the deny lists below.",
+      "pythonSectionTitle": "Python packages",
+      "nodeSectionTitle": "Node packages",
+      "listsHint": "One package name per line (or comma-separated). Version constraints are stripped automatically — `pandas==2.1` matches `pandas`.",
+      "pythonAllowLabel": "Python allow list",
+      "pythonAllowDescription": "Used when the default mode is Allowlist.",
+      "pythonDenyLabel": "Python deny list",
+      "pythonDenyDescription": "Used when the default mode is Denylist.",
+      "nodeAllowLabel": "Node allow list",
+      "nodeAllowDescription": "Used when the default mode is Allowlist. Scoped packages (`@scope/pkg`) supported.",
+      "nodeDenyLabel": "Node deny list",
+      "nodeDenyDescription": "Used when the default mode is Denylist. Scoped packages (`@scope/pkg`) supported.",
+      "pythonPlaceholder": "pandas\nnumpy\nrequests",
+      "nodePlaceholder": "lodash\n@scope/pkg",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Run-code package policy updated",
+      "saveFailed": "Failed to update run-code package policy",
+      "testerTitle": "Test this package list",
+      "testerDescription": "Paste pip or npm specs to preview whether each one would pass under the current draft policy. Uses your unsaved edits, so you can iterate before clicking Save.",
+      "testerBucketLabel": "Bucket",
+      "bucketPython": "Python (pip)",
+      "bucketNode": "Node (npm)",
+      "testerInputLabel": "Specs to test",
+      "testerPlaceholderPython": "pandas==2.1, numpy>=1.26",
+      "testerPlaceholderNode": "lodash@4.17.21, @scope/pkg",
+      "testerButton": "Test",
+      "testerBaseLabel": "Base name",
+      "testerAllowed": "Allowed",
+      "testerDenied": "Denied",
+      "reasonAllowlistMatch": "matches the allow list",
+      "reasonAllowlistMiss": "not on the allow list (allowlist mode rejects everything else)",
+      "reasonDenylistMatch": "matches the deny list",
+      "reasonDenylistNotMatched": "not on the deny list"
     },
     "trash": {
       "title": "Trash",
@@ -4433,18 +4426,11 @@
         "general": "General",
         "instructionsModel": "Instructions & model",
         "tools": "Tools",
-        "skills": "Skills",
         "knowledge": "Knowledge",
         "webhook": "Workers",
         "delegation": "Delegation",
         "conversationStarters": "Starters",
         "history": "History"
-      },
-      "skills": {
-        "title": "Skills",
-        "description": "Bind reusable instruction bundles to this agent. Each skill's declared tool / integration / workflow dependencies are snapshot at bind time and merged into the agent's effective set at runtime.",
-        "boundTitle": "Bound skills",
-        "boundDescription": "When the agent runs, each bound skill's name + description is injected into the system prompt. The model can call expand_skill to load full instructions, read_skill_file for large assets, and skill_run to execute bundled scripts in the sandbox."
       },
       "history": {
         "empty": "No history entries",
@@ -4647,7 +4633,6 @@
       }
     },
     "skills": {
-      "title": "Skills",
       "createSkill": "Create skill",
       "searchPlaceholder": "Search skills…",
       "deleteSkill": "Delete skill",
@@ -4663,9 +4648,7 @@
       "skillAlreadyExists": "A skill with this slug already exists",
       "skillDuplicated": "Skill duplicated as {slug}",
       "skillDuplicateFailed": "Failed to duplicate skill",
-      "bodyTemplate": "# {slug}\n\nDescribe when this skill applies and the steps to follow.\n",
-      "deleteWarningBindings": "{count} agent(s) bind this skill and will log runtime warnings until re-edited.",
-      "deleteResolvingBindings": "Checking which agents bind this skill…",
+      "bodyTemplate": "## When to use\n\n## References\n\n## How the agent should approach this\n",
       "unsavedChanges": {
         "title": "Discard unsaved changes?",
         "description": "You have unsaved edits on this skill. Leaving now will discard them.",
@@ -4674,18 +4657,13 @@
       },
       "conflict": "This skill was edited elsewhere. Reload to see the latest version.",
       "validationError": "Invalid skill configuration",
-      "deleteConfirmation": "This removes the skill bundle from disk. Agents bound to it will keep the binding entry and log a runtime warning until you re-edit them.",
-      "relatedAgentsHeader": "Bound by these agents",
-      "headerChipLabel": "{count, plural, one {# skill} other {# skills}}",
-      "headerChipAria": "View bound skills",
-      "headerChipTitle": "Skills available to this agent",
+      "deleteConfirmation": "This removes the skill bundle from disk. The skill will no longer be available to any agent in this organization.",
       "actions": {
         "duplicate": "Duplicate"
       },
       "columns": {
         "name": "Skill",
         "description": "Description",
-        "deps": "Deps",
         "loadError": "Failed to read SKILL.md"
       },
       "createDialog": {
@@ -4706,14 +4684,9 @@
         "overview": "Overview",
         "body": "Instructions (body)",
         "bundle": "Bundle files",
-        "deps": "Declared dependencies",
-        "whereBound": "Where this skill is bound",
         "auditHistory": "Recent changes"
       },
       "metadata": {
-        "trigger": "Trigger",
-        "triggerAuto": "Auto (agent-invoked)",
-        "transitive": "Transitive deps",
         "bundleFiles": "Bundle files",
         "license": "License"
       },
@@ -4722,9 +4695,6 @@
         "viewPreview": "Preview",
         "viewToggle": "Body view mode",
         "previewEmpty": "(Body is empty)"
-      },
-      "whereBound": {
-        "empty": "No agents currently bind this skill. Bindings show up here once a developer adds the skill to an agent."
       },
       "auditHistory": {
         "empty": "No audit entries yet for this skill.",
@@ -4758,13 +4728,6 @@
           "empty": "Only SKILL.md — add files under scripts/, references/, or assets/."
         }
       },
-      "deps": {
-        "summary": "{count, plural, one {# declared dependency} other {# declared dependencies}}",
-        "tools": "Tools",
-        "integrations": "Integrations",
-        "workflows": "Workflows",
-        "help": "Edit declared dependencies in SKILL.md frontmatter (under tool-names / integration-bindings / workflow-bindings)."
-      },
       "asset": {
         "add": "Add file",
         "path": "Path",
@@ -4790,16 +4753,6 @@
         "conflict": "This file was edited elsewhere. Reopen to see the latest version.",
         "sizeError": "File would exceed the bundle size limit",
         "notFound": "Skill not found"
-      },
-      "selector": {
-        "empty": "No skills available in this organization yet. Create one under ",
-        "deps": "{count, plural, one {# dep} other {# deps}}",
-        "transitiveTools": "Tools: {items}",
-        "transitiveIntegrations": "Integrations: {items}",
-        "transitiveWorkflows": "Workflows: {items}",
-        "driftBadge": "Drift — re-save to refresh",
-        "driftTooltip": "This skill's capability surface changed since you bound it. Save to refresh the snapshot.",
-        "openDetail": "Open {slug} in a new tab"
       }
     },
     "integrations": {

@@ -51,6 +51,14 @@
       }
     }
   },
+  "todoList": {
+    "paneClose": "Plan schliessen",
+    "paneResizeHandle": "Planbereich vergrössern"
+  },
+  "chat": {
+    "budgetWarningDismiss": "Schliessen",
+    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB."
+  },
   "documents": {
     "preview": {
       "closePreview": "Vorschau schliessen",

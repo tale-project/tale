@@ -18,10 +18,6 @@ const ALLOWED_ACTIONS = [
   'delete_skill',
   'write_skill_asset',
   'delete_skill_asset',
-  // `skill_run` invocations from `skills_runtime.ts:createSkillRunTool` —
-  // executes arbitrary bundle scripts so every call gets an org-visible
-  // audit row regardless of success/failure.
-  'execute_skill',
 ] as const;
 type AllowedAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -36,12 +32,6 @@ export const logSkillAuditEvent = internalMutation({
     resourceName: v.optional(v.string()),
     previousState: v.optional(v.any()),
     newState: v.optional(v.any()),
-    /**
-     * 'failure' routes through `logFailure` instead of `logSuccess` so a
-     * sandbox-throwing `execute_skill` doesn't masquerade as a clean run
-     * in audit reports. Default 'success' preserves call sites that don't
-     * care about status (every CRUD path).
-     */
     status: v.optional(v.union(v.literal('success'), v.literal('failure'))),
     errorMessage: v.optional(v.string()),
   },

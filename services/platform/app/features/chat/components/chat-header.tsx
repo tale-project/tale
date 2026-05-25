@@ -18,7 +18,6 @@ import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
-import { SkillsHeaderChip } from '@/app/features/skills/components/skills-header-chip';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -233,10 +232,6 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
         {threadId && (
           <>
             <div className="flex-1" />
-            <SkillsHeaderChip
-              organizationId={organizationId}
-              threadId={threadId}
-            />
             <Button
               variant="ghost"
               size="sm"

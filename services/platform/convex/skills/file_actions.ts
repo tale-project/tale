@@ -135,28 +135,6 @@ async function walkSkillBundle(
   return { assets, totalBytes };
 }
 
-/**
- * Detect script files in a skill bundle (anything matching `*.py|*.js|*.cjs|*.mjs`).
- * Used by `expand_skill` to advertise executable entry points to the model.
- */
-function detectExecutables(
-  assets: AssetEntry[],
-): Array<{ path: string; language: 'python' | 'node' }> {
-  const out: Array<{ path: string; language: 'python' | 'node' }> = [];
-  for (const a of assets) {
-    if (a.path.endsWith('.py')) {
-      out.push({ path: a.path, language: 'python' });
-    } else if (
-      a.path.endsWith('.js') ||
-      a.path.endsWith('.cjs') ||
-      a.path.endsWith('.mjs')
-    ) {
-      out.push({ path: a.path, language: 'node' });
-    }
-  }
-  return out;
-}
-
 async function ensureBundleAllowsWrite(
   skillDir: string,
   incomingPath: string,
@@ -214,7 +192,6 @@ export const readSkill = action({
       hash: result.versionHash,
       assets,
       totalBytes,
-      executableFiles: detectExecutables(assets),
     };
   },
 });
@@ -249,10 +226,7 @@ export const listSkills = action({
           slug,
           name: result.meta.name,
           description: result.meta.description,
-          toolNames: result.meta.toolNames ?? [],
-          integrationBindings: result.meta.integrationBindings ?? [],
-          workflowBindings: result.meta.workflowBindings ?? [],
-          packages: result.meta.packages,
+          recommendedPackages: result.meta.recommendedPackages,
           license: result.meta.license,
           hash: result.versionHash,
         };
@@ -377,12 +351,8 @@ export const createSkill = action({
       newState: {
         name: meta.name,
         description: meta.description,
-        ...(meta.toolNames && { toolNames: meta.toolNames }),
-        ...(meta.integrationBindings && {
-          integrationBindings: meta.integrationBindings,
-        }),
-        ...(meta.workflowBindings && {
-          workflowBindings: meta.workflowBindings,
+        ...(meta.recommendedPackages && {
+          recommendedPackages: meta.recommendedPackages,
         }),
       },
     });
@@ -435,21 +405,15 @@ export const updateSkill = action({
     let previousCapability:
       | {
           description?: string;
-          toolNames?: string[];
-          integrationBindings?: string[];
-          workflowBindings?: string[];
+          recommendedPackages?: { python?: string[]; node?: string[] };
         }
       | undefined;
     try {
       const prev = parseSkillMd(existing);
       previousCapability = {
         description: prev.meta.description,
-        ...(prev.meta.toolNames && { toolNames: prev.meta.toolNames }),
-        ...(prev.meta.integrationBindings && {
-          integrationBindings: prev.meta.integrationBindings,
-        }),
-        ...(prev.meta.workflowBindings && {
-          workflowBindings: prev.meta.workflowBindings,
+        ...(prev.meta.recommendedPackages && {
+          recommendedPackages: prev.meta.recommendedPackages,
         }),
       };
     } catch (err) {
@@ -481,12 +445,8 @@ export const updateSkill = action({
       }),
       newState: {
         description: meta.description,
-        ...(meta.toolNames && { toolNames: meta.toolNames }),
-        ...(meta.integrationBindings && {
-          integrationBindings: meta.integrationBindings,
-        }),
-        ...(meta.workflowBindings && {
-          workflowBindings: meta.workflowBindings,
+        ...(meta.recommendedPackages && {
+          recommendedPackages: meta.recommendedPackages,
         }),
       },
     });
@@ -705,12 +665,8 @@ export const duplicateSkill = action({
         sourceSlug: args.slug,
         name: newMeta.name,
         description: newMeta.description,
-        ...(newMeta.toolNames && { toolNames: newMeta.toolNames }),
-        ...(newMeta.integrationBindings && {
-          integrationBindings: newMeta.integrationBindings,
-        }),
-        ...(newMeta.workflowBindings && {
-          workflowBindings: newMeta.workflowBindings,
+        ...(newMeta.recommendedPackages && {
+          recommendedPackages: newMeta.recommendedPackages,
         }),
       },
     });
@@ -762,16 +718,31 @@ export const deleteSkill = action({
 });
 
 // ---------------------------------------------------------------------------
-// Internal action used by the runtime engine to load a skill bundle into
-// memory at turn start. Returns the full bundle (frontmatter + body + every
-// asset's content) PLUS the SKILL.md version hash so the runtime snapshot
-// can detect drift against the agent's `skillBindingsResolved` snapshot.
+// Internal actions used by the chat runtime at turn start:
+//   - `listSkillsForExecution(orgSlug)` returns every skill slug present
+//     in the org's skills directory (passes the slug validator).
+//   - `readSkillForExecution(orgSlug, slug)` loads one skill's full bundle
+//     into memory (frontmatter + body + every asset's content) with its
+//     versionHash for drift detection.
 //
-// Trust contract: the caller MUST have already authenticated the
-// `orgSlug` against the user's session — this internal action takes the
-// already-resolved orgSlug verbatim and does NO membership re-check.
-// See `agents/file_actions.ts::readAgentForChat` for the matching pattern.
+// Trust contract: the caller MUST have already authenticated the `orgSlug`
+// against the user's session — these internal actions take the already-
+// resolved orgSlug verbatim and do NO membership re-check.
 // ---------------------------------------------------------------------------
+
+export const listSkillsForExecution = internalAction({
+  args: {
+    orgSlug: v.string(),
+  },
+  returns: v.any(),
+  handler: async (_ctx, args) => {
+    const dir = resolveSkillsDir(args.orgSlug);
+    const entries = await readdirSafe(dir);
+    return entries.filter(
+      (e) => !e.startsWith('.') && !e.startsWith('@') && validateSkillSlug(e),
+    );
+  },
+});
 
 export const readSkillForExecution = internalAction({
   args: {
@@ -779,7 +750,7 @@ export const readSkillForExecution = internalAction({
     slug: v.string(),
   },
   returns: v.any(),
-  handler: async (ctx, args) => {
+  handler: async (_ctx, args) => {
     if (!validateSkillSlug(args.slug)) {
       return { ok: false as const, error: 'invalid_slug' as const };
     }
@@ -796,8 +767,6 @@ export const readSkillForExecution = internalAction({
       };
     }
 
-    // Load every asset into memory. The bundle is bounded by
-    // MAX_TOTAL_BUNDLE_BYTES (1 MB) so this is safe.
     const files = await Promise.all(
       assets.map(async (a) => {
         const abs = await resolveSkillAssetPathChecked(
@@ -819,7 +788,6 @@ export const readSkillForExecution = internalAction({
       body: result.body,
       versionHash: result.versionHash,
       files: files.filter((f): f is NonNullable<typeof f> => f !== null),
-      executableFiles: detectExecutables(assets),
     };
   },
 });
@@ -850,14 +818,9 @@ function validateMetaPayload(rawMeta: unknown): SkillFrontmatter {
   if (typeof meta.description === 'string') {
     wireMeta.description = meta.description;
   }
-  if (Array.isArray(meta.toolNames)) wireMeta['tool-names'] = meta.toolNames;
-  if (Array.isArray(meta.integrationBindings)) {
-    wireMeta['integration-bindings'] = meta.integrationBindings;
+  if (meta.recommendedPackages !== undefined) {
+    wireMeta['recommended-packages'] = meta.recommendedPackages;
   }
-  if (Array.isArray(meta.workflowBindings)) {
-    wireMeta['workflow-bindings'] = meta.workflowBindings;
-  }
-  if (meta.packages !== undefined) wireMeta.packages = meta.packages;
   if (typeof meta.license === 'string') wireMeta.license = meta.license;
   if (meta.metadata !== undefined) wireMeta.metadata = meta.metadata;
   const unknownContainer = meta.unknown;

@@ -254,7 +254,10 @@ describe('agentJsonSchema validation', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects skillBindingsResolved with a slug missing from skillBindings', () => {
+  it('tolerates skillBindingsResolved with slugs not in skillBindings (legacy field, no cross-check)', () => {
+    // Skills are no longer agent-bound; the runtime ignores both fields.
+    // Cross-binding validation was dropped so historical agent JSON with
+    // stale snapshots keeps loading.
     const result = agentJsonSchema.safeParse({
       ...BASE_CONFIG,
       skillBindings: ['code-reviewer'],
@@ -268,7 +271,7 @@ describe('agentJsonSchema validation', () => {
         },
       ],
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it('rejects skillBindingsResolved.toolNames containing an empty string', () => {
@@ -288,14 +291,16 @@ describe('agentJsonSchema validation', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects skillBindings on an image-generation agent (disallow list)', () => {
+  it('tolerates skillBindings on an image-generation agent (legacy field, runtime ignores it)', () => {
+    // skillBindings is no longer a load-bearing field; image-generation
+    // agents still bypass the tool loop, so the legacy field has no effect.
     const result = agentJsonSchema.safeParse({
       ...BASE_CONFIG,
       primaryBehavior: 'image-generation',
       systemInstructions: 'Generate an image.',
       skillBindings: ['code-reviewer'],
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 });
 

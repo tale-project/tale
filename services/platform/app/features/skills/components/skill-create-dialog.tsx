@@ -102,8 +102,7 @@ export function CreateSkillDialog({
         },
         body: t('skills.bodyTemplate', {
           defaultValue:
-            '# {slug}\n\nDescribe when this skill applies and the steps to follow.\n',
-          slug: data.slug,
+            '## When to use\n\n## References\n\n## How the agent should approach this\n',
         }),
       });
       toast({

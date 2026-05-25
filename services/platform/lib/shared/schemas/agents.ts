@@ -175,23 +175,10 @@ export const agentJsonSchema = z
       }
     }
 
-    // skillBindingsResolved entries must reference slugs the user actually bound.
-    // Defends against a client crafting a resolved snapshot whose slug was never
-    // declared in skillBindings — the runtime trusts the snapshot, so the schema
-    // is the right place to enforce shape consistency.
-    if (data.skillBindingsResolved && data.skillBindingsResolved.length > 0) {
-      const declared = new Set(data.skillBindings ?? []);
-      for (let i = 0; i < data.skillBindingsResolved.length; i++) {
-        const entry = data.skillBindingsResolved[i];
-        if (!declared.has(entry.slug)) {
-          ctx.addIssue({
-            code: 'custom',
-            path: ['skillBindingsResolved', i, 'slug'],
-            message: `skillBindingsResolved entry "${entry.slug}" is not present in skillBindings`,
-          });
-        }
-      }
-    }
+    // skillBindings / skillBindingsResolved are vestigial — the new skill
+    // model exposes all org skills to every agent, so per-agent gating no
+    // longer exists. The fields stay `.optional()` so historical agent
+    // JSON keeps validating, but no cross-reference check is enforced.
 
     // Image-generation agents have no tool loop — these fields are meaningless.
     if (data.primaryBehavior === 'image-generation') {
@@ -200,8 +187,6 @@ export const agentJsonSchema = z
         'integrationBindings',
         'workflows',
         'delegates',
-        'skillBindings',
-        'skillBindingsResolved',
       ];
       for (const key of disallowed) {
         const value = data[key];

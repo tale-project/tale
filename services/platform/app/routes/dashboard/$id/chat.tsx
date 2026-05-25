@@ -11,35 +11,33 @@ import { PageLayout } from '@/app/components/layout/page-layout';
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { ArenaModeProvider } from '@/app/features/chat/components/arena/arena-mode-context';
 import { BudgetBanner } from '@/app/features/chat/components/budget-banner';
-import { ArtifactBar } from '@/app/features/chat/components/canvas/artifact-bar';
-import {
-  CanvasProvider,
-  useCanvas,
-} from '@/app/features/chat/components/canvas/canvas-context';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
 import { MessagesSkeleton } from '@/app/features/chat/components/messages-skeleton';
 import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
 import { WelcomeContentSkeleton } from '@/app/features/chat/components/welcome-content-skeleton';
-import {
-  BranchProvider,
-  useBranchContext,
-} from '@/app/features/chat/context/branch-context';
+import { BranchProvider } from '@/app/features/chat/context/branch-context';
 import {
   ChatLayoutProvider,
   useChatLayout,
 } from '@/app/features/chat/context/chat-layout-context';
+import {
+  WorkspaceProvider,
+  useWorkspace,
+} from '@/app/features/workspace/components/workspace-context';
+import { WorkspaceFileSidebar } from '@/app/features/workspace/components/workspace-file-sidebar';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 import { seo } from '@/lib/utils/seo';
 
-const CanvasPane = lazyComponent(() =>
-  import('@/app/features/chat/components/canvas/canvas-pane').then((mod) => ({
-    default: mod.CanvasPane,
-  })),
-);
+// Placeholder canvas — the workspace sidebar requires a thread context and
+// file list; we'll wire that up when the chat layout passes the threadId
+// down. For now, render nothing so the right pane is empty until the
+// workspace integration lands.
+const CanvasPane = () => null;
+void WorkspaceFileSidebar;
 
 const PlanPane = lazyComponent(() =>
   import('@/app/features/chat/components/plan-pane/plan-pane').then((mod) => ({
@@ -205,26 +203,9 @@ function ThreadGate({
   );
 }
 
-/**
- * Resolves the active branch threadId from `BranchProvider` and feeds it to
- * `ArtifactBar`. Without this indirection the bar would query the URL's
- * (root) threadId regardless of which branch the user is viewing — see the
- * branch / artifact attribution plan.
- */
-function BranchAwareArtifactBar({
-  organizationId,
-}: {
-  organizationId: string;
-}) {
-  const { activeBranchThreadId, rootThreadId } = useBranchContext();
-  const threadId = activeBranchThreadId ?? rootThreadId;
-  if (!threadId) return null;
-  return <ArtifactBar organizationId={organizationId} threadId={threadId} />;
-}
-
 function ChatLayoutContent({ organizationId }: { organizationId: string }) {
   const { isHistoryOpen, clearChatState } = useChatLayout();
-  const { resetCanvas } = useCanvas();
+  const { resetWorkspace } = useWorkspace();
 
   // Read threadId from URL — ChatInterface stays mounted across route changes.
   const threadMatch = useMatch({
@@ -251,10 +232,10 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
     prevHadThreadRef.current = !!threadId;
     if (hadThread && !threadId) {
       clearChatState();
-      resetCanvas();
+      resetWorkspace();
       setNewChatCount((c) => c + 1);
     }
-  }, [threadId, clearChatState, resetCanvas]);
+  }, [threadId, clearChatState, resetWorkspace]);
 
   // Render shared chat view when on shared route
   if (shareToken) {
@@ -308,16 +289,8 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
         </AnimatePresence>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {/* Single BranchProvider scope so ArtifactBar (and the message bubbles
-              rendered inside ThreadGate) can both observe the active branch
-              and request the right thread's artifacts. Without this, the bar
-              shows the URL's root thread regardless of which branch the user
-              is viewing. */}
           <BranchProvider threadId={threadId} organizationId={organizationId}>
             <BudgetBanner organizationId={organizationId} />
-            {threadId && (
-              <BranchAwareArtifactBar organizationId={organizationId} />
-            )}
             <LayoutErrorBoundary organizationId={organizationId}>
               <ThreadGate
                 organizationId={organizationId}
@@ -341,9 +314,9 @@ function ChatLayout() {
   return (
     <ChatLayoutProvider organizationId={organizationId}>
       <ArenaModeProvider>
-        <CanvasProvider>
+        <WorkspaceProvider>
           <ChatLayoutContent organizationId={organizationId} />
-        </CanvasProvider>
+        </WorkspaceProvider>
       </ArenaModeProvider>
     </ChatLayoutProvider>
   );

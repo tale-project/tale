@@ -41,7 +41,6 @@ import {
   useUpdateSkill,
 } from '@/app/features/skills/hooks/mutations';
 import {
-  useFindAgentsBindingSkill,
   useGetSkillAuditHistory,
   useListSkillFiles,
   useReadSkill,
@@ -92,13 +91,6 @@ function SkillDetailPage() {
   // visible as rendered markdown by default and editable on toggle.
   const [bodyView, setBodyView] = useState<'edit' | 'preview'>('edit');
 
-  // Surface which agents are bound to this skill so the operator
-  // doesn't have to open the delete dialog to find out — previously
-  // this was the only path to that information.
-  const { data: relatedAgents } = useFindAgentsBindingSkill(
-    organizationId,
-    skillSlug,
-  );
   const { data: auditRows } = useGetSkillAuditHistory(
     organizationId,
     skillSlug,
@@ -335,11 +327,6 @@ function SkillDetailPage() {
     );
   }
 
-  const transitiveDeps =
-    (skill.meta.toolNames?.length ?? 0) +
-    (skill.meta.integrationBindings?.length ?? 0) +
-    (skill.meta.workflowBindings?.length ?? 0);
-
   return (
     <>
       <AdaptiveHeaderRoot>
@@ -385,8 +372,7 @@ function SkillDetailPage() {
             bouncing back to the list route)
           - Middle: file tree of THIS skill's bundle (click → opens the
             asset editor dialog)
-          - Right: the existing edit form (metadata, body, deps,
-            where-bound, audit history)
+          - Right: the existing edit form (metadata, body, audit history)
 
           The shell stacks vertically on mobile because the per-pane
           minimum widths (~17rem each) would otherwise force horizontal
@@ -428,24 +414,6 @@ function SkillDetailPage() {
                 align="center"
                 className="border-border bg-muted/30 rounded-md border px-4 py-2"
               >
-                <Stack gap={0}>
-                  <Text variant="caption">
-                    {t('skills.metadata.trigger', { defaultValue: 'Trigger' })}
-                  </Text>
-                  <Text variant="label">
-                    {t('skills.metadata.triggerAuto', {
-                      defaultValue: 'Auto (agent-invoked)',
-                    })}
-                  </Text>
-                </Stack>
-                <Stack gap={0}>
-                  <Text variant="caption">
-                    {t('skills.metadata.transitive', {
-                      defaultValue: 'Transitive deps',
-                    })}
-                  </Text>
-                  <Text variant="label">{transitiveDeps}</Text>
-                </Stack>
                 <Stack gap={0}>
                   <Text variant="caption">
                     {t('skills.metadata.bundleFiles', {
@@ -630,86 +598,6 @@ function SkillDetailPage() {
                     maxTotalBytes={filesData?.maxTotalBytes ?? 1024 * 1024}
                     maxAssets={filesData?.maxAssets ?? 32}
                   />
-                </Stack>
-              </FormSection>
-
-              <FormSection
-                label={t('skills.section.deps', {
-                  defaultValue: 'Declared dependencies',
-                })}
-              >
-                <Stack gap={2}>
-                  <Text variant="body">
-                    {t('skills.deps.summary', {
-                      defaultValue: '{count} declared dependencies',
-                      count: transitiveDeps,
-                    })}
-                  </Text>
-                  {skill.meta.toolNames?.length ? (
-                    <Text variant="muted">
-                      {t('skills.deps.tools', { defaultValue: 'Tools' })}:{' '}
-                      {skill.meta.toolNames.join(', ')}
-                    </Text>
-                  ) : null}
-                  {skill.meta.integrationBindings?.length ? (
-                    <Text variant="muted">
-                      {t('skills.deps.integrations', {
-                        defaultValue: 'Integrations',
-                      })}
-                      : {skill.meta.integrationBindings.join(', ')}
-                    </Text>
-                  ) : null}
-                  {skill.meta.workflowBindings?.length ? (
-                    <Text variant="muted">
-                      {t('skills.deps.workflows', {
-                        defaultValue: 'Workflows',
-                      })}
-                      : {skill.meta.workflowBindings.join(', ')}
-                    </Text>
-                  ) : null}
-                  <Text variant="caption">
-                    {t('skills.deps.help', {
-                      defaultValue:
-                        'Edit declared dependencies in SKILL.md frontmatter (under tool-names / integration-bindings / workflow-bindings).',
-                    })}
-                  </Text>
-                </Stack>
-              </FormSection>
-
-              <FormSection
-                label={t('skills.section.whereBound', {
-                  defaultValue: 'Where this skill is bound',
-                })}
-              >
-                <Stack gap={2}>
-                  {!Array.isArray(relatedAgents) ? (
-                    <Stack gap={1}>
-                      {Array.from({ length: 2 }).map((_, idx) => (
-                        <HStack key={idx} gap={2} align="center">
-                          <Skeleton className="h-5 w-24 rounded-md" />
-                          <Skeleton className="h-4 w-32" />
-                        </HStack>
-                      ))}
-                    </Stack>
-                  ) : relatedAgents.length === 0 ? (
-                    <Text variant="muted">
-                      {t('skills.whereBound.empty', {
-                        defaultValue:
-                          'No agents currently bind this skill. Bindings show up here once a developer adds the skill to an agent.',
-                      })}
-                    </Text>
-                  ) : (
-                    <Stack gap={1}>
-                      {relatedAgents.map((a) => (
-                        <HStack key={a.agentName} gap={2} align="center">
-                          <Badge variant="outline">{a.agentName}</Badge>
-                          {a.displayName && a.displayName !== a.agentName ? (
-                            <Text variant="muted">{a.displayName}</Text>
-                          ) : null}
-                        </HStack>
-                      ))}
-                    </Stack>
-                  )}
                 </Stack>
               </FormSection>
 

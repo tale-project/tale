@@ -54,7 +54,14 @@ import {
   RECOVERY_TIMEOUT_MS,
   estimateTokens,
 } from '../context_management';
-import { buildArtifactsContext } from '../context_management/build_artifacts_context';
+// Artifacts module removed — workspace context is discoverable via the
+// `file_list` tool. We keep the call sites but route them through this
+// no-op shim so the prompt-builder API surface stays intact.
+const buildArtifactsContext = async (
+  _ctx: unknown,
+  _organizationId: string,
+  _threadId: string | undefined,
+): Promise<string> => '';
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import { summarizeForLog } from '../log_redact';

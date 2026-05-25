@@ -18,9 +18,6 @@ export interface SkillRow {
   slug: string;
   name: string;
   description: string;
-  toolNames?: string[];
-  integrationBindings?: string[];
-  workflowBindings?: string[];
   /** SHA-256 of SKILL.md at list-time, forwarded to deleteSkill for CAS. */
   hash?: string;
   status?: string;
@@ -48,9 +45,9 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
     for (const s of rawSkills) {
       if (!s || typeof s.slug !== 'string') continue;
       // Skills with read errors come back with `status`/`message` and no
-      // name. Render them as rows with a warning badge in the deps cell
-      // so admins can find and fix them instead of having broken SKILL.md
-      // files vanish silently from the list.
+      // name. Render them as rows with a warning indicator so admins can
+      // find and fix them instead of having broken SKILL.md files vanish
+      // silently from the list.
       if ('status' in s && typeof s.status === 'string') {
         rows.push({
           slug: s.slug,
@@ -68,9 +65,6 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
         slug: s.slug,
         name: s.name,
         description: s.description,
-        toolNames: s.toolNames,
-        integrationBindings: s.integrationBindings,
-        workflowBindings: s.workflowBindings,
         hash: typeof s.hash === 'string' ? s.hash : undefined,
       });
     }
