@@ -16,20 +16,42 @@ import { z } from 'zod/v4';
  * `disable-model-invocation` round-trip without rejection.
  */
 
-const SKILL_NAME_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const RESERVED_NAMES = new Set(['anthropic', 'claude']);
+/**
+ * Canonical kebab-case validator for skill slugs. Exported so the runtime,
+ * frontend dialogs, and the agents-side binding schema all gate on the
+ * same shape — previously each file inlined the literal and the copies
+ * had begun to diverge in minor ways (case sensitivity, leading-digit
+ * rules).
+ */
+export const SKILL_NAME_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+/**
+ * Slugs reserved by the SKILL.md frontmatter schema. Anthropic / Claude
+ * are reserved so a platform skill cannot impersonate an upstream-managed
+ * bundle (the runtime's manifest fetcher uses these as identity markers
+ * elsewhere). Exported so `convex/skills/file_utils.ts` shares the same
+ * source of truth instead of carrying an apologetic local copy.
+ */
+export const RESERVED_SKILL_NAMES: ReadonlySet<string> = new Set([
+  'anthropic',
+  'claude',
+]);
 
-const LOCALE_REGEX = /^[a-z]{2}(-[A-Z]{2})?$/;
 const PACKAGE_SPEC_MAX = 120;
 const PACKAGE_BUCKET_MAX = 20;
 
-/** Reserved tool names skills cannot declare (collide with built-ins). */
+/**
+ * Reserved tool names skills cannot declare. Only the three built-ins
+ * that the runtime actually splices into every effective tool set are
+ * listed — `skill_run_script` / `skill_run_pipeline` were reserved
+ * speculatively for a never-shipped multi-step skill executor; keeping
+ * them in the reject set would block skill authors from naming
+ * unrelated tools that happen to share the prefix, with no real
+ * collision risk to defend against.
+ */
 export const SKILL_RESERVED_TOOL_NAMES: ReadonlySet<string> = new Set([
   'expand_skill',
   'read_skill_file',
   'skill_run',
-  'skill_run_script',
-  'skill_run_pipeline',
 ]);
 
 /** Raw frontmatter as it appears on disk (kebab-case keys, passthrough). */
@@ -43,7 +65,7 @@ const rawFrontmatterSchema = z
         message:
           'name must be lowercase letters/numbers/hyphens only, no leading/trailing/consecutive hyphens',
       })
-      .refine((s) => !RESERVED_NAMES.has(s), {
+      .refine((s) => !RESERVED_SKILL_NAMES.has(s), {
         message: 'name cannot be a reserved word ("anthropic" or "claude")',
       }),
     description: z.string().min(1).max(1024),
@@ -77,20 +99,7 @@ const rawFrontmatterSchema = z
           .optional(),
       })
       .optional(),
-    'role-restriction': z.literal('admin_developer').optional(),
-    'shared-with-team-ids': z
-      .array(z.string().min(1).max(80))
-      .max(20)
-      .optional(),
     license: z.string().max(120).optional(),
-    /**
-     * Canonical agentskills.io field — an additional allowlist of generic
-     * tool names this skill may invoke beyond what its `tool-names`
-     * declares. Parsed and round-tripped today; surfaced verbatim to the
-     * runtime so the engine can intersect against the agent's effective
-     * tool set when honoring upstream skill manifests.
-     */
-    'allowed-tools': z.array(z.string().min(1).max(120)).max(64).optional(),
     /**
      * Canonical agentskills.io field — when `true`, the model must NOT
      * auto-invoke this skill from the "Available Skills" prompt; the user
@@ -100,14 +109,6 @@ const rawFrontmatterSchema = z
      */
     'disable-model-invocation': z.boolean().optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
-    i18n: z
-      .record(
-        z.string().regex(LOCALE_REGEX),
-        z.object({
-          description: z.string().min(1).max(1024).optional(),
-        }),
-      )
-      .optional(),
   })
   .passthrough();
 
@@ -124,11 +125,7 @@ export interface SkillFrontmatter {
     python?: string[];
     node?: string[];
   };
-  roleRestriction?: 'admin_developer';
-  sharedWithTeamIds?: string[];
   license?: string;
-  /** Canonical agentskills.io extension — generic tool allowlist. */
-  allowedTools?: string[];
   /**
    * Canonical agentskills.io extension — when true, the runtime omits
    * this skill from the "Available Skills" system-prompt section so the
@@ -137,7 +134,6 @@ export interface SkillFrontmatter {
    */
   disableModelInvocation?: boolean;
   metadata?: Record<string, unknown>;
-  i18n?: Record<string, { description?: string }>;
   /**
    * Verbatim copy of frontmatter keys not covered by the known fields above.
    * Preserves community extensions (`allowed-tools`, `when-to-use`, etc.)
@@ -153,13 +149,9 @@ const KNOWN_KEBAB_KEYS = new Set<string>([
   'integration-bindings',
   'workflow-bindings',
   'packages',
-  'role-restriction',
-  'shared-with-team-ids',
   'license',
-  'allowed-tools',
   'disable-model-invocation',
   'metadata',
-  'i18n',
 ]);
 
 function normalize(raw: RawSkillFrontmatter): SkillFrontmatter {
@@ -182,21 +174,11 @@ function normalize(raw: RawSkillFrontmatter): SkillFrontmatter {
     out.workflowBindings = raw['workflow-bindings'];
   }
   if (raw.packages !== undefined) out.packages = raw.packages;
-  if (raw['role-restriction'] !== undefined) {
-    out.roleRestriction = raw['role-restriction'];
-  }
-  if (raw['shared-with-team-ids'] !== undefined) {
-    out.sharedWithTeamIds = raw['shared-with-team-ids'];
-  }
   if (raw.license !== undefined) out.license = raw.license;
-  if (raw['allowed-tools'] !== undefined) {
-    out.allowedTools = raw['allowed-tools'];
-  }
   if (raw['disable-model-invocation'] !== undefined) {
     out.disableModelInvocation = raw['disable-model-invocation'];
   }
   if (raw.metadata !== undefined) out.metadata = raw.metadata;
-  if (raw.i18n !== undefined) out.i18n = raw.i18n;
   return out;
 }
 
@@ -315,19 +297,11 @@ export function frontmatterToRaw(
     raw['workflow-bindings'] = meta.workflowBindings;
   }
   if (meta.packages !== undefined) raw.packages = meta.packages;
-  if (meta.roleRestriction !== undefined) {
-    raw['role-restriction'] = meta.roleRestriction;
-  }
-  if (meta.sharedWithTeamIds !== undefined) {
-    raw['shared-with-team-ids'] = meta.sharedWithTeamIds;
-  }
   if (meta.license !== undefined) raw.license = meta.license;
-  if (meta.allowedTools !== undefined) raw['allowed-tools'] = meta.allowedTools;
   if (meta.disableModelInvocation !== undefined) {
     raw['disable-model-invocation'] = meta.disableModelInvocation;
   }
   if (meta.metadata !== undefined) raw.metadata = meta.metadata;
-  if (meta.i18n !== undefined) raw.i18n = meta.i18n;
   for (const [k, v] of Object.entries(meta.unknown)) {
     if (!(k in raw)) raw[k] = v;
   }

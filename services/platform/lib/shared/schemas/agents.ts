@@ -1,6 +1,32 @@
 import { z } from 'zod/v4';
 
 import { isValidModelRef } from '../utils/model-ref';
+import { SKILL_NAME_REGEX } from './skills';
+
+/**
+ * Canonical shape of one entry in an agent's `skillBindingsResolved`
+ * array — the trusted snapshot the runtime reads at chat-turn start to
+ * decide which tools / integrations / workflows a bound skill grants.
+ *
+ * Until now this same shape was redeclared in seven places (zod schema,
+ * Convex validator, TS interfaces in `skills_runtime.ts`,
+ * `agent_chat/types.ts`, `agents/file_utils.ts`) — a trust-boundary
+ * type with inconsistent enforcement across sites. Sharing one schema
+ * makes drift a build-time error instead of a runtime one.
+ */
+export const skillBindingResolvedEntrySchema = z.object({
+  slug: z.string().min(1).max(64).regex(SKILL_NAME_REGEX),
+  versionHash: z.string().regex(/^[0-9a-f]{64}$/, {
+    message: 'versionHash must be a lowercase sha256 hex digest',
+  }),
+  toolNames: z.array(z.string().min(1)).default([]),
+  integrationBindings: z.array(z.string().min(1)).default([]),
+  workflowBindings: z.array(z.string().min(1)).default([]),
+});
+
+export type SkillBindingResolvedEntry = z.infer<
+  typeof skillBindingResolvedEntrySchema
+>;
 
 const retrievalModeLiterals = ['off', 'tool', 'context', 'both'] as const;
 type RetrievalMode = (typeof retrievalModeLiterals)[number];
@@ -61,31 +87,11 @@ export const agentJsonSchema = z
     delegates: z.array(z.string()).optional(),
     workflows: z.array(z.string()).optional(),
     skillBindings: z
-      .array(
-        z
-          .string()
-          .min(1)
-          .max(64)
-          .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
-      )
+      .array(z.string().min(1).max(64).regex(SKILL_NAME_REGEX))
       .max(10)
       .optional(),
     skillBindingsResolved: z
-      .array(
-        z.object({
-          slug: z
-            .string()
-            .min(1)
-            .max(64)
-            .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
-          versionHash: z.string().regex(/^[0-9a-f]{64}$/, {
-            message: 'versionHash must be a lowercase sha256 hex digest',
-          }),
-          toolNames: z.array(z.string().min(1)).default([]),
-          integrationBindings: z.array(z.string().min(1)).default([]),
-          workflowBindings: z.array(z.string().min(1)).default([]),
-        }),
-      )
+      .array(skillBindingResolvedEntrySchema)
       .max(10)
       .optional(),
     supportedModels: z

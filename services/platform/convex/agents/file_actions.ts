@@ -20,11 +20,14 @@ import { parseModelRef } from '../../lib/shared/utils/model-ref';
 import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-config';
 import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
 import { internal } from '../_generated/api';
-import { action, internalAction } from '../_generated/server';
+import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { buildFreshSkillBindingsSnapshot } from '../lib/agent_chat/skills_runtime';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
-import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
+import {
+  requireOrgMembershipById,
+  type OrgMembershipAuth,
+} from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
   generateHistoryTimestamp,
@@ -62,6 +65,74 @@ async function readAgentFile(
     return { ok: true, config: result.data, hash: result.hash };
   }
   return result;
+}
+
+type AgentAuditAction =
+  | 'create_agent'
+  | 'update_agent'
+  | 'duplicate_agent'
+  | 'delete_agent'
+  | 'restore_agent';
+
+/**
+ * Best-effort audit emit for agent writes — never blocks the user-visible
+ * operation. Mirrors `logSkillAudit` in skills/file_actions.ts. Capability
+ * fields (toolNames, integrationBindings, workflowBindings, skillBindings,
+ * delegates, roleRestriction) belong in the state diff so a reviewer can
+ * see exactly what changed; the agent-side audit was previously absent
+ * altogether, making skillBindings widening invisible.
+ */
+async function logAgentAudit(
+  ctx: ActionCtx,
+  auth: OrgMembershipAuth,
+  auditAction: AgentAuditAction,
+  agentName: string,
+  states: {
+    resourceName?: string;
+    previousState?: Record<string, unknown>;
+    newState?: Record<string, unknown>;
+  } = {},
+): Promise<void> {
+  try {
+    await ctx.runMutation(internal.agents.audit_mutations.logAgentAuditEvent, {
+      organizationId: auth.orgId,
+      actorId: auth.userId,
+      ...(auth.email ? { actorEmail: auth.email } : {}),
+      actorRole: auth.member.role,
+      action: auditAction,
+      resourceId: agentName,
+      ...(states.resourceName !== undefined && {
+        resourceName: states.resourceName,
+      }),
+      ...(states.previousState !== undefined && {
+        previousState: states.previousState,
+      }),
+      ...(states.newState !== undefined && { newState: states.newState }),
+    });
+  } catch (err) {
+    console.warn('[agents.audit] logAgentAuditEvent failed:', err);
+  }
+}
+
+/**
+ * Project an agent config to the capability fields the audit row records.
+ * Keeps the audit payload tight (no full prose copies) while surfacing
+ * every transitive grant a reviewer might care about.
+ */
+function captureCapability(
+  config: AgentJsonConfig | undefined,
+): Record<string, unknown> | undefined {
+  if (!config) return undefined;
+  return {
+    ...(config.toolNames && { toolNames: config.toolNames }),
+    ...(config.integrationBindings && {
+      integrationBindings: config.integrationBindings,
+    }),
+    ...(config.workflows && { workflows: config.workflows }),
+    ...(config.delegates && { delegates: config.delegates }),
+    ...(config.skillBindings && { skillBindings: config.skillBindings }),
+    ...(config.roleRestriction && { roleRestriction: config.roleRestriction }),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -158,10 +229,8 @@ export const saveAgent = action({
       throw new Error(`Invalid agent name: ${args.agentName}`);
     }
 
-    const { orgSlug } = await requireOrgMembershipById(
-      ctx,
-      args.organizationId,
-    );
+    const memberAuth = await requireOrgMembershipById(ctx, args.organizationId);
+    const { orgSlug } = memberAuth;
 
     let config;
     try {
@@ -198,7 +267,7 @@ export const saveAgent = action({
       if (aArr.length !== bArr.length) return false;
       const aSorted = [...aArr].sort();
       const bSorted = [...bArr].sort();
-      return aSorted.every((v, i) => v === bSorted[i]);
+      return aSorted.every((value, idx) => value === bSorted[idx]);
     };
 
     const prevAgent = await readAgentFile(
@@ -217,9 +286,12 @@ export const saveAgent = action({
       !arrayEq(prevAgent.config.delegates, config.delegates) ||
       !arrayEq(prevAgent.config.skillBindings, config.skillBindings);
 
-    if (isCapabilityChange) {
-      await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-    }
+    // Capture the actor's role from whichever gate fires — used by the
+    // audit emit below so the audit row records the exact role at the
+    // time of the write (developer vs admin), not just the actor id.
+    const writeAuth: OrgMembershipAuth = isCapabilityChange
+      ? await requireOrgAdminOrDeveloper(ctx, args.organizationId)
+      : memberAuth;
 
     // Server-side rebuild of skillBindingsResolved from canonical SKILL.md.
     // The client-supplied value is intentionally discarded — the runtime
@@ -230,8 +302,19 @@ export const saveAgent = action({
       orgSlug,
       config.skillBindings ?? [],
     );
+    // Maintain the `resolved ⊂ bindings ⊆ rebuilt-slug-set` invariant so a
+    // skill deleted between bind-time and save-time stops appearing in
+    // `skillBindings` too. Without this, the runtime logs
+    // `skill_dangling` every turn forever for a slug the user can't see
+    // or remove via the selector. The list of trimmed slugs is surfaced
+    // back to the client as warnings so the user knows what disappeared.
+    const rebuiltSlugs = new Set(rebuiltResolved.map((b) => b.slug));
+    const declaredBindings = config.skillBindings ?? [];
+    const trimmedBindings = declaredBindings.filter((s) => rebuiltSlugs.has(s));
+    const droppedSlugs = declaredBindings.filter((s) => !rebuiltSlugs.has(s));
     config = {
       ...config,
+      skillBindings: trimmedBindings.length > 0 ? trimmedBindings : undefined,
       skillBindingsResolved:
         rebuiltResolved.length > 0 ? rebuiltResolved : undefined,
     };
@@ -263,6 +346,16 @@ export const saveAgent = action({
     const requireImageGenerationTag =
       config.primaryBehavior === 'image-generation';
     const warnings: string[] = [];
+    if (droppedSlugs.length > 0) {
+      // Surface dangling-slug cleanup to the UI so the user understands
+      // why a skill they thought they were keeping is gone. Singular vs
+      // plural so the toast reads naturally.
+      warnings.push(
+        droppedSlugs.length === 1
+          ? `Skill "${droppedSlugs[0]}" could not be loaded and was removed from this agent.`
+          : `${droppedSlugs.length} skills could not be loaded and were removed from this agent: ${droppedSlugs.join(', ')}`,
+      );
+    }
     for (const ref of config.supportedModels) {
       const { providerName, modelId, quantization } = parseModelRef(ref);
       let resolvedProviderName = providerName;
@@ -364,6 +457,20 @@ export const saveAgent = action({
 
     await atomicWrite(filePath, content);
 
+    await logAgentAudit(
+      ctx,
+      writeAuth,
+      args.isNew === true ? 'create_agent' : 'update_agent',
+      args.agentName,
+      {
+        resourceName: args.agentName,
+        ...(prevAgent.ok && {
+          previousState: captureCapability(prevAgent.config),
+        }),
+        newState: captureCapability(normalized),
+      },
+    );
+
     return {
       hash: sha256(content),
       ...(warnings.length > 0 ? { warnings } : {}),
@@ -406,10 +513,13 @@ export const duplicateAgent = action({
   },
   returns: v.object({ newAgentName: v.string() }),
   handler: async (ctx, args): Promise<{ newAgentName: string }> => {
-    const { orgSlug } = await requireOrgMembershipById(
-      ctx,
-      args.organizationId,
-    );
+    // Duplicating an agent that has any capability-bearing field (skill
+    // bindings, tools, integrations, workflows) creates a NEW agent with
+    // the same grants. Server-side rebuild of skillBindingsResolved happens
+    // below, but the duplicate-vs-save trust boundary must match saveAgent
+    // — both create reachable grants, both gate on developerSettings.
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    const { orgSlug } = auth;
     const source = await readAgentFile(orgSlug, args.agentName);
     if (!source.ok) {
       throw new Error(`Cannot duplicate: ${source.message}`);
@@ -465,6 +575,23 @@ export const duplicateAgent = action({
       ? `${legacyDisplayName}${suffix}`
       : undefined;
 
+    // Rebuild skillBindingsResolved from canonical SKILL.md instead of
+    // carrying the source agent's snapshot verbatim. Without this, a
+    // duplicate would inherit a stale snapshot if the source's skills had
+    // been edited (frontmatter widening) between bind-time and now —
+    // bypassing the trust boundary saveAgent enforces. Failed-to-load
+    // skills are dropped from BOTH the bindings list and the resolved set
+    // so the new agent has a clean, consistent capability surface.
+    const rebuiltResolved = await buildFreshSkillBindingsSnapshot(
+      ctx,
+      orgSlug,
+      source.config.skillBindings ?? [],
+    );
+    const rebuiltSlugs = new Set(rebuiltResolved.map((b) => b.slug));
+    const trimmedBindings = (source.config.skillBindings ?? []).filter((s) =>
+      rebuiltSlugs.has(s),
+    );
+
     const draft: AgentJsonConfig = {
       ...source.config,
       ...(suffixedTopLevel !== undefined
@@ -472,6 +599,9 @@ export const duplicateAgent = action({
         : {}),
       ...(nextI18n ? { i18n: nextI18n } : {}),
       visibleInChat: false,
+      skillBindings: trimmedBindings.length > 0 ? trimmedBindings : undefined,
+      skillBindingsResolved:
+        rebuiltResolved.length > 0 ? rebuiltResolved : undefined,
     };
 
     // If neither the legacy top-level nor any i18n locale had a displayName,
@@ -496,6 +626,15 @@ export const duplicateAgent = action({
     const filePath = resolveAgentFilePath(orgSlug, newName);
     await atomicWrite(filePath, content);
 
+    await logAgentAudit(ctx, auth, 'duplicate_agent', newName, {
+      resourceName: newName,
+      previousState: {
+        sourceAgent: args.agentName,
+        ...captureCapability(source.config),
+      },
+      newState: captureCapability(normalized),
+    });
+
     return { newAgentName: newName };
   },
 });
@@ -511,12 +650,23 @@ export const deleteAgent = action({
       throw new Error(`Agent '${args.agentName}' cannot be deleted`);
     }
 
-    const { orgSlug } = await requireOrgMembershipById(
-      ctx,
-      args.organizationId,
-    );
+    const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    const { orgSlug } = auth;
     const filePath = resolveAgentFilePath(orgSlug, args.agentName);
     const historyDir = resolveHistoryDir(orgSlug, args.agentName);
+
+    // Capture pre-delete capability snapshot for the audit row — agents
+    // bound to expensive integrations or skill-laundered grants leave
+    // the system at delete time; the audit is the only post-mortem trail.
+    // Best-effort: any failure (missing file, parse error, mocked test
+    // harness) yields a delete with an audit row that lacks previousState
+    // rather than aborting the operation.
+    let preDelete: AgentReadResult | undefined;
+    try {
+      preDelete = await readAgentFile(orgSlug, args.agentName);
+    } catch {
+      preDelete = undefined;
+    }
 
     await unlink(filePath).catch((err) => {
       if (err instanceof Error && 'code' in err && err.code !== 'ENOENT') {
@@ -528,6 +678,13 @@ export const deleteAgent = action({
     await ctx.runMutation(internal.agents.mutations.cleanupAgentBinding, {
       organizationId: args.organizationId,
       agentSlug: args.agentName,
+    });
+
+    await logAgentAudit(ctx, auth, 'delete_agent', args.agentName, {
+      resourceName: args.agentName,
+      ...(preDelete?.ok && {
+        previousState: captureCapability(preDelete.config),
+      }),
     });
 
     return null;
@@ -610,10 +767,8 @@ export const restoreFromHistory = action({
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    const { orgSlug } = await requireOrgMembershipById(
-      ctx,
-      args.organizationId,
-    );
+    const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    const { orgSlug } = auth;
     const historyDir = resolveHistoryDir(orgSlug, args.agentName);
     const historyPath = path.join(historyDir, `${args.timestamp}.json`);
     const agentPath = resolveAgentFilePath(orgSlug, args.agentName);
@@ -658,6 +813,32 @@ export const restoreFromHistory = action({
       await atomicWrite(path.join(historyDir, `${ts}.json`), currentContent);
       await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
     }
+
+    // Audit-log the restore. previousState reflects the now-overwritten
+    // config (parsed best-effort — corrupt JSON would have thrown above);
+    // newState reflects the restored snapshot. Both surface capability
+    // fields so a reviewer can see whether the restore changed grants.
+    let prevCapture: Record<string, unknown> | undefined;
+    if (currentContent) {
+      try {
+        prevCapture = captureCapability(parseAgentJson(currentContent));
+      } catch {
+        // Pre-restore config didn't pass current schema — skip diff
+        // rather than abort the audit row.
+      }
+    }
+    let newCapture: Record<string, unknown> | undefined;
+    try {
+      newCapture = captureCapability(parseAgentJson(historyContent));
+    } catch {
+      // Restored snapshot may pre-date current schema; restore proceeded
+      // bit-faithfully above. Audit row still lands without the diff.
+    }
+    await logAgentAudit(ctx, auth, 'restore_agent', args.agentName, {
+      resourceName: args.agentName,
+      ...(prevCapture && { previousState: prevCapture }),
+      ...(newCapture && { newState: newCapture }),
+    });
 
     return { hash: sha256(historyContent) };
   },

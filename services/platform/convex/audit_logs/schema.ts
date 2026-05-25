@@ -20,6 +20,7 @@ export const AUDIT_LOG_CATEGORIES = [
   'admin',
   'ai',
   'skill',
+  'agent',
 ] as const;
 export const AUDIT_LOG_STATUSES = ['success', 'failure', 'denied'] as const;
 

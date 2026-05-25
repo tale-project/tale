@@ -27,8 +27,12 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
+import type { SkillBindingResolvedEntry } from '../../../lib/shared/schemas/agents';
+import { SKILL_NAME_REGEX } from '../../../lib/shared/schemas/skills';
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
+import { inferStepLanguage } from '../../agent_tools/artifacts/shared';
+import { escapeForXmlTag } from '../untrusted_content';
 
 /**
  * Minimal subset of {@link SerializableAgentConfig} that the skills
@@ -43,13 +47,7 @@ export interface AgentConfigForSkills {
   integrationBindings?: string[];
   workflowBindings?: string[];
   delegateSlugs?: string[];
-  skillBindingsResolved?: Array<{
-    slug: string;
-    versionHash: string;
-    toolNames: string[];
-    integrationBindings: string[];
-    workflowBindings: string[];
-  }>;
+  skillBindingsResolved?: SkillBindingResolvedEntry[];
 }
 
 /**
@@ -72,13 +70,10 @@ const INLINE_TOTAL_BYTE_CAP = 64 * 1024; // 64 KB
 /** Reserved tool names that are *added* to every effective tool set. */
 const BUILT_IN_SKILL_TOOL_COUNT = 3; // expand_skill, read_skill_file, skill_run
 
-interface ResolvedSkillBinding {
-  slug: string;
-  versionHash: string;
-  toolNames: string[];
-  integrationBindings: string[];
-  workflowBindings: string[];
-}
+// Alias the canonical shared type so call sites that read
+// `ResolvedSkillBinding` keep working; the underlying definition lives
+// in `lib/shared/schemas/agents.ts` as the single source of truth.
+type ResolvedSkillBinding = SkillBindingResolvedEntry;
 
 export interface SkillRuntimeEntry {
   slug: string;
@@ -315,14 +310,13 @@ export function mergeSkillDependencies<T extends AgentConfigForSkills>(
   };
 }
 
-/** Shape of a single entry in the resolved snapshot — mirrors agent JSON. */
-export interface FreshSkillBindingEntry {
-  slug: string;
-  versionHash: string;
-  toolNames: string[];
-  integrationBindings: string[];
-  workflowBindings: string[];
-}
+/**
+ * Re-export the canonical resolved-binding entry shape under the legacy
+ * name `FreshSkillBindingEntry` so existing producers (saveAgent,
+ * duplicateAgent) don't need to change. New code should prefer
+ * `SkillBindingResolvedEntry` from `lib/shared/schemas/agents.ts`.
+ */
+export type FreshSkillBindingEntry = SkillBindingResolvedEntry;
 
 /**
  * Server-side recompute of `skillBindingsResolved` from canonical SKILL.md
@@ -408,8 +402,17 @@ function buildAvailableSkillsSection(entries: SkillRuntimeEntry[]): string {
     '',
   ];
   for (const entry of visible) {
+    // Neutralize any literal `</skill-description>` inside the description so
+    // a skill author cannot break out of the wrapper and inject prompt
+    // content downstream. Skills are admin/developer-authored — but
+    // `duplicateAgent` propagates frozen grants, so a malicious description
+    // could reach other org members' chat sessions.
+    const safeDescription = escapeForXmlTag(
+      entry.description,
+      'skill-description',
+    );
     lines.push(
-      `- **${entry.slug}**: <skill-description slug="${entry.slug}">${entry.description}</skill-description>`,
+      `- **${entry.slug}**: <skill-description slug="${entry.slug}">${safeDescription}</skill-description>`,
     );
   }
   return lines.join('\n') + '\n';
@@ -430,7 +433,7 @@ function createExpandSkillTool(bySlug: Map<string, SkillRuntimeEntry>) {
           .string()
           .min(1)
           .max(64)
-          .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+          .regex(SKILL_NAME_REGEX)
           .describe('Slug of the bound skill to expand.'),
       }),
       execute: async (_ctx: ToolCtx, args: { skillSlug: string }) => {
@@ -465,7 +468,10 @@ function createExpandSkillTool(bySlug: Map<string, SkillRuntimeEntry>) {
           // should treat the body and assets as material to act on, not as
           // governance overrides. The delimiter is informational and the
           // engine prompt's anti-injection guidance applies.
-          body: `<skill-content slug="${entry.slug}">\n${entry.body}\n</skill-content>`,
+          // Same escape rationale as the description wrapper in
+          // buildAvailableSkillsSection — keep skill bodies from breaking
+          // out of <skill-content>.
+          body: `<skill-content slug="${entry.slug}">\n${escapeForXmlTag(entry.body, 'skill-content')}\n</skill-content>`,
           executableFiles: entry.executableFiles,
           inlineAssets,
           largeAssets,
@@ -480,19 +486,13 @@ function createExpandSkillTool(bySlug: Map<string, SkillRuntimeEntry>) {
 }
 
 const SKILL_RUN_MAX_STEPS = 10;
-const SCRIPT_EXT_REGEX = /\.(py|cjs|mjs|js)$/;
+const SCRIPT_EXT_REGEX = /\.(py|cjs|mjs|js)$/i;
 
-function inferStepLanguage(filePath: string): 'python' | 'node' | null {
-  if (filePath.endsWith('.py')) return 'python';
-  if (
-    filePath.endsWith('.js') ||
-    filePath.endsWith('.cjs') ||
-    filePath.endsWith('.mjs')
-  ) {
-    return 'node';
-  }
-  return null;
-}
+// `inferStepLanguage` is the canonical sandbox-runtime dispatcher used by
+// every spawner. The earlier skills-local copy was case-sensitive, which
+// silently rejected (perfectly valid) `Setup.PY` / `helper.JS` bundle
+// scripts — a real semantic divergence, not just code duplication. The
+// canonical version lowercases before matching.
 
 function createSkillRunTool(bySlug: Map<string, SkillRuntimeEntry>) {
   return {
@@ -506,7 +506,7 @@ function createSkillRunTool(bySlug: Map<string, SkillRuntimeEntry>) {
             .string()
             .min(1)
             .max(64)
-            .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+            .regex(SKILL_NAME_REGEX)
             .describe('Slug of the bound skill whose bundle to execute.'),
           path: z
             .string()
@@ -781,6 +781,10 @@ function createSkillRunTool(bySlug: Map<string, SkillRuntimeEntry>) {
         // helper records the user/org and the run's execution id which
         // lets SREs cross-reference to `sandboxExecutions`.
         try {
+          // Route failure runs through `logFailure` (status: 'failure')
+          // so audit reports don't show a `status:success` row for a
+          // sandbox that threw or returned non-zero. The sandbox-side
+          // error code lands in errorMessage for quick triage.
           await toolCtx.runMutation(
             internal.skills.audit_mutations.logSkillAuditEvent,
             {
@@ -789,6 +793,13 @@ function createSkillRunTool(bySlug: Map<string, SkillRuntimeEntry>) {
               action: 'execute_skill',
               resourceId: entry.slug,
               resourceName: entry.slug,
+              status: success ? 'success' : 'failure',
+              ...(!success &&
+                run.errorCode !== undefined && {
+                  errorMessage: run.errorMessage
+                    ? `${run.errorCode}: ${run.errorMessage}`
+                    : run.errorCode,
+                }),
               newState: {
                 executionId: run.executionId,
                 status: run.status,
@@ -837,11 +848,7 @@ function createReadSkillFileTool(bySlug: Map<string, SkillRuntimeEntry>) {
       description:
         '**read_skill_file** — read a single large bundle file (>8 KB) attached to a bound skill. Small files are already inlined by `expand_skill`; use this only for the paths returned in `largeAssets`.',
       inputSchema: z.object({
-        skillSlug: z
-          .string()
-          .min(1)
-          .max(64)
-          .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
+        skillSlug: z.string().min(1).max(64).regex(SKILL_NAME_REGEX),
         path: z.string().min(1).max(200),
       }),
       execute: async (

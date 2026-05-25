@@ -30,10 +30,7 @@ import {
 import { internal } from '../_generated/api';
 import { internalAction, action, type ActionCtx } from '../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
-import {
-  requireOrgMembershipById,
-  type OrgMembershipAuth,
-} from '../lib/auth/require_org_membership';
+import { type OrgMembershipAuth } from '../lib/auth/require_org_membership';
 import { atomicWrite, readFileSafe, readdirSafe, sha256 } from '../lib/file_io';
 import {
   MAX_SKILL_ASSETS,
@@ -201,7 +198,7 @@ export const readSkill = action({
         message: `Invalid skill slug: ${args.slug}`,
       });
     }
-    const { orgSlug } = await requireOrgMembershipById(
+    const { orgSlug } = await requireOrgAdminOrDeveloper(
       ctx,
       args.organizationId,
     );
@@ -228,7 +225,7 @@ export const listSkills = action({
   },
   returns: v.any(),
   handler: async (ctx, args) => {
-    const { orgSlug } = await requireOrgMembershipById(
+    const { orgSlug } = await requireOrgAdminOrDeveloper(
       ctx,
       args.organizationId,
     );
@@ -256,8 +253,6 @@ export const listSkills = action({
           integrationBindings: result.meta.integrationBindings ?? [],
           workflowBindings: result.meta.workflowBindings ?? [],
           packages: result.meta.packages,
-          roleRestriction: result.meta.roleRestriction,
-          sharedWithTeamIds: result.meta.sharedWithTeamIds ?? [],
           license: result.meta.license,
           hash: result.versionHash,
         };
@@ -280,7 +275,7 @@ export const listSkillFiles = action({
         message: `Invalid skill slug: ${args.slug}`,
       });
     }
-    const { orgSlug } = await requireOrgMembershipById(
+    const { orgSlug } = await requireOrgAdminOrDeveloper(
       ctx,
       args.organizationId,
     );
@@ -309,7 +304,7 @@ export const readSkillAsset = action({
         message: `Invalid skill slug: ${args.slug}`,
       });
     }
-    const { orgSlug } = await requireOrgMembershipById(
+    const { orgSlug } = await requireOrgAdminOrDeveloper(
       ctx,
       args.organizationId,
     );
@@ -379,7 +374,17 @@ export const createSkill = action({
     await atomicWrite(filePath, newContent);
     await logSkillAudit(ctx, auth, 'create_skill', args.slug, {
       resourceName: meta.name,
-      newState: { name: meta.name, description: meta.description },
+      newState: {
+        name: meta.name,
+        description: meta.description,
+        ...(meta.toolNames && { toolNames: meta.toolNames }),
+        ...(meta.integrationBindings && {
+          integrationBindings: meta.integrationBindings,
+        }),
+        ...(meta.workflowBindings && {
+          workflowBindings: meta.workflowBindings,
+        }),
+      },
     });
     return { hash: sha256(newContent) };
   },
@@ -422,13 +427,31 @@ export const updateSkill = action({
       }
     }
 
-    // Capture pre-state description for the audit row (skill files are
-    // org-authored prose; no secrets to redact). Best-effort: skip on parse
-    // error since we want the audit row to land regardless.
-    let prevDescription: string | undefined;
+    // Capture pre-state capability fields (description + all transitive
+    // grants — tool names, integration bindings, workflow bindings) so a
+    // reviewer can see exactly what changed. Skill files are org-authored
+    // prose; no secrets to redact. Best-effort: skip on parse error since
+    // we want the audit row to land regardless.
+    let previousCapability:
+      | {
+          description?: string;
+          toolNames?: string[];
+          integrationBindings?: string[];
+          workflowBindings?: string[];
+        }
+      | undefined;
     try {
       const prev = parseSkillMd(existing);
-      prevDescription = prev.meta.description;
+      previousCapability = {
+        description: prev.meta.description,
+        ...(prev.meta.toolNames && { toolNames: prev.meta.toolNames }),
+        ...(prev.meta.integrationBindings && {
+          integrationBindings: prev.meta.integrationBindings,
+        }),
+        ...(prev.meta.workflowBindings && {
+          workflowBindings: prev.meta.workflowBindings,
+        }),
+      };
     } catch (err) {
       console.warn(
         `[skills.updateSkill] parseSkillMd failed for previous-state capture on slug=${args.slug}:`,
@@ -453,10 +476,19 @@ export const updateSkill = action({
     await atomicWrite(filePath, newContent);
     await logSkillAudit(ctx, auth, 'update_skill', args.slug, {
       resourceName: meta.name,
-      ...(prevDescription !== undefined && {
-        previousState: { description: prevDescription },
+      ...(previousCapability !== undefined && {
+        previousState: previousCapability,
       }),
-      newState: { description: meta.description },
+      newState: {
+        description: meta.description,
+        ...(meta.toolNames && { toolNames: meta.toolNames }),
+        ...(meta.integrationBindings && {
+          integrationBindings: meta.integrationBindings,
+        }),
+        ...(meta.workflowBindings && {
+          workflowBindings: meta.workflowBindings,
+        }),
+      },
     });
     return { hash: sha256(newContent) };
   },
@@ -578,6 +610,112 @@ export const deleteSkillAsset = action({
       if (code === 'ENOENT') return { deleted: false };
       throw err;
     }
+  },
+});
+
+export const duplicateSkill = action({
+  args: {
+    organizationId: v.string(),
+    slug: v.string(),
+  },
+  returns: v.object({ newSlug: v.string() }),
+  handler: async (ctx, args): Promise<{ newSlug: string }> => {
+    if (!validateSkillSlug(args.slug)) {
+      throw new ConvexError({
+        code: 'INVALID_SLUG',
+        message: `Invalid skill slug: ${args.slug}`,
+      });
+    }
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+
+    // Load the source skill so we can re-serialize with a new slug. We
+    // intentionally re-derive content from parseSkillMd rather than
+    // copying the raw bytes — that catches malformed source files at
+    // duplicate-time instead of letting the new skill inherit corrupt
+    // frontmatter and fail later at runtime.
+    const sourcePath = resolveSkillMdPath(auth.orgSlug, args.slug);
+    const sourceContent = await readFileSafe(sourcePath);
+    if (sourceContent === null) {
+      throw new ConvexError({
+        code: 'NOT_FOUND',
+        message: `Skill "${args.slug}" does not exist`,
+      });
+    }
+    const { meta, body } = parseSkillMd(sourceContent);
+
+    // Find an unused slug — `<slug>-copy`, `<slug>-copy-2`, etc. Mirrors
+    // duplicateAgent's naming so the two surfaces feel identical.
+    const baseDir = resolveSkillsDir(auth.orgSlug);
+    let entries: string[];
+    try {
+      entries = await readdirSafe(baseDir);
+    } catch {
+      entries = [];
+    }
+    const existing = new Set(entries);
+    let newSlug = `${args.slug}-copy`;
+    let counter = 2;
+    while (existing.has(newSlug)) {
+      newSlug = `${args.slug}-copy-${counter}`;
+      counter += 1;
+    }
+    if (!validateSkillSlug(newSlug)) {
+      throw new ConvexError({
+        code: 'INVALID_SLUG',
+        message: `Generated copy slug "${newSlug}" is not valid`,
+      });
+    }
+
+    // Update the frontmatter `name` to match the new slug — `createSkill`
+    // enforces name == slug, and a skill whose name disagrees with its
+    // on-disk directory would silently misbehave anyway.
+    const newMeta = { ...meta, name: newSlug };
+    const newContent = serializeSkillMd(newMeta, body);
+    if (Buffer.byteLength(newContent, 'utf-8') > MAX_SKILL_MD_BYTES) {
+      throw new ConvexError({
+        code: 'TOO_LARGE',
+        message: `SKILL.md exceeds ${MAX_SKILL_MD_BYTES} bytes`,
+      });
+    }
+    const newSkillMdPath = resolveSkillMdPath(auth.orgSlug, newSlug);
+    await atomicWrite(newSkillMdPath, newContent);
+
+    // Copy bundle assets too. Best-effort: a partial copy is still a
+    // valid skill (assets are optional), and the user can re-upload
+    // anything that didn't make it through; aborting on first asset
+    // failure would leave behind a half-populated duplicate that's
+    // harder to recover from.
+    const sourceDir = resolveSkillDir(auth.orgSlug, args.slug);
+    const { assets } = await walkSkillBundle(sourceDir);
+    for (const asset of assets) {
+      const sourceAssetPath = path.join(sourceDir, asset.path);
+      const content = await readFileSafe(sourceAssetPath);
+      if (content === null) continue;
+      const targetPath = await resolveSkillAssetPathChecked(
+        auth.orgSlug,
+        newSlug,
+        asset.path,
+      );
+      await atomicWrite(targetPath, content);
+    }
+
+    await logSkillAudit(ctx, auth, 'create_skill', newSlug, {
+      resourceName: newSlug,
+      newState: {
+        sourceSlug: args.slug,
+        name: newMeta.name,
+        description: newMeta.description,
+        ...(newMeta.toolNames && { toolNames: newMeta.toolNames }),
+        ...(newMeta.integrationBindings && {
+          integrationBindings: newMeta.integrationBindings,
+        }),
+        ...(newMeta.workflowBindings && {
+          workflowBindings: newMeta.workflowBindings,
+        }),
+      },
+    });
+
+    return { newSlug };
   },
 });
 
@@ -720,15 +858,8 @@ function validateMetaPayload(rawMeta: unknown): SkillFrontmatter {
     wireMeta['workflow-bindings'] = meta.workflowBindings;
   }
   if (meta.packages !== undefined) wireMeta.packages = meta.packages;
-  if (typeof meta.roleRestriction === 'string') {
-    wireMeta['role-restriction'] = meta.roleRestriction;
-  }
-  if (Array.isArray(meta.sharedWithTeamIds)) {
-    wireMeta['shared-with-team-ids'] = meta.sharedWithTeamIds;
-  }
   if (typeof meta.license === 'string') wireMeta.license = meta.license;
   if (meta.metadata !== undefined) wireMeta.metadata = meta.metadata;
-  if (meta.i18n !== undefined) wireMeta.i18n = meta.i18n;
   const unknownContainer = meta.unknown;
   if (
     unknownContainer !== null &&

@@ -136,6 +136,7 @@ import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/w
 import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools/workflows/workflow_syntax_tool.js";
 import type * as agents_access from "../agents/access.js";
 import type * as agents_arena_chat from "../agents/arena_chat.js";
+import type * as agents_audit_mutations from "../agents/audit_mutations.js";
 import type * as agents_config from "../agents/config.js";
 import type * as agents_file_actions from "../agents/file_actions.js";
 import type * as agents_file_utils from "../agents/file_utils.js";
@@ -713,6 +714,7 @@ import type * as skills_audit_mutations from "../skills/audit_mutations.js";
 import type * as skills_file_actions from "../skills/file_actions.js";
 import type * as skills_file_utils from "../skills/file_utils.js";
 import type * as skills_find_related_agents from "../skills/find_related_agents.js";
+import type * as skills_get_skill_audit_history from "../skills/get_skill_audit_history.js";
 import type * as skills_get_thread_skills from "../skills/get_thread_skills.js";
 import type * as sso_providers_actions from "../sso_providers/actions.js";
 import type * as sso_providers_create_user_session from "../sso_providers/create_user_session.js";
@@ -1245,6 +1247,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/workflow_syntax_tool": typeof agent_tools_workflows_workflow_syntax_tool;
   "agents/access": typeof agents_access;
   "agents/arena_chat": typeof agents_arena_chat;
+  "agents/audit_mutations": typeof agents_audit_mutations;
   "agents/config": typeof agents_config;
   "agents/file_actions": typeof agents_file_actions;
   "agents/file_utils": typeof agents_file_utils;
@@ -1822,6 +1825,7 @@ declare const fullApi: ApiFromModules<{
   "skills/file_actions": typeof skills_file_actions;
   "skills/file_utils": typeof skills_file_utils;
   "skills/find_related_agents": typeof skills_find_related_agents;
+  "skills/get_skill_audit_history": typeof skills_get_skill_audit_history;
   "skills/get_thread_skills": typeof skills_get_thread_skills;
   "sso_providers/actions": typeof sso_providers_actions;
   "sso_providers/create_user_session": typeof sso_providers_create_user_session;

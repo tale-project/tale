@@ -23,6 +23,8 @@ import { stringify as stringifyYaml } from 'yaml';
 import {
   parseSkillMd,
   frontmatterToRaw,
+  RESERVED_SKILL_NAMES,
+  SKILL_NAME_REGEX,
   type SkillFrontmatter,
 } from '../../lib/shared/schemas/skills';
 import { sha256, validateOrgSlug, verifyPathWithinBase } from '../lib/file_io';
@@ -32,13 +34,21 @@ import { sha256, validateOrgSlug, verifyPathWithinBase } from '../lib/file_io';
  * `validateSkillSlug` enforces the same set at action-arg boundaries (where
  * the SKILL.md isn't read yet, but the slug is used to resolve paths).
  */
-const RESERVED_SKILL_SLUGS = new Set(['anthropic', 'claude']);
+// Re-import the canonical reserved-name set from the shared schema so
+// the runtime's lookup table cannot drift from what `parseSkillMd`
+// refuses. Earlier this file maintained a near-identical local Set with
+// an apologetic comment; that's the wrong dedup tradeoff.
+const RESERVED_SKILL_SLUGS = RESERVED_SKILL_NAMES;
 
 export { sha256, parseSkillMd };
 export type { SkillFrontmatter };
 
-/** Skill slug — same regex as the frontmatter `name` field. */
-const SKILL_SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+/**
+ * Skill slug — re-exported via the schemas module so a single source of
+ * truth governs every validation site (runtime, frontend, schema). The
+ * local alias keeps existing call sites unchanged.
+ */
+const SKILL_SLUG_REGEX = SKILL_NAME_REGEX;
 const MAX_SLUG_LENGTH = 64;
 
 /** Per-file size cap. SKILL.md itself plus any individual bundle asset. */

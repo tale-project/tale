@@ -9,7 +9,10 @@
 
 import path from 'node:path';
 
-import { agentJsonSchema } from '../../lib/shared/schemas/agents';
+import {
+  agentJsonSchema,
+  type SkillBindingResolvedEntry,
+} from '../../lib/shared/schemas/agents';
 import { serializeJson, sha256, validateOrgSlug } from '../lib/file_io';
 import { validateAgentName } from './validators';
 
@@ -61,13 +64,7 @@ export interface AgentJsonConfig {
    * frontmatter surfaces as a runtime warn + UI banner; the user
    * re-confirms by re-saving the agent.
    */
-  skillBindingsResolved?: Array<{
-    slug: string;
-    versionHash: string;
-    toolNames: string[];
-    integrationBindings: string[];
-    workflowBindings: string[];
-  }>;
+  skillBindingsResolved?: SkillBindingResolvedEntry[];
   supportedModels: string[];
   provider?: string;
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';

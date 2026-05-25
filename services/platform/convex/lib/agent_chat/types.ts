@@ -5,6 +5,7 @@
  * enabling lib/ to be completely decoupled from agents/.
  */
 
+import type { SkillBindingResolvedEntry } from '../../../lib/shared/schemas/agents';
 import type { ToolName } from '../../agent_tools/tool_registry';
 import type { AgentType } from '../context_management/constants';
 
@@ -61,13 +62,7 @@ export interface SerializableAgentConfig {
    * Empty / omitted = no bound skills; the runtime emits no skill tools or
    * "Available Skills" section in that case.
    */
-  skillBindingsResolved?: Array<{
-    slug: string;
-    versionHash: string;
-    toolNames: string[];
-    integrationBindings: string[];
-    workflowBindings: string[];
-  }>;
+  skillBindingsResolved?: SkillBindingResolvedEntry[];
   /** Whether to inject structured response markers into the system prompt (default false) */
   structuredResponsesEnabled?: boolean;
   /** Per-agent timeout in milliseconds */

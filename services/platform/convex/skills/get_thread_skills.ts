@@ -37,7 +37,14 @@ export const getThreadAgentSkills = action({
     ),
   }),
   handler: async (ctx, args) => {
-    await requireOrgMembershipById(ctx, args.organizationId);
+    // Single membership check up front — earlier this file called
+    // `requireOrgMembershipById` twice (once to gate, once to pull
+    // `orgSlug`), so every chat-page mount paid two Better Auth
+    // roundtrips when the chip refreshes.
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
     let agentSlug: string | undefined;
     try {
@@ -77,14 +84,9 @@ export const getThreadAgentSkills = action({
     }
     if (skillBindings.length === 0) return { agentSlug, skills: [] };
 
-    // Resolve org slug from membership (already validated above) so we read
-    // the right per-org skills dir. `resolveSkillsDir` re-validates the
-    // slug shape, so a malformed value would throw here.
-    const { orgSlug } = await requireOrgMembershipById(
-      ctx,
-      args.organizationId,
-    );
-    // touch resolver so a misconfigured environment surfaces immediately
+    // `resolveSkillsDir` re-validates the slug shape, so a malformed
+    // value would throw here — kept as a defensive no-op even though
+    // `readSkillMd` does the same check.
     resolveSkillsDir(orgSlug);
 
     const skills = await Promise.all(

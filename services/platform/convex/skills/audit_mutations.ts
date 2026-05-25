@@ -36,6 +36,14 @@ export const logSkillAuditEvent = internalMutation({
     resourceName: v.optional(v.string()),
     previousState: v.optional(v.any()),
     newState: v.optional(v.any()),
+    /**
+     * 'failure' routes through `logFailure` instead of `logSuccess` so a
+     * sandbox-throwing `execute_skill` doesn't masquerade as a clean run
+     * in audit reports. Default 'success' preserves call sites that don't
+     * care about status (every CRUD path).
+     */
+    status: v.optional(v.union(v.literal('success'), v.literal('failure'))),
+    errorMessage: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -51,21 +59,40 @@ export const logSkillAuditEvent = internalMutation({
     if (args.actorEmail !== undefined) actorEntry.email = args.actorEmail;
     if (args.actorRole !== undefined) actorEntry.role = args.actorRole;
 
-    await AuditLogHelpers.logSuccess(ctx, {
-      auditCtx: {
-        organizationId: args.organizationId,
-        actor: actorEntry,
-      },
-      action: args.action satisfies AllowedAction,
-      category: 'skill',
-      resourceType: 'skill',
-      resourceId: args.resourceId,
-      ...(args.resourceName !== undefined && {
-        resourceName: args.resourceName,
-      }),
-      previousState: redact(args.previousState),
-      newState: redact(args.newState),
-    });
+    const auditCtx = {
+      organizationId: args.organizationId,
+      actor: actorEntry,
+    };
+    if (args.status === 'failure') {
+      await AuditLogHelpers.logFailure(ctx, {
+        auditCtx,
+        action: args.action satisfies AllowedAction,
+        category: 'skill',
+        resourceType: 'skill',
+        resourceId: args.resourceId,
+        ...(args.resourceName !== undefined && {
+          resourceName: args.resourceName,
+        }),
+        // logFailure requires a non-empty errorMessage. Fall back to a
+        // generic marker when the caller omits one so the row still lands
+        // (better an unspecific failure record than a swallowed audit).
+        errorMessage: args.errorMessage ?? 'unspecified failure',
+        metadata: redact(args.newState),
+      });
+    } else {
+      await AuditLogHelpers.logSuccess(ctx, {
+        auditCtx,
+        action: args.action satisfies AllowedAction,
+        category: 'skill',
+        resourceType: 'skill',
+        resourceId: args.resourceId,
+        ...(args.resourceName !== undefined && {
+          resourceName: args.resourceName,
+        }),
+        previousState: redact(args.previousState),
+        newState: redact(args.newState),
+      });
+    }
     return null;
   },
 });
