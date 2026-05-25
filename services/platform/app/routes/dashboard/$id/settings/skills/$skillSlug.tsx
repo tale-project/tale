@@ -47,6 +47,7 @@ import {
 } from '@/app/features/skills/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { groupAssetsByDir } from '@/lib/skills/group-assets-by-dir';
 import { seo } from '@/lib/utils/seo';
 import { isRecord } from '@/lib/utils/type-guards';
 
@@ -131,27 +132,10 @@ function SkillDetailPage() {
   const skill = data?.ok ? data : null;
   const isDirty = description !== loadedDescription || body !== loadedBody;
 
-  // Group assets by top-level directory so the bundle list reads as a
-  // shallow tree (scripts/, references/, assets/, ...) instead of a flat
-  // sorted dump. The actual editor surface stays per-file — this is
-  // purely a presentation-layer grouping.
-  const groupedAssets = useMemo(() => {
-    const assets = filesData?.assets ?? skill?.assets ?? [];
-    const groups = new Map<string, Array<{ path: string; size: number }>>();
-    for (const asset of assets) {
-      const slash = asset.path.indexOf('/');
-      const bucket = slash === -1 ? '.' : asset.path.slice(0, slash);
-      const arr = groups.get(bucket) ?? [];
-      arr.push(asset);
-      groups.set(bucket, arr);
-    }
-    return Array.from(groups.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([dir, files]) => ({
-        dir,
-        files: files.sort((a, b) => a.path.localeCompare(b.path)),
-      }));
-  }, [filesData, skill]);
+  const groupedAssets = useMemo(
+    () => groupAssetsByDir(filesData?.assets ?? skill?.assets ?? []),
+    [filesData, skill],
+  );
 
   const handleDuplicate = useCallback(async () => {
     if (!skill || isDuplicating) return;
