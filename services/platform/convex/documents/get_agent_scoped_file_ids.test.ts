@@ -221,6 +221,88 @@ describe('getAgentScopedFileIds', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it('includes project documents when agentProjectIds matches', async () => {
+    const ctx = createMockCtx([
+      {
+        _id: 'doc1',
+        fileId: 'file-proj',
+        ragInfo: { status: 'completed' },
+        indexed: true,
+        projectId: 'proj-1',
+      },
+      {
+        _id: 'doc2',
+        fileId: 'file-other-proj',
+        ragInfo: { status: 'completed' },
+        indexed: true,
+        projectId: 'proj-2',
+      },
+    ]);
+
+    const ids = await getAgentScopedFileIds(ctx, {
+      organizationId: 'org1',
+      includeTeamKnowledge: false,
+      includeOrgKnowledge: false,
+      agentProjectIds: ['proj-1'],
+    });
+
+    expect(ids).toEqual(['file-proj']);
+  });
+
+  it('does not include project docs as org-wide docs (mutual exclusivity)', async () => {
+    const ctx = createMockCtx([
+      {
+        _id: 'doc1',
+        fileId: 'file-proj',
+        ragInfo: { status: 'completed' },
+        indexed: true,
+        projectId: 'proj-1',
+      },
+      {
+        _id: 'doc2',
+        fileId: 'file-lib',
+        ragInfo: { status: 'completed' },
+        indexed: true,
+      },
+    ]);
+
+    // includeOrgKnowledge with NO project scope: project doc must NOT leak.
+    const ids = await getAgentScopedFileIds(ctx, {
+      organizationId: 'org1',
+      includeOrgKnowledge: true,
+    });
+    expect(ids).toEqual(['file-lib']);
+  });
+
+  it('unions team + project file IDs cleanly', async () => {
+    const ctx = createMockCtx([
+      {
+        _id: 'doc1',
+        fileId: 'file-team',
+        ragInfo: { status: 'completed' },
+        indexed: true,
+        teamId: 'team-a',
+      },
+      {
+        _id: 'doc2',
+        fileId: 'file-proj',
+        ragInfo: { status: 'completed' },
+        indexed: true,
+        projectId: 'proj-1',
+      },
+    ]);
+
+    const ids = await getAgentScopedFileIds(ctx, {
+      organizationId: 'org1',
+      agentTeamId: 'team-a',
+      includeTeamKnowledge: true,
+      includeOrgKnowledge: false,
+      agentProjectIds: ['proj-1'],
+    });
+
+    expect(ids.sort()).toEqual(['file-proj', 'file-team']);
+  });
+
   it('ignores team docs when no agentTeamId', async () => {
     const ctx = createMockCtx([
       {

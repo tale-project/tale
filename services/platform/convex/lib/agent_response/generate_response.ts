@@ -58,6 +58,10 @@ import { buildArtifactsContext } from '../context_management/build_artifacts_con
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import { summarizeForLog } from '../log_redact';
+import {
+  buildProjectInstructions,
+  type ProjectInstructionsBlock,
+} from './build_project_instructions';
 import { buildSystemPrompt } from './build_system_prompt';
 import {
   buildUserPersonalization,
@@ -397,6 +401,7 @@ export async function generateAgentResponse(
     agentTeamId,
     agentTeamIds,
     knowledgeFileIds,
+    agentProjectIds,
     structuredResponsesEnabled,
     instructions,
     toolsSummary,
@@ -685,6 +690,7 @@ export async function generateAgentResponse(
           includeTeamKnowledge,
           includeOrgKnowledge,
           knowledgeFileIds,
+          agentProjectIds,
         },
       );
       if (accessibleFileIds.length === 0) {
@@ -731,6 +737,27 @@ export async function generateAgentResponse(
       });
     }
 
+    // Project instructions block — resolves the thread's projectId (if any)
+    // and assembles the XML-wrapped block to inject into the system prompt
+    // between agent instructions and user personalization. Empty when the
+    // chat is not inside a project. Parallel with personalization for TTFT.
+    const projectInstructionsPromise: Promise<ProjectInstructionsBlock> =
+      (async () => {
+        try {
+          const projectId = await ctx.runQuery(
+            internal.projects.internal_queries.getProjectIdForThread,
+            { threadId },
+          );
+          if (!projectId) {
+            return { text: '', tokens: 0, fingerprint: '' };
+          }
+          return await buildProjectInstructions({ ctx, projectId });
+        } catch (err) {
+          console.error('[generate_response] projectInstructions failed', err);
+          return { text: '', tokens: 0, fingerprint: '' };
+        }
+      })();
+
     // Call beforeContext hook if provided
     let hookData: BeforeContextResult | undefined;
     if (hooks?.beforeContext) {
@@ -742,18 +769,23 @@ export async function generateAgentResponse(
     }
 
     // Await context injection results
-    const [knowledgeContextResult, webContextResult, userPersonalization] =
-      await Promise.all([
-        knowledgeContextPromise ?? Promise.resolve(undefined),
-        webContextPromise ?? Promise.resolve(undefined),
-        userPersonalizationPromise ??
-          Promise.resolve<UserPersonalization>({
-            text: '',
-            fingerprint: '',
-            injectedMemoryIds: [],
-            tokens: 0,
-          }),
-      ]);
+    const [
+      knowledgeContextResult,
+      webContextResult,
+      userPersonalization,
+      projectInstructionsBlock,
+    ] = await Promise.all([
+      knowledgeContextPromise ?? Promise.resolve(undefined),
+      webContextPromise ?? Promise.resolve(undefined),
+      userPersonalizationPromise ??
+        Promise.resolve<UserPersonalization>({
+          text: '',
+          fingerprint: '',
+          injectedMemoryIds: [],
+          tokens: 0,
+        }),
+      projectInstructionsPromise,
+    ]);
 
     if (knowledgeContextResult) {
       debugLog('Knowledge context injected', {
@@ -869,6 +901,7 @@ export async function generateAgentResponse(
       includeTeamKnowledge,
       includeOrgKnowledge,
       knowledgeFileIds,
+      agentProjectIds,
     };
 
     let didRetry = false;
@@ -907,6 +940,7 @@ export async function generateAgentResponse(
       agentInstructions,
       userPersonalization,
       structuredThreadContext.threadContext,
+      projectInstructionsBlock,
     );
 
     // Record the injection (one row per turn, with the IDs that were
@@ -1252,6 +1286,7 @@ export async function generateAgentResponse(
           includeTeamKnowledge,
           includeOrgKnowledge,
           knowledgeFileIds,
+          agentProjectIds,
           ...(parentThreadId ? { parentThreadId } : {}),
         };
 
@@ -1367,6 +1402,7 @@ export async function generateAgentResponse(
             agentInstructions,
             userPersonalization,
             continueContext.threadContext,
+            projectInstructionsBlock,
           );
 
           const continuePrompt = hasToolResults
@@ -1419,6 +1455,7 @@ export async function generateAgentResponse(
                 includeTeamKnowledge,
                 includeOrgKnowledge,
                 knowledgeFileIds,
+                agentProjectIds,
                 ...(parentThreadId ? { parentThreadId } : {}),
               };
 
@@ -1604,6 +1641,7 @@ export async function generateAgentResponse(
             agentInstructions,
             userPersonalization,
             recoveryContext.threadContext,
+            projectInstructionsBlock,
           );
 
           // Cap recovery timeout by action deadline

@@ -98,6 +98,11 @@ const serializableAgentConfigValidator = v.object({
   agentTeamId: v.optional(v.string()),
   agentTeamIds: v.optional(v.array(v.string())),
   knowledgeFileIds: v.optional(v.array(v.string())),
+  /**
+   * Projects feature: project IDs whose RAG-indexed files should be
+   * unioned into the agent's file scope (chat happens inside a project).
+   */
+  agentProjectIds: v.optional(v.array(v.string())),
   delegateSlugs: v.optional(v.array(v.string())),
   structuredResponsesEnabled: v.optional(v.boolean()),
   timeoutMs: v.optional(v.number()),
@@ -452,6 +457,7 @@ export const runAgentGeneration = internalAction({
               agentTeamId: agentConfig.agentTeamId,
               agentTeamIds: agentConfig.agentTeamIds,
               knowledgeFileIds: agentConfig.knowledgeFileIds,
+              agentProjectIds: agentConfig.agentProjectIds,
               structuredResponsesEnabled:
                 agentConfig.structuredResponsesEnabled,
               maxContextTokens,

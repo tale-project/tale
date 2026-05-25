@@ -172,6 +172,11 @@ export const getAgentScopedFileIds = internalQuery({
     includeTeamKnowledge: v.optional(v.boolean()),
     includeOrgKnowledge: v.optional(v.boolean()),
     knowledgeFileIds: v.optional(v.array(v.string())),
+    /**
+     * Projects feature: union the project's RAG-indexed files into
+     * the agent's file ID set. See `get_agent_scoped_file_ids.ts`.
+     */
+    agentProjectIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     return await getAgentScopedFileIdsHelper(ctx, args);

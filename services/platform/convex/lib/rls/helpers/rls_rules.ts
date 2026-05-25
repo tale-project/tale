@@ -117,6 +117,38 @@ export async function rlsRules(
       },
     },
 
+    // Projects - organization-scoped with team-based access control.
+    // Per-project access (team-restriction reads) is enforced in the
+    // dedicated `projects/access.ts` helpers — RLS here is the RBAC floor
+    // (role + org membership). Mutation handlers further check
+    // `hasProjectAccess` + admin gates for sharing/delete.
+    projects: {
+      read: async (_, project) => {
+        if (!user) return false;
+        if (!userOrgIds.has(project.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === project.organizationId,
+        );
+        return authorizeRls(membership?.role, 'projects', 'read');
+      },
+      modify: async (_, project) => {
+        if (!user) return false;
+        if (!userOrgIds.has(project.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === project.organizationId,
+        );
+        return authorizeRls(membership?.role, 'projects', 'write');
+      },
+      insert: async ({ user: ruleUser }, project) => {
+        if (!ruleUser) return false;
+        if (!userOrgIds.has(project.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === project.organizationId,
+        );
+        return authorizeRls(membership?.role, 'projects', 'write');
+      },
+    },
+
     // Products - organization-scoped
     products: {
       read: async (_, product) => {

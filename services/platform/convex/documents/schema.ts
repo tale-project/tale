@@ -26,6 +26,14 @@ export const documentsTable = defineTable({
   teamTags: v.optional(v.array(v.string())),
   /** @deprecated Removed in single-team model. Kept for backward compatibility during migration. */
   sharedWithTeamIds: v.optional(v.array(v.string())),
+  /**
+   * Project this document belongs to. Mutually exclusive with `teamId`:
+   * a doc is either a project doc, a team library doc, or an org library
+   * doc (both null). Enforced in `attachDocumentToProject` /
+   * `detachDocumentFromProject` (services/platform/convex/projects/mutations.ts).
+   * RAG retrieval unions project docs via `getAgentScopedFileIds`.
+   */
+  projectId: v.optional(v.id('projects')),
   ragInfo: v.optional(
     v.object({
       status: v.union(
@@ -73,4 +81,6 @@ export const documentsTable = defineTable({
   .index('by_organizationId_and_title', ['organizationId', 'title'])
   .index('by_organizationId_and_fileId', ['organizationId', 'fileId'])
   .index('by_organizationId_and_indexed', ['organizationId', 'indexed'])
-  .index('by_organizationId_and_folderPath', ['organizationId', 'folderPath']);
+  .index('by_organizationId_and_folderPath', ['organizationId', 'folderPath'])
+  // Projects feature: list documents attached to a project.
+  .index('by_organizationId_and_projectId', ['organizationId', 'projectId']);

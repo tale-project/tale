@@ -40,6 +40,12 @@ export interface AgentKnowledgeCtx extends ToolCtx {
   includeTeamKnowledge?: boolean;
   includeOrgKnowledge?: boolean;
   knowledgeFileIds?: string[];
+  /**
+   * Projects feature: when chatting inside a project, the project's
+   * RAG-indexed file IDs are unioned in. See
+   * `documents/get_agent_scoped_file_ids.ts`.
+   */
+  agentProjectIds?: string[];
 }
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -99,6 +105,7 @@ export async function resolveFileIds(
       includeTeamKnowledge: extended.includeTeamKnowledge,
       includeOrgKnowledge: extended.includeOrgKnowledge,
       knowledgeFileIds: extended.knowledgeFileIds,
+      agentProjectIds: extended.agentProjectIds,
     },
   );
 }

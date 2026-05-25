@@ -60,6 +60,7 @@ import { mcpServersTable } from './mcp_servers/schema';
 import { notificationsTable } from './notifications/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
+import { projectsTable } from './projects/schema';
 import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
 import { sandboxExecutionsTable } from './sandbox/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
@@ -162,6 +163,7 @@ export default defineSchema({
   userPasswordMetadata: userPasswordMetadataTable,
   userPreferences: userPreferencesTable,
   products: productsTable,
+  projects: projectsTable,
   ssoProviders: ssoProvidersTable,
   vendors: vendorsTable,
   sandboxExecutions: sandboxExecutionsTable,

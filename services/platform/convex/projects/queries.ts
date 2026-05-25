@@ -1,0 +1,439 @@
+/**
+ * Projects feature queries.
+ *
+ * Read-side surface for the Projects table. All queries enforce
+ * `organizationId` scoping + per-row team-based access via
+ * `hasProjectAccess` (from `./access`).
+ */
+
+import { v } from 'convex/values';
+
+import type { Doc, Id } from '../_generated/dataModel';
+import { query, type QueryCtx } from '../_generated/server';
+import { authComponent } from '../auth';
+import { getUserTeamIds } from '../lib/get_user_teams';
+import { getOrganizationMember } from '../lib/rls';
+import {
+  checkProjectAccess,
+  hasProjectAccess,
+  isOrgWideProject,
+} from './access';
+import {
+  projectIntegrationsModeValidator,
+  projectKnowledgeModeValidator,
+  projectModeValidator,
+} from './schema';
+
+async function getAuthContext(
+  ctx: QueryCtx,
+  organizationId: string,
+): Promise<{
+  userId: string;
+  role: string;
+  teamIds: string[];
+}> {
+  const authUser = await authComponent.getAuthUser(ctx);
+  if (!authUser) throw new Error('Unauthenticated');
+
+  const member = await getOrganizationMember(ctx, organizationId, {
+    userId: String(authUser._id),
+    email: authUser.email,
+    name: authUser.name,
+  });
+  const teamIds = await getUserTeamIds(ctx, member.userId);
+  return {
+    userId: member.userId,
+    role: member.role,
+    teamIds,
+  };
+}
+
+const projectRowValidator = v.object({
+  _id: v.id('projects'),
+  _creationTime: v.number(),
+  organizationId: v.string(),
+  name: v.string(),
+  description: v.optional(v.string()),
+  icon: v.optional(v.string()),
+  color: v.optional(v.string()),
+  teamId: v.optional(v.string()),
+  sharedWithTeamIds: v.optional(v.array(v.string())),
+  instructions: v.optional(v.string()),
+  knowledgeMode: v.optional(projectKnowledgeModeValidator),
+  agentMode: v.optional(projectModeValidator),
+  recommendedAgentSlugs: v.optional(v.array(v.string())),
+  allowedAgentSlugs: v.optional(v.array(v.string())),
+  modelMode: v.optional(projectModeValidator),
+  recommendedModels: v.optional(v.array(v.string())),
+  allowedModels: v.optional(v.array(v.string())),
+  integrationsMode: v.optional(projectIntegrationsModeValidator),
+  allowedIntegrationSlugs: v.optional(v.array(v.string())),
+  createdBy: v.string(),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+  archivedAt: v.optional(v.number()),
+});
+
+const projectListItemValidator = v.object({
+  ...projectRowValidator.fields,
+  isOrgWide: v.boolean(),
+  canEdit: v.boolean(),
+  canAdminister: v.boolean(),
+});
+
+/**
+ * List all projects the caller can access within an organization.
+ *
+ * Filters per-row by `hasProjectAccess`. Returns enriched rows with
+ * per-row access flags so the UI can gate edit/admin affordances without
+ * a second query.
+ */
+export const listProjects = query({
+  args: {
+    organizationId: v.string(),
+    includeArchived: v.optional(v.boolean()),
+  },
+  returns: v.array(projectListItemValidator),
+  handler: async (ctx, args) => {
+    const auth = await getAuthContext(ctx, args.organizationId);
+
+    const rows = await ctx.db
+      .query('projects')
+      .withIndex('by_organization_updatedAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .order('desc')
+      .collect();
+
+    const visible: Array<
+      Doc<'projects'> & {
+        isOrgWide: boolean;
+        canEdit: boolean;
+        canAdminister: boolean;
+      }
+    > = [];
+
+    for (const row of rows) {
+      if (!args.includeArchived && row.archivedAt) continue;
+      if (!hasProjectAccess(row, auth.teamIds, auth.role)) continue;
+      const access = checkProjectAccess(row, auth.teamIds, auth.role);
+      visible.push({
+        ...row,
+        isOrgWide: isOrgWideProject(row),
+        canEdit: access.canEdit,
+        canAdminister: access.canAdminister,
+      });
+    }
+
+    return visible;
+  },
+});
+
+/**
+ * Get a single project by id. Throws if the caller cannot read it.
+ */
+export const getProject = query({
+  args: { projectId: v.id('projects') },
+  returns: v.union(
+    v.object({
+      ...projectListItemValidator.fields,
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) return null;
+
+    const auth = await getAuthContext(ctx, project.organizationId);
+    if (!hasProjectAccess(project, auth.teamIds, auth.role)) {
+      return null;
+    }
+    const access = checkProjectAccess(project, auth.teamIds, auth.role);
+
+    return {
+      ...project,
+      isOrgWide: isOrgWideProject(project),
+      canEdit: access.canEdit,
+      canAdminister: access.canAdminister,
+    };
+  },
+});
+
+/**
+ * Counts for the Overview tab. Computed via index reads only.
+ */
+export const getProjectStats = query({
+  args: { projectId: v.id('projects') },
+  returns: v.union(
+    v.object({
+      fileCount: v.number(),
+      indexedFileCount: v.number(),
+      threadCount: v.number(),
+      sharedThreadCount: v.number(),
+      lastActivityAt: v.union(v.number(), v.null()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) return null;
+    const auth = await getAuthContext(ctx, project.organizationId);
+    if (!hasProjectAccess(project, auth.teamIds, auth.role)) return null;
+
+    const docs = await ctx.db
+      .query('documents')
+      .withIndex('by_organizationId_and_projectId', (q) =>
+        q
+          .eq('organizationId', project.organizationId)
+          .eq('projectId', args.projectId),
+      )
+      .collect();
+    const indexedFileCount = docs.filter((d) => d.indexed === true).length;
+
+    const threads = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_organizationId_and_projectId', (q) =>
+        q
+          .eq('organizationId', project.organizationId)
+          .eq('projectId', args.projectId),
+      )
+      .collect();
+    const sharedThreadCount = threads.filter(
+      (t) => t.sharedWithProject === true,
+    ).length;
+
+    const allActivityTimestamps: number[] = [
+      project.updatedAt,
+      ...docs.map((d) => d._creationTime),
+      ...threads.map((t) => t.updatedAt ?? t.createdAt),
+    ].filter((n): n is number => typeof n === 'number');
+
+    const lastActivityAt =
+      allActivityTimestamps.length > 0
+        ? Math.max(...allActivityTimestamps)
+        : null;
+
+    return {
+      fileCount: docs.length,
+      indexedFileCount,
+      threadCount: threads.length,
+      sharedThreadCount,
+      lastActivityAt,
+    };
+  },
+});
+
+/**
+ * List documents attached to a project. Used by the Files tab.
+ */
+export const listProjectDocuments = query({
+  args: { projectId: v.id('projects') },
+  returns: v.array(
+    v.object({
+      _id: v.id('documents'),
+      _creationTime: v.number(),
+      title: v.optional(v.string()),
+      fileId: v.optional(v.id('_storage')),
+      mimeType: v.optional(v.string()),
+      extension: v.optional(v.string()),
+      indexed: v.optional(v.boolean()),
+      ragStatus: v.union(
+        v.literal('queued'),
+        v.literal('running'),
+        v.literal('completed'),
+        v.literal('failed'),
+        v.null(),
+      ),
+      createdBy: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) return [];
+    const auth = await getAuthContext(ctx, project.organizationId);
+    if (!hasProjectAccess(project, auth.teamIds, auth.role)) return [];
+
+    const docs = await ctx.db
+      .query('documents')
+      .withIndex('by_organizationId_and_projectId', (q) =>
+        q
+          .eq('organizationId', project.organizationId)
+          .eq('projectId', args.projectId),
+      )
+      .order('desc')
+      .collect();
+
+    return docs.map((d) => ({
+      _id: d._id,
+      _creationTime: d._creationTime,
+      title: d.title,
+      fileId: d.fileId,
+      mimeType: d.mimeType,
+      extension: d.extension,
+      indexed: d.indexed,
+      ragStatus: d.ragInfo?.status ?? null,
+      createdBy: d.createdBy,
+    }));
+  },
+});
+
+/**
+ * List threads inside a project. The caller chooses scope:
+ *   - 'mine'   only the caller's threads (regardless of shared flag)
+ *   - 'shared' threads with sharedWithProject=true (regardless of owner)
+ *   - 'all'    union of the above (visible per §6.3 of the plan)
+ */
+export const listProjectThreads = query({
+  args: {
+    projectId: v.id('projects'),
+    scope: v.union(v.literal('mine'), v.literal('shared'), v.literal('all')),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id('threadMetadata'),
+      threadId: v.string(),
+      userId: v.string(),
+      title: v.optional(v.string()),
+      createdAt: v.number(),
+      updatedAt: v.optional(v.number()),
+      sharedWithProject: v.optional(v.boolean()),
+      status: v.string(),
+      agentSlug: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) return [];
+    const auth = await getAuthContext(ctx, project.organizationId);
+    if (!hasProjectAccess(project, auth.teamIds, auth.role)) return [];
+
+    const all = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_organizationId_and_projectId', (q) =>
+        q
+          .eq('organizationId', project.organizationId)
+          .eq('projectId', args.projectId),
+      )
+      .collect();
+
+    const filtered = all.filter((t) => {
+      if (t.status === 'deleted') return false;
+      if (args.scope === 'mine') return t.userId === auth.userId;
+      if (args.scope === 'shared') return t.sharedWithProject === true;
+      // 'all' → §6.3 readability: own threads OR shared-with-project
+      return t.userId === auth.userId || t.sharedWithProject === true;
+    });
+
+    return filtered.map((t) => ({
+      _id: t._id,
+      threadId: t.threadId,
+      userId: t.userId,
+      title: t.title,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+      sharedWithProject: t.sharedWithProject,
+      status: t.status,
+      agentSlug: t.agentSlug,
+    }));
+  },
+});
+
+/**
+ * Lightweight project search used by the in-composer ProjectPicker.
+ * Hits the search index and post-filters by access.
+ */
+export const searchProjects = query({
+  args: {
+    organizationId: v.string(),
+    query: v.string(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id('projects'),
+      name: v.string(),
+      icon: v.optional(v.string()),
+      color: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const auth = await getAuthContext(ctx, args.organizationId);
+    const limit = Math.min(Math.max(args.limit ?? 20, 1), 50);
+
+    const rows = await ctx.db
+      .query('projects')
+      .withSearchIndex('search_projects', (q) =>
+        q
+          .search('name', args.query)
+          .eq('organizationId', args.organizationId)
+          // archivedAt is `optional(number)`; the search index allows
+          // querying for "not archived" via .eq(undefined).
+          .eq('archivedAt', undefined),
+      )
+      .take(limit * 2);
+
+    return rows
+      .filter((row) => hasProjectAccess(row, auth.teamIds, auth.role))
+      .slice(0, limit)
+      .map((row) => ({
+        _id: row._id,
+        name: row.name,
+        icon: row.icon,
+        color: row.color,
+      }));
+  },
+});
+
+/**
+ * Sidebar projects: capped list of the user's most-recently-updated
+ * non-archived projects.
+ */
+export const listSidebarProjects = query({
+  args: {
+    organizationId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id('projects'),
+      name: v.string(),
+      icon: v.optional(v.string()),
+      color: v.optional(v.string()),
+      updatedAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const auth = await getAuthContext(ctx, args.organizationId);
+    const limit = Math.min(Math.max(args.limit ?? 8, 1), 50);
+
+    const rows = await ctx.db
+      .query('projects')
+      .withIndex('by_organization_updatedAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .order('desc')
+      .collect();
+
+    const result: Array<{
+      _id: Id<'projects'>;
+      name: string;
+      icon?: string;
+      color?: string;
+      updatedAt: number;
+    }> = [];
+
+    for (const row of rows) {
+      if (row.archivedAt) continue;
+      if (!hasProjectAccess(row, auth.teamIds, auth.role)) continue;
+      result.push({
+        _id: row._id,
+        name: row.name,
+        icon: row.icon,
+        color: row.color,
+        updatedAt: row.updatedAt,
+      });
+      if (result.length >= limit) break;
+    }
+    return result;
+  },
+});

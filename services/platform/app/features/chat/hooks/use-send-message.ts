@@ -7,6 +7,7 @@ import {
   type MutableRefObject,
 } from 'react';
 
+import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -82,6 +83,15 @@ interface UseSendMessageParams {
   arena?: ArenaParams;
   teamId?: string;
   /**
+   * Projects feature: when the chat originated from a project page
+   * (via `/dashboard/$id/chat?projectId=...` or by opening a thread
+   * already tagged with a projectId), the hook forwards it to
+   * `chatWithAgent`. Server validates access + persists on
+   * threadMetadata. Throws `PROJECT_MISMATCH` if a different project
+   * is already pinned to the thread.
+   */
+  projectId?: string;
+  /**
    * Auto-scroll intent ref owned by chat-interface.tsx. The hook sets it
    * IMMEDIATELY before each `setPendingMessage(...)` so the intent is
    * fresh when the MutationObserver picks up the new bubble.
@@ -132,6 +142,7 @@ export function useSendMessage({
   userContext,
   arena,
   teamId,
+  projectId,
   scrollIntentRef,
   unmarkJobsSent,
 }: UseSendMessageParams) {
@@ -734,6 +745,12 @@ export function useSendMessage({
                   language: userContext.language,
                 }
               : undefined,
+            // projectId from URL query is a string; chatWithAgent expects
+            // an Id<'projects'>. The branding is structural-only TS; server
+            // validates it via assertProjectAccessForChat. We use the
+            // dedicated `asProjectId` helper to keep the lint-disable in
+            // one place (see features/projects/hooks/use-project-id-param.ts).
+            projectId: projectId ? asProjectId(projectId) : undefined,
           });
         }
       } catch (error) {
@@ -834,6 +851,7 @@ export function useSendMessage({
       t,
       convexClient,
       teamId,
+      projectId,
       scrollIntentRef,
       unmarkJobsSent,
     ],

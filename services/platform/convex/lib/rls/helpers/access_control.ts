@@ -9,6 +9,7 @@ type PlatformTable =
   | 'agentBindings'
   | 'documents'
   | 'products'
+  | 'projects'
   | 'customers'
   | 'vendors'
   | 'integrationCredentials'
@@ -65,6 +66,7 @@ const platformPermissions: Record<
     agentBindings: ALL,
     documents: ALL,
     products: ALL,
+    projects: ALL,
     customers: ALL,
     vendors: ALL,
     integrationCredentials: ALL,
@@ -99,6 +101,7 @@ const platformPermissions: Record<
     agentBindings: ALL,
     documents: ALL,
     products: ALL,
+    projects: ALL,
     customers: ALL,
     vendors: ALL,
     integrationCredentials: ALL,
@@ -129,6 +132,7 @@ const platformPermissions: Record<
     agentBindings: ALL,
     documents: ALL,
     products: ALL,
+    projects: ALL,
     customers: ALL,
     vendors: ALL,
     integrationCredentials: READ_ONLY,
@@ -159,6 +163,7 @@ const platformPermissions: Record<
     agentBindings: READ_ONLY,
     documents: READ_ONLY,
     products: READ_ONLY,
+    projects: READ_ONLY,
     customers: READ_ONLY,
     vendors: READ_ONLY,
     integrationCredentials: READ_ONLY,
@@ -193,6 +198,7 @@ const platformPermissions: Record<
     agentBindings: NONE,
     documents: NONE,
     products: NONE,
+    projects: NONE,
     customers: NONE,
     vendors: NONE,
     integrationCredentials: NONE,

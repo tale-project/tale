@@ -62,3 +62,91 @@ chat.canvas.typeLabel
 chat.canvas.runStatus
 chat.canvas.runErrorCode
 chat.canvas.runProgress
+
+# Projects feature: error codes are constructed at runtime as
+# `t('errors.' + error.data.code)` in every mutation try/catch path
+# (project-create-dialog, project-settings-tab, project-files-tab,
+# project-threads-tab, project-instructions-editor). The full
+# error-code catalog lives in convex/projects/mutations.ts and
+# convex/projects/queries.ts — keep this prefix while those throw
+# ConvexError({ code: ... }) values surfaced via the .errors namespace.
+projects.errors
+
+# Projects audit log: action labels are looked up dynamically when
+# rendering an audit row whose `action` is e.g. `project.thread.shared`
+# (see convex/projects/audit_actions.ts).
+projects.auditLog
+
+# Projects UI surfaces planned but not yet wired in v1 — keys live in
+# en.json so translators can land copy ahead of the UI without a
+# re-translate cycle. Remove these once the corresponding components
+# ship (Phase 7+: get-started cards, composer chip, picker, full
+# Agents & Models tab with effective-set messaging, files attach UX).
+projects.agents.addAgent
+projects.agents.addModel
+projects.agents.allowedListLabel
+projects.agents.emptyAdminBody
+projects.agents.emptyAdminCta
+projects.agents.emptyAdminTitle
+projects.agents.emptyMemberBody
+projects.agents.emptyMemberTitle
+projects.agents.emptyModelsAdminBody
+projects.agents.emptyModelsAdminTitle
+projects.agents.emptyModelsMemberBody
+projects.agents.emptyModelsMemberTitle
+projects.agents.integrationsHeading
+projects.agents.recommendedBadge
+projects.agents.recommendedListLabel
+projects.composer
+projects.create.colorLabel
+projects.create.iconLabel
+projects.create.teamLabel
+projects.create.teamPlaceholder
+projects.files.addButton
+projects.files.attachError
+projects.files.attachSuccess
+projects.files.title
+projects.list.columnChats
+projects.list.columnFiles
+projects.list.emptyCta
+projects.list.sharingTeamPrefix
+projects.list.subtitle
+projects.list.title
+projects.navigation.list
+projects.overview.getStartedHeading
+projects.overview.getStartedFilesTitle
+projects.overview.getStartedFilesBody
+projects.overview.getStartedInstructionsTitle
+projects.overview.getStartedInstructionsBody
+projects.overview.getStartedShareTitle
+projects.overview.getStartedShareBody
+projects.overview.lastActivity
+projects.overview.lastActivityNever
+projects.picker
+projects.settings.deleteConfirmPhrase
+projects.settings.deleteDialogDescription
+projects.settings.deleteDialogTitle
+projects.settings.deleteCascadeCheckbox
+projects.settings.deleteModeCascade
+projects.settings.deleteModeDetach
+projects.settings.deleteSubmit
+projects.settings.iconColor
+projects.settings.knowledge
+projects.settings.knowledgeMode
+projects.settings.knowledgeModeOff
+projects.settings.knowledgeModeTool
+projects.settings.knowledgeModeContext
+projects.settings.knowledgeModeBoth
+projects.settings.sharing
+projects.settings.alsoSharedWith
+projects.settings.alsoSharedWithHelp
+projects.settings.owningTeam
+projects.settings.owningTeamHelp
+projects.settings.visibility
+projects.settings.visibilityOrgWide
+projects.settings.visibilityShared
+projects.settings.visibilityTeam
+projects.threads.title
+projects.threads.shareSuccess
+projects.threads.unshareSuccess
+projects.threads.shareError

@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { m, AnimatePresence } from 'framer-motion';
 import { Archive, ArrowDown, Share } from 'lucide-react';
 import {
@@ -671,6 +671,18 @@ export function ChatInterface({
   const userContext = useUserContext();
   const teamFilter = useOptionalTeamFilter();
 
+  // Projects feature: when the chat was opened from a project's "New
+  // chat in this project" CTA, the projectId is passed as a URL search
+  // param. Read it loosely (strict: false) so the chat page doesn't
+  // need a validateSearch contract — undefined means non-project chat.
+  const chatSearch = useSearch({ strict: false }) as
+    | Record<string, unknown>
+    | undefined;
+  const projectIdFromUrl =
+    chatSearch && typeof chatSearch.projectId === 'string'
+      ? chatSearch.projectId
+      : undefined;
+
   const { sendMessage } = useSendMessage({
     organizationId,
     threadId: dataThreadId,
@@ -689,6 +701,7 @@ export function ChatInterface({
     userContext,
     arena: arenaContext ?? undefined,
     teamId: teamFilter?.selectedTeamId ?? undefined,
+    projectId: projectIdFromUrl,
     // The hook sets this ref RIGHT BEFORE each setPendingMessage call,
     // so the auto-scroll intent is fresh when the MutationObserver
     // picks up the new bubble. Previously this was set here in

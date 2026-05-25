@@ -1,0 +1,125 @@
+/**
+ * Internal queries for the projects feature.
+ *
+ * These are called from server-only contexts (actions in
+ * `lib/agent_response/build_project_instructions.ts` and the chat send
+ * path) where the regular `ctx.db` access isn't available. Always
+ * resolved without identity checks — callers (which already established
+ * org + project access) pass the validated projectId.
+ */
+
+import { v } from 'convex/values';
+
+import { internalQuery } from '../_generated/server';
+import { getUserTeamIds } from '../lib/get_user_teams';
+import { getOrganizationMember } from '../lib/rls';
+import { hasProjectAccess } from './access';
+
+/**
+ * Load a project record for chat-time injection. Returns the minimal
+ * shape the prompt builder needs.
+ */
+export const getProjectForInjection = internalQuery({
+  args: { projectId: v.id('projects') },
+  returns: v.union(
+    v.object({
+      _id: v.id('projects'),
+      name: v.string(),
+      instructions: v.optional(v.string()),
+      knowledgeMode: v.optional(
+        v.union(
+          v.literal('off'),
+          v.literal('tool'),
+          v.literal('context'),
+          v.literal('both'),
+        ),
+      ),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) return null;
+    return {
+      _id: project._id,
+      name: project.name,
+      instructions: project.instructions,
+      knowledgeMode: project.knowledgeMode,
+    };
+  },
+});
+
+/**
+ * Load the projectId for a thread, if any. Used by chat runtime to
+ * resolve the project context from a thread that already has it
+ * persisted (e.g., follow-up message in an existing project thread).
+ */
+export const getProjectIdForThread = internalQuery({
+  args: { threadId: v.string() },
+  returns: v.union(v.id('projects'), v.null()),
+  handler: async (ctx, args) => {
+    const thread = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+    return thread?.projectId ?? null;
+  },
+});
+
+/**
+ * Server-side defense-in-depth for the chat send path. The composer UI
+ * already enforces `hasProjectAccess`, but a direct API call must not
+ * bypass it. Returns a structured allow/deny shape so the caller can
+ * map to typed ConvexError codes.
+ *
+ * Outcomes:
+ *  - `{ allowed: true }` — the user is in the project (admin / owning
+ *    team / shared team / org-wide).
+ *  - `{ allowed: false, reason: 'not_found' }` — projectId doesn't
+ *    resolve. Map to `PROJECT_NOT_FOUND`.
+ *  - `{ allowed: false, reason: 'forbidden' }` — caller is in the org
+ *    but not in any team that has access. Map to `PROJECT_FORBIDDEN`.
+ *  - `{ allowed: false, reason: 'org_mismatch' }` — projectId belongs
+ *    to a different organization than the chat call. Map to
+ *    `PROJECT_FORBIDDEN`.
+ */
+export const assertProjectAccessForChat = internalQuery({
+  args: {
+    projectId: v.id('projects'),
+    organizationId: v.string(),
+    userId: v.string(),
+  },
+  returns: v.object({
+    allowed: v.boolean(),
+    reason: v.optional(
+      v.union(
+        v.literal('not_found'),
+        v.literal('forbidden'),
+        v.literal('org_mismatch'),
+      ),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) return { allowed: false, reason: 'not_found' as const };
+    if (project.organizationId !== args.organizationId) {
+      return { allowed: false, reason: 'org_mismatch' as const };
+    }
+
+    // Resolve caller's org role + team membership.
+    try {
+      const member = await getOrganizationMember(ctx, args.organizationId, {
+        userId: args.userId,
+        email: undefined,
+        name: undefined,
+      });
+      const teamIds = await getUserTeamIds(ctx, member.userId);
+      if (!hasProjectAccess(project, teamIds, member.role)) {
+        return { allowed: false, reason: 'forbidden' as const };
+      }
+      return { allowed: true };
+    } catch {
+      return { allowed: false, reason: 'forbidden' as const };
+    }
+  },
+});
