@@ -1139,6 +1139,9 @@
     "canvas": {
       "download": "Download",
       "mermaidError": "Failed to render diagram",
+      "viewSource": "Source",
+      "viewPreview": "Preview",
+      "viewToggleAriaLabel": "Toggle source / preview",
       "sourceRunOutput": "Code output",
       "sourceAgentWrite": "AI files",
       "sourceUserUpload": "Uploaded",

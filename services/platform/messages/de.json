@@ -1139,6 +1139,9 @@
     "canvas": {
       "download": "Herunterladen",
       "mermaidError": "Diagramm konnte nicht gerendert werden",
+      "viewSource": "Quelltext",
+      "viewPreview": "Vorschau",
+      "viewToggleAriaLabel": "Quelltext / Vorschau umschalten",
       "sourceRunOutput": "Code-Ausgabe",
       "sourceAgentWrite": "KI-Dateien",
       "sourceUserUpload": "Hochgeladen",

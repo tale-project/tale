@@ -15,11 +15,8 @@ import {
 import { useThreadFileContent } from '../hooks/use-thread-file-content';
 import { AttachmentViewer } from '../viewers/attachment-viewer';
 import { CodeViewer } from '../viewers/code-viewer';
-import { HtmlViewer } from '../viewers/html-viewer';
 import { ImageViewer } from '../viewers/image-viewer';
-import { MarkdownViewer } from '../viewers/markdown-viewer';
-import { MermaidViewer } from '../viewers/mermaid-viewer';
-import { SvgViewer } from '../viewers/svg-viewer';
+import { RenderableFileViewer } from '../viewers/renderable-file-viewer';
 
 interface FileViewerRouterProps {
   threadId: string | undefined;
@@ -126,10 +123,21 @@ function FileViewerRouterComponent({
     }
     const kind = resolveKind(undefined, path, undefined);
     const text = liveContent ?? '';
-    if (kind === 'html') return <HtmlViewer html={text} />;
-    if (kind === 'svg') return <SvgViewer svg={text} />;
-    if (kind === 'mermaid') return <MermaidViewer code={text} />;
-    if (kind === 'markdown') return <MarkdownViewer content={text} />;
+    if (
+      kind === 'html' ||
+      kind === 'svg' ||
+      kind === 'mermaid' ||
+      kind === 'markdown'
+    ) {
+      return (
+        <RenderableFileViewer
+          kind={kind}
+          path={path}
+          content={text}
+          isStreaming
+        />
+      );
+    }
     // `image` and `attachment` paths never get here for utf-8 streaming —
     // a binary file should have `liveEncoding === 'base64'`. Fall back to
     // CodeViewer so the bytes at least render rather than silently nothing.
@@ -200,20 +208,20 @@ function FileViewerRouterComponent({
 
   const text = result.text ?? '';
 
-  if (kind === 'html') {
-    return <HtmlViewer html={text} />;
-  }
-
-  if (kind === 'svg') {
-    return <SvgViewer svg={text} />;
-  }
-
-  if (kind === 'mermaid') {
-    return <MermaidViewer code={text} />;
-  }
-
-  if (kind === 'markdown') {
-    return <MarkdownViewer content={text} />;
+  if (
+    kind === 'html' ||
+    kind === 'svg' ||
+    kind === 'mermaid' ||
+    kind === 'markdown'
+  ) {
+    return (
+      <RenderableFileViewer
+        kind={kind}
+        path={path}
+        content={text}
+        isStreaming={false}
+      />
+    );
   }
 
   return <CodeViewer path={path} content={text} showWrapToggle />;
