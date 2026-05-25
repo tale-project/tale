@@ -3,7 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { useTheme } from '@tale/ui/theme';
 import { WrapText } from 'lucide-react';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -46,20 +46,40 @@ function CodeViewerComponent({
   const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
   const [wrap, setWrap] = useState(false);
+  const lastHighlightedRef = useRef<string | null>(null);
 
   const ext = getFileExtensionLower(path);
   const resolvedLang = language ?? resolveLanguage(ext);
   const oversize = content.length > OVERSIZE_BYTES;
 
+  // A hard swap to the plaintext fallback is fine when the viewer switches
+  // to a different file, but doing it on every streaming chunk produces the
+  // colored↔plaintext flicker the user sees.
   useEffect(() => {
     setHighlightedHtml(null);
-    if (!content || oversize) return undefined;
+    lastHighlightedRef.current = null;
+  }, [path, resolvedLang]);
+
+  useEffect(() => {
+    if (!content || oversize) {
+      if (oversize) {
+        setHighlightedHtml(null);
+        lastHighlightedRef.current = null;
+      }
+      return undefined;
+    }
+    if (lastHighlightedRef.current === content) return undefined;
     let cancelled = false;
-    void highlightCode(content, resolvedLang, shikiTheme).then((result) => {
-      if (!cancelled) setHighlightedHtml(result?.html ?? null);
-    });
+    const timer = setTimeout(() => {
+      void highlightCode(content, resolvedLang, shikiTheme).then((result) => {
+        if (cancelled) return;
+        lastHighlightedRef.current = content;
+        setHighlightedHtml(result?.html ?? null);
+      });
+    }, 80);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [content, resolvedLang, oversize, shikiTheme]);
 
