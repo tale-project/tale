@@ -11,12 +11,14 @@ FROM python:3.12-slim-bookworm
 
 # Runtime additions only — fontconfig + DejaVu so Pillow/matplotlib render
 # text correctly, jq so the entrypoint can read packages.json/options.json,
-# ca-certificates for HTTPS to pypi/npm via the egress proxy.
+# ca-certificates for HTTPS to pypi/npm via the egress proxy, bash so user
+# `.sh` step scripts get a real shell (Debian slim only ships dash).
 RUN apt-get update && apt-get install -y --no-install-recommends \
       fonts-dejavu-core \
       fontconfig \
       ca-certificates \
       jq \
+      bash \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -f
 

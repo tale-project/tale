@@ -86,7 +86,7 @@ const runCodeArgs = z
 
 type RunCodeArgs = z.infer<typeof runCodeArgs>;
 
-const SCRIPT_EXT_REGEX = /\.(py|cjs|mjs|js)$/i;
+const SCRIPT_EXT_REGEX = /\.(py|cjs|mjs|js|sh)$/i;
 
 interface PackageRow {
   organizationId: string;
@@ -149,7 +149,7 @@ function checkPackagesAgainstPolicy(
 export const runCodeTool: ToolDefinition = {
   name: 'run_code' as const,
   tool: createTool({
-    description: `**run_code** — execute code in the thread's sandbox using the current workspace as the source tree. Python 3 and Node.js are both available; pick the language that fits the task (or whatever a relevant skill recommends).
+    description: `**run_code** — execute code in the thread's sandbox using the current workspace as the source tree. Python 3, Node.js, and bash are available (extension-routed: \`.py\` → python3, \`.js\`/\`.cjs\`/\`.mjs\` → node, \`.sh\` → bash). Pick the language that fits the task (or whatever a relevant skill recommends).
 
 WORKFLOW:
 1. \`file_write\` every script you need (the workspace IS the sandbox source tree — no inline file param)
@@ -240,7 +240,7 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
           return {
             ok: false as const,
             code: 'INVALID_STEP_PATH' as const,
-            message: `Step path "${p}" has no recognized script extension (.py / .js / .cjs / .mjs).`,
+            message: `Step path "${p}" has no recognized script extension (.py / .js / .cjs / .mjs / .sh).`,
           };
         }
         if (seen.has(p)) {
@@ -277,23 +277,37 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
         return policyResult;
       }
 
-      // Dispatch runtimes — polyglot when both python + node files are
-      // present, otherwise the single-runtime spawner.
-      const runtimesNeeded = new Set<'python' | 'node'>();
+      // Dispatch runtimes:
+      //   - Single-step with .sh → 'bash' (entrypoint runs `exec bash`).
+      //   - Multi-step touching .sh (alone or mixed) → 'polyglot'
+      //     (Python-hosted dispatcher routes each step to python3 / node /
+      //     bash by extension; no dedicated bash multi-step wrapper).
+      //   - Otherwise unchanged: 'polyglot' iff multiple runtimes are
+      //     needed, else the single-runtime spawner.
+      const runtimesNeeded = new Set<'python' | 'node' | 'bash'>();
       for (const p of stepPaths) {
         const lang = inferStepLanguage(p);
         if (lang !== null) runtimesNeeded.add(lang);
       }
-      let spawnerLanguage: 'python' | 'node' | 'polyglot';
-      if (runtimesNeeded.size === 2) spawnerLanguage = 'polyglot';
-      else if (runtimesNeeded.has('node')) spawnerLanguage = 'node';
-      else spawnerLanguage = 'python';
+      const multiStep = stepPaths.length > 1;
+      let spawnerLanguage: 'python' | 'node' | 'bash' | 'polyglot';
+      if (!multiStep) {
+        spawnerLanguage = runtimesNeeded.has('bash')
+          ? 'bash'
+          : runtimesNeeded.has('node')
+            ? 'node'
+            : 'python';
+      } else if (runtimesNeeded.size >= 2 || runtimesNeeded.has('bash')) {
+        spawnerLanguage = 'polyglot';
+      } else {
+        spawnerLanguage = runtimesNeeded.has('node') ? 'node' : 'python';
+      }
       if (spawnerLanguage === 'polyglot' && stepPaths.length < 2) {
         return {
           ok: false as const,
           code: 'POLYGLOT_REQUIRES_STEPS' as const,
           message:
-            'Polyglot runs (mixed Python + Node) require `steps` mode with multiple files.',
+            'Polyglot runs (mixed Python / Node / bash) require `steps` mode with multiple files.',
         };
       }
 

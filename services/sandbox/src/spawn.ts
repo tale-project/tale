@@ -190,6 +190,8 @@ def interpreter_for(path):
         return "python3"
     if lower.endswith(".js") or lower.endswith(".cjs") or lower.endswith(".mjs"):
         return "node"
+    if lower.endswith(".sh"):
+        return "bash"
     return None
 
 def flush_results():
@@ -706,6 +708,13 @@ export async function stageWorkspace(
   // from anything in req.files[] — user step names like `main.py` cannot
   // collide with the wrapper.
   if (req.steps !== undefined) {
+    // validate-request rejects `language=bash` with steps[] — defense
+    // in depth here keeps buildMultiStepWrapper's type tight.
+    if (req.language === 'bash') {
+      throw new Error(
+        'spawn: language=bash + steps[] should have been rejected by validate-request',
+      );
+    }
     const taleDir = join(hostDir, '.tale');
     await mkdir(taleDir, { recursive: true });
     // Wrapper filename: legacy single-language wrappers keep their
@@ -743,11 +752,14 @@ export async function stageWorkspace(
   } else {
     // For single-runtime requests prefer `packages[]`. If a caller sent
     // `packagesByLang` here too, extract just the matching bucket so the
-    // wire is forgiving.
+    // wire is forgiving. Bash has no package bucket — entrypoint.sh's
+    // run_bash skips the install phase outright.
     const single =
       req.packages !== undefined
         ? req.packages
-        : (req.packagesByLang?.[req.language] ?? []);
+        : req.language === 'bash'
+          ? []
+          : (req.packagesByLang?.[req.language] ?? []);
     await writeFile(
       join(codeDir, 'packages.json'),
       JSON.stringify(single ?? []),
@@ -1199,7 +1211,8 @@ export async function executeRequest(
     // reattaches /workspace/code/ for relative paths.
     const entryPath =
       req.steps !== undefined
-        ? `/workspace/.tale/${
+        ? // validate-request guarantees req.language !== 'bash' here.
+          `/workspace/.tale/${
             req.language === 'python' || req.language === 'polyglot'
               ? 'runner.py'
               : 'runner.js'

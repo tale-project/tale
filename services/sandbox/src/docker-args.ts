@@ -70,6 +70,7 @@ export function buildDockerRunArgs(
   if (
     inp.language !== 'python' &&
     inp.language !== 'node' &&
+    inp.language !== 'bash' &&
     inp.language !== 'polyglot'
   ) {
     throw new Error(`docker-args: bad language: ${inp.language as string}`);

@@ -4,7 +4,7 @@
 # Per-call entrypoint inside an ephemeral sandbox container.
 #
 # Args (from spawner's docker run):
-#   $1 = language ('python' | 'node' | 'polyglot')
+#   $1 = language ('python' | 'node' | 'bash' | 'polyglot')
 #   $2 = path to packages.json (JSON array of pip/npm specs).
 #        Polyglot mode IGNORES this file and reads
 #        /workspace/code/packages-python.json + /workspace/code/packages-node.json
@@ -181,6 +181,16 @@ run_node() {
   exec node "$ENTRY_FILE"
 }
 
+run_bash() {
+  # No package install phase — bash has no per-call package manager in
+  # scope. Scripts use whatever ships in the image (coreutils, jq, python3,
+  # node, bash builtins). Invocation is argv-only: `exec bash <path>` —
+  # never `bash -c` or `eval`, so the validated entry path is not subject
+  # to shell expansion.
+  echo "PHASE: running"
+  exec bash "$ENTRY_FILE"
+}
+
 run_polyglot() {
   # Polyglot mode: install both buckets when present, export both
   # interpreter resolution paths, then exec the spawner-generated
@@ -196,6 +206,7 @@ run_polyglot() {
 case "$LANG_NAME" in
   python)   run_python ;;
   node)     run_node ;;
+  bash)     run_bash ;;
   polyglot) run_polyglot ;;
   *)
     echo "sandbox-runtime: unknown language: $LANG_NAME" >&2

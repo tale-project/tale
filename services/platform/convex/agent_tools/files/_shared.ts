@@ -148,13 +148,17 @@ export function inferContentType(path: string): string {
  *
  * `.cjs` / `.mjs` resolve to `node` (Node treats them as commonjs / esm
  * respectively — the entrypoint just runs `node <path>` and Node picks
- * the right module system).
+ * the right module system). `.sh` resolves to `bash` (the runtime image
+ * apt-installs bash; entrypoint runs `exec bash <path>`).
  */
-export function inferStepLanguage(path: string): 'python' | 'node' | null {
+export function inferStepLanguage(
+  path: string,
+): 'python' | 'node' | 'bash' | null {
   const match = path.toLowerCase().match(/\.([a-z0-9]+)$/);
   const ext = match ? match[1] : undefined;
   if (ext === 'py') return 'python';
   if (ext === 'js' || ext === 'cjs' || ext === 'mjs') return 'node';
+  if (ext === 'sh') return 'bash';
   return null;
 }
 

@@ -22,6 +22,7 @@ import {
   MAX_FILE_PATH_LENGTH,
   MAX_STEPS_PER_REQUEST,
   ORG_ID_ALPHABET_RE,
+  POLYGLOT_BASH_EXT_RE,
   POLYGLOT_NODE_EXT_RE,
   POLYGLOT_PYTHON_EXT_RE,
   sandboxLanguageLiterals,
@@ -314,6 +315,18 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     steps = validatedSteps;
   }
 
+  // Bash mode is single-script only. Multi-step bash routes through
+  // polyglot (which has a Python-hosted dispatcher) — there is no
+  // dedicated bash multi-step wrapper. Reject the ambiguous shape here
+  // so spawn.ts never has to.
+  if (r.language === 'bash' && steps !== undefined) {
+    return {
+      ok: false,
+      error:
+        'language=bash requires `entryPath` (single-script). Multi-step bash must use language=polyglot.',
+    };
+  }
+
   // Polyglot mode: per-step interpreter is chosen by file extension at
   // runtime. Validate up-front so a `.rb` step doesn't reach the wrapper
   // and confuse it. Steps mode is required because polyglot's whole
@@ -332,11 +345,12 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       if (
         path !== undefined &&
         !POLYGLOT_PYTHON_EXT_RE.test(path) &&
-        !POLYGLOT_NODE_EXT_RE.test(path)
+        !POLYGLOT_NODE_EXT_RE.test(path) &&
+        !POLYGLOT_BASH_EXT_RE.test(path)
       ) {
         return {
           ok: false,
-          error: `steps[${i}] "${path}" has an unsupported polyglot extension — must end in .py, .js, .cjs, or .mjs`,
+          error: `steps[${i}] "${path}" has an unsupported polyglot extension — must end in .py, .js, .cjs, .mjs, or .sh`,
         };
       }
     }

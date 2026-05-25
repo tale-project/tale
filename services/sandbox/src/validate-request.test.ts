@@ -393,6 +393,75 @@ describe('validateExecuteRequest', () => {
     if (!r.ok) expect(r.error).toMatch(/polyglot requires/);
   });
 
+  test('accepts polyglot multi-step that mixes .sh with .py / .js', () => {
+    const r = validateExecuteRequest({
+      executionId: 'poly-bash-1',
+      organizationId: 'org_42',
+      language: 'polyglot',
+      steps: ['prep.sh', 'gen.js', 'qa.py'],
+      files: [
+        { path: 'prep.sh', url: 'http://proxy/api/storage/prep' },
+        { path: 'gen.js', url: 'http://proxy/api/storage/gen' },
+        { path: 'qa.py', url: 'http://proxy/api/storage/qa' },
+      ],
+      outputUploadSlots: [],
+      outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
+      reportUploadedEndpoint: 'http://proxy/api/sandbox/record_uploaded',
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.request.steps).toEqual(['prep.sh', 'gen.js', 'qa.py']);
+    }
+  });
+
+  test('rejects polyglot with a .bash step (only .sh is in the allowlist)', () => {
+    const r = validateExecuteRequest({
+      executionId: 'poly-bash-2',
+      organizationId: 'org_42',
+      language: 'polyglot',
+      steps: ['main.py', 'helper.bash'],
+      files: [
+        { path: 'main.py', url: 'http://proxy/api/storage/main' },
+        { path: 'helper.bash', url: 'http://proxy/api/storage/helper' },
+      ],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/unsupported polyglot extension/);
+  });
+
+  test('accepts a bash single-script request with entryPath', () => {
+    const r = validateExecuteRequest({
+      executionId: 'bash-1',
+      organizationId: 'org_42',
+      language: 'bash',
+      entryPath: 'visual_qa.sh',
+      files: [{ path: 'visual_qa.sh', url: FIXTURE_URL }],
+      outputUploadSlots: [],
+      outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
+      reportUploadedEndpoint: 'http://proxy/api/sandbox/record_uploaded',
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.request.language).toBe('bash');
+      expect(r.request.entryPath).toBe('visual_qa.sh');
+    }
+  });
+
+  test('rejects language=bash with steps[] — multi-step bash must use polyglot', () => {
+    const r = validateExecuteRequest({
+      executionId: 'bash-2',
+      organizationId: 'org_42',
+      language: 'bash',
+      steps: ['a.sh', 'b.sh'],
+      files: [
+        { path: 'a.sh', url: 'http://proxy/api/storage/a' },
+        { path: 'b.sh', url: 'http://proxy/api/storage/b' },
+      ],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/language=bash requires `entryPath`/);
+  });
+
   test('passes through priorOutputDownloads when valid', () => {
     // Regression guard: the validator's request-output allowlist used to
     // silently drop `priorOutputFiles` (legacy field). Post-sandbox-
