@@ -289,6 +289,7 @@ export async function init(options: InitOptions): Promise<void> {
     ['Workflows', `${workflowFiles.size} files`],
     ['Integrations', `${integrationFiles.size} files`],
     ['Providers', `${providerConfigFiles.size} files`],
+    ['Skills', `${skillFiles.size} files`],
     ['Branding', '1 file'],
   ]);
   logger.blank();
