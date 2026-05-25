@@ -401,7 +401,8 @@
     "renameTitle": "Rename automation",
     "navigation": {
       "editor": "Editor",
-      "history": "History"
+      "history": "History",
+      "openAssistant": "Open AI assistant"
     },
     "history": {
       "empty": "No history entries",
