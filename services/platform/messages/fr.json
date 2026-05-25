@@ -2402,6 +2402,19 @@
       "saved": "Politique de sortie vocale mise à jour",
       "saveFailed": "Échec de la mise à jour de la politique de sortie vocale"
     },
+    "personalization": {
+      "enabledLabel": "Activé pour cette organisation",
+      "saved": "Politique de personnalisation mise à jour",
+      "saveFailed": "Échec de la mise à jour de la politique de personnalisation",
+      "customInstructions": {
+        "title": "Valeur par défaut des instructions personnalisées",
+        "description": "Lorsqu'activées, les instructions personnalisées sont activées par défaut pour tous les membres de cette organisation. Les membres qui s'y opposent explicitement conservent leur choix."
+      },
+      "memories": {
+        "title": "Valeur par défaut des souvenirs",
+        "description": "Lorsqu'activés, les souvenirs sont activés par défaut pour tous les membres de cette organisation. Les membres qui s'y opposent explicitement conservent leur choix."
+      }
+    },
     "pii": {
       "title": "Protection des DCP",
       "description": "Détecte et masque ou bloque les données personnelles avant de les envoyer aux modèles d'IA.",
@@ -3542,20 +3555,7 @@
   },
   "personalization": {
     "page": {
-      "title": "Personnalisation",
-      "description": "Aide l'assistant à se souvenir de choses sur toi d'une conversation à l'autre. Désactivé par défaut — active-le ci-dessous.",
       "privacyLink": "Avis de confidentialité",
-      "orgDefault": {
-        "customInstructions": {
-          "label": "Valeur par défaut des instructions personnalisées (admin)",
-          "description": "Lorsqu'activées, les instructions personnalisées sont activées par défaut pour tous les membres de cette organisation. Les membres qui s'y opposent explicitement conservent leur choix."
-        },
-        "memories": {
-          "label": "Valeur par défaut des souvenirs (admin)",
-          "description": "Lorsqu'activés, les souvenirs sont activés par défaut pour tous les membres de cette organisation. Les membres qui s'y opposent explicitement conservent leur choix."
-        },
-        "toastUpdated": "Valeur par défaut de l'organisation mise à jour."
-      },
       "enable": {
         "orgStateOn": "activé",
         "orgStateOff": "désactivé",

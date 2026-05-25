@@ -2401,6 +2401,19 @@
       "saved": "Voice-output policy updated",
       "saveFailed": "Failed to update voice-output policy"
     },
+    "personalization": {
+      "enabledLabel": "Enabled for this organization",
+      "saved": "Personalization policy updated",
+      "saveFailed": "Failed to update personalization policy",
+      "customInstructions": {
+        "title": "Custom instructions default",
+        "description": "When on, every member of this organization has custom instructions enabled by default. Members who explicitly opt out keep their choice."
+      },
+      "memories": {
+        "title": "Memories default",
+        "description": "When on, every member of this organization has memories enabled by default. Members who explicitly opt out keep their choice."
+      }
+    },
     "pii": {
       "title": "PII protection",
       "description": "Detect and mask or block personal data before sending to AI models.",
@@ -3541,20 +3554,7 @@
   },
   "personalization": {
     "page": {
-      "title": "Personalization",
-      "description": "Help the assistant remember things about you across chats. Off by default — enable below.",
       "privacyLink": "Privacy notice",
-      "orgDefault": {
-        "customInstructions": {
-          "label": "Custom instructions default (admin)",
-          "description": "When on, every member of this organization has custom instructions enabled by default. Members who explicitly opt out keep their choice."
-        },
-        "memories": {
-          "label": "Memories default (admin)",
-          "description": "When on, every member of this organization has memories enabled by default. Members who explicitly opt out keep their choice."
-        },
-        "toastUpdated": "Organization default updated."
-      },
       "enable": {
         "orgStateOn": "on",
         "orgStateOff": "off",

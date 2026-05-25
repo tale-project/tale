@@ -387,13 +387,13 @@ export const runAgentGeneration = internalAction({
             userId &&
             organizationId &&
             agentConfig.personalizationMode !== 'off'
-              ? (
+              ? ((
                   await ctx.runQuery(
                     internal.personalization.internal_queries
                       .isPersonalizationActiveForChat,
                     { userId, organizationId, threadId },
                   )
-                ).memories
+                )?.memories ?? false)
               : false;
 
           // Create agent factory function from serializable config

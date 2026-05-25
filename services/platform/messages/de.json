@@ -2401,6 +2401,19 @@
       "saved": "Sprachausgabe-Richtlinie aktualisiert",
       "saveFailed": "Sprachausgabe-Richtlinie konnte nicht aktualisiert werden"
     },
+    "personalization": {
+      "enabledLabel": "Für diese Organisation aktiviert",
+      "saved": "Personalisierungsrichtlinie aktualisiert",
+      "saveFailed": "Personalisierungsrichtlinie konnte nicht aktualisiert werden",
+      "customInstructions": {
+        "title": "Standard für benutzerdefinierte Anweisungen",
+        "description": "Wenn aktiviert, sind benutzerdefinierte Anweisungen für alle Mitglieder dieser Organisation standardmäßig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl."
+      },
+      "memories": {
+        "title": "Erinnerungs-Standard",
+        "description": "Wenn aktiviert, sind Erinnerungen für alle Mitglieder dieser Organisation standardmäßig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl."
+      }
+    },
     "pii": {
       "title": "PII-Schutz",
       "description": "Personenbezogene Daten erkennen und maskieren oder blockieren, bevor sie an KI-Modelle gesendet werden.",
@@ -3541,20 +3554,7 @@
   },
   "personalization": {
     "page": {
-      "title": "Personalisierung",
-      "description": "Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken. Standardmäßig aus — unten aktivieren.",
       "privacyLink": "Datenschutzhinweis",
-      "orgDefault": {
-        "customInstructions": {
-          "label": "Standard für benutzerdefinierte Anweisungen (Admin)",
-          "description": "Wenn aktiviert, sind benutzerdefinierte Anweisungen für alle Mitglieder dieser Organisation standardmäßig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl."
-        },
-        "memories": {
-          "label": "Erinnerungs-Standard (Admin)",
-          "description": "Wenn aktiviert, sind Erinnerungen für alle Mitglieder dieser Organisation standardmäßig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl."
-        },
-        "toastUpdated": "Organisations-Standard aktualisiert."
-      },
       "enable": {
         "orgStateOn": "aktiv",
         "orgStateOff": "aus",

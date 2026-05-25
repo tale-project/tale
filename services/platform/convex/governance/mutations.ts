@@ -280,24 +280,6 @@ export const upsertPolicy = mutation({
       }
     }
 
-    if (args.policyType === 'custom_instructions') {
-      const parsed = customInstructionsConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid custom_instructions configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'user_memories') {
-      const parsed = userMemoriesConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid user_memories configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
     if (args.policyType === 'data_classification_notice') {
       const parsed = dataNoticeConfigSchema.safeParse(args.config);
       if (!parsed.success) {

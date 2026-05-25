@@ -25,9 +25,7 @@ import { primeAudio } from '@/app/features/chat/utils/prime-audio';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
-import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
-import { useAbility } from '@/app/hooks/use-ability';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -171,7 +169,6 @@ function PersonalizationSettingsInner({
       }
       narrow
     >
-      <OrgDefaultsSection organizationId={organizationId} />
       <CustomInstructionsToggleSection
         organizationId={organizationId}
         gate={customInstructionsGate}
@@ -196,63 +193,6 @@ function PersonalizationSettingsInner({
       )}
       <VoiceOutputSection prefs={prefs} organizationId={organizationId} />
     </SettingsPage>
-  );
-}
-
-function readPolicyEnabled(config: unknown): boolean {
-  return isRecord(config) && config['enabled'] === true;
-}
-
-function OrgDefaultsSection({ organizationId }: { organizationId: string }) {
-  const { t } = useT('personalization');
-  const { toast } = useToast();
-  const ability = useAbility();
-  const { data: customInstructionsPolicy } = useGovernancePolicy(
-    organizationId,
-    'custom_instructions',
-  );
-  const { data: memoriesPolicy } = useGovernancePolicy(
-    organizationId,
-    'user_memories',
-  );
-  const upsertMutation = useUpsertGovernancePolicy();
-
-  if (ability.cannot('write', 'orgSettings')) return null;
-
-  const onToggle = async (
-    policyType: 'custom_instructions' | 'user_memories',
-    next: boolean,
-  ) => {
-    try {
-      await upsertMutation.mutateAsync({
-        organizationId,
-        policyType,
-        config: { enabled: next },
-      });
-      toast({ title: t('page.orgDefault.toastUpdated') });
-    } catch (err) {
-      toast({
-        title: errorMessage(err, t('errors.saveFailed')),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  return (
-    <>
-      <SettingsToggleRow
-        label={t('page.orgDefault.customInstructions.label')}
-        description={t('page.orgDefault.customInstructions.description')}
-        checked={readPolicyEnabled(customInstructionsPolicy?.config)}
-        onCheckedChange={(next) => onToggle('custom_instructions', next)}
-      />
-      <SettingsToggleRow
-        label={t('page.orgDefault.memories.label')}
-        description={t('page.orgDefault.memories.description')}
-        checked={readPolicyEnabled(memoriesPolicy?.config)}
-        onCheckedChange={(next) => onToggle('user_memories', next)}
-      />
-    </>
   );
 }
 

@@ -107,22 +107,20 @@ export const listProjects = query({
   handler: async (ctx, args) => {
     const auth = await getAuthContext(ctx, args.organizationId);
 
-    const rows = args.includeArchived
-      ? await ctx.db
+    const query = args.includeArchived
+      ? ctx.db
           .query('projects')
           .withIndex('by_organization_updatedAt', (q) =>
             q.eq('organizationId', args.organizationId),
           )
           .order('desc')
-          .collect()
-      : await ctx.db
+      : ctx.db
           .query('projects')
           .withIndex('by_organization_archived', (q) =>
             q
               .eq('organizationId', args.organizationId)
               .eq('archivedAt', undefined),
-          )
-          .collect();
+          );
 
     const visible: Array<
       Doc<'projects'> & {
@@ -132,7 +130,7 @@ export const listProjects = query({
       }
     > = [];
 
-    for (const row of rows) {
+    for await (const row of query) {
       if (!hasProjectAccess(row, auth.teamIds, auth.role)) continue;
       const access = checkProjectAccess(row, auth.teamIds, auth.role);
       visible.push({

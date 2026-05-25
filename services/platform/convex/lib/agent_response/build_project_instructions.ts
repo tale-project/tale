@@ -6,6 +6,12 @@ import { internal } from '../../_generated/api';
 import type { DataModel, Id } from '../../_generated/dataModel';
 import { estimateTokens } from '../context_management/estimate_tokens';
 import { fnv1aHash } from '../fnv1a';
+import {
+  sanitizeForPromptInjection,
+  stripReservedPromptTags,
+} from './sanitize_prompt';
+
+export { sanitizeForPromptInjection, stripReservedPromptTags };
 
 /**
  * Hard token budget for the project instructions block. Truncates the
@@ -15,56 +21,6 @@ import { fnv1aHash } from '../fnv1a';
  * the broader system-prompt budget.
  */
 const PROJECT_INSTRUCTIONS_BUDGET_TOK = 1200;
-
-/**
- * Reserved tag patterns the sanitizer strips from the raw instructions
- * before they're embedded in the system prompt. Defense against an
- * operator pasting `<system>` / `<user_*>` / `<governance_*>` / etc.
- * inside project instructions in an attempt to escape the wrapper.
- */
-const RESERVED_TAG_PATTERNS: RegExp[] = [
-  /<\/?system\b[^>]*>/gi,
-  /<\/?user_(custom_instructions|memories|memory)\b[^>]*>/gi,
-  /<\/?governance_(mandatory_prefix|mandatory_suffix|notice)\b[^>]*>/gi,
-  /<\/?project_(instructions|instructions_footer)\b[^>]*>/gi,
-  /<\/?delegation_(agent_descriptions)\b[^>]*>/gi,
-  /\bnonce\s*=\s*"[^"]*"/gi,
-];
-
-/**
- * XML-escape + strip reserved wrapper tags. See
- * `buildUserPersonalization` for the equivalent treatment of user
- * memories. The order is: 1) strip reserved tags entirely (don't escape
- * — fully remove so partial-match attacks can't reconstruct the
- * wrapper), then 2) escape `<`, `>`, `&` in remaining content.
- */
-export function sanitizeForPromptInjection(raw: string): string {
-  let s = raw;
-  for (const pat of RESERVED_TAG_PATTERNS) {
-    s = s.replace(pat, '');
-  }
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-/**
- * Lighter-weight defense for content that lands in the model context AS-IS
- * (RAG search snippets, retrieved document chunks). Strips only the
- * platform's reserved wrapper tags so an uploaded document containing
- * `<system>…</system>` can't escape its wrapper — but does NOT XML-escape
- * `<`, `>`, `&`, since that would mangle legitimate code blocks, HTML
- * examples, and JSON in retrieved documents.
- *
- * Use for: RAG result content, retrieved document chunks, any content
- * that came from user-uploaded files and is presented to the model
- * outside an `<untrusted>` wrapper.
- */
-export function stripReservedPromptTags(raw: string): string {
-  let s = raw;
-  for (const pat of RESERVED_TAG_PATTERNS) {
-    s = s.replace(pat, '');
-  }
-  return s;
-}
 
 /**
  * Truncate text to a token budget, by halving search, to stay

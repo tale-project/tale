@@ -115,11 +115,13 @@ export async function buildUserPersonalization(
     // Token-budget memories tail-first to fit MEMORIES_TOTAL_BUDGET_TOK.
     const includedMemories: typeof data.memories = [];
     let memoriesTokens = 0;
-    for (const m of data.memories) {
-      const t = Math.min(estimateTokens(m.content), PER_MEMORY_BUDGET_TOK);
-      if (memoriesTokens + t > MEMORIES_TOTAL_BUDGET_TOK) break;
-      includedMemories.push(m);
-      memoriesTokens += t;
+    if (data.memoriesEffective) {
+      for (const m of data.memories) {
+        const t = Math.min(estimateTokens(m.content), PER_MEMORY_BUDGET_TOK);
+        if (memoriesTokens + t > MEMORIES_TOTAL_BUDGET_TOK) break;
+        includedMemories.push(m);
+        memoriesTokens += t;
+      }
     }
 
     if (!customInstructions && includedMemories.length === 0) return EMPTY;
