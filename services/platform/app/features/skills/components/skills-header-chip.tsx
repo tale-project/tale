@@ -5,12 +5,15 @@ import { Stack } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
+import { useQueryClient } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+
+import { useChatLayout } from '../../chat/context/chat-layout-context';
 
 interface SkillsHeaderChipProps {
   organizationId: string;
@@ -28,14 +31,32 @@ export function SkillsHeaderChip({
   threadId,
 }: SkillsHeaderChipProps) {
   const { t } = useT('settings');
+  const { selectedAgent } = useChatLayout();
+  const queryClient = useQueryClient();
+  const chipQueryKey = useMemo(
+    () => ['config', 'skills', organizationId, 'thread', threadId],
+    [organizationId, threadId],
+  );
   const { data } = useActionQuery(
     // agentSlug is intentionally not in the key — the parent invalidates
     // this prefix on every agent-config write, so a thread that swaps
     // agents picks up the new chip count without refetch churn.
-    ['config', 'skills', organizationId, 'thread', threadId],
+    chipQueryKey,
     api.skills.get_thread_skills.getThreadAgentSkills,
     { organizationId, threadId },
   );
+  // Composer-side agent switch: chip reads thread-side `agentSlug`
+  // which only commits on the next send, but the user expects the chip
+  // to reflect their selection. Invalidate the cached result whenever
+  // the composer's pick diverges from what the chip thinks the thread's
+  // agent is — the refetch returns the same data until the next send
+  // (cheap), then updates correctly once the thread metadata commits.
+  useEffect(() => {
+    if (!selectedAgent?.name || data === undefined) return;
+    if (data.agentSlug && data.agentSlug !== selectedAgent.name) {
+      void queryClient.invalidateQueries({ queryKey: chipQueryKey });
+    }
+  }, [selectedAgent?.name, data, queryClient, chipQueryKey]);
   const skills = useMemo(
     () => (data?.skills ?? []) as Array<{ slug: string; description: string }>,
     [data],

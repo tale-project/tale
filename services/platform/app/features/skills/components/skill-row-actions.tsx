@@ -13,12 +13,19 @@ import { SkillDeleteDialog } from './skill-delete-dialog';
 interface SkillRowActionsProps {
   skillSlug: string;
   organizationId: string;
+  /**
+   * SHA-256 of SKILL.md observed when the list was loaded. Forwarded to
+   * the delete action so the backend can refuse if the skill has been
+   * edited between page load and the user's confirmation click.
+   */
+  expectedHash?: string;
   onDeleted?: () => void;
 }
 
 export function SkillRowActions({
   skillSlug,
   organizationId,
+  expectedHash,
   onDeleted,
 }: SkillRowActionsProps) {
   const { t: tCommon } = useT('common');
@@ -40,6 +47,7 @@ export function SkillRowActions({
       <SkillDeleteDialog
         skillSlug={skillSlug}
         organizationId={organizationId}
+        expectedHash={expectedHash}
         open={dialogs.isOpen.delete}
         onOpenChange={dialogs.setOpen.delete}
         onDeleted={onDeleted}

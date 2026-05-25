@@ -1,3 +1,4 @@
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
 import { HStack, Stack } from '@tale/ui/layout';
@@ -10,9 +11,10 @@ import {
   useBlocker,
   useNavigate,
 } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
-import { ArrowLeft } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { ArrowLeft, Code, Copy, FileText, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -20,9 +22,16 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { markdownWrapperStyles } from '@/app/features/chat/components/message-bubble/markdown-renderer';
 import { SkillAssetsSection } from '@/app/features/skills/components/skill-assets-section';
-import { useUpdateSkill } from '@/app/features/skills/hooks/mutations';
+import { SkillDeleteDialog } from '@/app/features/skills/components/skill-delete-dialog';
 import {
+  useDuplicateSkill,
+  useUpdateSkill,
+} from '@/app/features/skills/hooks/mutations';
+import {
+  useFindAgentsBindingSkill,
+  useGetSkillAuditHistory,
   useListSkillFiles,
   useReadSkill,
 } from '@/app/features/skills/hooks/queries';
@@ -58,9 +67,90 @@ function SkillDetailPage() {
   const [body, setBody] = useState('');
   const [hash, setHash] = useState<string | undefined>(undefined);
   const [isSaving, setIsSaving] = useState(false);
+  // Body view: 'edit' (raw markdown textarea) | 'preview' (rendered).
+  // Matches the upstream Claude skills UX where the SKILL.md body is
+  // visible as rendered markdown by default and editable on toggle.
+  const [bodyView, setBodyView] = useState<'edit' | 'preview'>('edit');
+
+  // Surface which agents are bound to this skill so the operator
+  // doesn't have to open the delete dialog to find out — previously
+  // this was the only path to that information.
+  const { data: relatedAgents } = useFindAgentsBindingSkill(
+    organizationId,
+    skillSlug,
+  );
+  const { data: auditRows } = useGetSkillAuditHistory(
+    organizationId,
+    skillSlug,
+  );
+  const { mutateAsync: duplicateSkill } = useDuplicateSkill();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
 
   const skill = data?.ok ? data : null;
   const isDirty = description !== loadedDescription || body !== loadedBody;
+
+  // Group assets by top-level directory so the bundle list reads as a
+  // shallow tree (scripts/, references/, assets/, ...) instead of a flat
+  // sorted dump. The actual editor surface stays per-file — this is
+  // purely a presentation-layer grouping.
+  const groupedAssets = useMemo(() => {
+    const assets = filesData?.assets ?? skill?.assets ?? [];
+    const groups = new Map<string, Array<{ path: string; size: number }>>();
+    for (const asset of assets) {
+      const slash = asset.path.indexOf('/');
+      const bucket = slash === -1 ? '.' : asset.path.slice(0, slash);
+      const arr = groups.get(bucket) ?? [];
+      arr.push(asset);
+      groups.set(bucket, arr);
+    }
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dir, files]) => ({
+        dir,
+        files: files.sort((a, b) => a.path.localeCompare(b.path)),
+      }));
+  }, [filesData, skill]);
+
+  const handleDuplicate = useCallback(async () => {
+    if (!skill || isDuplicating) return;
+    setIsDuplicating(true);
+    try {
+      const { newSlug } = await duplicateSkill({
+        organizationId,
+        slug: skillSlug,
+      });
+      toast({
+        title: t('skills.skillDuplicated', {
+          defaultValue: 'Skill duplicated as {slug}',
+          slug: newSlug,
+        }),
+        variant: 'success',
+      });
+      void navigate({
+        to: '/dashboard/$id/skills/$skillSlug',
+        params: { id: organizationId, skillSlug: newSlug },
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: t('skills.skillDuplicateFailed', {
+          defaultValue: 'Failed to duplicate skill',
+        }),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDuplicating(false);
+    }
+  }, [
+    skill,
+    isDuplicating,
+    duplicateSkill,
+    organizationId,
+    skillSlug,
+    navigate,
+    t,
+  ]);
 
   // Sync local form state with the loaded skill ONLY on first load or after
   // an explicit reload — never while the user has dirty edits, otherwise
@@ -115,34 +205,48 @@ function SkillDetailPage() {
         queryKey: ['config', 'skills', organizationId, skillSlug],
       });
     } catch (error) {
-      if (error instanceof ConvexError) {
-        const errData = isRecord(error.data) ? error.data : undefined;
-        const code =
-          typeof errData?.code === 'string' ? errData.code : undefined;
-        const message =
-          typeof errData?.message === 'string' ? errData.message : undefined;
-        if (code === 'CONFLICT') {
-          toast({
-            title: t('skills.conflict', {
-              defaultValue:
-                'This skill was edited elsewhere. Reload to see the latest version.',
+      // Shape-based ConvexError narrowing — `instanceof ConvexError`
+      // is unreliable across HMR / route code-split boundaries (the
+      // project docs explicitly warn against it), so we read the
+      // structured `data.code` directly via `isRecord`.
+      let errData: Record<string, unknown> | undefined;
+      if (error && typeof error === 'object' && 'data' in error) {
+        const rawData = (error as { data?: unknown }).data;
+        if (isRecord(rawData)) errData = rawData;
+      }
+      const code = typeof errData?.code === 'string' ? errData.code : undefined;
+      const message =
+        typeof errData?.message === 'string' ? errData.message : undefined;
+      if (code === 'CONFLICT') {
+        toast({
+          title: t('skills.conflict', {
+            defaultValue:
+              'This skill was edited elsewhere. Reload to see the latest version.',
+          }),
+          variant: 'destructive',
+        });
+        // Force the hydration effect to re-pull from server on the next
+        // tick by clearing the local hash; the `if (skill.hash === hash)`
+        // guard now lets the refetched content through. Without this the
+        // dirty-state guard kept the stale `expectedHash` forever and
+        // every retry tripped CONFLICT — an infinite loop the user could
+        // only escape by discarding. User edits are still preserved
+        // (the secondary dirty guard at the top of the hydration effect
+        // still applies once the new hash lands).
+        setHash(undefined);
+        void refetch();
+        return;
+      }
+      if (code === 'INVALID_FRONTMATTER' || code === 'TOO_LARGE') {
+        toast({
+          title:
+            message ??
+            t('skills.validationError', {
+              defaultValue: 'Invalid skill configuration',
             }),
-            variant: 'destructive',
-          });
-          void refetch();
-          return;
-        }
-        if (code === 'INVALID_FRONTMATTER' || code === 'TOO_LARGE') {
-          toast({
-            title:
-              message ??
-              t('skills.validationError', {
-                defaultValue: 'Invalid skill configuration',
-              }),
-            variant: 'destructive',
-          });
-          return;
-        }
+          variant: 'destructive',
+        });
+        return;
       }
       console.error(error);
       toast({
@@ -223,10 +327,75 @@ function SkillDetailPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <Heading level={1}>{skill.meta.name}</Heading>
+          <div className="flex-1" />
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={Copy}
+            onClick={() => void handleDuplicate()}
+            isLoading={isDuplicating}
+            disabled={isSaving || isDuplicating}
+          >
+            {t('skills.actions.duplicate', { defaultValue: 'Duplicate' })}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={Trash2}
+            onClick={() => setDeleteDialogOpen(true)}
+            disabled={isSaving || isDuplicating}
+          >
+            {tCommon('actions.delete')}
+          </Button>
         </HStack>
       </AdaptiveHeaderRoot>
       <ContentArea>
         <Stack gap={6} className="p-4">
+          {/* Metadata strip — anchors what type of resource this is and
+              who can invoke it. Mirrors the Claude skills UX so admins
+              get the same "at-a-glance" answer without scrolling. */}
+          <HStack
+            gap={4}
+            align="center"
+            className="border-border bg-muted/30 rounded-md border px-4 py-2"
+          >
+            <Stack gap={0}>
+              <Text variant="caption">
+                {t('skills.metadata.trigger', { defaultValue: 'Trigger' })}
+              </Text>
+              <Text variant="label">
+                {t('skills.metadata.triggerAuto', {
+                  defaultValue: 'Auto (model-invoked)',
+                })}
+              </Text>
+            </Stack>
+            <Stack gap={0}>
+              <Text variant="caption">
+                {t('skills.metadata.transitive', {
+                  defaultValue: 'Transitive deps',
+                })}
+              </Text>
+              <Text variant="label">{transitiveDeps}</Text>
+            </Stack>
+            <Stack gap={0}>
+              <Text variant="caption">
+                {t('skills.metadata.bundleFiles', {
+                  defaultValue: 'Bundle files',
+                })}
+              </Text>
+              <Text variant="label">
+                {filesData?.assets?.length ?? skill.assets?.length ?? 0}
+              </Text>
+            </Stack>
+            {skill.meta.license ? (
+              <Stack gap={0}>
+                <Text variant="caption">
+                  {t('skills.metadata.license', { defaultValue: 'License' })}
+                </Text>
+                <Text variant="label">{skill.meta.license}</Text>
+              </Stack>
+            ) : null}
+          </HStack>
           <FormSection
             label={t('skills.section.overview', { defaultValue: 'Overview' })}
           >
@@ -261,14 +430,62 @@ function SkillDetailPage() {
             })}
           >
             <Stack gap={2}>
-              <Textarea
-                id="body"
-                label={t('skills.form.body', { defaultValue: 'Body markdown' })}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                rows={18}
-                className="font-mono text-sm"
-              />
+              <HStack gap={1} justify="end">
+                <Button
+                  size="sm"
+                  variant={bodyView === 'edit' ? 'secondary' : 'ghost'}
+                  icon={Code}
+                  onClick={() => setBodyView('edit')}
+                  aria-pressed={bodyView === 'edit'}
+                >
+                  {t('skills.body.viewEdit', { defaultValue: 'Edit' })}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={bodyView === 'preview' ? 'secondary' : 'ghost'}
+                  icon={FileText}
+                  onClick={() => setBodyView('preview')}
+                  aria-pressed={bodyView === 'preview'}
+                >
+                  {t('skills.body.viewPreview', { defaultValue: 'Preview' })}
+                </Button>
+              </HStack>
+              {bodyView === 'edit' ? (
+                <Textarea
+                  id="body"
+                  label={t('skills.form.body', {
+                    defaultValue: 'Body markdown',
+                  })}
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  rows={18}
+                  className="font-mono text-sm"
+                />
+              ) : (
+                // Sanitized markdown preview — reuses the chat-message
+                // wrapper styles so prose, code blocks, lists, and links
+                // look identical to how the LLM sees expanded skill
+                // content. ReactMarkdown's default rehype config strips
+                // raw HTML, so XSS via SKILL.md body is closed off.
+                <div
+                  className={
+                    markdownWrapperStyles +
+                    ' border-border bg-background rounded-md border p-4'
+                  }
+                >
+                  {body.trim().length === 0 ? (
+                    <Text variant="muted">
+                      {t('skills.body.previewEmpty', {
+                        defaultValue: '(Body is empty)',
+                      })}
+                    </Text>
+                  ) : (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {body}
+                    </ReactMarkdown>
+                  )}
+                </div>
+              )}
               <Text variant="caption">
                 {t('skills.form.bodyHelp', {
                   defaultValue:
@@ -283,14 +500,51 @@ function SkillDetailPage() {
               defaultValue: 'Bundle files',
             })}
           >
-            <SkillAssetsSection
-              organizationId={organizationId}
-              skillSlug={skillSlug}
-              assets={filesData?.assets ?? skill.assets ?? []}
-              totalBytes={filesData?.totalBytes ?? skill.totalBytes ?? 0}
-              maxTotalBytes={filesData?.maxTotalBytes ?? 1024 * 1024}
-              maxAssets={filesData?.maxAssets ?? 32}
-            />
+            <Stack gap={4}>
+              {groupedAssets.length > 0 ? (
+                // Shallow tree: header per top-level directory, then
+                // file names underneath. Single-level grouping is the
+                // sweet spot — skills almost never nest beyond
+                // scripts/, references/, assets/ in practice, and a
+                // recursive tree would just be ceremony.
+                <Stack gap={3}>
+                  {groupedAssets.map(({ dir, files }) => (
+                    <Stack key={dir} gap={1}>
+                      <Text variant="caption" className="font-mono">
+                        {dir === '.'
+                          ? t('skills.bundle.dirRoot', {
+                              defaultValue: '(root)',
+                            })
+                          : `${dir}/`}
+                      </Text>
+                      <Stack gap={0} className="ml-3">
+                        {files.map((f) => {
+                          const leaf =
+                            dir === '.' ? f.path : f.path.slice(dir.length + 1);
+                          return (
+                            <Text
+                              key={f.path}
+                              variant="muted"
+                              className="font-mono text-xs"
+                            >
+                              {leaf}
+                            </Text>
+                          );
+                        })}
+                      </Stack>
+                    </Stack>
+                  ))}
+                </Stack>
+              ) : null}
+              <SkillAssetsSection
+                organizationId={organizationId}
+                skillSlug={skillSlug}
+                assets={filesData?.assets ?? skill.assets ?? []}
+                totalBytes={filesData?.totalBytes ?? skill.totalBytes ?? 0}
+                maxTotalBytes={filesData?.maxTotalBytes ?? 1024 * 1024}
+                maxAssets={filesData?.maxAssets ?? 32}
+              />
+            </Stack>
           </FormSection>
 
           <FormSection
@@ -334,13 +588,92 @@ function SkillDetailPage() {
             </Stack>
           </FormSection>
 
+          <FormSection
+            label={t('skills.section.whereBound', {
+              defaultValue: 'Where this skill is bound',
+            })}
+          >
+            <Stack gap={2}>
+              {!Array.isArray(relatedAgents) ? (
+                <Skeleton className="h-12 w-full" />
+              ) : relatedAgents.length === 0 ? (
+                <Text variant="muted">
+                  {t('skills.whereBound.empty', {
+                    defaultValue:
+                      'No agents currently bind this skill. Bindings show up here once a developer adds the skill to an agent.',
+                  })}
+                </Text>
+              ) : (
+                <Stack gap={1}>
+                  {relatedAgents.map((a) => (
+                    <HStack key={a.agentName} gap={2} align="center">
+                      <Badge variant="outline">{a.agentName}</Badge>
+                      {a.displayName && a.displayName !== a.agentName ? (
+                        <Text variant="muted">{a.displayName}</Text>
+                      ) : null}
+                    </HStack>
+                  ))}
+                </Stack>
+              )}
+            </Stack>
+          </FormSection>
+
+          <FormSection
+            label={t('skills.section.auditHistory', {
+              defaultValue: 'Recent changes',
+            })}
+          >
+            <Stack gap={2}>
+              {!Array.isArray(auditRows) ? (
+                <Skeleton className="h-12 w-full" />
+              ) : auditRows.length === 0 ? (
+                <Text variant="muted">
+                  {t('skills.auditHistory.empty', {
+                    defaultValue: 'No audit entries yet for this skill.',
+                  })}
+                </Text>
+              ) : (
+                <Stack gap={2}>
+                  {auditRows.map((row) => (
+                    <HStack
+                      key={row._id}
+                      gap={3}
+                      align="center"
+                      className="border-border rounded-md border px-3 py-2"
+                    >
+                      <Badge
+                        variant={
+                          row.status === 'failure' ? 'destructive' : 'outline'
+                        }
+                      >
+                        {row.action}
+                      </Badge>
+                      <Stack gap={0} className="flex-1">
+                        <Text variant="body" className="font-mono text-xs">
+                          {new Date(row.timestamp).toLocaleString()}
+                        </Text>
+                        <Text variant="muted" className="text-xs">
+                          {row.actorEmail ?? row.actorId}
+                          {row.actorRole ? ` · ${row.actorRole}` : ''}
+                          {row.status === 'failure' && row.errorMessage
+                            ? ` · ${row.errorMessage}`
+                            : ''}
+                        </Text>
+                      </Stack>
+                    </HStack>
+                  ))}
+                </Stack>
+              )}
+            </Stack>
+          </FormSection>
+
           <HStack gap={2} justify="end">
             <Button
               variant="ghost"
               onClick={handleDiscard}
               disabled={!isDirty || isSaving}
             >
-              {tCommon('discard', { defaultValue: 'Discard' })}
+              {tCommon('actions.discard')}
             </Button>
             <Button
               variant="primary"
@@ -348,7 +681,7 @@ function SkillDetailPage() {
               isLoading={isSaving}
               disabled={!isDirty || isSaving}
             >
-              {tCommon('save')}
+              {tCommon('actions.save')}
             </Button>
           </HStack>
         </Stack>
@@ -373,6 +706,19 @@ function SkillDetailPage() {
         })}
         variant="destructive"
         onConfirm={() => blocker.proceed?.()}
+      />
+      <SkillDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        organizationId={organizationId}
+        skillSlug={skillSlug}
+        expectedHash={hash}
+        onDeleted={() =>
+          void navigate({
+            to: '/dashboard/$id/skills',
+            params: { id: organizationId },
+          })
+        }
       />
     </>
   );

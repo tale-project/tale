@@ -21,6 +21,8 @@ export interface SkillRow {
   toolNames?: string[];
   integrationBindings?: string[];
   workflowBindings?: string[];
+  /** SHA-256 of SKILL.md at list-time, forwarded to deleteSkill for CAS. */
+  hash?: string;
   status?: string;
   message?: string;
 }
@@ -52,6 +54,7 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
         toolNames: s.toolNames,
         integrationBindings: s.integrationBindings,
         workflowBindings: s.workflowBindings,
+        hash: typeof s.hash === 'string' ? s.hash : undefined,
       });
     }
     return valid;

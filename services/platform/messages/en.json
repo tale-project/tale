@@ -4658,7 +4658,14 @@
       "skillSaveFailed": "Failed to save skill",
       "skillDeleted": "Skill deleted",
       "skillDeleteFailed": "Failed to delete skill",
+      "skillDeleteConflict": "Skill changed since you opened this dialog. Reload and retry.",
       "skillAlreadyExists": "A skill with this slug already exists",
+      "unsavedChanges": {
+        "title": "Discard unsaved changes?",
+        "description": "You have unsaved edits on this skill. Leaving now will discard them.",
+        "leave": "Discard and leave",
+        "stay": "Keep editing"
+      },
       "conflict": "This skill was edited elsewhere. Reload to see the latest version.",
       "validationError": "Invalid skill configuration",
       "deleteConfirmation": "This removes the skill bundle from disk. Agents bound to it will keep the binding entry and log a runtime warning until you re-edit them.",
@@ -5195,7 +5202,9 @@
           "workflow": "Workflow",
           "security": "Security",
           "admin": "Admin",
-          "ai": "AI"
+          "ai": "AI",
+          "skill": "Skill",
+          "agent": "Agent"
         },
         "export": {
           "csv": "Export CSV",

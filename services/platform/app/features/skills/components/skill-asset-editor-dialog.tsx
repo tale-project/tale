@@ -51,12 +51,17 @@ function SkillAssetEditorForm({
   assetPath,
 }: SkillAssetEditorDialogProps) {
   const { t } = useT('settings');
+  // Save/Saving labels live in the `common` namespace under `actions`.
+  // Earlier this file passed `'common.save'` into the settings-scoped
+  // `t()` which never resolved, so de/fr saw the literal key string.
+  const { t: tCommon } = useT('common');
   const queryClient = useQueryClient();
   const { mutateAsync: writeAsset } = useWriteSkillAsset();
 
   const isEditMode = assetPath !== null;
   const [pathInput, setPathInput] = useState('');
   const [content, setContent] = useState('');
+  const [initialContent, setInitialContent] = useState('');
   const [pathError, setPathError] = useState<string | undefined>();
   const [isSaving, setIsSaving] = useState(false);
   const [loadedHash, setLoadedHash] = useState<string | undefined>(undefined);
@@ -75,9 +80,22 @@ function SkillAssetEditorForm({
     if (assetData?.ok) {
       setPathInput(assetPath);
       setContent(assetData.content);
+      // Snapshot the loaded body so the discard-on-close prompt can
+      // tell "user typed something" vs "user just opened the dialog".
+      setInitialContent(assetData.content);
       setLoadedHash(assetData.hash);
     }
   }, [assetData, assetPath, isEditMode]);
+
+  // "Dirty" semantics for the discard prompt: create-mode is dirty if
+  // the user has typed anything; edit-mode is dirty once the textarea
+  // diverges from the loaded body. Path changes don't count because
+  // edit-mode locks the path and create-mode's path field is just a
+  // form input — what matters for "do you want to lose this edit?"
+  // is the body content the user has accumulated.
+  const isDirty = isEditMode
+    ? content !== initialContent
+    : content.length > 0 || pathInput.trim().length > 0;
 
   // Surface `ok:false` states (not_found, too_large) explicitly — saving
   // with stale state on top of a missing/oversized file would otherwise
@@ -199,15 +217,29 @@ function SkillAssetEditorForm({
       onOpenChange={onOpenChange}
       title={
         isEditMode
-          ? t('skills.asset.editTitle', {
-              defaultValue: 'Edit {{path}}',
+          ? // i18next interpolation uses the project-wide single-brace
+            // prefix ({ }), not double — the prior `{{path}}` default
+            // rendered the literal characters when no i18n key existed.
+            t('skills.asset.editTitle', {
+              defaultValue: 'Edit {path}',
               path: assetPath ?? '',
             })
           : t('skills.asset.createTitle', { defaultValue: 'New bundle file' })
       }
-      submitText={t('common.save', { defaultValue: 'Save' })}
-      submittingText={t('common.saving', { defaultValue: 'Saving…' })}
+      // `common.save` / `common.saving` don't exist — the canonical
+      // keys are `common.actions.save` / `common.actions.saving`,
+      // which de/fr translate. Without this swap the dialog showed
+      // raw key names in non-English locales.
+      submitText={tCommon('actions.save')}
+      submittingText={tCommon('actions.saving')}
       isSubmitting={isSaving}
+      // Wire `isValid` to `canSave` so the Save button is actually
+      // disabled during load / when the loaded asset can't be saved
+      // back over (not_found, too_large). Prior shape showed an
+      // enabled Save while loading then errored at submit time.
+      isValid={canSave}
+      isDirty={isDirty}
+      confirmDiscardOnDirty
       onSubmit={() => void handleSave()}
     >
       <Stack gap={4}>

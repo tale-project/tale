@@ -4402,7 +4402,14 @@
       "skillSaveFailed": "Échec de l'enregistrement du skill",
       "skillDeleted": "Skill supprimé",
       "skillDeleteFailed": "Échec de la suppression du skill",
+      "skillDeleteConflict": "Le skill a changé depuis l'ouverture de ce dialogue. Recharge et réessaie.",
       "skillAlreadyExists": "Un skill avec ce slug existe déjà",
+      "unsavedChanges": {
+        "title": "Abandonner les modifications non enregistrées ?",
+        "description": "Tu as des modifications non enregistrées sur ce skill. Quitter maintenant les abandonnera.",
+        "leave": "Abandonner et quitter",
+        "stay": "Continuer l'édition"
+      },
       "conflict": "Ce skill a été modifié ailleurs. Recharge pour voir la version actuelle.",
       "validationError": "Configuration de skill invalide",
       "deleteConfirmation": "Cela retire le bundle du skill du disque. Les agents qui y sont attachés conserveront leur référence et émettront un avertissement à l'exécution jusqu'à ce que tu les modifies à nouveau.",
@@ -4939,7 +4946,9 @@
           "workflow": "Workflow",
           "security": "Sécurité",
           "admin": "Admin",
-          "ai": "IA"
+          "ai": "IA",
+          "skill": "Skill",
+          "agent": "Agent"
         },
         "export": {
           "csv": "Exporter en CSV",

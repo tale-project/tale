@@ -95,6 +95,7 @@ export function useSkillsTableConfig({
             <SkillRowActions
               skillSlug={row.original.slug}
               organizationId={organizationId}
+              expectedHash={row.original.hash}
               onDeleted={onDeleted}
             />
           </HStack>

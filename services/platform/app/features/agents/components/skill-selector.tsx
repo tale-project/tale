@@ -9,6 +9,7 @@ import { useCallback, useMemo } from 'react';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useListSkills } from '@/app/features/skills/hooks/queries';
 import { useT } from '@/lib/i18n/client';
+import type { SkillBindingResolvedEntry } from '@/lib/shared/schemas/agents';
 
 interface AvailableSkill {
   slug: string;
@@ -20,18 +21,24 @@ interface AvailableSkill {
   hash: string;
 }
 
-export interface SkillBindingResolvedEntry {
-  slug: string;
-  versionHash: string;
-  toolNames: string[];
-  integrationBindings: string[];
-  workflowBindings: string[];
-}
+// Re-export the canonical shape from `lib/shared/schemas/agents.ts` so
+// callers (route handlers, agent-config dispatchers) don't have to
+// reach into the schemas module separately. Previously this interface
+// was redeclared here and risked drifting from the trust-boundary
+// definition the runtime reads.
+export type { SkillBindingResolvedEntry } from '@/lib/shared/schemas/agents';
 
 interface SkillSelectorProps {
   organizationId: string;
   /** Current bound slug list (camelCase, from agent JSON). */
   value: string[];
+  /**
+   * The frozen `skillBindingsResolved` snapshot persisted on the agent.
+   * Used solely to surface drift — the per-slug `versionHash` here is
+   * compared against the live skill's hash so the operator sees when a
+   * binding's capability surface has changed since they last saved.
+   */
+  resolvedSnapshot?: SkillBindingResolvedEntry[];
   /**
    * Called when the user toggles a binding. Receives BOTH the new slug list
    * and the matching resolved snapshot so the caller can persist them
@@ -44,11 +51,17 @@ interface SkillSelectorProps {
 export function SkillSelector({
   organizationId,
   value,
+  resolvedSnapshot,
   onChange,
   disabled,
 }: SkillSelectorProps) {
   const { t } = useT('settings');
   const { skills: rawSkills, isLoading } = useListSkills(organizationId);
+  const snapshotByslug = useMemo(() => {
+    const m = new Map<string, SkillBindingResolvedEntry>();
+    for (const e of resolvedSnapshot ?? []) m.set(e.slug, e);
+    return m;
+  }, [resolvedSnapshot]);
 
   const skills = useMemo<AvailableSkill[]>(() => {
     if (!Array.isArray(rawSkills)) return [];
@@ -124,6 +137,17 @@ export function SkillSelector({
           (skill.integrationBindings?.length ?? 0) +
           (skill.workflowBindings?.length ?? 0);
         const checked = value.includes(skill.slug);
+        // Drift = "snapshot hash captured at bind time differs from
+        // live SKILL.md hash now". Without this signal the user has no
+        // way to tell their bound skill's capability surface has widened
+        // (e.g. a teammate added an integration binding) until a chat
+        // turn actually exercises it.
+        const snapshotEntry = snapshotByslug.get(skill.slug);
+        const driftDetected =
+          checked &&
+          snapshotEntry !== undefined &&
+          skill.hash !== '' &&
+          snapshotEntry.versionHash !== skill.hash;
         return (
           <Stack
             key={skill.slug}
@@ -145,6 +169,13 @@ export function SkillSelector({
                   {t('skills.selector.deps', {
                     defaultValue: '{count} deps',
                     count: transitive,
+                  })}
+                </Badge>
+              ) : null}
+              {driftDetected ? (
+                <Badge variant="destructive">
+                  {t('skills.selector.driftBadge', {
+                    defaultValue: 'Drift — re-save to refresh',
                   })}
                 </Badge>
               ) : null}

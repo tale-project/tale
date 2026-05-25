@@ -11,11 +11,35 @@ import { useT } from '@/lib/i18n/client';
 import { useDeleteSkill } from '../hooks/mutations';
 import { useFindAgentsBindingSkill } from '../hooks/queries';
 
+/**
+ * Pull a ConvexError code out of an unknown caught value. Mirrors
+ * `extractConvexErrorCode` in `app/features/chat/hooks/use-voice-output.ts`
+ * — kept inline here because `instanceof ConvexError` is unreliable across
+ * HMR / code-splitting boundaries (project docs warn against it).
+ */
+function extractCode(err: unknown): string | undefined {
+  if (err && typeof err === 'object' && 'data' in err) {
+    const data = (err as { data?: unknown }).data;
+    if (data && typeof data === 'object' && 'code' in data) {
+      const code = (data as { code?: unknown }).code;
+      if (typeof code === 'string') return code;
+    }
+  }
+  return undefined;
+}
+
 interface SkillDeleteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   skillSlug: string;
   organizationId: string;
+  /**
+   * SHA-256 of SKILL.md at the moment the caller loaded the skill. Sent
+   * to the backend as `expectedHash` so a concurrent edit between view
+   * and confirm surfaces as CONFLICT instead of silently nuking a
+   * different version of the skill than the user thinks they're seeing.
+   */
+  expectedHash?: string;
   onDeleted?: () => void;
 }
 
@@ -24,6 +48,7 @@ export function SkillDeleteDialog({
   onOpenChange,
   skillSlug,
   organizationId,
+  expectedHash,
   onDeleted,
 }: SkillDeleteDialogProps) {
   const { t } = useT('settings');
@@ -31,6 +56,10 @@ export function SkillDeleteDialog({
   const { data: relatedAgents } = useFindAgentsBindingSkill(
     organizationId,
     skillSlug,
+    // Only fire the (heavy) readdir+parse-every-agent scan when the
+    // dialog actually opens. Without this, the table mounts one dialog
+    // per row so the query fires 50× on initial page load.
+    { enabled: open },
   );
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -38,7 +67,11 @@ export function SkillDeleteDialog({
     if (isDeleting) return;
     setIsDeleting(true);
     try {
-      await deleteSkill({ organizationId, slug: skillSlug });
+      await deleteSkill({
+        organizationId,
+        slug: skillSlug,
+        ...(expectedHash !== undefined && { expectedHash }),
+      });
       toast({
         title: t('skills.skillDeleted', { defaultValue: 'Skill deleted' }),
       });
@@ -46,10 +79,19 @@ export function SkillDeleteDialog({
       onDeleted?.();
     } catch (error) {
       console.error(error);
+      // Surface the backend's CAS-conflict signal distinctly so the user
+      // knows to reload, rather than seeing a generic "delete failed"
+      // and hammering the button (which would never succeed).
       toast({
-        title: t('skills.skillDeleteFailed', {
-          defaultValue: 'Failed to delete skill',
-        }),
+        title:
+          extractCode(error) === 'CONFLICT'
+            ? t('skills.skillDeleteConflict', {
+                defaultValue:
+                  'Skill changed since you opened this dialog. Reload and retry.',
+              })
+            : t('skills.skillDeleteFailed', {
+                defaultValue: 'Failed to delete skill',
+              }),
         variant: 'destructive',
       });
     } finally {

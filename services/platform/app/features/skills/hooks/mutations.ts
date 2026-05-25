@@ -32,6 +32,13 @@ export function useDeleteSkill() {
   });
 }
 
+export function useDuplicateSkill() {
+  const invalidate = useInvalidateSkills();
+  return useConvexAction(api.skills.file_actions.duplicateSkill, {
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
+  });
+}
+
 export function useWriteSkillAsset() {
   const invalidate = useInvalidateSkills();
   return useConvexAction(api.skills.file_actions.writeSkillAsset, {

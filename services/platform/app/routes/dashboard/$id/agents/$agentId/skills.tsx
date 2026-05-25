@@ -43,6 +43,7 @@ function SkillsTab() {
         <SkillSelector
           organizationId={organizationId}
           value={config.skillBindings ?? []}
+          resolvedSnapshot={config.skillBindingsResolved}
           onChange={(skillBindings, skillBindingsResolved) =>
             updateConfig({ skillBindings, skillBindingsResolved })
           }

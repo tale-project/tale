@@ -13,6 +13,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { SKILL_NAME_REGEX } from '@/lib/shared/schemas/skills';
 
 import { useCreateSkill } from '../hooks/mutations';
 
@@ -53,7 +54,7 @@ export function CreateSkillDialog({
           )
           .max(64)
           .regex(
-            /^[a-z0-9]+(-[a-z0-9]+)*$/,
+            SKILL_NAME_REGEX,
             t('skills.form.slugPatternError', {
               defaultValue:
                 'Lowercase letters, digits, hyphen-separated. No underscores, no leading/trailing/consecutive hyphens.',
