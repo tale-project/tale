@@ -2,7 +2,7 @@
  * Migration: split the legacy single `personalization` toggle into two
  * independent gates — Custom Instructions and User Memories.
  *
- * Two tables are migrated in one pass:
+ * Two tables are migrated:
  *
  *  1. `userPreferences` rows that carry the legacy `enabled` field have
  *     it copied into both `customInstructionsEnabled` and
@@ -15,21 +15,28 @@
  *     which the legacy row is deleted. If a target row already exists
  *     (admin partially migrated by hand) it is left untouched.
  *
+ * Convex caps each function at a single paginated query, so the two
+ * passes live in separate `internalMutation`s (`applyUserPrefs` and
+ * `applyOrgPolicies`) and are orchestrated by the `apply`
+ * `internalAction`, which remains the canonical entry point invoked
+ * from `services/platform/convex/migrations.ts:runAll`.
+ *
  * Idempotent: rows already free of the legacy fields are skipped.
- * Invoked indirectly via `services/platform/convex/migrations.ts:runAll`.
  */
 
+import { v } from 'convex/values';
+
 import { isRecord } from '../../lib/utils/type-guards';
-import { internalMutation } from '../_generated/server';
+import { internal } from '../_generated/api';
+import { internalAction, internalMutation } from '../_generated/server';
 
 const BATCH = 500;
 
-export const apply = internalMutation({
+export const applyUserPrefs = internalMutation({
   args: {},
+  returns: v.object({ prefsCleared: v.number() }),
   handler: async (ctx) => {
     let prefsCleared = 0;
-    let policiesForked = 0;
-    let policiesDeleted = 0;
 
     let cursor: string | null = null;
     let isDone = false;
@@ -60,8 +67,22 @@ export const apply = internalMutation({
       isDone = page.isDone;
     }
 
-    cursor = null;
-    isDone = false;
+    return { prefsCleared };
+  },
+});
+
+export const applyOrgPolicies = internalMutation({
+  args: {},
+  returns: v.object({
+    policiesForked: v.number(),
+    policiesDeleted: v.number(),
+  }),
+  handler: async (ctx) => {
+    let policiesForked = 0;
+    let policiesDeleted = 0;
+
+    let cursor: string | null = null;
+    let isDone = false;
     while (!isDone) {
       const page = await ctx.db
         .query('governancePolicies')
@@ -105,6 +126,31 @@ export const apply = internalMutation({
       isDone = page.isDone;
     }
 
+    return { policiesForked, policiesDeleted };
+  },
+});
+
+export const apply = internalAction({
+  args: {},
+  returns: v.object({
+    prefsCleared: v.number(),
+    policiesForked: v.number(),
+    policiesDeleted: v.number(),
+  }),
+  handler: async (ctx) => {
+    const prefsResult: { prefsCleared: number } = await ctx.runMutation(
+      internal.migrations.split_personalization_toggle.applyUserPrefs,
+      {},
+    );
+    const policyResult: {
+      policiesForked: number;
+      policiesDeleted: number;
+    } = await ctx.runMutation(
+      internal.migrations.split_personalization_toggle.applyOrgPolicies,
+      {},
+    );
+    const { prefsCleared } = prefsResult;
+    const { policiesForked, policiesDeleted } = policyResult;
     console.log(
       `[split_personalization_toggle] prefsCleared=${prefsCleared} policiesForked=${policiesForked} policiesDeleted=${policiesDeleted}`,
     );

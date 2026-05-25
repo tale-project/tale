@@ -24,9 +24,12 @@ export const runAll = internalAction({
     await ctx.runAction(internal.migrations.seed_applied_bounds.apply, {});
     // Splits the legacy `userPreferences.enabled` flag and the single
     // `personalization` org policy into independent Custom Instructions
-    // and User Memories gates. Idempotent.
-    await ctx.runMutation(
+    // and User Memories gates. Idempotent. Exposed as an action because
+    // it orchestrates two paginated mutations (Convex caps each
+    // function at one paginated query).
+    await ctx.runAction(
       internal.migrations.split_personalization_toggle.apply,
+      {},
     );
   },
 });
