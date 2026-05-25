@@ -1140,6 +1140,9 @@
     "canvas": {
       "download": "Télécharger",
       "mermaidError": "Échec du rendu du diagramme",
+      "viewSource": "Source",
+      "viewPreview": "Aperçu",
+      "viewToggleAriaLabel": "Basculer entre source et aperçu",
       "sourceRunOutput": "Sortie de code",
       "sourceAgentWrite": "Fichiers IA",
       "sourceUserUpload": "Téléversés",
@@ -1361,6 +1364,7 @@
     },
     "aria": {
       "close": "Fermer",
+      "resizePanel": "Redimensionner le panneau",
       "hidePassword": "Masquer le mot de passe",
       "showPassword": "Afficher le mot de passe",
       "dismiss": "Ignorer",
@@ -4463,11 +4467,6 @@
         "uiHelp": "Les fichiers du bundle vivent sur le disque sous skills/<slug>/. Les modifications via l'UI utilisent des écritures atomiques avec CAS — les modifications concurrentes sur disque sont détectées et signalées comme conflits."
       },
       "detail": {
-        "sidebar": {
-          "heading": "Skills",
-          "empty": "Aucun autre skill",
-          "brokenTag": "(erreur de chargement)"
-        },
         "tree": {
           "heading": "Bundle",
           "empty": "Seulement SKILL.md — ajoute des fichiers sous scripts/, references/ ou assets/."

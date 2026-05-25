@@ -4466,11 +4466,6 @@
         "uiHelp": "Bundle-Dateien liegen auf der Festplatte unter skills/<slug>/. UI-Änderungen verwenden atomare Schreibvorgänge mit Konflikterkennung — gleichzeitige Plattenänderungen werden erkannt und als Konflikte gemeldet."
       },
       "detail": {
-        "sidebar": {
-          "heading": "Skills",
-          "empty": "Keine weiteren Skills",
-          "brokenTag": "(Ladefehler)"
-        },
         "tree": {
           "heading": "Bundle",
           "empty": "Nur SKILL.md — füge Dateien unter scripts/, references/ oder assets/ hinzu."

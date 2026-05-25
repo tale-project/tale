@@ -4723,11 +4723,6 @@
         "uiHelp": "Bundle files live on disk under skills/<slug>/. UI edits use atomic writes with CAS — concurrent disk edits are detected and surfaced as conflicts."
       },
       "detail": {
-        "sidebar": {
-          "heading": "Skills",
-          "empty": "No other skills",
-          "brokenTag": "(load error)"
-        },
         "tree": {
           "heading": "Bundle",
           "empty": "Only SKILL.md — add files under scripts/, references/, or assets/."

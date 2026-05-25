@@ -86,7 +86,7 @@ const rawFrontmatterSchema = z
   })
   .passthrough();
 
-export type RawSkillFrontmatter = z.infer<typeof rawFrontmatterSchema>;
+type RawSkillFrontmatter = z.infer<typeof rawFrontmatterSchema>;
 
 /** Normalized (camelCase) frontmatter consumed by Tale runtime/UI code. */
 export interface SkillFrontmatter {
@@ -272,5 +272,3 @@ export function frontmatterToRaw(
   }
   return raw;
 }
-
-export { rawFrontmatterSchema };
