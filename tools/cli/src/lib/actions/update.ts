@@ -110,6 +110,9 @@ export async function update(options: UpdateOptions): Promise<void> {
       newExampleFiles.set(join('providers', relPath), content);
     }
   }
+  for (const [relPath, content] of getEmbeddedExamples('skills')) {
+    newExampleFiles.set(join('skills', relPath), content);
+  }
 
   // Classify and apply changes
   const summary: UpdateSummary = {

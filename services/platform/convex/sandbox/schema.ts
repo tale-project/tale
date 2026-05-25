@@ -57,18 +57,24 @@ export const sandboxExecutionsTable = defineTable({
   toolCallId: v.optional(v.string()),
   uploadedBy: v.string(),
   agentSlug: v.optional(v.string()),
-  // Back-link to the runnable artifact this execution belongs to. Optional
-  // because not every sandbox execution is artifact-bound (future free-form
-  // sandbox callers would leave this unset). Watchdog uses this to cascade
-  // failure to the artifact row when it reaps a stuck execution — otherwise
-  // the canvas spinner stays spinning until the audit row is GC'd.
-  artifactId: v.optional(v.id('artifacts')),
+  // @deprecated — artifacts module removed. Field kept (typed loosely) so
+  // existing rows pass the read validator after schema deploy.
+  artifactId: v.optional(v.string()),
   // For artifact-bound runs: which file path the LLM asked the sandbox to
   // execute (`main.js`, `verify.py`, …). Lets the canvas render the
   // latest-run-per-file panel so a verify run no longer clobbers the
   // generator's output chip. Optional for back-compat with rows written
   // before the column existed.
   path: v.optional(v.string()),
+  // For `skill_run` invocations: the skill slug (mutually exclusive with
+  // artifactId — a row is either artifact-bound or skill-bound). Lets
+  // forensics enumerate "all runs of skill X" without substring-grepping
+  // `purpose`. Populated by `skill_run_tool.ts`.
+  skillSlug: v.optional(v.string()),
+  // sha256 of SKILL.md at execution time. Detects whether the skill was
+  // edited between bind-time snapshot and runtime — important for
+  // reproducing failures after an SKILL.md update.
+  skillVersionHash: v.optional(v.string()),
 
   language: sandboxLanguageValidator,
   purpose: v.optional(v.string()),
@@ -78,10 +84,10 @@ export const sandboxExecutionsTable = defineTable({
   codePreview: v.string(),
   codeStorageId: v.optional(v.id('_storage')),
   packages: v.array(v.string()),
-  // @deprecated post R2-B4: install options are no longer caller-controlled;
-  // the action hardcodes `{allowSdist: false, allowInstallScripts: false}`
-  // before invoking the spawner. Field retained for read-validation on legacy
-  // rows; new writes never set it to anything else.
+  // @deprecated — install-time guards (--only-binary, --ignore-scripts) were
+  // dropped; the ephemeral container is the security boundary and install-time
+  // flags added nothing on top. Field retained as optional for read-validation
+  // on legacy rows; new writes never set it.
   installOptions: v.optional(
     v.object({
       allowSdist: v.optional(v.boolean()),
@@ -192,6 +198,8 @@ export const sandboxExecutionsTable = defineTable({
   .index('by_organizationId', ['organizationId'])
   .index('by_status', ['status'])
   .index('by_artifactId', ['artifactId'])
+  // For skill_run forensics: "all runs of skill X" without substring grep.
+  .index('by_organizationId_and_skillSlug', ['organizationId', 'skillSlug'])
   // For the user-Stop cascade in `cancel_generation.ts` — locates every
   // non-terminal execution on the cancelled thread so the action can call
   // `spawnerCancel` on each before the SDK abort would leave them running

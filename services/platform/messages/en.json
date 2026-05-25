@@ -6,6 +6,7 @@
     "apiKeys": "You need Admin or Developer permissions to manage API keys.",
     "organization": "You need Admin permissions to access organization settings.",
     "agents": "You need Admin or Developer permissions to manage agents.",
+    "skills": "You need Admin or Developer permissions to manage skills.",
     "branding": "You need Admin permissions to access branding settings.",
     "knowledge": "Your account does not have permission to access knowledge.",
     "workspaceNotFound": "The workspace you're looking for doesn't exist or may have been removed.",
@@ -1137,37 +1138,15 @@
       "verdictError": "Failed to record verdict"
     },
     "canvas": {
-      "close": "Close canvas",
-      "edit": "Edit",
-      "copy": "Copy",
       "download": "Download",
-      "exportPdf": "Export as PDF",
-      "exportPdfFailed": "Failed to export as PDF",
-      "copied": "Copied!",
       "mermaidError": "Failed to render diagram",
-      "resizeHandle": "Resize canvas",
-      "apply": "Apply changes",
-      "applied": "Changes applied",
-      "applyFailed": "Failed to apply changes",
-      "enterFullscreen": "Fullscreen",
-      "exitFullscreen": "Exit fullscreen",
-      "codeEditor": "Code editor",
-      "markdownEditor": "Markdown editor",
-      "mermaidEditor": "Mermaid editor",
-      "streamingWriting": "AI is writing…",
-      "streamingPatch": "AI is editing…",
-      "cancel": "Cancel edit",
-      "streamingDuringEdit": "Agent is updating this artifact — your draft is saved. Cancel to discard.",
-      "runDone": "Done",
-      "runStarted": "Started",
-      "runStale": "Source edited",
-      "runFiles": "Files",
-      "runStdout": "stdout ({chars} chars)",
-      "runStderr": "stderr ({chars} chars)",
-      "runOpenFile": "Open file {name}",
-      "runResultEntryLabel": "Run output",
-      "runResultSecondaryLabel": "Output for {path}",
-      "runResultSecondaryCount": "{count, plural, one {# other file} other {# other files}}",
+      "viewSource": "Source",
+      "viewPreview": "Preview",
+      "viewToggleAriaLabel": "Toggle source / preview",
+      "sourceRunOutput": "Code output",
+      "sourceAgentWrite": "AI files",
+      "sourceUserUpload": "Uploaded",
+      "noFilesYet": "No files yet",
       "runStatus": {
         "queued": "Queued",
         "installing": "Installing dependencies",
@@ -1210,29 +1189,7 @@
         "script_runnable": "Script (sandbox)",
         "python_runnable": "Python (sandbox)",
         "node_runnable": "Node (sandbox)"
-      },
-      "fileSidebar": {
-        "label": "Project files",
-        "title": "Files",
-        "expand": "Show files",
-        "collapse": "Hide files",
-        "entryBadge": "entry",
-        "streamingDot": "Writing this file…",
-        "addFile": "Add file",
-        "addFilePlaceholder": "path/to/file.ext",
-        "addFileConfirm": "Add",
-        "addFileCancel": "Cancel",
-        "errorPathRequired": "Path is required.",
-        "errorPathExists": "A file with this path already exists.",
-        "errorAddFailed": "Could not add the file."
       }
-    },
-    "artifacts": {
-      "barLabel": "Artifacts in this thread",
-      "barTitle": "Artifacts",
-      "openCard": "Open artifact: {title}",
-      "touchedByMessage": "{title}",
-      "fileCount": "{count, plural, one {# file} other {# files}}"
     },
     "branchNavigator": {
       "previous": "Previous branch",
@@ -1407,6 +1364,7 @@
     },
     "aria": {
       "close": "Close",
+      "resizePanel": "Resize panel",
       "hidePassword": "Hide password",
       "showPassword": "Show password",
       "dismiss": "Dismiss",
@@ -2015,6 +1973,10 @@
     "agents": {
       "title": "No agents yet",
       "description": "Create your first agent to specialize AI behavior for your team"
+    },
+    "skills": {
+      "title": "No skills yet",
+      "description": "Skills are reusable instruction bundles you can attach to agents — like a playbook plus optional scripts."
     },
     "members": {
       "title": "No members found",
@@ -2691,7 +2653,51 @@
       "feedback": "Feedback",
       "auditLogs": "Audit logs",
       "dataSubjectRequests": "Data subject requests",
-      "policiesAndLimitsDescription": "Budgets, upload restrictions, data retention, feature flags, and voice output."
+      "policiesAndLimitsDescription": "Budgets, upload restrictions, data retention, feature flags, and voice output.",
+      "runCodePolicy": "Run-code packages"
+    },
+    "runCodePolicy": {
+      "title": "Run-code package policy",
+      "description": "Controls which Python and Node packages the run_code tool may install at execution time. Default mode is denylist with an empty deny list, which allows every package. Switching to allowlist mode requires you to enumerate every package you trust — anything not on the list is blocked.",
+      "modeSectionTitle": "Default mode",
+      "modeSectionDescription": "Pick the strategy run_code uses when it sees a package the policy hasn't explicitly mentioned.",
+      "modeAllowlistLabel": "Allowlist",
+      "modeAllowlistDescription": "Only packages listed in the allow lists below are installable. Anything else is rejected.",
+      "modeDenylistLabel": "Denylist",
+      "modeDenylistDescription": "Every package is installable except those listed in the deny lists below.",
+      "pythonSectionTitle": "Python packages",
+      "nodeSectionTitle": "Node packages",
+      "listsHint": "One package name per line (or comma-separated). Version constraints are stripped automatically — `pandas==2.1` matches `pandas`.",
+      "pythonAllowLabel": "Python allow list",
+      "pythonAllowDescription": "Used when the default mode is Allowlist.",
+      "pythonDenyLabel": "Python deny list",
+      "pythonDenyDescription": "Used when the default mode is Denylist.",
+      "nodeAllowLabel": "Node allow list",
+      "nodeAllowDescription": "Used when the default mode is Allowlist. Scoped packages (`@scope/pkg`) supported.",
+      "nodeDenyLabel": "Node deny list",
+      "nodeDenyDescription": "Used when the default mode is Denylist. Scoped packages (`@scope/pkg`) supported.",
+      "pythonPlaceholder": "pandas\nnumpy\nrequests",
+      "nodePlaceholder": "lodash\n@scope/pkg",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Run-code package policy updated",
+      "saveFailed": "Failed to update run-code package policy",
+      "testerTitle": "Test this package list",
+      "testerDescription": "Paste pip or npm specs to preview whether each one would pass under the current draft policy. Uses your unsaved edits, so you can iterate before clicking Save.",
+      "testerBucketLabel": "Bucket",
+      "bucketPython": "Python (pip)",
+      "bucketNode": "Node (npm)",
+      "testerInputLabel": "Specs to test",
+      "testerPlaceholderPython": "pandas==2.1, numpy>=1.26",
+      "testerPlaceholderNode": "lodash@4.17.21, @scope/pkg",
+      "testerButton": "Test",
+      "testerBaseLabel": "Base name",
+      "testerAllowed": "Allowed",
+      "testerDenied": "Denied",
+      "reasonAllowlistMatch": "matches the allow list",
+      "reasonAllowlistMiss": "not on the allow list (allowlist mode rejects everything else)",
+      "reasonDenylistMatch": "matches the deny list",
+      "reasonDenylistNotMatched": "not on the deny list"
     },
     "trash": {
       "title": "Trash",
@@ -3398,6 +3404,10 @@
       "title": "Agents",
       "description": "Create and manage AI agents for customer service."
     },
+    "skills": {
+      "title": "Skills",
+      "description": "Reusable instruction bundles you can attach to agents — playbooks plus optional sandbox scripts."
+    },
     "integrations": {
       "title": "Integrations",
       "description": "Connect third-party services."
@@ -3511,6 +3521,7 @@
     "personalization": "Preferences",
     "account": "Account",
     "agents": "Agents",
+    "skills": "Skills",
     "teamFilter": {
       "allTeams": "All"
     },
@@ -4630,6 +4641,119 @@
         "exampleOpenAIMeetilyConfig": "OpenAI client config (e.g. Meetily)"
       }
     },
+    "skills": {
+      "createSkill": "Create skill",
+      "searchPlaceholder": "Search skills…",
+      "deleteSkill": "Delete skill",
+      "notFound": "Skill not found",
+      "backToList": "Back to skills",
+      "skillCreated": "Skill created",
+      "skillCreateFailed": "Failed to create skill",
+      "skillSaved": "Skill saved",
+      "skillSaveFailed": "Failed to save skill",
+      "skillDeleted": "Skill deleted",
+      "skillDeleteFailed": "Failed to delete skill",
+      "skillDeleteConflict": "Skill changed since you opened this dialog. Reload and retry.",
+      "skillAlreadyExists": "A skill with this slug already exists",
+      "skillDuplicated": "Skill duplicated as {slug}",
+      "skillDuplicateFailed": "Failed to duplicate skill",
+      "bodyTemplate": "## When to use\n\n## References\n\n## How the agent should approach this\n",
+      "unsavedChanges": {
+        "title": "Discard unsaved changes?",
+        "description": "You have unsaved edits on this skill. Leaving now will discard them.",
+        "leave": "Discard and leave",
+        "stay": "Keep editing"
+      },
+      "conflict": "This skill was edited elsewhere. Reload to see the latest version.",
+      "validationError": "Invalid skill configuration",
+      "deleteConfirmation": "This removes the skill bundle from disk. The skill will no longer be available to any agent in this organization.",
+      "actions": {
+        "duplicate": "Duplicate"
+      },
+      "columns": {
+        "name": "Skill",
+        "description": "Description",
+        "loadError": "Failed to read SKILL.md"
+      },
+      "createDialog": {
+        "continue": "Create",
+        "creating": "Creating…"
+      },
+      "form": {
+        "slug": "Slug",
+        "slugHelp": "Lowercase letters/digits, hyphen-separated. Used as the on-disk folder name.",
+        "slugPatternError": "Lowercase letters, digits, hyphen-separated. No underscores, no leading/trailing/consecutive hyphens.",
+        "description": "Description",
+        "descriptionHelp": "Lead with \"Use when…\". The agent reads this to decide whether to expand the skill.",
+        "descriptionPlaceholder": "When this skill should be used — the agent sees this in every system prompt.",
+        "body": "Body markdown",
+        "bodyHelp": "Loaded into the agent context when it calls expand_skill. Plain markdown."
+      },
+      "section": {
+        "overview": "Overview",
+        "body": "Instructions (body)",
+        "bundle": "Bundle files",
+        "auditHistory": "Recent changes"
+      },
+      "metadata": {
+        "bundleFiles": "Bundle files",
+        "license": "License"
+      },
+      "body": {
+        "viewEdit": "Edit",
+        "viewPreview": "Preview",
+        "viewToggle": "Body view mode",
+        "previewEmpty": "(Body is empty)"
+      },
+      "auditHistory": {
+        "empty": "No audit entries yet for this skill.",
+        "action": {
+          "create": "Created",
+          "update": "Updated",
+          "delete": "Deleted"
+        }
+      },
+      "viewer": {
+        "toggleWrap": "Toggle line wrap",
+        "imageNotice": "Image preview is not available in the browser. Use the CLI to inspect this asset.",
+        "binaryNotice": "This file type is not previewable in the browser.",
+        "largeFile": "Large file — syntax highlighting disabled for performance."
+      },
+      "bundle": {
+        "empty": "No bundle files yet.",
+        "uiHelp": "Bundle files live on disk under skills/<slug>/. UI edits use atomic writes with CAS — concurrent disk edits are detected and surfaced as conflicts."
+      },
+      "detail": {
+        "tree": {
+          "heading": "Bundle",
+          "empty": "Only SKILL.md — add files under scripts/, references/, or assets/."
+        }
+      },
+      "asset": {
+        "add": "Add file",
+        "path": "Path",
+        "pathHelp": "Relative path within the skill bundle. Use scripts/ for executables, references/ for docs, assets/ for templates.",
+        "pathRequired": "Path is required",
+        "pathNoLeadingSlash": "Path must be relative — no leading slash. Use scripts/ / references/ / assets/.",
+        "pathNoTraversal": "Path may not contain \"..\".",
+        "pathInvalidChars": "Path may only contain letters, digits, dot, hyphen, underscore, and slash.",
+        "alreadyExists": "A file already exists at this path. Open it from the list to edit, or pick a new path.",
+        "loadNotFound": "This file is no longer in the bundle. Close and create it from the list instead.",
+        "content": "Content",
+        "createTitle": "New bundle file",
+        "editTitle": "Edit {path}",
+        "editAria": "Edit {path}",
+        "deleteAria": "Delete {path}",
+        "deleteTitle": "Delete file",
+        "deleteConfirmation": "Permanently remove this file from the skill bundle. This cannot be undone.",
+        "saved": "File saved",
+        "saveFailed": "Failed to save file",
+        "deleted": "File deleted",
+        "deleteFailed": "Failed to delete file",
+        "conflict": "This file was edited elsewhere. Reopen to see the latest version.",
+        "notFound": "Skill not found"
+      }
+    },
     "integrations": {
       "title": "Integrations",
       "pageSubtitle": "Connect third-party services to your workspace.",
@@ -5096,7 +5220,9 @@
           "workflow": "Workflow",
           "security": "Security",
           "admin": "Admin",
-          "ai": "AI"
+          "ai": "AI",
+          "skill": "Skill",
+          "agent": "Agent"
         },
         "export": {
           "csv": "Export CSV",

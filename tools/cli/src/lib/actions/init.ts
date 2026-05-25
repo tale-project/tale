@@ -165,6 +165,11 @@ export async function init(options: InitOptions): Promise<void> {
   }
   await writeEmbeddedFiles(providerConfigFiles, join(target, 'providers'));
 
+  // Copy skills from embedded examples
+  logger.step('Copying skill bundles...');
+  const skillFiles = getEmbeddedExamples('skills');
+  await writeEmbeddedFiles(skillFiles, join(target, 'skills'));
+
   // Compute checksums
   logger.step('Computing file checksums...');
   const allFiles = new Map<string, string>();
@@ -180,6 +185,9 @@ export async function init(options: InitOptions): Promise<void> {
   }
   for (const [relPath, content] of providerConfigFiles) {
     allFiles.set(join('providers', relPath), computeContentHash(content));
+  }
+  for (const [relPath, content] of skillFiles) {
+    allFiles.set(join('skills', relPath), computeContentHash(content));
   }
   allFiles.set(join('branding', 'branding.json'), computeContentHash('{}\n'));
 
@@ -281,6 +289,7 @@ export async function init(options: InitOptions): Promise<void> {
     ['Workflows', `${workflowFiles.size} files`],
     ['Integrations', `${integrationFiles.size} files`],
     ['Providers', `${providerConfigFiles.size} files`],
+    ['Skills', `${skillFiles.size} files`],
     ['Branding', '1 file'],
   ]);
   logger.blank();
@@ -292,7 +301,7 @@ export async function init(options: InitOptions): Promise<void> {
     logger.info(`  ${step++}. Run "cd ${target}" to enter your project`);
   }
   logger.info(
-    `  ${step++}. Edit agents/, workflows/, integrations/, and branding/ to customize your setup`,
+    `  ${step++}. Edit agents/, workflows/, integrations/, skills/, and branding/ to customize your setup`,
   );
   logger.info(
     `  ${step++}. Open the project in an AI-powered editor (Claude Code, Cursor, Copilot, or Windsurf) for guided config creation`,
@@ -307,6 +316,7 @@ const TALE_PROJECT_MARKERS = new Set([
   'agents',
   'workflows',
   'integrations',
+  'skills',
   '.tale',
   'branding',
 ]);

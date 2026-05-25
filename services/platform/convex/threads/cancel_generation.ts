@@ -111,27 +111,8 @@ export async function cancelGeneration(
     });
   }
 
-  // Discard any in-flight artifact streams on this thread. Without this,
-  // a stop during `artifact_create` mid-input-delta leaves a `revision:0`
-  // placeholder row in the canvas sidebar with a streaming badge until
-  // `cleanupStaleStreams` cron sweeps it (up to ~6 min). We do this inline
-  // because the mutation just deletes/patches the artifact row — no
-  // external services involved.
-  if (threadMeta?.organizationId) {
-    try {
-      await ctx.runMutation(
-        internal.artifacts.internal_mutations.discardActiveStreamsForThread,
-        { organizationId: threadMeta.organizationId, threadId },
-      );
-    } catch (err) {
-      // Best-effort — never fail the cancel because of cleanup hiccups.
-      // The 60 s + 5 min watchdog still sweeps anything we miss here.
-      console.warn(
-        '[cancelGeneration] discardActiveStreamsForThread failed:',
-        err,
-      );
-    }
-  }
+  // (artifact in-flight stream cleanup removed — artifacts module deleted.)
+  void threadMeta;
 
   // Cascade Stop to any running sandbox executions on this thread. Scheduled
   // (not awaited) because the action calls the spawner over HTTP and we

@@ -6,6 +6,7 @@
     "apiKeys": "Tu dois disposer des permissions Admin ou Développeur pour gérer les clés API.",
     "organization": "Tu dois disposer des permissions Admin pour accéder aux paramètres de l'organisation.",
     "agents": "Tu dois disposer des permissions Admin ou Développeur pour gérer les agents.",
+    "skills": "Tu dois disposer des permissions Admin ou Développeur pour gérer les skills.",
     "branding": "Tu dois disposer des permissions Admin pour accéder aux paramètres de marque.",
     "knowledge": "Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.",
     "workspaceNotFound": "L'espace de travail que tu recherches n'existe pas ou a été supprimé.",
@@ -1138,37 +1139,15 @@
       "verdictError": "Échec de l'enregistrement du verdict"
     },
     "canvas": {
-      "close": "Fermer le canevas",
-      "edit": "Modifier",
-      "copy": "Copier",
       "download": "Télécharger",
-      "exportPdf": "Exporter en PDF",
-      "exportPdfFailed": "Échec de l'export PDF",
-      "copied": "Copié !",
       "mermaidError": "Échec du rendu du diagramme",
-      "resizeHandle": "Redimensionner le canevas",
-      "apply": "Appliquer les modifications",
-      "applied": "Modifications appliquées",
-      "applyFailed": "Échec de l'application des modifications",
-      "enterFullscreen": "Plein écran",
-      "exitFullscreen": "Quitter le plein écran",
-      "codeEditor": "Éditeur de code",
-      "markdownEditor": "Éditeur Markdown",
-      "mermaidEditor": "Éditeur Mermaid",
-      "streamingWriting": "L'IA écrit…",
-      "streamingPatch": "L'IA modifie…",
-      "cancel": "Annuler la modification",
-      "streamingDuringEdit": "L'agent met à jour cet artéfact — ton brouillon est conservé. Clique sur Annuler pour le rejeter.",
-      "runDone": "Terminé",
-      "runStarted": "Démarré",
-      "runStale": "Code modifié",
-      "runFiles": "Fichiers",
-      "runStdout": "stdout ({chars} car.)",
-      "runStderr": "stderr ({chars} car.)",
-      "runOpenFile": "Ouvrir le fichier {name}",
-      "runResultEntryLabel": "Sortie",
-      "runResultSecondaryLabel": "Sortie pour {path}",
-      "runResultSecondaryCount": "{count, plural, one {# autre fichier} other {# autres fichiers}}",
+      "viewSource": "Source",
+      "viewPreview": "Aperçu",
+      "viewToggleAriaLabel": "Basculer entre source et aperçu",
+      "sourceRunOutput": "Sortie de code",
+      "sourceAgentWrite": "Fichiers IA",
+      "sourceUserUpload": "Téléversés",
+      "noFilesYet": "Aucun fichier pour le moment",
       "runStatus": {
         "queued": "En file d'attente",
         "installing": "Installation des dépendances",
@@ -1211,29 +1190,7 @@
         "script_runnable": "Script (sandbox)",
         "python_runnable": "Python (sandbox)",
         "node_runnable": "Node (sandbox)"
-      },
-      "fileSidebar": {
-        "label": "Fichiers du projet",
-        "title": "Fichiers",
-        "expand": "Afficher les fichiers",
-        "collapse": "Masquer les fichiers",
-        "entryBadge": "entrée",
-        "streamingDot": "Écriture de ce fichier…",
-        "addFile": "Ajouter un fichier",
-        "addFilePlaceholder": "chemin/vers/fichier.ext",
-        "addFileConfirm": "Ajouter",
-        "addFileCancel": "Annuler",
-        "errorPathRequired": "Le chemin est requis.",
-        "errorPathExists": "Un fichier avec ce chemin existe déjà.",
-        "errorAddFailed": "Impossible d'ajouter le fichier."
       }
-    },
-    "artifacts": {
-      "barLabel": "Artéfacts dans ce fil",
-      "barTitle": "Artéfacts",
-      "openCard": "Ouvrir l'artéfact : {title}",
-      "touchedByMessage": "{title}",
-      "fileCount": "{count, plural, one {# fichier} other {# fichiers}}"
     },
     "branchNavigator": {
       "previous": "Branche précédente",
@@ -1408,6 +1365,7 @@
     },
     "aria": {
       "close": "Fermer",
+      "resizePanel": "Redimensionner le panneau",
       "hidePassword": "Masquer le mot de passe",
       "showPassword": "Afficher le mot de passe",
       "dismiss": "Ignorer",
@@ -2016,6 +1974,10 @@
     "agents": {
       "title": "Aucun agent pour l'instant",
       "description": "Crée ton premier agent pour spécialiser le comportement de l'IA pour ton équipe"
+    },
+    "skills": {
+      "title": "Aucun skill pour l'instant",
+      "description": "Les skills sont des recettes réutilisables à attacher aux agents — un playbook plus des scripts sandbox optionnels."
     },
     "members": {
       "title": "Aucun membre trouvé",
@@ -2692,7 +2654,51 @@
       "feedback": "Retours",
       "auditLogs": "Journaux d'audit",
       "dataSubjectRequests": "Personnes concernées",
-      "policiesAndLimitsDescription": "Budgets, restrictions de téléversement, rétention des données, feature flags et sortie vocale."
+      "policiesAndLimitsDescription": "Budgets, restrictions de téléversement, rétention des données, feature flags et sortie vocale.",
+      "runCodePolicy": "Paquets run-code"
+    },
+    "runCodePolicy": {
+      "title": "Politique de paquets run-code",
+      "description": "Contrôle quels paquets Python et Node l'outil run_code peut installer à l'exécution. Le mode par défaut est liste de blocage avec une liste vide, ce qui autorise tous les paquets. Passer en mode liste d'autorisation oblige à énumérer chaque paquet de confiance — tout le reste est bloqué.",
+      "modeSectionTitle": "Mode par défaut",
+      "modeSectionDescription": "Choisissez la stratégie appliquée par run_code lorsqu'un paquet n'est pas explicitement mentionné dans la politique.",
+      "modeAllowlistLabel": "Liste d'autorisation",
+      "modeAllowlistDescription": "Seuls les paquets figurant dans les listes d'autorisation ci-dessous peuvent être installés. Tout le reste est rejeté.",
+      "modeDenylistLabel": "Liste de blocage",
+      "modeDenylistDescription": "Tous les paquets sont installables, à l'exception de ceux figurant dans les listes de blocage ci-dessous.",
+      "pythonSectionTitle": "Paquets Python",
+      "nodeSectionTitle": "Paquets Node",
+      "listsHint": "Un nom de paquet par ligne (ou séparé par des virgules). Les contraintes de version sont supprimées automatiquement — `pandas==2.1` correspond à `pandas`.",
+      "pythonAllowLabel": "Liste d'autorisation Python",
+      "pythonAllowDescription": "Utilisée lorsque le mode par défaut est Liste d'autorisation.",
+      "pythonDenyLabel": "Liste de blocage Python",
+      "pythonDenyDescription": "Utilisée lorsque le mode par défaut est Liste de blocage.",
+      "nodeAllowLabel": "Liste d'autorisation Node",
+      "nodeAllowDescription": "Utilisée lorsque le mode par défaut est Liste d'autorisation. Les paquets scopés (`@scope/pkg`) sont pris en charge.",
+      "nodeDenyLabel": "Liste de blocage Node",
+      "nodeDenyDescription": "Utilisée lorsque le mode par défaut est Liste de blocage. Les paquets scopés (`@scope/pkg`) sont pris en charge.",
+      "pythonPlaceholder": "pandas\nnumpy\nrequests",
+      "nodePlaceholder": "lodash\n@scope/pkg",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "saved": "Politique de paquets run-code mise à jour",
+      "saveFailed": "Échec de la mise à jour de la politique de paquets run-code",
+      "testerTitle": "Tester cette liste de paquets",
+      "testerDescription": "Collez des spécifications pip ou npm pour prévisualiser si chacune passerait sous la politique en cours d'édition. Utilise vos modifications non enregistrées, vous pouvez donc itérer avant d'enregistrer.",
+      "testerBucketLabel": "Catégorie",
+      "bucketPython": "Python (pip)",
+      "bucketNode": "Node (npm)",
+      "testerInputLabel": "Spécifications à tester",
+      "testerPlaceholderPython": "pandas==2.1, numpy>=1.26",
+      "testerPlaceholderNode": "lodash@4.17.21, @scope/pkg",
+      "testerButton": "Tester",
+      "testerBaseLabel": "Nom de base",
+      "testerAllowed": "Autorisé",
+      "testerDenied": "Refusé",
+      "reasonAllowlistMatch": "figure dans la liste d'autorisation",
+      "reasonAllowlistMiss": "absent de la liste d'autorisation (le mode liste d'autorisation refuse tout le reste)",
+      "reasonDenylistMatch": "figure dans la liste de blocage",
+      "reasonDenylistNotMatched": "absent de la liste de blocage"
     },
     "trash": {
       "title": "Corbeille",
@@ -3399,6 +3405,10 @@
       "title": "Agents",
       "description": "Crée et gère des agents IA pour le service client."
     },
+    "skills": {
+      "title": "Skills",
+      "description": "Recettes réutilisables à attacher aux agents — playbooks plus scripts sandbox optionnels."
+    },
     "integrations": {
       "title": "Intégrations",
       "description": "Connecte des services tiers."
@@ -3512,6 +3522,7 @@
     "personalization": "Personnalisation",
     "account": "Compte",
     "agents": "Agents",
+    "skills": "Skills",
     "teamFilter": {
       "allTeams": "Toutes"
     },
@@ -4374,6 +4385,119 @@
         "exampleOpenAIMeetilyConfig": "Configuration client OpenAI (p. ex. Meetily)"
       }
     },
+    "skills": {
+      "createSkill": "Créer un skill",
+      "searchPlaceholder": "Rechercher des skills…",
+      "deleteSkill": "Supprimer le skill",
+      "notFound": "Skill introuvable",
+      "backToList": "Retour aux skills",
+      "skillCreated": "Skill créé",
+      "skillCreateFailed": "Échec de la création du skill",
+      "skillSaved": "Skill enregistré",
+      "skillSaveFailed": "Échec de l'enregistrement du skill",
+      "skillDeleted": "Skill supprimé",
+      "skillDeleteFailed": "Échec de la suppression du skill",
+      "skillDeleteConflict": "Le skill a changé depuis l'ouverture de ce dialogue. Recharge et réessaie.",
+      "skillAlreadyExists": "Un skill avec ce slug existe déjà",
+      "skillDuplicated": "Skill dupliqué en {slug}",
+      "skillDuplicateFailed": "Échec de la duplication du skill",
+      "bodyTemplate": "# {slug}\n\nDécris quand utiliser ce skill et les étapes à suivre.\n",
+      "unsavedChanges": {
+        "title": "Abandonner les modifications non enregistrées ?",
+        "description": "Tu as des modifications non enregistrées sur ce skill. Quitter maintenant les abandonnera.",
+        "leave": "Abandonner et quitter",
+        "stay": "Continuer l'édition"
+      },
+      "conflict": "Ce skill a été modifié ailleurs. Recharge pour voir la version actuelle.",
+      "validationError": "Configuration de skill invalide",
+      "deleteConfirmation": "Cela retire le bundle du skill du disque. Les agents qui y sont attachés conserveront leur référence et émettront un avertissement à l'exécution jusqu'à ce que tu les modifies à nouveau.",
+      "actions": {
+        "duplicate": "Dupliquer"
+      },
+      "columns": {
+        "name": "Skill",
+        "description": "Description",
+        "loadError": "Impossible de lire SKILL.md"
+      },
+      "createDialog": {
+        "continue": "Créer",
+        "creating": "Création…"
+      },
+      "form": {
+        "slug": "Slug",
+        "slugHelp": "Lettres minuscules/chiffres, séparés par des tirets. Utilisé comme nom de dossier sur le disque.",
+        "slugPatternError": "Lettres minuscules, chiffres, séparés par des tirets. Pas de soulignés, pas de tirets en début/fin ni de tirets consécutifs.",
+        "description": "Description",
+        "descriptionHelp": "Commence par \"Utilise quand…\". L'agent la lit pour décider d'étendre ou non le skill.",
+        "descriptionPlaceholder": "Quand ce skill doit être utilisé — l'agent le voit dans chaque prompt système.",
+        "body": "Markdown du corps",
+        "bodyHelp": "Chargé dans le contexte de l'agent quand il appelle `expand_skill`. Markdown brut."
+      },
+      "section": {
+        "overview": "Aperçu",
+        "body": "Instructions (corps)",
+        "bundle": "Fichiers du bundle",
+        "auditHistory": "Modifications récentes"
+      },
+      "metadata": {
+        "bundleFiles": "Fichiers du bundle",
+        "license": "Licence"
+      },
+      "body": {
+        "viewEdit": "Modifier",
+        "viewPreview": "Aperçu",
+        "viewToggle": "Mode d'affichage du corps",
+        "previewEmpty": "(Le corps est vide)"
+      },
+      "auditHistory": {
+        "empty": "Aucune entrée d'audit pour l'instant pour ce skill.",
+        "action": {
+          "create": "Créé",
+          "update": "Mis à jour",
+          "delete": "Supprimé"
+        }
+      },
+      "viewer": {
+        "toggleWrap": "Basculer le retour à la ligne",
+        "imageNotice": "L'aperçu d'image n'est pas disponible dans le navigateur. Utilise la CLI pour inspecter cet asset.",
+        "binaryNotice": "Ce type de fichier n'est pas prévisualisable dans le navigateur.",
+        "largeFile": "Fichier volumineux — coloration syntaxique désactivée pour les performances."
+      },
+      "bundle": {
+        "empty": "Aucun fichier de bundle pour l'instant.",
+        "uiHelp": "Les fichiers du bundle vivent sur le disque sous skills/<slug>/. Les modifications via l'UI utilisent des écritures atomiques avec CAS — les modifications concurrentes sur disque sont détectées et signalées comme conflits."
+      },
+      "detail": {
+        "tree": {
+          "heading": "Bundle",
+          "empty": "Seulement SKILL.md — ajoute des fichiers sous scripts/, references/ ou assets/."
+        }
+      },
+      "asset": {
+        "add": "Ajouter un fichier",
+        "path": "Chemin",
+        "pathHelp": "Chemin relatif dans le bundle du skill. Utilise scripts/ pour les exécutables, references/ pour les docs, assets/ pour les modèles.",
+        "pathRequired": "Le chemin est requis",
+        "pathNoLeadingSlash": "Le chemin doit être relatif — pas de slash initial. Utilise scripts/ / references/ / assets/.",
+        "pathNoTraversal": "Le chemin ne peut pas contenir \"..\".",
+        "pathInvalidChars": "Le chemin ne peut contenir que des lettres, chiffres, point, tiret, souligné et slash.",
+        "alreadyExists": "Un fichier existe déjà à ce chemin. Ouvre-le depuis la liste pour le modifier, ou choisis un nouveau chemin.",
+        "loadNotFound": "Ce fichier n'est plus dans le bundle. Ferme et crée-le depuis la liste à la place.",
+        "content": "Contenu",
+        "createTitle": "Nouveau fichier de bundle",
+        "editTitle": "Modifier {path}",
+        "editAria": "Modifier {path}",
+        "deleteAria": "Supprimer {path}",
+        "deleteTitle": "Supprimer le fichier",
+        "deleteConfirmation": "Retire définitivement ce fichier du bundle du skill. Cette action est irréversible.",
+        "saved": "Fichier enregistré",
+        "saveFailed": "Échec de l'enregistrement du fichier",
+        "deleted": "Fichier supprimé",
+        "deleteFailed": "Échec de la suppression du fichier",
+        "conflict": "Ce fichier a été modifié ailleurs. Rouvre-le pour voir la version actuelle.",
+        "notFound": "Skill introuvable"
+      }
+    },
     "integrations": {
       "title": "Intégrations",
       "pageSubtitle": "Connecte des services tiers à ton espace de travail.",
@@ -4840,7 +4964,9 @@
           "workflow": "Workflow",
           "security": "Sécurité",
           "admin": "Admin",
-          "ai": "IA"
+          "ai": "IA",
+          "skill": "Skill",
+          "agent": "Agent"
         },
         "export": {
           "csv": "Exporter en CSV",

@@ -6,7 +6,6 @@ import {
   internalQuery,
   type MutationCtx,
 } from '../_generated/server';
-import { applyFinalizeArtifactRun } from '../artifacts/internal_mutations';
 import { rateLimiter } from '../lib/rate_limiter';
 import {
   SANDBOX_DAILY_CPU_BUDGET_SECONDS,
@@ -151,20 +150,18 @@ export const reserveSlotAndInsert = internalMutation({
     messageId: v.optional(v.string()),
     toolCallId: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
-    artifactId: v.optional(v.id('artifacts')),
+    artifactId: v.optional(v.string()),
     /** For artifact-bound runs: which file in the project was executed. */
     path: v.optional(v.string()),
+    /** For skill_run invocations: the skill slug (mutually exclusive with artifactId). */
+    skillSlug: v.optional(v.string()),
+    /** SHA-256 of SKILL.md at execution time, for skill_run forensics. */
+    skillVersionHash: v.optional(v.string()),
     language: sandboxLanguageValidator,
     purpose: v.optional(v.string()),
     codePreview: v.string(),
     codeStorageId: v.optional(v.id('_storage')),
     packages: v.array(v.string()),
-    installOptions: v.optional(
-      v.object({
-        allowSdist: v.optional(v.boolean()),
-        allowInstallScripts: v.optional(v.boolean()),
-      }),
-    ),
     estimatedSeconds: v.number(),
   },
   returns: v.id('sandboxExecutions'),
@@ -240,15 +237,10 @@ export const reserveSlotAndInsert = internalMutation({
       ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
       ...(args.artifactId !== undefined && { artifactId: args.artifactId }),
       ...(args.path !== undefined && { path: args.path }),
-      // Normalize the audit field: always store an object with explicit
-      // booleans (default false) so a future read-side default-divergence
-      // can't quietly invert the meaning. The legacy conditional-spread
-      // stored either `undefined` or a partial object, depending on the
-      // caller's args shape.
-      installOptions: {
-        allowSdist: args.installOptions?.allowSdist ?? false,
-        allowInstallScripts: args.installOptions?.allowInstallScripts ?? false,
-      },
+      ...(args.skillSlug !== undefined && { skillSlug: args.skillSlug }),
+      ...(args.skillVersionHash !== undefined && {
+        skillVersionHash: args.skillVersionHash,
+      }),
       language: args.language,
       ...(args.purpose !== undefined && { purpose: args.purpose }),
       codePreview: args.codePreview,
@@ -473,16 +465,8 @@ export const recoverStuckSandboxes = internalMutation({
         // Cascade to the artifact row if this execution was bound to one,
         // so the canvas spinner terminates as soon as the watchdog runs
         // (otherwise the runnable card spins until the audit row TTLs out).
-        if (row.artifactId) {
-          await applyFinalizeArtifactRun(ctx, {
-            artifactId: row.artifactId,
-            runStatus: 'failed',
-            runErrorCode: 'SPAWNER_UNAVAILABLE',
-            runErrorMessage: `Watchdog reaped a stuck ${status} sandbox execution`,
-            runOutputFiles: [],
-            runExecutionId: row._id,
-          });
-        }
+        // Artifact cascade removed — artifacts module deleted in the
+        // thread-workspace refactor.
         recovered += 1;
       }
     }
@@ -507,7 +491,7 @@ export const listNonTerminalByThread = internalQuery({
   returns: v.array(
     v.object({
       _id: v.id('sandboxExecutions'),
-      artifactId: v.optional(v.id('artifacts')),
+      artifactId: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -517,13 +501,13 @@ export const listNonTerminalByThread = internalQuery({
       .collect();
     const out: Array<{
       _id: Id<'sandboxExecutions'>;
-      artifactId?: Id<'artifacts'>;
+      artifactId?: string;
     }> = [];
     for (const row of rows) {
       if (sandboxTerminalStatuses.has(row.status)) continue;
       const entry: {
         _id: Id<'sandboxExecutions'>;
-        artifactId?: Id<'artifacts'>;
+        artifactId?: string;
       } = { _id: row._id };
       if (row.artifactId !== undefined) entry.artifactId = row.artifactId;
       out.push(entry);
@@ -678,16 +662,7 @@ export const cancelExecutionRecord = internalMutation({
         row.estimatedSeconds,
       ),
     });
-    if (row.artifactId) {
-      await applyFinalizeArtifactRun(ctx, {
-        artifactId: row.artifactId,
-        runStatus: 'cancelled',
-        runErrorCode: 'CANCELLED',
-        runErrorMessage: message,
-        runOutputFiles: [],
-        runExecutionId: row._id,
-      });
-    }
+    // Artifact cascade removed — artifacts module deleted.
     return null;
   },
 });

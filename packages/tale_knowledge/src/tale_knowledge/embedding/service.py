@@ -6,6 +6,7 @@ Each service creates its own EmbeddingService instance with its own config.
 
 import asyncio
 import random
+import time
 from dataclasses import dataclass, field
 
 from loguru import logger
@@ -82,6 +83,7 @@ class EmbeddingService:
 
         async with self._semaphore:
             for attempt in range(MAX_RETRIES):
+                t_attempt = time.time()
                 try:
                     response = await self._client.embeddings.create(
                         model=self._model,
@@ -96,6 +98,13 @@ class EmbeddingService:
                             response.usage.prompt_tokens,
                             response.usage.total_tokens,
                         )
+                    logger.debug(
+                        "PERF embed attempt {}/{}: {:.1f}ms ok ({} inputs)",
+                        attempt + 1,
+                        MAX_RETRIES,
+                        (time.time() - t_attempt) * 1000,
+                        len(valid_texts),
+                    )
                     break
                 except (
                     RateLimitError,

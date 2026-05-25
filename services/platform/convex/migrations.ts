@@ -15,18 +15,7 @@ export const runAll = internalAction({
     await ctx.runMutation(
       internal.migrations.backfill_ledger_granularity.apply,
     );
-    // Multi-file artifact refactor — Phase A. Synthesizes `files`/`entryFile`
-    // for legacy single-`content` artifact rows. Idempotent (skip-if-set).
-    await ctx.runMutation(internal.migrations.backfill_artifact_files.apply);
-    // Multi-file artifact refactor — Phase B. Backfills the dedicated
-    // `artifactFiles` / `artifactRuns` / `artifactRunFiles` tables from
-    // the legacy embedded fields. Depends on Phase A (reads the
-    // synthesized `files[]`). Sentinel-gated idempotent — partially-done
-    // artifacts roll back atomically per batch and retry skips completed
-    // ones at O(1).
-    await ctx.runMutation(
-      internal.migrations.backfill_artifact_files_table.apply,
-    );
+    // (artifact backfill migrations removed — artifacts module deleted.)
     // Idempotent: orgs that already carry an applied-bounds snapshot are
     // skipped inside `seedInitialBoundsInternal`, so re-running on every
     // deploy is safe. Without this seed, retention_cleanup silently no-ops
@@ -35,9 +24,12 @@ export const runAll = internalAction({
     await ctx.runAction(internal.migrations.seed_applied_bounds.apply, {});
     // Splits the legacy `userPreferences.enabled` flag and the single
     // `personalization` org policy into independent Custom Instructions
-    // and User Memories gates. Idempotent.
-    await ctx.runMutation(
+    // and User Memories gates. Idempotent. Exposed as an action because
+    // it orchestrates two paginated mutations (Convex caps each
+    // function at one paginated query).
+    await ctx.runAction(
       internal.migrations.split_personalization_toggle.apply,
+      {},
     );
   },
 });

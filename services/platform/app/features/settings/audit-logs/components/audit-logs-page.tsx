@@ -86,6 +86,8 @@ export function AuditLogsPage({
           { value: 'security', label: t('logs.audit.categories.security') },
           { value: 'admin', label: t('logs.audit.categories.admin') },
           { value: 'ai', label: t('logs.audit.categories.ai') },
+          { value: 'skill', label: t('logs.audit.categories.skill') },
+          { value: 'agent', label: t('logs.audit.categories.agent') },
         ],
         selectedValues: category ? [category] : [],
         onChange: handleCategoryChange,

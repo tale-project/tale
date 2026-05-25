@@ -40,7 +40,8 @@ log_section() { echo; echo "═════════════════�
 if [ "$(id -u)" = '0' ]; then
   data_dir="${TALE_CONFIG_DIR:-/app/data}"
   mkdir -p "$data_dir/convex" "$data_dir/agents" "$data_dir/workflows" \
-           "$data_dir/integrations" "$data_dir/providers" "$data_dir/branding"
+           "$data_dir/integrations" "$data_dir/providers" "$data_dir/branding" \
+           "$data_dir/skills"
   chown -R app:app "$data_dir"
 
   # ----------------------------------------------------------------------------
@@ -337,10 +338,34 @@ run_seed() {
       local name="$(basename "$src_dir")"
       local dest_dir="$integrations_dir/$name"
       if [ "$FORCE_SEED" = "true" ]; then
+        # rm before cp: without this, `cp -r src/ dest` nests the bundle as
+        # `dest/<name>` instead of overwriting it, leaving stale files and
+        # doubling the on-disk layout per restart.
+        rm -rf "$dest_dir"
         cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name (forced)"; continue
       fi
       if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping integration $name (already exists)"; continue; fi
       cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name"
+    done
+  fi
+
+  # --- Skills (directory bundles: SKILL.md + scripts/ + references/ + assets/) ---
+  local skills_dir="${data_dir}/skills"
+  local skills_builtin="/app/skills-builtin"
+  mkdir -p "$skills_dir"
+  if [ -d "$skills_builtin" ] && [ "$(ls -A "$skills_builtin" 2>/dev/null)" ]; then
+    for src_dir in "$skills_builtin"/*/; do
+      [ -d "$src_dir" ] || continue
+      local name="$(basename "$src_dir")"
+      local dest_dir="$skills_dir/$name"
+      if [ "$FORCE_SEED" = "true" ]; then
+        # rm before cp — same fix as the integrations seed loop above:
+        # without it, FORCE_SEED nests the bundle and leaves stale files.
+        rm -rf "$dest_dir"
+        cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name (forced)"; continue
+      fi
+      if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping skill $name (already exists)"; continue; fi
+      cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name"
     done
   fi
 

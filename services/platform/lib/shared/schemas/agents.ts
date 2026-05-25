@@ -1,6 +1,32 @@
 import { z } from 'zod/v4';
 
 import { isValidModelRef } from '../utils/model-ref';
+import { SKILL_NAME_REGEX } from './skills';
+
+/**
+ * Canonical shape of one entry in an agent's `skillBindingsResolved`
+ * array — the trusted snapshot the runtime reads at chat-turn start to
+ * decide which tools / integrations / workflows a bound skill grants.
+ *
+ * Until now this same shape was redeclared in seven places (zod schema,
+ * Convex validator, TS interfaces in `skills_runtime.ts`,
+ * `agent_chat/types.ts`, `agents/file_utils.ts`) — a trust-boundary
+ * type with inconsistent enforcement across sites. Sharing one schema
+ * makes drift a build-time error instead of a runtime one.
+ */
+export const skillBindingResolvedEntrySchema = z.object({
+  slug: z.string().min(1).max(64).regex(SKILL_NAME_REGEX),
+  versionHash: z.string().regex(/^[0-9a-f]{64}$/, {
+    message: 'versionHash must be a lowercase sha256 hex digest',
+  }),
+  toolNames: z.array(z.string().min(1)).default([]),
+  integrationBindings: z.array(z.string().min(1)).default([]),
+  workflowBindings: z.array(z.string().min(1)).default([]),
+});
+
+export type SkillBindingResolvedEntry = z.infer<
+  typeof skillBindingResolvedEntrySchema
+>;
 
 const retrievalModeLiterals = ['off', 'tool', 'context', 'both'] as const;
 type RetrievalMode = (typeof retrievalModeLiterals)[number];
@@ -60,6 +86,14 @@ export const agentJsonSchema = z
     integrationBindings: z.array(z.string()).optional(),
     delegates: z.array(z.string()).optional(),
     workflows: z.array(z.string()).optional(),
+    skillBindings: z
+      .array(z.string().min(1).max(64).regex(SKILL_NAME_REGEX))
+      .max(10)
+      .optional(),
+    skillBindingsResolved: z
+      .array(skillBindingResolvedEntrySchema)
+      .max(10)
+      .optional(),
     supportedModels: z
       .array(
         z.string().min(1).refine(isValidModelRef, {
@@ -140,6 +174,11 @@ export const agentJsonSchema = z
         });
       }
     }
+
+    // skillBindings / skillBindingsResolved are vestigial — the new skill
+    // model exposes all org skills to every agent, so per-agent gating no
+    // longer exists. The fields stay `.optional()` so historical agent
+    // JSON keeps validating, but no cross-reference check is enforced.
 
     // Image-generation agents have no tool loop — these fields are meaningless.
     if (data.primaryBehavior === 'image-generation') {

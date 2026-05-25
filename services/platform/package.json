@@ -135,6 +135,7 @@
     "vite-plugin-pwa": "1.3.0",
     "workbox-window": "7.4.1",
     "xlsx": "0.18.5",
+    "yaml": "2.8.3",
     "zod": "4.3.6"
   },
   "devDependencies": {
@@ -167,8 +168,7 @@
     "postcss-load-config": "6.0.1",
     "seedrandom": "3.0.5",
     "tree-kill": "1.2.2",
-    "vitest-axe": "1.0.0-pre.5",
-    "yaml": "2.8.3"
+    "vitest-axe": "1.0.0-pre.5"
   },
   "optionalDependencies": {
     "@parcel/watcher-linux-arm64-glibc": "2.5.6",

@@ -190,6 +190,8 @@ def interpreter_for(path):
         return "python3"
     if lower.endswith(".js") or lower.endswith(".cjs") or lower.endswith(".mjs"):
         return "node"
+    if lower.endswith(".sh"):
+        return "bash"
     return None
 
 def flush_results():
@@ -427,9 +429,179 @@ process.exit(0);
 const PRIOR_FETCH_DEFAULT_TIMEOUT_MS = 30_000;
 const PRIOR_FETCH_DEFAULT_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
 
+// Workspace files (`req.files[]`) share the URL-fetch path with prior outputs
+// but use their own caps so the two ingestion classes can be tuned
+// independently. 30s / 100 MB matches the prior-output budget, which is the
+// natural starting point for the same Caddy-aliased Convex storage URLs.
+const WORKSPACE_FETCH_TIMEOUT_MS = 30_000;
+const WORKSPACE_FETCH_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
+
 interface StagePriorOpts {
   timeoutMs?: number;
   maxBytesPerFile?: number;
+}
+
+type FetchUrlResult =
+  | { ok: true; bytes: number; sha256: string }
+  | { ok: false; reason: PriorStageSkipReason; detail: string };
+
+/**
+ * Fetch `url` into `dest` with timeout, Content-Length pre-check, and
+ * stream-and-cap byte ceiling. Computes sha256 of the bytes. Reused by
+ * both `stagePriorOutputDownloads` (prior-output ingress, skip-on-failure
+ * semantics) and `stageWorkspace`'s `files[]` loop (workspace ingress,
+ * fail-fast semantics). The caller is responsible for validating `dest`
+ * against its own safe-directory boundary before invoking.
+ */
+async function fetchUrlToFile(
+  url: string,
+  dest: string,
+  opts: { timeoutMs: number; maxBytesPerFile: number },
+): Promise<FetchUrlResult> {
+  let res: Response;
+  try {
+    // AbortSignal.timeout caps the round trip so a stalled presigned URL
+    // can't hang stageWorkspace indefinitely (audit follow-up F5).
+    res = await fetch(url, { signal: AbortSignal.timeout(opts.timeoutMs) });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    // AbortSignal.timeout rejects with a DOMException whose `name` is
+    // 'TimeoutError'; surface a distinct reason so the platform can
+    // distinguish "URL was reachable" from "URL hung".
+    const reason: PriorStageSkipReason =
+      err instanceof Error && err.name === 'TimeoutError'
+        ? 'fetch_timeout'
+        : 'fetch_failed';
+    return { ok: false, reason, detail };
+  }
+  if (!res.ok) {
+    // 403/410 from a presigned URL usually means TTL expired — give the
+    // caller a distinct reason so prior-output skip / workspace fail-fast
+    // can both surface a more actionable error than a generic HTTP code.
+    const reason: PriorStageSkipReason =
+      res.status === 403 || res.status === 410 ? 'url_expired' : 'http_error';
+    return { ok: false, reason, detail: `HTTP ${res.status}` };
+  }
+  // Fast-fail on Content-Length when the server provides one — avoids
+  // streaming a known-too-large body just to reject it.
+  const contentLengthHeader = res.headers.get('content-length');
+  if (contentLengthHeader !== null) {
+    const declaredBytes = Number(contentLengthHeader);
+    if (
+      Number.isFinite(declaredBytes) &&
+      declaredBytes > opts.maxBytesPerFile
+    ) {
+      return {
+        ok: false,
+        reason: 'download_too_large',
+        detail: `Content-Length ${declaredBytes} exceeds cap ${opts.maxBytesPerFile}`,
+      };
+    }
+  }
+  try {
+    // Stream-and-cap. Without this a server that lies about (or omits)
+    // Content-Length could still smuggle gigabytes through, filling the
+    // host disk. We abort the read as soon as the running total crosses
+    // the cap.
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    let oversize = false;
+    if (res.body !== null) {
+      const reader = res.body.getReader();
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value === undefined) continue;
+          if (total + value.byteLength > opts.maxBytesPerFile) {
+            oversize = true;
+            break;
+          }
+          chunks.push(value);
+          total += value.byteLength;
+        }
+      } finally {
+        try {
+          reader.releaseLock();
+        } catch (err) {
+          console.warn('[sandbox] fetchUrlToFile reader.releaseLock:', err);
+        }
+      }
+    }
+    if (oversize) {
+      return {
+        ok: false,
+        reason: 'download_too_large',
+        detail: `streamed > ${opts.maxBytesPerFile} bytes`,
+      };
+    }
+    const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+    const sha256 = createHash('sha256').update(buf).digest('hex');
+    await mkdir(dirname(dest), { recursive: true });
+    await writeFile(dest, buf);
+    return { ok: true, bytes: buf.byteLength, sha256 };
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: 'write_failed', detail };
+  }
+}
+
+/**
+ * Generic best-effort stage: fetch each `{name, url}` into `targetDir/<name>`
+ * with path-safety + cap enforcement, logging staged/skipped with `logLabel`.
+ * Used by `stagePriorOutputDownloads` (returns the staged/skipped struct for
+ * platform-side attestation) and `stageUserUploadDownloads` (discards it).
+ */
+async function stageDownloadsToDir(
+  targetDir: string,
+  downloads: ReadonlyArray<{ name: string; url: string }>,
+  opts: { timeoutMs: number; maxBytesPerFile: number },
+  logLabel: string,
+): Promise<PriorStageResult> {
+  const staged: PriorStageResult['staged'] = [];
+  const skipped: PriorStageResult['skipped'] = [];
+  for (const file of downloads) {
+    const dest = resolve(targetDir, file.name);
+    // Defense in depth — refuse anything escaping targetDir.
+    if (dest !== targetDir && !dest.startsWith(targetDir + sep)) {
+      const detail = `resolved path escapes targetDir`;
+      console.warn(
+        `[sandbox] skipping unsafe ${logLabel} name: ${JSON.stringify(file.name)} (${detail})`,
+      );
+      skipped.push({ name: file.name, reason: 'unsafe_path', detail });
+      continue;
+    }
+    const result = await fetchUrlToFile(file.url, dest, opts);
+    if (!result.ok) {
+      console.warn(
+        `[sandbox] ${logLabel} ${result.reason} for ${JSON.stringify(file.name)}: ${result.detail}`,
+      );
+      skipped.push({
+        name: file.name,
+        reason: result.reason,
+        detail: result.detail,
+      });
+      continue;
+    }
+    staged.push({
+      name: file.name,
+      bytes: result.bytes,
+      sha256: result.sha256,
+    });
+  }
+  // INFO so it's visible in `docker logs tale-sandbox` without having
+  // to crank the global log level. Pre-stage is a black box otherwise.
+  if (staged.length > 0) {
+    console.info(
+      `[sandbox.stage] pre-staged ${staged.length} file(s) into ${targetDir}: ${JSON.stringify(staged.map((s) => s.name))}`,
+    );
+  }
+  if (skipped.length > 0) {
+    console.warn(
+      `[sandbox.stage] skipped ${skipped.length} ${logLabel}(s): ${JSON.stringify(skipped)}`,
+    );
+  }
+  return { staged, skipped };
 }
 
 export async function stagePriorOutputDownloads(
@@ -437,140 +609,37 @@ export async function stagePriorOutputDownloads(
   downloads: ReadonlyArray<{ name: string; url: string }>,
   opts: StagePriorOpts = {},
 ): Promise<PriorStageResult> {
-  const timeoutMs = opts.timeoutMs ?? PRIOR_FETCH_DEFAULT_TIMEOUT_MS;
-  const maxBytesPerFile = opts.maxBytesPerFile ?? PRIOR_FETCH_DEFAULT_MAX_BYTES;
-  const staged: PriorStageResult['staged'] = [];
-  const skipped: PriorStageResult['skipped'] = [];
-  for (const file of downloads) {
-    const dest = resolve(outputDir, file.name);
-    // Defense in depth — refuse anything escaping outputDir.
-    if (dest !== outputDir && !dest.startsWith(outputDir + sep)) {
-      const detail = `resolved path escapes outputDir`;
-      console.warn(
-        `[sandbox] skipping unsafe prior-output name: ${JSON.stringify(file.name)} (${detail})`,
-      );
-      skipped.push({ name: file.name, reason: 'unsafe_path', detail });
-      continue;
-    }
-    let res: Response;
-    try {
-      // AbortSignal.timeout caps the round trip so a stalled presigned URL
-      // can't hang stageWorkspace indefinitely (audit follow-up F5).
-      res = await fetch(file.url, { signal: AbortSignal.timeout(timeoutMs) });
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      // AbortSignal.timeout rejects with a DOMException whose `name` is
-      // 'TimeoutError'; surface a distinct reason so the platform can
-      // distinguish "URL was reachable" from "URL hung".
-      const reason: PriorStageSkipReason =
-        err instanceof Error && err.name === 'TimeoutError'
-          ? 'fetch_timeout'
-          : 'fetch_failed';
-      console.warn(
-        `[sandbox] prior-output fetch ${reason} for ${JSON.stringify(file.name)}: ${detail}`,
-      );
-      skipped.push({ name: file.name, reason, detail });
-      continue;
-    }
-    if (!res.ok) {
-      const detail = `HTTP ${res.status}`;
-      console.warn(
-        `[sandbox] prior-output fetch ${res.status} for ${JSON.stringify(file.name)}`,
-      );
-      // 403/410 from a presigned URL usually means TTL expired — give the
-      // platform side a distinct reason so it can re-mint and retry rather
-      // than failing the run outright (crispy-curry plan §3, url_expired).
-      const reason: PriorStageSkipReason =
-        res.status === 403 || res.status === 410 ? 'url_expired' : 'http_error';
-      skipped.push({ name: file.name, reason, detail });
-      continue;
-    }
-    // Fast-fail on Content-Length when the server provides one — avoids
-    // streaming a known-too-large body just to reject it.
-    const contentLengthHeader = res.headers.get('content-length');
-    if (contentLengthHeader !== null) {
-      const declaredBytes = Number(contentLengthHeader);
-      if (Number.isFinite(declaredBytes) && declaredBytes > maxBytesPerFile) {
-        const detail = `Content-Length ${declaredBytes} exceeds cap ${maxBytesPerFile}`;
-        console.warn(
-          `[sandbox] prior-output download_too_large for ${JSON.stringify(file.name)}: ${detail}`,
-        );
-        skipped.push({
-          name: file.name,
-          reason: 'download_too_large',
-          detail,
-        });
-        continue;
-      }
-    }
-    try {
-      // Stream-and-cap. Without this a server that lies about (or omits)
-      // Content-Length could still smuggle gigabytes through, filling the
-      // host disk. We abort the read as soon as the running total crosses
-      // the cap.
-      const chunks: Uint8Array[] = [];
-      let total = 0;
-      let oversize = false;
-      if (res.body !== null) {
-        const reader = res.body.getReader();
-        try {
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            if (value === undefined) continue;
-            if (total + value.byteLength > maxBytesPerFile) {
-              oversize = true;
-              break;
-            }
-            chunks.push(value);
-            total += value.byteLength;
-          }
-        } finally {
-          try {
-            reader.releaseLock();
-          } catch (err) {
-            console.warn('[sandbox] prior-output reader.releaseLock:', err);
-          }
-        }
-      }
-      if (oversize) {
-        const detail = `streamed > ${maxBytesPerFile} bytes`;
-        console.warn(
-          `[sandbox] prior-output download_too_large for ${JSON.stringify(file.name)}: ${detail}`,
-        );
-        skipped.push({
-          name: file.name,
-          reason: 'download_too_large',
-          detail,
-        });
-        continue;
-      }
-      const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
-      const sha256 = createHash('sha256').update(buf).digest('hex');
-      await mkdir(dirname(dest), { recursive: true });
-      await writeFile(dest, buf);
-      staged.push({ name: file.name, bytes: buf.byteLength, sha256 });
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      console.warn(
-        `[sandbox] failed to pre-stage ${JSON.stringify(file.name)}: ${detail}`,
-      );
-      skipped.push({ name: file.name, reason: 'write_failed', detail });
-    }
-  }
-  // INFO so it's visible in `docker logs tale-sandbox` without having
-  // to crank the global log level. Pre-stage is a black box otherwise.
-  if (staged.length > 0) {
-    console.info(
-      `[sandbox.stage] pre-staged ${staged.length} file(s) into ${outputDir}: ${JSON.stringify(staged.map((s) => s.name))}`,
-    );
-  }
-  if (skipped.length > 0) {
-    console.warn(
-      `[sandbox.stage] skipped ${skipped.length} prior-output(s): ${JSON.stringify(skipped)}`,
-    );
-  }
-  return { staged, skipped };
+  return stageDownloadsToDir(
+    outputDir,
+    downloads,
+    {
+      timeoutMs: opts.timeoutMs ?? PRIOR_FETCH_DEFAULT_TIMEOUT_MS,
+      maxBytesPerFile: opts.maxBytesPerFile ?? PRIOR_FETCH_DEFAULT_MAX_BYTES,
+    },
+    'prior-output',
+  );
+}
+
+// User uploads share the URL-fetch / cap budget with prior outputs; they
+// land in their own `/workspace/uploads/` dir so the agent never mistakes
+// a user-uploaded asset for a run_code-produced artifact.
+const USER_UPLOAD_FETCH_TIMEOUT_MS = 30_000;
+const USER_UPLOAD_FETCH_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
+
+async function stageUserUploadDownloads(
+  uploadsDir: string,
+  downloads: ReadonlyArray<{ name: string; url: string }>,
+  opts: StagePriorOpts = {},
+): Promise<void> {
+  await stageDownloadsToDir(
+    uploadsDir,
+    downloads,
+    {
+      timeoutMs: opts.timeoutMs ?? USER_UPLOAD_FETCH_TIMEOUT_MS,
+      maxBytesPerFile: opts.maxBytesPerFile ?? USER_UPLOAD_FETCH_MAX_BYTES,
+    },
+    'user-upload',
+  );
 }
 
 export async function stageWorkspace(
@@ -579,8 +648,10 @@ export async function stageWorkspace(
 ): Promise<{ priorStage?: PriorStageResult }> {
   const codeDir = join(hostDir, 'code');
   const outputDir = join(hostDir, 'output');
+  const uploadsDir = join(hostDir, 'uploads');
   await mkdir(codeDir, { recursive: true });
   await mkdir(outputDir, { recursive: true });
+  await mkdir(uploadsDir, { recursive: true });
 
   let priorStage: PriorStageResult | undefined;
   if (
@@ -591,6 +662,16 @@ export async function stageWorkspace(
       outputDir,
       req.priorOutputDownloads,
     );
+  }
+
+  // User uploads land in `/workspace/uploads/` so the agent reads
+  // them from a dedicated dir, never confused with prior `run_code`
+  // outputs (which keep their own `/workspace/output/`).
+  if (
+    req.userUploadDownloads !== undefined &&
+    req.userUploadDownloads.length > 0
+  ) {
+    await stageUserUploadDownloads(uploadsDir, req.userUploadDownloads);
   }
 
   // Stage user files at their declared paths under /workspace/code/.
@@ -609,8 +690,15 @@ export async function stageWorkspace(
           `sandbox staging refused unsafe file path: ${JSON.stringify(file.path)}`,
         );
       }
-      await mkdir(dirname(dest), { recursive: true });
-      await writeFile(dest, file.content);
+      const result = await fetchUrlToFile(file.url, dest, {
+        timeoutMs: WORKSPACE_FETCH_TIMEOUT_MS,
+        maxBytesPerFile: WORKSPACE_FETCH_MAX_BYTES,
+      });
+      if (!result.ok) {
+        throw new Error(
+          `sandbox workspace file fetch failed for ${JSON.stringify(file.path)}: ${result.reason} (${result.detail})`,
+        );
+      }
     }
   }
 
@@ -620,6 +708,13 @@ export async function stageWorkspace(
   // from anything in req.files[] — user step names like `main.py` cannot
   // collide with the wrapper.
   if (req.steps !== undefined) {
+    // validate-request rejects `language=bash` with steps[] — defense
+    // in depth here keeps buildMultiStepWrapper's type tight.
+    if (req.language === 'bash') {
+      throw new Error(
+        'spawn: language=bash + steps[] should have been rejected by validate-request',
+      );
+    }
     const taleDir = join(hostDir, '.tale');
     await mkdir(taleDir, { recursive: true });
     // Wrapper filename: legacy single-language wrappers keep their
@@ -657,20 +752,22 @@ export async function stageWorkspace(
   } else {
     // For single-runtime requests prefer `packages[]`. If a caller sent
     // `packagesByLang` here too, extract just the matching bucket so the
-    // wire is forgiving.
+    // wire is forgiving. Bash has no package bucket — entrypoint.sh's
+    // run_bash skips the install phase outright.
     const single =
       req.packages !== undefined
         ? req.packages
-        : (req.packagesByLang?.[req.language] ?? []);
+        : req.language === 'bash'
+          ? []
+          : (req.packagesByLang?.[req.language] ?? []);
     await writeFile(
       join(codeDir, 'packages.json'),
       JSON.stringify(single ?? []),
     );
   }
-  await writeFile(
-    join(codeDir, 'options.json'),
-    JSON.stringify(req.options ?? {}),
-  );
+  // options.json is reserved for future install-time flags; written as an
+  // empty object today so the entrypoint's positional arg shape stays stable.
+  await writeFile(join(codeDir, 'options.json'), '{}');
 
   // Spawner runs as root; the runtime container runs as nobody (65534) and
   // needs to read the staged files. Recursively `lchown` (not `chown`) so a
@@ -1113,7 +1210,8 @@ export async function executeRequest(
     // reattaches /workspace/code/ for relative paths.
     const entryPath =
       req.steps !== undefined
-        ? `/workspace/.tale/${
+        ? // validate-request guarantees req.language !== 'bash' here.
+          `/workspace/.tale/${
             req.language === 'python' || req.language === 'polyglot'
               ? 'runner.py'
               : 'runner.js'

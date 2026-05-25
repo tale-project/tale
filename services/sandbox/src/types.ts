@@ -22,7 +22,13 @@ export interface SandboxFile {
    * parent on write.
    */
   path: string;
-  content: string;
+  /**
+   * URL the spawner GETs to fetch the file bytes. Pre-rewritten through
+   * `toSandboxStorageUrl()` on the platform side to target the internal
+   * Caddy alias (`http://proxy/...`). Binary-safe — bytes are streamed
+   * directly to disk, never JSON-stringified.
+   */
+  url: string;
 }
 
 export interface ExecuteRequest {
@@ -35,10 +41,11 @@ export interface ExecuteRequest {
   /**
    * Files to stage under /workspace/code/<path>. Required: in single-script
    * mode the entry file lives here; in multi-script mode all steps + their
-   * siblings live here. Aggregate size capped at MAX_FILES_BYTES; per-file
-   * path validated against MAX_PATH_LENGTH + POSIX-traversal rules. Path
-   * segments starting with `.` are rejected, so user files can never land
-   * inside `/workspace/.tale/` where the multi-step wrapper goes.
+   * siblings live here. Each entry carries a URL the spawner GETs to fetch
+   * the bytes (binary-safe; replaces the legacy inline `content: string`).
+   * Per-file path validated against MAX_PATH_LENGTH + POSIX-traversal rules.
+   * Path segments starting with `.` are rejected, so user files can never
+   * land inside `/workspace/.tale/` where the multi-step wrapper goes.
    */
   files?: SandboxFile[];
   /**
@@ -67,8 +74,28 @@ export interface ExecuteRequest {
    * Replaces the legacy inline-base64 `priorOutputFiles[]` field
    * (sandbox-wobbly-origami plan §1). Names are validated against the
    * same POSIX-traversal rules; rejects skip (logged, not fatal).
+   *
+   * Semantically distinct from `userUploadDownloads`: prior outputs are
+   * files produced by **previous** `run_code` invocations that the
+   * platform harvested and is now re-injecting. The dedicated
+   * `/workspace/output/` directory keeps them separate from scripts and
+   * user uploads.
    */
   priorOutputDownloads?: Array<{
+    name: string;
+    url: string;
+  }>;
+  /**
+   * User-upload downloads. Spawner fetches each URL during
+   * `stageWorkspace` and writes the bytes to `/workspace/uploads/<name>`.
+   * Reserved for files the user uploaded into the thread (source
+   * `'user_upload'` on the platform side) so the agent reads them from
+   * a dedicated directory, never mixed with `/workspace/output/`
+   * (which is for previous `run_code` outputs only). Same fetch path /
+   * skip-on-failure semantics as `priorOutputDownloads`; no attestation
+   * shape in the response — uploads don't chain across runs.
+   */
+  userUploadDownloads?: Array<{
     name: string;
     url: string;
   }>;
@@ -91,10 +118,6 @@ export interface ExecuteRequest {
     node?: string[];
   };
   timeoutMs?: number;
-  options?: {
-    allowSdist?: boolean;
-    allowInstallScripts?: boolean;
-  };
   /**
    * Pre-allocated upload-slot URLs the spawner POSTs harvested output
    * files to. Length = platform's pre-alloc N (defaults to 2). When the

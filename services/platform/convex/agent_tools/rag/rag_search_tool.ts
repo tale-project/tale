@@ -53,6 +53,10 @@ const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 const DEFAULT_TOP_K = 10;
 const DEFAULT_SIMILARITY_THRESHOLD = 0.3;
+// Aligns with workflow_engine/action_defs/rag/rag_action.ts. The 10s
+// ragFetch default is too tight for /search whenever the embedding
+// provider hits a cold path.
+const SEARCH_TIMEOUT_MS = 30_000;
 
 /**
  * Resolve the agent's pre-configured RAG scope (the default-search
@@ -434,6 +438,7 @@ RESPONSE (list_indexed):
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
+          timeoutMs: SEARCH_TIMEOUT_MS,
         });
 
         if (!response.ok) {

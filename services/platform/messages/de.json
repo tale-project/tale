@@ -6,6 +6,7 @@
     "apiKeys": "Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu verwalten.",
     "organization": "Du benötigst Admin-Berechtigungen, um auf die Organisationseinstellungen zuzugreifen.",
     "agents": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Agents zu verwalten.",
+    "skills": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Skills zu verwalten.",
     "branding": "Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen zuzugreifen.",
     "knowledge": "Dein Konto hat keine Berechtigung, auf Wissen zuzugreifen.",
     "workspaceNotFound": "Der gesuchte Workspace existiert nicht oder wurde möglicherweise entfernt.",
@@ -1137,37 +1138,15 @@
       "verdictError": "Bewertung konnte nicht gespeichert werden"
     },
     "canvas": {
-      "close": "Canvas schließen",
-      "edit": "Bearbeiten",
-      "copy": "Kopieren",
       "download": "Herunterladen",
-      "exportPdf": "Als PDF exportieren",
-      "exportPdfFailed": "PDF-Export fehlgeschlagen",
-      "copied": "Kopiert!",
       "mermaidError": "Diagramm konnte nicht gerendert werden",
-      "resizeHandle": "Canvas-Größe ändern",
-      "apply": "Änderungen übernehmen",
-      "applied": "Änderungen übernommen",
-      "applyFailed": "Änderungen konnten nicht übernommen werden",
-      "enterFullscreen": "Vollbild",
-      "exitFullscreen": "Vollbild verlassen",
-      "codeEditor": "Code-Editor",
-      "markdownEditor": "Markdown-Editor",
-      "mermaidEditor": "Mermaid-Editor",
-      "streamingWriting": "KI schreibt…",
-      "streamingPatch": "KI bearbeitet…",
-      "cancel": "Bearbeitung abbrechen",
-      "streamingDuringEdit": "Der Agent aktualisiert dieses Artefakt — dein Entwurf bleibt gespeichert. Klicke auf Abbrechen, um ihn zu verwerfen.",
-      "runDone": "Fertig",
-      "runStarted": "Gestartet",
-      "runStale": "Quellcode geändert",
-      "runFiles": "Dateien",
-      "runStdout": "stdout ({chars} Zeichen)",
-      "runStderr": "stderr ({chars} Zeichen)",
-      "runOpenFile": "Datei {name} öffnen",
-      "runResultEntryLabel": "Ausgabe",
-      "runResultSecondaryLabel": "Ausgabe für {path}",
-      "runResultSecondaryCount": "{count, plural, one {# weitere Datei} other {# weitere Dateien}}",
+      "viewSource": "Quelltext",
+      "viewPreview": "Vorschau",
+      "viewToggleAriaLabel": "Quelltext / Vorschau umschalten",
+      "sourceRunOutput": "Code-Ausgabe",
+      "sourceAgentWrite": "KI-Dateien",
+      "sourceUserUpload": "Hochgeladen",
+      "noFilesYet": "Noch keine Dateien",
       "runStatus": {
         "queued": "In Warteschlange",
         "installing": "Abhängigkeiten installieren",
@@ -1210,29 +1189,7 @@
         "script_runnable": "Skript (Sandbox)",
         "python_runnable": "Python (Sandbox)",
         "node_runnable": "Node (Sandbox)"
-      },
-      "fileSidebar": {
-        "label": "Projektdateien",
-        "title": "Dateien",
-        "expand": "Dateien anzeigen",
-        "collapse": "Dateien ausblenden",
-        "entryBadge": "Einstieg",
-        "streamingDot": "Diese Datei wird geschrieben…",
-        "addFile": "Datei hinzufügen",
-        "addFilePlaceholder": "pfad/zur/datei.ext",
-        "addFileConfirm": "Hinzufügen",
-        "addFileCancel": "Abbrechen",
-        "errorPathRequired": "Pfad ist erforderlich.",
-        "errorPathExists": "Eine Datei mit diesem Pfad existiert bereits.",
-        "errorAddFailed": "Datei konnte nicht hinzugefügt werden."
       }
-    },
-    "artifacts": {
-      "barLabel": "Artefakte in diesem Thread",
-      "barTitle": "Artefakte",
-      "openCard": "Artefakt öffnen: {title}",
-      "touchedByMessage": "{title}",
-      "fileCount": "{count, plural, one {# Datei} other {# Dateien}}"
     },
     "branchNavigator": {
       "previous": "Vorheriger Zweig",
@@ -1407,6 +1364,7 @@
     },
     "aria": {
       "close": "Schließen",
+      "resizePanel": "Panelgröße ändern",
       "hidePassword": "Passwort ausblenden",
       "showPassword": "Passwort anzeigen",
       "dismiss": "Verwerfen",
@@ -2015,6 +1973,10 @@
     "agents": {
       "title": "Noch keine Agents",
       "description": "Erstelle deinen ersten Agent, um KI-Verhalten für dein Team zu spezialisieren"
+    },
+    "skills": {
+      "title": "Noch keine Skills",
+      "description": "Skills sind wiederverwendbare Anleitungspakete, die du an Agents anhängen kannst — Playbook plus optionale Skripte."
     },
     "members": {
       "title": "Keine Mitglieder gefunden",
@@ -2691,7 +2653,51 @@
       "feedback": "Feedback",
       "auditLogs": "Audit-Logs",
       "dataSubjectRequests": "Anfragen betroffener Personen",
-      "policiesAndLimitsDescription": "Budgets, Upload-Beschränkungen, Datenaufbewahrung, Feature-Flags und Sprachausgabe."
+      "policiesAndLimitsDescription": "Budgets, Upload-Beschränkungen, Datenaufbewahrung, Feature-Flags und Sprachausgabe.",
+      "runCodePolicy": "Run-code-Pakete"
+    },
+    "runCodePolicy": {
+      "title": "Run-code-Paketrichtlinie",
+      "description": "Steuert, welche Python- und Node-Pakete das run_code-Tool zur Laufzeit installieren darf. Der Standardmodus ist Sperrliste mit leerer Liste, wodurch jedes Paket erlaubt ist. Im Modus Zulassungsliste muss jedes vertrauenswürdige Paket einzeln aufgeführt werden — alles andere wird blockiert.",
+      "modeSectionTitle": "Standardmodus",
+      "modeSectionDescription": "Wähle die Strategie, die run_code anwendet, wenn ein Paket nicht ausdrücklich in der Richtlinie erwähnt ist.",
+      "modeAllowlistLabel": "Zulassungsliste",
+      "modeAllowlistDescription": "Nur Pakete in den unten stehenden Zulassungslisten sind installierbar. Alles andere wird abgelehnt.",
+      "modeDenylistLabel": "Sperrliste",
+      "modeDenylistDescription": "Jedes Paket ist installierbar, außer denen in den unten stehenden Sperrlisten.",
+      "pythonSectionTitle": "Python-Pakete",
+      "nodeSectionTitle": "Node-Pakete",
+      "listsHint": "Ein Paketname pro Zeile (oder kommagetrennt). Versionsangaben werden automatisch entfernt — `pandas==2.1` entspricht `pandas`.",
+      "pythonAllowLabel": "Python-Zulassungsliste",
+      "pythonAllowDescription": "Wird verwendet, wenn der Standardmodus Zulassungsliste ist.",
+      "pythonDenyLabel": "Python-Sperrliste",
+      "pythonDenyDescription": "Wird verwendet, wenn der Standardmodus Sperrliste ist.",
+      "nodeAllowLabel": "Node-Zulassungsliste",
+      "nodeAllowDescription": "Wird verwendet, wenn der Standardmodus Zulassungsliste ist. Scoped-Pakete (`@scope/pkg`) werden unterstützt.",
+      "nodeDenyLabel": "Node-Sperrliste",
+      "nodeDenyDescription": "Wird verwendet, wenn der Standardmodus Sperrliste ist. Scoped-Pakete (`@scope/pkg`) werden unterstützt.",
+      "pythonPlaceholder": "pandas\nnumpy\nrequests",
+      "nodePlaceholder": "lodash\n@scope/pkg",
+      "save": "Speichern",
+      "saving": "Speichert …",
+      "saved": "Run-code-Paketrichtlinie aktualisiert",
+      "saveFailed": "Run-code-Paketrichtlinie konnte nicht aktualisiert werden",
+      "testerTitle": "Paketliste testen",
+      "testerDescription": "Füge pip- oder npm-Spezifikationen ein, um vorab zu sehen, ob sie unter der aktuellen Entwurfsrichtlinie durchgelassen würden. Verwendet ungespeicherte Änderungen, sodass du vor dem Speichern iterieren kannst.",
+      "testerBucketLabel": "Bereich",
+      "bucketPython": "Python (pip)",
+      "bucketNode": "Node (npm)",
+      "testerInputLabel": "Zu testende Spezifikationen",
+      "testerPlaceholderPython": "pandas==2.1, numpy>=1.26",
+      "testerPlaceholderNode": "lodash@4.17.21, @scope/pkg",
+      "testerButton": "Testen",
+      "testerBaseLabel": "Basisname",
+      "testerAllowed": "Erlaubt",
+      "testerDenied": "Abgelehnt",
+      "reasonAllowlistMatch": "passt zur Zulassungsliste",
+      "reasonAllowlistMiss": "nicht auf der Zulassungsliste (Modus Zulassungsliste lehnt alles andere ab)",
+      "reasonDenylistMatch": "passt zur Sperrliste",
+      "reasonDenylistNotMatched": "nicht auf der Sperrliste"
     },
     "trash": {
       "title": "Papierkorb",
@@ -3398,6 +3404,10 @@
       "title": "Agenten",
       "description": "KI-Agents für den Kundenservice erstellen und verwalten."
     },
+    "skills": {
+      "title": "Skills",
+      "description": "Wiederverwendbare Anleitungspakete für Agents — Playbooks plus optionale Sandbox-Skripte."
+    },
     "integrations": {
       "title": "Integrationen",
       "description": "Drittanbieter-Dienste verbinden."
@@ -3511,6 +3521,7 @@
     "personalization": "Personalisierung",
     "account": "Konto",
     "agents": "Agenten",
+    "skills": "Skills",
     "teamFilter": {
       "allTeams": "Alle"
     },
@@ -4373,6 +4384,119 @@
         "exampleOpenAIMeetilyConfig": "OpenAI-Client-Konfiguration (z. B. Meetily)"
       }
     },
+    "skills": {
+      "createSkill": "Skill erstellen",
+      "searchPlaceholder": "Skills suchen…",
+      "deleteSkill": "Skill löschen",
+      "notFound": "Skill nicht gefunden",
+      "backToList": "Zurück zu Skills",
+      "skillCreated": "Skill erstellt",
+      "skillCreateFailed": "Skill konnte nicht erstellt werden",
+      "skillSaved": "Skill gespeichert",
+      "skillSaveFailed": "Skill konnte nicht gespeichert werden",
+      "skillDeleted": "Skill gelöscht",
+      "skillDeleteFailed": "Skill konnte nicht gelöscht werden",
+      "skillDeleteConflict": "Skill wurde geändert, seit du diesen Dialog geöffnet hast. Lade neu und versuche es noch einmal.",
+      "skillAlreadyExists": "Ein Skill mit diesem Slug existiert bereits",
+      "skillDuplicated": "Skill als {slug} dupliziert",
+      "skillDuplicateFailed": "Skill konnte nicht dupliziert werden",
+      "bodyTemplate": "# {slug}\n\nBeschreibe, wann dieser Skill verwendet wird und welche Schritte zu folgen sind.\n",
+      "unsavedChanges": {
+        "title": "Nicht gespeicherte Änderungen verwerfen?",
+        "description": "Du hast nicht gespeicherte Bearbeitungen an diesem Skill. Wenn du jetzt verlässt, gehen sie verloren.",
+        "leave": "Verwerfen und verlassen",
+        "stay": "Weiter bearbeiten"
+      },
+      "conflict": "Dieser Skill wurde anderswo geändert. Lade neu, um die aktuelle Version zu sehen.",
+      "validationError": "Ungültige Skill-Konfiguration",
+      "deleteConfirmation": "Dadurch wird das Skill-Bundle von der Festplatte entfernt. Daran gebundene Agents behalten den Bindungseintrag und protokollieren zur Laufzeit eine Warnung, bis du sie erneut bearbeitest.",
+      "actions": {
+        "duplicate": "Duplizieren"
+      },
+      "columns": {
+        "name": "Skill",
+        "description": "Beschreibung",
+        "loadError": "SKILL.md konnte nicht gelesen werden"
+      },
+      "createDialog": {
+        "continue": "Erstellen",
+        "creating": "Wird erstellt…"
+      },
+      "form": {
+        "slug": "Slug",
+        "slugHelp": "Kleinbuchstaben/Ziffern, mit Bindestrich getrennt. Wird als Ordnername auf der Festplatte verwendet.",
+        "slugPatternError": "Kleinbuchstaben, Ziffern, mit Bindestrich getrennt. Keine Unterstriche, keine führenden/nachgestellten/aufeinanderfolgenden Bindestriche.",
+        "description": "Beschreibung",
+        "descriptionHelp": "Beginne mit \"Verwende, wenn…\". Der Agent liest dies, um zu entscheiden, ob er den Skill aufruft.",
+        "descriptionPlaceholder": "Wann dieser Skill verwendet werden soll — der Agent sieht dies in jedem System-Prompt.",
+        "body": "Body-Markdown",
+        "bodyHelp": "Wird in den Agent-Kontext geladen, wenn er `expand_skill` aufruft. Reines Markdown."
+      },
+      "section": {
+        "overview": "Übersicht",
+        "body": "Anweisungen (Body)",
+        "bundle": "Bundle-Dateien",
+        "auditHistory": "Letzte Änderungen"
+      },
+      "metadata": {
+        "bundleFiles": "Bundle-Dateien",
+        "license": "Lizenz"
+      },
+      "body": {
+        "viewEdit": "Bearbeiten",
+        "viewPreview": "Vorschau",
+        "viewToggle": "Body-Ansichtsmodus",
+        "previewEmpty": "(Body ist leer)"
+      },
+      "auditHistory": {
+        "empty": "Noch keine Audit-Einträge für diesen Skill.",
+        "action": {
+          "create": "Erstellt",
+          "update": "Aktualisiert",
+          "delete": "Gelöscht"
+        }
+      },
+      "viewer": {
+        "toggleWrap": "Zeilenumbruch umschalten",
+        "imageNotice": "Bildvorschau ist im Browser nicht verfügbar. Verwende die CLI, um dieses Asset zu prüfen.",
+        "binaryNotice": "Dieser Dateityp ist im Browser nicht vorschaubar.",
+        "largeFile": "Große Datei — Syntax-Highlighting aus Leistungsgründen deaktiviert."
+      },
+      "bundle": {
+        "empty": "Noch keine Bundle-Dateien.",
+        "uiHelp": "Bundle-Dateien liegen auf der Festplatte unter skills/<slug>/. UI-Änderungen verwenden atomare Schreibvorgänge mit Konflikterkennung — gleichzeitige Plattenänderungen werden erkannt und als Konflikte gemeldet."
+      },
+      "detail": {
+        "tree": {
+          "heading": "Bundle",
+          "empty": "Nur SKILL.md — füge Dateien unter scripts/, references/ oder assets/ hinzu."
+        }
+      },
+      "asset": {
+        "add": "Datei hinzufügen",
+        "path": "Pfad",
+        "pathHelp": "Relativer Pfad innerhalb des Skill-Bundles. Verwende scripts/ für ausführbare Skripte, references/ für Dokumente, assets/ für Templates.",
+        "pathRequired": "Pfad ist erforderlich",
+        "pathNoLeadingSlash": "Pfad muss relativ sein — kein führender Schrägstrich. Verwende scripts/ / references/ / assets/.",
+        "pathNoTraversal": "Pfad darf \"..\" nicht enthalten.",
+        "pathInvalidChars": "Pfad darf nur Buchstaben, Ziffern, Punkt, Bindestrich, Unterstrich und Schrägstrich enthalten.",
+        "alreadyExists": "Unter diesem Pfad existiert bereits eine Datei. Öffne sie aus der Liste, um sie zu bearbeiten, oder wähle einen neuen Pfad.",
+        "loadNotFound": "Diese Datei ist nicht mehr im Bundle. Schließe und erstelle sie stattdessen aus der Liste.",
+        "content": "Inhalt",
+        "createTitle": "Neue Bundle-Datei",
+        "editTitle": "{path} bearbeiten",
+        "editAria": "{path} bearbeiten",
+        "deleteAria": "{path} löschen",
+        "deleteTitle": "Datei löschen",
+        "deleteConfirmation": "Diese Datei dauerhaft aus dem Skill-Bundle entfernen. Dies kann nicht rückgängig gemacht werden.",
+        "saved": "Datei gespeichert",
+        "saveFailed": "Datei konnte nicht gespeichert werden",
+        "deleted": "Datei gelöscht",
+        "deleteFailed": "Datei konnte nicht gelöscht werden",
+        "conflict": "Diese Datei wurde anderswo geändert. Öffne sie erneut, um die aktuelle Version zu sehen.",
+        "notFound": "Skill nicht gefunden"
+      }
+    },
     "integrations": {
       "title": "Integrationen",
       "pageSubtitle": "Drittanbieter-Dienste mit deinem Workspace verbinden.",
@@ -4839,7 +4963,9 @@
           "workflow": "Workflow",
           "security": "Sicherheit",
           "admin": "Admin",
-          "ai": "KI"
+          "ai": "KI",
+          "skill": "Skill",
+          "agent": "Agent"
         },
         "export": {
           "csv": "CSV exportieren",

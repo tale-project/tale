@@ -6,10 +6,17 @@ import { api } from '@/convex/_generated/api';
 
 function useInvalidateAgents() {
   const queryClient = useQueryClient();
-  return (organizationId: string) =>
-    queryClient.invalidateQueries({
+  return (organizationId: string) => {
+    void queryClient.invalidateQueries({
       queryKey: ['config', 'agents', organizationId],
     });
+    // Refresh skill-scoped cache entries that depend on agent state.
+    // Skills themselves are org-wide and no longer agent-bound, but
+    // skill listings may surface agent-derived metadata.
+    void queryClient.invalidateQueries({
+      queryKey: ['config', 'skills', organizationId],
+    });
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -57,7 +64,10 @@ export function useTranslateAgentFields() {
 // ---------------------------------------------------------------------------
 
 export function useUpdateAgentBindings() {
-  return useConvexMutation(api.agents.mutations.updateAgentBindings);
+  const invalidate = useInvalidateAgents();
+  return useConvexMutation(api.agents.mutations.updateAgentBindings, {
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
+  });
 }
 
 export function useUpdateAgentSharing() {

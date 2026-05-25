@@ -5,16 +5,6 @@
  * Array-based registry for type inference, with derived object for O(1) lookups.
  */
 
-import { artifactCreateTool } from './artifacts/artifact_create_tool';
-import { artifactFileCreateTool } from './artifacts/artifact_file_create_tool';
-import { artifactFileDeleteTool } from './artifacts/artifact_file_delete_tool';
-import { artifactFileListTool } from './artifacts/artifact_file_list_tool';
-import { artifactFileReadTool } from './artifacts/artifact_file_read_tool';
-import { artifactFileRenameTool } from './artifacts/artifact_file_rename_tool';
-import { artifactFileUpdateTool } from './artifacts/artifact_file_update_tool';
-import { artifactListTool } from './artifacts/artifact_list_tool';
-import { artifactPackagesAddTool } from './artifacts/artifact_packages_add_tool';
-import { artifactRunTool } from './artifacts/artifact_run_tool';
 import { conversationReadTool } from './conversations/conversation_read_tool';
 import { customerReadTool } from './customers/customer_read_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
@@ -23,6 +13,11 @@ import { documentRetrieveTool } from './documents/document_retrieve_tool';
 import { documentWriteTool } from './documents/document_write_tool';
 import { docxTool } from './files/docx_tool';
 import { excelTool } from './files/excel_tool';
+import { fileDeleteTool } from './files/file_delete_tool';
+import { fileEditTool } from './files/file_edit_tool';
+import { fileListTool } from './files/file_list_tool';
+import { fileReadTool } from './files/file_read_tool';
+import { fileWriteTool } from './files/file_write_tool';
 import { imageTool } from './files/image_tool';
 import { pdfTool } from './files/pdf_tool';
 import { textTool } from './files/text_tool';
@@ -34,6 +29,7 @@ import { requestUserLocationTool } from './location/request_user_location_tool';
 import { proposeMemoryTool } from './memory/propose_memory_tool';
 import { productReadTool } from './products/product_read_tool';
 import { ragSearchTool } from './rag/rag_search_tool';
+import { runCodeTool } from './run_code_tool';
 import type { ToolName } from './tool_names';
 import type { ToolDefinition } from './types';
 import { updateTodosTool } from './update_todos/update_todos_tool';
@@ -52,16 +48,12 @@ export { TOOL_NAMES, type ToolName } from './tool_names';
  * Tool registry as array - enables TypeScript to infer tool names
  */
 export const TOOL_REGISTRY = [
-  artifactCreateTool,
-  artifactListTool,
-  artifactRunTool,
-  artifactPackagesAddTool,
-  artifactFileCreateTool,
-  artifactFileUpdateTool,
-  artifactFileDeleteTool,
-  artifactFileRenameTool,
-  artifactFileReadTool,
-  artifactFileListTool,
+  fileWriteTool,
+  fileEditTool,
+  fileReadTool,
+  fileListTool,
+  fileDeleteTool,
+  runCodeTool,
   customerReadTool,
   productReadTool,
   ragSearchTool,

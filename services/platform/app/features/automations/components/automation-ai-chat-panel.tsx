@@ -7,10 +7,10 @@ import { Sparkles, X } from 'lucide-react';
 import { useRef, useEffect } from 'react';
 
 import { PanelHeader } from '@/app/components/layout/panel-header';
+import { useResizable } from '@/app/hooks/use-resizable';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useResizable } from '../hooks/use-resizable';
 import { AutomationAssistant } from './automation-assistant';
 
 interface AutomationAIChatPanelProps {

@@ -18,15 +18,17 @@ import type { ExecuteRequest, Language, SandboxFile } from './types.ts';
 import {
   FILE_PATH_SEGMENT_RE,
   ID_ALPHABET_RE,
-  MAX_FILES_BYTES,
   MAX_FILES_PER_REQUEST,
   MAX_FILE_PATH_LENGTH,
   MAX_STEPS_PER_REQUEST,
   ORG_ID_ALPHABET_RE,
+  POLYGLOT_BASH_EXT_RE,
   POLYGLOT_NODE_EXT_RE,
   POLYGLOT_PYTHON_EXT_RE,
   sandboxLanguageLiterals,
 } from './wire.ts';
+
+const MAX_FILE_URL_LENGTH = 4096;
 
 type ValidateResult =
   | { ok: true; request: ExecuteRequest }
@@ -200,42 +202,6 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     timeoutMs = r.timeoutMs;
   }
 
-  // options: optional object with two optional booleans. We do NOT
-  // re-emit the field if it's empty — keeps the wire shape stable.
-  let options: ExecuteRequest['options'];
-  if (r.options !== undefined) {
-    if (
-      r.options === null ||
-      typeof r.options !== 'object' ||
-      Array.isArray(r.options)
-    ) {
-      return { ok: false, error: 'options must be an object' };
-    }
-    // Same wire-shape narrowing as `r` at the top of validateExecuteRequest.
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    const opts = r.options as Record<string, unknown>;
-    if (opts.allowSdist !== undefined && typeof opts.allowSdist !== 'boolean') {
-      return { ok: false, error: 'options.allowSdist must be a boolean' };
-    }
-    if (
-      opts.allowInstallScripts !== undefined &&
-      typeof opts.allowInstallScripts !== 'boolean'
-    ) {
-      return {
-        ok: false,
-        error: 'options.allowInstallScripts must be a boolean',
-      };
-    }
-    options = {
-      ...(opts.allowSdist !== undefined && {
-        allowSdist: opts.allowSdist,
-      }),
-      ...(opts.allowInstallScripts !== undefined && {
-        allowInstallScripts: opts.allowInstallScripts,
-      }),
-    };
-  }
-
   // files: required for both single-script and multi-script modes —
   // single-script needs the entry file, multi-script needs every step's
   // file. Per-path safety mirrors the platform's `validatePath` rules;
@@ -269,12 +235,6 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       return {
         ok: false,
         error: `entryPath "${r.entryPath}" must reference a path in files`,
-      };
-    }
-    if (match.content.length === 0) {
-      return {
-        ok: false,
-        error: `entryPath "${r.entryPath}" references an empty file`,
       };
     }
     entryPath = r.entryPath;
@@ -319,6 +279,18 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     steps = validatedSteps;
   }
 
+  // Bash mode is single-script only. Multi-step bash routes through
+  // polyglot (which has a Python-hosted dispatcher) — there is no
+  // dedicated bash multi-step wrapper. Reject the ambiguous shape here
+  // so spawn.ts never has to.
+  if (r.language === 'bash' && steps !== undefined) {
+    return {
+      ok: false,
+      error:
+        'language=bash requires `entryPath` (single-script). Multi-step bash must use language=polyglot.',
+    };
+  }
+
   // Polyglot mode: per-step interpreter is chosen by file extension at
   // runtime. Validate up-front so a `.rb` step doesn't reach the wrapper
   // and confuse it. Steps mode is required because polyglot's whole
@@ -337,11 +309,12 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       if (
         path !== undefined &&
         !POLYGLOT_PYTHON_EXT_RE.test(path) &&
-        !POLYGLOT_NODE_EXT_RE.test(path)
+        !POLYGLOT_NODE_EXT_RE.test(path) &&
+        !POLYGLOT_BASH_EXT_RE.test(path)
       ) {
         return {
           ok: false,
-          error: `steps[${i}] "${path}" has an unsupported polyglot extension — must end in .py, .js, .cjs, or .mjs`,
+          error: `steps[${i}] "${path}" has an unsupported polyglot extension — must end in .py, .js, .cjs, .mjs, or .sh`,
         };
       }
     }
@@ -366,35 +339,25 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
   // safety (scheme/host) is left to the spawner's own fetch.
   let priorOutputDownloads: ExecuteRequest['priorOutputDownloads'];
   if (r.priorOutputDownloads !== undefined) {
-    if (!Array.isArray(r.priorOutputDownloads)) {
-      return { ok: false, error: 'priorOutputDownloads must be an array' };
-    }
-    const validated: { name: string; url: string }[] = [];
-    for (let i = 0; i < r.priorOutputDownloads.length; i += 1) {
-      const entry: unknown = r.priorOutputDownloads[i];
-      if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
-        return {
-          ok: false,
-          error: `priorOutputDownloads[${i}] must be an object`,
-        };
-      }
-      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      const e = entry as Record<string, unknown>;
-      if (!isString(e.name)) {
-        return {
-          ok: false,
-          error: `priorOutputDownloads[${i}].name must be a string`,
-        };
-      }
-      if (!isString(e.url)) {
-        return {
-          ok: false,
-          error: `priorOutputDownloads[${i}].url must be a string`,
-        };
-      }
-      validated.push({ name: e.name, url: e.url });
-    }
-    priorOutputDownloads = validated;
+    const validated = validateDownloadsField(
+      r.priorOutputDownloads,
+      'priorOutputDownloads',
+    );
+    if (!validated.ok) return { ok: false, error: validated.error };
+    priorOutputDownloads = validated.value;
+  }
+
+  // userUploadDownloads: same shape as priorOutputDownloads. Spawner
+  // writes the bytes to `/workspace/uploads/<name>` (a distinct dir so
+  // user uploads never get confused with prior `run_code` outputs).
+  let userUploadDownloads: ExecuteRequest['userUploadDownloads'];
+  if (r.userUploadDownloads !== undefined) {
+    const validated = validateDownloadsField(
+      r.userUploadDownloads,
+      'userUploadDownloads',
+    );
+    if (!validated.ok) return { ok: false, error: validated.error };
+    userUploadDownloads = validated.value;
   }
 
   // outputUploadSlots: pre-allocated upload-slot URLs (required field).
@@ -446,11 +409,11 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       ...(packages !== undefined && { packages }),
       ...(packagesByLang !== undefined && { packagesByLang }),
       ...(timeoutMs !== undefined && { timeoutMs }),
-      ...(options !== undefined && { options }),
       files,
       ...(entryPath !== undefined && { entryPath }),
       ...(steps !== undefined && { steps }),
       ...(priorOutputDownloads !== undefined && { priorOutputDownloads }),
+      ...(userUploadDownloads !== undefined && { userUploadDownloads }),
       outputUploadSlots,
       outputUrlEndpoint: r.outputUrlEndpoint,
       reportUploadedEndpoint: r.reportUploadedEndpoint,
@@ -513,6 +476,39 @@ function isSafeRelativePath(
   return { ok: true };
 }
 
+/**
+ * Validate a `{name, url}[]` field (shared shape used by both
+ * `priorOutputDownloads` and `userUploadDownloads`). Wire-shape only;
+ * URL safety (scheme / host) is left to the spawner's own fetch.
+ */
+function validateDownloadsField(
+  raw: unknown,
+  fieldName: string,
+):
+  | { ok: true; value: Array<{ name: string; url: string }> }
+  | { ok: false; error: string } {
+  if (!Array.isArray(raw)) {
+    return { ok: false, error: `${fieldName} must be an array` };
+  }
+  const validated: Array<{ name: string; url: string }> = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    const entry: unknown = raw[i];
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      return { ok: false, error: `${fieldName}[${i}] must be an object` };
+    }
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const e = entry as Record<string, unknown>;
+    if (!isString(e.name)) {
+      return { ok: false, error: `${fieldName}[${i}].name must be a string` };
+    }
+    if (!isString(e.url)) {
+      return { ok: false, error: `${fieldName}[${i}].url must be a string` };
+    }
+    validated.push({ name: e.name, url: e.url });
+  }
+  return { ok: true, value: validated };
+}
+
 function validateFiles(
   raw: unknown,
 ): { ok: true; files: SandboxFile[] } | { ok: false; error: string } {
@@ -527,7 +523,6 @@ function validateFiles(
   }
   const seenLower = new Set<string>();
   const out: SandboxFile[] = [];
-  let aggregateBytes = 0;
   for (let i = 0; i < raw.length; i += 1) {
     const entry: unknown = raw[i];
     if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
@@ -542,8 +537,23 @@ function validateFiles(
     if (!isString(e.path)) {
       return { ok: false, error: `files[${i}].path must be a string` };
     }
-    if (!isString(e.content)) {
-      return { ok: false, error: `files[${i}].content must be a string` };
+    if (!isString(e.url)) {
+      return { ok: false, error: `files[${i}].url must be a string` };
+    }
+    if (e.url.length === 0) {
+      return { ok: false, error: `files[${i}].url must be non-empty` };
+    }
+    if (e.url.length > MAX_FILE_URL_LENGTH) {
+      return {
+        ok: false,
+        error: `files[${i}].url exceeds ${MAX_FILE_URL_LENGTH}-char limit`,
+      };
+    }
+    if (!e.url.startsWith('http://') && !e.url.startsWith('https://')) {
+      return {
+        ok: false,
+        error: `files[${i}].url must use http:// or https://`,
+      };
     }
     const safe = isSafeRelativePath(e.path);
     if (!safe.ok) {
@@ -557,14 +567,7 @@ function validateFiles(
       };
     }
     seenLower.add(lower);
-    aggregateBytes += Buffer.byteLength(e.content, 'utf8');
-    if (aggregateBytes > MAX_FILES_BYTES) {
-      return {
-        ok: false,
-        error: `files aggregate content exceeds ${MAX_FILES_BYTES}-byte limit`,
-      };
-    }
-    out.push({ path: e.path, content: e.content });
+    out.push({ path: e.path, url: e.url });
   }
   return { ok: true, files: out };
 }

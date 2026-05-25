@@ -9,7 +9,10 @@
 
 import path from 'node:path';
 
-import { agentJsonSchema } from '../../lib/shared/schemas/agents';
+import {
+  agentJsonSchema,
+  type SkillBindingResolvedEntry,
+} from '../../lib/shared/schemas/agents';
 import { serializeJson, sha256, validateOrgSlug } from '../lib/file_io';
 import { validateAgentName } from './validators';
 
@@ -45,6 +48,23 @@ export interface AgentJsonConfig {
   integrationBindings?: string[];
   delegates?: string[];
   workflows?: string[];
+  /**
+   * Slugs of skills bound to this agent. Each slug references a
+   * `${SKILLS_DIR}/<orgSlug>/<slug>/SKILL.md` bundle. Runtime resolution
+   * loads bound skills via {@link buildSkillContext} and merges their
+   * declared `toolNames` / `integrationBindings` / `workflowBindings` into
+   * the agent's effective tool set.
+   */
+  skillBindings?: string[];
+  /**
+   * Transitive-dependency snapshot taken at bind time. Runtime trusts
+   * THIS list, not the live frontmatter, so a subsequent skill edit
+   * cannot silently widen the agent's access (HIGH-severity finding from
+   * the Round 1 adversarial review). Drift between snapshot and live
+   * frontmatter surfaces as a runtime warn + UI banner; the user
+   * re-confirms by re-saving the agent.
+   */
+  skillBindingsResolved?: SkillBindingResolvedEntry[];
   supportedModels: string[];
   provider?: string;
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';

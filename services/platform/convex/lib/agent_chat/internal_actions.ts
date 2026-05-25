@@ -64,6 +64,7 @@ import {
   classifyProviderError,
 } from '../error_classification';
 import { buildCallProviderOptions } from '../provider_options';
+import { buildSkillContext } from './skills_runtime';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
 
@@ -210,44 +211,38 @@ export const runAgentGeneration = internalAction({
     try {
       const toolBuildStart = Date.now();
 
-      // Build all tool categories and fetch governance policy in parallel.
-      // Each builder is independent, so running them concurrently saves
-      // ~300-1200ms depending on the number of bindings.
-      //
-      // `orgSlug` and `orgLocale` are resolved in the same outer Promise.all
-      // and threaded into the delegation+workflow builders below. Both
-      // builders need orgSlug, and delegation needs orgLocale — resolving
-      // them once here avoids duplicate queries when both run.
-      const [
-        integrationExtraTools,
-        orgSlug,
-        orgLocale,
-        governanceResult,
-        mcpExtraTools,
-      ] = await Promise.all([
-        buildIntegrationTools(ctx, agentConfig, organizationId),
-        resolveOrgSlug(ctx, organizationId),
-        ctx.runQuery(
-          internal.organizations.internal_queries.getOrganizationDefaultLocale,
-          { organizationId },
-        ),
-        fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
-        buildMcpTools(ctx, organizationId),
-      ]);
+      // Stage 1: org-level resources + skill snapshot, all in parallel.
+      // Skills are no longer agent-bound and no longer grant transitive
+      // tools/integrations/workflows — `buildSkillContext` simply loads
+      // every org skill so the model can `expand_skill` any of them.
+      const orgSlug = await resolveOrgSlug(ctx, organizationId);
+      const [orgLocale, governanceResult, mcpExtraTools, skillSnapshot] =
+        await Promise.all([
+          ctx.runQuery(
+            internal.organizations.internal_queries
+              .getOrganizationDefaultLocale,
+            { organizationId },
+          ),
+          fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
+          buildMcpTools(ctx, organizationId),
+          buildSkillContext(ctx, orgSlug),
+        ]);
 
-      // Delegation and workflows depend on orgSlug (+ orgLocale for
-      // delegation), so they run after the slug is resolved but in parallel
-      // with each other.
-      const [delegationResult, workflowExtraTools] = await Promise.all([
-        buildDelegationTools(
-          ctx,
-          agentConfig,
-          organizationId,
-          orgSlug,
-          orgLocale,
-        ),
-        buildWorkflowTools(ctx, agentConfig, orgSlug),
-      ]);
+      const effectiveConfig = agentConfig;
+
+      // Stage 3: build dependent tool categories.
+      const [integrationExtraTools, delegationResult, workflowExtraTools] =
+        await Promise.all([
+          buildIntegrationTools(ctx, effectiveConfig, organizationId),
+          buildDelegationTools(
+            ctx,
+            effectiveConfig,
+            organizationId,
+            orgSlug,
+            orgLocale,
+          ),
+          buildWorkflowTools(ctx, effectiveConfig, orgSlug),
+        ]);
 
       // Extract delegation tools and instructions append
       let delegationExtraTools: Record<string, unknown> | undefined;
@@ -279,19 +274,25 @@ export const runAgentGeneration = internalAction({
         hasGovernance: !!(mandatoryPrefix || mandatorySuffix),
       });
 
-      // Merge all extra tools
-      const allExtraTools: Record<string, unknown> | undefined =
+      // Merge all extra tools. Skill built-ins (`expand_skill`,
+      // `read_skill_file`) are spliced in last so they cannot be shadowed by
+      // an integration / workflow / delegation tool sharing the same
+      // reserved name — defense-in-depth for the reserved-name set.
+      const hasAnyExtra =
         integrationExtraTools ||
         delegationExtraTools ||
         workflowExtraTools ||
-        mcpExtraTools
-          ? {
-              ...integrationExtraTools,
-              ...delegationExtraTools,
-              ...workflowExtraTools,
-              ...mcpExtraTools,
-            }
-          : undefined;
+        mcpExtraTools ||
+        Object.keys(skillSnapshot.builtInTools).length > 0;
+      const allExtraTools: Record<string, unknown> | undefined = hasAnyExtra
+        ? {
+            ...integrationExtraTools,
+            ...delegationExtraTools,
+            ...workflowExtraTools,
+            ...mcpExtraTools,
+            ...skillSnapshot.builtInTools,
+          }
+        : undefined;
 
       // Combine instructions with delegation agent descriptions
       let finalInstructions = delegationInstructionsAppend
@@ -305,15 +306,24 @@ export const runAgentGeneration = internalAction({
       if (mandatorySuffix) {
         finalInstructions = finalInstructions + '\n\n' + mandatorySuffix;
       }
+      // Append the "Available Skills" suffix AFTER governance so the
+      // governance/persona prefix stays cache-stable across skill edits
+      // (plan Phase 5 ordering). Empty string when no skills bound.
+      if (skillSnapshot.systemPromptAppend) {
+        finalInstructions =
+          finalInstructions + skillSnapshot.systemPromptAppend;
+      }
 
       // Build hooks object from FunctionHandle strings
       const hooks: GenerateResponseHooks | undefined = hooksConfig
         ? buildHooksFromConfig(hooksConfig)
         : undefined;
 
-      // Build tools summary for context window display
+      // Build tools summary for context window display.
+      // Read from effectiveConfig — agentConfig predates the skill merge
+      // and would omit skill-declared convex tools.
       const toolsSummary = buildToolsSummary(
-        agentConfig.convexToolNames,
+        effectiveConfig.convexToolNames,
         allExtraTools,
       );
 
@@ -403,7 +413,9 @@ export const runAgentGeneration = internalAction({
             // Drop `image` when the chat model handles images natively.
             const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
             const webSearchMode = agentConfig.webSearchMode ?? 'off';
-            const baseToolList = agentConfig.convexToolNames ?? [];
+            // Read from effectiveConfig so skill-declared convex tools
+            // (post-mergeSkillDependencies) actually reach the LLM.
+            const baseToolList = effectiveConfig.convexToolNames ?? [];
             const withPropose: string[] =
               personalizationActive && !baseToolList.includes('propose_memory')
                 ? [...baseToolList, 'propose_memory']
@@ -451,7 +463,7 @@ export const runAgentGeneration = internalAction({
               debugTag,
               enableStreaming,
               hooks,
-              convexToolNames: agentConfig.convexToolNames,
+              convexToolNames: effectiveConfig.convexToolNames,
               knowledgeMode: agentConfig.knowledgeMode,
               webSearchMode: agentConfig.webSearchMode,
               includeTeamKnowledge: agentConfig.includeTeamKnowledge,

@@ -153,7 +153,8 @@ RUN HUSKY=0 bun install --production \
     && find /app/node_modules -type d \( -name "test" -o -name "tests" -o -name "__tests__" -o -name "__mocks__" -o -name "coverage" \) -exec rm -rf {} + 2>/dev/null || true \
     && find /app/node_modules -type f \( -name "*.md" -o -name "*.markdown" -o -name "CHANGELOG*" -o -name "LICENSE*" -o -name "README*" \) -delete 2>/dev/null || true \
     && find /app/node_modules -type f \( -name "*.d.ts" -o -name "*.d.ts.map" -o -name "*.d.mts" \) -delete 2>/dev/null || true \
-    && find /app/node_modules -type d \( -name "docs" -o -name "doc" -o -name "example" -o -name "examples" \) -exec rm -rf {} + 2>/dev/null || true \
+    && find /app/node_modules -type d \( -name "docs" -o -name "doc" -o -name "example" -o -name "examples" \) 2>/dev/null \
+       | while IFS= read -r d; do [ -f "${d%/*}/package.json" ] && rm -rf "$d"; done || true \
     && find /app/node_modules -type d -empty -delete 2>/dev/null || true
 
 # ============================================================================

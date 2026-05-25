@@ -28,13 +28,29 @@ function escapeAttribute(value: string): string {
 }
 
 function escapeContent(value: string): string {
-  // Match any close-tag variant, including ones carrying attributes
-  // (`</untrusted_source foo="bar">`). The opener can also be smuggled
-  // by attacker text to break the wrapper, so neutralize any literal
-  // open-tag inside content too.
+  return escapeForXmlTag(value, 'untrusted_source');
+}
+
+/**
+ * Neutralize literal `<tagName ...>` and `</tagName ...>` substrings inside
+ * `content` so the surrounding wrapper tag cannot be broken by attacker
+ * text. Used for any prompt section that wraps operator- or user-authored
+ * content (skill descriptions, skill bodies, untrusted sources, ...).
+ *
+ * Replacement uses HTML-entity-escaped angle brackets — readable in the
+ * prompt log, but no longer parsed as tags by an XML-aware reader.
+ */
+export function escapeForXmlTag(value: string, tagName: string): string {
+  // Require the tag name to be followed by either `>` or whitespace (then
+  // attributes). `\b` would treat `-` as a word boundary and false-match
+  // `</skill-description-extra>` against `skill-description`, so for
+  // kebab-case tag names we need an explicit terminator check instead.
+  const escaped = tagName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const closeRe = new RegExp(`<\\/${escaped}(?:\\s[^>]*)?>`, 'gi');
+  const openRe = new RegExp(`<${escaped}(?:\\s[^>]*)?>`, 'gi');
   return value
-    .replace(/<\/untrusted_source\b[^>]*>/gi, '&lt;/untrusted_source&gt;')
-    .replace(/<untrusted_source\b[^>]*>/gi, '&lt;untrusted_source&gt;');
+    .replace(closeRe, `&lt;/${tagName}&gt;`)
+    .replace(openRe, `&lt;${tagName}&gt;`);
 }
 
 // `sanitizeUntrustedField` was relocated to `lib/shared/` so the client

@@ -1,8 +1,6 @@
 'use client';
 
-import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { useQuery } from 'convex/react';
 import {
   CopyIcon,
   CheckIcon,
@@ -28,7 +26,6 @@ import {
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -49,8 +46,6 @@ import { injectCitationTags } from '../utils/inject-citation-tags';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
 import { AssistantMessageContent } from './assistant-message-content';
 import { BlockedNotice } from './blocked-notice';
-import { useCanvas } from './canvas/canvas-context';
-import { CANVAS_TYPE_ICONS } from './canvas/icon-map';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
@@ -97,62 +92,10 @@ interface MessageArtifactPillsProps {
   messageId: string;
 }
 
-/**
- * Inline chips that surface artifact_create / file_* tool calls inside
- * the assistant bubble — without them, the only signal an artifact was just
- * touched is the ArtifactBar at the top of the chat, which is easy to miss
- * mid-conversation. We piggyback on the bar's `listByThread` subscription
- * (Convex deduplicates identical args) and filter to artifacts whose
- * created/edited message id matches this bubble.
- */
-function MessageArtifactPillsComponent({
-  organizationId,
-  threadId,
-  messageId,
-}: MessageArtifactPillsProps) {
-  const { t } = useT('chat');
-  const { openCanvas } = useCanvas();
-  const artifacts = useQuery(api.artifacts.queries.listByThread, {
-    organizationId,
-    threadId,
-  });
-  const matches = useMemo(() => {
-    if (!artifacts) return [];
-    return artifacts.filter(
-      (a) =>
-        a.createdByMessageId === messageId ||
-        a.lastEditedByMessageId === messageId,
-    );
-  }, [artifacts, messageId]);
-
-  if (matches.length === 0) return null;
-
-  return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {matches.map((artifact) => {
-        const Icon = CANVAS_TYPE_ICONS[artifact.type];
-        return (
-          <button
-            key={artifact._id}
-            type="button"
-            onClick={() => openCanvas(artifact._id)}
-            className="hover:bg-muted/60 border-border inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors"
-            aria-label={t('artifacts.touchedByMessage', {
-              title: artifact.title,
-            })}
-          >
-            <Icon className="text-muted-foreground size-3.5" aria-hidden />
-            <span className="max-w-[16rem] truncate">{artifact.title}</span>
-            {artifact.fileCount > 1 && (
-              <Badge variant="outline" className="h-4 px-1 text-[10px]">
-                {t('artifacts.fileCount', { count: artifact.fileCount })}
-              </Badge>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
+// Artifact pills retired with the artifacts module — workspace files now
+// surface via the right-pane workspace sidebar.
+function MessageArtifactPillsComponent(_props: MessageArtifactPillsProps) {
+  return null;
 }
 
 const MessageArtifactPills = memo(MessageArtifactPillsComponent);

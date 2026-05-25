@@ -10,14 +10,6 @@ import {
   agentWebhookUserThreadsTable,
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
-import {
-  artifactFilesTable,
-  artifactOutputsTable,
-  artifactRevisionsTable,
-  artifactRunFilesTable,
-  artifactRunsTable,
-  artifactsTable,
-} from './artifacts/schema';
 import { auditLogChainGenesisTable, auditLogsTable } from './audit_logs/schema';
 import {
   brandingBindingsTable,
@@ -43,6 +35,7 @@ import {
   legalHoldReleaseRequestsTable,
   legalHoldsTable,
   legalMattersTable,
+  orgPackagePolicyTable,
   policyAcknowledgementsTable,
   retentionAppliedBoundsTable,
   retentionPolicyPendingChangesTable,
@@ -65,6 +58,7 @@ import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
 import { sandboxExecutionsTable } from './sandbox/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
+import { threadFilesTable } from './thread_files/schema';
 import { threadTodosTable } from './thread_todos/schema';
 import { threadBranchesTable } from './threads/branch_schema';
 import { threadMetadataTable } from './threads/schema';
@@ -98,12 +92,6 @@ import {
 
 export default defineSchema({
   approvals: approvalsTable,
-  artifactFiles: artifactFilesTable,
-  artifactOutputs: artifactOutputsTable,
-  artifactRevisions: artifactRevisionsTable,
-  artifactRunFiles: artifactRunFilesTable,
-  artifactRuns: artifactRunsTable,
-  artifacts: artifactsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,
   governancePolicies: governancePoliciesTable,
@@ -151,7 +139,9 @@ export default defineSchema({
   messageMetadata: messageMetadataTable,
   notifications: notificationsTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
+  orgPackagePolicy: orgPackagePolicyTable,
   threadBranches: threadBranchesTable,
+  threadFiles: threadFilesTable,
   threadMetadata: threadMetadataTable,
   threadTodos: threadTodosTable,
   ttsAudioChunks: ttsAudioChunksTable,
