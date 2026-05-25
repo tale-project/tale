@@ -90,6 +90,7 @@ export function SkillDetailSidebar({
                 <Link
                   to="/dashboard/$id/settings/skills/$skillSlug"
                   params={{ id: organizationId, skillSlug: s.slug }}
+                  aria-current={isActive ? 'page' : undefined}
                   className={
                     isActive
                       ? 'bg-muted text-foreground block rounded-md px-2 py-1.5 text-sm'
