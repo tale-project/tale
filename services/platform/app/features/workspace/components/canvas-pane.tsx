@@ -3,7 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { useMatch } from '@tanstack/react-router';
 import { parsePartialJson } from 'ai';
-import { PanelRightOpen, X } from 'lucide-react';
+import { Download, PanelRightOpen, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
@@ -193,6 +193,37 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
     [liveFiles, resolvedPath],
   );
 
+  const isActiveStreaming = !!activeLive;
+  const { data: downloadMeta } = useConvexQuery(
+    api.thread_files.queries.getThreadFileContentUrl,
+    threadId && resolvedPath && !isActiveStreaming
+      ? { threadId, organizationId, path: resolvedPath }
+      : 'skip',
+  );
+  const downloadUrl = downloadMeta?.url;
+  const [isDownloading, setIsDownloading] = useState(false);
+  const handleDownload = useCallback(async () => {
+    if (!downloadUrl || !resolvedPath || isDownloading) return;
+    try {
+      setIsDownloading(true);
+      const res = await fetch(downloadUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = resolvedPath.split('/').pop() ?? resolvedPath;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Canvas download failed:', err);
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [downloadUrl, resolvedPath, isDownloading]);
+
   if (!threadId || mergedFiles.length === 0) return null;
 
   if (!isOpen) {
@@ -214,7 +245,6 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
 
   const activeFile = mergedFiles.find((f) => f.path === resolvedPath);
   const filename = resolvedPath?.split('/').pop() ?? '';
-  const isActiveStreaming = !!activeLive;
 
   return (
     <div
@@ -260,6 +290,21 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <Tooltip
+            content={t('canvas.download', { defaultValue: 'Download' })}
+            side="bottom"
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => void handleDownload()}
+              disabled={!downloadUrl || isDownloading || isActiveStreaming}
+              aria-label={t('canvas.download', { defaultValue: 'Download' })}
+            >
+              <Download className="size-3.5" />
+            </Button>
+          </Tooltip>
           <Tooltip
             content={t('canvas.paneClose', { defaultValue: 'Close canvas' })}
             side="bottom"
