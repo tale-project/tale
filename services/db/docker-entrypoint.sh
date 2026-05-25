@@ -113,5 +113,7 @@ run_init_scripts() {
 # ============================================================================
 # Call the original PostgreSQL entrypoint
 # ============================================================================
-exec docker-entrypoint.sh "$@" "${POSTGRES_ARGS[@]}"
+# Renamed from `docker-entrypoint.sh` in the Dockerfile so this `exec` doesn't
+# resolve back to this very script and spin forever.
+exec postgres-entrypoint.sh "$@" "${POSTGRES_ARGS[@]}"
 

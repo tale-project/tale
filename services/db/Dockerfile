@@ -76,6 +76,13 @@ COPY services/db/init-scripts/ /etc/postgresql/init-scripts/
 # Copy custom PostgreSQL configuration
 COPY services/db/postgresql.conf /etc/postgresql/postgresql.conf
 
+# Preserve the upstream PostgreSQL entrypoint under a non-conflicting name
+# before installing our wrapper at the same path. Without this rename, our
+# wrapper's final `exec postgres-entrypoint.sh "$@"` would otherwise resolve
+# back to the wrapper itself (PATH lookup hits /usr/local/bin first), producing
+# an infinite fork-restart loop that never boots postgres.
+RUN mv /usr/local/bin/docker-entrypoint.sh /usr/local/bin/postgres-entrypoint.sh
+
 # Copy entrypoint script and set permissions
 COPY services/db/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
