@@ -7,6 +7,7 @@ import {
   Network,
   Bot,
   Folder,
+  Sparkles,
 } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -129,6 +130,19 @@ export function useNavigationItems(businessId: string): NavItem[] {
         href: `/dashboard/${businessId}/agents`,
         icon: Bot,
         can: ['write', 'agents'],
+      },
+      {
+        // Sits next to agents — skills are agent-capability bundles.
+        // Gates on `developerSettings` to match the route layout's CASL
+        // check (every skill write flows tool grants into agent
+        // runtimes, so members without the developer capability never
+        // see the management entry).
+        label: tNav('skills'),
+        to: '/dashboard/$id/skills',
+        params: { id: businessId },
+        href: `/dashboard/${businessId}/skills`,
+        icon: Sparkles,
+        can: ['read', 'developerSettings'],
       },
       {
         label: tNav('automations'),
