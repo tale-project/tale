@@ -148,17 +148,16 @@ function checkPackagesAgainstPolicy(
 export const runCodeTool: ToolDefinition = {
   name: 'run_code' as const,
   tool: createTool({
-    description: `**run_code** — execute code in the thread's sandbox using the current workspace as the source tree.
+    description: `**run_code** — execute code in the thread's sandbox using the current workspace as the source tree. Python 3 and Node.js are both available; pick the language that fits the task (or whatever a relevant skill recommends).
 
 WORKFLOW:
 1. \`file_write\` every script you need (the workspace IS the sandbox source tree — no inline file param)
-2. \`run_code({entryPath: "gen.py", packages: {python: ["python-pptx==1.0.2"]}})\` for a one-shot
-   OR \`run_code({steps: [{path: "gen.py"}, {path: "verify.py"}]})\` for sequential steps in one container
+2. \`run_code({entryPath: "<script>"})\` for a one-shot
+   OR \`run_code({steps: [{path: "step_a"}, {path: "step_b"}]})\` for sequential steps sharing one container
 3. Any file the script writes under \`/workspace/output/\` is harvested back into the thread workspace and appears in the canvas
 
 PACKAGES:
-- Pip specs go in \`packages.python\` (e.g. \`python-pptx==1.0.2\`)
-- npm specs go in \`packages.node\` (e.g. \`pptxgenjs\`)
+- Pip specs go in \`packages.python\`, npm specs in \`packages.node\`
 - The org policy gates what packages can be installed — denied packages return a structured error so you can adapt.
 
 TIMEOUTS / LIMITS:
