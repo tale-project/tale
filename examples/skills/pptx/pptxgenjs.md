@@ -1,34 +1,5 @@
 # PptxGenJS Tutorial
 
-This is the Node alternative to the python-pptx path described in `SKILL.md`.
-Pick `pptxgenjs` when the deck leans heavily on charts, shadows, icons, or
-modern visual polish — it has richer high-level primitives than python-pptx.
-
-## Tale workspace notes (read first)
-
-The sandbox ships Node 24. Declare `pptxgenjs` in `packages.node` on your
-`run_code` call — each invocation is a fresh container, so the upstream's
-`npm install -g` advice does not apply.
-
-```
-file_write({ path: "deck.js", content: "..." })
-run_code({
-  entryPath: "deck.js",
-  packages: { node: ["pptxgenjs@4.0.1"] },
-})
-```
-
-Write the deck to `/workspace/output/deck.pptx` (or just `deck.pptx` —
-relative paths land in the workspace) so it gets harvested back as an
-attachment.
-
-For icons you'll additionally need `react@18`, `react-dom@18`, `react-icons`,
-and `sharp` — declare them all in `packages.node` together. Note: `sharp`
-ships native binaries; the sandbox image is `node:24-bookworm-slim` which
-matches a prebuilt wheel, so installation works without extra system deps.
-
----
-
 ## Setup & Basic Structure
 
 ```javascript
@@ -47,7 +18,7 @@ slide.addText('Hello World!', {
   color: '363636',
 });
 
-pres.writeFile({ fileName: 'deck.pptx' });
+pres.writeFile({ fileName: 'Presentation.pptx' });
 ```
 
 ## Layout Dimensions
@@ -110,9 +81,7 @@ slide.addText('Title', {
 });
 ```
 
-**Tip:** Text boxes have internal margin by default. Set `margin: 0` when
-you need text to align precisely with shapes, lines, or icons at the same
-x-position.
+**Tip:** Text boxes have internal margin by default. Set `margin: 0` when you need text to align precisely with shapes, lines, or icons at the same x-position.
 
 ---
 
@@ -123,7 +92,7 @@ x-position.
 slide.addText([
   { text: "First item", options: { bullet: true, breakLine: true } },
   { text: "Second item", options: { bullet: true, breakLine: true } },
-  { text: "Third item", options: { bullet: true } },
+  { text: "Third item", options: { bullet: true } }
 ], { x: 0.5, y: 0.5, w: 8, h: 3 });
 
 // ❌ WRONG: Never use unicode bullets
@@ -174,7 +143,7 @@ slide.addShape(pres.shapes.RECTANGLE, {
 });
 
 // Rounded rectangle (rectRadius only works with ROUNDED_RECTANGLE, not RECTANGLE)
-// ⚠️ Don't pair with rectangular accent overlays — they won't cover rounded corners.
+// ⚠️ Don't pair with rectangular accent overlays — they won't cover rounded corners. Use RECTANGLE instead.
 slide.addShape(pres.shapes.ROUNDED_RECTANGLE, {
   x: 1,
   y: 1,
@@ -208,16 +177,14 @@ Shadow options:
 | --------- | ------ | ---------------------------- | ------------------------------------------------------------- |
 | `type`    | string | `"outer"`, `"inner"`         |                                                               |
 | `color`   | string | 6-char hex (e.g. `"000000"`) | No `#` prefix, no 8-char hex — see Common Pitfalls            |
-| `blur`    | number | 0–100 pt                     |                                                               |
-| `offset`  | number | 0–200 pt                     | **Must be non-negative** — negative values corrupt the file   |
-| `angle`   | number | 0–359 degrees                | Direction the shadow falls (135 = bottom-right, 270 = upward) |
-| `opacity` | number | 0.0–1.0                      | Use this for transparency, never encode in color string       |
+| `blur`    | number | 0-100 pt                     |                                                               |
+| `offset`  | number | 0-200 pt                     | **Must be non-negative** — negative values corrupt the file   |
+| `angle`   | number | 0-359 degrees                | Direction the shadow falls (135 = bottom-right, 270 = upward) |
+| `opacity` | number | 0.0-1.0                      | Use this for transparency, never encode in color string       |
 
-To cast a shadow upward (e.g. on a footer bar), use `angle: 270` with a
-positive offset — do **not** use a negative offset.
+To cast a shadow upward (e.g. on a footer bar), use `angle: 270` with a positive offset — do **not** use a negative offset.
 
-**Note**: Gradient fills are not natively supported. Use a gradient image as
-a background instead.
+**Note**: Gradient fills are not natively supported. Use a gradient image as a background instead.
 
 ---
 
@@ -229,7 +196,7 @@ a background instead.
 // From file path
 slide.addImage({ path: 'images/chart.png', x: 1, y: 1, w: 5, h: 3 });
 
-// From URL — note: the sandbox has network egress; URLs work, but cold-start latency adds up.
+// From URL
 slide.addImage({
   path: 'https://example.com/image.jpg',
   x: 1,
@@ -257,12 +224,12 @@ slide.addImage({
   y: 1,
   w: 5,
   h: 3,
-  rotate: 45,
+  rotate: 45, // 0-359 degrees
   rounding: true, // Circular crop
-  transparency: 50,
-  flipH: true,
-  flipV: false,
-  altText: 'Description',
+  transparency: 50, // 0-100
+  flipH: true, // Horizontal flip
+  flipV: false, // Vertical flip
+  altText: 'Description', // Accessibility
   hyperlink: { url: 'https://example.com' },
 });
 ```
@@ -270,9 +237,14 @@ slide.addImage({
 ### Image Sizing Modes
 
 ```javascript
-{ sizing: { type: "contain", w: 4, h: 3 } } // fit inside, preserve ratio
-{ sizing: { type: "cover", w: 4, h: 3 } }   // fill area, preserve ratio (may crop)
-{ sizing: { type: "crop", x: 0.5, y: 0.5, w: 2, h: 2 } } // cut specific portion
+// Contain - fit inside, preserve ratio
+{ sizing: { type: 'contain', w: 4, h: 3 } }
+
+// Cover - fill area, preserve ratio (may crop)
+{ sizing: { type: 'cover', w: 4, h: 3 } }
+
+// Crop - cut specific portion
+{ sizing: { type: 'crop', x: 0.5, y: 0.5, w: 2, h: 2 } }
 ```
 
 ### Calculate Dimensions (preserve aspect ratio)
@@ -295,14 +267,16 @@ slide.addImage({
 
 ### Supported Formats
 
-- **Standard**: PNG, JPG, GIF (animated GIFs work in Microsoft 365).
-- **SVG**: works in modern PowerPoint / Microsoft 365.
+- **Standard**: PNG, JPG, GIF (animated GIFs work in Microsoft 365)
+- **SVG**: Works in modern PowerPoint/Microsoft 365
 
 ---
 
 ## Icons
 
-Use `react-icons` to generate SVG icons, then rasterize to PNG via `sharp`.
+Use react-icons to generate SVG icons, then rasterize to PNG for universal compatibility.
+
+### Setup
 
 ```javascript
 const React = require('react');
@@ -321,7 +295,11 @@ async function iconToBase64Png(IconComponent, color, size = 256) {
   const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
   return 'image/png;base64,' + pngBuffer.toString('base64');
 }
+```
 
+### Add Icon to Slide
+
+```javascript
 const iconData = await iconToBase64Png(FaCheckCircle, '#4472C4', 256);
 
 slide.addImage({
@@ -333,31 +311,34 @@ slide.addImage({
 });
 ```
 
-**Note**: use size 256 or higher for crisp icons. The size parameter
-controls the rasterization resolution, not the display size on the slide
-(set by `w` and `h` in inches).
+**Note**: Use size 256 or higher for crisp icons. The size parameter controls the rasterization resolution, not the display size on the slide (which is set by `w` and `h` in inches).
 
-Declare in `packages.node`:
+### Icon Libraries
 
-```
-["pptxgenjs@4.0.1", "react@18", "react-dom@18", "react-icons", "sharp"]
-```
+Install: `npm install -g react-icons react react-dom sharp`
 
-Icon sets in `react-icons`:
+Popular icon sets in react-icons:
 
-- `react-icons/fa` — Font Awesome
-- `react-icons/md` — Material Design
-- `react-icons/hi` — Heroicons
-- `react-icons/bi` — Bootstrap Icons
+- `react-icons/fa` - Font Awesome
+- `react-icons/md` - Material Design
+- `react-icons/hi` - Heroicons
+- `react-icons/bi` - Bootstrap Icons
 
 ---
 
 ## Slide Backgrounds
 
 ```javascript
+// Solid color
 slide.background = { color: 'F1F1F1' };
+
+// Color with transparency
 slide.background = { color: 'FF3399', transparency: 50 };
+
+// Image from URL
 slide.background = { path: 'https://example.com/bg.jpg' };
+
+// Image from base64
 slide.background = { data: 'image/png;base64,iVBORw0KGgo...' };
 ```
 
@@ -424,21 +405,33 @@ slide.addChart(
 // Line chart
 slide.addChart(
   pres.charts.LINE,
-  [{ name: 'Temp', labels: ['Jan', 'Feb', 'Mar'], values: [32, 35, 42] }],
+  [
+    {
+      name: 'Temp',
+      labels: ['Jan', 'Feb', 'Mar'],
+      values: [32, 35, 42],
+    },
+  ],
   { x: 0.5, y: 4, w: 6, h: 3, lineSize: 3, lineSmooth: true },
 );
 
 // Pie chart
 slide.addChart(
   pres.charts.PIE,
-  [{ name: 'Share', labels: ['A', 'B', 'Other'], values: [35, 45, 20] }],
+  [
+    {
+      name: 'Share',
+      labels: ['A', 'B', 'Other'],
+      values: [35, 45, 20],
+    },
+  ],
   { x: 7, y: 1, w: 5, h: 4, showPercent: true },
 );
 ```
 
 ### Better-Looking Charts
 
-Default charts look dated. Apply these for a modern, clean appearance:
+Default charts look dated. Apply these options for a modern, clean appearance:
 
 ```javascript
 slide.addChart(pres.charts.BAR, chartData, {
@@ -448,30 +441,37 @@ slide.addChart(pres.charts.BAR, chartData, {
   h: 4,
   barDir: 'col',
 
+  // Custom colors (match your presentation palette)
   chartColors: ['0D9488', '14B8A6', '5EEAD4'],
+
+  // Clean background
   chartArea: { fill: { color: 'FFFFFF' }, roundedCorners: true },
 
+  // Muted axis labels
   catAxisLabelColor: '64748B',
   valAxisLabelColor: '64748B',
 
+  // Subtle grid (value axis only)
   valGridLine: { color: 'E2E8F0', size: 0.5 },
   catGridLine: { style: 'none' },
 
+  // Data labels on bars
   showValue: true,
   dataLabelPosition: 'outEnd',
   dataLabelColor: '1E293B',
 
+  // Hide legend for single series
   showLegend: false,
 });
 ```
 
-Key styling options:
+**Key styling options:**
 
-- `chartColors: [...]` — hex colors for series/segments
-- `chartArea: { fill, border, roundedCorners }` — chart background
-- `catGridLine` / `valGridLine: { color, style, size }` — `style: "none"` hides
-- `lineSmooth: true` — curved lines (line charts)
-- `legendPos: "r"` — legend position: `"b"`, `"t"`, `"l"`, `"r"`, `"tr"`
+- `chartColors: [...]` - hex colors for series/segments
+- `chartArea: { fill, border, roundedCorners }` - chart background
+- `catGridLine/valGridLine: { color, style, size }` - grid lines (`style: "none"` to hide)
+- `lineSmooth: true` - curved lines (line charts)
+- `legendPos: "r"` - legend position: "b", "t", "l", "r", "tr"
 
 ---
 
@@ -498,45 +498,77 @@ titleSlide.addText('My Title', { placeholder: 'title' });
 
 ## Common Pitfalls
 
-⚠️ These cause file corruption, visual bugs, or broken output.
+⚠️ These issues cause file corruption, visual bugs, or broken output. Avoid them.
 
-1. **NEVER use `#` with hex colors** — causes file corruption.
+1. **NEVER use "#" with hex colors** - causes file corruption
 
    ```javascript
-   color: 'FF0000'; // ✅
-   color: '#FF0000'; // ❌
+   color: 'FF0000'; // ✅ CORRECT
+   color: '#FF0000'; // ❌ WRONG
    ```
 
-2. **NEVER encode opacity in hex color strings** — 8-char colors (e.g.
-   `"00000020"`) corrupt the file. Use the `opacity` property.
+2. **NEVER encode opacity in hex color strings** - 8-char colors (e.g., `"00000020"`) corrupt the file. Use the `opacity` property instead.
 
    ```javascript
-   shadow: { type: "outer", blur: 6, offset: 2, color: "00000020" }                  // ❌
-   shadow: { type: "outer", blur: 6, offset: 2, color: "000000", opacity: 0.12 }     // ✅
+   shadow: { type: "outer", blur: 6, offset: 2, color: "00000020" }          // ❌ CORRUPTS FILE
+   shadow: { type: "outer", blur: 6, offset: 2, color: "000000", opacity: 0.12 }  // ✅ CORRECT
    ```
 
-3. **Use `bullet: true`** — never unicode symbols like `•` (creates double bullets).
+3. **Use `bullet: true`** - NEVER unicode symbols like "•" (creates double bullets)
 
-4. **Use `breakLine: true`** between array items or text runs together.
+4. **Use `breakLine: true`** between array items or text runs together
 
-5. **Avoid `lineSpacing` with bullets** — causes excessive gaps; use
-   `paraSpaceAfter` instead.
+5. **Avoid `lineSpacing` with bullets** - causes excessive gaps; use `paraSpaceAfter` instead
 
-6. **Each presentation needs a fresh instance** — don't reuse `pptxgen()`
-   objects.
+6. **Each presentation needs fresh instance** - don't reuse `pptxgen()` objects
 
-7. **NEVER reuse option objects across calls** — PptxGenJS mutates objects
-   in-place (e.g. converts shadow values to EMU). Sharing one object
-   between calls corrupts the second shape.
+7. **NEVER reuse option objects across calls** - PptxGenJS mutates objects in-place (e.g. converting shadow values to EMU). Sharing one object between multiple calls corrupts the second shape.
 
    ```javascript
+   const shadow = { type: "outer", blur: 6, offset: 2, color: "000000", opacity: 0.15 };
+   slide.addShape(pres.shapes.RECTANGLE, { shadow, ... });  // ❌ second call gets already-converted values
+   slide.addShape(pres.shapes.RECTANGLE, { shadow, ... });
+
    const makeShadow = () => ({ type: "outer", blur: 6, offset: 2, color: "000000", opacity: 0.15 });
-   slide.addShape(pres.shapes.RECTANGLE, { shadow: makeShadow(), ... });
+   slide.addShape(pres.shapes.RECTANGLE, { shadow: makeShadow(), ... });  // ✅ fresh object each time
    slide.addShape(pres.shapes.RECTANGLE, { shadow: makeShadow(), ... });
    ```
 
-8. **Don't use `ROUNDED_RECTANGLE` with accent borders** — a rectangular
-   overlay bar won't cover rounded corners. Use `RECTANGLE` for both.
+8. **Don't use `ROUNDED_RECTANGLE` with accent borders** - rectangular overlay bars won't cover rounded corners. Use `RECTANGLE` instead.
+
+   ```javascript
+   // ❌ WRONG: Accent bar doesn't cover rounded corners
+   slide.addShape(pres.shapes.ROUNDED_RECTANGLE, {
+     x: 1,
+     y: 1,
+     w: 3,
+     h: 1.5,
+     fill: { color: 'FFFFFF' },
+   });
+   slide.addShape(pres.shapes.RECTANGLE, {
+     x: 1,
+     y: 1,
+     w: 0.08,
+     h: 1.5,
+     fill: { color: '0891B2' },
+   });
+
+   // ✅ CORRECT: Use RECTANGLE for clean alignment
+   slide.addShape(pres.shapes.RECTANGLE, {
+     x: 1,
+     y: 1,
+     w: 3,
+     h: 1.5,
+     fill: { color: 'FFFFFF' },
+   });
+   slide.addShape(pres.shapes.RECTANGLE, {
+     x: 1,
+     y: 1,
+     w: 0.08,
+     h: 1.5,
+     fill: { color: '0891B2' },
+   });
+   ```
 
 ---
 
@@ -544,6 +576,6 @@ titleSlide.addText('My Title', { placeholder: 'title' });
 
 - **Shapes**: RECTANGLE, OVAL, LINE, ROUNDED_RECTANGLE
 - **Charts**: BAR, LINE, PIE, DOUGHNUT, SCATTER, BUBBLE, RADAR
-- **Layouts**: LAYOUT_16x9 (10″×5.625″), LAYOUT_16x10, LAYOUT_4x3, LAYOUT_WIDE
-- **Alignment**: `"left"`, `"center"`, `"right"`
-- **Chart data labels**: `"outEnd"`, `"inEnd"`, `"center"`
+- **Layouts**: LAYOUT_16x9 (10"×5.625"), LAYOUT_16x10, LAYOUT_4x3, LAYOUT_WIDE
+- **Alignment**: "left", "center", "right"
+- **Chart data labels**: "outEnd", "inEnd", "center"

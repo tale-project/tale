@@ -20,10 +20,8 @@ from pathlib import Path
 
 import defusedxml.minidom
 
-# Tale: lazy imports — the `helpers.merge_runs` / `helpers.simplify_redlines`
-# modules are DOCX-only and not shipped with this skill. They are imported
-# inside the `if suffix == ".docx":` branch below so that PPTX unpacking
-# works without them.
+from helpers.merge_runs import merge_runs as do_merge_runs
+from helpers.simplify_redlines import simplify_redlines as do_simplify_redlines
 
 SMART_QUOTE_REPLACEMENTS = {
     "\u201c": "&#x201C;",
@@ -62,11 +60,6 @@ def unpack(
         message = f"Unpacked {input_file} ({len(xml_files)} XML files)"
 
         if suffix == ".docx":
-            from helpers.merge_runs import merge_runs as do_merge_runs
-            from helpers.simplify_redlines import (
-                simplify_redlines as do_simplify_redlines,
-            )
-
             if simplify_redlines:
                 simplify_count, _ = do_simplify_redlines(str(output_path))
                 message += f", simplified {simplify_count} tracked changes"

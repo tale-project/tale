@@ -19,9 +19,7 @@ from pathlib import Path
 
 import defusedxml.minidom
 
-# Tale: lazy import — the `validators` package and its XSD schema tree
-# (~1 MB of XSDs) are not shipped with this skill. Callers should pass
-# validate=False; with that, this import is never triggered.
+from validators import DOCXSchemaValidator, PPTXSchemaValidator, RedliningValidator
 
 
 def pack(
@@ -75,12 +73,6 @@ def _run_validation(
     suffix: str,
     infer_author_func=None,
 ) -> tuple[bool, str | None]:
-    from validators import (
-        DOCXSchemaValidator,
-        PPTXSchemaValidator,
-        RedliningValidator,
-    )
-
     output_lines = []
     validators = []
 
