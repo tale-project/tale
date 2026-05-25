@@ -154,6 +154,10 @@ export const reserveSlotAndInsert = internalMutation({
     artifactId: v.optional(v.id('artifacts')),
     /** For artifact-bound runs: which file in the project was executed. */
     path: v.optional(v.string()),
+    /** For skill_run invocations: the skill slug (mutually exclusive with artifactId). */
+    skillSlug: v.optional(v.string()),
+    /** SHA-256 of SKILL.md at execution time, for skill_run forensics. */
+    skillVersionHash: v.optional(v.string()),
     language: sandboxLanguageValidator,
     purpose: v.optional(v.string()),
     codePreview: v.string(),
@@ -240,6 +244,10 @@ export const reserveSlotAndInsert = internalMutation({
       ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
       ...(args.artifactId !== undefined && { artifactId: args.artifactId }),
       ...(args.path !== undefined && { path: args.path }),
+      ...(args.skillSlug !== undefined && { skillSlug: args.skillSlug }),
+      ...(args.skillVersionHash !== undefined && {
+        skillVersionHash: args.skillVersionHash,
+      }),
       // Normalize the audit field: always store an object with explicit
       // booleans (default false) so a future read-side default-divergence
       // can't quietly invert the meaning. The legacy conditional-spread

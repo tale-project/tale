@@ -587,6 +587,11 @@ function createSkillRunTool(bySlug: Map<string, SkillRuntimeEntry>) {
           ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
           ...(hasGrouped && { packagesByLang }),
           purpose: `skill_run:${entry.slug}`,
+          // Populate the dedicated skill columns so forensic queries can
+          // enumerate "all runs of skill X" without substring-grepping
+          // `purpose`, and correlate failures to a specific bundle revision.
+          skillSlug: entry.slug,
+          skillVersionHash: entry.versionHashLive,
           // artifactId is intentionally omitted — executeCode short-circuits
           // every artifact-bound code path when this is undefined.
         };

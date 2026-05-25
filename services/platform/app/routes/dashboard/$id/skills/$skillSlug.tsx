@@ -15,8 +15,12 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
+import { SkillAssetsSection } from '@/app/features/skills/components/skill-assets-section';
 import { useUpdateSkill } from '@/app/features/skills/hooks/mutations';
-import { useReadSkill } from '@/app/features/skills/hooks/queries';
+import {
+  useListSkillFiles,
+  useReadSkill,
+} from '@/app/features/skills/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -36,6 +40,7 @@ function SkillDetailPage() {
   const queryClient = useQueryClient();
 
   const { data, isLoading, refetch } = useReadSkill(organizationId, skillSlug);
+  const { data: filesData } = useListSkillFiles(organizationId, skillSlug);
   const { mutateAsync: updateSkill } = useUpdateSkill();
 
   const [description, setDescription] = useState('');
@@ -245,34 +250,14 @@ function SkillDetailPage() {
               defaultValue: 'Bundle files',
             })}
           >
-            <Stack gap={2}>
-              {skill.assets && skill.assets.length > 0 ? (
-                <ul className="ml-4 list-disc">
-                  {skill.assets.map((f: { path: string; size: number }) => (
-                    <li key={f.path}>
-                      <Text as="span" variant="body">
-                        {f.path}
-                      </Text>
-                      <Text as="span" variant="muted" className="ml-2">
-                        ({f.size} B)
-                      </Text>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <Text variant="muted">
-                  {t('skills.bundle.empty', {
-                    defaultValue: 'No bundle files yet.',
-                  })}
-                </Text>
-              )}
-              <Text variant="caption">
-                {t('skills.bundle.help', {
-                  defaultValue:
-                    'Edit bundle files directly on disk under skills/<slug>/. Refresh this page to see updates. UI editing arrives in a follow-up.',
-                })}
-              </Text>
-            </Stack>
+            <SkillAssetsSection
+              organizationId={organizationId}
+              skillSlug={skillSlug}
+              assets={filesData?.assets ?? skill.assets ?? []}
+              totalBytes={filesData?.totalBytes ?? skill.totalBytes ?? 0}
+              maxTotalBytes={filesData?.maxTotalBytes ?? 1024 * 1024}
+              maxAssets={filesData?.maxAssets ?? 32}
+            />
           </FormSection>
 
           <FormSection

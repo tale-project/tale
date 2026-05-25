@@ -27,6 +27,19 @@ export function useListSkillFiles(organizationId: string, slug: string) {
   );
 }
 
+export function useReadSkillAsset(
+  organizationId: string,
+  slug: string,
+  assetPath: string | null,
+) {
+  return useActionQuery(
+    ['config', 'skills', organizationId, slug, 'asset', assetPath ?? ''],
+    api.skills.file_actions.readSkillAsset,
+    { organizationId, slug, assetPath: assetPath ?? '' },
+    { enabled: assetPath !== null && assetPath.length > 0 },
+  );
+}
+
 export function useFindAgentsBindingSkill(
   organizationId: string,
   skillSlug: string,

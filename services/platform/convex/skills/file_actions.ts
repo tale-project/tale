@@ -27,9 +27,13 @@ import {
   parseSkillMd,
   SkillFrontmatterError,
 } from '../../lib/shared/schemas/skills';
-import { internalAction, action } from '../_generated/server';
+import { internal } from '../_generated/api';
+import { internalAction, action, type ActionCtx } from '../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
-import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
+import {
+  requireOrgMembershipById,
+  type OrgMembershipAuth,
+} from '../lib/auth/require_org_membership';
 import { atomicWrite, readFileSafe, readdirSafe, sha256 } from '../lib/file_io';
 import {
   MAX_SKILL_ASSETS,
@@ -48,6 +52,48 @@ import {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+type SkillAuditAction =
+  | 'create_skill'
+  | 'update_skill'
+  | 'delete_skill'
+  | 'write_skill_asset'
+  | 'delete_skill_asset';
+
+async function logSkillAudit(
+  ctx: ActionCtx,
+  auth: OrgMembershipAuth,
+  auditAction: SkillAuditAction,
+  slug: string,
+  states: {
+    resourceName?: string;
+    previousState?: Record<string, unknown>;
+    newState?: Record<string, unknown>;
+  } = {},
+): Promise<void> {
+  try {
+    await ctx.runMutation(internal.skills.audit_mutations.logSkillAuditEvent, {
+      organizationId: auth.orgId,
+      actorId: auth.userId,
+      ...(auth.email ? { actorEmail: auth.email } : {}),
+      actorRole: auth.member.role,
+      action: auditAction,
+      resourceId: slug,
+      ...(states.resourceName !== undefined && {
+        resourceName: states.resourceName,
+      }),
+      ...(states.previousState !== undefined && {
+        previousState: states.previousState,
+      }),
+      ...(states.newState !== undefined && { newState: states.newState }),
+    });
+  } catch (err) {
+    // Audit logging must never block the user-visible operation. Log and
+    // continue — observability is on the SRE side via dashboard alerts on
+    // the audit_logs write rate.
+    console.warn('[skills.audit] logSkillAuditEvent failed:', err);
+  }
+}
 
 interface AssetEntry {
   path: string;
@@ -302,11 +348,8 @@ export const createSkill = action({
         message: `Invalid skill slug: ${args.slug}`,
       });
     }
-    const { orgSlug } = await requireOrgAdminOrDeveloper(
-      ctx,
-      args.organizationId,
-    );
-    const filePath = resolveSkillMdPath(orgSlug, args.slug);
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    const filePath = resolveSkillMdPath(auth.orgSlug, args.slug);
 
     const existing = await readFileSafe(filePath);
     if (existing !== null) {
@@ -331,6 +374,10 @@ export const createSkill = action({
       });
     }
     await atomicWrite(filePath, newContent);
+    await logSkillAudit(ctx, auth, 'create_skill', args.slug, {
+      resourceName: meta.name,
+      newState: { name: meta.name, description: meta.description },
+    });
     return { hash: sha256(newContent) };
   },
 });
@@ -351,11 +398,8 @@ export const updateSkill = action({
         message: `Invalid skill slug: ${args.slug}`,
       });
     }
-    const { orgSlug } = await requireOrgAdminOrDeveloper(
-      ctx,
-      args.organizationId,
-    );
-    const filePath = resolveSkillMdPath(orgSlug, args.slug);
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    const filePath = resolveSkillMdPath(auth.orgSlug, args.slug);
 
     const existing = await readFileSafe(filePath);
     if (existing === null) {
@@ -375,6 +419,17 @@ export const updateSkill = action({
       }
     }
 
+    // Capture pre-state description for the audit row (skill files are
+    // org-authored prose; no secrets to redact). Best-effort: skip on parse
+    // error since we want the audit row to land regardless.
+    let prevDescription: string | undefined;
+    try {
+      const prev = parseSkillMd(existing);
+      prevDescription = prev.meta.description;
+    } catch {
+      // ignore — audit just won't have the previous description
+    }
+
     const meta = validateMetaPayload(args.meta);
     if (meta.name !== args.slug) {
       throw new ConvexError({
@@ -390,6 +445,13 @@ export const updateSkill = action({
       });
     }
     await atomicWrite(filePath, newContent);
+    await logSkillAudit(ctx, auth, 'update_skill', args.slug, {
+      resourceName: meta.name,
+      ...(prevDescription !== undefined && {
+        previousState: { description: prevDescription },
+      }),
+      newState: { description: meta.description },
+    });
     return { hash: sha256(newContent) };
   },
 });
@@ -410,15 +472,12 @@ export const writeSkillAsset = action({
         message: `Invalid skill slug: ${args.slug}`,
       });
     }
-    const { orgSlug } = await requireOrgAdminOrDeveloper(
-      ctx,
-      args.organizationId,
-    );
-    const skillDir = resolveSkillDir(orgSlug, args.slug);
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    const skillDir = resolveSkillDir(auth.orgSlug, args.slug);
 
     // SKILL.md must exist before assets land — keep bundle layout coherent.
     const skillMdContent = await readFileSafe(
-      resolveSkillMdPath(orgSlug, args.slug),
+      resolveSkillMdPath(auth.orgSlug, args.slug),
     );
     if (skillMdContent === null) {
       throw new ConvexError({
@@ -428,7 +487,7 @@ export const writeSkillAsset = action({
     }
 
     const filePath = await resolveSkillAssetPathChecked(
-      orgSlug,
+      auth.orgSlug,
       args.slug,
       args.assetPath,
     );
@@ -451,6 +510,10 @@ export const writeSkillAsset = action({
     }
     await ensureBundleAllowsWrite(skillDir, args.assetPath, incomingBytes);
     await atomicWrite(filePath, args.content);
+    await logSkillAudit(ctx, auth, 'write_skill_asset', args.slug, {
+      resourceName: args.assetPath,
+      newState: { assetPath: args.assetPath, bytes: incomingBytes },
+    });
     return { hash: sha256(args.content) };
   },
 });
@@ -469,17 +532,18 @@ export const deleteSkillAsset = action({
         message: `Invalid skill slug: ${args.slug}`,
       });
     }
-    const { orgSlug } = await requireOrgAdminOrDeveloper(
-      ctx,
-      args.organizationId,
-    );
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
     const filePath = await resolveSkillAssetPathChecked(
-      orgSlug,
+      auth.orgSlug,
       args.slug,
       args.assetPath,
     );
     try {
       await unlink(filePath);
+      await logSkillAudit(ctx, auth, 'delete_skill_asset', args.slug, {
+        resourceName: args.assetPath,
+        previousState: { assetPath: args.assetPath },
+      });
       return { deleted: true };
     } catch (err) {
       const code = err instanceof Error && 'code' in err ? err.code : undefined;
@@ -502,13 +566,11 @@ export const deleteSkill = action({
         message: `Invalid skill slug: ${args.slug}`,
       });
     }
-    const { orgSlug } = await requireOrgAdminOrDeveloper(
-      ctx,
-      args.organizationId,
-    );
-    const dir = resolveSkillDir(orgSlug, args.slug);
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    const dir = resolveSkillDir(auth.orgSlug, args.slug);
     try {
       await rm(dir, { recursive: true, force: true });
+      await logSkillAudit(ctx, auth, 'delete_skill', args.slug);
       return { deleted: true };
     } catch (err) {
       const code = err instanceof Error && 'code' in err ? err.code : undefined;

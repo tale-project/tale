@@ -709,9 +709,11 @@ import type * as sandbox_internal_mutations from "../sandbox/internal_mutations.
 import type * as sandbox_output_mutations from "../sandbox/output_mutations.js";
 import type * as sandbox_sandbox_http from "../sandbox/sandbox_http.js";
 import type * as sandbox_wire from "../sandbox/wire.js";
+import type * as skills_audit_mutations from "../skills/audit_mutations.js";
 import type * as skills_file_actions from "../skills/file_actions.js";
 import type * as skills_file_utils from "../skills/file_utils.js";
 import type * as skills_find_related_agents from "../skills/find_related_agents.js";
+import type * as skills_get_thread_skills from "../skills/get_thread_skills.js";
 import type * as sso_providers_actions from "../sso_providers/actions.js";
 import type * as sso_providers_create_user_session from "../sso_providers/create_user_session.js";
 import type * as sso_providers_entra_id_adapter from "../sso_providers/entra_id/adapter.js";
@@ -1816,9 +1818,11 @@ declare const fullApi: ApiFromModules<{
   "sandbox/output_mutations": typeof sandbox_output_mutations;
   "sandbox/sandbox_http": typeof sandbox_sandbox_http;
   "sandbox/wire": typeof sandbox_wire;
+  "skills/audit_mutations": typeof skills_audit_mutations;
   "skills/file_actions": typeof skills_file_actions;
   "skills/file_utils": typeof skills_file_utils;
   "skills/find_related_agents": typeof skills_find_related_agents;
+  "skills/get_thread_skills": typeof skills_get_thread_skills;
   "sso_providers/actions": typeof sso_providers_actions;
   "sso_providers/create_user_session": typeof sso_providers_create_user_session;
   "sso_providers/entra_id/adapter": typeof sso_providers_entra_id_adapter;

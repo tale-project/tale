@@ -2016,6 +2016,10 @@
       "title": "Aucun agent pour l'instant",
       "description": "Crée ton premier agent pour spécialiser le comportement de l'IA pour ton équipe"
     },
+    "skills": {
+      "title": "Aucun skill pour l'instant",
+      "description": "Les skills sont des recettes réutilisables à attacher aux agents — un playbook plus des scripts sandbox optionnels."
+    },
     "members": {
       "title": "Aucun membre trouvé",
       "description": "Ajoute des membres d'équipe pour commencer"
@@ -4171,11 +4175,18 @@
         "general": "Général",
         "instructionsModel": "Instructions et modèle",
         "tools": "Outils",
+        "skills": "Skills",
         "knowledge": "Base de connaissances",
         "webhook": "Workers",
         "delegation": "Délégation",
         "conversationStarters": "Amorces",
         "history": "Historique"
+      },
+      "skills": {
+        "title": "Skills",
+        "description": "Attache des recettes réutilisables à cet agent. Les dépendances déclarées de chaque skill (outils, intégrations, workflows) sont figées au moment de l'attachement et fusionnées dans l'ensemble effectif de l'agent à l'exécution.",
+        "boundTitle": "Skills attachés",
+        "boundDescription": "Quand l'agent s'exécute, le nom et la description de chaque skill attaché sont injectés dans le prompt système. Le modèle peut appeler `expand_skill` pour charger les instructions complètes, `read_skill_file` pour les gros fichiers, et `skill_run` pour exécuter les scripts du bundle dans le sandbox."
       },
       "history": {
         "empty": "Aucune entrée d'historique",
@@ -4375,6 +4386,89 @@
         "exampleFileUploadStream": "Téléversement de fichier avec streaming (réponse SSE)",
         "exampleOpenAICompat": "Point de terminaison compatible OpenAI (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "Configuration client OpenAI (p. ex. Meetily)"
+      }
+    },
+    "skills": {
+      "createSkill": "Créer un skill",
+      "searchPlaceholder": "Rechercher des skills…",
+      "deleteSkill": "Supprimer le skill",
+      "notFound": "Skill introuvable",
+      "backToList": "Retour aux skills",
+      "skillCreated": "Skill créé",
+      "skillCreateFailed": "Échec de la création du skill",
+      "skillSaved": "Skill enregistré",
+      "skillSaveFailed": "Échec de l'enregistrement du skill",
+      "skillDeleted": "Skill supprimé",
+      "skillDeleteFailed": "Échec de la suppression du skill",
+      "skillAlreadyExists": "Un skill avec ce slug existe déjà",
+      "conflict": "Ce skill a été modifié ailleurs. Recharge pour voir la version actuelle.",
+      "validationError": "Configuration de skill invalide",
+      "deleteConfirmation": "Cela retire le bundle du skill du disque. Les agents qui y sont attachés conserveront leur référence et émettront un avertissement à l'exécution jusqu'à ce que tu les modifies à nouveau.",
+      "relatedAgentsHeader": "Attaché par ces agents",
+      "headerChipLabel": "{count} skills",
+      "headerChipAria": "Voir les skills attachés",
+      "headerChipTitle": "Skills disponibles pour cet agent",
+      "columns": {
+        "name": "Skill",
+        "description": "Description",
+        "deps": "Déps"
+      },
+      "createDialog": {
+        "continue": "Créer",
+        "creating": "Création…"
+      },
+      "form": {
+        "slug": "Slug",
+        "slugHelp": "Lettres minuscules/chiffres, séparés par des tirets. Utilisé comme nom de dossier sur le disque.",
+        "slugPatternError": "Lettres minuscules, chiffres, séparés par des tirets. Pas de soulignés, pas de tirets en début/fin ni de tirets consécutifs.",
+        "description": "Description",
+        "descriptionHelp": "Commence par \"Utilise quand…\". L'agent la lit pour décider d'étendre ou non le skill.",
+        "descriptionPlaceholder": "Quand ce skill doit être utilisé — l'agent le voit dans chaque prompt système.",
+        "body": "Markdown du corps",
+        "bodyHelp": "Chargé dans le contexte de l'agent quand il appelle `expand_skill`. Markdown brut."
+      },
+      "section": {
+        "overview": "Aperçu",
+        "body": "Instructions (corps)",
+        "bundle": "Fichiers du bundle",
+        "deps": "Dépendances déclarées"
+      },
+      "bundle": {
+        "empty": "Aucun fichier de bundle pour l'instant.",
+        "uiHelp": "Les fichiers du bundle vivent sur le disque sous skills/<slug>/. Les modifications via l'UI utilisent des écritures atomiques avec CAS — les modifications concurrentes sur disque sont détectées et signalées comme conflits."
+      },
+      "deps": {
+        "summary": "{count} dépendances déclarées",
+        "tools": "Outils",
+        "integrations": "Intégrations",
+        "workflows": "Workflows",
+        "help": "Modifie les dépendances déclarées dans le frontmatter SKILL.md (sous tool-names / integration-bindings / workflow-bindings)."
+      },
+      "asset": {
+        "add": "Ajouter un fichier",
+        "path": "Chemin",
+        "pathHelp": "Chemin relatif dans le bundle du skill. Utilise scripts/ pour les exécutables, references/ pour les docs, assets/ pour les modèles.",
+        "pathRequired": "Le chemin est requis",
+        "content": "Contenu",
+        "createTitle": "Nouveau fichier de bundle",
+        "editTitle": "Modifier {{path}}",
+        "editAria": "Modifier {{path}}",
+        "deleteAria": "Supprimer {{path}}",
+        "deleteTitle": "Supprimer le fichier",
+        "deleteConfirmation": "Retire définitivement ce fichier du bundle du skill. Cette action est irréversible.",
+        "saved": "Fichier enregistré",
+        "saveFailed": "Échec de l'enregistrement du fichier",
+        "deleted": "Fichier supprimé",
+        "deleteFailed": "Échec de la suppression du fichier",
+        "conflict": "Ce fichier a été modifié ailleurs. Rouvre-le pour voir la version actuelle.",
+        "sizeError": "Le fichier dépasserait la limite de taille du bundle",
+        "notFound": "Skill introuvable",
+        "quota": "{used} / {max} fichiers · {bytes} / {byteMax} octets"
+      },
+      "selector": {
+        "empty": "Aucun skill disponible dans cette organisation pour l'instant. Crée-en un sous Skills.",
+        "deps": "{count} déps",
+        "transitive": "L'attachement active : {tools}{integrations}{workflows}"
       }
     },
     "integrations": {

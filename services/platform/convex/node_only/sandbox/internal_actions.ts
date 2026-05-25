@@ -294,6 +294,17 @@ export const executeCode = internalAction({
     // live progress instead of a frozen spinner.
     artifactId: v.optional(v.id('artifacts')),
     /**
+     * For `skill_run` invocations: the skill slug being executed (mutually
+     * exclusive with artifactId in practice). Populates the
+     * `sandboxExecutions.skillSlug` column for forensics.
+     */
+    skillSlug: v.optional(v.string()),
+    /**
+     * SHA-256 of SKILL.md at execution time. Lets forensics correlate a
+     * stuck/failed run with the exact bundle revision that was loaded.
+     */
+    skillVersionHash: v.optional(v.string()),
+    /**
      * Pre-stage source override. Default behaviour ("latest succeeded
      * run") applies when omitted or when `fromRun === 'latest'`. Pass a
      * specific `artifactRuns` row id to pin pre-staging to that run.
@@ -420,6 +431,10 @@ export const executeCode = internalAction({
           }),
           ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
           ...(args.artifactId !== undefined && { artifactId: args.artifactId }),
+          ...(args.skillSlug !== undefined && { skillSlug: args.skillSlug }),
+          ...(args.skillVersionHash !== undefined && {
+            skillVersionHash: args.skillVersionHash,
+          }),
           // Audit-row attribution: single-script → the executed file;
           // multi-step → the first step (still a meaningful pointer into
           // the artifact tree for forensic grep).
