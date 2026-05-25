@@ -51,13 +51,6 @@ export type { SkillFrontmatter };
 const SKILL_SLUG_REGEX = SKILL_NAME_REGEX;
 const MAX_SLUG_LENGTH = 64;
 
-/** Per-file size cap. SKILL.md itself plus any individual bundle asset. */
-export const MAX_SKILL_MD_BYTES = 256 * 1024; // 256 KB
-/** Max number of asset files in a skill bundle (excludes SKILL.md). */
-export const MAX_SKILL_ASSETS = 32;
-/** Hard cap on total bundle byte count (SKILL.md + every asset). */
-export const MAX_TOTAL_BUNDLE_BYTES = 1 * 1024 * 1024; // 1 MB
-
 /**
  * Canonical bundle subdirectories per agentskills.io spec. Skills may store
  * assets under any of these (or directly in the skill root) — the runtime
@@ -78,12 +71,7 @@ export type SkillReadResult =
     }
   | {
       ok: false;
-      error:
-        | 'not_found'
-        | 'corrupted'
-        | 'too_large'
-        | 'symlink'
-        | 'inaccessible';
+      error: 'not_found' | 'corrupted' | 'symlink' | 'inaccessible';
       message: string;
     };
 
@@ -259,14 +247,6 @@ export async function readSkillMd(
         message: 'SKILL.md is a symlink (rejected)',
       };
     }
-    if (lst.size > MAX_SKILL_MD_BYTES) {
-      return {
-        ok: false,
-        error: 'too_large',
-        message: `SKILL.md exceeds ${MAX_SKILL_MD_BYTES} bytes`,
-      };
-    }
-
     let content: string;
     try {
       const fd = await open(

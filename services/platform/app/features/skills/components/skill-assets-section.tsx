@@ -11,7 +11,6 @@ import { useCallback, useState } from 'react';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { getBundleQuotaStatus } from '@/lib/skills/bundle-quota-status';
 import { formatBytes } from '@/lib/utils/format-bytes';
 
 import { useDeleteSkillAsset } from '../hooks/mutations';
@@ -21,18 +20,12 @@ interface SkillAssetsSectionProps {
   organizationId: string;
   skillSlug: string;
   assets: Array<{ path: string; size: number }>;
-  totalBytes: number;
-  maxTotalBytes: number;
-  maxAssets: number;
 }
 
 export function SkillAssetsSection({
   organizationId,
   skillSlug,
   assets,
-  totalBytes,
-  maxTotalBytes,
-  maxAssets,
 }: SkillAssetsSectionProps) {
   const { t } = useT('settings');
   const { locale } = useLocale();
@@ -91,44 +84,10 @@ export function SkillAssetsSection({
     queryClient,
   ]);
 
-  const quotaStatus = getBundleQuotaStatus(
-    assets.length,
-    maxAssets,
-    totalBytes,
-    maxTotalBytes,
-  );
-  const atLimit = quotaStatus === 'full';
-
   return (
     <Stack gap={3}>
-      <HStack gap={2} align="center" justify="between">
-        {quotaStatus === 'full' ? (
-          <Text variant="caption" className="text-destructive">
-            {t('skills.bundle.quotaFull', {
-              defaultValue:
-                'Bundle is full — delete a file before adding more.',
-            })}
-          </Text>
-        ) : quotaStatus === 'near' ? (
-          <Text variant="caption">
-            {t('skills.bundle.quotaNear', {
-              defaultValue: '{used} / {max} files · {bytes} / {byteMax}',
-              used: assets.length,
-              max: maxAssets,
-              bytes: formatBytes(totalBytes, locale),
-              byteMax: formatBytes(maxTotalBytes, locale),
-            })}
-          </Text>
-        ) : (
-          <span />
-        )}
-        <Button
-          variant="secondary"
-          size="sm"
-          icon={Plus}
-          onClick={openCreate}
-          disabled={atLimit}
-        >
+      <HStack gap={2} align="center" justify="end">
+        <Button variant="secondary" size="sm" icon={Plus} onClick={openCreate}>
           {t('skills.asset.add', { defaultValue: 'Add file' })}
         </Button>
       </HStack>

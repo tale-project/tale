@@ -4460,10 +4460,7 @@
       },
       "bundle": {
         "empty": "Aucun fichier de bundle pour l'instant.",
-        "uiHelp": "Les fichiers du bundle vivent sur le disque sous skills/<slug>/. Les modifications via l'UI utilisent des écritures atomiques avec CAS — les modifications concurrentes sur disque sont détectées et signalées comme conflits.",
-        "dirRoot": "(racine)",
-        "quotaNear": "{used} / {max} fichiers · {bytes} / {byteMax}",
-        "quotaFull": "Le bundle est plein — supprime un fichier avant d'en ajouter d'autres."
+        "uiHelp": "Les fichiers du bundle vivent sur le disque sous skills/<slug>/. Les modifications via l'UI utilisent des écritures atomiques avec CAS — les modifications concurrentes sur disque sont détectées et signalées comme conflits."
       },
       "detail": {
         "sidebar": {
@@ -4486,7 +4483,6 @@
         "pathInvalidChars": "Le chemin ne peut contenir que des lettres, chiffres, point, tiret, souligné et slash.",
         "alreadyExists": "Un fichier existe déjà à ce chemin. Ouvre-le depuis la liste pour le modifier, ou choisis un nouveau chemin.",
         "loadNotFound": "Ce fichier n'est plus dans le bundle. Ferme et crée-le depuis la liste à la place.",
-        "loadTooLarge": "Ce fichier est trop volumineux pour être édité dans le navigateur. Remplace-le via la CLI ou supprime-le ici.",
         "content": "Contenu",
         "createTitle": "Nouveau fichier de bundle",
         "editTitle": "Modifier {path}",
@@ -4499,7 +4495,6 @@
         "deleted": "Fichier supprimé",
         "deleteFailed": "Échec de la suppression du fichier",
         "conflict": "Ce fichier a été modifié ailleurs. Rouvre-le pour voir la version actuelle.",
-        "sizeError": "Le fichier dépasserait la limite de taille du bundle",
         "notFound": "Skill introuvable"
       }
     },

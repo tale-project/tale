@@ -244,13 +244,6 @@ export function SkillAssetViewer({
                 'This file is no longer in the bundle. Pick another file from the tree.',
             })}
           </Text>
-        ) : loadError === 'too_large' ? (
-          <Text variant="muted" className="text-destructive p-4">
-            {t('skills.asset.loadTooLarge', {
-              defaultValue:
-                'This file is too large to preview in the browser. Replace it from the CLI or delete it here.',
-            })}
-          </Text>
         ) : isMarkdown ? (
           <div className={`${markdownWrapperStyles} p-4`}>
             <ReactMarkdown

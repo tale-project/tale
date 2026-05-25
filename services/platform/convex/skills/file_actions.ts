@@ -10,9 +10,9 @@
  * role restriction live in YAML frontmatter, author/timestamps come from
  * audit_logs (see Phase 5c follow-up).
  *
- * All write paths enforce: CAS via `expectedHash`, bundle size caps,
- * symlink rejection (via `O_NOFOLLOW` in `readSkillMd`), and traversal
- * guards (`validateAssetRelPath` inside the path resolver). The
+ * All write paths enforce: CAS via `expectedHash`, symlink rejection
+ * (via `O_NOFOLLOW` in `readSkillMd`), and traversal guards
+ * (`validateAssetRelPath` inside the path resolver). The
  * `readSkillForExecution` internal action reads the full bundle into
  * memory and is the only entrypoint the runtime engine uses — it returns
  * the SKILL.md content hash so the runtime snapshot can detect drift.
@@ -33,9 +33,6 @@ import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_dev
 import { type OrgMembershipAuth } from '../lib/auth/require_org_membership';
 import { atomicWrite, readFileSafe, readdirSafe, sha256 } from '../lib/file_io';
 import {
-  MAX_SKILL_ASSETS,
-  MAX_SKILL_MD_BYTES,
-  MAX_TOTAL_BUNDLE_BYTES,
   readSkillMd,
   resolveSkillAssetPathChecked,
   resolveSkillDir,
@@ -133,30 +130,6 @@ async function walkSkillBundle(
   await walk(skillDir, '');
   assets.sort((a, b) => a.path.localeCompare(b.path));
   return { assets, totalBytes };
-}
-
-async function ensureBundleAllowsWrite(
-  skillDir: string,
-  incomingPath: string,
-  incomingBytes: number,
-): Promise<void> {
-  const { assets, totalBytes } = await walkSkillBundle(skillDir);
-  const incomingExisting = assets.find((a) => a.path === incomingPath);
-  const newAssetCount = incomingExisting ? assets.length : assets.length + 1;
-  if (newAssetCount > MAX_SKILL_ASSETS) {
-    throw new ConvexError({
-      code: 'BUNDLE_TOO_MANY_FILES',
-      message: `Skill bundle would exceed ${MAX_SKILL_ASSETS} files`,
-    });
-  }
-  const replacedSize = incomingExisting?.size ?? 0;
-  const projected = totalBytes - replacedSize + incomingBytes;
-  if (projected > MAX_TOTAL_BUNDLE_BYTES) {
-    throw new ConvexError({
-      code: 'BUNDLE_TOO_LARGE',
-      message: `Skill bundle would exceed ${MAX_TOTAL_BUNDLE_BYTES} bytes`,
-    });
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -258,8 +231,6 @@ export const listSkillFiles = action({
     return {
       assets,
       totalBytes,
-      maxAssets: MAX_SKILL_ASSETS,
-      maxTotalBytes: MAX_TOTAL_BUNDLE_BYTES,
     };
   },
 });
@@ -290,12 +261,6 @@ export const readSkillAsset = action({
     const content = await readFileSafe(filePath);
     if (content === null) {
       return { ok: false as const, error: 'not_found' as const };
-    }
-    // Multi-byte content can have .length (UTF-16 code units) below the cap
-    // while exceeding the byte cap that writes enforce. Mirror the write
-    // side so reads can never accept what writes would reject.
-    if (Buffer.byteLength(content, 'utf-8') > MAX_SKILL_MD_BYTES) {
-      return { ok: false as const, error: 'too_large' as const };
     }
     return {
       ok: true as const,
@@ -339,12 +304,6 @@ export const createSkill = action({
       });
     }
     const newContent = serializeSkillMd(meta, args.body);
-    if (Buffer.byteLength(newContent, 'utf-8') > MAX_SKILL_MD_BYTES) {
-      throw new ConvexError({
-        code: 'TOO_LARGE',
-        message: `SKILL.md exceeds ${MAX_SKILL_MD_BYTES} bytes`,
-      });
-    }
     await atomicWrite(filePath, newContent);
     await logSkillAudit(ctx, auth, 'create_skill', args.slug, {
       resourceName: meta.name,
@@ -431,12 +390,6 @@ export const updateSkill = action({
       });
     }
     const newContent = serializeSkillMd(meta, args.body);
-    if (Buffer.byteLength(newContent, 'utf-8') > MAX_SKILL_MD_BYTES) {
-      throw new ConvexError({
-        code: 'TOO_LARGE',
-        message: `SKILL.md exceeds ${MAX_SKILL_MD_BYTES} bytes`,
-      });
-    }
     await atomicWrite(filePath, newContent);
     await logSkillAudit(ctx, auth, 'update_skill', args.slug, {
       resourceName: meta.name,
@@ -471,7 +424,6 @@ export const writeSkillAsset = action({
       });
     }
     const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-    const skillDir = resolveSkillDir(auth.orgSlug, args.slug);
 
     // SKILL.md must exist before assets land — keep bundle layout coherent.
     const skillMdContent = await readFileSafe(
@@ -490,12 +442,6 @@ export const writeSkillAsset = action({
       args.assetPath,
     );
     const incomingBytes = Buffer.byteLength(args.content, 'utf-8');
-    if (incomingBytes > MAX_SKILL_MD_BYTES) {
-      throw new ConvexError({
-        code: 'TOO_LARGE',
-        message: `Asset exceeds per-file cap of ${MAX_SKILL_MD_BYTES} bytes`,
-      });
-    }
     const current = await readFileSafe(filePath);
     if (args.expectedHash === undefined) {
       // Create mode (no expectedHash supplied). Mirror createSkill's
@@ -514,7 +460,6 @@ export const writeSkillAsset = action({
           'Asset was modified externally since it was loaded. Reload and reapply your changes.',
       });
     }
-    await ensureBundleAllowsWrite(skillDir, args.assetPath, incomingBytes);
     await atomicWrite(filePath, args.content);
     await logSkillAudit(ctx, auth, 'write_skill_asset', args.slug, {
       resourceName: args.assetPath,
@@ -631,12 +576,6 @@ export const duplicateSkill = action({
     // on-disk directory would silently misbehave anyway.
     const newMeta = { ...meta, name: newSlug };
     const newContent = serializeSkillMd(newMeta, body);
-    if (Buffer.byteLength(newContent, 'utf-8') > MAX_SKILL_MD_BYTES) {
-      throw new ConvexError({
-        code: 'TOO_LARGE',
-        message: `SKILL.md exceeds ${MAX_SKILL_MD_BYTES} bytes`,
-      });
-    }
     const newSkillMdPath = resolveSkillMdPath(auth.orgSlug, newSlug);
     await atomicWrite(newSkillMdPath, newContent);
 
@@ -758,14 +697,7 @@ export const readSkillForExecution = internalAction({
     if (!result.ok) return result;
 
     const dir = resolveSkillDir(args.orgSlug, args.slug);
-    const { assets, totalBytes } = await walkSkillBundle(dir);
-    if (totalBytes > MAX_TOTAL_BUNDLE_BYTES) {
-      return {
-        ok: false as const,
-        error: 'too_large' as const,
-        message: `Skill bundle exceeds ${MAX_TOTAL_BUNDLE_BYTES} bytes (was ${totalBytes})`,
-      };
-    }
+    const { assets } = await walkSkillBundle(dir);
 
     const files = await Promise.all(
       assets.map(async (a) => {

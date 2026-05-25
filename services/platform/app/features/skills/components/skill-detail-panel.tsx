@@ -10,7 +10,7 @@ import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
 import { Code, Copy, FileText, Trash2, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -34,7 +34,6 @@ import {
 } from '@/app/features/skills/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { groupAssetsByDir } from '@/lib/skills/group-assets-by-dir';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { SkillAssetEditorDialog } from './skill-asset-editor-dialog';
@@ -100,11 +99,6 @@ export function SkillDetailPanel({
     setDescription('');
     setBody('');
   }, [slug]);
-
-  const groupedAssets = useMemo(
-    () => groupAssetsByDir(filesData?.assets ?? skill?.assets ?? []),
-    [filesData, skill],
-  );
 
   const handleDuplicate = useCallback(async () => {
     if (!skill || isDuplicating) return;
@@ -211,7 +205,7 @@ export function SkillDetailPanel({
         void refetch();
         return;
       }
-      if (code === 'INVALID_FRONTMATTER' || code === 'TOO_LARGE') {
+      if (code === 'INVALID_FRONTMATTER') {
         toast({
           title:
             message ??
@@ -346,9 +340,7 @@ export function SkillDetailPanel({
             <div className="hidden md:block">
               <SkillBundleTreePanel
                 assets={filesData?.assets ?? skill.assets ?? []}
-                totalBytes={filesData?.totalBytes ?? skill.totalBytes ?? 0}
-                maxTotalBytes={filesData?.maxTotalBytes ?? 1024 * 1024}
-                maxAssets={filesData?.maxAssets ?? 32}
+                slug={slug}
                 selectedPath={selectedFile}
                 onSelectPath={setSelectedFile}
               />
@@ -506,50 +498,11 @@ export function SkillDetailPanel({
                       defaultValue: 'Bundle files',
                     })}
                   >
-                    <Stack gap={4}>
-                      {groupedAssets.length > 0 ? (
-                        <Stack gap={3}>
-                          {groupedAssets.map(({ dir, files }) => (
-                            <Stack key={dir} gap={1}>
-                              <Text variant="caption" className="font-mono">
-                                {dir === '.'
-                                  ? t('skills.bundle.dirRoot', {
-                                      defaultValue: '(root)',
-                                    })
-                                  : `${dir}/`}
-                              </Text>
-                              <Stack gap={0} className="ml-3">
-                                {files.map((f) => {
-                                  const leaf =
-                                    dir === '.'
-                                      ? f.path
-                                      : f.path.slice(dir.length + 1);
-                                  return (
-                                    <Text
-                                      key={f.path}
-                                      variant="muted"
-                                      className="font-mono text-xs"
-                                    >
-                                      {leaf}
-                                    </Text>
-                                  );
-                                })}
-                              </Stack>
-                            </Stack>
-                          ))}
-                        </Stack>
-                      ) : null}
-                      <SkillAssetsSection
-                        organizationId={organizationId}
-                        skillSlug={slug}
-                        assets={filesData?.assets ?? skill.assets ?? []}
-                        totalBytes={
-                          filesData?.totalBytes ?? skill.totalBytes ?? 0
-                        }
-                        maxTotalBytes={filesData?.maxTotalBytes ?? 1024 * 1024}
-                        maxAssets={filesData?.maxAssets ?? 32}
-                      />
-                    </Stack>
+                    <SkillAssetsSection
+                      organizationId={organizationId}
+                      skillSlug={slug}
+                      assets={filesData?.assets ?? skill.assets ?? []}
+                    />
                   </FormSection>
 
                   <FormSection

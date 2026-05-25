@@ -4460,10 +4460,7 @@
       },
       "bundle": {
         "empty": "Noch keine Bundle-Dateien.",
-        "uiHelp": "Bundle-Dateien liegen auf der Festplatte unter skills/<slug>/. UI-Änderungen verwenden atomare Schreibvorgänge mit Konflikterkennung — gleichzeitige Plattenänderungen werden erkannt und als Konflikte gemeldet.",
-        "dirRoot": "(Stamm)",
-        "quotaNear": "{used} / {max} Dateien · {bytes} / {byteMax}",
-        "quotaFull": "Bundle ist voll — lösche eine Datei, bevor du weitere hinzufügst."
+        "uiHelp": "Bundle-Dateien liegen auf der Festplatte unter skills/<slug>/. UI-Änderungen verwenden atomare Schreibvorgänge mit Konflikterkennung — gleichzeitige Plattenänderungen werden erkannt und als Konflikte gemeldet."
       },
       "detail": {
         "sidebar": {
@@ -4486,7 +4483,6 @@
         "pathInvalidChars": "Pfad darf nur Buchstaben, Ziffern, Punkt, Bindestrich, Unterstrich und Schrägstrich enthalten.",
         "alreadyExists": "Unter diesem Pfad existiert bereits eine Datei. Öffne sie aus der Liste, um sie zu bearbeiten, oder wähle einen neuen Pfad.",
         "loadNotFound": "Diese Datei ist nicht mehr im Bundle. Schließe und erstelle sie stattdessen aus der Liste.",
-        "loadTooLarge": "Diese Datei ist zu groß, um im Browser bearbeitet zu werden. Ersetze sie über die CLI oder lösche sie hier.",
         "content": "Inhalt",
         "createTitle": "Neue Bundle-Datei",
         "editTitle": "{path} bearbeiten",
@@ -4499,7 +4495,6 @@
         "deleted": "Datei gelöscht",
         "deleteFailed": "Datei konnte nicht gelöscht werden",
         "conflict": "Diese Datei wurde anderswo geändert. Öffne sie erneut, um die aktuelle Version zu sehen.",
-        "sizeError": "Datei würde das Bundle-Größenlimit überschreiten",
         "notFound": "Skill nicht gefunden"
       }
     },

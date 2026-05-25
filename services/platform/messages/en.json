@@ -4717,10 +4717,7 @@
       },
       "bundle": {
         "empty": "No bundle files yet.",
-        "uiHelp": "Bundle files live on disk under skills/<slug>/. UI edits use atomic writes with CAS — concurrent disk edits are detected and surfaced as conflicts.",
-        "dirRoot": "(root)",
-        "quotaNear": "{used} / {max} files · {bytes} / {byteMax}",
-        "quotaFull": "Bundle is full — delete a file before adding more."
+        "uiHelp": "Bundle files live on disk under skills/<slug>/. UI edits use atomic writes with CAS — concurrent disk edits are detected and surfaced as conflicts."
       },
       "detail": {
         "sidebar": {
@@ -4743,7 +4740,6 @@
         "pathInvalidChars": "Path may only contain letters, digits, dot, hyphen, underscore, and slash.",
         "alreadyExists": "A file already exists at this path. Open it from the list to edit, or pick a new path.",
         "loadNotFound": "This file is no longer in the bundle. Close and create it from the list instead.",
-        "loadTooLarge": "This file is too large to edit in the browser. Replace it from the CLI or delete it here.",
         "content": "Content",
         "createTitle": "New bundle file",
         "editTitle": "Edit {path}",
@@ -4756,7 +4752,6 @@
         "deleted": "File deleted",
         "deleteFailed": "Failed to delete file",
         "conflict": "This file was edited elsewhere. Reopen to see the latest version.",
-        "sizeError": "File would exceed the bundle size limit",
         "notFound": "Skill not found"
       }
     },

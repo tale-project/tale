@@ -128,10 +128,9 @@ function SkillAssetEditorForm({
     ? content !== initialContent
     : content.length > 0 || pathInput.trim().length > 0;
 
-  // Surface `ok:false` states (not_found, too_large) explicitly — saving
-  // with stale state on top of a missing/oversized file would otherwise
-  // silently overwrite or truncate.
-  const loadFailure: 'not_found' | 'too_large' | null =
+  // Surface `ok:false` state (not_found) explicitly — saving with stale
+  // state on top of a missing file would otherwise silently recreate it.
+  const loadFailure: 'not_found' | null =
     isEditMode && assetData && !assetData.ok ? assetData.error : null;
   const isLoading = isEditMode && assetData === undefined;
   const canSave =
@@ -202,21 +201,6 @@ function SkillAssetEditorForm({
           );
           return;
         }
-        if (
-          code === 'BUNDLE_TOO_MANY_FILES' ||
-          code === 'BUNDLE_TOO_LARGE' ||
-          code === 'TOO_LARGE'
-        ) {
-          toast({
-            title:
-              message ??
-              t('skills.asset.sizeError', {
-                defaultValue: 'File would exceed the bundle size limit',
-              }),
-            variant: 'destructive',
-          });
-          return;
-        }
         if (code === 'NOT_FOUND') {
           toast({
             title: t('skills.asset.notFound', {
@@ -273,8 +257,8 @@ function SkillAssetEditorForm({
       isSubmitting={isSaving}
       // Wire `isValid` to `canSave` so the Save button is actually
       // disabled during load / when the loaded asset can't be saved
-      // back over (not_found, too_large). Prior shape showed an
-      // enabled Save while loading then errored at submit time.
+      // back over (not_found). Prior shape showed an enabled Save
+      // while loading then errored at submit time.
       isValid={canSave}
       isDirty={isDirty}
       confirmDiscardOnDirty
@@ -286,13 +270,6 @@ function SkillAssetEditorForm({
             {t('skills.asset.loadNotFound', {
               defaultValue:
                 'This file is no longer in the bundle. Close and create it from the list instead.',
-            })}
-          </Text>
-        ) : loadFailure === 'too_large' ? (
-          <Text variant="muted" className="text-destructive">
-            {t('skills.asset.loadTooLarge', {
-              defaultValue:
-                'This file is too large to edit in the browser. Replace it from the CLI or delete it here.',
             })}
           </Text>
         ) : null}
