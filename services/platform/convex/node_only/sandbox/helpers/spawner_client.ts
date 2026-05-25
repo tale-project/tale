@@ -85,6 +85,14 @@ interface SpawnerExecuteBody {
    */
   priorOutputDownloads?: Array<{ name: string; url: string }>;
   /**
+   * User-upload downloads. Each entry's bytes are fetched by the spawner
+   * and written to `/workspace/uploads/<name>`. Separate from
+   * `priorOutputDownloads` so the agent reads user-uploaded raw assets
+   * from a dedicated dir, never confused with files produced by previous
+   * `run_code` invocations.
+   */
+  userUploadDownloads?: Array<{ name: string; url: string }>;
+  /**
    * Pre-allocated upload slots the spawner POSTs harvested output files
    * to. Length = N (defaults to 2; see plan §3). When the spawner needs
    * more slots than were pre-allocated it lazily requests additional

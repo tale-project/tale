@@ -361,35 +361,25 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
   // safety (scheme/host) is left to the spawner's own fetch.
   let priorOutputDownloads: ExecuteRequest['priorOutputDownloads'];
   if (r.priorOutputDownloads !== undefined) {
-    if (!Array.isArray(r.priorOutputDownloads)) {
-      return { ok: false, error: 'priorOutputDownloads must be an array' };
-    }
-    const validated: { name: string; url: string }[] = [];
-    for (let i = 0; i < r.priorOutputDownloads.length; i += 1) {
-      const entry: unknown = r.priorOutputDownloads[i];
-      if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
-        return {
-          ok: false,
-          error: `priorOutputDownloads[${i}] must be an object`,
-        };
-      }
-      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      const e = entry as Record<string, unknown>;
-      if (!isString(e.name)) {
-        return {
-          ok: false,
-          error: `priorOutputDownloads[${i}].name must be a string`,
-        };
-      }
-      if (!isString(e.url)) {
-        return {
-          ok: false,
-          error: `priorOutputDownloads[${i}].url must be a string`,
-        };
-      }
-      validated.push({ name: e.name, url: e.url });
-    }
-    priorOutputDownloads = validated;
+    const validated = validateDownloadsField(
+      r.priorOutputDownloads,
+      'priorOutputDownloads',
+    );
+    if (!validated.ok) return { ok: false, error: validated.error };
+    priorOutputDownloads = validated.value;
+  }
+
+  // userUploadDownloads: same shape as priorOutputDownloads. Spawner
+  // writes the bytes to `/workspace/uploads/<name>` (a distinct dir so
+  // user uploads never get confused with prior `run_code` outputs).
+  let userUploadDownloads: ExecuteRequest['userUploadDownloads'];
+  if (r.userUploadDownloads !== undefined) {
+    const validated = validateDownloadsField(
+      r.userUploadDownloads,
+      'userUploadDownloads',
+    );
+    if (!validated.ok) return { ok: false, error: validated.error };
+    userUploadDownloads = validated.value;
   }
 
   // outputUploadSlots: pre-allocated upload-slot URLs (required field).
@@ -446,6 +436,7 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       ...(entryPath !== undefined && { entryPath }),
       ...(steps !== undefined && { steps }),
       ...(priorOutputDownloads !== undefined && { priorOutputDownloads }),
+      ...(userUploadDownloads !== undefined && { userUploadDownloads }),
       outputUploadSlots,
       outputUrlEndpoint: r.outputUrlEndpoint,
       reportUploadedEndpoint: r.reportUploadedEndpoint,
@@ -506,6 +497,39 @@ function isSafeRelativePath(
     }
   }
   return { ok: true };
+}
+
+/**
+ * Validate a `{name, url}[]` field (shared shape used by both
+ * `priorOutputDownloads` and `userUploadDownloads`). Wire-shape only;
+ * URL safety (scheme / host) is left to the spawner's own fetch.
+ */
+function validateDownloadsField(
+  raw: unknown,
+  fieldName: string,
+):
+  | { ok: true; value: Array<{ name: string; url: string }> }
+  | { ok: false; error: string } {
+  if (!Array.isArray(raw)) {
+    return { ok: false, error: `${fieldName} must be an array` };
+  }
+  const validated: Array<{ name: string; url: string }> = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    const entry: unknown = raw[i];
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      return { ok: false, error: `${fieldName}[${i}] must be an object` };
+    }
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const e = entry as Record<string, unknown>;
+    if (!isString(e.name)) {
+      return { ok: false, error: `${fieldName}[${i}].name must be a string` };
+    }
+    if (!isString(e.url)) {
+      return { ok: false, error: `${fieldName}[${i}].url must be a string` };
+    }
+    validated.push({ name: e.name, url: e.url });
+  }
+  return { ok: true, value: validated };
 }
 
 function validateFiles(

@@ -166,7 +166,12 @@ TIMEOUTS / LIMITS:
 - Memory cap 1 GB
 - Max 16 harvested output files per run
 
-The sandbox sees \`/workspace/code/\` (your scripts) and \`/workspace/output/\` (where to write outputs). \`/workspace/output/\` is pre-populated with the current workspace files too, so scripts that read user uploads should glob there.`,
+The sandbox sees three directories pre-populated from the thread workspace:
+- \`/workspace/code/\`    — scripts you authored via \`file_write\` (this is where \`entryPath\` / \`steps\` resolve);
+- \`/workspace/output/\`  — files produced by **previous** \`run_code\` calls; this is also where the current run writes its outputs (any file written here is harvested back into the thread);
+- \`/workspace/uploads/\` — files the user uploaded into the thread (kept separate from code-output artifacts).
+
+Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user-uploaded asset → \`/workspace/uploads/<name>\`. Only scripts you wrote with \`file_write\` are executable as \`entryPath\` / \`steps\`.`,
     inputSchema: runCodeArgs,
     execute: async (ctx: ToolCtx, args: RunCodeArgs) => {
       const { organizationId, threadId, messageId, userId } = ctx;
@@ -219,9 +224,16 @@ The sandbox sees \`/workspace/code/\` (your scripts) and \`/workspace/output/\` 
         }
         stepPaths = [args.entryPath];
       }
+      // Only `agent_write` files land in /workspace/code/ — they are the
+      // executable surface. `user_upload` lives in /workspace/uploads/ and
+      // `run_output` lives in /workspace/output/; neither is executable
+      // via entryPath/steps. If the user wants to run a user-uploaded
+      // script, they can copy it into /workspace/code/ with file_write.
       const seen = new Set<string>();
       const knownPaths = new Set(
-        workspaceFiles.map((f: { path: string }) => f.path),
+        workspaceFiles
+          .filter((f: { source: string }) => f.source === 'agent_write')
+          .map((f: { path: string }) => f.path),
       );
       for (const p of stepPaths) {
         if (!SCRIPT_EXT_REGEX.test(p)) {
@@ -285,11 +297,21 @@ The sandbox sees \`/workspace/code/\` (your scripts) and \`/workspace/output/\` 
         };
       }
 
-      // Mint a Caddy-aliased download URL per workspace file so the spawner
-      // can fetch the bytes itself (binary-safe; bypasses the body cap). No
-      // bytes flow through this action's memory — the spawner streams them
-      // directly from Convex storage via the internal proxy.
+      // Mint a Caddy-aliased download URL per thread file so the spawner
+      // fetches bytes itself (binary-safe; bypasses the body cap). No bytes
+      // flow through this action's memory. Files are routed by `source`:
+      //   - agent_write → /workspace/code/<path>   (executable scripts)
+      //   - run_output  → /workspace/output/<path> (previous run artifacts)
+      //   - user_upload → /workspace/uploads/<path>(user-supplied assets)
       const filesPayload: Array<{ path: string; url: string }> = [];
+      const priorOutputDownloadsPayload: Array<{
+        name: string;
+        url: string;
+      }> = [];
+      const userUploadDownloadsPayload: Array<{
+        name: string;
+        url: string;
+      }> = [];
       for (const wf of workspaceFiles) {
         const rawUrl = await ctx.storage.getUrl(wf.storageId);
         if (rawUrl === null) {
@@ -299,7 +321,15 @@ The sandbox sees \`/workspace/code/\` (your scripts) and \`/workspace/output/\` 
             message: `workspace file storage missing for path=${wf.path} storageId=${wf.storageId}`,
           };
         }
-        filesPayload.push({ path: wf.path, url: toSandboxStorageUrl(rawUrl) });
+        const url = toSandboxStorageUrl(rawUrl);
+        if (wf.source === 'run_output') {
+          priorOutputDownloadsPayload.push({ name: wf.path, url });
+        } else if (wf.source === 'user_upload') {
+          userUploadDownloadsPayload.push({ name: wf.path, url });
+        } else {
+          // agent_write (default) — staged at /workspace/code/<path>.
+          filesPayload.push({ path: wf.path, url });
+        }
       }
 
       const packagesByLang: { python?: string[]; node?: string[] } = {};
@@ -319,6 +349,12 @@ The sandbox sees \`/workspace/code/\` (your scripts) and \`/workspace/output/\` 
         ...(messageId !== undefined && { messageId }),
         language: spawnerLanguage,
         files: filesPayload,
+        ...(priorOutputDownloadsPayload.length > 0 && {
+          priorOutputDownloads: priorOutputDownloadsPayload,
+        }),
+        ...(userUploadDownloadsPayload.length > 0 && {
+          userUploadDownloads: userUploadDownloadsPayload,
+        }),
         ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
         ...(Object.keys(packagesByLang).length > 0 && { packagesByLang }),
         purpose: 'run_code',

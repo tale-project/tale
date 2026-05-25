@@ -74,8 +74,28 @@ export interface ExecuteRequest {
    * Replaces the legacy inline-base64 `priorOutputFiles[]` field
    * (sandbox-wobbly-origami plan §1). Names are validated against the
    * same POSIX-traversal rules; rejects skip (logged, not fatal).
+   *
+   * Semantically distinct from `userUploadDownloads`: prior outputs are
+   * files produced by **previous** `run_code` invocations that the
+   * platform harvested and is now re-injecting. The dedicated
+   * `/workspace/output/` directory keeps them separate from scripts and
+   * user uploads.
    */
   priorOutputDownloads?: Array<{
+    name: string;
+    url: string;
+  }>;
+  /**
+   * User-upload downloads. Spawner fetches each URL during
+   * `stageWorkspace` and writes the bytes to `/workspace/uploads/<name>`.
+   * Reserved for files the user uploaded into the thread (source
+   * `'user_upload'` on the platform side) so the agent reads them from
+   * a dedicated directory, never mixed with `/workspace/output/`
+   * (which is for previous `run_code` outputs only). Same fetch path /
+   * skip-on-failure semantics as `priorOutputDownloads`; no attestation
+   * shape in the response — uploads don't chain across runs.
+   */
+  userUploadDownloads?: Array<{
     name: string;
     url: string;
   }>;

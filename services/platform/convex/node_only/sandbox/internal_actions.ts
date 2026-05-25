@@ -144,6 +144,24 @@ export const executeCode = internalAction({
      * `toSandboxStorageUrl`.
      */
     files: v.array(v.object({ path: v.string(), url: v.string() })),
+    /**
+     * Files staged at /workspace/output/<name>. Reserved for thread files
+     * with `source: 'run_output'` (i.e. produced by previous `run_code`
+     * invocations); the spawner pre-populates them so the agent can read
+     * historical artifacts from a stable path.
+     */
+    priorOutputDownloads: v.optional(
+      v.array(v.object({ name: v.string(), url: v.string() })),
+    ),
+    /**
+     * Files staged at /workspace/uploads/<name>. Reserved for thread files
+     * with `source: 'user_upload'`. Kept disjoint from
+     * `priorOutputDownloads` so user-uploaded raw assets never get mixed
+     * with code-output artifacts.
+     */
+    userUploadDownloads: v.optional(
+      v.array(v.object({ name: v.string(), url: v.string() })),
+    ),
     entryPath: v.optional(v.string()),
     steps: v.optional(v.array(v.string())),
     packages: v.optional(v.array(v.string())),
@@ -337,6 +355,14 @@ export const executeCode = internalAction({
           organizationId: args.organizationId,
           language: args.language,
           files: args.files,
+          ...(args.priorOutputDownloads !== undefined &&
+            args.priorOutputDownloads.length > 0 && {
+              priorOutputDownloads: args.priorOutputDownloads,
+            }),
+          ...(args.userUploadDownloads !== undefined &&
+            args.userUploadDownloads.length > 0 && {
+              userUploadDownloads: args.userUploadDownloads,
+            }),
           ...(args.entryPath !== undefined && { entryPath: args.entryPath }),
           ...(args.steps !== undefined &&
             args.steps.length > 0 && { steps: args.steps }),

@@ -431,6 +431,65 @@ describe('validateExecuteRequest', () => {
     if (!r.ok) expect(r.error).toMatch(/url/);
   });
 
+  test('passes through userUploadDownloads when valid', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      userUploadDownloads: [
+        { name: 'data.csv', url: 'http://proxy/api/storage/csv1' },
+        { name: 'template.docx', url: 'http://proxy/api/storage/docx1' },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.request.userUploadDownloads).toEqual([
+        { name: 'data.csv', url: 'http://proxy/api/storage/csv1' },
+        { name: 'template.docx', url: 'http://proxy/api/storage/docx1' },
+      ]);
+    }
+  });
+
+  test('rejects non-array userUploadDownloads', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      userUploadDownloads: 'oops',
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/userUploadDownloads/);
+  });
+
+  test('rejects userUploadDownloads entry with non-string fields', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      userUploadDownloads: [{ name: 'x', url: 123 }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/userUploadDownloads.*url/);
+  });
+
+  test('keeps priorOutputDownloads and userUploadDownloads independent', () => {
+    // Both present at once → both pass through, neither contaminates the
+    // other (catches a regression where the validator might write the same
+    // local var to both fields).
+    const r = validateExecuteRequest({
+      ...good,
+      priorOutputDownloads: [
+        { name: 'old.pptx', url: 'http://proxy/api/storage/old' },
+      ],
+      userUploadDownloads: [
+        { name: 'fresh.csv', url: 'http://proxy/api/storage/fresh' },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.request.priorOutputDownloads).toEqual([
+        { name: 'old.pptx', url: 'http://proxy/api/storage/old' },
+      ]);
+      expect(r.request.userUploadDownloads).toEqual([
+        { name: 'fresh.csv', url: 'http://proxy/api/storage/fresh' },
+      ]);
+    }
+  });
+
   test('rejects body missing outputUploadSlots', () => {
     const { outputUploadSlots: _, ...withoutSlots } = good;
     const r = validateExecuteRequest(withoutSlots);

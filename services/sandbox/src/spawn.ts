@@ -544,33 +544,35 @@ async function fetchUrlToFile(
   }
 }
 
-export async function stagePriorOutputDownloads(
-  outputDir: string,
+/**
+ * Generic best-effort stage: fetch each `{name, url}` into `targetDir/<name>`
+ * with path-safety + cap enforcement, logging staged/skipped with `logLabel`.
+ * Used by `stagePriorOutputDownloads` (returns the staged/skipped struct for
+ * platform-side attestation) and `stageUserUploadDownloads` (discards it).
+ */
+async function stageDownloadsToDir(
+  targetDir: string,
   downloads: ReadonlyArray<{ name: string; url: string }>,
-  opts: StagePriorOpts = {},
+  opts: { timeoutMs: number; maxBytesPerFile: number },
+  logLabel: string,
 ): Promise<PriorStageResult> {
-  const timeoutMs = opts.timeoutMs ?? PRIOR_FETCH_DEFAULT_TIMEOUT_MS;
-  const maxBytesPerFile = opts.maxBytesPerFile ?? PRIOR_FETCH_DEFAULT_MAX_BYTES;
   const staged: PriorStageResult['staged'] = [];
   const skipped: PriorStageResult['skipped'] = [];
   for (const file of downloads) {
-    const dest = resolve(outputDir, file.name);
-    // Defense in depth — refuse anything escaping outputDir.
-    if (dest !== outputDir && !dest.startsWith(outputDir + sep)) {
-      const detail = `resolved path escapes outputDir`;
+    const dest = resolve(targetDir, file.name);
+    // Defense in depth — refuse anything escaping targetDir.
+    if (dest !== targetDir && !dest.startsWith(targetDir + sep)) {
+      const detail = `resolved path escapes targetDir`;
       console.warn(
-        `[sandbox] skipping unsafe prior-output name: ${JSON.stringify(file.name)} (${detail})`,
+        `[sandbox] skipping unsafe ${logLabel} name: ${JSON.stringify(file.name)} (${detail})`,
       );
       skipped.push({ name: file.name, reason: 'unsafe_path', detail });
       continue;
     }
-    const result = await fetchUrlToFile(file.url, dest, {
-      timeoutMs,
-      maxBytesPerFile,
-    });
+    const result = await fetchUrlToFile(file.url, dest, opts);
     if (!result.ok) {
       console.warn(
-        `[sandbox] prior-output ${result.reason} for ${JSON.stringify(file.name)}: ${result.detail}`,
+        `[sandbox] ${logLabel} ${result.reason} for ${JSON.stringify(file.name)}: ${result.detail}`,
       );
       skipped.push({
         name: file.name,
@@ -589,15 +591,53 @@ export async function stagePriorOutputDownloads(
   // to crank the global log level. Pre-stage is a black box otherwise.
   if (staged.length > 0) {
     console.info(
-      `[sandbox.stage] pre-staged ${staged.length} file(s) into ${outputDir}: ${JSON.stringify(staged.map((s) => s.name))}`,
+      `[sandbox.stage] pre-staged ${staged.length} file(s) into ${targetDir}: ${JSON.stringify(staged.map((s) => s.name))}`,
     );
   }
   if (skipped.length > 0) {
     console.warn(
-      `[sandbox.stage] skipped ${skipped.length} prior-output(s): ${JSON.stringify(skipped)}`,
+      `[sandbox.stage] skipped ${skipped.length} ${logLabel}(s): ${JSON.stringify(skipped)}`,
     );
   }
   return { staged, skipped };
+}
+
+export async function stagePriorOutputDownloads(
+  outputDir: string,
+  downloads: ReadonlyArray<{ name: string; url: string }>,
+  opts: StagePriorOpts = {},
+): Promise<PriorStageResult> {
+  return stageDownloadsToDir(
+    outputDir,
+    downloads,
+    {
+      timeoutMs: opts.timeoutMs ?? PRIOR_FETCH_DEFAULT_TIMEOUT_MS,
+      maxBytesPerFile: opts.maxBytesPerFile ?? PRIOR_FETCH_DEFAULT_MAX_BYTES,
+    },
+    'prior-output',
+  );
+}
+
+// User uploads share the URL-fetch / cap budget with prior outputs; they
+// land in their own `/workspace/uploads/` dir so the agent never mistakes
+// a user-uploaded asset for a run_code-produced artifact.
+const USER_UPLOAD_FETCH_TIMEOUT_MS = 30_000;
+const USER_UPLOAD_FETCH_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
+
+export async function stageUserUploadDownloads(
+  uploadsDir: string,
+  downloads: ReadonlyArray<{ name: string; url: string }>,
+  opts: StagePriorOpts = {},
+): Promise<void> {
+  await stageDownloadsToDir(
+    uploadsDir,
+    downloads,
+    {
+      timeoutMs: opts.timeoutMs ?? USER_UPLOAD_FETCH_TIMEOUT_MS,
+      maxBytesPerFile: opts.maxBytesPerFile ?? USER_UPLOAD_FETCH_MAX_BYTES,
+    },
+    'user-upload',
+  );
 }
 
 export async function stageWorkspace(
@@ -606,8 +646,10 @@ export async function stageWorkspace(
 ): Promise<{ priorStage?: PriorStageResult }> {
   const codeDir = join(hostDir, 'code');
   const outputDir = join(hostDir, 'output');
+  const uploadsDir = join(hostDir, 'uploads');
   await mkdir(codeDir, { recursive: true });
   await mkdir(outputDir, { recursive: true });
+  await mkdir(uploadsDir, { recursive: true });
 
   let priorStage: PriorStageResult | undefined;
   if (
@@ -618,6 +660,16 @@ export async function stageWorkspace(
       outputDir,
       req.priorOutputDownloads,
     );
+  }
+
+  // User uploads land in `/workspace/uploads/` so the agent reads
+  // them from a dedicated dir, never confused with prior `run_code`
+  // outputs (which keep their own `/workspace/output/`).
+  if (
+    req.userUploadDownloads !== undefined &&
+    req.userUploadDownloads.length > 0
+  ) {
+    await stageUserUploadDownloads(uploadsDir, req.userUploadDownloads);
   }
 
   // Stage user files at their declared paths under /workspace/code/.

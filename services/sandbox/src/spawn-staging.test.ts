@@ -340,9 +340,114 @@ describe('stageWorkspace', () => {
       );
     } catch (err) {
       threw = true;
-      expect((err as Error).message).toMatch(/workspace file fetch failed/);
-      expect((err as Error).message).toMatch(/http_error/);
+      expect(err).toBeInstanceOf(Error);
+      const message = err instanceof Error ? err.message : String(err);
+      expect(message).toMatch(/workspace file fetch failed/);
+      expect(message).toMatch(/http_error/);
     }
     expect(threw).toBe(true);
+  });
+
+  test('stages userUploadDownloads under /workspace/uploads/ byte-for-byte', async () => {
+    // Binary fixture (ZIP magic + non-UTF-8 bytes) to also catch any
+    // future UTF-8 mangle regression on this newer ingress path.
+    const zipFixture = Buffer.from([
+      0x50, 0x4b, 0x03, 0x04, 0xff, 0xfe, 0xfd, 0xfc, 0xc0, 0xc1, 0xa9, 0xb5,
+    ]);
+    await stageIgnoringChown(
+      hostDir,
+      baseReq({
+        userUploadDownloads: [
+          { name: 'data.csv', url: registerText('data.csv', 'a,b\n1,2\n') },
+          {
+            name: 'template.pptx',
+            url: registerBytes('template.pptx', zipFixture),
+          },
+        ],
+      }),
+    );
+
+    const csv = await readFile(join(hostDir, 'uploads', 'data.csv'), 'utf8');
+    expect(csv).toBe('a,b\n1,2\n');
+    const pptx = await readFile(join(hostDir, 'uploads', 'template.pptx'));
+    expect(pptx.equals(zipFixture)).toBe(true);
+  });
+
+  test('three sources land in three distinct dirs (code / output / uploads) without cross-contamination', async () => {
+    await stageIgnoringChown(
+      hostDir,
+      baseReq({
+        files: [
+          // agent_write → /workspace/code/
+          {
+            path: 'qa.py',
+            url: registerText('qa.py', 'print("qa")'),
+          },
+        ],
+        entryPath: 'qa.py',
+        priorOutputDownloads: [
+          // run_output → /workspace/output/
+          {
+            name: 'deck.pptx',
+            url: registerText('deck.pptx', 'deck-bytes'),
+          },
+        ],
+        userUploadDownloads: [
+          // user_upload → /workspace/uploads/
+          {
+            name: 'data.csv',
+            url: registerText('data.csv', 'csv-bytes'),
+          },
+        ],
+      }),
+    );
+
+    // Each file in its own dir.
+    expect(await readFile(join(hostDir, 'code', 'qa.py'), 'utf8')).toBe(
+      'print("qa")',
+    );
+    expect(await readFile(join(hostDir, 'output', 'deck.pptx'), 'utf8')).toBe(
+      'deck-bytes',
+    );
+    expect(await readFile(join(hostDir, 'uploads', 'data.csv'), 'utf8')).toBe(
+      'csv-bytes',
+    );
+
+    // Reverse: confirm no leakage across dirs.
+    const codeEntries = (await readdir(join(hostDir, 'code'))).sort();
+    expect(codeEntries).toEqual(
+      ['options.json', 'packages.json', 'qa.py'].sort(),
+    );
+    const outputEntries = await readdir(join(hostDir, 'output'));
+    expect(outputEntries).toEqual(['deck.pptx']);
+    const uploadEntries = await readdir(join(hostDir, 'uploads'));
+    expect(uploadEntries).toEqual(['data.csv']);
+  });
+
+  test('skips userUploadDownloads on 404 (does not fail-fast)', async () => {
+    // Best-effort semantics, mirroring priorOutputDownloads: a single
+    // missing upload should not abort the entire run.
+    await stageIgnoringChown(
+      hostDir,
+      baseReq({
+        userUploadDownloads: [
+          { name: 'ghost.csv', url: `${fixtureBaseUrl}/file/never-registered` },
+          { name: 'present.csv', url: registerText('present.csv', 'present') },
+        ],
+      }),
+    );
+    // The 404'd file is absent, the registered one is present.
+    let ghostMissing = false;
+    try {
+      await stat(join(hostDir, 'uploads', 'ghost.csv'));
+    } catch {
+      ghostMissing = true;
+    }
+    expect(ghostMissing).toBe(true);
+    const present = await readFile(
+      join(hostDir, 'uploads', 'present.csv'),
+      'utf8',
+    );
+    expect(present).toBe('present');
   });
 });
