@@ -22,8 +22,12 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { markdownWrapperStyles } from '@/app/features/chat/components/message-bubble/markdown-renderer';
+import {
+  markdownComponents,
+  markdownWrapperStyles,
+} from '@/app/features/chat/components/message-bubble/markdown-renderer';
 import { SkillAssetEditorDialog } from '@/app/features/skills/components/skill-asset-editor-dialog';
+import { SkillAssetViewer } from '@/app/features/skills/components/skill-asset-viewer';
 import { SkillAssetsSection } from '@/app/features/skills/components/skill-assets-section';
 import { SkillBundleTreePanel } from '@/app/features/skills/components/skill-bundle-tree-panel';
 import { SkillDeleteDialog } from '@/app/features/skills/components/skill-delete-dialog';
@@ -93,20 +97,14 @@ function SkillDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
 
-  // Tree-pane file selection. `null` (or `'SKILL.md'`) shows the
-  // existing right-pane content (metadata, edit form, audit log, …);
-  // any other value opens the asset editor dialog scoped to that
-  // file. Closing the dialog snaps the selection back to SKILL.md so
-  // the user lands on the root view, mirroring the Claude shape where
-  // closing a file returns focus to the bundle root.
+  // Tree-pane file selection. `'SKILL.md'` shows the existing right-
+  // pane edit form; any other value swaps the right pane to the
+  // read-only `SkillAssetViewer`. The viewer's Edit button is the
+  // explicit path into `SkillAssetEditorDialog` — selection alone is
+  // no longer a modal trigger, so navigation/scrolling/copying stays
+  // in-pane and the tree position is preserved across edits.
   const [selectedFile, setSelectedFile] = useState('SKILL.md');
-  const assetEditorOpen = selectedFile !== 'SKILL.md';
-  const handleAssetDialogChange = useCallback(
-    (open: boolean) => {
-      if (!open) setSelectedFile('SKILL.md');
-    },
-    [setSelectedFile],
-  );
+  const [editDialogPath, setEditDialogPath] = useState<string | null>(null);
 
   const skill = data?.ok ? data : null;
   const isDirty = description !== loadedDescription || body !== loadedBody;
@@ -397,373 +395,397 @@ function SkillDetailPage() {
           />
         </div>
         <ContentArea className="min-w-0 flex-1">
-          <Stack gap={6} className="p-4">
-            {/* Metadata strip — anchors what type of resource this is and
+          {selectedFile !== 'SKILL.md' ? (
+            <SkillAssetViewer
+              organizationId={organizationId}
+              skillSlug={skillSlug}
+              assetPath={selectedFile}
+              onEdit={() => setEditDialogPath(selectedFile)}
+            />
+          ) : (
+            <Stack gap={6} className="p-4">
+              {/* Metadata strip — anchors what type of resource this is and
               who can invoke it. Mirrors the Claude skills UX so admins
               get the same "at-a-glance" answer without scrolling. */}
-            <HStack
-              gap={4}
-              align="center"
-              className="border-border bg-muted/30 rounded-md border px-4 py-2"
-            >
-              <Stack gap={0}>
-                <Text variant="caption">
-                  {t('skills.metadata.trigger', { defaultValue: 'Trigger' })}
-                </Text>
-                <Text variant="label">
-                  {t('skills.metadata.triggerAuto', {
-                    defaultValue: 'Auto (model-invoked)',
-                  })}
-                </Text>
-              </Stack>
-              <Stack gap={0}>
-                <Text variant="caption">
-                  {t('skills.metadata.transitive', {
-                    defaultValue: 'Transitive deps',
-                  })}
-                </Text>
-                <Text variant="label">{transitiveDeps}</Text>
-              </Stack>
-              <Stack gap={0}>
-                <Text variant="caption">
-                  {t('skills.metadata.bundleFiles', {
-                    defaultValue: 'Bundle files',
-                  })}
-                </Text>
-                <Text variant="label">
-                  {filesData?.assets?.length ?? skill.assets?.length ?? 0}
-                </Text>
-              </Stack>
-              {skill.meta.license ? (
+              <HStack
+                gap={4}
+                align="center"
+                className="border-border bg-muted/30 rounded-md border px-4 py-2"
+              >
                 <Stack gap={0}>
                   <Text variant="caption">
-                    {t('skills.metadata.license', { defaultValue: 'License' })}
+                    {t('skills.metadata.trigger', { defaultValue: 'Trigger' })}
                   </Text>
-                  <Text variant="label">{skill.meta.license}</Text>
+                  <Text variant="label">
+                    {t('skills.metadata.triggerAuto', {
+                      defaultValue: 'Auto (model-invoked)',
+                    })}
+                  </Text>
                 </Stack>
-              ) : null}
-            </HStack>
-            <FormSection
-              label={t('skills.section.overview', { defaultValue: 'Overview' })}
-            >
-              <Stack gap={4}>
-                <Input
-                  id="slug"
-                  label={t('skills.form.slug', { defaultValue: 'Slug' })}
-                  value={skill.meta.name}
-                  readOnly
-                />
-                <Textarea
-                  id="description"
-                  label={t('skills.form.description', {
-                    defaultValue: 'Description',
-                  })}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={4}
-                />
-                <Text variant="caption">
-                  {t('skills.form.descriptionHelp', {
-                    defaultValue:
-                      'Lead with "Use when…". The agent reads this to decide whether to expand the skill.',
-                  })}
-                </Text>
-              </Stack>
-            </FormSection>
-
-            <FormSection
-              label={t('skills.section.body', {
-                defaultValue: 'Instructions (body)',
-              })}
-            >
-              <Stack gap={2}>
-                <HStack gap={1} justify="end">
-                  <Button
-                    size="sm"
-                    variant={bodyView === 'edit' ? 'secondary' : 'ghost'}
-                    icon={Code}
-                    onClick={() => setBodyView('edit')}
-                    aria-pressed={bodyView === 'edit'}
-                  >
-                    {t('skills.body.viewEdit', { defaultValue: 'Edit' })}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={bodyView === 'preview' ? 'secondary' : 'ghost'}
-                    icon={FileText}
-                    onClick={() => setBodyView('preview')}
-                    aria-pressed={bodyView === 'preview'}
-                  >
-                    {t('skills.body.viewPreview', { defaultValue: 'Preview' })}
-                  </Button>
-                </HStack>
-                {bodyView === 'edit' ? (
-                  <Textarea
-                    id="body"
-                    label={t('skills.form.body', {
-                      defaultValue: 'Body markdown',
+                <Stack gap={0}>
+                  <Text variant="caption">
+                    {t('skills.metadata.transitive', {
+                      defaultValue: 'Transitive deps',
                     })}
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    rows={18}
-                    className="font-mono text-sm"
+                  </Text>
+                  <Text variant="label">{transitiveDeps}</Text>
+                </Stack>
+                <Stack gap={0}>
+                  <Text variant="caption">
+                    {t('skills.metadata.bundleFiles', {
+                      defaultValue: 'Bundle files',
+                    })}
+                  </Text>
+                  <Text variant="label">
+                    {filesData?.assets?.length ?? skill.assets?.length ?? 0}
+                  </Text>
+                </Stack>
+                {skill.meta.license ? (
+                  <Stack gap={0}>
+                    <Text variant="caption">
+                      {t('skills.metadata.license', {
+                        defaultValue: 'License',
+                      })}
+                    </Text>
+                    <Text variant="label">{skill.meta.license}</Text>
+                  </Stack>
+                ) : null}
+              </HStack>
+              <FormSection
+                label={t('skills.section.overview', {
+                  defaultValue: 'Overview',
+                })}
+              >
+                <Stack gap={4}>
+                  <Input
+                    id="slug"
+                    label={t('skills.form.slug', { defaultValue: 'Slug' })}
+                    value={skill.meta.name}
+                    readOnly
                   />
-                ) : (
-                  // Sanitized markdown preview — reuses the chat-message
-                  // wrapper styles so prose, code blocks, lists, and links
-                  // look identical to how the LLM sees expanded skill
-                  // content. ReactMarkdown's default rehype config strips
-                  // raw HTML, so XSS via SKILL.md body is closed off.
-                  <div
-                    className={
-                      markdownWrapperStyles +
-                      ' border-border bg-background rounded-md border p-4'
-                    }
-                  >
-                    {body.trim().length === 0 ? (
-                      <Text variant="muted">
-                        {t('skills.body.previewEmpty', {
-                          defaultValue: '(Body is empty)',
-                        })}
-                      </Text>
-                    ) : (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {body}
-                      </ReactMarkdown>
-                    )}
-                  </div>
-                )}
-                <Text variant="caption">
-                  {t('skills.form.bodyHelp', {
-                    defaultValue:
-                      'Loaded into the agent context when it calls expand_skill. Plain markdown.',
-                  })}
-                </Text>
-              </Stack>
-            </FormSection>
-
-            <FormSection
-              label={t('skills.section.bundle', {
-                defaultValue: 'Bundle files',
-              })}
-            >
-              <Stack gap={4}>
-                {groupedAssets.length > 0 ? (
-                  // Shallow tree: header per top-level directory, then
-                  // file names underneath. Single-level grouping is the
-                  // sweet spot — skills almost never nest beyond
-                  // scripts/, references/, assets/ in practice, and a
-                  // recursive tree would just be ceremony.
-                  <Stack gap={3}>
-                    {groupedAssets.map(({ dir, files }) => (
-                      <Stack key={dir} gap={1}>
-                        <Text variant="caption" className="font-mono">
-                          {dir === '.'
-                            ? t('skills.bundle.dirRoot', {
-                                defaultValue: '(root)',
-                              })
-                            : `${dir}/`}
-                        </Text>
-                        <Stack gap={0} className="ml-3">
-                          {files.map((f) => {
-                            const leaf =
-                              dir === '.'
-                                ? f.path
-                                : f.path.slice(dir.length + 1);
-                            return (
-                              <Text
-                                key={f.path}
-                                variant="muted"
-                                className="font-mono text-xs"
-                              >
-                                {leaf}
-                              </Text>
-                            );
-                          })}
-                        </Stack>
-                      </Stack>
-                    ))}
-                  </Stack>
-                ) : null}
-                <SkillAssetsSection
-                  organizationId={organizationId}
-                  skillSlug={skillSlug}
-                  assets={filesData?.assets ?? skill.assets ?? []}
-                  totalBytes={filesData?.totalBytes ?? skill.totalBytes ?? 0}
-                  maxTotalBytes={filesData?.maxTotalBytes ?? 1024 * 1024}
-                  maxAssets={filesData?.maxAssets ?? 32}
-                />
-              </Stack>
-            </FormSection>
-
-            <FormSection
-              label={t('skills.section.deps', {
-                defaultValue: 'Declared dependencies',
-              })}
-            >
-              <Stack gap={2}>
-                <Text variant="body">
-                  {t('skills.deps.summary', {
-                    defaultValue: '{count} declared dependencies',
-                    count: transitiveDeps,
-                  })}
-                </Text>
-                {skill.meta.toolNames?.length ? (
-                  <Text variant="muted">
-                    {t('skills.deps.tools', { defaultValue: 'Tools' })}:{' '}
-                    {skill.meta.toolNames.join(', ')}
-                  </Text>
-                ) : null}
-                {skill.meta.integrationBindings?.length ? (
-                  <Text variant="muted">
-                    {t('skills.deps.integrations', {
-                      defaultValue: 'Integrations',
+                  <Textarea
+                    id="description"
+                    label={t('skills.form.description', {
+                      defaultValue: 'Description',
                     })}
-                    : {skill.meta.integrationBindings.join(', ')}
-                  </Text>
-                ) : null}
-                {skill.meta.workflowBindings?.length ? (
-                  <Text variant="muted">
-                    {t('skills.deps.workflows', { defaultValue: 'Workflows' })}:{' '}
-                    {skill.meta.workflowBindings.join(', ')}
-                  </Text>
-                ) : null}
-                <Text variant="caption">
-                  {t('skills.deps.help', {
-                    defaultValue:
-                      'Edit declared dependencies in SKILL.md frontmatter (under tool-names / integration-bindings / workflow-bindings).',
-                  })}
-                </Text>
-              </Stack>
-            </FormSection>
-
-            <FormSection
-              label={t('skills.section.whereBound', {
-                defaultValue: 'Where this skill is bound',
-              })}
-            >
-              <Stack gap={2}>
-                {!Array.isArray(relatedAgents) ? (
-                  <Stack gap={1}>
-                    {Array.from({ length: 2 }).map((_, idx) => (
-                      <HStack key={idx} gap={2} align="center">
-                        <Skeleton className="h-5 w-24 rounded-md" />
-                        <Skeleton className="h-4 w-32" />
-                      </HStack>
-                    ))}
-                  </Stack>
-                ) : relatedAgents.length === 0 ? (
-                  <Text variant="muted">
-                    {t('skills.whereBound.empty', {
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={4}
+                  />
+                  <Text variant="caption">
+                    {t('skills.form.descriptionHelp', {
                       defaultValue:
-                        'No agents currently bind this skill. Bindings show up here once a developer adds the skill to an agent.',
+                        'Lead with "Use when…". The agent reads this to decide whether to expand the skill.',
                     })}
                   </Text>
-                ) : (
-                  <Stack gap={1}>
-                    {relatedAgents.map((a) => (
-                      <HStack key={a.agentName} gap={2} align="center">
-                        <Badge variant="outline">{a.agentName}</Badge>
-                        {a.displayName && a.displayName !== a.agentName ? (
-                          <Text variant="muted">{a.displayName}</Text>
-                        ) : null}
-                      </HStack>
-                    ))}
-                  </Stack>
-                )}
-              </Stack>
-            </FormSection>
+                </Stack>
+              </FormSection>
 
-            <FormSection
-              label={t('skills.section.auditHistory', {
-                defaultValue: 'Recent changes',
-              })}
-            >
-              <Stack gap={2}>
-                {!Array.isArray(auditRows) ? (
-                  <Stack gap={2}>
-                    {Array.from({ length: 3 }).map((_, idx) => (
-                      <HStack
-                        key={idx}
-                        gap={3}
-                        align="center"
-                        className="border-border rounded-md border px-3 py-2"
-                      >
-                        <Skeleton className="h-5 w-16 rounded-md" />
-                        <Stack gap={1} className="flex-1">
-                          <Skeleton className="h-3 w-40" />
-                          <Skeleton className="h-3 w-56" />
-                        </Stack>
-                      </HStack>
-                    ))}
-                  </Stack>
-                ) : auditRows.length === 0 ? (
-                  <Text variant="muted">
-                    {t('skills.auditHistory.empty', {
-                      defaultValue: 'No audit entries yet for this skill.',
-                    })}
-                  </Text>
-                ) : (
-                  <Stack gap={2}>
-                    {auditRows.map((row) => (
-                      <HStack
-                        key={row._id}
-                        gap={3}
-                        align="center"
-                        className="border-border rounded-md border px-3 py-2"
-                      >
-                        <Badge
-                          variant={
-                            row.status === 'failure' ? 'destructive' : 'outline'
-                          }
+              <FormSection
+                label={t('skills.section.body', {
+                  defaultValue: 'Instructions (body)',
+                })}
+              >
+                <Stack gap={2}>
+                  <HStack gap={1} justify="end">
+                    <Button
+                      size="sm"
+                      variant={bodyView === 'edit' ? 'secondary' : 'ghost'}
+                      icon={Code}
+                      onClick={() => setBodyView('edit')}
+                      aria-pressed={bodyView === 'edit'}
+                    >
+                      {t('skills.body.viewEdit', { defaultValue: 'Edit' })}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={bodyView === 'preview' ? 'secondary' : 'ghost'}
+                      icon={FileText}
+                      onClick={() => setBodyView('preview')}
+                      aria-pressed={bodyView === 'preview'}
+                    >
+                      {t('skills.body.viewPreview', {
+                        defaultValue: 'Preview',
+                      })}
+                    </Button>
+                  </HStack>
+                  {bodyView === 'edit' ? (
+                    <Textarea
+                      id="body"
+                      label={t('skills.form.body', {
+                        defaultValue: 'Body markdown',
+                      })}
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      rows={18}
+                      className="font-mono text-sm"
+                    />
+                  ) : (
+                    // Sanitized markdown preview — reuses the chat-message
+                    // wrapper styles so prose, code blocks, lists, and links
+                    // look identical to how the LLM sees expanded skill
+                    // content. ReactMarkdown's default rehype config strips
+                    // raw HTML, so XSS via SKILL.md body is closed off.
+                    <div
+                      className={
+                        markdownWrapperStyles +
+                        ' border-border bg-background rounded-md border p-4'
+                      }
+                    >
+                      {body.trim().length === 0 ? (
+                        <Text variant="muted">
+                          {t('skills.body.previewEmpty', {
+                            defaultValue: '(Body is empty)',
+                          })}
+                        </Text>
+                      ) : (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={markdownComponents}
                         >
-                          {row.action}
-                        </Badge>
-                        <Stack gap={0} className="flex-1">
-                          <Text variant="body" className="font-mono text-xs">
-                            {new Date(row.timestamp).toLocaleString()}
-                          </Text>
-                          <Text variant="muted" className="text-xs">
-                            {row.actorEmail ?? row.actorId}
-                            {row.actorRole ? ` · ${row.actorRole}` : ''}
-                            {row.status === 'failure' && row.errorMessage
-                              ? ` · ${row.errorMessage}`
-                              : ''}
-                          </Text>
-                        </Stack>
-                      </HStack>
-                    ))}
-                  </Stack>
-                )}
-              </Stack>
-            </FormSection>
+                          {body}
+                        </ReactMarkdown>
+                      )}
+                    </div>
+                  )}
+                  <Text variant="caption">
+                    {t('skills.form.bodyHelp', {
+                      defaultValue:
+                        'Loaded into the agent context when it calls expand_skill. Plain markdown.',
+                    })}
+                  </Text>
+                </Stack>
+              </FormSection>
 
-            <HStack gap={2} justify="end">
-              <Button
-                variant="ghost"
-                onClick={handleDiscard}
-                disabled={!isDirty || isSaving}
+              <FormSection
+                label={t('skills.section.bundle', {
+                  defaultValue: 'Bundle files',
+                })}
               >
-                {tCommon('actions.discard')}
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => void handleSave()}
-                isLoading={isSaving}
-                disabled={!isDirty || isSaving}
+                <Stack gap={4}>
+                  {groupedAssets.length > 0 ? (
+                    // Shallow tree: header per top-level directory, then
+                    // file names underneath. Single-level grouping is the
+                    // sweet spot — skills almost never nest beyond
+                    // scripts/, references/, assets/ in practice, and a
+                    // recursive tree would just be ceremony.
+                    <Stack gap={3}>
+                      {groupedAssets.map(({ dir, files }) => (
+                        <Stack key={dir} gap={1}>
+                          <Text variant="caption" className="font-mono">
+                            {dir === '.'
+                              ? t('skills.bundle.dirRoot', {
+                                  defaultValue: '(root)',
+                                })
+                              : `${dir}/`}
+                          </Text>
+                          <Stack gap={0} className="ml-3">
+                            {files.map((f) => {
+                              const leaf =
+                                dir === '.'
+                                  ? f.path
+                                  : f.path.slice(dir.length + 1);
+                              return (
+                                <Text
+                                  key={f.path}
+                                  variant="muted"
+                                  className="font-mono text-xs"
+                                >
+                                  {leaf}
+                                </Text>
+                              );
+                            })}
+                          </Stack>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  ) : null}
+                  <SkillAssetsSection
+                    organizationId={organizationId}
+                    skillSlug={skillSlug}
+                    assets={filesData?.assets ?? skill.assets ?? []}
+                    totalBytes={filesData?.totalBytes ?? skill.totalBytes ?? 0}
+                    maxTotalBytes={filesData?.maxTotalBytes ?? 1024 * 1024}
+                    maxAssets={filesData?.maxAssets ?? 32}
+                  />
+                </Stack>
+              </FormSection>
+
+              <FormSection
+                label={t('skills.section.deps', {
+                  defaultValue: 'Declared dependencies',
+                })}
               >
-                {tCommon('actions.save')}
-              </Button>
-            </HStack>
-          </Stack>
+                <Stack gap={2}>
+                  <Text variant="body">
+                    {t('skills.deps.summary', {
+                      defaultValue: '{count} declared dependencies',
+                      count: transitiveDeps,
+                    })}
+                  </Text>
+                  {skill.meta.toolNames?.length ? (
+                    <Text variant="muted">
+                      {t('skills.deps.tools', { defaultValue: 'Tools' })}:{' '}
+                      {skill.meta.toolNames.join(', ')}
+                    </Text>
+                  ) : null}
+                  {skill.meta.integrationBindings?.length ? (
+                    <Text variant="muted">
+                      {t('skills.deps.integrations', {
+                        defaultValue: 'Integrations',
+                      })}
+                      : {skill.meta.integrationBindings.join(', ')}
+                    </Text>
+                  ) : null}
+                  {skill.meta.workflowBindings?.length ? (
+                    <Text variant="muted">
+                      {t('skills.deps.workflows', {
+                        defaultValue: 'Workflows',
+                      })}
+                      : {skill.meta.workflowBindings.join(', ')}
+                    </Text>
+                  ) : null}
+                  <Text variant="caption">
+                    {t('skills.deps.help', {
+                      defaultValue:
+                        'Edit declared dependencies in SKILL.md frontmatter (under tool-names / integration-bindings / workflow-bindings).',
+                    })}
+                  </Text>
+                </Stack>
+              </FormSection>
+
+              <FormSection
+                label={t('skills.section.whereBound', {
+                  defaultValue: 'Where this skill is bound',
+                })}
+              >
+                <Stack gap={2}>
+                  {!Array.isArray(relatedAgents) ? (
+                    <Stack gap={1}>
+                      {Array.from({ length: 2 }).map((_, idx) => (
+                        <HStack key={idx} gap={2} align="center">
+                          <Skeleton className="h-5 w-24 rounded-md" />
+                          <Skeleton className="h-4 w-32" />
+                        </HStack>
+                      ))}
+                    </Stack>
+                  ) : relatedAgents.length === 0 ? (
+                    <Text variant="muted">
+                      {t('skills.whereBound.empty', {
+                        defaultValue:
+                          'No agents currently bind this skill. Bindings show up here once a developer adds the skill to an agent.',
+                      })}
+                    </Text>
+                  ) : (
+                    <Stack gap={1}>
+                      {relatedAgents.map((a) => (
+                        <HStack key={a.agentName} gap={2} align="center">
+                          <Badge variant="outline">{a.agentName}</Badge>
+                          {a.displayName && a.displayName !== a.agentName ? (
+                            <Text variant="muted">{a.displayName}</Text>
+                          ) : null}
+                        </HStack>
+                      ))}
+                    </Stack>
+                  )}
+                </Stack>
+              </FormSection>
+
+              <FormSection
+                label={t('skills.section.auditHistory', {
+                  defaultValue: 'Recent changes',
+                })}
+              >
+                <Stack gap={2}>
+                  {!Array.isArray(auditRows) ? (
+                    <Stack gap={2}>
+                      {Array.from({ length: 3 }).map((_, idx) => (
+                        <HStack
+                          key={idx}
+                          gap={3}
+                          align="center"
+                          className="border-border rounded-md border px-3 py-2"
+                        >
+                          <Skeleton className="h-5 w-16 rounded-md" />
+                          <Stack gap={1} className="flex-1">
+                            <Skeleton className="h-3 w-40" />
+                            <Skeleton className="h-3 w-56" />
+                          </Stack>
+                        </HStack>
+                      ))}
+                    </Stack>
+                  ) : auditRows.length === 0 ? (
+                    <Text variant="muted">
+                      {t('skills.auditHistory.empty', {
+                        defaultValue: 'No audit entries yet for this skill.',
+                      })}
+                    </Text>
+                  ) : (
+                    <Stack gap={2}>
+                      {auditRows.map((row) => (
+                        <HStack
+                          key={row._id}
+                          gap={3}
+                          align="center"
+                          className="border-border rounded-md border px-3 py-2"
+                        >
+                          <Badge
+                            variant={
+                              row.status === 'failure'
+                                ? 'destructive'
+                                : 'outline'
+                            }
+                          >
+                            {row.action}
+                          </Badge>
+                          <Stack gap={0} className="flex-1">
+                            <Text variant="body" className="font-mono text-xs">
+                              {new Date(row.timestamp).toLocaleString()}
+                            </Text>
+                            <Text variant="muted" className="text-xs">
+                              {row.actorEmail ?? row.actorId}
+                              {row.actorRole ? ` · ${row.actorRole}` : ''}
+                              {row.status === 'failure' && row.errorMessage
+                                ? ` · ${row.errorMessage}`
+                                : ''}
+                            </Text>
+                          </Stack>
+                        </HStack>
+                      ))}
+                    </Stack>
+                  )}
+                </Stack>
+              </FormSection>
+
+              <HStack gap={2} justify="end">
+                <Button
+                  variant="ghost"
+                  onClick={handleDiscard}
+                  disabled={!isDirty || isSaving}
+                >
+                  {tCommon('actions.discard')}
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => void handleSave()}
+                  isLoading={isSaving}
+                  disabled={!isDirty || isSaving}
+                >
+                  {tCommon('actions.save')}
+                </Button>
+              </HStack>
+            </Stack>
+          )}
         </ContentArea>
       </div>
       <SkillAssetEditorDialog
-        open={assetEditorOpen}
-        onOpenChange={handleAssetDialogChange}
+        open={editDialogPath !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditDialogPath(null);
+        }}
         organizationId={organizationId}
         skillSlug={skillSlug}
-        assetPath={assetEditorOpen ? selectedFile : null}
+        assetPath={editDialogPath}
       />
       <ConfirmDialog
         open={blocker.status === 'blocked'}
