@@ -4488,7 +4488,8 @@
         "empty": "Aucun fichier de bundle pour l'instant.",
         "uiHelp": "Les fichiers du bundle vivent sur le disque sous skills/<slug>/. Les modifications via l'UI utilisent des écritures atomiques avec CAS — les modifications concurrentes sur disque sont détectées et signalées comme conflits.",
         "dirRoot": "(racine)",
-        "quota": "{used}/{max} fichiers · {bytes}/{byteMax} octets"
+        "quotaNear": "{used} / {max} fichiers · {bytes} / {byteMax}",
+        "quotaFull": "Le bundle est plein — supprime un fichier avant d'en ajouter d'autres."
       },
       "detail": {
         "sidebar": {
@@ -4532,8 +4533,7 @@
         "deleteFailed": "Échec de la suppression du fichier",
         "conflict": "Ce fichier a été modifié ailleurs. Rouvre-le pour voir la version actuelle.",
         "sizeError": "Le fichier dépasserait la limite de taille du bundle",
-        "notFound": "Skill introuvable",
-        "quota": "{used} / {max} fichiers · {bytes} / {byteMax} octets"
+        "notFound": "Skill introuvable"
       },
       "selector": {
         "empty": "Aucun skill disponible dans cette organisation pour l'instant. Crée-en un sous ",

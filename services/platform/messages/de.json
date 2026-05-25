@@ -4487,7 +4487,8 @@
         "empty": "Noch keine Bundle-Dateien.",
         "uiHelp": "Bundle-Dateien liegen auf der Festplatte unter skills/<slug>/. UI-Änderungen verwenden atomare Schreibvorgänge mit Konflikterkennung — gleichzeitige Plattenänderungen werden erkannt und als Konflikte gemeldet.",
         "dirRoot": "(Stamm)",
-        "quota": "{used}/{max} Dateien · {bytes}/{byteMax} Bytes"
+        "quotaNear": "{used} / {max} Dateien · {bytes} / {byteMax}",
+        "quotaFull": "Bundle ist voll — lösche eine Datei, bevor du weitere hinzufügst."
       },
       "detail": {
         "sidebar": {
@@ -4531,8 +4532,7 @@
         "deleteFailed": "Datei konnte nicht gelöscht werden",
         "conflict": "Diese Datei wurde anderswo geändert. Öffne sie erneut, um die aktuelle Version zu sehen.",
         "sizeError": "Datei würde das Bundle-Größenlimit überschreiten",
-        "notFound": "Skill nicht gefunden",
-        "quota": "{used} / {max} Dateien · {bytes} / {byteMax} Bytes"
+        "notFound": "Skill nicht gefunden"
       },
       "selector": {
         "empty": "In dieser Organisation sind noch keine Skills verfügbar. Erstelle einen unter ",

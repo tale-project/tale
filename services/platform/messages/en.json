@@ -4744,7 +4744,8 @@
         "empty": "No bundle files yet.",
         "uiHelp": "Bundle files live on disk under skills/<slug>/. UI edits use atomic writes with CAS — concurrent disk edits are detected and surfaced as conflicts.",
         "dirRoot": "(root)",
-        "quota": "{used}/{max} files · {bytes}/{byteMax} bytes"
+        "quotaNear": "{used} / {max} files · {bytes} / {byteMax}",
+        "quotaFull": "Bundle is full — delete a file before adding more."
       },
       "detail": {
         "sidebar": {
@@ -4788,8 +4789,7 @@
         "deleteFailed": "Failed to delete file",
         "conflict": "This file was edited elsewhere. Reopen to see the latest version.",
         "sizeError": "File would exceed the bundle size limit",
-        "notFound": "Skill not found",
-        "quota": "{used} / {max} files · {bytes} / {byteMax} bytes"
+        "notFound": "Skill not found"
       },
       "selector": {
         "empty": "No skills available in this organization yet. Create one under ",

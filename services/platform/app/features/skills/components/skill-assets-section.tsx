@@ -11,6 +11,7 @@ import { useCallback, useState } from 'react';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { getBundleQuotaStatus } from '@/lib/skills/bundle-quota-status';
 import { formatBytes } from '@/lib/utils/format-bytes';
 
 import { useDeleteSkillAsset } from '../hooks/mutations';
@@ -90,27 +91,43 @@ export function SkillAssetsSection({
     queryClient,
   ]);
 
-  const atFileLimit = assets.length >= maxAssets;
-  const atByteLimit = totalBytes >= maxTotalBytes;
+  const quotaStatus = getBundleQuotaStatus(
+    assets.length,
+    maxAssets,
+    totalBytes,
+    maxTotalBytes,
+  );
+  const atLimit = quotaStatus === 'full';
 
   return (
     <Stack gap={3}>
       <HStack gap={2} align="center" justify="between">
-        <Text variant="caption">
-          {t('skills.asset.quota', {
-            defaultValue: '{used} / {max} files · {bytes} / {byteMax} bytes',
-            used: assets.length,
-            max: maxAssets,
-            bytes: totalBytes,
-            byteMax: maxTotalBytes,
-          })}
-        </Text>
+        {quotaStatus === 'full' ? (
+          <Text variant="caption" className="text-destructive">
+            {t('skills.bundle.quotaFull', {
+              defaultValue:
+                'Bundle is full — delete a file before adding more.',
+            })}
+          </Text>
+        ) : quotaStatus === 'near' ? (
+          <Text variant="caption">
+            {t('skills.bundle.quotaNear', {
+              defaultValue: '{used} / {max} files · {bytes} / {byteMax}',
+              used: assets.length,
+              max: maxAssets,
+              bytes: formatBytes(totalBytes, locale),
+              byteMax: formatBytes(maxTotalBytes, locale),
+            })}
+          </Text>
+        ) : (
+          <span />
+        )}
         <Button
           variant="secondary"
           size="sm"
           icon={Plus}
           onClick={openCreate}
-          disabled={atFileLimit || atByteLimit}
+          disabled={atLimit}
         >
           {t('skills.asset.add', { defaultValue: 'Add file' })}
         </Button>

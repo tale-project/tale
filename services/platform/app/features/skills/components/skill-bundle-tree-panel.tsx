@@ -1,6 +1,7 @@
 'use client';
 
 import { Heading } from '@tale/ui/heading';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
@@ -17,6 +18,8 @@ import {
 import { useMemo, useRef, type KeyboardEvent } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { getBundleQuotaStatus } from '@/lib/skills/bundle-quota-status';
+import { formatBytes } from '@/lib/utils/format-bytes';
 
 interface BundleAsset {
   path: string;
@@ -110,7 +113,14 @@ export function SkillBundleTreePanel({
   loading,
 }: SkillBundleTreePanelProps) {
   const { t } = useT('settings');
+  const { locale } = useLocale();
   const treeRef = useRef<HTMLUListElement>(null);
+  const quotaStatus = getBundleQuotaStatus(
+    assets.length,
+    maxAssets,
+    totalBytes,
+    maxTotalBytes,
+  );
 
   const grouped = useMemo(() => {
     const groups = new Map<string, BundleAsset[]>();
@@ -308,15 +318,26 @@ export function SkillBundleTreePanel({
           );
         })}
       </ul>
-      <Text variant="caption" className="mt-4 block px-1 text-xs">
-        {t('skills.bundle.quota', {
-          defaultValue: '{used}/{max} files · {bytes}/{byteMax} bytes',
-          used: assets.length,
-          max: maxAssets,
-          bytes: totalBytes,
-          byteMax: maxTotalBytes,
-        })}
-      </Text>
+      {quotaStatus === 'full' ? (
+        <Text
+          variant="caption"
+          className="text-destructive mt-4 block px-1 text-xs"
+        >
+          {t('skills.bundle.quotaFull', {
+            defaultValue: 'Bundle is full — delete a file before adding more.',
+          })}
+        </Text>
+      ) : quotaStatus === 'near' ? (
+        <Text variant="caption" className="mt-4 block px-1 text-xs">
+          {t('skills.bundle.quotaNear', {
+            defaultValue: '{used} / {max} files · {bytes} / {byteMax}',
+            used: assets.length,
+            max: maxAssets,
+            bytes: formatBytes(totalBytes, locale),
+            byteMax: formatBytes(maxTotalBytes, locale),
+          })}
+        </Text>
+      ) : null}
     </aside>
   );
 }
