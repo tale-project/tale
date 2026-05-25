@@ -43,6 +43,7 @@ import {
   legalHoldReleaseRequestsTable,
   legalHoldsTable,
   legalMattersTable,
+  orgPackagePolicyTable,
   policyAcknowledgementsTable,
   retentionAppliedBoundsTable,
   retentionPolicyPendingChangesTable,
@@ -65,6 +66,7 @@ import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
 import { sandboxExecutionsTable } from './sandbox/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
+import { threadFilesTable } from './thread_files/schema';
 import { threadTodosTable } from './thread_todos/schema';
 import { threadBranchesTable } from './threads/branch_schema';
 import { threadMetadataTable } from './threads/schema';
@@ -151,7 +153,9 @@ export default defineSchema({
   messageMetadata: messageMetadataTable,
   notifications: notificationsTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
+  orgPackagePolicy: orgPackagePolicyTable,
   threadBranches: threadBranchesTable,
+  threadFiles: threadFilesTable,
   threadMetadata: threadMetadataTable,
   threadTodos: threadTodosTable,
   ttsAudioChunks: ttsAudioChunksTable,

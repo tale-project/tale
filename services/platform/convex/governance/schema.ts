@@ -735,3 +735,27 @@ export const activeErasureClaimsTable = defineTable({
   requestId: v.optional(v.id('gdprErasureRequests')),
   claimedAt: v.number(),
 }).index('by_org_target', ['organizationId', 'targetUserId']);
+
+/**
+ * Org-level package allowlist policy for the `run_code` tool. Replaces the
+ * per-skill `packages` allowlist that the old `skill_run` tool enforced;
+ * since `run_code` accepts arbitrary inline files with LLM-declared
+ * packages, the gate has to move up to org level.
+ *
+ * Default state (no row for the org) is interpreted as `defaultMode:
+ * 'denylist'` + empty arrays = all packages allowed (backward-compatible
+ * with pre-policy behavior). Admins are expected to tighten this via the
+ * governance UI; the absence of a row never blocks code execution.
+ */
+export const orgPackagePolicyTable = defineTable({
+  organizationId: v.string(),
+  defaultMode: v.union(v.literal('allowlist'), v.literal('denylist')),
+  /** Package names without version constraints (matched against the spec's
+   *  base name — `foo==1.2.3` and `foo>=1.0` both match `foo`). */
+  pythonAllow: v.array(v.string()),
+  pythonDeny: v.array(v.string()),
+  nodeAllow: v.array(v.string()),
+  nodeDeny: v.array(v.string()),
+  updatedAt: v.number(),
+  updatedByUserId: v.optional(v.string()),
+}).index('by_organizationId', ['organizationId']);
