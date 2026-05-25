@@ -4538,7 +4538,6 @@
       "selector": {
         "empty": "Aucun skill disponible dans cette organisation pour l'instant. Crée-en un sous ",
         "deps": "{count, plural, one {# dép} other {# déps}}",
-        "transitive": "L'attachement active : {tools}{integrations}{workflows}",
         "transitiveTools": "Outils : {items}",
         "transitiveIntegrations": "Intégrations : {items}",
         "transitiveWorkflows": "Workflows : {items}",

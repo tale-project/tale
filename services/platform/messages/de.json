@@ -4537,7 +4537,6 @@
       "selector": {
         "empty": "In dieser Organisation sind noch keine Skills verfügbar. Erstelle einen unter ",
         "deps": "{count, plural, one {# Abh.} other {# Abh.}}",
-        "transitive": "Bindung aktiviert: {tools}{integrations}{workflows}",
         "transitiveTools": "Tools: {items}",
         "transitiveIntegrations": "Integrationen: {items}",
         "transitiveWorkflows": "Workflows: {items}",

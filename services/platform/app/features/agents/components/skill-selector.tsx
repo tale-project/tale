@@ -261,7 +261,7 @@ export function SkillSelector({
                   <Text variant="caption">
                     {t('skills.selector.transitiveTools', {
                       defaultValue: 'Tools: {items}',
-                      items: skill.toolNames!.join(', '),
+                      items: (skill.toolNames ?? []).join(', '),
                     })}
                   </Text>
                 ) : null}
@@ -269,7 +269,7 @@ export function SkillSelector({
                   <Text variant="caption">
                     {t('skills.selector.transitiveIntegrations', {
                       defaultValue: 'Integrations: {items}',
-                      items: skill.integrationBindings!.join(', '),
+                      items: (skill.integrationBindings ?? []).join(', '),
                     })}
                   </Text>
                 ) : null}
@@ -277,7 +277,7 @@ export function SkillSelector({
                   <Text variant="caption">
                     {t('skills.selector.transitiveWorkflows', {
                       defaultValue: 'Workflows: {items}',
-                      items: skill.workflowBindings!.join(', '),
+                      items: (skill.workflowBindings ?? []).join(', '),
                     })}
                   </Text>
                 ) : null}

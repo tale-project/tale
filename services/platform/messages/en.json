@@ -4794,7 +4794,6 @@
       "selector": {
         "empty": "No skills available in this organization yet. Create one under ",
         "deps": "{count, plural, one {# dep} other {# deps}}",
-        "transitive": "Binding enables: {tools}{integrations}{workflows}",
         "transitiveTools": "Tools: {items}",
         "transitiveIntegrations": "Integrations: {items}",
         "transitiveWorkflows": "Workflows: {items}",
