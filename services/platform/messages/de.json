@@ -4443,7 +4443,19 @@
       },
       "bundle": {
         "empty": "Noch keine Bundle-Dateien.",
-        "uiHelp": "Bundle-Dateien liegen auf der Festplatte unter skills/<slug>/. UI-Änderungen verwenden atomare Schreibvorgänge mit Konflikterkennung — gleichzeitige Plattenänderungen werden erkannt und als Konflikte gemeldet."
+        "uiHelp": "Bundle-Dateien liegen auf der Festplatte unter skills/<slug>/. UI-Änderungen verwenden atomare Schreibvorgänge mit Konflikterkennung — gleichzeitige Plattenänderungen werden erkannt und als Konflikte gemeldet.",
+        "dirRoot": "(Stamm)",
+        "quota": "{used}/{max} Dateien · {bytes}/{byteMax} Bytes"
+      },
+      "detail": {
+        "sidebar": {
+          "heading": "Skills",
+          "empty": "Keine weiteren Skills",
+          "brokenTag": "(Ladefehler)"
+        },
+        "tree": {
+          "heading": "Bundle"
+        }
       },
       "deps": {
         "summary": "{count, plural, one {# deklarierte Abhängigkeit} other {# deklarierte Abhängigkeiten}}",

@@ -4444,7 +4444,19 @@
       },
       "bundle": {
         "empty": "Aucun fichier de bundle pour l'instant.",
-        "uiHelp": "Les fichiers du bundle vivent sur le disque sous skills/<slug>/. Les modifications via l'UI utilisent des écritures atomiques avec CAS — les modifications concurrentes sur disque sont détectées et signalées comme conflits."
+        "uiHelp": "Les fichiers du bundle vivent sur le disque sous skills/<slug>/. Les modifications via l'UI utilisent des écritures atomiques avec CAS — les modifications concurrentes sur disque sont détectées et signalées comme conflits.",
+        "dirRoot": "(racine)",
+        "quota": "{used}/{max} fichiers · {bytes}/{byteMax} octets"
+      },
+      "detail": {
+        "sidebar": {
+          "heading": "Skills",
+          "empty": "Aucun autre skill",
+          "brokenTag": "(erreur de chargement)"
+        },
+        "tree": {
+          "heading": "Bundle"
+        }
       },
       "deps": {
         "summary": "{count, plural, one {# dépendance déclarée} other {# dépendances déclarées}}",

@@ -4700,7 +4700,19 @@
       },
       "bundle": {
         "empty": "No bundle files yet.",
-        "uiHelp": "Bundle files live on disk under skills/<slug>/. UI edits use atomic writes with CAS — concurrent disk edits are detected and surfaced as conflicts."
+        "uiHelp": "Bundle files live on disk under skills/<slug>/. UI edits use atomic writes with CAS — concurrent disk edits are detected and surfaced as conflicts.",
+        "dirRoot": "(root)",
+        "quota": "{used}/{max} files · {bytes}/{byteMax} bytes"
+      },
+      "detail": {
+        "sidebar": {
+          "heading": "Skills",
+          "empty": "No other skills",
+          "brokenTag": "(load error)"
+        },
+        "tree": {
+          "heading": "Bundle"
+        }
       },
       "deps": {
         "summary": "{count, plural, one {# declared dependency} other {# declared dependencies}}",
