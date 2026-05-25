@@ -71,7 +71,12 @@ export async function getAgentScopedFileIds(
       continue;
     }
 
-    if (needsTeamDocs && doc.teamId && agentTeamIdSet.has(doc.teamId)) {
+    if (
+      needsTeamDocs &&
+      doc.teamId &&
+      !doc.projectId &&
+      agentTeamIdSet.has(doc.teamId)
+    ) {
       fileIdSet.add(fileId);
       continue;
     }

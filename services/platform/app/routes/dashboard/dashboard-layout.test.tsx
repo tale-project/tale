@@ -28,6 +28,7 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate,
   useLocation: () => ({ pathname: '/dashboard/test-org-id' }),
   useParams: () => mockUseParams(),
+  useBlocker: () => ({ status: 'idle', proceed: vi.fn(), reset: vi.fn() }),
 }));
 
 vi.mock('@/app/features/auth/hooks/use-password-expiry-gate', () => ({

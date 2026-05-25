@@ -63,6 +63,7 @@ export function hasProjectAccess(
   userTeamIds: string[] | Set<string>,
   userRole: string,
 ): boolean {
+  if (userRole === 'disabled') return false;
   if (ADMIN_ROLES.has(userRole)) return true;
 
   const projectTeams = getProjectTeamIds(project);
@@ -81,6 +82,9 @@ export function checkProjectAccess(
   userTeamIds: string[],
   userRole: string,
 ): ProjectAccessResult {
+  if (userRole === 'disabled') {
+    return { canRead: false, canEdit: false, canAdminister: false };
+  }
   const isAdmin = ADMIN_ROLES.has(userRole);
   if (isAdmin) {
     return { canRead: true, canEdit: true, canAdminister: true };
@@ -91,8 +95,6 @@ export function checkProjectAccess(
     return { canRead: false, canEdit: false, canAdminister: false };
   }
 
-  // Org role-based write: editor and above. Disabled users never reach this
-  // code path (org membership lookup throws before we get here).
   const canEdit = EDITOR_ROLES.has(userRole);
   return { canRead: true, canEdit, canAdminister: false };
 }

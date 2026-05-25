@@ -172,7 +172,15 @@ export const updateProjectModelSettingsSchema = z.object({
     .optional(),
 });
 
-export const deleteProjectInputSchema = z.object({
-  mode: z.enum(['detach', 'cascade']),
-  confirmPhrase: z.string().optional(),
-});
+export const deleteProjectInputSchema = z
+  .object({
+    mode: z.enum(['detach', 'cascade']),
+    confirmPhrase: z.string().optional(),
+  })
+  .refine(
+    (value) => value.mode !== 'cascade' || !!value.confirmPhrase?.length,
+    {
+      message: 'confirmPhrase is required for cascade delete',
+      path: ['confirmPhrase'],
+    },
+  );

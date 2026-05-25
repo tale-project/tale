@@ -116,14 +116,23 @@ export const chatWithAgent = action({
     // defense-in-depth — the UI also enforces this, but a direct API call
     // must not bypass it.
     if (args.projectId) {
-      const projectAccess = await ctx.runQuery(
-        internal.projects.internal_queries.assertProjectAccessForChat,
-        {
-          projectId: args.projectId,
-          organizationId: args.organizationId,
-          userId: authUserId,
-        },
-      );
+      let projectAccess: { allowed: boolean; reason?: string };
+      try {
+        projectAccess = await ctx.runQuery(
+          internal.projects.internal_queries.assertProjectAccessForChat,
+          {
+            projectId: args.projectId,
+            organizationId: args.organizationId,
+            userId: authUserId,
+          },
+        );
+      } catch (err) {
+        await ctx.runMutation(
+          internal.threads.internal_mutations.clearGenerationStatus,
+          { threadId: args.threadId, streamId: preAllocatedStreamId },
+        );
+        throw err;
+      }
       if (!projectAccess.allowed) {
         await ctx.runMutation(
           internal.threads.internal_mutations.clearGenerationStatus,

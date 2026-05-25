@@ -107,7 +107,7 @@ export const listProjects = query({
   handler: async (ctx, args) => {
     const auth = await getAuthContext(ctx, args.organizationId);
 
-    const query = args.includeArchived
+    const projectsQuery = args.includeArchived
       ? ctx.db
           .query('projects')
           .withIndex('by_organization_updatedAt', (q) =>
@@ -130,7 +130,7 @@ export const listProjects = query({
       }
     > = [];
 
-    for await (const row of query) {
+    for await (const row of projectsQuery) {
       if (!hasProjectAccess(row, auth.teamIds, auth.role)) continue;
       const access = checkProjectAccess(row, auth.teamIds, auth.role);
       visible.push({
@@ -292,27 +292,30 @@ export const listProjectDocuments = query({
     const auth = await getAuthContext(ctx, project.organizationId);
     if (!hasProjectAccess(project, auth.teamIds, auth.role)) return [];
 
-    const docs = await ctx.db
+    const docsQuery = ctx.db
       .query('documents')
       .withIndex('by_organizationId_and_projectId', (q) =>
         q
           .eq('organizationId', project.organizationId)
           .eq('projectId', args.projectId),
       )
-      .order('desc')
-      .collect();
+      .order('desc');
 
-    return docs.map((d) => ({
-      _id: d._id,
-      _creationTime: d._creationTime,
-      title: d.title,
-      fileId: d.fileId,
-      mimeType: d.mimeType,
-      extension: d.extension,
-      indexed: d.indexed,
-      ragStatus: d.ragInfo?.status ?? null,
-      createdBy: d.createdBy,
-    }));
+    const docs = [];
+    for await (const d of docsQuery) {
+      docs.push({
+        _id: d._id,
+        _creationTime: d._creationTime,
+        title: d.title,
+        fileId: d.fileId,
+        mimeType: d.mimeType,
+        extension: d.extension,
+        indexed: d.indexed,
+        ragStatus: d.ragInfo?.status ?? null,
+        createdBy: d.createdBy,
+      });
+    }
+    return docs;
   },
 });
 
@@ -346,34 +349,39 @@ export const listProjectThreads = query({
     const auth = await getAuthContext(ctx, project.organizationId);
     if (!hasProjectAccess(project, auth.teamIds, auth.role)) return [];
 
-    const all = await ctx.db
+    const threadsQuery = ctx.db
       .query('threadMetadata')
       .withIndex('by_organizationId_and_projectId', (q) =>
         q
           .eq('organizationId', project.organizationId)
           .eq('projectId', args.projectId),
-      )
-      .collect();
+      );
 
-    const filtered = all.filter((t) => {
-      if (t.status === 'deleted') return false;
-      if (args.scope === 'mine') return t.userId === auth.userId;
-      if (args.scope === 'shared') return t.sharedWithProject === true;
-      // 'all' → §6.3 readability: own threads OR shared-with-project
-      return t.userId === auth.userId || t.sharedWithProject === true;
-    });
-
-    return filtered.map((t) => ({
-      _id: t._id,
-      threadId: t.threadId,
-      userId: t.userId,
-      title: t.title,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-      sharedWithProject: t.sharedWithProject,
-      status: t.status,
-      agentSlug: t.agentSlug,
-    }));
+    const result = [];
+    for await (const t of threadsQuery) {
+      if (t.status === 'deleted') continue;
+      if (args.scope === 'mine' && t.userId !== auth.userId) continue;
+      if (args.scope === 'shared' && t.sharedWithProject !== true) continue;
+      if (
+        args.scope === 'all' &&
+        t.userId !== auth.userId &&
+        t.sharedWithProject !== true
+      ) {
+        continue;
+      }
+      result.push({
+        _id: t._id,
+        threadId: t.threadId,
+        userId: t.userId,
+        title: t.title,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+        sharedWithProject: t.sharedWithProject,
+        status: t.status,
+        agentSlug: t.agentSlug,
+      });
+    }
+    return result;
   },
 });
 

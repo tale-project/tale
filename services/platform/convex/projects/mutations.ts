@@ -1148,16 +1148,15 @@ export const deleteProject = mutation({
     let cascadedThreadCount = 0;
 
     // ---- Documents ----
-    const docs = await ctx.db
+    const docsQuery = ctx.db
       .query('documents')
       .withIndex('by_organizationId_and_projectId', (q) =>
         q
           .eq('organizationId', project.organizationId)
           .eq('projectId', args.projectId),
-      )
-      .collect();
+      );
 
-    for (const doc of docs) {
+    for await (const doc of docsQuery) {
       if (args.mode === 'cascade') {
         // Mark for deletion via lifecycle status; the existing retention
         // pipeline will hard-delete blob + RAG chunks within the grace
@@ -1175,16 +1174,15 @@ export const deleteProject = mutation({
     }
 
     // ---- Threads ----
-    const threads = await ctx.db
+    const threadsQuery = ctx.db
       .query('threadMetadata')
       .withIndex('by_organizationId_and_projectId', (q) =>
         q
           .eq('organizationId', project.organizationId)
           .eq('projectId', args.projectId),
-      )
-      .collect();
+      );
 
-    for (const thread of threads) {
+    for await (const thread of threadsQuery) {
       if (args.mode === 'cascade' && thread.userId === auth.userId) {
         // Caller owns the thread → soft-delete via lifecycle.
         await ctx.db.patch(thread._id, {

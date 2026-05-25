@@ -84,14 +84,15 @@ const AGENT_TAB_DIRTY_KEYS = {
 } as const;
 
 function computeDirtyKeys(
-  config: AgentJsonConfig,
-  savedConfig: AgentJsonConfig,
+  config: AgentJsonConfig | null | undefined,
+  savedConfig: AgentJsonConfig | null | undefined,
 ): ReadonlySet<string> {
+  const keys = new Set<string>();
+  if (!config || !savedConfig) return keys;
   // oxlint-disable typescript/no-unsafe-type-assertion -- record reflection
   const cfg = config as unknown as Record<string, unknown>;
   const saved = savedConfig as unknown as Record<string, unknown>;
   // oxlint-enable typescript/no-unsafe-type-assertion
-  const keys = new Set<string>();
   const allKeys = new Set([...Object.keys(cfg), ...Object.keys(saved)]);
   for (const k of allKeys) {
     if (JSON.stringify(cfg[k]) !== JSON.stringify(saved[k])) keys.add(k);

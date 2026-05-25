@@ -119,7 +119,6 @@
   },
   "personalization": {
     "page": {
-      "description": "Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken. Standardmässig aus — unten aktivieren.",
       "customInstructions": {
         "placeholder": "z. B. Antworte knapp. Verwende standardmässig TypeScript bei Code-Themen."
       }
