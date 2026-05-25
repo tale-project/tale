@@ -1,9 +1,10 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
+import { AlertTriangle } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -36,9 +37,22 @@ export function useSkillsTableConfig({
         header: t('skills.columns.name', { defaultValue: 'Skill' }),
         meta: { hasAvatar: false },
         cell: ({ row }) => (
-          <Text as="span" variant="label">
-            {row.original.name}
-          </Text>
+          <Stack gap={1}>
+            <Text as="span" variant="label">
+              {row.original.name}
+            </Text>
+            {row.original.status ? (
+              <HStack gap={1} align="center">
+                <AlertTriangle className="text-destructive size-3.5" />
+                <Text as="span" variant="caption" className="text-destructive">
+                  {row.original.message ??
+                    t('skills.columns.loadError', {
+                      defaultValue: 'Failed to read SKILL.md',
+                    })}
+                </Text>
+              </HStack>
+            ) : null}
+          </Stack>
         ),
         size: 220,
       },
@@ -65,6 +79,7 @@ export function useSkillsTableConfig({
         meta: {
           headerLabel: t('skills.columns.deps', { defaultValue: 'Deps' }),
           align: 'right',
+          skeleton: { type: 'badge' },
         },
         cell: ({ row }) => {
           const r = row.original;
@@ -91,7 +106,12 @@ export function useSkillsTableConfig({
         header: '',
         meta: { isAction: true },
         cell: ({ row }) => (
-          <HStack gap={1} justify="end">
+          <HStack
+            gap={1}
+            justify="end"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
             <SkillRowActions
               skillSlug={row.original.slug}
               organizationId={organizationId}

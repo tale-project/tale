@@ -1,7 +1,6 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { SettingsListPageSkeleton } from '@/app/features/settings/components/settings-skeleton';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -18,8 +17,12 @@ function SkillsLayout() {
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
 
+  // No wrapper skeleton — the child route's DataTable owns the loading
+  // shape so users see exactly one transition (table chrome with N
+  // skeleton rows → table chrome with N data rows) instead of a
+  // mismatched form-shaped placeholder flashing first.
   if (abilityLoading) {
-    return <SettingsListPageSkeleton />;
+    return null;
   }
 
   // Skills CRUD changes capability bindings that flow into agent runtime

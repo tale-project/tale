@@ -35,19 +35,36 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { skills: rawSkills, isLoading } = useListSkills(organizationId);
+  const {
+    skills: rawSkills,
+    isLoading,
+    error,
+    refetch,
+  } = useListSkills(organizationId);
 
   const skills = useMemo<SkillRow[]>(() => {
     if (!Array.isArray(rawSkills)) return [];
-    const valid: SkillRow[] = [];
+    const rows: SkillRow[] = [];
     for (const s of rawSkills) {
       if (!s || typeof s.slug !== 'string') continue;
-      // Skills with read errors come back with `status`/`message` and no name.
-      if ('status' in s && typeof s.status === 'string') continue;
+      // Skills with read errors come back with `status`/`message` and no
+      // name. Render them as rows with a warning badge in the deps cell
+      // so admins can find and fix them instead of having broken SKILL.md
+      // files vanish silently from the list.
+      if ('status' in s && typeof s.status === 'string') {
+        rows.push({
+          slug: s.slug,
+          name: s.slug,
+          description: '',
+          status: s.status,
+          message: typeof s.message === 'string' ? s.message : undefined,
+        });
+        continue;
+      }
       if (typeof s.name !== 'string' || typeof s.description !== 'string') {
         continue;
       }
-      valid.push({
+      rows.push({
         slug: s.slug,
         name: s.name,
         description: s.description,
@@ -57,7 +74,7 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
         hash: typeof s.hash === 'string' ? s.hash : undefined,
       });
     }
-    return valid;
+    return rows;
   }, [rawSkills]);
 
   const invalidateSkills = useCallback(() => {
@@ -89,6 +106,7 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
       data: isLoading ? undefined : skills,
     },
     pageSize,
+    approxRowCount: pageSize,
     search: {
       fields: ['name', 'slug', 'description'],
       placeholder: searchPlaceholder,
@@ -103,6 +121,8 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
       stickyLayout={stickyLayout}
       onRowClick={handleRowClick}
       actionMenu={<SkillsActionMenu organizationId={organizationId} />}
+      error={error ?? undefined}
+      onRetry={() => void refetch()}
       emptyState={{
         icon: Sparkles,
         title: tEmpty('skills.title', { defaultValue: 'No skills yet' }),
