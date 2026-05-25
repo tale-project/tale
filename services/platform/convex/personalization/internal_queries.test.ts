@@ -24,7 +24,8 @@ vi.mock('convex/values', () => {
 
 import {
   evaluatePersonalizationGates,
-  isPersonalizationEnabled,
+  isCustomInstructionsEnabledForOrg,
+  isMemoriesEnabledForOrg,
 } from './internal_queries';
 
 interface PolicyRow {
@@ -37,7 +38,8 @@ interface PolicyRow {
 interface PrefsRow {
   userId: string;
   organizationId: string;
-  enabled?: boolean;
+  customInstructionsEnabled?: boolean;
+  memoriesEnabled?: boolean;
 }
 
 interface ThreadMetaRow {
@@ -60,8 +62,6 @@ function createCtx(opts: {
         if (table === 'governancePolicies') {
           return {
             withIndex: (_name: string, cb: (q: unknown) => unknown) => {
-              // The lib produces nested .eq calls; capture both arguments
-              // by intercepting them on a stub that records key/value.
               const captured: Record<string, unknown> = {};
               const builder = {
                 eq: (k: string, v: unknown) => {
@@ -125,99 +125,126 @@ function createCtx(opts: {
         throw new Error(`unexpected table ${table}`);
       }),
     },
-  } as unknown as Parameters<typeof isPersonalizationEnabled>[0];
+  } as unknown as Parameters<typeof isCustomInstructionsEnabledForOrg>[0];
 }
 
 const ORG = 'o_1';
 const USER = 'u_1';
 const THREAD = 't_1';
 
-describe('isPersonalizationEnabled', () => {
+function customOn(): PolicyRow {
+  return {
+    organizationId: ORG,
+    policyType: 'custom_instructions',
+    config: { enabled: true },
+  };
+}
+
+function memoriesOn(): PolicyRow {
+  return {
+    organizationId: ORG,
+    policyType: 'user_memories',
+    config: { enabled: true },
+  };
+}
+
+describe('isCustomInstructionsEnabledForOrg', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns false when there is no policy row', async () => {
     const ctx = createCtx({});
-    expect(await isPersonalizationEnabled(ctx, ORG)).toBe(false);
+    expect(await isCustomInstructionsEnabledForOrg(ctx, ORG)).toBe(false);
   });
 
-  it('returns false when policy row has enabled:false in config', async () => {
+  it('returns false when config.enabled is false', async () => {
     const ctx = createCtx({
       policies: [
         {
           organizationId: ORG,
-          policyType: 'personalization',
+          policyType: 'custom_instructions',
           config: { enabled: false },
         },
       ],
     });
-    expect(await isPersonalizationEnabled(ctx, ORG)).toBe(false);
+    expect(await isCustomInstructionsEnabledForOrg(ctx, ORG)).toBe(false);
   });
 
-  it('returns true when policy row has enabled:true in config', async () => {
+  it('returns true when config.enabled is true', async () => {
+    const ctx = createCtx({ policies: [customOn()] });
+    expect(await isCustomInstructionsEnabledForOrg(ctx, ORG)).toBe(true);
+  });
+
+  it('returns false when row-level enabled is false (full kill)', async () => {
     const ctx = createCtx({
       policies: [
         {
           organizationId: ORG,
-          policyType: 'personalization',
-          config: { enabled: true },
-        },
-      ],
-    });
-    expect(await isPersonalizationEnabled(ctx, ORG)).toBe(true);
-  });
-
-  it('returns false when row exists but row-level enabled is false (full kill)', async () => {
-    const ctx = createCtx({
-      policies: [
-        {
-          organizationId: ORG,
-          policyType: 'personalization',
+          policyType: 'custom_instructions',
           enabled: false,
           config: { enabled: true },
         },
       ],
     });
-    expect(await isPersonalizationEnabled(ctx, ORG)).toBe(false);
+    expect(await isCustomInstructionsEnabledForOrg(ctx, ORG)).toBe(false);
   });
 
-  it('does NOT honor legacy feature_flags + personalization_v1 row (regression guard)', async () => {
+  it('does NOT honor legacy combined `personalization` policy (regression guard)', async () => {
     const ctx = createCtx({
       policies: [
         {
           organizationId: ORG,
-          policyType: 'feature_flags',
-          config: { personalization_v1: true, enabled: true, rules: [] },
+          policyType: 'personalization',
+          config: { enabled: true },
         },
       ],
     });
-    expect(await isPersonalizationEnabled(ctx, ORG)).toBe(false);
+    expect(await isCustomInstructionsEnabledForOrg(ctx, ORG)).toBe(false);
+  });
+});
+
+describe('isMemoriesEnabledForOrg', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns false when there is no policy row', async () => {
+    const ctx = createCtx({});
+    expect(await isMemoriesEnabledForOrg(ctx, ORG)).toBe(false);
+  });
+
+  it('returns true when the user_memories policy enables it', async () => {
+    const ctx = createCtx({ policies: [memoriesOn()] });
+    expect(await isMemoriesEnabledForOrg(ctx, ORG)).toBe(true);
+  });
+
+  it('is independent of custom_instructions', async () => {
+    const ctx = createCtx({ policies: [customOn()] });
+    expect(await isMemoriesEnabledForOrg(ctx, ORG)).toBe(false);
   });
 });
 
 describe('evaluatePersonalizationGates', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  const orgOn: PolicyRow = {
-    organizationId: ORG,
-    policyType: 'personalization',
-    config: { enabled: true },
-  };
-
-  it('org=ON, user=undefined → true (member inherits org default)', async () => {
-    const ctx = createCtx({ policies: [orgOn] });
+  it('both org defaults ON, no user prefs → both features inherit ON', async () => {
+    const ctx = createCtx({ policies: [customOn(), memoriesOn()] });
     expect(
       await evaluatePersonalizationGates(ctx, {
         userId: USER,
         organizationId: ORG,
         threadId: THREAD,
       }),
-    ).toBe(true);
+    ).toEqual({ customInstructions: true, memories: true });
   });
 
-  it('org=ON, user=true → true', async () => {
+  it('user opts memories=false while org has both ON → memories gates off, instructions stay on', async () => {
     const ctx = createCtx({
-      policies: [orgOn],
-      prefs: [{ userId: USER, organizationId: ORG, enabled: true }],
+      policies: [customOn(), memoriesOn()],
+      prefs: [
+        {
+          userId: USER,
+          organizationId: ORG,
+          memoriesEnabled: false,
+        },
+      ],
     });
     expect(
       await evaluatePersonalizationGates(ctx, {
@@ -225,13 +252,18 @@ describe('evaluatePersonalizationGates', () => {
         organizationId: ORG,
         threadId: THREAD,
       }),
-    ).toBe(true);
+    ).toEqual({ customInstructions: true, memories: false });
   });
 
-  it('org=ON, user=false → false (explicit opt-out beats org)', async () => {
+  it('org both OFF, user opts customInstructions=true → only instructions on', async () => {
     const ctx = createCtx({
-      policies: [orgOn],
-      prefs: [{ userId: USER, organizationId: ORG, enabled: false }],
+      prefs: [
+        {
+          userId: USER,
+          organizationId: ORG,
+          customInstructionsEnabled: true,
+        },
+      ],
     });
     expect(
       await evaluatePersonalizationGates(ctx, {
@@ -239,37 +271,20 @@ describe('evaluatePersonalizationGates', () => {
         organizationId: ORG,
         threadId: THREAD,
       }),
-    ).toBe(false);
+    ).toEqual({ customInstructions: true, memories: false });
   });
 
-  it('org=OFF, user=undefined → false', async () => {
-    const ctx = createCtx({});
-    expect(
-      await evaluatePersonalizationGates(ctx, {
-        userId: USER,
-        organizationId: ORG,
-        threadId: THREAD,
-      }),
-    ).toBe(false);
-  });
-
-  it('org=OFF, user=true → true (explicit opt-in beats org)', async () => {
+  it('thread disablePersonalization vetoes both features', async () => {
     const ctx = createCtx({
-      prefs: [{ userId: USER, organizationId: ORG, enabled: true }],
-    });
-    expect(
-      await evaluatePersonalizationGates(ctx, {
-        userId: USER,
-        organizationId: ORG,
-        threadId: THREAD,
-      }),
-    ).toBe(true);
-  });
-
-  it('thread disablePersonalization vetoes everything', async () => {
-    const ctx = createCtx({
-      policies: [orgOn],
-      prefs: [{ userId: USER, organizationId: ORG, enabled: true }],
+      policies: [customOn(), memoriesOn()],
+      prefs: [
+        {
+          userId: USER,
+          organizationId: ORG,
+          customInstructionsEnabled: true,
+          memoriesEnabled: true,
+        },
+      ],
       threadMeta: [{ threadId: THREAD, disablePersonalization: true }],
     });
     expect(
@@ -278,16 +293,35 @@ describe('evaluatePersonalizationGates', () => {
         organizationId: ORG,
         threadId: THREAD,
       }),
-    ).toBe(false);
+    ).toEqual({ customInstructions: false, memories: false });
   });
 
   it('omits thread arg → only org+user matter', async () => {
-    const ctx = createCtx({ policies: [orgOn] });
+    const ctx = createCtx({ policies: [customOn(), memoriesOn()] });
     expect(
       await evaluatePersonalizationGates(ctx, {
         userId: USER,
         organizationId: ORG,
       }),
-    ).toBe(true);
+    ).toEqual({ customInstructions: true, memories: true });
+  });
+
+  it('legacy `personalization` policy is ignored (regression guard)', async () => {
+    const ctx = createCtx({
+      policies: [
+        {
+          organizationId: ORG,
+          policyType: 'personalization',
+          config: { enabled: true },
+        },
+      ],
+    });
+    expect(
+      await evaluatePersonalizationGates(ctx, {
+        userId: USER,
+        organizationId: ORG,
+        threadId: THREAD,
+      }),
+    ).toEqual({ customInstructions: false, memories: false });
   });
 });

@@ -14,10 +14,10 @@ vi.mock('../../_generated/api', () => ({
 import { buildUserPersonalization } from './build_user_personalization';
 
 interface PersonalizationData {
-  effective: boolean;
+  customInstructionsEffective: boolean;
+  memoriesEffective: boolean;
   preferences: {
     customInstructions: string;
-    enabled?: boolean;
   } | null;
   memories: {
     _id: string;
@@ -47,8 +47,9 @@ describe('buildUserPersonalization gating', () => {
 
   it('returns EMPTY when agent personalizationMode is off (no DB read)', async () => {
     const ctx = createCtx({
-      effective: true,
-      preferences: { customInstructions: 'hi', enabled: true },
+      customInstructionsEffective: true,
+      memoriesEffective: true,
+      preferences: { customInstructions: 'hi' },
       memories: [{ _id: 'm', content: 'x', createdAt: 0 }],
     });
     const result = await buildUserPersonalization(ctx, {
@@ -60,19 +61,21 @@ describe('buildUserPersonalization gating', () => {
     expect(ctx.runQuery).not.toHaveBeenCalled();
   });
 
-  it('returns EMPTY when effective is false (gate closed)', async () => {
+  it('returns EMPTY when both features are gated off', async () => {
     const ctx = createCtx({
-      effective: false,
-      preferences: { customInstructions: 'hi', enabled: true },
+      customInstructionsEffective: false,
+      memoriesEffective: false,
+      preferences: { customInstructions: 'hi' },
       memories: [{ _id: 'm', content: 'x', createdAt: 0 }],
     });
     const result = await buildUserPersonalization(ctx, ARGS);
     expect(result.text).toBe('');
   });
 
-  it('returns EMPTY when there is no preferences row and no memories', async () => {
+  it('returns EMPTY when only the memories gate is on but there are no memories', async () => {
     const ctx = createCtx({
-      effective: true,
+      customInstructionsEffective: false,
+      memoriesEffective: true,
       preferences: null,
       memories: [],
     });
@@ -80,10 +83,11 @@ describe('buildUserPersonalization gating', () => {
     expect(result.text).toBe('');
   });
 
-  it('injects memories when effective is true even without a prefs row (org default ON, user untouched)', async () => {
+  it('injects memories when only the memories gate is on, omitting customInstructions even if populated', async () => {
     const ctx = createCtx({
-      effective: true,
-      preferences: null,
+      customInstructionsEffective: false,
+      memoriesEffective: true,
+      preferences: { customInstructions: 'reply concisely' },
       memories: [
         {
           _id: 'mem_inherit',
@@ -95,13 +99,28 @@ describe('buildUserPersonalization gating', () => {
     const result = await buildUserPersonalization(ctx, ARGS);
     expect(result.text).toContain('<user_memories');
     expect(result.text).toContain('likes pizza');
+    expect(result.text).not.toContain('<user_custom_instructions');
     expect(result.injectedMemoryIds).toEqual(['mem_inherit']);
   });
 
-  it('injects custom instructions and memories when effective is true', async () => {
+  it('injects custom instructions when only that gate is on (memories absent)', async () => {
     const ctx = createCtx({
-      effective: true,
-      preferences: { customInstructions: 'reply concisely', enabled: true },
+      customInstructionsEffective: true,
+      memoriesEffective: false,
+      preferences: { customInstructions: 'reply concisely' },
+      memories: [],
+    });
+    const result = await buildUserPersonalization(ctx, ARGS);
+    expect(result.text).toContain('<user_custom_instructions');
+    expect(result.text).toContain('reply concisely');
+    expect(result.text).not.toContain('<user_memories');
+  });
+
+  it('injects both blocks when both gates are on', async () => {
+    const ctx = createCtx({
+      customInstructionsEffective: true,
+      memoriesEffective: true,
+      preferences: { customInstructions: 'reply concisely' },
       memories: [
         { _id: 'mem_1', content: 'loves chess', createdAt: 1700000000000 },
       ],
@@ -116,8 +135,9 @@ describe('buildUserPersonalization gating', () => {
 
   it('produces identical output for identical input (deterministic nonce)', async () => {
     const data: PersonalizationData = {
-      effective: true,
-      preferences: { customInstructions: 'be terse', enabled: true },
+      customInstructionsEffective: true,
+      memoriesEffective: true,
+      preferences: { customInstructions: 'be terse' },
       memories: [
         { _id: 'mem_a', content: 'lives in PT', createdAt: 1700000000000 },
         { _id: 'mem_b', content: 'prefers Go', createdAt: 1700000001000 },

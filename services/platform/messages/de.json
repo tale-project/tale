@@ -3545,17 +3545,29 @@
       "description": "Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken. Standardmäßig aus — unten aktivieren.",
       "privacyLink": "Datenschutzhinweis",
       "orgDefault": {
-        "label": "Organisations-Standard (Admin)",
-        "description": "Wenn aktiviert, ist Personalisierung für alle Mitglieder dieser Organisation standardmäßig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl.",
+        "customInstructions": {
+          "label": "Standard für benutzerdefinierte Anweisungen (Admin)",
+          "description": "Wenn aktiviert, sind benutzerdefinierte Anweisungen für alle Mitglieder dieser Organisation standardmäßig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl."
+        },
+        "memories": {
+          "label": "Erinnerungs-Standard (Admin)",
+          "description": "Wenn aktiviert, sind Erinnerungen für alle Mitglieder dieser Organisation standardmäßig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl."
+        },
         "toastUpdated": "Organisations-Standard aktualisiert."
       },
       "enable": {
-        "label": "Personalisierung",
-        "description": "Wenn aktiv, nutzt der Assistent deine benutzerdefinierten Anweisungen und gespeicherten Erinnerungen. Du kannst sie jederzeit deaktivieren.",
         "orgStateOn": "aktiv",
         "orgStateOff": "aus",
         "followingOrgDefault": "Folgt dem Organisations-Standard ({state}).",
         "overridingOrgDefault": "Überschreibt den Organisations-Standard ({state})."
+      },
+      "customInstructionsToggle": {
+        "label": "Benutzerdefinierte Anweisungen",
+        "description": "Wenn aktiv, stellt der Assistent deine benutzerdefinierten Anweisungen jeder Antwort voran."
+      },
+      "memoriesToggle": {
+        "label": "Erinnerungen",
+        "description": "Wenn aktiv, kann der Assistent von dir freigegebene Fakten chat-übergreifend speichern und wiederverwenden."
       },
       "customInstructions": {
         "title": "Benutzerdefinierte Anweisungen",

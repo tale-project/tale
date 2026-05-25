@@ -45,9 +45,15 @@ vi.mock('./lazy_cleanup', () => ({
 
 const evaluateGates = vi.fn();
 vi.mock('../personalization/internal_queries', () => ({
-  evaluatePersonalizationGates: (...args: unknown[]): Promise<boolean> =>
+  evaluatePersonalizationGates: (
+    ...args: unknown[]
+  ): Promise<{ customInstructions: boolean; memories: boolean }> =>
     evaluateGates(...args),
 }));
+
+function gates(memories: boolean, customInstructions = memories) {
+  return { customInstructions, memories };
+}
 
 interface FakeMemoryRow {
   _id: string;
@@ -139,8 +145,8 @@ describe('writeProposal', () => {
     evaluateGates.mockReset();
   });
 
-  it('rejects when personalization gates evaluate to false (default-OFF / org disabled / prefs.enabled=false / threadDisable)', async () => {
-    evaluateGates.mockResolvedValue(false);
+  it('rejects when the memories gate evaluates to false (default-OFF / org disabled / prefs.memoriesEnabled=false / threadDisable)', async () => {
+    evaluateGates.mockResolvedValue(gates(false));
     const { ctx, inserted, auditCalls } = createMockCtx({});
     const handler = await getHandler();
 
@@ -156,7 +162,7 @@ describe('writeProposal', () => {
   });
 
   it('rejects content with disallowed characters even when gates pass', async () => {
-    evaluateGates.mockResolvedValue(true);
+    evaluateGates.mockResolvedValue(gates(true));
     const { ctx, inserted, auditCalls } = createMockCtx({});
     const handler = await getHandler();
 
@@ -171,7 +177,7 @@ describe('writeProposal', () => {
   });
 
   it('counts dismissed proposals via audit rows so dismiss-then-propose loops cannot bypass the daily cap', async () => {
-    evaluateGates.mockResolvedValue(true);
+    evaluateGates.mockResolvedValue(gates(true));
     const dayMs = 24 * 60 * 60 * 1000;
     const now = Date.now();
     const auditRows: FakeAuditRow[] = Array.from({ length: 20 }, (_, i) => ({
@@ -199,7 +205,7 @@ describe('writeProposal', () => {
   });
 
   it('inserts a pending row and writes ok audit on the happy path', async () => {
-    evaluateGates.mockResolvedValue(true);
+    evaluateGates.mockResolvedValue(gates(true));
     const { ctx, inserted, auditCalls } = createMockCtx({});
     const handler = await getHandler();
 

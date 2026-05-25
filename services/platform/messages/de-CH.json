@@ -121,7 +121,12 @@
     "page": {
       "description": "Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken. Standardmässig aus — unten aktivieren.",
       "orgDefault": {
-        "description": "Wenn aktiviert, ist Personalisierung für alle Mitglieder dieser Organisation standardmässig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl."
+        "customInstructions": {
+          "description": "Wenn aktiviert, sind benutzerdefinierte Anweisungen für alle Mitglieder dieser Organisation standardmässig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl."
+        },
+        "memories": {
+          "description": "Wenn aktiviert, sind Erinnerungen für alle Mitglieder dieser Organisation standardmässig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl."
+        }
       },
       "customInstructions": {
         "placeholder": "z. B. Antworte knapp. Verwende standardmässig TypeScript bei Code-Themen."
