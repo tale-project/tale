@@ -81,16 +81,6 @@ crons.cron(
   {},
 );
 
-// Artifact stream watchdog - clear streamingContent / liveStreamMode on rows
-// where the writing tool call went silent past the threshold (covers crashed
-// agent runs that never reached the tool's finally-block).
-crons.cron(
-  'clear stale artifact streams (every 5 min)',
-  '*/5 * * * *',
-  internal.artifacts.internal_mutations.cleanupStaleStreams,
-  {},
-);
-
 // Sandbox watchdog — same shape as the transcription / video-link sweeps.
 // Convex hard-kills actions at the 30-min timeout without running the
 // action's finally; that leaves sandboxExecutions stuck at `status='running'`
