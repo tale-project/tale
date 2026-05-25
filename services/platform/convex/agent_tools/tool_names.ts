@@ -11,6 +11,7 @@
 
 export const TOOL_NAMES = [
   'file_write',
+  'file_edit',
   'file_read',
   'file_list',
   'file_delete',

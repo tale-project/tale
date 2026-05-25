@@ -14,6 +14,7 @@ import { documentWriteTool } from './documents/document_write_tool';
 import { docxTool } from './files/docx_tool';
 import { excelTool } from './files/excel_tool';
 import { fileDeleteTool } from './files/file_delete_tool';
+import { fileEditTool } from './files/file_edit_tool';
 import { fileListTool } from './files/file_list_tool';
 import { fileReadTool } from './files/file_read_tool';
 import { fileWriteTool } from './files/file_write_tool';
@@ -48,6 +49,7 @@ export { TOOL_NAMES, type ToolName } from './tool_names';
  */
 export const TOOL_REGISTRY = [
   fileWriteTool,
+  fileEditTool,
   fileReadTool,
   fileListTool,
   fileDeleteTool,

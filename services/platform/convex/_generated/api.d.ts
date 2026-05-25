@@ -43,6 +43,7 @@ import type * as agent_tools_files__shared from "../agent_tools/files/_shared.js
 import type * as agent_tools_files_docx_tool from "../agent_tools/files/docx_tool.js";
 import type * as agent_tools_files_excel_tool from "../agent_tools/files/excel_tool.js";
 import type * as agent_tools_files_file_delete_tool from "../agent_tools/files/file_delete_tool.js";
+import type * as agent_tools_files_file_edit_tool from "../agent_tools/files/file_edit_tool.js";
 import type * as agent_tools_files_file_list_tool from "../agent_tools/files/file_list_tool.js";
 import type * as agent_tools_files_file_read_tool from "../agent_tools/files/file_read_tool.js";
 import type * as agent_tools_files_file_write_tool from "../agent_tools/files/file_write_tool.js";
@@ -1136,6 +1137,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/docx_tool": typeof agent_tools_files_docx_tool;
   "agent_tools/files/excel_tool": typeof agent_tools_files_excel_tool;
   "agent_tools/files/file_delete_tool": typeof agent_tools_files_file_delete_tool;
+  "agent_tools/files/file_edit_tool": typeof agent_tools_files_file_edit_tool;
   "agent_tools/files/file_list_tool": typeof agent_tools_files_file_list_tool;
   "agent_tools/files/file_read_tool": typeof agent_tools_files_file_read_tool;
   "agent_tools/files/file_write_tool": typeof agent_tools_files_file_write_tool;
