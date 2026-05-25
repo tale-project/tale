@@ -28,6 +28,7 @@ import { SkillAssetsSection } from '@/app/features/skills/components/skill-asset
 import { SkillBundleTreePanel } from '@/app/features/skills/components/skill-bundle-tree-panel';
 import { SkillDeleteDialog } from '@/app/features/skills/components/skill-delete-dialog';
 import { SkillDetailSidebar } from '@/app/features/skills/components/skill-detail-sidebar';
+import { SkillDetailSkeleton } from '@/app/features/skills/components/skill-detail-skeleton';
 import {
   useDuplicateSkill,
   useUpdateSkill,
@@ -294,11 +295,7 @@ function SkillDetailPage() {
   ]);
 
   if (isLoading) {
-    return (
-      <ContentArea>
-        <Skeleton className="h-24 w-full" />
-      </ContentArea>
-    );
+    return <SkillDetailSkeleton />;
   }
 
   if (!skill) {
@@ -647,7 +644,14 @@ function SkillDetailPage() {
             >
               <Stack gap={2}>
                 {!Array.isArray(relatedAgents) ? (
-                  <Skeleton className="h-12 w-full" />
+                  <Stack gap={1}>
+                    {Array.from({ length: 2 }).map((_, idx) => (
+                      <HStack key={idx} gap={2} align="center">
+                        <Skeleton className="h-5 w-24 rounded-md" />
+                        <Skeleton className="h-4 w-32" />
+                      </HStack>
+                    ))}
+                  </Stack>
                 ) : relatedAgents.length === 0 ? (
                   <Text variant="muted">
                     {t('skills.whereBound.empty', {
@@ -677,7 +681,22 @@ function SkillDetailPage() {
             >
               <Stack gap={2}>
                 {!Array.isArray(auditRows) ? (
-                  <Skeleton className="h-12 w-full" />
+                  <Stack gap={2}>
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                      <HStack
+                        key={idx}
+                        gap={3}
+                        align="center"
+                        className="border-border rounded-md border px-3 py-2"
+                      >
+                        <Skeleton className="h-5 w-16 rounded-md" />
+                        <Stack gap={1} className="flex-1">
+                          <Skeleton className="h-3 w-40" />
+                          <Skeleton className="h-3 w-56" />
+                        </Stack>
+                      </HStack>
+                    ))}
+                  </Stack>
                 ) : auditRows.length === 0 ? (
                   <Text variant="muted">
                     {t('skills.auditHistory.empty', {

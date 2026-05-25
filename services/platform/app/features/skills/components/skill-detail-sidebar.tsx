@@ -43,10 +43,26 @@ export function SkillDetailSidebar({
 
   if (isLoading) {
     return (
-      <aside className="border-border w-64 shrink-0 overflow-y-auto border-r p-3">
-        <Skeleton className="mb-2 h-6 w-32" />
-        <Skeleton className="mb-2 h-6 w-40" />
-        <Skeleton className="h-6 w-28" />
+      <aside
+        className="border-border w-64 shrink-0 overflow-y-auto border-r p-3"
+        aria-label={t('skills.detail.sidebar.heading', {
+          defaultValue: 'Skills',
+        })}
+      >
+        <Skeleton className="mb-2 ml-1 h-3 w-16" />
+        <ul className="space-y-0.5">
+          {Array.from({ length: 7 }).map((_, idx) => (
+            <li key={idx}>
+              <div className="flex items-center gap-1.5 rounded-md px-2 py-1.5">
+                <Skeleton className="size-3.5 shrink-0 rounded" />
+                <Skeleton
+                  className="h-3.5"
+                  style={{ width: `${55 + ((idx * 13) % 35)}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
       </aside>
     );
   }
