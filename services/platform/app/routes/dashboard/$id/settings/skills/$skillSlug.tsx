@@ -10,11 +10,13 @@ import {
   Link,
   useBlocker,
   useNavigate,
+  useSearch,
 } from '@tanstack/react-router';
 import { ArrowLeft, Code, Copy, FileText, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { z } from 'zod';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -48,12 +50,17 @@ import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 import { isRecord } from '@/lib/utils/type-guards';
 
+const searchSchema = z.object({
+  file: z.string().optional(),
+});
+
 export const Route = createFileRoute(
   '/dashboard/$id/settings/skills/$skillSlug',
 )({
   head: () => ({
     meta: seo('skills'),
   }),
+  validateSearch: searchSchema,
   component: SkillDetailPage,
 });
 
@@ -97,13 +104,28 @@ function SkillDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
 
-  // Tree-pane file selection. `'SKILL.md'` shows the existing right-
-  // pane edit form; any other value swaps the right pane to the
-  // read-only `SkillAssetViewer`. The viewer's Edit button is the
-  // explicit path into `SkillAssetEditorDialog` — selection alone is
-  // no longer a modal trigger, so navigation/scrolling/copying stays
-  // in-pane and the tree position is preserved across edits.
-  const [selectedFile, setSelectedFile] = useState('SKILL.md');
+  // Tree-pane file selection lives in the URL (`?file=scripts/run.py`)
+  // so refresh, back/forward, and external links restore the exact
+  // file the user was viewing. `'SKILL.md'` is the implicit default —
+  // an empty/missing `file` param shows the existing right-pane edit
+  // form; any other value swaps the right pane to the read-only
+  // `SkillAssetViewer`.
+  const search = useSearch({
+    from: '/dashboard/$id/settings/skills/$skillSlug',
+  });
+  const selectedFile =
+    search.file && search.file.length > 0 ? search.file : 'SKILL.md';
+  const setSelectedFile = useCallback(
+    (path: string) => {
+      void navigate({
+        to: '/dashboard/$id/settings/skills/$skillSlug',
+        params: { id: organizationId, skillSlug },
+        search: path === 'SKILL.md' ? {} : { file: path },
+        replace: true,
+      });
+    },
+    [navigate, organizationId, skillSlug],
+  );
   const [editDialogPath, setEditDialogPath] = useState<string | null>(null);
 
   const skill = data?.ok ? data : null;
