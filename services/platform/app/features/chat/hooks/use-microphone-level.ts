@@ -37,14 +37,14 @@ export function useMicrophoneLevel({ enabled }: UseMicrophoneLevelOptions) {
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
-    if (typeof window === 'undefined') return;
-    if (!navigator.mediaDevices?.getUserMedia) return;
+    if (!enabled) return undefined;
+    if (typeof window === 'undefined') return undefined;
+    if (!navigator.mediaDevices?.getUserMedia) return undefined;
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- feature-detect WebKit's prefixed AudioContext
     const globals = window as unknown as AudioContextGlobals;
     const Ctor = globals.AudioContext ?? globals.webkitAudioContext;
-    if (!Ctor) return;
+    if (!Ctor) return undefined;
 
     let cancelled = false;
 
