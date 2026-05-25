@@ -24,6 +24,14 @@ from .semantic_cache import SemanticCache
 SCHEMA = "private_knowledge"
 
 
+async def _timed(name: str, coro: Any) -> Any:
+    t = time.time()
+    try:
+        return await coro
+    finally:
+        logger.debug("PERF {}: {:.1f}ms", name, (time.time() - t) * 1000)
+
+
 class RagSearchService:
     _background_tasks: ClassVar[set[asyncio.Task[None]]] = set()
 
@@ -65,14 +73,13 @@ class RagSearchService:
         self.last_search_usage = EmbeddingUsage(model=self._embedding._model)
         try:
             t0 = time.time()
-            embedding_task = asyncio.create_task(self._embedding.embed_query_with_usage(query))
-            fts_task = asyncio.create_task(self._fts_search(query, file_ids, top_k * 3))
-
-            query_result, fts_results = await asyncio.gather(embedding_task, fts_task)
+            query_result, fts_results = await asyncio.gather(
+                _timed("embed", self._embedding.embed_query_with_usage(query)),
+                _timed("fts", self._fts_search(query, file_ids, top_k * 3)),
+            )
             query_embedding = query_result.embedding
             self.last_search_usage = query_result.usage
-            embed_fts_ms = (time.time() - t0) * 1000
-            logger.debug("PERF embed+FTS parallel: {:.1f}ms", embed_fts_ms)
+            logger.debug("PERF embed+FTS total: {:.1f}ms", (time.time() - t0) * 1000)
 
             # Semantic cache: check for a cached result before vector search
             if self._semantic_cache and query_embedding:
