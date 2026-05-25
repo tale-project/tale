@@ -105,13 +105,13 @@ export const ORG_ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 export const FILE_PATH_SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
 
 /**
- * Per-file caps for sandbox-staged `files[]`. Aggregate cap is enforced
- * separately from the existing `code` cap because each file's content is
- * accounted for independently.
+ * Per-file caps for sandbox-staged `files[]`. Each entry carries a URL
+ * the spawner fetches; no content travels through the request body, so
+ * the aggregate-byte cap from the inline-content era is gone — per-file
+ * fetch size is bounded inside `spawn.ts` instead (WORKSPACE_FETCH_MAX_BYTES).
  */
 export const MAX_FILES_PER_REQUEST = 50;
 export const MAX_FILE_PATH_LENGTH = 200;
-export const MAX_FILES_BYTES = 800_000;
 
 /**
  * Maximum number of `steps[]` per multi-step `/v1/execute` request. Each

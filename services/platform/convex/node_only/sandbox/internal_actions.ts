@@ -136,8 +136,14 @@ export const executeCode = internalAction({
     toolCallId: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
     language: sandboxLanguageValidator,
-    /** Files staged at /workspace/code/<path>. */
-    files: v.array(v.object({ path: v.string(), content: v.string() })),
+    /**
+     * Files staged at /workspace/code/<path>. Each entry carries an
+     * internal Caddy URL the spawner GETs to fetch the bytes — keeps the
+     * wire binary-safe (PPTX / XLSX / PNG etc. survive intact) and bypasses
+     * the spawner body cap. Caller mints URLs via `ctx.storage.getUrl` +
+     * `toSandboxStorageUrl`.
+     */
+    files: v.array(v.object({ path: v.string(), url: v.string() })),
     entryPath: v.optional(v.string()),
     steps: v.optional(v.array(v.string())),
     packages: v.optional(v.array(v.string())),
@@ -204,10 +210,12 @@ export const executeCode = internalAction({
     );
     const estimatedSeconds = Math.ceil(timeoutMs / 1000);
 
-    // Audit-row codePreview: for single-script, the entry file's content;
-    // for multi-step, a synthesized "step1 → step2 …" line.
+    // Audit-row codePreview: post-URL-ingress the file bytes no longer
+    // travel through this action (only URLs do), so the preview is now a
+    // synthesized label for both single-script and multi-step. The full
+    // code is recoverable via threadFiles + storageId for forensic needs.
     const sourceForPreview = entryProvided
-      ? (args.files.find((f) => f.path === args.entryPath)?.content ?? '')
+      ? `[single-script] ${args.entryPath ?? '<unknown>'}`
       : `[multi-step] ${args.steps?.join(' → ') ?? ''}`;
 
     let executionId: Id<'sandboxExecutions'>;

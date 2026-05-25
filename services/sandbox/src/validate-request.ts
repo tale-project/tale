@@ -18,7 +18,6 @@ import type { ExecuteRequest, Language, SandboxFile } from './types.ts';
 import {
   FILE_PATH_SEGMENT_RE,
   ID_ALPHABET_RE,
-  MAX_FILES_BYTES,
   MAX_FILES_PER_REQUEST,
   MAX_FILE_PATH_LENGTH,
   MAX_STEPS_PER_REQUEST,
@@ -27,6 +26,8 @@ import {
   POLYGLOT_PYTHON_EXT_RE,
   sandboxLanguageLiterals,
 } from './wire.ts';
+
+const MAX_FILE_URL_LENGTH = 4096;
 
 type ValidateResult =
   | { ok: true; request: ExecuteRequest }
@@ -269,12 +270,6 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       return {
         ok: false,
         error: `entryPath "${r.entryPath}" must reference a path in files`,
-      };
-    }
-    if (match.content.length === 0) {
-      return {
-        ok: false,
-        error: `entryPath "${r.entryPath}" references an empty file`,
       };
     }
     entryPath = r.entryPath;
@@ -527,7 +522,6 @@ function validateFiles(
   }
   const seenLower = new Set<string>();
   const out: SandboxFile[] = [];
-  let aggregateBytes = 0;
   for (let i = 0; i < raw.length; i += 1) {
     const entry: unknown = raw[i];
     if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
@@ -542,8 +536,23 @@ function validateFiles(
     if (!isString(e.path)) {
       return { ok: false, error: `files[${i}].path must be a string` };
     }
-    if (!isString(e.content)) {
-      return { ok: false, error: `files[${i}].content must be a string` };
+    if (!isString(e.url)) {
+      return { ok: false, error: `files[${i}].url must be a string` };
+    }
+    if (e.url.length === 0) {
+      return { ok: false, error: `files[${i}].url must be non-empty` };
+    }
+    if (e.url.length > MAX_FILE_URL_LENGTH) {
+      return {
+        ok: false,
+        error: `files[${i}].url exceeds ${MAX_FILE_URL_LENGTH}-char limit`,
+      };
+    }
+    if (!e.url.startsWith('http://') && !e.url.startsWith('https://')) {
+      return {
+        ok: false,
+        error: `files[${i}].url must use http:// or https://`,
+      };
     }
     const safe = isSafeRelativePath(e.path);
     if (!safe.ok) {
@@ -557,14 +566,7 @@ function validateFiles(
       };
     }
     seenLower.add(lower);
-    aggregateBytes += Buffer.byteLength(e.content, 'utf8');
-    if (aggregateBytes > MAX_FILES_BYTES) {
-      return {
-        ok: false,
-        error: `files aggregate content exceeds ${MAX_FILES_BYTES}-byte limit`,
-      };
-    }
-    out.push({ path: e.path, content: e.content });
+    out.push({ path: e.path, url: e.url });
   }
   return { ok: true, files: out };
 }

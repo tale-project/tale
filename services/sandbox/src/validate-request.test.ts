@@ -6,15 +6,15 @@ import { describe, expect, test } from 'bun:test';
 
 import { validateExecuteRequest } from './validate-request.ts';
 
-// Minimal valid request shape. Post-sandbox-wobbly-origami the spawner
-// requires the platform to pre-allocate upload-slot URLs + supply the
-// EP1/EP2 callback endpoints; tests still pin to a tiny fixture but the
-// new fields are present so we exercise the success path on every call.
+// Minimal valid request shape. Each workspace file carries a URL the
+// spawner GETs to fetch the bytes (no inline content) — see
+// `services/sandbox/src/types.ts:SandboxFile`.
+const FIXTURE_URL = 'http://proxy/api/storage/test-file';
 const good = {
   executionId: 'abc-123',
   organizationId: 'org_42',
   language: 'python',
-  files: [{ path: 'main.py', content: 'print("hi")' }],
+  files: [{ path: 'main.py', url: FIXTURE_URL }],
   entryPath: 'main.py',
   outputUploadSlots: [{ url: 'http://proxy/api/storage/upload?token=test' }],
   outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
@@ -29,9 +29,7 @@ describe('validateExecuteRequest', () => {
       expect(r.request.executionId).toBe('abc-123');
       expect(r.request.language).toBe('python');
       expect(r.request.entryPath).toBe('main.py');
-      expect(r.request.files).toEqual([
-        { path: 'main.py', content: 'print("hi")' },
-      ]);
+      expect(r.request.files).toEqual([{ path: 'main.py', url: FIXTURE_URL }]);
     }
   });
 
@@ -138,7 +136,7 @@ describe('validateExecuteRequest', () => {
       executionId: 'abc-123',
       organizationId: 'org_42',
       language: 'python',
-      files: [{ path: 'main.py', content: 'x' }],
+      files: [{ path: 'main.py', url: FIXTURE_URL }],
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/exactly one/);
@@ -163,22 +161,10 @@ describe('validateExecuteRequest', () => {
       organizationId: 'org_42',
       language: 'python',
       entryPath: 'missing.py',
-      files: [{ path: 'main.py', content: 'print(1)' }],
+      files: [{ path: 'main.py', url: FIXTURE_URL }],
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/must reference a path in files/);
-  });
-
-  test('rejects entryPath whose file is empty', () => {
-    const r = validateExecuteRequest({
-      executionId: 'abc-123',
-      organizationId: 'org_42',
-      language: 'python',
-      entryPath: 'main.py',
-      files: [{ path: 'main.py', content: '' }],
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/empty/);
   });
 
   test('rejects non-string entryPath', () => {
@@ -187,6 +173,54 @@ describe('validateExecuteRequest', () => {
       entryPath: 42,
     });
     expect(r.ok).toBe(false);
+  });
+
+  // ----- files[] URL validation -----
+
+  test('rejects files[].url that is not a string', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      files: [{ path: 'main.py', url: 123 }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/files\[0\]\.url/);
+  });
+
+  test('rejects empty files[].url', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      files: [{ path: 'main.py', url: '' }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/non-empty/);
+  });
+
+  test('rejects files[].url with non-http(s) scheme', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      files: [{ path: 'main.py', url: 'file:///etc/passwd' }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/http:\/\/ or https:\/\//);
+  });
+
+  test('accepts https:// files[].url', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      files: [
+        { path: 'main.py', url: 'https://proxy.example.com/api/storage/abc' },
+      ],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  test('rejects files[] entry missing url', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      files: [{ path: 'main.py' }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/files\[0\]\.url/);
   });
 
   // ----- multi-step (`steps`) mode -----
@@ -198,8 +232,8 @@ describe('validateExecuteRequest', () => {
       language: 'python',
       steps: ['gen.py', 'validate.py'],
       files: [
-        { path: 'gen.py', content: 'print("gen")' },
-        { path: 'validate.py', content: 'print("validate")' },
+        { path: 'gen.py', url: 'http://proxy/api/storage/gen' },
+        { path: 'validate.py', url: 'http://proxy/api/storage/validate' },
       ],
       outputUploadSlots: [],
       outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
@@ -218,7 +252,7 @@ describe('validateExecuteRequest', () => {
       organizationId: 'org_42',
       language: 'python',
       steps: [],
-      files: [{ path: 'gen.py', content: 'x' }],
+      files: [{ path: 'gen.py', url: FIXTURE_URL }],
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/at least one/);
@@ -241,7 +275,7 @@ describe('validateExecuteRequest', () => {
       organizationId: 'org_42',
       language: 'python',
       steps: ['missing.py'],
-      files: [{ path: 'gen.py', content: 'x' }],
+      files: [{ path: 'gen.py', url: FIXTURE_URL }],
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/must reference a path in files/);
@@ -257,8 +291,8 @@ describe('validateExecuteRequest', () => {
       language: 'python',
       steps: ['main.py', 'test.py'],
       files: [
-        { path: 'main.py', content: 'print("gen")' },
-        { path: 'test.py', content: 'print("validate")' },
+        { path: 'main.py', url: 'http://proxy/api/storage/main' },
+        { path: 'test.py', url: 'http://proxy/api/storage/test' },
       ],
       outputUploadSlots: [],
       outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
@@ -276,7 +310,7 @@ describe('validateExecuteRequest', () => {
       organizationId: 'org_42',
       language: 'node',
       steps: ['main.js'],
-      files: [{ path: 'main.js', content: 'console.log(1)' }],
+      files: [{ path: 'main.js', url: FIXTURE_URL }],
       outputUploadSlots: [],
       outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
       reportUploadedEndpoint: 'http://proxy/api/sandbox/record_uploaded',
@@ -287,7 +321,7 @@ describe('validateExecuteRequest', () => {
   test('rejects steps with > MAX_STEPS_PER_REQUEST entries', () => {
     const files = Array.from({ length: 11 }, (_, i) => ({
       path: `s${i}.py`,
-      content: 'x',
+      url: `http://proxy/api/storage/s${i}`,
     }));
     const r = validateExecuteRequest({
       executionId: 'abc-123',
@@ -307,8 +341,8 @@ describe('validateExecuteRequest', () => {
       language: 'polyglot',
       steps: ['gen.js', 'qa.py'],
       files: [
-        { path: 'gen.js', content: 'console.log("gen")' },
-        { path: 'qa.py', content: 'print("qa")' },
+        { path: 'gen.js', url: 'http://proxy/api/storage/gen' },
+        { path: 'qa.py', url: 'http://proxy/api/storage/qa' },
       ],
       packagesByLang: {
         python: ['markitdown[pptx]==0.0.1a3'],
@@ -336,8 +370,8 @@ describe('validateExecuteRequest', () => {
       language: 'polyglot',
       steps: ['main.py', 'helper.rb'],
       files: [
-        { path: 'main.py', content: 'print(1)' },
-        { path: 'helper.rb', content: 'puts 1' },
+        { path: 'main.py', url: 'http://proxy/api/storage/main' },
+        { path: 'helper.rb', url: 'http://proxy/api/storage/helper' },
       ],
     });
     expect(r.ok).toBe(false);
@@ -350,7 +384,7 @@ describe('validateExecuteRequest', () => {
       organizationId: 'org_42',
       language: 'polyglot',
       entryPath: 'main.py',
-      files: [{ path: 'main.py', content: 'print(1)' }],
+      files: [{ path: 'main.py', url: FIXTURE_URL }],
       outputUploadSlots: [],
       outputUrlEndpoint: 'http://proxy/api/sandbox/output_upload_url',
       reportUploadedEndpoint: 'http://proxy/api/sandbox/record_uploaded',
@@ -418,8 +452,8 @@ describe('validateExecuteRequest', () => {
       language: 'polyglot',
       steps: ['gen.js', 'qa.py'],
       files: [
-        { path: 'gen.js', content: 'console.log(1)' },
-        { path: 'qa.py', content: 'print(1)' },
+        { path: 'gen.js', url: 'http://proxy/api/storage/gen' },
+        { path: 'qa.py', url: 'http://proxy/api/storage/qa' },
       ],
       packagesByLang: {
         python: Array.from({ length: 15 }, (_, i) => `pkg${i}`),

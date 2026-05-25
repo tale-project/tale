@@ -17,6 +17,7 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { internal } from '../_generated/api';
+import { toSandboxStorageUrl } from '../lib/helpers/public_storage_url';
 import { inferStepLanguage, refinePackagesObject } from './files/_shared';
 import { packageBaseName } from './files/_shared';
 import type { ToolDefinition } from './types';
@@ -284,18 +285,21 @@ The sandbox sees \`/workspace/code/\` (your scripts) and \`/workspace/output/\` 
         };
       }
 
-      // Fetch each workspace file's content to seed the spawner mount.
-      const filesPayload: Array<{ path: string; content: string }> = [];
+      // Mint a Caddy-aliased download URL per workspace file so the spawner
+      // can fetch the bytes itself (binary-safe; bypasses the body cap). No
+      // bytes flow through this action's memory — the spawner streams them
+      // directly from Convex storage via the internal proxy.
+      const filesPayload: Array<{ path: string; url: string }> = [];
       for (const wf of workspaceFiles) {
-        const blob = await ctx.storage.get(wf.storageId);
-        if (blob === null) {
-          console.warn(
-            `[run_code] storage missing for path=${wf.path} storageId=${wf.storageId}`,
-          );
-          continue;
+        const rawUrl = await ctx.storage.getUrl(wf.storageId);
+        if (rawUrl === null) {
+          return {
+            ok: false as const,
+            code: 'STORAGE_MISSING' as const,
+            message: `workspace file storage missing for path=${wf.path} storageId=${wf.storageId}`,
+          };
         }
-        const buf = Buffer.from(await blob.arrayBuffer());
-        filesPayload.push({ path: wf.path, content: buf.toString('utf8') });
+        filesPayload.push({ path: wf.path, url: toSandboxStorageUrl(rawUrl) });
       }
 
       const packagesByLang: { python?: string[]; node?: string[] } = {};

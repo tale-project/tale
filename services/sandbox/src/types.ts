@@ -22,7 +22,13 @@ export interface SandboxFile {
    * parent on write.
    */
   path: string;
-  content: string;
+  /**
+   * URL the spawner GETs to fetch the file bytes. Pre-rewritten through
+   * `toSandboxStorageUrl()` on the platform side to target the internal
+   * Caddy alias (`http://proxy/...`). Binary-safe — bytes are streamed
+   * directly to disk, never JSON-stringified.
+   */
+  url: string;
 }
 
 export interface ExecuteRequest {
@@ -35,10 +41,11 @@ export interface ExecuteRequest {
   /**
    * Files to stage under /workspace/code/<path>. Required: in single-script
    * mode the entry file lives here; in multi-script mode all steps + their
-   * siblings live here. Aggregate size capped at MAX_FILES_BYTES; per-file
-   * path validated against MAX_PATH_LENGTH + POSIX-traversal rules. Path
-   * segments starting with `.` are rejected, so user files can never land
-   * inside `/workspace/.tale/` where the multi-step wrapper goes.
+   * siblings live here. Each entry carries a URL the spawner GETs to fetch
+   * the bytes (binary-safe; replaces the legacy inline `content: string`).
+   * Per-file path validated against MAX_PATH_LENGTH + POSIX-traversal rules.
+   * Path segments starting with `.` are rejected, so user files can never
+   * land inside `/workspace/.tale/` where the multi-step wrapper goes.
    */
   files?: SandboxFile[];
   /**

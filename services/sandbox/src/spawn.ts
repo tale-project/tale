@@ -427,9 +427,121 @@ process.exit(0);
 const PRIOR_FETCH_DEFAULT_TIMEOUT_MS = 30_000;
 const PRIOR_FETCH_DEFAULT_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
 
+// Workspace files (`req.files[]`) share the URL-fetch path with prior outputs
+// but use their own caps so the two ingestion classes can be tuned
+// independently. 30s / 100 MB matches the prior-output budget, which is the
+// natural starting point for the same Caddy-aliased Convex storage URLs.
+const WORKSPACE_FETCH_TIMEOUT_MS = 30_000;
+const WORKSPACE_FETCH_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
+
 interface StagePriorOpts {
   timeoutMs?: number;
   maxBytesPerFile?: number;
+}
+
+type FetchUrlResult =
+  | { ok: true; bytes: number; sha256: string }
+  | { ok: false; reason: PriorStageSkipReason; detail: string };
+
+/**
+ * Fetch `url` into `dest` with timeout, Content-Length pre-check, and
+ * stream-and-cap byte ceiling. Computes sha256 of the bytes. Reused by
+ * both `stagePriorOutputDownloads` (prior-output ingress, skip-on-failure
+ * semantics) and `stageWorkspace`'s `files[]` loop (workspace ingress,
+ * fail-fast semantics). The caller is responsible for validating `dest`
+ * against its own safe-directory boundary before invoking.
+ */
+async function fetchUrlToFile(
+  url: string,
+  dest: string,
+  opts: { timeoutMs: number; maxBytesPerFile: number },
+): Promise<FetchUrlResult> {
+  let res: Response;
+  try {
+    // AbortSignal.timeout caps the round trip so a stalled presigned URL
+    // can't hang stageWorkspace indefinitely (audit follow-up F5).
+    res = await fetch(url, { signal: AbortSignal.timeout(opts.timeoutMs) });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    // AbortSignal.timeout rejects with a DOMException whose `name` is
+    // 'TimeoutError'; surface a distinct reason so the platform can
+    // distinguish "URL was reachable" from "URL hung".
+    const reason: PriorStageSkipReason =
+      err instanceof Error && err.name === 'TimeoutError'
+        ? 'fetch_timeout'
+        : 'fetch_failed';
+    return { ok: false, reason, detail };
+  }
+  if (!res.ok) {
+    // 403/410 from a presigned URL usually means TTL expired — give the
+    // caller a distinct reason so prior-output skip / workspace fail-fast
+    // can both surface a more actionable error than a generic HTTP code.
+    const reason: PriorStageSkipReason =
+      res.status === 403 || res.status === 410 ? 'url_expired' : 'http_error';
+    return { ok: false, reason, detail: `HTTP ${res.status}` };
+  }
+  // Fast-fail on Content-Length when the server provides one — avoids
+  // streaming a known-too-large body just to reject it.
+  const contentLengthHeader = res.headers.get('content-length');
+  if (contentLengthHeader !== null) {
+    const declaredBytes = Number(contentLengthHeader);
+    if (
+      Number.isFinite(declaredBytes) &&
+      declaredBytes > opts.maxBytesPerFile
+    ) {
+      return {
+        ok: false,
+        reason: 'download_too_large',
+        detail: `Content-Length ${declaredBytes} exceeds cap ${opts.maxBytesPerFile}`,
+      };
+    }
+  }
+  try {
+    // Stream-and-cap. Without this a server that lies about (or omits)
+    // Content-Length could still smuggle gigabytes through, filling the
+    // host disk. We abort the read as soon as the running total crosses
+    // the cap.
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    let oversize = false;
+    if (res.body !== null) {
+      const reader = res.body.getReader();
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value === undefined) continue;
+          if (total + value.byteLength > opts.maxBytesPerFile) {
+            oversize = true;
+            break;
+          }
+          chunks.push(value);
+          total += value.byteLength;
+        }
+      } finally {
+        try {
+          reader.releaseLock();
+        } catch (err) {
+          console.warn('[sandbox] fetchUrlToFile reader.releaseLock:', err);
+        }
+      }
+    }
+    if (oversize) {
+      return {
+        ok: false,
+        reason: 'download_too_large',
+        detail: `streamed > ${opts.maxBytesPerFile} bytes`,
+      };
+    }
+    const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+    const sha256 = createHash('sha256').update(buf).digest('hex');
+    await mkdir(dirname(dest), { recursive: true });
+    await writeFile(dest, buf);
+    return { ok: true, bytes: buf.byteLength, sha256 };
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: 'write_failed', detail };
+  }
 }
 
 export async function stagePriorOutputDownloads(
@@ -452,111 +564,26 @@ export async function stagePriorOutputDownloads(
       skipped.push({ name: file.name, reason: 'unsafe_path', detail });
       continue;
     }
-    let res: Response;
-    try {
-      // AbortSignal.timeout caps the round trip so a stalled presigned URL
-      // can't hang stageWorkspace indefinitely (audit follow-up F5).
-      res = await fetch(file.url, { signal: AbortSignal.timeout(timeoutMs) });
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      // AbortSignal.timeout rejects with a DOMException whose `name` is
-      // 'TimeoutError'; surface a distinct reason so the platform can
-      // distinguish "URL was reachable" from "URL hung".
-      const reason: PriorStageSkipReason =
-        err instanceof Error && err.name === 'TimeoutError'
-          ? 'fetch_timeout'
-          : 'fetch_failed';
+    const result = await fetchUrlToFile(file.url, dest, {
+      timeoutMs,
+      maxBytesPerFile,
+    });
+    if (!result.ok) {
       console.warn(
-        `[sandbox] prior-output fetch ${reason} for ${JSON.stringify(file.name)}: ${detail}`,
+        `[sandbox] prior-output ${result.reason} for ${JSON.stringify(file.name)}: ${result.detail}`,
       );
-      skipped.push({ name: file.name, reason, detail });
+      skipped.push({
+        name: file.name,
+        reason: result.reason,
+        detail: result.detail,
+      });
       continue;
     }
-    if (!res.ok) {
-      const detail = `HTTP ${res.status}`;
-      console.warn(
-        `[sandbox] prior-output fetch ${res.status} for ${JSON.stringify(file.name)}`,
-      );
-      // 403/410 from a presigned URL usually means TTL expired — give the
-      // platform side a distinct reason so it can re-mint and retry rather
-      // than failing the run outright (crispy-curry plan §3, url_expired).
-      const reason: PriorStageSkipReason =
-        res.status === 403 || res.status === 410 ? 'url_expired' : 'http_error';
-      skipped.push({ name: file.name, reason, detail });
-      continue;
-    }
-    // Fast-fail on Content-Length when the server provides one — avoids
-    // streaming a known-too-large body just to reject it.
-    const contentLengthHeader = res.headers.get('content-length');
-    if (contentLengthHeader !== null) {
-      const declaredBytes = Number(contentLengthHeader);
-      if (Number.isFinite(declaredBytes) && declaredBytes > maxBytesPerFile) {
-        const detail = `Content-Length ${declaredBytes} exceeds cap ${maxBytesPerFile}`;
-        console.warn(
-          `[sandbox] prior-output download_too_large for ${JSON.stringify(file.name)}: ${detail}`,
-        );
-        skipped.push({
-          name: file.name,
-          reason: 'download_too_large',
-          detail,
-        });
-        continue;
-      }
-    }
-    try {
-      // Stream-and-cap. Without this a server that lies about (or omits)
-      // Content-Length could still smuggle gigabytes through, filling the
-      // host disk. We abort the read as soon as the running total crosses
-      // the cap.
-      const chunks: Uint8Array[] = [];
-      let total = 0;
-      let oversize = false;
-      if (res.body !== null) {
-        const reader = res.body.getReader();
-        try {
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            if (value === undefined) continue;
-            if (total + value.byteLength > maxBytesPerFile) {
-              oversize = true;
-              break;
-            }
-            chunks.push(value);
-            total += value.byteLength;
-          }
-        } finally {
-          try {
-            reader.releaseLock();
-          } catch (err) {
-            console.warn('[sandbox] prior-output reader.releaseLock:', err);
-          }
-        }
-      }
-      if (oversize) {
-        const detail = `streamed > ${maxBytesPerFile} bytes`;
-        console.warn(
-          `[sandbox] prior-output download_too_large for ${JSON.stringify(file.name)}: ${detail}`,
-        );
-        skipped.push({
-          name: file.name,
-          reason: 'download_too_large',
-          detail,
-        });
-        continue;
-      }
-      const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
-      const sha256 = createHash('sha256').update(buf).digest('hex');
-      await mkdir(dirname(dest), { recursive: true });
-      await writeFile(dest, buf);
-      staged.push({ name: file.name, bytes: buf.byteLength, sha256 });
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      console.warn(
-        `[sandbox] failed to pre-stage ${JSON.stringify(file.name)}: ${detail}`,
-      );
-      skipped.push({ name: file.name, reason: 'write_failed', detail });
-    }
+    staged.push({
+      name: file.name,
+      bytes: result.bytes,
+      sha256: result.sha256,
+    });
   }
   // INFO so it's visible in `docker logs tale-sandbox` without having
   // to crank the global log level. Pre-stage is a black box otherwise.
@@ -609,8 +636,15 @@ export async function stageWorkspace(
           `sandbox staging refused unsafe file path: ${JSON.stringify(file.path)}`,
         );
       }
-      await mkdir(dirname(dest), { recursive: true });
-      await writeFile(dest, file.content);
+      const result = await fetchUrlToFile(file.url, dest, {
+        timeoutMs: WORKSPACE_FETCH_TIMEOUT_MS,
+        maxBytesPerFile: WORKSPACE_FETCH_MAX_BYTES,
+      });
+      if (!result.ok) {
+        throw new Error(
+          `sandbox workspace file fetch failed for ${JSON.stringify(file.path)}: ${result.reason} (${result.detail})`,
+        );
+      }
     }
   }
 

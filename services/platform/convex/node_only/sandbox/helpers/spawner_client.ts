@@ -22,7 +22,14 @@ const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
 
 interface SandboxFileBody {
   path: string;
-  content: string;
+  /**
+   * Internal Caddy URL the spawner GETs to fetch the file bytes. Platform
+   * mints each URL via `ctx.storage.getUrl(storageId)` + `toSandboxStorageUrl()`
+   * so the bytes never round-trip through the JSON request body — keeps the
+   * wire binary-safe and unbounded by `maxRequestBodyBytes`. Mirrors
+   * `services/sandbox/src/types.ts:SandboxFile.url`.
+   */
+  url: string;
 }
 
 interface SpawnerExecuteBody {
