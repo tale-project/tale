@@ -626,7 +626,7 @@ export async function stagePriorOutputDownloads(
 const USER_UPLOAD_FETCH_TIMEOUT_MS = 30_000;
 const USER_UPLOAD_FETCH_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
 
-export async function stageUserUploadDownloads(
+async function stageUserUploadDownloads(
   uploadsDir: string,
   downloads: ReadonlyArray<{ name: string; url: string }>,
   opts: StagePriorOpts = {},
