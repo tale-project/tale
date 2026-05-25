@@ -12,6 +12,7 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
+import { toPublicUrl } from '../lib/helpers/public_storage_url';
 import { getAuthUserIdentity } from '../lib/rls';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 
@@ -126,7 +127,7 @@ export const getThreadFileContentUrl = query({
     if (!url) return null;
 
     return {
-      url,
+      url: toPublicUrl(url),
       size: row.size,
       contentType: row.contentType,
       renderHint: row.renderHint,
