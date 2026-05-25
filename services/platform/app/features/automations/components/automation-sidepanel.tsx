@@ -16,12 +16,12 @@ import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { PanelHeader } from '@/app/components/layout/panel-header';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { useResizable } from '@/app/hooks/use-resizable';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useResizable } from '../hooks/use-resizable';
 import { getStepIcon } from '../utils/step-icons';
 import { AutomationTester } from './automation-tester';
 import { NextStepsEditor } from './next-steps-editor';

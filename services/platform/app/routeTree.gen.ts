@@ -68,7 +68,6 @@ import { Route as DashboardIdSettingsProvidersIndexRouteImport } from './routes/
 import { Route as DashboardIdSettingsGovernanceIndexRouteImport } from './routes/dashboard/$id/settings/governance/index';
 import { Route as DashboardIdProjectsProjectIdIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/index';
 import { Route as DashboardIdAgentsAgentIdIndexRouteImport } from './routes/dashboard/$id/agents/$agentId/index';
-import { Route as DashboardIdSettingsSkillsSkillSlugRouteImport } from './routes/dashboard/$id/settings/skills/$skillSlug';
 import { Route as DashboardIdSettingsProvidersProviderNameRouteImport } from './routes/dashboard/$id/settings/providers/$providerName';
 import { Route as DashboardIdSettingsGovernanceUsageRouteImport } from './routes/dashboard/$id/settings/governance/usage';
 import { Route as DashboardIdSettingsGovernanceTrashRouteImport } from './routes/dashboard/$id/settings/governance/trash';
@@ -425,12 +424,6 @@ const DashboardIdAgentsAgentIdIndexRoute =
     path: '/',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
   } as any);
-const DashboardIdSettingsSkillsSkillSlugRoute =
-  DashboardIdSettingsSkillsSkillSlugRouteImport.update({
-    id: '/$skillSlug',
-    path: '/$skillSlug',
-    getParentRoute: () => DashboardIdSettingsSkillsRoute,
-  } as any);
 const DashboardIdSettingsProvidersProviderNameRoute =
   DashboardIdSettingsProvidersProviderNameRouteImport.update({
     id: '/$providerName',
@@ -681,7 +674,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
-  '/dashboard/$id/settings/skills/$skillSlug': typeof DashboardIdSettingsSkillsSkillSlugRoute;
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute;
   '/dashboard/$id/projects/$projectId/': typeof DashboardIdProjectsProjectIdIndexRoute;
   '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute;
@@ -758,7 +750,6 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
-  '/dashboard/$id/settings/skills/$skillSlug': typeof DashboardIdSettingsSkillsSkillSlugRoute;
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdIndexRoute;
   '/dashboard/$id/projects/$projectId': typeof DashboardIdProjectsProjectIdIndexRoute;
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceIndexRoute;
@@ -849,7 +840,6 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
-  '/dashboard/$id/settings/skills/$skillSlug': typeof DashboardIdSettingsSkillsSkillSlugRoute;
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute;
   '/dashboard/$id/projects/$projectId/': typeof DashboardIdProjectsProjectIdIndexRoute;
   '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute;
@@ -939,7 +929,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/trash'
     | '/dashboard/$id/settings/governance/usage'
     | '/dashboard/$id/settings/providers/$providerName'
-    | '/dashboard/$id/settings/skills/$skillSlug'
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/projects/$projectId/'
     | '/dashboard/$id/settings/governance/'
@@ -1016,7 +1005,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/trash'
     | '/dashboard/$id/settings/governance/usage'
     | '/dashboard/$id/settings/providers/$providerName'
-    | '/dashboard/$id/settings/skills/$skillSlug'
     | '/dashboard/$id/agents/$agentId'
     | '/dashboard/$id/projects/$projectId'
     | '/dashboard/$id/settings/governance'
@@ -1106,7 +1094,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/trash'
     | '/dashboard/$id/settings/governance/usage'
     | '/dashboard/$id/settings/providers/$providerName'
-    | '/dashboard/$id/settings/skills/$skillSlug'
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/projects/$projectId/'
     | '/dashboard/$id/settings/governance/'
@@ -1540,13 +1527,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdAgentsAgentIdIndexRouteImport;
       parentRoute: typeof DashboardIdAgentsAgentIdRoute;
     };
-    '/dashboard/$id/settings/skills/$skillSlug': {
-      id: '/dashboard/$id/settings/skills/$skillSlug';
-      path: '/$skillSlug';
-      fullPath: '/dashboard/$id/settings/skills/$skillSlug';
-      preLoaderRoute: typeof DashboardIdSettingsSkillsSkillSlugRouteImport;
-      parentRoute: typeof DashboardIdSettingsSkillsRoute;
-    };
     '/dashboard/$id/settings/providers/$providerName': {
       id: '/dashboard/$id/settings/providers/$providerName';
       path: '/$providerName';
@@ -1974,14 +1954,11 @@ const DashboardIdSettingsProvidersRouteWithChildren =
   );
 
 interface DashboardIdSettingsSkillsRouteChildren {
-  DashboardIdSettingsSkillsSkillSlugRoute: typeof DashboardIdSettingsSkillsSkillSlugRoute;
   DashboardIdSettingsSkillsIndexRoute: typeof DashboardIdSettingsSkillsIndexRoute;
 }
 
 const DashboardIdSettingsSkillsRouteChildren: DashboardIdSettingsSkillsRouteChildren =
   {
-    DashboardIdSettingsSkillsSkillSlugRoute:
-      DashboardIdSettingsSkillsSkillSlugRoute,
     DashboardIdSettingsSkillsIndexRoute: DashboardIdSettingsSkillsIndexRoute,
   };
 

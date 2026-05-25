@@ -2,7 +2,6 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Text } from '@tale/ui/text';
-import { useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
@@ -26,16 +25,18 @@ interface CreateSkillDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
+  /** Called with the new slug after a successful create. */
+  onCreated?: (slug: string) => void;
 }
 
 export function CreateSkillDialog({
   open,
   onOpenChange,
   organizationId,
+  onCreated,
 }: CreateSkillDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const navigate = useNavigate();
   const { mutateAsync: createSkill } = useCreateSkill();
 
   // Skill slugs follow agentskills.io spec: lowercase letters/digits,
@@ -109,10 +110,8 @@ export function CreateSkillDialog({
         title: t('skills.skillCreated', { defaultValue: 'Skill created' }),
         variant: 'success',
       });
-      void navigate({
-        to: '/dashboard/$id/settings/skills/$skillSlug',
-        params: { id: organizationId, skillSlug: data.slug },
-      });
+      onOpenChange(false);
+      onCreated?.(data.slug);
     } catch (error) {
       if (error instanceof ConvexError) {
         const code = error.data?.code;

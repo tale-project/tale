@@ -1360,6 +1360,7 @@
     },
     "aria": {
       "close": "Schließen",
+      "resizePanel": "Panelgröße ändern",
       "hidePassword": "Passwort ausblenden",
       "showPassword": "Passwort anzeigen",
       "dismiss": "Verwerfen",

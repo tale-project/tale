@@ -1360,6 +1360,7 @@
     },
     "aria": {
       "close": "Close",
+      "resizePanel": "Resize panel",
       "hidePassword": "Hide password",
       "showPassword": "Show password",
       "dismiss": "Dismiss",

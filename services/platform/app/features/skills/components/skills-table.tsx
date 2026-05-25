@@ -1,10 +1,9 @@
 'use client';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 import type { Row } from '@tanstack/react-table';
 import { Sparkles } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
@@ -12,6 +11,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useListSkills } from '../hooks/queries';
 import { useSkillsTableConfig } from '../hooks/use-skills-table-config';
+import { SkillDetailPanel } from './skill-detail-panel';
 import { SkillsActionMenu } from './skills-action-menu';
 
 export interface SkillRow {
@@ -30,8 +30,8 @@ interface SkillsTableProps {
 
 export function SkillsTable({ organizationId }: SkillsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [detailSlug, setDetailSlug] = useState<string | null>(null);
   const {
     skills: rawSkills,
     isLoading,
@@ -81,18 +81,9 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
       onDeleted: invalidateSkills,
     });
 
-  const handleRowClick = useCallback(
-    (row: Row<SkillRow>) => {
-      void navigate({
-        to: '/dashboard/$id/settings/skills/$skillSlug',
-        params: {
-          id: organizationId,
-          skillSlug: row.original.slug,
-        },
-      });
-    },
-    [navigate, organizationId],
-  );
+  const handleRowClick = useCallback((row: Row<SkillRow>) => {
+    setDetailSlug(row.original.slug);
+  }, []);
 
   const list = useListPage<SkillRow>({
     dataSource: {
@@ -108,23 +99,40 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
   });
 
   return (
-    <DataTable
-      className="p-4"
-      {...list.tableProps}
-      columns={columns}
-      stickyLayout={stickyLayout}
-      onRowClick={handleRowClick}
-      actionMenu={<SkillsActionMenu organizationId={organizationId} />}
-      error={error ?? undefined}
-      onRetry={() => void refetch()}
-      emptyState={{
-        icon: Sparkles,
-        title: tEmpty('skills.title', { defaultValue: 'No skills yet' }),
-        description: tEmpty('skills.description', {
-          defaultValue:
-            'Skills are reusable instruction bundles you can attach to agents — like a playbook plus optional scripts.',
-        }),
-      }}
-    />
+    <>
+      <DataTable
+        className="p-4"
+        {...list.tableProps}
+        columns={columns}
+        stickyLayout={stickyLayout}
+        onRowClick={handleRowClick}
+        actionMenu={
+          <SkillsActionMenu
+            organizationId={organizationId}
+            onCreated={setDetailSlug}
+          />
+        }
+        error={error ?? undefined}
+        onRetry={() => void refetch()}
+        emptyState={{
+          icon: Sparkles,
+          title: tEmpty('skills.title', { defaultValue: 'No skills yet' }),
+          description: tEmpty('skills.description', {
+            defaultValue:
+              'Skills are reusable instruction bundles you can attach to agents — like a playbook plus optional scripts.',
+          }),
+        }}
+      />
+      {detailSlug != null && (
+        <SkillDetailPanel
+          organizationId={organizationId}
+          slug={detailSlug}
+          onOpenChange={(open) => {
+            if (!open) setDetailSlug(null);
+          }}
+          onSwitchSlug={setDetailSlug}
+        />
+      )}
+    </>
   );
 }

@@ -13,9 +13,14 @@ import { CreateSkillDialog } from './skill-create-dialog';
 
 interface SkillsActionMenuProps {
   organizationId: string;
+  /** Called with the new slug after the create-skill mutation succeeds. */
+  onCreated?: (slug: string) => void;
 }
 
-export function SkillsActionMenu({ organizationId }: SkillsActionMenuProps) {
+export function SkillsActionMenu({
+  organizationId,
+  onCreated,
+}: SkillsActionMenuProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const { t } = useT('settings');
 
@@ -41,6 +46,7 @@ export function SkillsActionMenu({ organizationId }: SkillsActionMenuProps) {
         open={createOpen}
         onOpenChange={setCreateOpen}
         organizationId={organizationId}
+        onCreated={onCreated}
       />
     </>
   );
