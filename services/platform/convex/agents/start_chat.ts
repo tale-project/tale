@@ -7,7 +7,7 @@
  */
 
 import { createFunctionHandle, makeFunctionReference } from 'convex/server';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
@@ -51,6 +51,13 @@ export const startChat = internalMutation({
     agentSlug: v.string(),
     preAllocatedStreamId: v.optional(v.string()),
     capabilityBindings: v.optional(v.array(v.string())),
+    /**
+     * Projects feature: when chatting inside a project, the projectId
+     * is persisted on `threadMetadata` so subsequent turns (and the
+     * system-prompt assembler in `generate_response.ts`) automatically
+     * inherit the project context.
+     */
+    projectId: v.optional(v.id('projects')),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
@@ -86,6 +93,32 @@ export const startChat = internalMutation({
       args.agentConfig,
       args.capabilityBindings,
     );
+
+    // Projects: persist `projectId` on the thread row if the caller
+    // explicitly passed one. Enforce mismatch detection: if the thread
+    // already belongs to a different project, fail loudly — the client
+    // must call `moveThreadToProject` instead of side-channeling via a
+    // chat send.
+    if (args.projectId) {
+      const threadMeta = await ctx.db
+        .query('threadMetadata')
+        .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+        .first();
+      if (threadMeta) {
+        if (threadMeta.projectId && threadMeta.projectId !== args.projectId) {
+          throw new ConvexError({ code: 'PROJECT_MISMATCH' });
+        }
+        if (!threadMeta.projectId) {
+          await ctx.db.patch(threadMeta._id, {
+            projectId: args.projectId,
+            // First entry into a project: thread is personal-in-project
+            // unless owner explicitly opts in via setThreadSharedWithProject.
+            sharedWithProject: false,
+            updatedAt: Date.now(),
+          });
+        }
+      }
+    }
 
     return startAgentChat({
       ctx,

@@ -1,16 +1,17 @@
 'use client';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { useCallback, useMemo } from 'react';
 
 import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
+import {
+  useFormEditor,
+  useRegisterActiveEditor,
+} from '@/app/components/ui/editor';
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { SettingsRow } from '@/app/features/settings/components/settings-row';
-import { SettingsSaveBar } from '@/app/features/settings/components/settings-save-bar';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
@@ -55,7 +56,10 @@ export function OrganizationSettings({
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const existingMetadata = parseMetadata(organization?.metadata);
+  const existingMetadata = useMemo(
+    () => parseMetadata(organization?.metadata),
+    [organization?.metadata],
+  );
 
   const localeOptions = useMemo(
     () =>
@@ -66,65 +70,78 @@ export function OrganizationSettings({
     [tGlobal],
   );
 
-  const form = useForm<OrganizationFormData>({
-    mode: 'onChange',
-    defaultValues: {
-      name: organization?.name || '',
-      defaultLocale: getOrganizationDefaultLocale(organization?.metadata),
+  const initialData = useMemo<OrganizationFormData | undefined>(() => {
+    if (!organization) return undefined;
+    return {
+      name: organization.name || '',
+      defaultLocale: getOrganizationDefaultLocale(organization.metadata),
+    };
+  }, [organization]);
+
+  const save = useCallback(
+    async (data: OrganizationFormData) => {
+      if (!organization) return;
+      try {
+        const updatedMetadata = {
+          ...existingMetadata,
+          defaultLocale: data.defaultLocale,
+        };
+        await authClient.organization.update({
+          organizationId: organization._id,
+          data: {
+            name: data.name.trim() || undefined,
+            metadata: updatedMetadata,
+          },
+        });
+        await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
+        toast({
+          title: tToast('success.organizationUpdated'),
+          variant: 'success',
+        });
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: tToast('error.organizationUpdateFailed'),
+          variant: 'destructive',
+        });
+        throw error;
+      }
     },
+    [existingMetadata, organization, queryClient, toast, tToast],
+  );
+
+  const editor = useFormEditor<OrganizationFormData>({
+    data: initialData,
+    save,
   });
 
-  const { formState, handleSubmit, register, reset, setValue, watch } = form;
-  const { isSubmitting, isDirty, isValid } = formState;
+  useRegisterActiveEditor(editor);
+
+  const { form, isLoading } = editor;
+  const { handleSubmit, register, setValue, watch } = form;
   const defaultLocale = watch('defaultLocale');
-
-  const onSubmit = async (data: OrganizationFormData) => {
-    if (!organization) return;
-
-    try {
-      const updatedMetadata = {
-        ...existingMetadata,
-        defaultLocale: data.defaultLocale,
-      };
-      await authClient.organization.update({
-        organizationId: organization._id,
-        data: {
-          name: data.name.trim() || undefined,
-          metadata: updatedMetadata,
-        },
-      });
-      await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
-      reset(data);
-      toast({
-        title: tToast('success.organizationUpdated'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: tToast('error.organizationUpdateFailed'),
-        variant: 'destructive',
-      });
-    }
-  };
 
   return (
     <SettingsPage
       title={tNav('organization')}
       description={tSettings('menu.organization.description')}
+      narrow
     >
-      <Form id="organization-form" onSubmit={handleSubmit(onSubmit)}>
-        <SettingsSection
-          title={tSettings('organization.detailsTitle')}
-          description={tSettings('organization.detailsDescription')}
+      <SettingsSection
+        title={tSettings('organization.detailsTitle')}
+        description={tSettings('organization.detailsDescription')}
+      >
+        <Form
+          id="organization-form"
+          onSubmit={handleSubmit((values) => save(values))}
         >
-          <Input
-            id="org-name"
-            label={tSettings('organization.title')}
-            {...register('name')}
-            wrapperClassName="max-w-sm"
-          />
-          <div className="max-w-sm">
+          <fieldset disabled={isLoading} className="contents space-y-4">
+            <Input
+              id="org-name"
+              label={tSettings('organization.title')}
+              {...register('name')}
+              wrapperClassName="max-w-sm"
+            />
             <Select
               id="default-locale"
               label={tSettings('organization.defaultLocale')}
@@ -132,37 +149,28 @@ export function OrganizationSettings({
               onValueChange={(value) =>
                 setValue('defaultLocale', value, { shouldDirty: true })
               }
-              disabled={isSubmitting}
+              disabled={editor.isSaving || isLoading}
               options={localeOptions}
+              wrapperClassName="max-w-sm"
             />
-          </div>
+          </fieldset>
+        </Form>
+      </SettingsSection>
+
+      {organization && (
+        <SettingsSection
+          title={tSettings('organization.identifiersTitle')}
+          description={tSettings('organization.identifiersDescription')}
+        >
+          <CopyableField
+            label={tSettings('organization.organizationId')}
+            description={tSettings('organization.organizationIdDescription')}
+            value={organization._id}
+            copyAriaLabel={tSettings('organization.copyOrganizationId')}
+            className="max-w-sm"
+          />
         </SettingsSection>
-
-        {organization && (
-          <SettingsSection
-            title={tSettings('organization.identifiersTitle')}
-            description={tSettings('organization.identifiersDescription')}
-          >
-            <SettingsRow
-              label={tSettings('organization.organizationId')}
-              description={tSettings('organization.organizationIdDescription')}
-            >
-              <CopyableField
-                value={organization._id}
-                copyAriaLabel={tSettings('organization.copyOrganizationId')}
-              />
-            </SettingsRow>
-          </SettingsSection>
-        )}
-      </Form>
-
-      <SettingsSaveBar
-        isDirty={isDirty}
-        isSubmitting={isSubmitting}
-        isValid={isValid}
-        onDiscard={() => reset()}
-        formId="organization-form"
-      />
+      )}
     </SettingsPage>
   );
 }

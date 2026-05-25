@@ -2,11 +2,14 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
-import { useBlocker } from '@tanstack/react-router';
-import { History, Loader2, Save, Undo2 } from 'lucide-react';
+import { History } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import {
+  EditorActions,
+  useRegisterDirtySource,
+  type EditorController,
+} from '@/app/components/ui/editor';
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -36,6 +39,67 @@ interface HistoryEntry {
   date: string;
 }
 
+/**
+ * Top-level keys per tab. Powers the per-tab dirty dot via
+ * `controller.dirtyKeys` ∩ `tab.dirtyKeys`. Webhook has no top-level
+ * fields in `agentJsonSchema` today so it never lights up.
+ */
+const AGENT_TAB_DIRTY_KEYS = {
+  general: [
+    'displayName',
+    'description',
+    'avatarUrl',
+    'primaryBehavior',
+    'visibleInChat',
+    'roleRestriction',
+    'composerMode',
+    'i18n',
+  ],
+  instructions: [
+    'systemInstructions',
+    'supportedModels',
+    'provider',
+    'structuredResponsesEnabled',
+    'maxSteps',
+    'timeoutMs',
+    'outputReserve',
+    'personalizationMode',
+  ],
+  tools: [
+    'toolNames',
+    'integrationBindings',
+    'workflows',
+    'maxIntegrationCallsPerRun',
+  ],
+  knowledge: [
+    'knowledgeMode',
+    'webSearchMode',
+    'includeOrgKnowledge',
+    'includeTeamKnowledge',
+    'knowledgeTopK',
+  ],
+  delegation: ['delegates'],
+  conversationStarters: ['conversationStarters'],
+  webhook: [],
+} as const;
+
+function computeDirtyKeys(
+  config: AgentJsonConfig | null | undefined,
+  savedConfig: AgentJsonConfig | null | undefined,
+): ReadonlySet<string> {
+  const keys = new Set<string>();
+  if (!config || !savedConfig) return keys;
+  // oxlint-disable typescript/no-unsafe-type-assertion -- record reflection
+  const cfg = config as unknown as Record<string, unknown>;
+  const saved = savedConfig as unknown as Record<string, unknown>;
+  // oxlint-enable typescript/no-unsafe-type-assertion
+  const allKeys = new Set([...Object.keys(cfg), ...Object.keys(saved)]);
+  for (const k of allKeys) {
+    if (JSON.stringify(cfg[k]) !== JSON.stringify(saved[k])) keys.add(k);
+  }
+  return keys;
+}
+
 export function AgentNavigation({
   organizationId,
   agentId,
@@ -43,8 +107,15 @@ export function AgentNavigation({
 }: AgentNavigationProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { config, isDirty, isSaving, resetConfig, markSaving, overrideConfig } =
-    useAgentConfig();
+  const {
+    config,
+    initialConfig,
+    isDirty,
+    isSaving,
+    resetConfig,
+    markSaving,
+    overrideConfig,
+  } = useAgentConfig();
   const { formatDate } = useFormatDate();
   const { data: organization } = useOrganization(organizationId);
   const orgDefaultLocale = getOrganizationDefaultLocale(organization?.metadata);
@@ -72,11 +143,9 @@ export function AgentNavigation({
   const [isRestoring, setIsRestoring] = useState(false);
   const [isDiffOpen, setIsDiffOpen] = useState(false);
 
-  const blocker = useBlocker({
-    shouldBlockFn: () => isDirty,
-    enableBeforeUnload: () => isDirty,
-    withResolver: true,
-  });
+  // Register with the page-level DirtyBlockerProvider so the unsaved-changes
+  // dialog fires on navigation away from the agent editor.
+  useRegisterDirtySource(isDirty);
 
   const basePath = `/dashboard/${organizationId}/agents/${agentId}`;
 
@@ -85,57 +154,72 @@ export function AgentNavigation({
       label: t('agents.navigation.general'),
       href: basePath,
       matchMode: 'exact',
+      dirtyKeys: AGENT_TAB_DIRTY_KEYS.general,
     },
     {
       label: t('agents.navigation.instructionsModel'),
       href: `${basePath}/instructions`,
       matchMode: 'exact',
+      dirtyKeys: AGENT_TAB_DIRTY_KEYS.instructions,
     },
     {
       label: t('agents.navigation.tools'),
       href: `${basePath}/tools`,
       matchMode: 'exact',
+      dirtyKeys: AGENT_TAB_DIRTY_KEYS.tools,
     },
     {
       label: t('agents.navigation.knowledge'),
       href: `${basePath}/knowledge`,
       matchMode: 'exact',
+      dirtyKeys: AGENT_TAB_DIRTY_KEYS.knowledge,
     },
     {
       label: t('agents.navigation.delegation'),
       href: `${basePath}/delegation`,
       matchMode: 'exact',
+      dirtyKeys: AGENT_TAB_DIRTY_KEYS.delegation,
     },
     {
       label: t('agents.navigation.conversationStarters'),
       href: `${basePath}/conversation-starters`,
       matchMode: 'exact',
+      dirtyKeys: AGENT_TAB_DIRTY_KEYS.conversationStarters,
     },
     {
       label: t('agents.navigation.webhook'),
       href: `${basePath}/webhook`,
       matchMode: 'exact',
+      dirtyKeys: AGENT_TAB_DIRTY_KEYS.webhook,
     },
   ];
 
-  const handleSave = useCallback(async () => {
+  const dirtyKeys = useMemo(
+    () => computeDirtyKeys(config, initialConfig),
+    [config, initialConfig],
+  );
+
+  const doSave = useCallback(async () => {
     markSaving(true);
+    const priorBaseline = initialConfig;
     try {
-      // Best-effort history snapshot — do not block save on failure
-      await snapshotAction
-        .mutateAsync({ organizationId, agentName: agentId })
-        .catch((err) => console.error('[agent history snapshot]', err));
-
-      // Client-side normalize mirrors what `saveAgent` applies server-side
-      // so `savedConfig` (baseline for isDirty) matches disk truth
-      // immediately — no flash of "unsaved changes" after a successful save.
+      // Save first; only snapshot the prior baseline if the save succeeds.
+      // The legacy order (snapshot → save) left a no-op history entry when
+      // save failed; this is the inherited bug we're fixing.
       const normalized = normalizeAgentConfig(config, orgDefaultLocale);
-
       await saveAction.mutateAsync({
         organizationId,
         agentName: agentId,
         config,
       });
+
+      // Best-effort history snapshot of the PRIOR baseline. Failure is logged
+      // but does not roll back the save.
+      snapshotAction
+        .mutateAsync({ organizationId, agentName: agentId })
+        .catch((err) =>
+          console.warn('[agent history snapshot]', err, priorBaseline),
+        );
 
       overrideConfig(normalized);
       setHistoryEntries([]);
@@ -151,12 +235,14 @@ export function AgentNavigation({
         description: err instanceof Error ? err.message : undefined,
         variant: 'destructive',
       });
+      throw err;
     } finally {
       markSaving(false);
     }
   }, [
     agentId,
     config,
+    initialConfig,
     markSaving,
     onSaved,
     orgDefaultLocale,
@@ -167,9 +253,20 @@ export function AgentNavigation({
     t,
   ]);
 
-  const handleDiscard = useCallback(() => {
-    resetConfig();
-  }, [resetConfig]);
+  // Build an `EditorController` from the legacy context so `EditorActions`
+  // (and any future per-tab consumers) get the unified shape.
+  const editorController: EditorController = useMemo(
+    () => ({
+      isDirty,
+      isSaving,
+      isValid: true,
+      isLoading: false,
+      dirtyKeys,
+      save: doSave,
+      reset: resetConfig,
+    }),
+    [doSave, dirtyKeys, isDirty, isSaving, resetConfig],
+  );
 
   const handleLoadHistory = useCallback(async () => {
     setIsLoadingHistory(true);
@@ -290,51 +387,28 @@ export function AgentNavigation({
         items={navigationItems}
         standalone={false}
         ariaLabel={tCommon('aria.agentsNavigation')}
+        dirtyKeys={dirtyKeys}
       >
-        <div className="ml-auto flex items-center gap-2">
-          <DropdownMenu
-            trigger={
-              <Button variant="secondary" size="sm" className="h-8 text-sm">
-                <History className="mr-1.5 size-3.5" aria-hidden="true" />
-                {t('agents.navigation.history')}
-              </Button>
-            }
-            items={historyMenuItems}
-            align="end"
-            contentClassName="w-64"
-            onOpenChange={(open) => {
-              if (open) void handleLoadHistory();
-            }}
-          />
-
-          {isDirty && (
-            <Button
-              onClick={handleDiscard}
-              variant="secondary"
-              size="sm"
-              disabled={isSaving}
-            >
-              <Undo2 className="mr-1.5 size-3.5" aria-hidden="true" />
-              {tCommon('actions.discard')}
-            </Button>
-          )}
-
-          <Button
-            onClick={() => void handleSave()}
-            disabled={!isDirty || isSaving}
-            size="sm"
-          >
-            {isSaving ? (
-              <Loader2
-                className="mr-1.5 size-3.5 animate-spin"
-                aria-hidden="true"
-              />
-            ) : (
-              <Save className="mr-1.5 size-3.5" aria-hidden="true" />
-            )}
-            {isSaving ? tCommon('actions.saving') : tCommon('actions.save')}
-          </Button>
-        </div>
+        <EditorActions
+          controller={editorController}
+          entityKind="agent"
+          history={
+            <DropdownMenu
+              trigger={
+                <Button variant="secondary" size="sm" className="h-8 text-sm">
+                  <History className="mr-1.5 size-3.5" aria-hidden="true" />
+                  {t('agents.navigation.history')}
+                </Button>
+              }
+              items={historyMenuItems}
+              align="end"
+              contentClassName="w-64"
+              onOpenChange={(open) => {
+                if (open) void handleLoadHistory();
+              }}
+            />
+          }
+        />
       </TabNavigation>
 
       {snapshotConfig && selectedEntry && (
@@ -348,19 +422,6 @@ export function AgentNavigation({
           onRestore={() => void handleRestore()}
         />
       )}
-
-      <ConfirmDialog
-        open={blocker.status === 'blocked'}
-        onOpenChange={(open) => {
-          if (!open) blocker.reset?.();
-        }}
-        title={t('agents.unsavedChanges.title')}
-        description={t('agents.unsavedChanges.description')}
-        confirmText={t('agents.unsavedChanges.leave')}
-        cancelText={t('agents.unsavedChanges.stay')}
-        variant="destructive"
-        onConfirm={() => blocker.proceed?.()}
-      />
     </>
   );
 }

@@ -189,7 +189,7 @@ export function ChatMessages({
   );
   const pendingMemories = useQuery(
     api.user_memories.queries.listPendingMemories,
-    personalizationActive && threadId ? { threadId } : 'skip',
+    personalizationActive.memories && threadId ? { threadId } : 'skip',
   );
 
   const pendingMemoriesByMessageId = useMemo(() => {

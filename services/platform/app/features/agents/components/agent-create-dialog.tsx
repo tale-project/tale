@@ -75,7 +75,6 @@ export function CreateAgentDialog({
       label: m.displayName,
       description: t('agents.form.viaProvider', {
         provider: m.providerName,
-        defaultValue: `via ${m.providerName}`,
       }),
     }));
   }, [providers, t, locale]);
@@ -177,11 +176,7 @@ export function CreateAgentDialog({
         }
         if (code === 'VALIDATION_ERROR') {
           toast({
-            title:
-              error.data?.message ??
-              t('agents.validationError', {
-                defaultValue: 'Invalid agent configuration',
-              }),
+            title: error.data?.message ?? t('agents.validationError'),
             variant: 'destructive',
           });
           return;

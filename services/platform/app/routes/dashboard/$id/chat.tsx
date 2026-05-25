@@ -4,6 +4,7 @@ import { createFileRoute, useMatch, useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { m, AnimatePresence } from 'framer-motion';
 import { Suspense, useState, useEffect, useRef } from 'react';
+import { z } from 'zod';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { PageLayout } from '@/app/components/layout/page-layout';
@@ -46,10 +47,21 @@ const PlanPane = lazyComponent(() =>
   })),
 );
 
+/**
+ * Optional search params for the chat surface. `projectId` is set when the
+ * user opens the chat from a project's "New chat in this project" CTA so
+ * `useSendMessage` can forward it to `chatWithAgent` for server-side
+ * project-access validation.
+ */
+const chatSearchSchema = z.object({
+  projectId: z.string().optional(),
+});
+
 export const Route = createFileRoute('/dashboard/$id/chat')({
   head: () => ({
     meta: seo('chat'),
   }),
+  validateSearch: chatSearchSchema,
   component: ChatLayout,
 });
 

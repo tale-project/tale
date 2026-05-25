@@ -18,6 +18,7 @@ export type PlatformResource =
   | 'integrations'
   | 'onedriveSyncConfigs'
   | 'products'
+  | 'projects'
   | 'vendors'
   | 'websites'
   | 'wfDefinitions' // @deprecated — DB table deprecated; kept as permission subject
@@ -84,6 +85,7 @@ export function defineAbilityFor(role: string | null): AppAbility {
         'customers',
         'documents',
         'products',
+        'projects',
         'vendors',
         'websites',
       ];

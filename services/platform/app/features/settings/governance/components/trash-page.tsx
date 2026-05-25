@@ -194,10 +194,25 @@ export function TrashPage({ organizationId }: Props) {
       />
 
       {isFirstPageLoading ? (
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
+        <div className="border-border overflow-hidden rounded-md border">
+          <div className="bg-muted/40 border-border flex items-center gap-3 border-b px-3 py-2">
+            <Skeleton className="h-3.5 w-16" />
+            <Skeleton className="h-3.5 w-24" />
+            <Skeleton className="h-3.5 w-20" />
+            <Skeleton className="h-3.5 w-16" />
+            <Skeleton className="ml-auto h-3.5 w-20" />
+          </div>
+          <div className="divide-border divide-y">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-3 py-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-5 w-16 rounded" />
+                <Skeleton className="ml-auto h-8 w-20 rounded-md" />
+              </div>
+            ))}
+          </div>
         </div>
       ) : visibleRows.length === 0 ? (
         <div className="border-border rounded-md border p-8 text-center">

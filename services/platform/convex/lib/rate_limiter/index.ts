@@ -173,6 +173,28 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   // ============================================
+  // TIER 3.6: Projects (Token Bucket)
+  // Bounds storage churn from scripted project creation/duplication and
+  // caps blast radius of cascade deletes (which touch every doc + thread).
+  // ============================================
+  'project:create': {
+    kind: 'token bucket',
+    rate: 30,
+    period: MINUTE,
+    capacity: 40,
+    shards: 4,
+  },
+  // Lower than create: cascade delete is destructive and expensive. Allows
+  // a small burst for cleanup workflows but prevents a runaway loop.
+  'project:delete-cascade': {
+    kind: 'token bucket',
+    rate: 5,
+    period: MINUTE,
+    capacity: 8,
+    shards: 4,
+  },
+
+  // ============================================
   // TIER 4: Security (Fixed Window - strict)
   // Prevent brute-force and abuse
   // ============================================

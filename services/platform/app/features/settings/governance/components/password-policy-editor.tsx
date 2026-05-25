@@ -1,12 +1,13 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo } from 'react';
+import { z } from 'zod';
 
+import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -27,6 +28,18 @@ interface PasswordPolicyEditorProps {
   organizationId: string;
 }
 
+interface PasswordPolicyForm {
+  minLength: number;
+  requireUpper: boolean;
+  requireLower: boolean;
+  requireDigit: boolean;
+  requireSpecial: boolean;
+  rotationEnabled: boolean;
+  rotationDays: number;
+}
+
+const FORM_ID = 'governance-password-policy-form';
+
 function parseConfig(raw: unknown): PasswordPolicyConfig {
   const obj = isRecord(raw) ? raw : {};
   const result = passwordPolicyConfigSchema.safeParse(obj);
@@ -46,110 +59,94 @@ export function PasswordPolicyEditor({
   );
   const upsertMutation = useUpsertGovernancePolicy();
 
-  const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
+  const schema = useMemo(
+    () =>
+      z.object({
+        minLength: z
+          .number()
+          .int()
+          .min(6, t('passwordPolicy.invalidMinLength'))
+          .max(128, t('passwordPolicy.invalidMinLength')),
+        requireUpper: z.boolean(),
+        requireLower: z.boolean(),
+        requireDigit: z.boolean(),
+        requireSpecial: z.boolean(),
+        rotationEnabled: z.boolean(),
+        rotationDays: z
+          .number()
+          .int()
+          .min(1, t('passwordPolicy.invalidRotationDays'))
+          .max(3650, t('passwordPolicy.invalidRotationDays')),
+      }),
+    [t],
+  );
 
-  const initializedRef = useRef(false);
-  const [minLength, setMinLength] = useState('');
-  const [requireUpper, setRequireUpper] = useState(false);
-  const [requireLower, setRequireLower] = useState(false);
-  const [requireDigit, setRequireDigit] = useState(false);
-  const [requireSpecial, setRequireSpecial] = useState(false);
-  const [rotationEnabled, setRotationEnabled] = useState(false);
-  const [rotationDays, setRotationDays] = useState('90');
+  const data = useMemo<PasswordPolicyForm | undefined>(() => {
+    if (isLoading) return undefined;
+    const saved = parseConfig(policy?.config);
+    return {
+      minLength: saved.minLength,
+      requireUpper: saved.requireUpper,
+      requireLower: saved.requireLower,
+      requireDigit: saved.requireDigit,
+      requireSpecial: saved.requireSpecial,
+      rotationEnabled: saved.rotationDays > 0,
+      rotationDays: saved.rotationDays > 0 ? saved.rotationDays : 90,
+    };
+  }, [isLoading, policy]);
 
-  if (!isLoading && !initializedRef.current) {
-    initializedRef.current = true;
-    setMinLength(String(savedConfig.minLength));
-    setRequireUpper(savedConfig.requireUpper);
-    setRequireLower(savedConfig.requireLower);
-    setRequireDigit(savedConfig.requireDigit);
-    setRequireSpecial(savedConfig.requireSpecial);
-    setRotationEnabled(savedConfig.rotationDays > 0);
-    setRotationDays(
-      savedConfig.rotationDays > 0 ? String(savedConfig.rotationDays) : '90',
-    );
-  }
+  const save = useCallback(
+    async (values: PasswordPolicyForm) => {
+      try {
+        await upsertMutation.mutateAsync({
+          organizationId,
+          policyType: 'password_policy',
+          config: {
+            minLength: values.minLength,
+            requireUpper: values.requireUpper,
+            requireLower: values.requireLower,
+            requireDigit: values.requireDigit,
+            requireSpecial: values.requireSpecial,
+            rotationDays: values.rotationEnabled ? values.rotationDays : 0,
+          } satisfies PasswordPolicyConfig,
+        });
+        toast({
+          title: t('toastSavedTitle'),
+          description: t('passwordPolicy.saved'),
+          variant: 'success',
+        });
+      } catch (e) {
+        console.error(e);
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description: t('passwordPolicy.saveFailed'),
+          variant: 'destructive',
+        });
+        throw e;
+      }
+    },
+    [organizationId, t, toast, upsertMutation],
+  );
+
+  const editor = useFormEditor<PasswordPolicyForm>({
+    data,
+    schema,
+    save,
+  });
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
-  const currentRotationDays = rotationEnabled ? Number(rotationDays) : 0;
+  const {
+    form: {
+      register,
+      handleSubmit,
+      watch,
+      setValue,
+      formState: { errors },
+    },
+  } = editor;
 
-  const isDirty = useMemo(() => {
-    if (Number(minLength) !== savedConfig.minLength) return true;
-    if (requireUpper !== savedConfig.requireUpper) return true;
-    if (requireLower !== savedConfig.requireLower) return true;
-    if (requireDigit !== savedConfig.requireDigit) return true;
-    if (requireSpecial !== savedConfig.requireSpecial) return true;
-    if (currentRotationDays !== savedConfig.rotationDays) return true;
-    return false;
-  }, [
-    minLength,
-    requireUpper,
-    requireLower,
-    requireDigit,
-    requireSpecial,
-    currentRotationDays,
-    savedConfig,
-  ]);
-
-  const handleSave = useCallback(async () => {
-    const len = Number(minLength);
-    if (!Number.isInteger(len) || len < 6 || len > 128) {
-      toast({
-        title: t('passwordPolicy.invalidMinLength'),
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (rotationEnabled) {
-      const days = Number(rotationDays);
-      if (!Number.isInteger(days) || days < 1 || days > 3650) {
-        toast({
-          title: t('passwordPolicy.invalidRotationDays'),
-          variant: 'destructive',
-        });
-        return;
-      }
-    }
-    try {
-      await upsertMutation.mutateAsync({
-        organizationId,
-        policyType: 'password_policy',
-        config: {
-          minLength: len,
-          requireUpper,
-          requireLower,
-          requireDigit,
-          requireSpecial,
-          rotationDays: rotationEnabled ? Number(rotationDays) : 0,
-        } satisfies PasswordPolicyConfig,
-      });
-      toast({
-        title: t('toastSavedTitle'),
-        description: t('passwordPolicy.saved'),
-        variant: 'success',
-      });
-    } catch (e) {
-      console.error(e);
-      toast({
-        title: t('toastSaveFailedTitle'),
-        description: t('passwordPolicy.saveFailed'),
-        variant: 'destructive',
-      });
-    }
-  }, [
-    minLength,
-    requireUpper,
-    requireLower,
-    requireDigit,
-    requireSpecial,
-    rotationEnabled,
-    rotationDays,
-    organizationId,
-    upsertMutation,
-    toast,
-    t,
-  ]);
+  const rotationEnabled = watch('rotationEnabled') ?? false;
 
   const skeleton = (
     <div className="flex flex-col gap-6">
@@ -163,7 +160,6 @@ export function PasswordPolicyEditor({
           <Skeleton className="h-8 w-full rounded-md" />
           <Skeleton className="mt-0.5 h-3 w-56 max-w-full" />
         </div>
-
         <div className="flex flex-col gap-5">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="flex items-center gap-3">
@@ -176,19 +172,12 @@ export function PasswordPolicyEditor({
           <Skeleton className="h-3.5 w-40" />
           <Skeleton className="h-[1.15rem] w-8 rounded-full" />
         </div>
-        {rotationEnabled && (
-          <div className="flex flex-col gap-1.5">
-            <Skeleton className="h-3.5 w-32" />
-            <Skeleton className="h-8 w-full rounded-md" />
-            <Skeleton className="mt-0.5 h-3 w-56 max-w-full" />
-          </div>
-        )}
         <Skeleton className="h-8 w-20 rounded-md" />
       </div>
     </div>
   );
 
-  if (isLoading || !initializedRef.current) {
+  if (isLoading) {
     return <div aria-busy="true">{skeleton}</div>;
   }
 
@@ -197,87 +186,100 @@ export function PasswordPolicyEditor({
       title={t('passwordPolicy.title')}
       description={t('passwordPolicy.description')}
     >
-      <Stack gap={6} className="max-w-2xl">
-        <Stack gap={4}>
-          <div>
-            <Input
-              label={t('passwordPolicy.minLength')}
-              type="number"
-              value={minLength}
-              onChange={(e) => setMinLength(e.target.value)}
-              disabled={cannotManage}
-              size="sm"
-              min={6}
-              max={128}
-              step={1}
-            />
-            <Text variant="muted" className="mt-1 text-xs">
-              {t('passwordPolicy.minLengthHint')}
-            </Text>
-          </div>
-
-          <Checkbox
-            label={t('passwordPolicy.requireUpper')}
-            checked={requireUpper}
-            onCheckedChange={(v) => setRequireUpper(Boolean(v))}
-            disabled={cannotManage}
-          />
-          <Checkbox
-            label={t('passwordPolicy.requireLower')}
-            checked={requireLower}
-            onCheckedChange={(v) => setRequireLower(Boolean(v))}
-            disabled={cannotManage}
-          />
-          <Checkbox
-            label={t('passwordPolicy.requireDigit')}
-            checked={requireDigit}
-            onCheckedChange={(v) => setRequireDigit(Boolean(v))}
-            disabled={cannotManage}
-          />
-          <Checkbox
-            label={t('passwordPolicy.requireSpecial')}
-            checked={requireSpecial}
-            onCheckedChange={(v) => setRequireSpecial(Boolean(v))}
-            disabled={cannotManage}
-          />
-
-          <Switch
-            label={t('passwordPolicy.rotationEnabled')}
-            checked={rotationEnabled}
-            onCheckedChange={setRotationEnabled}
-            disabled={cannotManage || upsertMutation.isPending}
-          />
-          {rotationEnabled && (
-            <div>
-              <Input
-                label={t('passwordPolicy.rotationDays')}
-                type="number"
-                value={rotationDays}
-                onChange={(e) => setRotationDays(e.target.value)}
-                disabled={cannotManage}
-                size="sm"
-                min={1}
-                max={3650}
-                step={1}
-              />
-              <Text variant="muted" className="mt-1 text-xs">
-                {t('passwordPolicy.rotationDaysHint')}
-              </Text>
-            </div>
-          )}
-        </Stack>
-
-        <Button
-          onClick={handleSave}
-          disabled={cannotManage || upsertMutation.isPending || !isDirty}
-          size="sm"
-          className="self-start"
+      <form id={FORM_ID} onSubmit={handleSubmit((values) => save(values))}>
+        <fieldset
+          disabled={cannotManage || editor.isLoading}
+          className="contents"
         >
-          {upsertMutation.isPending
-            ? t('systemPrompt.saving')
-            : t('systemPrompt.save')}
-        </Button>
-      </Stack>
+          <Stack gap={6} className="max-w-2xl">
+            <Stack gap={4}>
+              <div>
+                <Input
+                  label={t('passwordPolicy.minLength')}
+                  type="number"
+                  size="sm"
+                  min={6}
+                  max={128}
+                  step={1}
+                  errorMessage={errors.minLength?.message}
+                  {...register('minLength', { valueAsNumber: true })}
+                />
+                <Text variant="muted" className="mt-1 text-xs">
+                  {t('passwordPolicy.minLengthHint')}
+                </Text>
+              </div>
+
+              <Checkbox
+                label={t('passwordPolicy.requireUpper')}
+                checked={watch('requireUpper') ?? false}
+                onCheckedChange={(v) =>
+                  setValue('requireUpper', Boolean(v), { shouldDirty: true })
+                }
+                disabled={cannotManage}
+              />
+              <Checkbox
+                label={t('passwordPolicy.requireLower')}
+                checked={watch('requireLower') ?? false}
+                onCheckedChange={(v) =>
+                  setValue('requireLower', Boolean(v), { shouldDirty: true })
+                }
+                disabled={cannotManage}
+              />
+              <Checkbox
+                label={t('passwordPolicy.requireDigit')}
+                checked={watch('requireDigit') ?? false}
+                onCheckedChange={(v) =>
+                  setValue('requireDigit', Boolean(v), { shouldDirty: true })
+                }
+                disabled={cannotManage}
+              />
+              <Checkbox
+                label={t('passwordPolicy.requireSpecial')}
+                checked={watch('requireSpecial') ?? false}
+                onCheckedChange={(v) =>
+                  setValue('requireSpecial', Boolean(v), { shouldDirty: true })
+                }
+                disabled={cannotManage}
+              />
+
+              <Switch
+                label={t('passwordPolicy.rotationEnabled')}
+                checked={rotationEnabled}
+                onCheckedChange={(v) =>
+                  setValue('rotationEnabled', v, { shouldDirty: true })
+                }
+                disabled={cannotManage || editor.isSaving}
+              />
+              {rotationEnabled && (
+                <div>
+                  <Input
+                    label={t('passwordPolicy.rotationDays')}
+                    type="number"
+                    size="sm"
+                    min={1}
+                    max={3650}
+                    step={1}
+                    errorMessage={errors.rotationDays?.message}
+                    {...register('rotationDays', { valueAsNumber: true })}
+                  />
+                  <Text variant="muted" className="mt-1 text-xs">
+                    {t('passwordPolicy.rotationDaysHint')}
+                  </Text>
+                </div>
+              )}
+            </Stack>
+
+            <HStack justify="end">
+              <EditorActions
+                controller={editor}
+                formId={FORM_ID}
+                canEdit={!cannotManage}
+                entityKind="governance_password_policy"
+              />
+            </HStack>
+          </Stack>
+        </fieldset>
+      </form>
     </PageSection>
   );
 }

@@ -78,7 +78,8 @@ const POLICY_TYPES_READABLE_BY_MEMBER: ReadonlySet<string> = new Set([
   'feature_flags',
   'pii_config',
   'chat_filter',
-  'personalization',
+  'custom_instructions',
+  'user_memories',
   'upload_policy',
   'default_models',
 ]);

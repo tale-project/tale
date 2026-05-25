@@ -3,7 +3,6 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -16,6 +15,7 @@ import { useT } from '@/lib/i18n/client';
 import { TopAgentsTable } from './top-agents-table';
 import { TopModelsTable } from './top-models-table';
 import { TopVoiceModelsTable } from './top-voice-models-table';
+import { UsageMetricsPageSkeleton } from './usage-metrics-page-skeleton';
 import { UsageSummaryCards } from './usage-summary-cards';
 import {
   UsageTrendChart,
@@ -107,48 +107,8 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
   const hasFilters =
     agentSlug !== undefined || model !== undefined || provider !== undefined;
 
-  const tableSkeleton = (
-    <div className="flex flex-col gap-4">
-      <Skeleton className="h-4 w-24" />
-      <Skeleton className="h-66 w-full rounded-md" />
-    </div>
-  );
-
-  const skeleton = (
-    <Stack gap={6}>
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="h-3 w-80 max-w-full" />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Skeleton className="h-8 w-36 rounded-md" />
-          <Skeleton className="h-8 w-36 rounded-md" />
-          <Skeleton className="h-8 w-36 rounded-md" />
-        </div>
-      </div>
-      <div className="border-border grid grid-cols-2 overflow-hidden rounded-lg border md:grid-cols-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="border-border flex flex-col gap-2 border-r px-5 py-6 last:border-r-0"
-          >
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-7 w-20" />
-          </div>
-        ))}
-      </div>
-      <Skeleton className="h-92 w-full rounded-md" />
-      <div className="flex flex-col gap-8">
-        {tableSkeleton}
-        {tableSkeleton}
-        {tableSkeleton}
-      </div>
-    </Stack>
-  );
-
   if (isLoading) {
-    return <div aria-busy="true">{skeleton}</div>;
+    return <UsageMetricsPageSkeleton />;
   }
 
   return (

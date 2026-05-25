@@ -1,6 +1,7 @@
 'use client';
 
-import { Copy, Trash2 } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { Copy, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import {
@@ -29,9 +30,21 @@ export function AgentRowActions({
 }: AgentRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t } = useT('settings');
+  const navigate = useNavigate();
   const dialogs = useEntityRowDialogs(['delete']);
   const { mutateAsync: duplicateAgent } = useDuplicateAgent();
   const [isDuplicating, setIsDuplicating] = useState(false);
+
+  // U1: Rename navigates to the agent's general settings page where the
+  // displayName field lives. A dedicated rename mutation isn't worth the
+  // complexity for the per-locale `displayName` shape; the focused edit
+  // page lets the user rename in any locale.
+  const handleRename = useCallback(() => {
+    void navigate({
+      to: '/dashboard/$id/agents/$agentId',
+      params: { id: organizationId, agentId: agentName },
+    });
+  }, [navigate, organizationId, agentName]);
 
   const handleDuplicate = useCallback(async () => {
     if (isDuplicating) return;
@@ -74,6 +87,13 @@ export function AgentRowActions({
       label: tCommon('duplicate'),
       icon: Copy,
       onClick: () => void handleDuplicate(),
+    },
+    {
+      key: 'rename',
+      label: tCommon('rename'),
+      icon: Pencil,
+      onClick: handleRename,
+      visible: !isProtected,
     },
     {
       key: 'delete',

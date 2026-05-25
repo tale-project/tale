@@ -2,7 +2,7 @@
 
 import { BottomTabBar, type BottomTabBarItem } from '@tale/ui/bottom-tab-bar';
 import { useLocation, useNavigate } from '@tanstack/react-router';
-import { Bot, BrainIcon, Inbox, MessageCircle, Network } from 'lucide-react';
+import { Bot, BrainIcon, Folder, Inbox, MessageCircle } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
@@ -36,6 +36,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const ability = useAbility();
   const { accentColor } = useBrandingContext();
   const { t: tNav } = useT('navigation');
+  const { t: tProjects } = useT('projects');
 
   const tabs = useMemo<PrimaryTab[]>(
     () => [
@@ -45,6 +46,14 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         icon: MessageCircle,
         to: `/dashboard/${organizationId}/chat`,
         activePrefix: `/dashboard/${organizationId}/chat`,
+      },
+      {
+        key: 'projects',
+        label: tProjects('title'),
+        icon: Folder,
+        to: `/dashboard/${organizationId}/projects`,
+        activePrefix: `/dashboard/${organizationId}/projects`,
+        gate: () => ability.can('read', 'projects'),
       },
       {
         key: 'conversations',
@@ -68,24 +77,16 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         to: `/dashboard/${organizationId}/documents`,
         activePrefix: `/dashboard/${organizationId}/documents`,
       },
-      {
-        key: 'automations',
-        label: tNav('automationsShort'),
-        icon: Network,
-        to: `/dashboard/${organizationId}/automations`,
-        activePrefix: `/dashboard/${organizationId}/automations`,
-        gate: () => ability.can('write', 'wfDefinitions'),
-      },
     ],
-    [ability, organizationId, tNav],
+    [ability, organizationId, tNav, tProjects],
   );
 
   // Publish the bar's measured height as `--mobile-nav-height` so the
   // dashboard `<main>` can reserve exactly the right padding-bottom.
   // `BottomTabBar` labels are `line-clamp-2`, so locales with long words
-  // (de: "Konversationen", "Automationen") wrap and grow the bar past
-  // any hard-coded reservation. ResizeObserver keeps the var in sync
-  // when fonts load, the locale switches, or rotation reflows labels.
+  // (e.g. de: "Konversationen") wrap and grow the bar past any hard-coded
+  // reservation. ResizeObserver keeps the var in sync when fonts load,
+  // the locale switches, or rotation reflows labels.
   const navRef = useRef<HTMLElement>(null);
   useEffect(() => {
     const el = navRef.current;

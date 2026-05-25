@@ -13,7 +13,7 @@
  * - resolveAgentConfig logic inlined to avoid extra Convex action scheduling
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import { internal } from '../_generated/api';
@@ -66,6 +66,17 @@ export const chatWithAgent = action({
         language: v.string(),
       }),
     ),
+    /**
+     * Projects feature: when the chat is sent from inside a project,
+     * the client passes the `projectId`. The server validates access
+     * via `hasProjectAccess` and persists it on `threadMetadata` so
+     * subsequent turns (and the system-prompt assembler) automatically
+     * pick up the project instructions + RAG file scope. If the
+     * existing thread already has a different `projectId`, the call
+     * throws `PROJECT_MISMATCH` — the client must explicitly call
+     * `moveThreadToProject` to retarget the thread.
+     */
+    projectId: v.optional(v.id('projects')),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
@@ -99,6 +110,44 @@ export const chatWithAgent = action({
     console.log(
       `[chatWithAgent] markGenerating OK threadId=${args.threadId} streamId=${preAllocatedStreamId} userId=${authUserId}`,
     );
+
+    // Projects: if the caller passed a projectId, validate access before
+    // we go further. Reusing `hasProjectAccess` server-side as
+    // defense-in-depth — the UI also enforces this, but a direct API call
+    // must not bypass it.
+    if (args.projectId) {
+      let projectAccess: { allowed: boolean; reason?: string };
+      try {
+        projectAccess = await ctx.runQuery(
+          internal.projects.internal_queries.assertProjectAccessForChat,
+          {
+            projectId: args.projectId,
+            organizationId: args.organizationId,
+            userId: authUserId,
+          },
+        );
+      } catch (err) {
+        await ctx.runMutation(
+          internal.threads.internal_mutations.clearGenerationStatus,
+          { threadId: args.threadId, streamId: preAllocatedStreamId },
+        );
+        throw err;
+      }
+      if (!projectAccess.allowed) {
+        await ctx.runMutation(
+          internal.threads.internal_mutations.clearGenerationStatus,
+          { threadId: args.threadId, streamId: preAllocatedStreamId },
+        );
+        throw new ConvexError({
+          code:
+            projectAccess.reason === 'not_found'
+              ? 'PROJECT_NOT_FOUND'
+              : projectAccess.reason === 'org_mismatch'
+                ? 'PROJECT_ORG_MISMATCH'
+                : 'PROJECT_FORBIDDEN',
+        });
+      }
+    }
 
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
 
@@ -287,6 +336,7 @@ export const chatWithAgent = action({
         agentSlug: args.agentSlug,
         preAllocatedStreamId,
         capabilityBindings: args.capabilityBindings,
+        projectId: args.projectId,
       });
     } catch (err) {
       await rollbackGenerating();

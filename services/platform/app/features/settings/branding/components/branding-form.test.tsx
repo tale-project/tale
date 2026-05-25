@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import {
-  cleanup,
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-} from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
 // Mock next-intl
@@ -77,26 +71,8 @@ describe('BrandingForm', () => {
     expect(screen.getByText('branding.accentColor')).toBeInTheDocument();
   });
 
-  it('hides save button when form is clean', () => {
-    render(<BrandingForm {...defaultProps} />);
-
-    expect(
-      screen.queryByRole('button', { name: 'actions.saveChanges' }),
-    ).not.toBeInTheDocument();
-  });
-
-  it('shows save button when form is dirty', async () => {
-    render(<BrandingForm {...defaultProps} />);
-
-    const input = screen.getByLabelText('branding.appName', { exact: false });
-    fireEvent.change(input, { target: { value: 'Acme Corp' } });
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: 'actions.saveChanges' }),
-      ).toBeInTheDocument();
-    });
-  });
+  // Save/Discard are rendered by the parent settings TabNavigation via the
+  // active-editor registry — BrandingForm no longer owns those buttons.
 
   it('populates form with existing branding data', () => {
     render(

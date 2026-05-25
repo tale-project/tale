@@ -81,7 +81,9 @@ export function AuditLogTable({
               />
               <DetailRow
                 label={t('logs.audit.columns.action')}
-                value={selectedLog.action.replace(/_/g, ' ')}
+                value={t('logs.audit.actionLabels.' + selectedLog.action, {
+                  defaultValue: selectedLog.action.replace(/_/g, ' '),
+                })}
               />
               <DetailRow
                 label={t('logs.audit.columns.actor')}
@@ -95,7 +97,7 @@ export function AuditLogTable({
               )}
               <DetailRow
                 label={t('logs.audit.columns.actorType')}
-                value={selectedLog.actorType}
+                value={t('logs.audit.actorTypeLabels.' + selectedLog.actorType)}
               />
               {selectedLog.actorRole && (
                 <DetailRow
@@ -105,11 +107,14 @@ export function AuditLogTable({
               )}
               <DetailRow
                 label={t('logs.audit.columns.category')}
-                value={selectedLog.category}
+                value={t('logs.audit.categoryLabels.' + selectedLog.category)}
               />
               <DetailRow
                 label={t('logs.audit.columns.resource')}
-                value={selectedLog.resourceType}
+                value={t(
+                  'logs.audit.resourceTypeLabels.' + selectedLog.resourceType,
+                  { defaultValue: selectedLog.resourceType.replace(/_/g, ' ') },
+                )}
               />
               {selectedLog.resourceId && (
                 <DetailRow
@@ -125,7 +130,7 @@ export function AuditLogTable({
               )}
               <DetailRow
                 label={t('logs.audit.columns.status')}
-                value={selectedLog.status}
+                value={t('logs.audit.statusLabels.' + selectedLog.status)}
               />
               {selectedLog.errorMessage && (
                 <DetailRow

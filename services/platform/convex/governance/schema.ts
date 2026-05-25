@@ -19,6 +19,17 @@ export const GOVERNANCE_POLICY_TYPES = [
   'two_factor_policy',
   'chat_filter',
   'moderation_provider',
+  // Org-level default for the custom-instructions feature. Per-user
+  // `userPreferences.customInstructionsEnabled` may override.
+  'custom_instructions',
+  // Org-level default for the user-memories feature (memory injection +
+  // `propose_memory` tool). Per-user `userPreferences.memoriesEnabled`
+  // may override.
+  'user_memories',
+  // Legacy combined toggle retained so the schema validates pre-split
+  // rows during the deploy window in which
+  // `migrations/split_personalization_toggle` drains it into the
+  // `custom_instructions` and `user_memories` policies.
   'personalization',
   // Org-level kill switch for the voice-output (TTS) feature. Missing row
   // → effective default ON (existing deployments keep their current

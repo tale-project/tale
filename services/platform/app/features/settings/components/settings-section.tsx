@@ -15,7 +15,7 @@ const sectionVariants = cva('flex flex-col', {
     },
   },
   defaultVariants: {
-    gap: 5,
+    gap: 4,
   },
 });
 

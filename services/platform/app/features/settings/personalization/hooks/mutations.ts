@@ -5,8 +5,14 @@ export function useUpsertMyPreferences() {
   return useConvexMutation(api.user_preferences.mutations.upsertMyPreferences);
 }
 
-export function useSetPersonalizationEnabled() {
-  return useConvexMutation(api.user_preferences.mutations.setEnabled);
+export function useSetCustomInstructionsEnabled() {
+  return useConvexMutation(
+    api.user_preferences.mutations.setCustomInstructionsEnabled,
+  );
+}
+
+export function useSetMemoriesEnabled() {
+  return useConvexMutation(api.user_preferences.mutations.setMemoriesEnabled);
 }
 
 export function useApprovePendingMemory() {

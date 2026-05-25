@@ -29,6 +29,12 @@ export interface TabNavigationItem {
   search?: Record<string, unknown>;
   /** Optional trailing element rendered after the label (e.g. status badge) */
   trailing?: ReactNode;
+  /**
+   * Top-level controller keys whose dirty state should surface as a dot on
+   * this tab. Intersect with `TabNavigation.dirtyKeys` from a parent editor
+   * controller. Omit to never render the dot.
+   */
+  dirtyKeys?: readonly string[];
 }
 
 export interface TabNavigationProps {
@@ -50,6 +56,12 @@ export interface TabNavigationProps {
    * @default true
    */
   standalone?: boolean;
+  /**
+   * Set of top-level controller keys currently dirty. When supplied, any
+   * tab whose `dirtyKeys` intersects the set renders a small dot before
+   * the label. Drives the per-tab "unsaved changes" indicator.
+   */
+  dirtyKeys?: ReadonlySet<string>;
 }
 
 export function TabNavigation({
@@ -60,6 +72,7 @@ export function TabNavigation({
   prefetch = true,
   children,
   standalone = true,
+  dirtyKeys,
 }: TabNavigationProps) {
   const location = useLocation();
   const pathname = location.pathname;
@@ -100,15 +113,22 @@ export function TabNavigation({
     [accessibleItems, isPathActive],
   );
 
-  // Update indicator position
+  // Update indicator position. Skip the setState when the measured values
+  // are unchanged — otherwise a `ResizeObserver` re-attach (which fires the
+  // callback synchronously on observe()) would queue a redundant re-render
+  // each cycle, and a parent that produces a fresh `items` array per render
+  // would feed that cycle into a max-update-depth loop.
   const updateIndicator = useCallback(() => {
     if (activeIndex !== -1 && itemRefs.current[activeIndex]) {
       const activeElement = itemRefs.current[activeIndex];
       if (activeElement) {
-        setIndicatorStyle({
-          width: activeElement.offsetWidth,
-          left: activeElement.offsetLeft,
-        });
+        const nextWidth = activeElement.offsetWidth;
+        const nextLeft = activeElement.offsetLeft;
+        setIndicatorStyle((prev) =>
+          prev.width === nextWidth && prev.left === nextLeft
+            ? prev
+            : { width: nextWidth, left: nextLeft },
+        );
 
         // Enable animations after first position is set
         if (!hasInitialized.current) {
@@ -185,6 +205,9 @@ export function TabNavigation({
         const hrefSearch = queryString
           ? Object.fromEntries(new URLSearchParams(queryString))
           : undefined;
+        const isItemDirty =
+          dirtyKeys !== undefined &&
+          (item.dirtyKeys?.some((k) => dirtyKeys.has(k)) ?? false);
 
         return (
           <Link
@@ -197,12 +220,18 @@ export function TabNavigation({
             preload={prefetch ? 'render' : false}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
-              "relative h-full flex items-center py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0 rounded-sm focus-visible:outline-none focus-visible:after:content-[''] focus-visible:after:absolute focus-visible:after:-inset-x-1 focus-visible:after:inset-y-0.5 focus-visible:after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset focus-visible:after:pointer-events-none",
+              "relative h-full flex items-center gap-1.5 py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0 rounded-sm focus-visible:outline-none focus-visible:after:content-[''] focus-visible:after:absolute focus-visible:after:-inset-x-1 focus-visible:after:inset-y-0.5 focus-visible:after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset focus-visible:after:pointer-events-none",
               isActive
                 ? 'text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
+            {isItemDirty && (
+              <span
+                aria-hidden="true"
+                className="inline-block size-1.5 rounded-full bg-amber-500"
+              />
+            )}
             {item.label}
             {item.trailing}
           </Link>

@@ -267,7 +267,7 @@ export function AutomationSidePanel({
 
     toast({
       title: t('sidePanel.stepSaveFailed'),
-      description: 'Step saving is not yet wired to file-based workflows.',
+      description: t('sidePanel.fileBasedStepSaveUnsupported'),
       variant: 'destructive',
     });
   }, [step, parsedEditedConfig, isValid, isDirty, t]);

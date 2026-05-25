@@ -1,18 +1,4 @@
 {
-  "common": {
-    "actions": {
-      "close": "Schliessen"
-    },
-    "aria": {
-      "close": "Schliessen",
-      "zoomIn": "Vergrössern"
-    }
-  },
-  "tables": {
-    "headers": {
-      "size": "Grösse"
-    }
-  },
   "auth": {
     "validation": {
       "passwordUppercase": "Passwort muss einen Grossbuchstaben enthalten"
@@ -26,18 +12,6 @@
       "description": "Dein Passwort ist gemäss der Rotationsrichtlinie der Organisation abgelaufen. Lege ein neues Passwort fest, um fortzufahren."
     }
   },
-  "settings": {
-    "agents": {
-      "knowledge": {
-        "fileTooLarge": "Datei zu gross"
-      }
-    },
-    "integrations": {
-      "sso": {
-        "excludeGroupsLabel": "Gruppen ausschliessen"
-      }
-    }
-  },
   "automations": {
     "triggers": {
       "schedules": {
@@ -47,6 +21,23 @@
     "sidePanel": {
       "close": "Panel schliessen",
       "resizePanel": "Panel-Grösse ändern"
+    }
+  },
+  "chat": {
+    "budgetWarningDismiss": "Schliessen",
+    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB.",
+    "canvas": {
+      "close": "Canvas schliessen",
+      "resizeHandle": "Canvas-Grösse ändern"
+    }
+  },
+  "common": {
+    "actions": {
+      "close": "Schliessen"
+    },
+    "aria": {
+      "close": "Schliessen",
+      "zoomIn": "Vergrössern"
     }
   },
   "conversations": {
@@ -60,18 +51,6 @@
       }
     }
   },
-  "todoList": {
-    "paneClose": "Plan schliessen",
-    "paneResizeHandle": "Planbereich vergrössern"
-  },
-  "chat": {
-    "budgetWarningDismiss": "Schliessen",
-    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB.",
-    "canvas": {
-      "close": "Canvas schliessen",
-      "resizeHandle": "Canvas-Grösse ändern"
-    }
-  },
   "documents": {
     "preview": {
       "closePreview": "Vorschau schliessen",
@@ -82,11 +61,6 @@
     "upload": {
       "fileTooLarge": "Datei zu gross",
       "fileSizeExceeded": "Datei {name} überschreitet das Limit von {maxSize} MB. Aktuelle Grösse: {currentSize} MB"
-    }
-  },
-  "twoFactor": {
-    "setup": {
-      "qrInstructions": "Scanne den QR-Code mit einer Authenticator-App (Google Authenticator, 1Password, Authy) und gib anschliessend den 6-stelligen Code unten ein."
     }
   },
   "governance": {
@@ -106,152 +80,88 @@
     "contentSafety": {
       "wordsDescription": "Ein Wort oder eine Phrase pro Zeile. Gross-/Kleinschreibung egal. Für CJK/Thai/Laotisch wird automatisch Teilstring-Matching verwendet; andere Schriften nutzen Unicode-basierte Wortgrenzen."
     },
+    "legalHold": {
+      "sections": {
+        "releaseRequests": {
+          "description": "Ausstehende Anträge müssen von einem anderen Admin genehmigt werden. Genehmigte Anträge warten anschliessend die Cooldown-Phase ab."
+        },
+        "matters": {
+          "description": "Holds nach Fall gruppieren. Beim Schliessen eines Falls werden Freigabeanträge für alle verknüpften Holds eingereicht (weiterhin mit Vier-Augen-Genehmigung)."
+        }
+      },
+      "actions": {
+        "closeMatter": "Fall schliessen"
+      },
+      "dialogs": {
+        "rejectRelease": {
+          "description": "Die Ablehnung schliesst den Antrag, ohne den Hold freizugeben."
+        },
+        "upsertMatter": {
+          "description": "Verwandte Holds unter einem Fall gruppieren. Beim späteren Schliessen werden Freigabeanträge für alle verknüpften Holds eingereicht."
+        },
+        "closeMatter": {
+          "title": "Fall schliessen",
+          "description": "Beim Schliessen werden Freigabeanträge für {count} aktive verknüpfte Hold(s) eingereicht. Jede Freigabe benötigt weiterhin Vier-Augen-Genehmigung.",
+          "submit": "Fall schliessen"
+        }
+      }
+    },
     "dataSubjectRequests": {
       "reasonCodes": {
         "unlawful_processing": {
           "label": "Unrechtmässige Verarbeitung"
         }
       }
+    },
+    "dsarPolicy": {
+      "ownerOnlyNotice": "Nur der Owner kann diese Richtlinie ändern. Admins können sie lesen. Jede Lockerung der Schutzmassnahmen (kürzere Karenzzeit, Deaktivieren der Doppelfreigabe, Anheben des täglichen Limits) wird 24 Stunden lang gestaffelt, damit jeder Admin sie zurücksetzen kann."
     }
   },
   "personalization": {
     "page": {
-      "description": "Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken. Standardmässig aus — unten aktivieren.",
-      "orgDefault": {
-        "description": "Wenn aktiviert, ist Personalisierung für alle Mitglieder dieser Organisation standardmässig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl."
-      },
       "customInstructions": {
         "placeholder": "z. B. Antworte knapp. Verwende standardmässig TypeScript bei Code-Themen."
       }
     }
   },
-  "piiTypes": {
-    "email": "E-Mail",
-    "phone": "Telefon",
-    "creditCard": "Kreditkarte",
-    "cvc": "Karten-CVC",
-    "iban": "IBAN",
-    "ipAddress": "IP-Adresse",
-    "ssn": "SSN",
-    "dateOfBirth": "Geburtsdatum",
-    "address": "Adresse",
-    "de-personalausweis": "Personalausweis",
-    "at-passport": "Reisepass AT",
-    "fr-nir": "Sozialversicherungs-Nr.",
-    "fr-passport": "Reisepass FR",
-    "it-codice-fiscale": "Steuernummer",
-    "it-passport": "Reisepass IT",
-    "nl-bsn": "BSN",
-    "nl-passport": "Reisepass NL",
-    "es-dni": "DNI",
-    "es-nie": "NIE",
-    "es-passport": "Reisepass ES",
-    "pt-nif": "NIF",
-    "br-cpf": "CPF",
-    "pt-passport": "Reisepass PT",
-    "se-personnummer": "Personnummer",
-    "se-passport": "Reisepass SE",
-    "pl-pesel": "PESEL",
-    "pl-passport": "Reisepass PL",
-    "uk-nino": "NI-Nummer",
-    "ca-sin": "SIN",
-    "ie-pps": "PPS-Nummer",
-    "ca-passport": "Reisepass CA",
-    "ru-snils": "SNILS",
-    "ru-inn-individual": "INN",
-    "ru-passport": "Reisepass RU",
-    "ua-inn": "Steuer-ID",
-    "jp-my-number": "My Number",
-    "jp-passport": "Reisepass JP",
-    "cn-resident-id": "CN-Ausweis",
-    "cn-passport": "Reisepass CN",
-    "tw-id": "TW-Ausweis",
-    "kr-rrn": "KR-RRN",
-    "kr-passport": "Reisepass KR",
-    "sa-national-id": "SA-Ausweis",
-    "eg-national-id": "EG-Ausweis",
-    "il-teudat-zehut": "IL-Ausweis",
-    "tr-tckn": "TC-Kimlik",
-    "gr-amka": "AMKA",
-    "in-aadhaar": "Aadhaar",
-    "in-pan": "PAN",
-    "in-passport": "Reisepass IN",
-    "id-nik": "NIK",
-    "th-national-id": "TH-Ausweis",
-    "cz-birth-number": "Geburtsnummer",
-    "fi-hetu": "HETU",
-    "dk-cpr": "CPR",
-    "no-fodselsnummer": "Geburtsnummer",
-    "ro-cnp": "CNP",
-    "ir-national-id": "IR-Ausweis",
-    "pk-cnic": "CNIC",
-    "lt-personal-code": "Personencode",
-    "ch-ahv": "AHV-Nummer",
-    "ch-uid": "UID",
-    "de-steuer-id": "Steuer-ID",
-    "us-passport": "Reisepass US",
-    "uk-nhs": "NHS-Nummer",
-    "au-tfn": "TFN",
-    "au-medicare": "Medicare-Nummer",
-    "nz-ird": "IRD-Nummer",
-    "za-id": "ZA-Ausweis",
-    "hk-hkid": "HKID",
-    "sg-nric": "NRIC",
-    "fr-siret": "SIRET",
-    "be-nrn": "BE-NRN",
-    "it-piva": "Partita IVA",
-    "se-orgnr": "Org.-Nr. SE",
-    "ar-cuil": "CUIL/CUIT",
-    "mx-curp": "CURP",
-    "mx-rfc": "RFC",
-    "cl-rut": "RUT",
-    "co-cc": "Cédula",
-    "_unknown": "Vertraulich"
+  "prompts": {
+    "form": {
+      "bytesOverLimitAlert": "Inhalt überschreitet das Grössenlimit. Kürze den Prompt, um zu speichern."
+    }
   },
-  "piiConfigPanel": {
-    "modeLabel": "Modus",
-    "modeTokenize": "Tokenisieren",
-    "modeMask": "Maskieren",
-    "modeBlock": "Blockieren",
-    "modeTokenizeDesc": "Personendaten vor dem Senden durch indizierte Token ersetzen und die Originale in der Antwort wiederherstellen.",
-    "modeMaskDesc": "Personendaten durch generische Platzhalter ersetzen. Einweg — die Originale lassen sich nicht mehr wiederherstellen.",
-    "modeBlockDesc": "Die Nachricht direkt ablehnen, sobald Personendaten erkannt werden. Der Nutzer sieht eine Sperrmeldung statt einer Antwort.",
-    "patternsTitle": "Erkennungsmuster",
-    "patternsDescription": "Lege fest, welche Arten von personenbezogenen Daten die Erkennung suchen soll.",
-    "customPatternsTitle": "Eigene Regex-Regeln",
-    "customPatternsDescription": "Ergänze Muster, die die eingebauten nicht abdecken. Jede Regel braucht einen Namen, einen regulären Ausdruck und den Ersatztext für den Maskiermodus.",
-    "customPatternNameLabel": "Name",
-    "customPatternNamePlaceholder": "z. B. Mitarbeiternummer",
-    "customPatternRegexLabel": "Muster",
-    "customPatternRegexPlaceholder": "z. B. EMP-\\d{6}",
-    "customPatternReplacementLabel": "Ersatztext",
-    "customPatternReplacementPlaceholder": "z. B. [MITARBEITER_ID]",
-    "customPatternInvalidRegex": "Dieser reguläre Ausdruck ist ungültig.",
-    "addCustomPattern": "Eigenes Muster hinzufügen",
-    "removeCustomPattern": "Entfernen",
-    "saveCustomPattern": "Muster speichern",
-    "cancelCustomPattern": "Abbrechen",
-    "previewTitle": "Live-Vorschau",
-    "previewDescription": "Probiere die aktuelle Konfiguration an echtem Text aus. Die Erkennung läuft bei jedem Tastendruck.",
-    "inputTitle": "Dein Text",
-    "inputHint": "Tippe oder füge einen Satz ein — Personendaten werden live erkannt.",
-    "detectedTitle": "Erkannt",
-    "detectedHint": "Bewege den Mauszeiger über eine Markierung, um den Datentyp zu sehen.",
-    "tokenizedTitle": "An die KI gesendet",
-    "tokenizedHint": "Personendaten durch indizierte Token ersetzt — nur diese Version sieht das KI-Modell.",
-    "maskedTitle": "Maskierte Ausgabe",
-    "maskedHint": "Personendaten durch generische Platzhalter ersetzt. Diese Version wird gesendet und gespeichert.",
-    "aiTitle": "KI-Antwort (Mock)",
-    "aiHint": "Bearbeitbar — verschiebe Token, um den Rückweg zu testen.",
-    "restoredTitle": "Wiederhergestellte Antwort",
-    "restoredHint": "Token wieder durch deine Originaldaten ersetzt. Grüne Markierungen zeigen, was wiederhergestellt wurde.",
-    "blockTitle": "Nachricht blockiert",
-    "blockHint": "Personendaten erkannt — die Nachricht würde abgelehnt und nicht an die KI gesendet.",
-    "blockBody": "Deine Eingabe enthält Daten, die die Richtlinie nicht erlaubt. Entferne die markierten Stellen und versuche es erneut.",
-    "blockPassTitle": "Keine Personendaten erkannt",
-    "blockPassBody": "Der Text würde unverändert weitergeleitet.",
-    "detectionCount": "Erkennungen",
-    "noPii": "Keine Personendaten erkannt — der Text würde unverändert weitergeleitet.",
-    "noPatternsEnabled": "Keine Erkennungsmuster aktiv. Aktiviere mindestens eines oben, damit Erkennungen erscheinen."
+  "settings": {
+    "agents": {
+      "knowledge": {
+        "fileTooLarge": "Datei zu gross"
+      }
+    },
+    "integrations": {
+      "sso": {
+        "excludeGroupsLabel": "Gruppen ausschliessen"
+      }
+    }
+  },
+  "tables": {
+    "headers": {
+      "size": "Grösse"
+    }
+  },
+  "todoList": {
+    "paneClose": "Plan schliessen",
+    "paneResizeHandle": "Planbereich vergrössern"
+  },
+  "twoFactor": {
+    "setup": {
+      "qrInstructions": "Scanne den QR-Code mit einer Authenticator-App (Google Authenticator, 1Password, Authy) und gib anschliessend den 6-stelligen Code unten ein."
+    }
+  },
+  "projects": {
+    "agents": {
+      "emptyAdminBody": "Die aktuellen Einschränkungen schliessen jeden Agenten aus, auf den dein Team Zugriff hat.",
+      "emptyModelsAdminBody": "Die aktuellen Einschränkungen schliessen jedes Modell aus, auf das dein Team Zugriff hat."
+    },
+    "errors": {
+      "RATE_LIMITED": "Das passiert grad zu oft. Versuch es gleich nochmal."
+    }
   }
 }

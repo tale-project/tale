@@ -2,6 +2,7 @@
 
 import { useLocation } from '@tanstack/react-router';
 
+import { EditorActions, useActiveEditor } from '@/app/components/ui/editor';
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -117,6 +118,20 @@ export function SettingsNavigation({
       standalone={false}
       className="h-12 py-3"
       ariaLabel={tCommon('aria.settingsNavigation')}
-    />
+    >
+      <SettingsEditorActionsSlot />
+    </TabNavigation>
   );
+}
+
+/**
+ * Reads the active child controller (settings sub-page form) and renders
+ * the unified Save/Discard cluster in the settings tab strip. Sub-pages
+ * without forms (people, integrations list, audit logs) clear the active
+ * editor and the cluster doesn't render.
+ */
+function SettingsEditorActionsSlot() {
+  const controller = useActiveEditor();
+  if (!controller) return null;
+  return <EditorActions controller={controller} entityKind="settings" />;
 }

@@ -15,6 +15,23 @@ interface SettingsPageProps extends Omit<
   description?: ReactNode;
   /** Optional right-aligned action(s) in the page header (e.g. export). */
   headerAction?: ReactNode;
+  /**
+   * Right-aligned editor actions (Save/Discard) shown in the page header.
+   * Distinct from `headerAction` only in that setting this flag makes the
+   * header block sticky so the cluster stays reachable while the user
+   * scrolls a long form. Used by every non-tabbed settings page on the
+   * unified save UX.
+   */
+  stickyActions?: ReactNode;
+  /**
+   * Constrains the page content to a centered reading column matching
+   * `ContentArea variant="narrow"` (`max-w-[544px] mx-auto`) used by other
+   * form-heavy pages (project overview, agent settings). Use for personal
+   * and org-level settings pages whose forms read better in a single
+   * column. Pages dominated by a data table or side-by-side preview should
+   * leave this `false` (default) and let their own layout dictate width.
+   */
+  narrow?: boolean;
   /** Section content — `<SettingsSection>` children separated by 32px gap. */
   children?: ReactNode;
 }
@@ -28,13 +45,29 @@ export function SettingsPage({
   title,
   description,
   headerAction,
+  stickyActions,
+  narrow,
   children,
   className,
   ...props
 }: SettingsPageProps) {
+  const headerSlot = stickyActions ?? headerAction;
   return (
-    <div className={cn('flex w-full flex-col gap-8', className)} {...props}>
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+    <div
+      className={cn(
+        'flex w-full flex-col gap-8',
+        narrow && 'mx-auto max-w-[544px] self-center',
+        className,
+      )}
+      {...props}
+    >
+      <header
+        className={cn(
+          'flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6',
+          stickyActions &&
+            'bg-background/80 sticky top-0 z-20 -mx-4 px-4 py-3 backdrop-blur-md sm:items-center',
+        )}
+      >
         <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-foreground text-lg leading-tight font-semibold">
             {title}
@@ -45,7 +78,11 @@ export function SettingsPage({
             </Description>
           )}
         </div>
-        {headerAction && <div className="shrink-0">{headerAction}</div>}
+        {headerSlot && (
+          <div className="flex shrink-0 items-center justify-end">
+            {headerSlot}
+          </div>
+        )}
       </header>
       {children && <div className="flex flex-col gap-8">{children}</div>}
     </div>

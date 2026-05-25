@@ -2,33 +2,42 @@
 
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
-import { Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { useAction, useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { Trash2 } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { z } from 'zod';
 
+import {
+  useFormEditor,
+  useRegisterActiveEditor,
+} from '@/app/components/ui/editor';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { primeAudio } from '@/app/features/chat/utils/prime-audio';
+import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
-import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
-import { useAbility } from '@/app/hooks/use-ability';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
-import { DEFAULT_DOCS_URL } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import {
   useApprovePendingMemory,
   useDismissPendingMemory,
-  useSetPersonalizationEnabled,
+  useSetCustomInstructionsEnabled,
+  useSetMemoriesEnabled,
   useSoftDeleteMemory,
   useUpsertMyPreferences,
 } from '../hooks/mutations';
@@ -63,10 +72,6 @@ function isTransientProbeError(err: unknown): boolean {
   if (!(err instanceof ConvexError)) return false;
   const data: unknown = err.data;
   if (typeof data !== 'object' || data === null) return false;
-  // `data` is `object`, which is narrower than `Record<string, unknown>`
-  // for indexed access but TypeScript still permits the read. Bracket
-  // access here would also satisfy the safety check; we use it to avoid
-  // an assertion entirely.
   const code = (data as { code?: unknown }).code;
   return code === 'RATE_LIMITED' || code === 'CONTENTION';
 }
@@ -78,8 +83,6 @@ function probeCapability(
   const cached = capabilityProbeCache.get(organizationId);
   if (cached) return cached;
   const inflight = fn({ organizationId }).catch((err) => {
-    // On failure, drop the entry so a subsequent mount can retry
-    // rather than being stuck with a rejected promise forever.
     capabilityProbeCache.delete(organizationId);
     throw err;
   });
@@ -95,12 +98,32 @@ export function PersonalizationSettings() {
   return <PersonalizationSettingsInner organizationId={organizationId} />;
 }
 
+interface FeatureGate {
+  orgDefaultOn: boolean;
+  isFollowingDefault: boolean;
+  effective: boolean;
+}
+
+function resolveGate(
+  userExplicit: boolean | undefined,
+  orgDefaultOn: boolean,
+): FeatureGate {
+  const isFollowingDefault = userExplicit === undefined;
+  return {
+    orgDefaultOn,
+    isFollowingDefault,
+    effective: isFollowingDefault ? orgDefaultOn : userExplicit,
+  };
+}
+
 function PersonalizationSettingsInner({
   organizationId,
 }: {
   organizationId: string;
 }) {
   const { t } = useT('personalization');
+  const { t: tNav } = useT('navigation');
+  const { t: tSettings } = useT('settings');
 
   const prefs = useQuery(api.user_preferences.queries.getMyPreferences, {
     organizationId,
@@ -114,124 +137,112 @@ function PersonalizationSettingsInner({
       organizationId,
     },
   );
-
-  return (
-    <Stack>
-      <header>
-        <h2 className="text-2xl font-semibold">{t('page.title')}</h2>
-        <Text variant="muted" className="mt-1">
-          {t('page.description')}
-        </Text>
-        <a
-          href={`${DEFAULT_DOCS_URL}/legal/personalization`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-block text-sm underline"
-        >
-          {t('page.privacyLink')}
-        </a>
-      </header>
-
-      <OrgDefaultSection organizationId={organizationId} />
-      <EnableSection prefs={prefs ?? null} organizationId={organizationId} />
-      <CustomInstructionsSection
-        prefs={prefs ?? null}
-        organizationId={organizationId}
-      />
-      <VoiceOutputSection prefs={prefs} organizationId={organizationId} />
-      <SavedMemoriesSection memories={approvedMemories ?? []} />
-      <PendingMemoriesSection memories={pendingMemories ?? []} />
-    </Stack>
-  );
-}
-
-function readPolicyEnabled(config: unknown): boolean {
-  return isRecord(config) && config['enabled'] === true;
-}
-
-function OrgDefaultSection({ organizationId }: { organizationId: string }) {
-  const { t } = useT('personalization');
-  const { toast } = useToast();
-  const ability = useAbility();
-  const { data: policy } = useGovernancePolicy(
-    organizationId,
-    'personalization',
-  );
-  const upsertMutation = useUpsertGovernancePolicy();
-
-  if (ability.cannot('write', 'orgSettings')) return null;
-
-  const enabled = readPolicyEnabled(policy?.config);
-
-  return (
-    <SettingsToggleRow
-      label={t('page.orgDefault.label')}
-      description={t('page.orgDefault.description')}
-      checked={enabled}
-      onCheckedChange={async (next) => {
-        try {
-          await upsertMutation.mutateAsync({
-            organizationId,
-            policyType: 'personalization',
-            config: { enabled: next },
-          });
-          toast({ title: t('page.orgDefault.toastUpdated') });
-        } catch (err) {
-          toast({
-            title: errorMessage(err, t('errors.saveFailed')),
-            variant: 'destructive',
-          });
-        }
-      }}
-    />
-  );
-}
-
-function EnableSection({
-  prefs,
-  organizationId,
-}: {
-  prefs: Doc<'userPreferences'> | null;
-  organizationId: string;
-}) {
-  const { t } = useT('personalization');
-  const { toast } = useToast();
-  const { mutateAsync: setEnabled } = useSetPersonalizationEnabled();
   const orgDefault = useQuery(api.personalization.queries.getOrgDefault, {
     organizationId,
   });
-  const orgDefaultOn = orgDefault === true;
 
-  const userExplicit = prefs?.enabled;
-  const isFollowingDefault = userExplicit === undefined;
-  const effective = isFollowingDefault ? orgDefaultOn : userExplicit;
+  const orgDefaultLoaded = orgDefault !== undefined;
+  const customInstructionsGate = resolveGate(
+    prefs?.customInstructionsEnabled,
+    orgDefault?.customInstructions === true,
+  );
+  const memoriesGate = resolveGate(
+    prefs?.memoriesEnabled,
+    orgDefault?.memories === true,
+  );
 
-  const orgStateLabel = orgDefaultOn
+  return (
+    <SettingsPage
+      title={tNav('personalization')}
+      description={
+        <>
+          {tSettings('menu.personalization.description')}{' '}
+          <a
+            href="https://tale.dev/legal/personalization"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground underline"
+          >
+            {t('page.privacyLink')}
+          </a>
+        </>
+      }
+      narrow
+    >
+      <CustomInstructionsToggleSection
+        organizationId={organizationId}
+        gate={customInstructionsGate}
+        orgDefaultLoaded={orgDefaultLoaded}
+      />
+      {customInstructionsGate.effective && (
+        <CustomInstructionsSection
+          prefs={prefs ?? null}
+          organizationId={organizationId}
+        />
+      )}
+      <MemoriesToggleSection
+        organizationId={organizationId}
+        gate={memoriesGate}
+        orgDefaultLoaded={orgDefaultLoaded}
+      />
+      {memoriesGate.effective && (
+        <>
+          <SavedMemoriesSection memories={approvedMemories ?? []} />
+          <PendingMemoriesSection memories={pendingMemories ?? []} />
+        </>
+      )}
+      <VoiceOutputSection prefs={prefs} organizationId={organizationId} />
+    </SettingsPage>
+  );
+}
+
+interface ToggleSectionProps {
+  organizationId: string;
+  gate: FeatureGate;
+  orgDefaultLoaded: boolean;
+}
+
+function buildOrgDefaultHint(
+  t: (key: string, vars?: Record<string, string>) => string,
+  orgDefaultLoaded: boolean,
+  gate: FeatureGate,
+  baseDescription: string,
+): ReactNode {
+  if (!orgDefaultLoaded) return baseDescription;
+  const orgStateLabel = gate.orgDefaultOn
     ? t('page.enable.orgStateOn')
     : t('page.enable.orgStateOff');
-  const hint = isFollowingDefault
+  const hint = gate.isFollowingDefault
     ? t('page.enable.followingOrgDefault', { state: orgStateLabel })
     : t('page.enable.overridingOrgDefault', { state: orgStateLabel });
+  return (
+    <>
+      {baseDescription} <span className="text-muted-foreground">{hint}</span>
+    </>
+  );
+}
 
-  // The org-default hint sits inside the toggle row's `description` slot so
-  // both lines share `aria-describedby`. Folding it into the description
-  // also lines it up with the label on the left rather than dangling under
-  // the right-aligned switch.
-  const description: ReactNode =
-    orgDefault === undefined ? (
-      t('page.enable.description')
-    ) : (
-      <>
-        {t('page.enable.description')}{' '}
-        <span className="text-muted-foreground">{hint}</span>
-      </>
-    );
+function CustomInstructionsToggleSection({
+  organizationId,
+  gate,
+  orgDefaultLoaded,
+}: ToggleSectionProps) {
+  const { t } = useT('personalization');
+  const { toast } = useToast();
+  const { mutateAsync: setEnabled } = useSetCustomInstructionsEnabled();
+
+  const description = buildOrgDefaultHint(
+    t,
+    orgDefaultLoaded,
+    gate,
+    t('page.customInstructionsToggle.description'),
+  );
 
   return (
     <SettingsToggleRow
-      label={t('page.enable.label')}
+      label={t('page.customInstructionsToggle.label')}
       description={description}
-      checked={effective}
+      checked={gate.effective}
       onCheckedChange={async (next) => {
         try {
           await setEnabled({ organizationId, enabled: next });
@@ -247,6 +258,46 @@ function EnableSection({
   );
 }
 
+function MemoriesToggleSection({
+  organizationId,
+  gate,
+  orgDefaultLoaded,
+}: ToggleSectionProps) {
+  const { t } = useT('personalization');
+  const { toast } = useToast();
+  const { mutateAsync: setEnabled } = useSetMemoriesEnabled();
+
+  const description = buildOrgDefaultHint(
+    t,
+    orgDefaultLoaded,
+    gate,
+    t('page.memoriesToggle.description'),
+  );
+
+  return (
+    <SettingsToggleRow
+      label={t('page.memoriesToggle.label')}
+      description={description}
+      checked={gate.effective}
+      onCheckedChange={async (next) => {
+        try {
+          await setEnabled({ organizationId, enabled: next });
+          toast({ title: t('toasts.preferencesUpdated') });
+        } catch (err) {
+          toast({
+            title: errorMessage(err, t('errors.saveFailed')),
+            variant: 'destructive',
+          });
+        }
+      }}
+    />
+  );
+}
+
+interface CustomInstructionsForm {
+  customInstructions: string;
+}
+
 function CustomInstructionsSection({
   prefs,
   organizationId,
@@ -257,52 +308,71 @@ function CustomInstructionsSection({
   const { t } = useT('personalization');
   const { toast } = useToast();
   const { mutateAsync: upsert } = useUpsertMyPreferences();
-  const persisted = prefs?.customInstructions ?? '';
-  const [value, setValue] = useState(persisted);
 
-  // Resync when the underlying preferences row arrives or changes from
-  // another tab; users editing locally still keep their unsaved input
-  // because the comparison is against the persisted snapshot, not on
-  // every keystroke.
-  useEffect(() => {
-    setValue(persisted);
-  }, [persisted]);
+  const schema = useMemo(
+    () =>
+      z.object({
+        customInstructions: z.string().max(CUSTOM_INSTRUCTIONS_MAX_CHARS),
+      }),
+    [],
+  );
 
-  const dirty = value !== persisted;
-  const tooLong = value.length > CUSTOM_INSTRUCTIONS_MAX_CHARS;
+  const data = useMemo<CustomInstructionsForm | undefined>(
+    () =>
+      prefs === undefined
+        ? undefined
+        : { customInstructions: prefs?.customInstructions ?? '' },
+    [prefs],
+  );
 
-  const onSave = async () => {
-    try {
-      await upsert({ organizationId, customInstructions: value });
-      toast({ title: t('toasts.saved') });
-    } catch (err) {
-      toast({
-        title: errorMessage(err, t('errors.saveFailed')),
-        variant: 'destructive',
-      });
-    }
-  };
+  const save = useCallback(
+    async (values: CustomInstructionsForm) => {
+      try {
+        await upsert({
+          organizationId,
+          customInstructions: values.customInstructions,
+        });
+        toast({ title: t('toasts.saved') });
+      } catch (err) {
+        toast({
+          title: errorMessage(err, t('errors.saveFailed')),
+          variant: 'destructive',
+        });
+        throw err;
+      }
+    },
+    [organizationId, t, toast, upsert],
+  );
+
+  const editor = useFormEditor<CustomInstructionsForm>({
+    data,
+    schema,
+    save,
+  });
+
+  useRegisterActiveEditor(editor);
+
+  const {
+    form: { register, watch },
+  } = editor;
+  const value = watch('customInstructions') ?? '';
 
   return (
-    <PageSection title={t('page.customInstructions.label')} titleSize="base">
+    <SettingsSection
+      title={t('page.customInstructions.title')}
+      description={t('page.customInstructions.description')}
+    >
       <Textarea
-        description={t('page.customInstructions.description')}
         placeholder={t('page.customInstructions.placeholder')}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
         rows={5}
+        {...register('customInstructions')}
       />
-      <div className="mt-2 flex items-center justify-between">
-        <Text className="text-muted-foreground text-xs">
-          {t('page.customInstructions.counter', {
-            count: value.length,
-          })}
-        </Text>
-        <Button variant="primary" onClick={onSave} disabled={!dirty || tooLong}>
-          {t('page.customInstructions.save')}
-        </Button>
-      </div>
-    </PageSection>
+      <Text className="text-muted-foreground text-xs">
+        {t('page.customInstructions.counter', {
+          count: value.length,
+        })}
+      </Text>
+    </SettingsSection>
   );
 }
 
@@ -323,14 +393,6 @@ function VoiceOutputSection({
   const { toast } = useToast();
   const setVoiceOutput = useMutation(api.tts.mutations.setUserVoiceOutput);
   const getCapability = useAction(api.tts.synthesize.getCapability);
-  // Org-level governance veto. `getVoiceModeEffective` makes the
-  // `voice_output` policy the top-priority kill switch: when an admin
-  // disables voice org-wide, the user's master preference becomes a
-  // no-op even though `setUserVoiceOutput` happily persists the write.
-  // Without this read the Switch rendered interactive + green-toasted
-  // "Preferences updated", but voice would still never play — fully
-  // silent failure. Mirroring the read here lets us disable + explain.
-  // M6.
   const { data: orgVoicePolicy } = useGovernancePolicy(
     organizationId,
     'voice_output',
@@ -354,12 +416,6 @@ function VoiceOutputSection({
         if (!cancelled) setProviderAvailable(r.available);
       })
       .catch((err) => {
-        // Distinguish transient probe failures (rate-limit, network blip)
-        // from a genuine "no provider configured" so a momentary error
-        // doesn't flip the page into its destructive "provider unavailable"
-        // banner and re-trigger the destructive toast on the next toggle.
-        // Leaving `providerAvailable` as `null` (unknown) keeps the UI in
-        // its loading-equivalent state; the next mount/probe will resolve.
         if (isTransientProbeError(err)) {
           console.warn(
             '[tts] capability probe transient error; leaving unknown',
@@ -374,21 +430,6 @@ function VoiceOutputSection({
     };
   }, [getCapability, organizationId]);
 
-  // Compose the provider-unavailable hint into the Switch's `description`
-  // (a ReactNode prop) so it lands inside the same `aria-describedby`
-  // block as the base description. Rendering the hint as a sibling
-  // `<Text>` below the Switch left screen-reader users with no audible
-  // signal that the toggle was non-functional — Radix's Switch only
-  // wires `aria-describedby` to the `description` prop.
-  //
-  // Three exclusive branches by priority:
-  //  1. Org veto — the policy is the top-priority gate. When the admin
-  //     disables voice org-wide, both the master pref Switch and the
-  //     provider-availability hint become moot. Don't link to the
-  //     providers page either; the user can't change this themselves.
-  //  2. Provider unavailable — second priority; user can either ask
-  //     admin or (if they are admin) configure a provider.
-  //  3. Normal description — voice is reachable.
   const switchDescription: ReactNode = orgVetoed ? (
     <>
       {t('page.voiceOutput.description')} {t('page.voiceOutput.disabledByOrg')}
@@ -409,11 +450,6 @@ function VoiceOutputSection({
     t('page.voiceOutput.description')
   );
 
-  // Disable when (a) prefs still loading, (b) no provider AND the user has
-  // it OFF (so they can still flip OFF in the edge case where the probe is
-  // wrong about negativity), or (c) the org has vetoed voice org-wide — in
-  // that case the write would persist but the effective state stays OFF,
-  // so we hard-disable to prevent the silent no-op. M6.
   const disabled =
     isLoading || (providerAvailable === false && !enabled) || orgVetoed;
 
@@ -425,25 +461,9 @@ function VoiceOutputSection({
       disabled={disabled}
       ariaBusy={isLoading || providerAvailable === null}
       onCheckedChange={async (next) => {
-        // Bank the shared AudioContext gesture token. The chat view
-        // owns the actual `<audio>` element used for playback; the
-        // settings page can't reach that element, so the per-element
-        // activation transfer documented in `prime-audio.ts` doesn't
-        // apply here. iOS Safari users toggling from settings may
-        // still see a single `NotAllowedError` on the first reply
-        // until they tap the bubble's play affordance once; from
-        // then on the chat-header toggle's gesture covers them.
         if (next) primeAudio();
         try {
           await setVoiceOutput({ organizationId, enabled: next });
-          // Race-defensive: although the `disabled` gate prevents
-          // toggling ON when `providerAvailable === false`, the probe
-          // might still be `null` at gesture time and resolve to
-          // `false` by the time the mutation completes. In that
-          // window the user toggled ON without an actionable
-          // provider; surface the gap as a destructive toast
-          // pointing to the providers page instead of the
-          // misleading green "Preferences updated".
           if (next && providerAvailable === false) {
             toast({
               title: t('toasts.voiceOutputEnabledButProviderMissing'),
@@ -473,9 +493,9 @@ function SavedMemoriesSection({
   const { mutateAsync: softDelete } = useSoftDeleteMemory();
 
   return (
-    <PageSection title={t('page.memories.title')} titleSize="base">
+    <SettingsSection title={t('page.memories.title')}>
       {memories.length === 0 ? (
-        <Text className="text-muted-foreground">
+        <Text className="text-muted-foreground text-sm">
           {t('page.memories.empty')}
         </Text>
       ) : (
@@ -507,7 +527,7 @@ function SavedMemoriesSection({
           ))}
         </ul>
       )}
-    </PageSection>
+    </SettingsSection>
   );
 }
 
@@ -522,9 +542,11 @@ function PendingMemoriesSection({
   const { mutateAsync: dismiss } = useDismissPendingMemory();
 
   return (
-    <PageSection title={t('page.pending.title')} titleSize="base">
+    <SettingsSection title={t('page.pending.title')}>
       {memories.length === 0 ? (
-        <Text className="text-muted-foreground">{t('page.pending.empty')}</Text>
+        <Text className="text-muted-foreground text-sm">
+          {t('page.pending.empty')}
+        </Text>
       ) : (
         <ul className="divide-border divide-y">
           {memories.map((m) => (
@@ -568,7 +590,7 @@ function PendingMemoriesSection({
           ))}
         </ul>
       )}
-    </PageSection>
+    </SettingsSection>
   );
 }
 

@@ -12,6 +12,7 @@ import {
 } from './model_access_enforcement';
 import { resolveBudgetContext } from './resolve_budget_context';
 import { resolveDefaultModel } from './resolve_default_model';
+import { shouldDeferProjectSharedExpiry } from './retention_project_shared';
 
 export const getPiiConfigInternal = internalQuery({
   args: {
@@ -390,6 +391,22 @@ export const listGraceExpiredThreads = internalQuery({
       // a one-shot backfill (round-2 v15 H8 part 2).
       const ts = thread.statusChangedAt ?? Date.now();
       if (ts >= args.graceCutoffMs) continue;
+
+      // Projects feature: defer hard-delete of shared-with-project
+      // threads while the project is still active. See
+      // `retention_project_shared.ts` for the pure helper + tests.
+      if (thread.sharedWithProject === true && thread.projectId) {
+        const project = await ctx.db.get(thread.projectId);
+        const defer = shouldDeferProjectSharedExpiry(
+          {
+            threadSharedWithProject: thread.sharedWithProject,
+            projectExists: project !== null,
+            projectArchivedAt: project?.archivedAt ?? null,
+          },
+          args.graceCutoffMs,
+        );
+        if (defer) continue;
+      }
 
       threads.push(thread);
       if (threads.length >= args.batchSize) {

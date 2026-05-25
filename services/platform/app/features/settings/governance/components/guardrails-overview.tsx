@@ -315,13 +315,13 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
   );
 
   return (
-    <section className="mt-8">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold">
+    <section className="mt-8 flex flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 className="text-foreground text-base leading-tight font-semibold">
             {t('guardrailsOverview.recentEvents.title')}
-          </h3>
-          <p className="text-muted-foreground text-xs">
+          </h2>
+          <p className="text-muted-foreground text-sm">
             {t('guardrailsOverview.recentEvents.description')}
           </p>
         </div>

@@ -98,6 +98,11 @@ const serializableAgentConfigValidator = v.object({
   agentTeamId: v.optional(v.string()),
   agentTeamIds: v.optional(v.array(v.string())),
   knowledgeFileIds: v.optional(v.array(v.string())),
+  /**
+   * Projects feature: project IDs whose RAG-indexed files should be
+   * unioned into the agent's file scope (chat happens inside a project).
+   */
+  agentProjectIds: v.optional(v.array(v.string())),
   delegateSlugs: v.optional(v.array(v.string())),
   structuredResponsesEnabled: v.optional(v.boolean()),
   timeoutMs: v.optional(v.number()),
@@ -373,20 +378,22 @@ export const runAgentGeneration = internalAction({
             });
           }
 
-          // Read+write symmetry: only attach `propose_memory` when ALL
-          // runtime kill-switches agree. Same gate as buildUserPersonalization
-          // (org feature flag, prefs.enabled === true, threadDisablePersonalization).
-          // The agent-level `personalizationMode === 'off'` short-circuits
-          // before we hit the DB.
+          // Read+write symmetry: only attach `propose_memory` when the
+          // memories gate is on (org `user_memories` policy,
+          // `prefs.memoriesEnabled === true`, and no thread veto). The
+          // agent-level `personalizationMode === 'off'` short-circuits
+          // before we hit the DB and disables BOTH features.
           const personalizationActive =
             userId &&
             organizationId &&
             agentConfig.personalizationMode !== 'off'
-              ? await ctx.runQuery(
-                  internal.personalization.internal_queries
-                    .isPersonalizationActiveForChat,
-                  { userId, organizationId, threadId },
-                )
+              ? ((
+                  await ctx.runQuery(
+                    internal.personalization.internal_queries
+                      .isPersonalizationActiveForChat,
+                    { userId, organizationId, threadId },
+                  )
+                )?.memories ?? false)
               : false;
 
           // Create agent factory function from serializable config
@@ -452,6 +459,7 @@ export const runAgentGeneration = internalAction({
               agentTeamId: agentConfig.agentTeamId,
               agentTeamIds: agentConfig.agentTeamIds,
               knowledgeFileIds: agentConfig.knowledgeFileIds,
+              agentProjectIds: agentConfig.agentProjectIds,
               structuredResponsesEnabled:
                 agentConfig.structuredResponsesEnabled,
               maxContextTokens,

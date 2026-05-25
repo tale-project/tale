@@ -1,12 +1,15 @@
-import { Button } from '@tale/ui/button';
 import { Grid } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
-import { Loader2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useMemo } from 'react';
+import { z } from 'zod';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import {
+  useFormEditor,
+  useRegisterActiveEditor,
+} from '@/app/components/ui/editor';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
@@ -27,12 +30,22 @@ export const Route = createFileRoute(
   component: ConfigurationPage,
 });
 
+interface ConfigurationForm {
+  name: string;
+  description: string;
+  timeout: number;
+  maxRetries: number;
+  backoffMs: number;
+  variables: string;
+}
+
+const CONFIGURATION_FORM_ID = 'automation-configuration-form';
+
 function ConfigurationPage() {
   const { id: organizationId, amId } = Route.useParams();
   const workflowSlug = urlParamToSlug(amId);
 
   const { t: tAutomations } = useT('automations');
-  const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
 
   const {
@@ -40,115 +53,121 @@ function ConfigurationPage() {
     isLoading,
     refetch,
   } = useReadWorkflow(organizationId, workflowSlug);
-  const { mutateAsync: saveWorkflow, isPending: isSaving } = useSaveWorkflow();
-
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [timeout, setTimeoutValue] = useState(300000);
-  const [maxRetries, setMaxRetries] = useState(3);
-  const [backoffMs, setBackoffMs] = useState(1000);
-  const [variables, setVariables] = useState(
-    '{\n  "environment": "production"\n}',
-  );
-  const [hasChanges, setHasChanges] = useState(false);
+  const { mutateAsync: saveWorkflow } = useSaveWorkflow();
 
   const config = readResult && readResult.ok ? readResult.config : undefined;
 
-  useEffect(() => {
-    if (config) {
-      setName(config.name || '');
-      setDescription(config.description || '');
-      if (config.config) {
-        setTimeoutValue(config.config.timeout || 300000);
-        setMaxRetries(config.config.retryPolicy?.maxRetries || 3);
-        setBackoffMs(config.config.retryPolicy?.backoffMs || 1000);
-        if (config.config.variables) {
-          setVariables(JSON.stringify(config.config.variables, null, 2));
-        }
-      }
-    }
+  const schema = useMemo(
+    () =>
+      z.object({
+        name: z
+          .string()
+          .trim()
+          .min(1, tAutomations('configuration.validation.nameRequired')),
+        description: z.string(),
+        timeout: z.number().int().min(1000),
+        maxRetries: z.number().int().min(0).max(10),
+        backoffMs: z.number().int().min(100),
+        variables: z.string().refine(
+          (value) => {
+            if (!value.trim()) return true;
+            try {
+              JSON.parse(value);
+              return true;
+            } catch {
+              return false;
+            }
+          },
+          { message: tAutomations('configuration.validation.invalidJson') },
+        ),
+      }),
+    [tAutomations],
+  );
+
+  const data = useMemo<ConfigurationForm | undefined>(() => {
+    if (!config) return undefined;
+    return {
+      name: config.name ?? '',
+      description: config.description ?? '',
+      timeout: config.config?.timeout ?? 300000,
+      maxRetries: config.config?.retryPolicy?.maxRetries ?? 3,
+      backoffMs: config.config?.retryPolicy?.backoffMs ?? 1000,
+      variables: JSON.stringify(
+        config.config?.variables ?? { environment: 'production' },
+        null,
+        2,
+      ),
+    };
   }, [config]);
 
-  useEffect(() => {
-    if (!config) return;
-    let currentVariables = {};
-    try {
-      currentVariables = variables.trim() ? JSON.parse(variables) : {};
-    } catch {
-      return;
-    }
-
-    const changed =
-      name !== (config.name || '') ||
-      description !== (config.description || '') ||
-      timeout !== (config.config?.timeout || 300000) ||
-      maxRetries !== (config.config?.retryPolicy?.maxRetries || 3) ||
-      backoffMs !== (config.config?.retryPolicy?.backoffMs || 1000) ||
-      JSON.stringify(currentVariables) !==
-        JSON.stringify(
-          config.config?.variables || { environment: 'production' },
-        );
-
-    setHasChanges(changed);
-  }, [config, name, description, timeout, maxRetries, backoffMs, variables]);
-
-  const handleSave = async () => {
-    if (!config) return;
-
-    if (!name.trim()) {
-      toast({
-        title: tAutomations('configuration.validation.nameRequired'),
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (variables.trim()) {
-      try {
-        JSON.parse(variables);
-      } catch {
-        toast({
-          title: tAutomations('configuration.validation.invalidJson'),
-          variant: 'destructive',
-        });
-        return;
-      }
-    }
-
-    try {
+  const save = useCallback(
+    async (values: ConfigurationForm) => {
+      if (!config) return;
       let parsedVariables: Record<string, unknown> | undefined;
-      if (variables.trim()) {
-        parsedVariables = JSON.parse(variables);
+      if (values.variables.trim()) {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- schema already validated this parses
+        parsedVariables = JSON.parse(values.variables) as Record<
+          string,
+          unknown
+        >;
       }
-
-      await saveWorkflow({
-        organizationId,
-        workflowSlug,
-        config: {
-          ...config,
-          name: name.trim(),
-          description: description.trim() || undefined,
+      try {
+        await saveWorkflow({
+          organizationId,
+          workflowSlug,
           config: {
-            ...config.config,
-            timeout,
-            retryPolicy: { maxRetries, backoffMs },
-            variables: parsedVariables,
+            ...config,
+            name: values.name.trim(),
+            description: values.description.trim() || undefined,
+            config: {
+              ...config.config,
+              timeout: values.timeout,
+              retryPolicy: {
+                maxRetries: values.maxRetries,
+                backoffMs: values.backoffMs,
+              },
+              variables: parsedVariables,
+            },
           },
-        },
-        expectedHash: readResult && readResult.ok ? readResult.hash : undefined,
-      });
+          expectedHash:
+            readResult && readResult.ok ? readResult.hash : undefined,
+        });
+        await refetch();
+        toast({ title: tToast('success.saved'), variant: 'success' });
+      } catch (error) {
+        console.error('Failed to save configuration:', error);
+        toast({ title: tToast('error.saveFailed'), variant: 'destructive' });
+        throw error;
+      }
+    },
+    [
+      config,
+      organizationId,
+      readResult,
+      refetch,
+      saveWorkflow,
+      tToast,
+      workflowSlug,
+    ],
+  );
 
-      setHasChanges(false);
-      await refetch();
-      toast({ title: tToast('success.saved'), variant: 'success' });
-    } catch (error) {
-      console.error('Failed to save configuration:', error);
-      toast({
-        title: tToast('error.saveFailed'),
-        variant: 'destructive',
-      });
-    }
-  };
+  const editor = useFormEditor<ConfigurationForm>({
+    data,
+    schema,
+    save,
+  });
+
+  useRegisterActiveEditor(editor);
+
+  const {
+    form: {
+      register,
+      handleSubmit,
+      formState: { errors },
+      watch,
+      setValue,
+    },
+  } = editor;
 
   if (isLoading) {
     return (
@@ -167,92 +186,95 @@ function ConfigurationPage() {
 
   if (!config) return null;
 
+  const variables = watch('variables');
+
   return (
     <ContentArea variant="narrow" gap={4}>
-      <Input
-        id="name"
-        label={tAutomations('configuration.name')}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder={tAutomations('configuration.namePlaceholder')}
-      />
-
-      <Textarea
-        id="description"
-        label={tAutomations('configuration.description')}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder={tAutomations('configuration.descriptionPlaceholder')}
-        rows={4}
-      />
-
-      <Grid cols={2} gap={4}>
-        <FormSection>
+      <form
+        id={CONFIGURATION_FORM_ID}
+        onSubmit={handleSubmit((values) => save(values))}
+      >
+        <fieldset
+          disabled={editor.isLoading || editor.isSaving}
+          className="contents"
+        >
           <Input
-            id="timeout"
-            type="number"
-            label={tAutomations('configuration.timeout')}
-            value={timeout}
-            onChange={(e) =>
-              setTimeoutValue(parseInt(e.target.value) || 300000)
+            id="name"
+            label={tAutomations('configuration.name')}
+            placeholder={tAutomations('configuration.namePlaceholder')}
+            errorMessage={errors.name?.message}
+            {...register('name')}
+          />
+
+          <Textarea
+            id="description"
+            label={tAutomations('configuration.description')}
+            placeholder={tAutomations('configuration.descriptionPlaceholder')}
+            rows={4}
+            errorMessage={errors.description?.message}
+            {...register('description')}
+          />
+
+          <Grid cols={2} gap={4}>
+            <FormSection>
+              <Input
+                id="timeout"
+                type="number"
+                label={tAutomations('configuration.timeout')}
+                min={1000}
+                errorMessage={errors.timeout?.message}
+                {...register('timeout', { valueAsNumber: true })}
+              />
+              <Text variant="caption">
+                {tAutomations('configuration.timeoutHelp')}
+              </Text>
+            </FormSection>
+
+            <FormSection>
+              <Input
+                id="maxRetries"
+                type="number"
+                label={tAutomations('configuration.maxRetries')}
+                min={0}
+                max={10}
+                errorMessage={errors.maxRetries?.message}
+                {...register('maxRetries', { valueAsNumber: true })}
+              />
+              <Text variant="caption">
+                {tAutomations('configuration.maxRetriesHelp')}
+              </Text>
+            </FormSection>
+          </Grid>
+
+          <FormSection>
+            <Input
+              id="backoffMs"
+              type="number"
+              label={tAutomations('configuration.backoff')}
+              min={100}
+              errorMessage={errors.backoffMs?.message}
+              {...register('backoffMs', { valueAsNumber: true })}
+            />
+            <Text variant="caption">
+              {tAutomations('configuration.backoffHelp')}
+            </Text>
+          </FormSection>
+
+          <JsonInput
+            id="variables"
+            label={tAutomations('configuration.variables')}
+            value={variables ?? ''}
+            onChange={(next) =>
+              setValue('variables', next, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
             }
-            min={1000}
+            description={tAutomations('configuration.variablesHelp')}
+            errorMessage={errors.variables?.message}
           />
-          <Text variant="caption">
-            {tAutomations('configuration.timeoutHelp')}
-          </Text>
-        </FormSection>
-
-        <FormSection>
-          <Input
-            id="maxRetries"
-            type="number"
-            label={tAutomations('configuration.maxRetries')}
-            value={maxRetries}
-            onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
-            min={0}
-            max={10}
-          />
-          <Text variant="caption">
-            {tAutomations('configuration.maxRetriesHelp')}
-          </Text>
-        </FormSection>
-      </Grid>
-
-      <FormSection>
-        <Input
-          id="backoffMs"
-          type="number"
-          label={tAutomations('configuration.backoff')}
-          value={backoffMs}
-          onChange={(e) => setBackoffMs(parseInt(e.target.value) || 1000)}
-          min={100}
-        />
-        <Text variant="caption">
-          {tAutomations('configuration.backoffHelp')}
-        </Text>
-      </FormSection>
-
-      <JsonInput
-        id="variables"
-        label={tAutomations('configuration.variables')}
-        value={variables}
-        onChange={setVariables}
-        description={tAutomations('configuration.variablesHelp')}
-      />
-
-      <div className="pt-4">
-        <Button onClick={handleSave} disabled={!hasChanges || isSaving}>
-          {isSaving ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" />
-              {tCommon('actions.saving')}
-            </>
-          ) : (
-            tAutomations('configuration.saveButton')
-          )}
-        </Button>
-      </div>
+        </fieldset>
+      </form>
     </ContentArea>
   );
 }

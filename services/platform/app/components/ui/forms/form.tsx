@@ -12,6 +12,6 @@ export const Form = forwardRef<
   HTMLFormElement,
   FormHTMLAttributes<HTMLFormElement>
 >(({ className, ...props }, ref) => (
-  <form ref={ref} className={cn('space-y-5', className)} {...props} />
+  <form ref={ref} className={cn('space-y-4', className)} {...props} />
 ));
 Form.displayName = 'Form';

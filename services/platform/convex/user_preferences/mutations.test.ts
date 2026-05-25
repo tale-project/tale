@@ -48,7 +48,8 @@ interface FakePrefsRow {
   userId: string;
   organizationId: string;
   customInstructions: string;
-  enabled?: boolean;
+  customInstructionsEnabled?: boolean;
+  memoriesEnabled?: boolean;
   updatedAt: number;
 }
 

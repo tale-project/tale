@@ -49,6 +49,21 @@ export const threadMetadataTable = defineTable({
   branchSelections: v.optional(v.string()),
   // Team/workspace assignment
   teamId: v.optional(v.string()),
+  /**
+   * Project this thread belongs to. When set, project instructions are
+   * injected into the system prompt and project files are unioned into
+   * the RAG file_ids at chat time. See `lib/agent_response/build_project_instructions.ts`
+   * and `documents/get_agent_scoped_file_ids.ts`.
+   */
+  projectId: v.optional(v.id('projects')),
+  /**
+   * When `true`, the thread is visible to all members of the project.
+   * Atomically forces `disablePersonalization: true` (see
+   * `projects/mutations.ts:setThreadSharedWithProject`) so the owner's
+   * memories and custom instructions don't leak into replies that
+   * other project members read.
+   */
+  sharedWithProject: v.optional(v.boolean()),
   // Personalization opt-out at the thread level. When true, this thread
   // skips both reads (no user memory injected into system prompt) and
   // writes (the propose_memory tool is stripped from the agent). Used by
@@ -93,4 +108,11 @@ export const threadMetadataTable = defineTable({
   // was the missing one — without this, an org with > ~250 active
   // threads would never surface trashed/expired threads in the admin
   // Trash list because the take-prefix filled with `active` rows first.
-  .index('by_organizationId_and_status', ['organizationId', 'status']);
+  .index('by_organizationId_and_status', ['organizationId', 'status'])
+  // Projects feature: list all threads in a project (both personal and shared
+  // members; client partitions). Index also serves `assertOrphanCheck` style
+  // queries that want "any thread in this project?".
+  .index('by_organizationId_and_projectId', ['organizationId', 'projectId'])
+  // Projects feature: "my chats in this project" — used by the Threads tab's
+  // "Your chats" segment without scanning all threads in the project first.
+  .index('by_projectId_and_userId', ['projectId', 'userId']);

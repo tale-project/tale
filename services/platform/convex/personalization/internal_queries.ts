@@ -7,26 +7,33 @@ import { internalQuery } from '../_generated/server';
 
 const MEMORY_INJECTION_LIMIT = 20;
 
+type PersonalizationFeature = 'custom_instructions' | 'user_memories';
+
+export interface PersonalizationGateResult {
+  customInstructions: boolean;
+  memories: boolean;
+}
+
 /**
- * Org-level default for personalization. Read from the dedicated
- * `policyType: 'personalization'` row in `governancePolicies` (config
- * shape `{ enabled: boolean }`). When the row is missing, disabled, or
- * malformed, the default is OFF.
+ * Org-level default for a given personalization feature. Each feature
+ * has its own `governancePolicies` row (`custom_instructions` or
+ * `user_memories`), config shape `{ enabled: boolean }`. Missing,
+ * disabled, or malformed → OFF.
  *
- * This is a *default*, not a kill switch: a user with explicit
- * `userPreferences.enabled === true/false` overrides this value. See
- * `evaluatePersonalizationGates` for the full effective-state rules.
+ * Defaults, not kill switches: a user with explicit
+ * `userPreferences.customInstructionsEnabled` / `memoriesEnabled` of
+ * `true` / `false` overrides this. See `evaluatePersonalizationGates`
+ * for the full effective-state rules.
  */
-export async function isPersonalizationEnabled(
+async function isFeatureEnabledForOrg(
   ctx: GenericQueryCtx<DataModel>,
   organizationId: string,
+  feature: PersonalizationFeature,
 ): Promise<boolean> {
   const policy = await ctx.db
     .query('governancePolicies')
     .withIndex('by_org_policyType', (q) =>
-      q
-        .eq('organizationId', organizationId)
-        .eq('policyType', 'personalization'),
+      q.eq('organizationId', organizationId).eq('policyType', feature),
     )
     .first();
 
@@ -36,21 +43,52 @@ export async function isPersonalizationEnabled(
   return config['enabled'] === true;
 }
 
+export async function isCustomInstructionsEnabledForOrg(
+  ctx: GenericQueryCtx<DataModel>,
+  organizationId: string,
+): Promise<boolean> {
+  return isFeatureEnabledForOrg(ctx, organizationId, 'custom_instructions');
+}
+
+export async function isMemoriesEnabledForOrg(
+  ctx: GenericQueryCtx<DataModel>,
+  organizationId: string,
+): Promise<boolean> {
+  return isFeatureEnabledForOrg(ctx, organizationId, 'user_memories');
+}
+
+function applyUserOverride(
+  orgDefault: boolean,
+  userExplicit: boolean | undefined,
+): boolean {
+  if (userExplicit === true) return true;
+  if (userExplicit === false) return false;
+  return orgDefault;
+}
+
 /**
- * Single source of truth for whether personalization is currently active
- * for a given (user, org, thread). Computes the effective state from:
+ * Single source of truth for whether each personalization feature is
+ * currently active for a given (user, org, thread). Returns an object
+ * with one flag per feature; callers gate independently.
  *
- *  - Org-level default: `policyType: 'personalization'` row.
- *  - Per-user override: `userPreferences.enabled` is tri-state.
+ * Merge rules (per feature):
+ *  - Org-level default: matching policy row (`custom_instructions` /
+ *    `user_memories`).
+ *  - Per-user override: `userPreferences.customInstructionsEnabled` /
+ *    `memoriesEnabled` is tri-state.
  *      - `undefined` → follow org default
- *      - `true` / `false` → user explicitly opted in/out
- *  - Thread-level hard veto: `threadMetadata.disablePersonalization === true`
- *    (e.g. shared threads) overrides everything else.
+ *      - `true` / `false` → user explicitly opted in/out (for THAT
+ *        feature only)
+ *  - Thread-level hard veto: `threadMetadata.disablePersonalization ===
+ *    true` (e.g. shared threads) overrides everything and disables
+ *    BOTH features.
  *
  * Used by:
- *  - `buildUserPersonalization` (read-side via getPersonalizationDataForInjection)
- *  - `internal_actions.ts` (decides whether to attach propose_memory)
- *  - `writeProposal` (mutation defense-in-depth)
+ *  - `buildUserPersonalization` (read-side via
+ *    `getPersonalizationDataForInjection`)
+ *  - `internal_actions.ts` (decides whether to attach `propose_memory`
+ *    — gated on `memories`)
+ *  - `writeProposal` (mutation defense-in-depth — gated on `memories`)
  *  - `personalization/queries.ts:isPersonalizationActiveForChat`
  *    (UI subscribes to know whether to render the inline pending card)
  *
@@ -60,14 +98,16 @@ export async function isPersonalizationEnabled(
 export async function evaluatePersonalizationGates(
   ctx: GenericQueryCtx<DataModel>,
   args: { userId: string; organizationId: string; threadId?: string },
-): Promise<boolean> {
+): Promise<PersonalizationGateResult> {
   const threadId = args.threadId;
   if (threadId) {
     const meta = await ctx.db
       .query('threadMetadata')
       .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
       .first();
-    if (meta?.disablePersonalization === true) return false;
+    if (meta?.disablePersonalization === true) {
+      return { customInstructions: false, memories: false };
+    }
   }
 
   const prefs = await ctx.db
@@ -76,11 +116,22 @@ export async function evaluatePersonalizationGates(
       q.eq('userId', args.userId).eq('organizationId', args.organizationId),
     )
     .first();
-  const userExplicit = prefs?.enabled;
-  if (userExplicit === true) return true;
-  if (userExplicit === false) return false;
 
-  return isPersonalizationEnabled(ctx, args.organizationId);
+  const [orgCustom, orgMemories] = await Promise.all([
+    isCustomInstructionsEnabledForOrg(ctx, args.organizationId),
+    isMemoriesEnabledForOrg(ctx, args.organizationId),
+  ]);
+
+  return {
+    customInstructions: applyUserOverride(
+      orgCustom,
+      prefs?.customInstructionsEnabled ?? prefs?.enabled,
+    ),
+    memories: applyUserOverride(
+      orgMemories,
+      prefs?.memoriesEnabled ?? prefs?.enabled,
+    ),
+  };
 }
 
 export const isPersonalizationActiveForChat = internalQuery({
@@ -89,15 +140,16 @@ export const isPersonalizationActiveForChat = internalQuery({
     organizationId: v.string(),
     threadId: v.string(),
   },
-  handler: async (ctx, args): Promise<boolean> =>
+  handler: async (ctx, args): Promise<PersonalizationGateResult> =>
     evaluatePersonalizationGates(ctx, args),
 });
 
 interface PersonalizationData {
-  // Effective state after merging org default, user override, and thread
-  // veto. When false, the caller must skip injection regardless of the
-  // other fields.
-  effective: boolean;
+  // Effective state per feature after merging org default, user
+  // override, and thread veto. Callers must consult the matching flag
+  // before injecting or proposing.
+  customInstructionsEffective: boolean;
+  memoriesEffective: boolean;
   preferences: Doc<'userPreferences'> | null;
   memories: Doc<'userMemories'>[];
 }
@@ -109,11 +161,11 @@ interface PersonalizationData {
  * `(userId, organizationId)` arguments — there is no path here that
  * accepts a client-supplied identity.
  *
- * `effective` is the same answer `evaluatePersonalizationGates` would
- * give for these arguments; the caller may bail early when it's false.
- * `preferences` is still returned even when `effective` is false so the
- * caller can inspect `customInstructions` if a future code path needs
- * it (currently it does not — the early-out covers all uses).
+ * `customInstructionsEffective` / `memoriesEffective` are the same
+ * answers `evaluatePersonalizationGates` would give for these args.
+ * `preferences` is still returned even when both effective flags are
+ * false so the caller can inspect `customInstructions` if needed.
+ * `memories` is empty unless `memoriesEffective` is true.
  */
 export const getPersonalizationDataForInjection = internalQuery({
   args: {
@@ -122,7 +174,7 @@ export const getPersonalizationDataForInjection = internalQuery({
     threadId: v.string(),
   },
   handler: async (ctx, args): Promise<PersonalizationData> => {
-    const effective = await evaluatePersonalizationGates(ctx, args);
+    const gates = await evaluatePersonalizationGates(ctx, args);
 
     const preferences = await ctx.db
       .query('userPreferences')
@@ -131,9 +183,10 @@ export const getPersonalizationDataForInjection = internalQuery({
       )
       .first();
 
-    if (!effective) {
+    if (!gates.memories) {
       return {
-        effective: false,
+        customInstructionsEffective: gates.customInstructions,
+        memoriesEffective: false,
         preferences: preferences ?? null,
         memories: [],
       };
@@ -155,7 +208,8 @@ export const getPersonalizationDataForInjection = internalQuery({
       .slice(0, MEMORY_INJECTION_LIMIT);
 
     return {
-      effective: true,
+      customInstructionsEffective: gates.customInstructions,
+      memoriesEffective: true,
       preferences: preferences ?? null,
       memories,
     };

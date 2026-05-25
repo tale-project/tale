@@ -181,8 +181,16 @@ export function ChatFilterConfigView({
 
   if (isLoading) {
     return (
-      <PageSection title={t('contentSafety.title')}>
-        <Skeleton className="h-32 w-full" />
+      <PageSection
+        title={t('contentSafety.title')}
+        description={t('contentSafety.description')}
+        action={<Skeleton className="h-[1.15rem] w-8 rounded-full" />}
+      >
+        <div className="flex flex-col gap-4">
+          <Skeleton className="h-10 w-full max-w-sm" />
+          <Skeleton className="h-10 w-full max-w-sm" />
+          <Skeleton className="h-48 w-full rounded-md" />
+        </div>
       </PageSection>
     );
   }

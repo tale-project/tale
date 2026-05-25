@@ -1,7 +1,7 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { SettingsListPageSkeleton } from '@/app/features/settings/components/settings-skeleton';
+import { ProvidersPageSkeleton } from '@/app/features/settings/providers/components/providers-page-skeleton';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -19,7 +19,7 @@ function ProvidersLayout() {
   const abilityLoading = useAbilityLoading();
 
   if (abilityLoading) {
-    return <SettingsListPageSkeleton />;
+    return <ProvidersPageSkeleton />;
   }
 
   if (ability.cannot('read', 'developerSettings')) {

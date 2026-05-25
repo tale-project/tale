@@ -9,10 +9,11 @@ import { useCallback, useMemo } from 'react';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
+import { AuditLogsPageSkeleton } from '@/app/features/settings/audit-logs/components/audit-logs-page-skeleton';
 import { BlockCountersTable } from '@/app/features/settings/audit-logs/components/block-counters-table';
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { useAbility } from '@/app/hooks/use-ability';
+import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -35,6 +36,7 @@ export function AuditLogsPage({
   const { t: tAccess } = useT('accessDenied');
 
   const ability = useAbility();
+  const abilityLoading = useAbilityLoading();
   const memberContext = useCurrentMemberContext(organizationId);
   const memberRole = memberContext.data?.role;
   const isAdminUser = memberRole === 'admin' || memberRole === 'owner';
@@ -122,6 +124,10 @@ export function AuditLogsPage({
     },
     [organizationId, category, exportAction],
   );
+
+  if (abilityLoading) {
+    return <AuditLogsPageSkeleton />;
+  }
 
   if (ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={tAccess('organization')} />;

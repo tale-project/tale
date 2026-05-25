@@ -1,0 +1,1337 @@
+/**
+ * Projects feature mutations.
+ *
+ * Every mutation:
+ *  - validates org membership via `getOrganizationMember`,
+ *  - applies per-project access via `hasProjectAccess` / `checkProjectAccess`,
+ *  - writes a `createAuditLog` entry per §9 of the plan.
+ *
+ * Mutual exclusivity rule for documents:
+ *   A document carries `teamId` OR `projectId`, never both.
+ *   `attachDocumentToProject` clears `teamId`. `detachDocumentFromProject`
+ *   leaves both null (doc becomes a library doc).
+ */
+
+import { ConvexError, v } from 'convex/values';
+
+import type { Doc, Id } from '../_generated/dataModel';
+import { mutation, type MutationCtx } from '../_generated/server';
+import { createAuditLog } from '../audit_logs/helpers';
+import { authComponent } from '../auth';
+import { getUserTeamIds } from '../lib/get_user_teams';
+import {
+  checkUserRateLimit,
+  RateLimitExceededError,
+} from '../lib/rate_limiter/helpers';
+import { getOrganizationMember } from '../lib/rls';
+import { checkProjectAccess, isOrgWideProject } from './access';
+import { PROJECT_AUDIT_ACTIONS, PROJECT_RESOURCE_TYPE } from './audit_actions';
+import {
+  projectIntegrationsModeValidator,
+  projectKnowledgeModeValidator,
+  projectModeValidator,
+} from './schema';
+
+const PROJECT_NAME_MAX = 80;
+const PROJECT_DESCRIPTION_MAX = 500;
+const PROJECT_INSTRUCTIONS_MAX_CHARS = 6000;
+const PROJECT_SHARED_TEAMS_MAX = 20;
+
+/** Map rate-limiter exceptions to a structured ConvexError the UI handles. */
+function mapRateLimitError(error: unknown): never {
+  if (error instanceof RateLimitExceededError) {
+    throw new ConvexError({
+      code: 'RATE_LIMITED',
+      data: { retryAfterMs: error.retryAfter },
+    });
+  }
+  throw error;
+}
+
+const ADMIN_ROLES = new Set(['owner', 'admin']);
+
+interface AuthContext {
+  userId: string;
+  email?: string;
+  role: string;
+  teamIds: string[];
+}
+
+async function getAuthContext(
+  ctx: MutationCtx,
+  organizationId: string,
+): Promise<AuthContext> {
+  const authUser = await authComponent.getAuthUser(ctx);
+  if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+
+  const member = await getOrganizationMember(ctx, organizationId, {
+    userId: String(authUser._id),
+    email: authUser.email,
+    name: authUser.name,
+  });
+  const teamIds = await getUserTeamIds(ctx, member.userId);
+  return {
+    userId: member.userId,
+    email: authUser.email,
+    role: member.role,
+    teamIds,
+  };
+}
+
+async function loadProjectOrThrow(
+  ctx: MutationCtx,
+  projectId: Id<'projects'>,
+): Promise<Doc<'projects'>> {
+  const project = await ctx.db.get(projectId);
+  if (!project) {
+    throw new ConvexError({ code: 'PROJECT_NOT_FOUND' });
+  }
+  return project;
+}
+
+function assertReadable(project: Doc<'projects'>, auth: AuthContext): void {
+  const access = checkProjectAccess(project, auth.teamIds, auth.role);
+  if (!access.canRead) {
+    throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
+  }
+}
+
+function assertWritable(project: Doc<'projects'>, auth: AuthContext): void {
+  const access = checkProjectAccess(project, auth.teamIds, auth.role);
+  if (!access.canRead) {
+    throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
+  }
+  if (!access.canEdit) {
+    throw new ConvexError({ code: 'RBAC_FORBIDDEN' });
+  }
+}
+
+function assertAdmin(auth: AuthContext): void {
+  if (!ADMIN_ROLES.has(auth.role)) {
+    throw new ConvexError({ code: 'ROLE_FORBIDDEN' });
+  }
+}
+
+function validateName(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.length === 0) {
+    throw new ConvexError({ code: 'PROJECT_NAME_INVALID' });
+  }
+  if (trimmed.length > PROJECT_NAME_MAX) {
+    throw new ConvexError({ code: 'PROJECT_NAME_INVALID' });
+  }
+  return trimmed;
+}
+
+function validateDescription(
+  description: string | undefined,
+): string | undefined {
+  if (description == null) return undefined;
+  const trimmed = description.trim();
+  if (trimmed.length > PROJECT_DESCRIPTION_MAX) {
+    throw new ConvexError({ code: 'PROJECT_DESCRIPTION_INVALID' });
+  }
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function validateInstructions(instructions: string): string {
+  if (instructions.length > PROJECT_INSTRUCTIONS_MAX_CHARS) {
+    throw new ConvexError({
+      code: 'PROJECT_INSTRUCTIONS_TOO_LONG',
+      data: { cap: PROJECT_INSTRUCTIONS_MAX_CHARS },
+    });
+  }
+  return instructions;
+}
+
+function diff(
+  previous: Record<string, unknown>,
+  next: Record<string, unknown>,
+): string[] {
+  const changed: string[] = [];
+  const keys = new Set([...Object.keys(previous), ...Object.keys(next)]);
+  for (const k of keys) {
+    if (JSON.stringify(previous[k]) !== JSON.stringify(next[k])) {
+      changed.push(k);
+    }
+  }
+  return changed;
+}
+
+/**
+ * Array-element diff used in audit metadata for slug-list mutations.
+ * Compliance dashboards consume `added` / `removed` instead of parsing
+ * `previousState` / `newState` arrays.
+ */
+function arrayDiff(
+  previous: string[] | undefined,
+  next: string[] | undefined,
+): { added: string[]; removed: string[] } {
+  const prev = new Set(previous ?? []);
+  const nxt = new Set(next ?? []);
+  const added: string[] = [];
+  const removed: string[] = [];
+  for (const item of nxt) if (!prev.has(item)) added.push(item);
+  for (const item of prev) if (!nxt.has(item)) removed.push(item);
+  return { added, removed };
+}
+
+/**
+ * Reject duplicate `teamId ∈ sharedWithTeamIds` and dupes inside the array.
+ * `checkProjectAccess`'s downstream `Set` dedupe tolerates either, but the API
+ * surface should reject so audit `previousState`/`newState` diffs stay clean.
+ */
+function validateSharing(
+  teamId: string | null | undefined,
+  sharedWithTeamIds: string[] | undefined,
+): void {
+  if (!sharedWithTeamIds) return;
+  if (sharedWithTeamIds.length > PROJECT_SHARED_TEAMS_MAX) {
+    throw new ConvexError({ code: 'PROJECT_SHARING_INVALID' });
+  }
+  const set = new Set(sharedWithTeamIds);
+  if (set.size !== sharedWithTeamIds.length) {
+    throw new ConvexError({ code: 'PROJECT_SHARING_INVALID' });
+  }
+  if (teamId && set.has(teamId)) {
+    throw new ConvexError({ code: 'PROJECT_SHARING_INVALID' });
+  }
+}
+
+/**
+ * For `restricted` mode, every recommended item must be a subset of allowed.
+ * (UI prevents but the API surface should reject so we don't store an
+ * inconsistent state.)
+ */
+function validateRecommendedSubsetOfAllowed(
+  mode: 'all' | 'recommended' | 'restricted',
+  recommended: string[] | undefined,
+  allowed: string[] | undefined,
+): void {
+  if (mode !== 'restricted') return;
+  if (!recommended || recommended.length === 0) return;
+  const allowedSet = new Set(allowed ?? []);
+  for (const item of recommended) {
+    if (!allowedSet.has(item)) {
+      throw new ConvexError({ code: 'PROJECT_RECOMMENDED_NOT_SUBSET' });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Create
+// ---------------------------------------------------------------------------
+
+export const createProject = mutation({
+  args: {
+    organizationId: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    icon: v.optional(v.string()),
+    color: v.optional(v.string()),
+    teamId: v.optional(v.string()),
+    sharedWithTeamIds: v.optional(v.array(v.string())),
+  },
+  returns: v.id('projects'),
+  handler: async (ctx, args) => {
+    const auth = await getAuthContext(ctx, args.organizationId);
+
+    // Only editor+ can create.
+    if (auth.role === 'member' || auth.role === 'disabled' || !auth.role) {
+      throw new ConvexError({ code: 'RBAC_FORBIDDEN' });
+    }
+
+    try {
+      await checkUserRateLimit(ctx, 'project:create', auth.userId);
+    } catch (error) {
+      mapRateLimitError(error);
+    }
+
+    const name = validateName(args.name);
+    const description = validateDescription(args.description);
+    const sharedWithTeamIds = args.sharedWithTeamIds ?? [];
+    validateSharing(args.teamId, args.sharedWithTeamIds);
+
+    const now = Date.now();
+    const projectId = await ctx.db.insert('projects', {
+      organizationId: args.organizationId,
+      name,
+      description,
+      icon: args.icon,
+      color: args.color,
+      teamId: args.teamId || undefined,
+      sharedWithTeamIds:
+        sharedWithTeamIds.length > 0 ? sharedWithTeamIds : undefined,
+      createdBy: auth.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.created,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(projectId),
+      resourceName: name,
+      newState: {
+        name,
+        teamId: args.teamId ?? null,
+        sharedWithTeamIds,
+      },
+      metadata: {
+        isOrgWide: !args.teamId && sharedWithTeamIds.length === 0,
+      },
+      status: 'success',
+    });
+
+    return projectId;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Identity update
+// ---------------------------------------------------------------------------
+
+export const updateProjectIdentity = mutation({
+  args: {
+    projectId: v.id('projects'),
+    name: v.optional(v.string()),
+    description: v.optional(v.union(v.string(), v.null())),
+    icon: v.optional(v.union(v.string(), v.null())),
+    color: v.optional(v.union(v.string(), v.null())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    const patch: Partial<Doc<'projects'>> = { updatedAt: Date.now() };
+    const previousState: Record<string, unknown> = {};
+    const newState: Record<string, unknown> = {};
+
+    if (args.name !== undefined) {
+      const name = validateName(args.name);
+      patch.name = name;
+      previousState.name = project.name;
+      newState.name = name;
+    }
+    if (args.description !== undefined) {
+      const desc =
+        args.description === null
+          ? undefined
+          : validateDescription(args.description);
+      patch.description = desc;
+      previousState.description = project.description ?? null;
+      newState.description = desc ?? null;
+    }
+    if (args.icon !== undefined) {
+      patch.icon = args.icon === null ? undefined : args.icon;
+      previousState.icon = project.icon ?? null;
+      newState.icon = args.icon ?? null;
+    }
+    if (args.color !== undefined) {
+      patch.color = args.color === null ? undefined : args.color;
+      previousState.color = project.color ?? null;
+      newState.color = args.color ?? null;
+    }
+
+    await ctx.db.patch(args.projectId, patch);
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.updated,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      previousState,
+      newState,
+      changedFields: diff(previousState, newState),
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Instructions
+// ---------------------------------------------------------------------------
+
+export const updateProjectInstructions = mutation({
+  args: {
+    projectId: v.id('projects'),
+    instructions: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    const instructions = validateInstructions(args.instructions);
+    const previousLength = project.instructions?.length ?? 0;
+    const newLength = instructions.length;
+
+    await ctx.db.patch(args.projectId, {
+      instructions: instructions.length > 0 ? instructions : undefined,
+      updatedAt: Date.now(),
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.instructionsChanged,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      // Per §9: body is NOT logged. Only previous/new length.
+      metadata: { previousLength, newLength },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Sharing (admin only)
+// ---------------------------------------------------------------------------
+
+export const updateProjectSharing = mutation({
+  args: {
+    projectId: v.id('projects'),
+    teamId: v.optional(v.union(v.string(), v.null())),
+    sharedWithTeamIds: v.optional(v.array(v.string())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertReadable(project, auth);
+    assertAdmin(auth);
+
+    const sharedWithTeamIds = args.sharedWithTeamIds;
+    // H2: reject duplicate teamId + dupes inside the array.
+    const effectiveTeamId =
+      args.teamId === null ? null : (args.teamId ?? project.teamId ?? null);
+    validateSharing(effectiveTeamId, sharedWithTeamIds);
+
+    const patch: Partial<Doc<'projects'>> = { updatedAt: Date.now() };
+    const previousState = {
+      teamId: project.teamId ?? null,
+      sharedWithTeamIds: project.sharedWithTeamIds ?? [],
+    };
+    const newState = {
+      teamId: previousState.teamId,
+      sharedWithTeamIds: previousState.sharedWithTeamIds,
+    };
+
+    if (args.teamId !== undefined) {
+      patch.teamId = args.teamId ?? undefined;
+      newState.teamId = args.teamId ?? null;
+    }
+    if (sharedWithTeamIds !== undefined) {
+      patch.sharedWithTeamIds =
+        sharedWithTeamIds.length > 0 ? sharedWithTeamIds : undefined;
+      newState.sharedWithTeamIds = sharedWithTeamIds;
+    }
+
+    await ctx.db.patch(args.projectId, patch);
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.sharingChanged,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      previousState,
+      newState,
+      changedFields: diff(previousState, newState),
+      metadata: {
+        wasOrgWide: isOrgWideProject(project),
+        nowOrgWide: !newState.teamId && newState.sharedWithTeamIds.length === 0,
+      },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Knowledge mode
+// ---------------------------------------------------------------------------
+
+export const updateProjectKnowledgeMode = mutation({
+  args: {
+    projectId: v.id('projects'),
+    knowledgeMode: projectKnowledgeModeValidator,
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    const previousKnowledgeMode = project.knowledgeMode ?? null;
+
+    await ctx.db.patch(args.projectId, {
+      knowledgeMode: args.knowledgeMode,
+      updatedAt: Date.now(),
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.knowledgeModeChanged,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      previousState: { knowledgeMode: previousKnowledgeMode },
+      newState: { knowledgeMode: args.knowledgeMode },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Agent settings
+// ---------------------------------------------------------------------------
+
+export const updateProjectAgentSettings = mutation({
+  args: {
+    projectId: v.id('projects'),
+    agentMode: projectModeValidator,
+    recommendedAgentSlugs: v.optional(v.array(v.string())),
+    allowedAgentSlugs: v.optional(v.array(v.string())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    const previousState = {
+      agentMode: project.agentMode ?? 'all',
+      recommendedAgentSlugs: project.recommendedAgentSlugs ?? [],
+      allowedAgentSlugs: project.allowedAgentSlugs ?? [],
+    };
+    const newState = {
+      agentMode: args.agentMode,
+      recommendedAgentSlugs: args.recommendedAgentSlugs ?? [],
+      allowedAgentSlugs: args.allowedAgentSlugs ?? [],
+    };
+
+    // H3: recommended must be a subset of allowed in restricted mode.
+    validateRecommendedSubsetOfAllowed(
+      args.agentMode,
+      newState.recommendedAgentSlugs,
+      newState.allowedAgentSlugs,
+    );
+
+    await ctx.db.patch(args.projectId, {
+      agentMode: args.agentMode,
+      recommendedAgentSlugs:
+        newState.recommendedAgentSlugs.length > 0
+          ? newState.recommendedAgentSlugs
+          : undefined,
+      allowedAgentSlugs:
+        newState.allowedAgentSlugs.length > 0
+          ? newState.allowedAgentSlugs
+          : undefined,
+      updatedAt: Date.now(),
+    });
+
+    // H8: log slug diffs explicitly alongside previous/new state.
+    const recommendedDiff = arrayDiff(
+      previousState.recommendedAgentSlugs,
+      newState.recommendedAgentSlugs,
+    );
+    const allowedDiff = arrayDiff(
+      previousState.allowedAgentSlugs,
+      newState.allowedAgentSlugs,
+    );
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.agentsChanged,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      previousState,
+      newState,
+      changedFields: diff(previousState, newState),
+      metadata: {
+        recommendedAdded: recommendedDiff.added,
+        recommendedRemoved: recommendedDiff.removed,
+        allowedAdded: allowedDiff.added,
+        allowedRemoved: allowedDiff.removed,
+      },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Model settings
+// ---------------------------------------------------------------------------
+
+export const updateProjectModelSettings = mutation({
+  args: {
+    projectId: v.id('projects'),
+    modelMode: projectModeValidator,
+    recommendedModels: v.optional(v.array(v.string())),
+    allowedModels: v.optional(v.array(v.string())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    const previousState = {
+      modelMode: project.modelMode ?? 'all',
+      recommendedModels: project.recommendedModels ?? [],
+      allowedModels: project.allowedModels ?? [],
+    };
+    const newState = {
+      modelMode: args.modelMode,
+      recommendedModels: args.recommendedModels ?? [],
+      allowedModels: args.allowedModels ?? [],
+    };
+
+    // H3: recommended must be a subset of allowed in restricted mode.
+    validateRecommendedSubsetOfAllowed(
+      args.modelMode,
+      newState.recommendedModels,
+      newState.allowedModels,
+    );
+
+    await ctx.db.patch(args.projectId, {
+      modelMode: args.modelMode,
+      recommendedModels:
+        newState.recommendedModels.length > 0
+          ? newState.recommendedModels
+          : undefined,
+      allowedModels:
+        newState.allowedModels.length > 0 ? newState.allowedModels : undefined,
+      updatedAt: Date.now(),
+    });
+
+    // H8: log slug diffs explicitly alongside previous/new state.
+    const recommendedDiff = arrayDiff(
+      previousState.recommendedModels,
+      newState.recommendedModels,
+    );
+    const allowedDiff = arrayDiff(
+      previousState.allowedModels,
+      newState.allowedModels,
+    );
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.modelsChanged,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      previousState,
+      newState,
+      changedFields: diff(previousState, newState),
+      metadata: {
+        recommendedAdded: recommendedDiff.added,
+        recommendedRemoved: recommendedDiff.removed,
+        allowedAdded: allowedDiff.added,
+        allowedRemoved: allowedDiff.removed,
+      },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Integration settings (schema only in v1; mutation works for future UI)
+// ---------------------------------------------------------------------------
+
+export const updateProjectIntegrationSettings = mutation({
+  args: {
+    projectId: v.id('projects'),
+    integrationsMode: projectIntegrationsModeValidator,
+    allowedIntegrationSlugs: v.optional(v.array(v.string())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    const previousState = {
+      integrationsMode: project.integrationsMode ?? 'all',
+      allowedIntegrationSlugs: project.allowedIntegrationSlugs ?? [],
+    };
+    const newState = {
+      integrationsMode: args.integrationsMode,
+      allowedIntegrationSlugs: args.allowedIntegrationSlugs ?? [],
+    };
+
+    await ctx.db.patch(args.projectId, {
+      integrationsMode: args.integrationsMode,
+      allowedIntegrationSlugs:
+        newState.allowedIntegrationSlugs.length > 0
+          ? newState.allowedIntegrationSlugs
+          : undefined,
+      updatedAt: Date.now(),
+    });
+
+    // H8: log slug diffs explicitly alongside previous/new state.
+    const allowedDiff = arrayDiff(
+      previousState.allowedIntegrationSlugs,
+      newState.allowedIntegrationSlugs,
+    );
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.integrationsChanged,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      previousState,
+      newState,
+      changedFields: diff(previousState, newState),
+      metadata: {
+        allowedAdded: allowedDiff.added,
+        allowedRemoved: allowedDiff.removed,
+      },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Files: attach / detach
+// ---------------------------------------------------------------------------
+
+export const attachDocumentToProject = mutation({
+  args: {
+    documentId: v.id('documents'),
+    projectId: v.id('projects'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    const doc = await ctx.db.get(args.documentId);
+    if (!doc) throw new ConvexError({ code: 'DOCUMENT_NOT_FOUND' });
+    if (doc.organizationId !== project.organizationId) {
+      throw new ConvexError({ code: 'ORG_FORBIDDEN' });
+    }
+
+    const previousTeamId = doc.teamId ?? null;
+
+    // H7: Convex mutations are serializable single-transaction OCC — the
+    // read at L759 + patch below execute atomically against a consistent
+    // snapshot, with automatic retry on conflict. The read-then-patch
+    // sequence here cannot violate the projectId/teamId mutual-exclusivity
+    // invariant under concurrent writers; the loser's transaction retries
+    // and sees the winner's state.
+    //
+    // Mutual exclusivity: a document carries `teamId` OR `projectId`, never
+    // both. If the document is already in a team library we throw rather
+    // than silently moving it — the UI shows DOCUMENT_SCOPE_CONFLICT
+    // and prompts the user to detach it first. Idempotent: re-attaching
+    // to the same project is a no-op.
+    if (doc.projectId === args.projectId) {
+      return null;
+    }
+    if (doc.teamId) {
+      throw new ConvexError({ code: 'DOCUMENT_SCOPE_CONFLICT' });
+    }
+
+    await ctx.db.patch(args.documentId, {
+      projectId: args.projectId,
+    });
+    await ctx.db.patch(args.projectId, { updatedAt: Date.now() });
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.fileAttached,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      metadata: {
+        documentId: String(args.documentId),
+        previousTeamId,
+      },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+export const detachDocumentFromProject = mutation({
+  args: {
+    documentId: v.id('documents'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const doc = await ctx.db.get(args.documentId);
+    if (!doc) throw new ConvexError({ code: 'DOCUMENT_NOT_FOUND' });
+    if (!doc.projectId) return null;
+
+    const project = await ctx.db.get(doc.projectId);
+    if (!project) {
+      // Stale link; just clear.
+      await ctx.db.patch(args.documentId, { projectId: undefined });
+      return null;
+    }
+
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    await ctx.db.patch(args.documentId, { projectId: undefined });
+    await ctx.db.patch(project._id, { updatedAt: Date.now() });
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.fileDetached,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(project._id),
+      resourceName: project.name,
+      metadata: { documentId: String(args.documentId) },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Threads: move / share
+// ---------------------------------------------------------------------------
+
+export const moveThreadToProject = mutation({
+  args: {
+    threadId: v.string(),
+    projectId: v.union(v.id('projects'), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const thread = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+    if (!thread) throw new ConvexError({ code: 'THREAD_NOT_FOUND' });
+
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    if (thread.userId !== String(authUser._id)) {
+      throw new ConvexError({ code: 'THREAD_FORBIDDEN' });
+    }
+
+    const orgId = thread.organizationId;
+    if (!orgId) {
+      throw new ConvexError({ code: 'THREAD_NO_ORG' });
+    }
+
+    let previousProjectId: Id<'projects'> | null = null;
+    if (thread.projectId) previousProjectId = thread.projectId;
+
+    if (args.projectId === null) {
+      await ctx.db.patch(thread._id, {
+        projectId: undefined,
+        sharedWithProject: undefined,
+        updatedAt: Date.now(),
+      });
+    } else {
+      const project = await loadProjectOrThrow(ctx, args.projectId);
+      if (project.organizationId !== orgId) {
+        throw new ConvexError({ code: 'ORG_FORBIDDEN' });
+      }
+      const auth = await getAuthContext(ctx, orgId);
+      assertReadable(project, auth);
+
+      await ctx.db.patch(thread._id, {
+        projectId: args.projectId,
+        // Default to personal-in-project — explicit share via setThreadSharedWithProject.
+        sharedWithProject: false,
+        updatedAt: Date.now(),
+      });
+    }
+
+    const targetProjectIdForAudit = args.projectId ?? previousProjectId;
+    if (targetProjectIdForAudit) {
+      const auditProject = await ctx.db.get(targetProjectIdForAudit);
+      if (auditProject) {
+        await createAuditLog(ctx, {
+          organizationId: orgId,
+          actorId: thread.userId,
+          actorEmail: authUser.email,
+          actorType: 'user',
+          action: PROJECT_AUDIT_ACTIONS.threadMoved,
+          category: 'data',
+          resourceType: PROJECT_RESOURCE_TYPE,
+          resourceId: String(auditProject._id),
+          resourceName: auditProject.name,
+          metadata: {
+            threadId: args.threadId,
+            previousProjectId: previousProjectId
+              ? String(previousProjectId)
+              : null,
+            newProjectId: args.projectId ? String(args.projectId) : null,
+          },
+          status: 'success',
+        });
+      }
+    }
+
+    return null;
+  },
+});
+
+/**
+ * Toggle "Share with project" on a thread inside a project.
+ *
+ * Atomically forces `disablePersonalization: true` when sharing turns ON
+ * (mirror of `share_thread.ts:54` — prevents the owner's memories and
+ * custom instructions from leaking into replies that other project
+ * members read). When turning OFF, we deliberately DO NOT auto-flip
+ * `disablePersonalization` back — owner can re-enable manually.
+ */
+export const setThreadSharedWithProject = mutation({
+  args: {
+    threadId: v.string(),
+    shared: v.boolean(),
+  },
+  returns: v.object({
+    autoDisabledPersonalization: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const thread = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+    if (!thread) throw new ConvexError({ code: 'THREAD_NOT_FOUND' });
+    if (!thread.projectId)
+      throw new ConvexError({ code: 'THREAD_NOT_IN_PROJECT' });
+
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    if (thread.userId !== String(authUser._id)) {
+      throw new ConvexError({ code: 'THREAD_FORBIDDEN' });
+    }
+
+    const previousDisable = thread.disablePersonalization ?? false;
+    const willAutoDisable = args.shared && !previousDisable;
+
+    await ctx.db.patch(thread._id, {
+      sharedWithProject: args.shared,
+      // Force-on when sharing. Don't auto-flip back when unsharing.
+      disablePersonalization: args.shared ? true : previousDisable,
+      updatedAt: Date.now(),
+    });
+
+    const project = await ctx.db.get(thread.projectId);
+    if (project && thread.organizationId) {
+      await createAuditLog(ctx, {
+        organizationId: thread.organizationId,
+        actorId: thread.userId,
+        actorEmail: authUser.email,
+        actorType: 'user',
+        action: args.shared
+          ? PROJECT_AUDIT_ACTIONS.threadShared
+          : PROJECT_AUDIT_ACTIONS.threadUnshared,
+        category: 'data',
+        resourceType: PROJECT_RESOURCE_TYPE,
+        resourceId: String(project._id),
+        resourceName: project.name,
+        previousState: {
+          sharedWithProject: thread.sharedWithProject ?? false,
+          disablePersonalization: previousDisable,
+        },
+        newState: {
+          sharedWithProject: args.shared,
+          disablePersonalization: args.shared ? true : previousDisable,
+        },
+        metadata: {
+          threadId: args.threadId,
+          autoDisabledPersonalization: willAutoDisable,
+        },
+        status: 'success',
+      });
+    }
+
+    return { autoDisabledPersonalization: willAutoDisable };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Archive / restore
+// ---------------------------------------------------------------------------
+
+export const archiveProject = mutation({
+  args: { projectId: v.id('projects') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertReadable(project, auth);
+    assertAdmin(auth);
+    if (project.archivedAt) return null;
+
+    await ctx.db.patch(args.projectId, {
+      archivedAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.archived,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+export const restoreProject = mutation({
+  args: { projectId: v.id('projects') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertReadable(project, auth);
+    assertAdmin(auth);
+    if (!project.archivedAt) return null;
+
+    await ctx.db.patch(args.projectId, {
+      archivedAt: undefined,
+      updatedAt: Date.now(),
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.restored,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Delete
+// ---------------------------------------------------------------------------
+
+/**
+ * Delete a project.
+ *
+ * Two modes:
+ *  - 'detach' (default): children survive with `projectId` cleared.
+ *    Threads become personal chats; documents become library docs (RAG
+ *    index preserved).
+ *  - 'cascade': children destroyed. Requires `confirmPhrase === project.name`.
+ *    Documents go through the standard document deletion path; threads
+ *    owned by the caller are deleted, others' shared-with-project threads
+ *    are detached.
+ *
+ * Both write a `project.deleted` audit row with counts.
+ *
+ * Legal hold note: assertNotHeld is not yet wired here — the platform's
+ * legal-hold table doesn't currently model `'project'` resourceType.
+ * Follow-up: extend `legalHolds.resourceType` validator to include 'project'.
+ */
+export const deleteProject = mutation({
+  args: {
+    projectId: v.id('projects'),
+    mode: v.union(v.literal('detach'), v.literal('cascade')),
+    confirmPhrase: v.optional(v.string()),
+  },
+  returns: v.object({
+    detachedDocCount: v.number(),
+    detachedThreadCount: v.number(),
+    cascadedDocCount: v.number(),
+    cascadedThreadCount: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertReadable(project, auth);
+    assertAdmin(auth);
+
+    if (args.mode === 'cascade') {
+      // H1: case-insensitive compare so "Q2 Sales" vs stored "Q2 sales"
+      // doesn't reject right before a destructive op.
+      const expected = project.name.trim();
+      const actual = (args.confirmPhrase ?? '').trim();
+      if (
+        actual.length === 0 ||
+        expected.localeCompare(actual, undefined, { sensitivity: 'base' }) !== 0
+      ) {
+        throw new ConvexError({ code: 'PROJECT_CONFIRM_PHRASE_MISMATCH' });
+      }
+
+      // §6: rate-limit cascade deletes. They touch every doc + thread,
+      // so a runaway loop is expensive. 5/min/user (token bucket).
+      try {
+        await checkUserRateLimit(ctx, 'project:delete-cascade', auth.userId);
+      } catch (error) {
+        mapRateLimitError(error);
+      }
+    }
+
+    let detachedDocCount = 0;
+    let detachedThreadCount = 0;
+    let cascadedDocCount = 0;
+    let cascadedThreadCount = 0;
+
+    // ---- Documents ----
+    const docsQuery = ctx.db
+      .query('documents')
+      .withIndex('by_organizationId_and_projectId', (q) =>
+        q
+          .eq('organizationId', project.organizationId)
+          .eq('projectId', args.projectId),
+      );
+
+    for await (const doc of docsQuery) {
+      if (args.mode === 'cascade') {
+        // Mark for deletion via lifecycle status; the existing retention
+        // pipeline will hard-delete blob + RAG chunks within the grace
+        // window. Inline blob deletion is out of scope for this mutation.
+        await ctx.db.patch(doc._id, {
+          lifecycleStatus: 'expired',
+          statusChangedAt: Date.now(),
+          projectId: undefined,
+        });
+        cascadedDocCount++;
+      } else {
+        await ctx.db.patch(doc._id, { projectId: undefined });
+        detachedDocCount++;
+      }
+    }
+
+    // ---- Threads ----
+    const threadsQuery = ctx.db
+      .query('threadMetadata')
+      .withIndex('by_organizationId_and_projectId', (q) =>
+        q
+          .eq('organizationId', project.organizationId)
+          .eq('projectId', args.projectId),
+      );
+
+    for await (const thread of threadsQuery) {
+      if (args.mode === 'cascade' && thread.userId === auth.userId) {
+        // Caller owns the thread → soft-delete via lifecycle.
+        await ctx.db.patch(thread._id, {
+          status: 'trashed',
+          statusChangedAt: Date.now(),
+          projectId: undefined,
+          sharedWithProject: undefined,
+        });
+        cascadedThreadCount++;
+      } else {
+        // Detach: thread survives.
+        await ctx.db.patch(thread._id, {
+          projectId: undefined,
+          sharedWithProject: undefined,
+        });
+        detachedThreadCount++;
+      }
+    }
+
+    await ctx.db.delete(args.projectId);
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.deleted,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      metadata: {
+        mode: args.mode,
+        detachedDocCount,
+        detachedThreadCount,
+        cascadedDocCount,
+        cascadedThreadCount,
+      },
+      status: 'success',
+    });
+
+    return {
+      detachedDocCount,
+      detachedThreadCount,
+      cascadedDocCount,
+      cascadedThreadCount,
+    };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Duplicate (U1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Duplicate a project: copies identity (with " (copy)" suffix), instructions,
+ * knowledge mode, agent/model/integration mode + lists, and sharing config.
+ *
+ * Does NOT copy:
+ *   - files (separate sharing semantics; user must explicitly attach)
+ *   - threads (per-user; chats are owner-bound)
+ *   - archivedAt (always lands as a fresh project)
+ *
+ * Audit log emits `project.created` with `metadata.duplicatedFrom` so the
+ * provenance chain stays queryable.
+ */
+export const duplicateProject = mutation({
+  args: {
+    projectId: v.id('projects'),
+    name: v.optional(v.string()),
+  },
+  returns: v.id('projects'),
+  handler: async (ctx, args) => {
+    const source = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, source.organizationId);
+    assertReadable(source, auth);
+
+    // Editor+ in the org can duplicate (matches createProject).
+    if (auth.role === 'member' || auth.role === 'disabled' || !auth.role) {
+      throw new ConvexError({ code: 'RBAC_FORBIDDEN' });
+    }
+
+    // §6: same rate limit bucket as createProject — duplication is a
+    // create in spirit and the storage cost is the same.
+    try {
+      await checkUserRateLimit(ctx, 'project:create', auth.userId);
+    } catch (error) {
+      mapRateLimitError(error);
+    }
+
+    // Derive the new name. If caller provides one, validate it; otherwise
+    // append " (copy)" suffix, truncating from the source name if needed.
+    let nextName: string;
+    if (args.name !== undefined) {
+      nextName = validateName(args.name);
+    } else {
+      const suffix = ' (copy)';
+      const room = PROJECT_NAME_MAX - suffix.length;
+      const base =
+        source.name.length > room ? source.name.slice(0, room) : source.name;
+      nextName = `${base}${suffix}`;
+    }
+
+    const now = Date.now();
+    const newProjectId = await ctx.db.insert('projects', {
+      organizationId: source.organizationId,
+      name: nextName,
+      description: source.description,
+      icon: source.icon,
+      color: source.color,
+      teamId: source.teamId,
+      sharedWithTeamIds: source.sharedWithTeamIds,
+      instructions: source.instructions,
+      knowledgeMode: source.knowledgeMode,
+      agentMode: source.agentMode,
+      recommendedAgentSlugs: source.recommendedAgentSlugs,
+      allowedAgentSlugs: source.allowedAgentSlugs,
+      modelMode: source.modelMode,
+      recommendedModels: source.recommendedModels,
+      allowedModels: source.allowedModels,
+      integrationsMode: source.integrationsMode,
+      allowedIntegrationSlugs: source.allowedIntegrationSlugs,
+      createdBy: auth.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: source.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.created,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(newProjectId),
+      resourceName: nextName,
+      newState: {
+        name: nextName,
+        teamId: source.teamId ?? null,
+        sharedWithTeamIds: source.sharedWithTeamIds ?? [],
+      },
+      metadata: {
+        isOrgWide: isOrgWideProject(source),
+        duplicatedFrom: String(args.projectId),
+      },
+      status: 'success',
+    });
+
+    return newProjectId;
+  },
+});

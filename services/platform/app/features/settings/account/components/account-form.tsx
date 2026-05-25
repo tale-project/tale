@@ -3,19 +3,22 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
 import { Text } from '@tale/ui/text';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import {
+  useFormEditor,
+  useRegisterActiveEditor,
+} from '@/app/components/ui/editor';
 import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
-import { Field } from '@/app/components/ui/forms/field';
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
+import { Label } from '@/app/components/ui/forms/label';
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { SettingsSaveBar } from '@/app/features/settings/components/settings-save-bar';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -52,6 +55,7 @@ export function AccountForm() {
     <SettingsPage
       title={tNav('account')}
       description={tSettings('menu.account.description')}
+      narrow
     >
       <ProfileSection />
       <PasswordSection hasCredential={hasCredential ?? false} />
@@ -78,70 +82,74 @@ function ProfileSection() {
     [tSettings],
   );
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting, isDirty, isValid },
-    reset,
-  } = useForm<ProfileFormData>({
-    resolver: zodResolver(profileSchema),
-    mode: 'onChange',
-    defaultValues: {
-      name: user?.name ?? '',
+  const data = useMemo<ProfileFormData | undefined>(
+    () => (user ? { name: user.name ?? '' } : undefined),
+    [user],
+  );
+
+  const save = useCallback(
+    async (values: ProfileFormData) => {
+      const name = values.name.trim();
+      try {
+        await updateUserName({ name });
+        toast({
+          title: tToast('success.profileUpdated'),
+          variant: 'success',
+        });
+      } catch (err) {
+        toast({
+          title: tToast('error.profileUpdateFailed'),
+          variant: 'destructive',
+        });
+        throw err;
+      }
     },
+    [toast, tToast, updateUserName],
+  );
+
+  const editor = useFormEditor<ProfileFormData>({
+    data,
+    schema: profileSchema,
+    save,
   });
 
-  useEffect(() => {
-    if (user?.name) {
-      reset({ name: user.name }, { keepDirty: false });
-    }
-  }, [user?.name, reset]);
+  useRegisterActiveEditor(editor);
 
-  const onSubmit = async (data: ProfileFormData) => {
-    const name = data.name.trim();
-    try {
-      await updateUserName({ name });
-      toast({
-        title: tToast('success.profileUpdated'),
-        variant: 'success',
-      });
-      reset({ name });
-    } catch {
-      toast({
-        title: tToast('error.profileUpdateFailed'),
-        variant: 'destructive',
-      });
-    }
-  };
+  const {
+    form: {
+      register,
+      handleSubmit,
+      formState: { errors },
+    },
+  } = editor;
 
   return (
     <SettingsSection
       title={tSettings('account.profile.title')}
       description={tSettings('account.profile.description')}
     >
-      <Form id="account-profile-form" onSubmit={handleSubmit(onSubmit)}>
-        <Input
-          id="display-name"
-          label={tSettings('account.profile.name')}
-          placeholder={tSettings('account.profile.namePlaceholder')}
-          disabled={isSubmitting}
-          errorMessage={errors.name?.message}
-          wrapperClassName="max-w-sm"
-          {...register('name')}
-        />
-        <Field label={tSettings('account.profile.email')}>
-          <Text variant="muted" as="span">
-            {user?.email ?? ''}
-          </Text>
-        </Field>
+      <Form
+        id="account-profile-form"
+        onSubmit={handleSubmit((values) => save(values))}
+      >
+        <fieldset disabled={editor.isLoading} className="contents space-y-4">
+          <Input
+            id="display-name"
+            label={tSettings('account.profile.name')}
+            placeholder={tSettings('account.profile.namePlaceholder')}
+            disabled={editor.isSaving}
+            errorMessage={errors.name?.message}
+            wrapperClassName="max-w-sm"
+            {...register('name')}
+          />
+          <div className="flex max-w-sm flex-col gap-1.5">
+            <Label>{tSettings('account.profile.email')}</Label>
+            <Text as="span" variant="body">
+              {user?.email ?? ''}
+            </Text>
+          </div>
+        </fieldset>
       </Form>
-      <SettingsSaveBar
-        isDirty={isDirty}
-        isSubmitting={isSubmitting}
-        isValid={isValid}
-        onDiscard={() => reset()}
-        formId="account-profile-form"
-      />
     </SettingsSection>
   );
 }

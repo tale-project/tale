@@ -38,6 +38,11 @@ export interface GenerateResponseConfig {
   agentTeamIds?: string[];
   /** Pre-resolved completed file IDs from agent-specific knowledge files */
   knowledgeFileIds?: string[];
+  /**
+   * Projects feature: project IDs whose RAG-indexed files should be
+   * unioned into the agent's file scope when the chat is in a project.
+   */
+  agentProjectIds?: string[];
   /** Whether to inject structured response markers into the system prompt (default false) */
   structuredResponsesEnabled?: boolean;
   /** Agent instructions for context window display (not sent to LLM, already in agent config) */

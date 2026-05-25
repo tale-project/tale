@@ -1,6 +1,13 @@
 'use client';
 
-import { MessageCircle, Inbox, BrainIcon, Network, Bot } from 'lucide-react';
+import {
+  MessageCircle,
+  Inbox,
+  BrainIcon,
+  Network,
+  Bot,
+  Folder,
+} from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -25,6 +32,7 @@ export function useNavigationItems(businessId: string): NavItem[] {
   const { t: tNav } = useT('navigation');
   const { t: tKnowledge } = useT('knowledge');
   const { t: tConversations } = useT('conversations');
+  const { t: tProjects } = useT('projects');
   return useMemo(
     (): NavItem[] => [
       {
@@ -33,6 +41,14 @@ export function useNavigationItems(businessId: string): NavItem[] {
         params: { id: businessId },
         href: `/dashboard/${businessId}/chat`,
         icon: MessageCircle,
+      },
+      {
+        label: tProjects('title'),
+        to: '/dashboard/$id/projects',
+        params: { id: businessId },
+        href: `/dashboard/${businessId}/projects`,
+        icon: Folder,
+        can: ['read', 'projects'],
       },
       {
         label: tNav('conversations'),
@@ -123,6 +139,6 @@ export function useNavigationItems(businessId: string): NavItem[] {
         can: ['write', 'wfDefinitions'],
       },
     ],
-    [businessId, tNav, tKnowledge, tConversations],
+    [businessId, tNav, tKnowledge, tConversations, tProjects],
   );
 }

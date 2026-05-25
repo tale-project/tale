@@ -9,7 +9,7 @@ interface ConversationsListSkeletonProps {
 }
 
 export function ConversationsListSkeleton({
-  rows = 3,
+  rows = 12,
 }: ConversationsListSkeletonProps) {
   return (
     <div className="divide-border divide-y">

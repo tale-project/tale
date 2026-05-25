@@ -1,12 +1,13 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { z } from 'zod';
 
+import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -27,6 +28,14 @@ import { useGovernancePolicy } from '../hooks/queries';
 interface LoginPolicyEditorProps {
   organizationId: string;
 }
+
+interface LoginPolicyForm {
+  maxAttempts: number;
+  scheduleSeconds: string;
+  trustedProxies: string;
+}
+
+const FORM_ID = 'governance-login-policy-form';
 
 function parseConfig(raw: unknown): LoginPolicyConfig {
   const obj = isRecord(raw) ? raw : {};
@@ -81,107 +90,95 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
   const upsertMutation = useUpsertGovernancePolicy();
 
   const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
-
-  const initializedRef = useRef(false);
-  const [enabled, setEnabled] = useState(false);
-  const [maxAttempts, setMaxAttempts] = useState('');
-  const [scheduleSeconds, setScheduleSeconds] = useState('');
-  const [trustedProxies, setTrustedProxies] = useState('');
-
-  if (!isLoading && !initializedRef.current) {
-    initializedRef.current = true;
-    setEnabled(savedConfig.enabled);
-    setMaxAttempts(String(savedConfig.maxAttemptsBeforeLockout));
-    setScheduleSeconds(scheduleToString(savedConfig.backoffSchedule));
-    setTrustedProxies(savedConfig.trustedProxies.join(', '));
-  }
-
   const cannotManage = ability.cannot('write', 'orgSettings');
 
-  // Dirty flag — compare the form state to the last-saved config. The
-  // textual fields are compared as normalized strings (after parsing back)
-  // so "1, 10" and "1,10" don't look dirty.
-  const isDirty = useMemo(() => {
-    if (enabled !== savedConfig.enabled) return true;
-    if (maxAttempts !== String(savedConfig.maxAttemptsBeforeLockout))
-      return true;
-    const parsedSchedule = stringToSchedule(scheduleSeconds);
-    if (
-      !parsedSchedule ||
-      parsedSchedule.length !== savedConfig.backoffSchedule.length ||
-      parsedSchedule.some((v, i) => v !== savedConfig.backoffSchedule[i])
-    ) {
-      return true;
-    }
-    const parsedProxies = stringToProxyList(trustedProxies);
-    if (
-      !parsedProxies ||
-      parsedProxies.length !== savedConfig.trustedProxies.length ||
-      parsedProxies.some((v, i) => v !== savedConfig.trustedProxies[i])
-    ) {
-      return true;
-    }
-    return false;
-  }, [enabled, maxAttempts, scheduleSeconds, trustedProxies, savedConfig]);
+  // `enabled` is instant-save (a switch in the section header); the other
+  // fields are batched through the EditorActions cluster at the bottom.
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    if (!isLoading) setEnabled(savedConfig.enabled);
+  }, [isLoading, savedConfig]);
 
-  const handleSave = useCallback(async () => {
-    const attempts = Number(maxAttempts);
-    if (!Number.isInteger(attempts) || attempts < 1 || attempts > 50) {
-      toast({
-        title: t('loginPolicy.invalidAttempts'),
-        variant: 'destructive',
-      });
-      return;
-    }
-    const schedule = stringToSchedule(scheduleSeconds);
-    if (!schedule || schedule.length === 0) {
-      toast({
-        title: t('loginPolicy.invalidSchedule'),
-        variant: 'destructive',
-      });
-      return;
-    }
-    const proxies = stringToProxyList(trustedProxies);
-    if (!proxies) {
-      toast({
-        title: t('loginPolicy.invalidProxies'),
-        variant: 'destructive',
-      });
-      return;
-    }
-    try {
-      await upsertMutation.mutateAsync({
-        organizationId,
-        policyType: 'login_policy',
-        config: {
-          enabled,
-          maxAttemptsBeforeLockout: attempts,
-          backoffSchedule: schedule,
-          trustedProxies: proxies,
-        } satisfies LoginPolicyConfig,
-      });
-      toast({
-        title: t('toastSavedTitle'),
-        description: t('loginPolicy.saved'),
-        variant: 'success',
-      });
-    } catch {
-      toast({
-        title: t('toastSaveFailedTitle'),
-        description: t('loginPolicy.saveFailed'),
-        variant: 'destructive',
-      });
-    }
-  }, [
-    enabled,
-    maxAttempts,
-    scheduleSeconds,
-    trustedProxies,
-    organizationId,
-    upsertMutation,
-    toast,
-    t,
-  ]);
+  const schema = useMemo(
+    () =>
+      z.object({
+        maxAttempts: z
+          .number()
+          .int()
+          .min(1, t('loginPolicy.invalidAttempts'))
+          .max(50, t('loginPolicy.invalidAttempts')),
+        scheduleSeconds: z
+          .string()
+          .refine((v) => stringToSchedule(v) !== null, {
+            message: t('loginPolicy.invalidSchedule'),
+          }),
+        trustedProxies: z
+          .string()
+          .refine((v) => stringToProxyList(v) !== null, {
+            message: t('loginPolicy.invalidProxies'),
+          }),
+      }),
+    [t],
+  );
+
+  const data = useMemo<LoginPolicyForm | undefined>(() => {
+    if (isLoading) return undefined;
+    return {
+      maxAttempts: savedConfig.maxAttemptsBeforeLockout,
+      scheduleSeconds: scheduleToString(savedConfig.backoffSchedule),
+      trustedProxies: savedConfig.trustedProxies.join(', '),
+    };
+  }, [isLoading, savedConfig]);
+
+  const save = useCallback(
+    async (values: LoginPolicyForm) => {
+      const schedule = stringToSchedule(values.scheduleSeconds);
+      const proxies = stringToProxyList(values.trustedProxies);
+      if (!schedule || !proxies) {
+        // Schema validation should have caught this; defensive guard only.
+        throw new Error('VALIDATION_FAILED');
+      }
+      try {
+        await upsertMutation.mutateAsync({
+          organizationId,
+          policyType: 'login_policy',
+          config: {
+            enabled,
+            maxAttemptsBeforeLockout: values.maxAttempts,
+            backoffSchedule: schedule,
+            trustedProxies: proxies,
+          } satisfies LoginPolicyConfig,
+        });
+        toast({
+          title: t('toastSavedTitle'),
+          description: t('loginPolicy.saved'),
+          variant: 'success',
+        });
+      } catch (err) {
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description: t('loginPolicy.saveFailed'),
+          variant: 'destructive',
+        });
+        throw err;
+      }
+    },
+    [enabled, organizationId, t, toast, upsertMutation],
+  );
+
+  const editor = useFormEditor<LoginPolicyForm>({
+    data,
+    schema,
+    save,
+  });
+
+  const {
+    form: {
+      register,
+      handleSubmit,
+      formState: { errors },
+    },
+  } = editor;
 
   const handleToggleEnabled = useCallback(
     async (next: boolean) => {
@@ -195,7 +192,8 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
             enabled: next,
           } satisfies LoginPolicyConfig,
         });
-      } catch {
+      } catch (err) {
+        console.error('[loginPolicy toggle]', err);
         setEnabled(!next);
         toast({
           title: t('toastSaveFailedTitle'),
@@ -204,7 +202,7 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
         });
       }
     },
-    [organizationId, savedConfig, upsertMutation, toast, t],
+    [organizationId, savedConfig, t, toast, upsertMutation],
   );
 
   const skeleton = (
@@ -233,7 +231,7 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
     </div>
   );
 
-  if (isLoading || !initializedRef.current) {
+  if (isLoading) {
     return <div aria-busy="true">{skeleton}</div>;
   }
 
@@ -250,69 +248,71 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
         />
       }
     >
-      <Stack gap={6} className="max-w-2xl">
-        {enabled && (
-          <Stack gap={4}>
-            <div>
-              <Input
-                label={t('loginPolicy.maxAttempts')}
-                type="number"
-                value={maxAttempts}
-                onChange={(e) => setMaxAttempts(e.target.value)}
-                disabled={cannotManage}
-                size="sm"
-                min={1}
-                max={50}
-                step={1}
-              />
-              <Text variant="muted" className="mt-1 text-xs">
-                {t('loginPolicy.maxAttemptsHint')}
-              </Text>
-            </div>
+      <form id={FORM_ID} onSubmit={handleSubmit((values) => save(values))}>
+        <fieldset
+          disabled={cannotManage || editor.isLoading}
+          className="contents"
+        >
+          <Stack gap={6} className="max-w-2xl">
+            {enabled && (
+              <Stack gap={4}>
+                <div>
+                  <Input
+                    label={t('loginPolicy.maxAttempts')}
+                    type="number"
+                    size="sm"
+                    min={1}
+                    max={50}
+                    step={1}
+                    errorMessage={errors.maxAttempts?.message}
+                    {...register('maxAttempts', { valueAsNumber: true })}
+                  />
+                  <Text variant="muted" className="mt-1 text-xs">
+                    {t('loginPolicy.maxAttemptsHint')}
+                  </Text>
+                </div>
 
-            <div>
-              <Input
-                label={t('loginPolicy.backoffSchedule')}
-                value={scheduleSeconds}
-                onChange={(e) => setScheduleSeconds(e.target.value)}
-                placeholder="1, 10, 60, 600"
-                disabled={cannotManage}
-                size="sm"
-              />
-              <Text variant="muted" className="mt-1 text-xs">
-                {t('loginPolicy.backoffScheduleHint')}
-              </Text>
-            </div>
+                <div>
+                  <Input
+                    label={t('loginPolicy.backoffSchedule')}
+                    placeholder="1, 10, 60, 600"
+                    size="sm"
+                    errorMessage={errors.scheduleSeconds?.message}
+                    {...register('scheduleSeconds')}
+                  />
+                  <Text variant="muted" className="mt-1 text-xs">
+                    {t('loginPolicy.backoffScheduleHint')}
+                  </Text>
+                </div>
 
-            <div>
-              <Input
-                label={t('loginPolicy.trustedProxies')}
-                value={trustedProxies}
-                onChange={(e) => setTrustedProxies(e.target.value)}
-                placeholder="loopback, uniquelocal, 10.0.0.0/8"
-                disabled={cannotManage}
-                size="sm"
-              />
-              <Text variant="muted" className="mt-1 text-xs">
-                {t('loginPolicy.trustedProxiesHint')}
-              </Text>
-            </div>
+                <div>
+                  <Input
+                    label={t('loginPolicy.trustedProxies')}
+                    placeholder="loopback, uniquelocal, 10.0.0.0/8"
+                    size="sm"
+                    errorMessage={errors.trustedProxies?.message}
+                    {...register('trustedProxies')}
+                  />
+                  <Text variant="muted" className="mt-1 text-xs">
+                    {t('loginPolicy.trustedProxiesHint')}
+                  </Text>
+                </div>
+              </Stack>
+            )}
+
+            {enabled && (
+              <HStack justify="end">
+                <EditorActions
+                  controller={editor}
+                  formId={FORM_ID}
+                  canEdit={!cannotManage}
+                  entityKind="governance_login_policy"
+                />
+              </HStack>
+            )}
           </Stack>
-        )}
-
-        {isDirty && (
-          <Button
-            onClick={handleSave}
-            disabled={cannotManage || upsertMutation.isPending}
-            size="sm"
-            className="self-start"
-          >
-            {upsertMutation.isPending
-              ? t('systemPrompt.saving')
-              : t('systemPrompt.save')}
-          </Button>
-        )}
-      </Stack>
+        </fieldset>
+      </form>
     </PageSection>
   );
 }

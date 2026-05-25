@@ -171,7 +171,7 @@ export function Conversations({
   }
 
   const isLoading = bodyState === 'loading' || bodyState === 'skeleton';
-  const skeletonRows = Math.min(conversationCount ?? 3, 8);
+  const skeletonRows = Math.min(conversationCount ?? 12, 12);
 
   const handleConversationSelect = (conversation: Conversation) => {
     setSelectedConversationId(conversation.id);

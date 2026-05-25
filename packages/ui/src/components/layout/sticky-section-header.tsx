@@ -33,6 +33,7 @@ export const StickySectionHeader = forwardRef<
       size={size}
       weight={weight}
       action={action}
+      className="min-w-0 flex-1"
     />
   </div>
 ));
