@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,6 +11,7 @@ import { useCallback, useState } from 'react';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { formatBytes } from '@/lib/utils/format-bytes';
 
 import { useDeleteSkillAsset } from '../hooks/mutations';
 import { SkillAssetEditorDialog } from './skill-asset-editor-dialog';
@@ -32,6 +34,7 @@ export function SkillAssetsSection({
   maxAssets,
 }: SkillAssetsSectionProps) {
   const { t } = useT('settings');
+  const { locale } = useLocale();
   const queryClient = useQueryClient();
   const { mutateAsync: deleteAsset } = useDeleteSkillAsset();
 
@@ -134,7 +137,7 @@ export function SkillAssetsSection({
                   {f.path}
                 </Text>
                 <Text as="span" variant="caption">
-                  {f.size} B
+                  {formatBytes(f.size, locale)}
                 </Text>
               </Stack>
               <HStack gap={1}>

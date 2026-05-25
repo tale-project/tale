@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
@@ -15,6 +16,7 @@ import {
   markdownWrapperStyles,
 } from '@/app/features/chat/components/message-bubble/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
+import { formatBytes } from '@/lib/utils/format-bytes';
 import { highlightCode, resolveLanguage } from '@/lib/utils/shiki';
 import {
   getFileExtensionLower,
@@ -67,12 +69,6 @@ const KNOWN_BINARY_EXTS = new Set([
   'mkv',
 ]);
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
-}
-
 export function SkillAssetViewer({
   organizationId,
   skillSlug,
@@ -80,6 +76,7 @@ export function SkillAssetViewer({
   onEdit,
 }: SkillAssetViewerProps) {
   const { t } = useT('settings');
+  const { locale } = useLocale();
   const { t: tCommon } = useT('common');
   const { resolvedTheme } = useTheme();
   const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
@@ -168,7 +165,7 @@ export function SkillAssetViewer({
         </Text>
         {!skipFetch && !loadError ? (
           <Text variant="caption" className="text-muted-foreground shrink-0">
-            {isLoading ? '—' : `${formatBytes(size)} · ${langLabel}`}
+            {isLoading ? '—' : `${formatBytes(size, locale)} · ${langLabel}`}
           </Text>
         ) : null}
         <div className="flex-1" />

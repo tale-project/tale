@@ -1,6 +1,7 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
@@ -71,6 +72,7 @@ function SkillDetailPage() {
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { locale } = useLocale();
 
   const { data, isLoading, refetch } = useReadSkill(organizationId, skillSlug);
   const { data: filesData } = useListSkillFiles(organizationId, skillSlug);
@@ -305,23 +307,31 @@ function SkillDetailPage() {
   if (!skill) {
     const errorMessage = data && !data.ok ? data.message : undefined;
     return (
-      <ContentArea>
-        <Stack gap={4} className="p-4">
-          <Heading level={1}>
-            {t('skills.notFound', { defaultValue: 'Skill not found' })}
-          </Heading>
-          {errorMessage ? <Text variant="muted">{errorMessage}</Text> : null}
-          <Link
-            to="/dashboard/$id/settings/skills"
-            params={{ id: organizationId }}
-            className="underline"
-          >
-            {t('skills.backToList', {
-              defaultValue: 'Back to skills',
-            })}
-          </Link>
-        </Stack>
-      </ContentArea>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+        <div className="hidden md:block">
+          <SkillDetailSidebar
+            organizationId={organizationId}
+            currentSlug={skillSlug}
+          />
+        </div>
+        <ContentArea className="min-w-0 flex-1">
+          <Stack gap={4} className="p-4">
+            <Heading level={1}>
+              {t('skills.notFound', { defaultValue: 'Skill not found' })}
+            </Heading>
+            {errorMessage ? <Text variant="muted">{errorMessage}</Text> : null}
+            <Link
+              to="/dashboard/$id/settings/skills"
+              params={{ id: organizationId }}
+              className="underline"
+            >
+              {t('skills.backToList', {
+                defaultValue: 'Back to skills',
+              })}
+            </Link>
+          </Stack>
+        </ContentArea>
+      </div>
     );
   }
 
@@ -383,7 +393,7 @@ function SkillDetailPage() {
           scroll on narrow viewports. Hiding the rails entirely keeps
           the detail content readable; users can navigate via the
           back-to-list button. */}
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         <div className="hidden md:block">
           <SkillDetailSidebar
             organizationId={organizationId}
@@ -424,7 +434,7 @@ function SkillDetailPage() {
                   </Text>
                   <Text variant="label">
                     {t('skills.metadata.triggerAuto', {
-                      defaultValue: 'Auto (model-invoked)',
+                      defaultValue: 'Auto (agent-invoked)',
                     })}
                   </Text>
                 </Stack>
@@ -493,7 +503,13 @@ function SkillDetailPage() {
                 })}
               >
                 <Stack gap={2}>
-                  <HStack gap={1} justify="end">
+                  <div
+                    role="group"
+                    aria-label={t('skills.body.viewToggle', {
+                      defaultValue: 'Body view mode',
+                    })}
+                    className="flex justify-end gap-1"
+                  >
                     <Button
                       size="sm"
                       variant={bodyView === 'edit' ? 'secondary' : 'ghost'}
@@ -514,7 +530,7 @@ function SkillDetailPage() {
                         defaultValue: 'Preview',
                       })}
                     </Button>
-                  </HStack>
+                  </div>
                   {bodyView === 'edit' ? (
                     <Textarea
                       id="body"
@@ -748,7 +764,10 @@ function SkillDetailPage() {
                           </Badge>
                           <Stack gap={0} className="flex-1">
                             <Text variant="body" className="font-mono text-xs">
-                              {new Date(row.timestamp).toLocaleString()}
+                              {new Intl.DateTimeFormat(locale, {
+                                dateStyle: 'medium',
+                                timeStyle: 'short',
+                              }).format(new Date(row.timestamp))}
                             </Text>
                             <Text variant="muted" className="text-xs">
                               {row.actorEmail ?? row.actorId}
