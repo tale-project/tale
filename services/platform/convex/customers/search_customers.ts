@@ -40,16 +40,30 @@ export async function searchCustomers(
 
   const searchAsNumber = Number(searchTerm);
 
+  // TODO(search-index-disabled): search_customers .searchIndex was dropped
+  // to unblock deploy past SearchIndexBootstrapWorker crash loop. Re-enable
+  // once the bootstrap is fixed; until then fall back to a scoped scan.
+  const collectNameMatches = async (): Promise<Array<Doc<'customers'>>> => {
+    const matches: Array<Doc<'customers'>> = [];
+    const nameQuery = ctx.db
+      .query('customers')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', organizationId),
+      );
+    for await (const customer of nameQuery) {
+      if (customer.name?.toLowerCase().includes(searchLower)) {
+        matches.push(customer);
+        if (matches.length >= resultLimit) break;
+      }
+    }
+    return matches;
+  };
+
   // Run all independent searches in parallel
   const [nameResults, emailMatches, externalIdExact, externalIdNumeric] =
     await Promise.all([
-      // 1. Search by name using full-text search index
-      ctx.db
-        .query('customers')
-        .withSearchIndex('search_customers', (q) =>
-          q.search('name', searchTerm).eq('organizationId', organizationId),
-        )
-        .take(resultLimit),
+      // 1. Search by name via scoped scan (search index disabled, see above)
+      collectNameMatches(),
 
       // 2. Search by email using the email index
       collectEmailMatches(),

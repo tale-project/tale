@@ -413,17 +413,23 @@ export const searchProjects = query({
     const auth = await getAuthContext(ctx, args.organizationId);
     const limit = Math.min(Math.max(args.limit ?? 20, 1), 50);
 
-    const rows = await ctx.db
+    // TODO(search-index-disabled): search_projects .searchIndex was dropped
+    // to unblock deploy past SearchIndexBootstrapWorker crash loop. Re-enable
+    // once the bootstrap is fixed; until then fall back to a scoped scan
+    // of non-archived projects in the org, filtering by name substring.
+    const searchLower = args.query.toLowerCase();
+    const rows: Array<Doc<'projects'>> = [];
+    const scan = ctx.db
       .query('projects')
-      .withSearchIndex('search_projects', (q) =>
-        q
-          .search('name', args.query)
-          .eq('organizationId', args.organizationId)
-          // archivedAt is `optional(number)`; the search index allows
-          // querying for "not archived" via .eq(undefined).
-          .eq('archivedAt', undefined),
-      )
-      .take(limit * 2);
+      .withIndex('by_organization_archived', (q) =>
+        q.eq('organizationId', args.organizationId).eq('archivedAt', undefined),
+      );
+    for await (const row of scan) {
+      if (row.name.toLowerCase().includes(searchLower)) {
+        rows.push(row);
+        if (rows.length >= limit * 2) break;
+      }
+    }
 
     return rows
       .filter((row) => hasProjectAccess(row, auth.teamIds, auth.role))

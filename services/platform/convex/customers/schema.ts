@@ -37,8 +37,4 @@ export const customersTable = defineTable({
   .index('by_organizationId_and_externalId', ['organizationId', 'externalId'])
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_organizationId_and_source', ['organizationId', 'source'])
-  .index('by_organizationId_and_locale', ['organizationId', 'locale'])
-  .searchIndex('search_customers', {
-    searchField: 'name',
-    filterFields: ['organizationId', 'status'],
-  });
+  .index('by_organizationId_and_locale', ['organizationId', 'locale']);
