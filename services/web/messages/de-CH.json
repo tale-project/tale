@@ -5,7 +5,8 @@
   "footer": {
     "address": {
       "street": "Seestrasse 4"
-    }
+    },
+    "technicalOrganizationalMeasures": "Technische & organisatorische Massnahmen"
   },
   "home": {
     "faq": {

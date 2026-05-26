@@ -33,9 +33,14 @@
     "skipToMain": "Aller au contenu principal"
   },
   "legal": {
-    "downloadPdf": "Télécharger le PDF",
-    "downloadPdfAria": "Télécharger {title} en PDF",
-    "notFound": "Ce document n'est pas disponible."
+    "downloadPdf": "Imprimer ou enregistrer en PDF",
+    "downloadPdfAria": "Imprimer ou enregistrer {title} en PDF",
+    "notFound": "Ce document n'est pas disponible.",
+    "documentTabsAria": "Sections du document",
+    "tabs": {
+      "data-processing-agreement": "DPA",
+      "technical-organizational-measures": "MTO"
+    }
   },
   "footer": {
     "product": "Produit",
@@ -51,6 +56,7 @@
     "privacyPolicy": "Politique de confidentialité",
     "termsOfService": "Conditions d'utilisation",
     "processingAgreement": "Contrat de sous-traitance",
+    "technicalOrganizationalMeasures": "Mesures techniques & organisationnelles",
     "countrySwitzerland": "Suisse",
     "homeAriaLabel": "Accueil Tale",
     "githubAriaLabel": "GitHub",

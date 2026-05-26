@@ -9,6 +9,7 @@ export const LEGAL_SLUGS = [
   'privacy-policy',
   'terms-of-service',
   'data-processing-agreement',
+  'technical-organizational-measures',
   'personalization',
 ] as const;
 

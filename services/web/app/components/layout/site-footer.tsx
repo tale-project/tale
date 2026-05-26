@@ -127,6 +127,12 @@ export function SiteFooter() {
         <LegalLink key="processingAgreement" slug="data-processing-agreement">
           {t('processingAgreement')}
         </LegalLink>,
+        <LegalLink
+          key="technicalOrganizationalMeasures"
+          slug="technical-organizational-measures"
+        >
+          {t('technicalOrganizationalMeasures')}
+        </LegalLink>,
       ],
     },
   ];
