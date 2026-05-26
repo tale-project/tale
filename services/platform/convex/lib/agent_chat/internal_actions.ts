@@ -105,6 +105,7 @@ const serializableAgentConfigValidator = v.object({
    */
   agentProjectIds: v.optional(v.array(v.string())),
   delegateSlugs: v.optional(v.array(v.string())),
+  skillBindings: v.optional(v.array(v.string())),
   structuredResponsesEnabled: v.optional(v.boolean()),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
@@ -212,9 +213,9 @@ export const runAgentGeneration = internalAction({
       const toolBuildStart = Date.now();
 
       // Stage 1: org-level resources + skill snapshot, all in parallel.
-      // Skills are no longer agent-bound and no longer grant transitive
-      // tools/integrations/workflows — `buildSkillContext` simply loads
-      // every org skill so the model can `expand_skill` any of them.
+      // `buildSkillContext` gates on the agent's `skillBindings` allowlist —
+      // an empty / absent list short-circuits to the empty snapshot (no disk
+      // reads, no `expand_skill` tool exposed).
       const orgSlug = await resolveOrgSlug(ctx, organizationId);
       const [orgLocale, governanceResult, mcpExtraTools, skillSnapshot] =
         await Promise.all([
@@ -225,7 +226,7 @@ export const runAgentGeneration = internalAction({
           ),
           fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
           buildMcpTools(ctx, organizationId),
-          buildSkillContext(ctx, orgSlug),
+          buildSkillContext(ctx, orgSlug, agentConfig.skillBindings),
         ]);
 
       const effectiveConfig = agentConfig;

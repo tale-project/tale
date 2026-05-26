@@ -56,11 +56,17 @@ export interface SerializableAgentConfig {
   /** Agent slugs of delegate agents (file-based agent names) */
   delegateSlugs?: string[];
   /**
-   * Skill snapshot taken at bind time. Runtime uses THIS list (not the live
-   * SKILL.md frontmatter) to merge transitive dependencies, defeating the
-   * silent-privilege-escalation attack identified during plan review.
-   * Empty / omitted = no bound skills; the runtime emits no skill tools or
-   * "Available Skills" section in that case.
+   * Hard allowlist of skill slugs the agent may use. Empty / omitted = no
+   * skills available; the runtime emits no `expand_skill` tool and no
+   * "Available Skills" section in that case. `buildSkillContext` intersects
+   * this list with the org's actual skills at turn start — stale slugs are
+   * silently dropped.
+   */
+  skillBindings?: string[];
+  /**
+   * Legacy snapshot from the old transitive tool-grant model. No longer read
+   * at runtime; preserved on the type for back-compat reading of historical
+   * configs.
    */
   skillBindingsResolved?: SkillBindingResolvedEntry[];
   /** Whether to inject structured response markers into the system prompt (default false) */

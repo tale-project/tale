@@ -76,6 +76,7 @@ export function toSerializableConfig(
       .filter((f) => f.ragStatus === 'completed')
       .map((f) => String(f.fileId)),
     delegateSlugs: config.delegates,
+    skillBindings: config.skillBindings,
     skillBindingsResolved: config.skillBindingsResolved?.map((s) => ({
       slug: s.slug,
       versionHash: s.versionHash,

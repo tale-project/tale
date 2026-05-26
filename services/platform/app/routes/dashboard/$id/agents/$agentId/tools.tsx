@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
+import { SkillSelector } from '@/app/features/agents/components/skill-selector';
 import { ToolSelector } from '@/app/features/agents/components/tool-selector';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useT } from '@/lib/i18n/client';
@@ -103,6 +104,12 @@ function ToolsTab() {
         onWorkflowBindingsChange={(workflows) => updateConfig({ workflows })}
         organizationId={organizationId}
         hiddenTools={hiddenTools}
+      />
+
+      <SkillSelector
+        value={config.skillBindings ?? []}
+        onChange={(skillBindings) => updateConfig({ skillBindings })}
+        organizationId={organizationId}
       />
     </ContentArea>
   );

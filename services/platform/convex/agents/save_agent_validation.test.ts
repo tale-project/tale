@@ -255,9 +255,9 @@ describe('agentJsonSchema validation', () => {
   });
 
   it('tolerates skillBindingsResolved with slugs not in skillBindings (legacy field, no cross-check)', () => {
-    // Skills are no longer agent-bound; the runtime ignores both fields.
-    // Cross-binding validation was dropped so historical agent JSON with
-    // stale snapshots keeps loading.
+    // `skillBindingsResolved` is the legacy transitive-grant snapshot and is
+    // no longer read at runtime; we keep loading historical agent JSON that
+    // carries it (including drift relative to `skillBindings`).
     const result = agentJsonSchema.safeParse({
       ...BASE_CONFIG,
       skillBindings: ['code-reviewer'],
@@ -291,9 +291,10 @@ describe('agentJsonSchema validation', () => {
     expect(result.success).toBe(false);
   });
 
-  it('tolerates skillBindings on an image-generation agent (legacy field, runtime ignores it)', () => {
-    // skillBindings is no longer a load-bearing field; image-generation
-    // agents still bypass the tool loop, so the legacy field has no effect.
+  it('tolerates skillBindings on an image-generation agent (no tool loop)', () => {
+    // Image-generation agents bypass the tool loop entirely, so any
+    // `skillBindings` on them is inert — schema accepts the field for
+    // forward-compat, the runtime never builds a tool set for it.
     const result = agentJsonSchema.safeParse({
       ...BASE_CONFIG,
       primaryBehavior: 'image-generation',

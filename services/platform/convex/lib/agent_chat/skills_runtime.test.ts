@@ -1,0 +1,90 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { buildSkillContext } from './skills_runtime';
+
+function makeOkRead(slug: string, description = `desc of ${slug}`) {
+  return {
+    ok: true as const,
+    slug,
+    meta: { description, disableModelInvocation: false },
+    body: `body of ${slug}`,
+    versionHash: 'a'.repeat(64),
+    files: [],
+  };
+}
+
+function makeCtx(opts: {
+  listResult: string[] | Error;
+  reads?: Record<string, ReturnType<typeof makeOkRead>>;
+}) {
+  // Dispatch on args shape: readSkillForExecution carries a `slug`, the
+  // list action only carries `orgSlug`. The Convex `internal.*` refs are
+  // opaque objects we can't stringify in unit-test land.
+  const runAction = vi.fn(async (_ref: unknown, args: unknown) => {
+    const a = (args ?? {}) as { slug?: string };
+    if (a.slug !== undefined) {
+      return opts.reads?.[a.slug] ?? { ok: false };
+    }
+    if (opts.listResult instanceof Error) throw opts.listResult;
+    return opts.listResult;
+  });
+  return { runAction } as unknown as Parameters<typeof buildSkillContext>[0];
+}
+
+describe('buildSkillContext binding gate', () => {
+  it('returns empty snapshot when boundSlugs is undefined — no list call', async () => {
+    const ctx = makeCtx({ listResult: ['foo'] });
+    const snap = await buildSkillContext(ctx, 'org', undefined);
+    expect(snap.entries).toEqual([]);
+    expect(snap.systemPromptAppend).toBe('');
+    expect(Object.keys(snap.builtInTools)).toEqual([]);
+    expect(
+      (ctx as unknown as { runAction: ReturnType<typeof vi.fn> }).runAction,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('returns empty snapshot when boundSlugs is empty — no list call', async () => {
+    const ctx = makeCtx({ listResult: ['foo'] });
+    const snap = await buildSkillContext(ctx, 'org', []);
+    expect(snap.entries).toEqual([]);
+    expect(
+      (ctx as unknown as { runAction: ReturnType<typeof vi.fn> }).runAction,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('loads only bound slugs that exist in the org', async () => {
+    const ctx = makeCtx({
+      listResult: ['foo', 'bar', 'baz'],
+      reads: { foo: makeOkRead('foo'), bar: makeOkRead('bar') },
+    });
+    const snap = await buildSkillContext(ctx, 'org', ['foo', 'bar']);
+    expect(snap.entries.map((e) => e.slug).sort()).toEqual(['bar', 'foo']);
+    expect(snap.builtInTools).toHaveProperty('expand_skill');
+    expect(snap.builtInTools).toHaveProperty('read_skill_file');
+  });
+
+  it('silently drops bound slugs that are not in the org', async () => {
+    const ctx = makeCtx({
+      listResult: ['foo'],
+      reads: { foo: makeOkRead('foo') },
+    });
+    const snap = await buildSkillContext(ctx, 'org', ['foo', 'ghost']);
+    expect(snap.entries.map((e) => e.slug)).toEqual(['foo']);
+  });
+
+  it('returns empty snapshot when no bound slug intersects the org list', async () => {
+    const ctx = makeCtx({ listResult: ['foo'] });
+    const snap = await buildSkillContext(ctx, 'org', ['ghost']);
+    expect(snap.entries).toEqual([]);
+    expect(Object.keys(snap.builtInTools)).toEqual([]);
+  });
+
+  it('returns empty snapshot when the list call throws', async () => {
+    const ctx = makeCtx({ listResult: new Error('boom') });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const snap = await buildSkillContext(ctx, 'org', ['foo']);
+    expect(snap.entries).toEqual([]);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});

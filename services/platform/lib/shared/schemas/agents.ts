@@ -175,10 +175,16 @@ export const agentJsonSchema = z
       }
     }
 
-    // skillBindings / skillBindingsResolved are vestigial — the new skill
-    // model exposes all org skills to every agent, so per-agent gating no
-    // longer exists. The fields stay `.optional()` so historical agent
-    // JSON keeps validating, but no cross-reference check is enforced.
+    // `skillBindings` is the agent's hard allowlist of skill slugs. An empty
+    // or absent list means the agent has zero skills available — there is no
+    // implicit "all org skills" fallback. Cross-reference to actual org skills
+    // is left to runtime (a stale slug is silently dropped from the snapshot),
+    // so an operator can list a skill that will be uploaded later without
+    // tripping schema validation.
+    //
+    // `skillBindingsResolved` is a legacy snapshot from the old transitive
+    // tool-grant model and is no longer read at runtime; it remains optional
+    // for back-compat reading of historical agent JSON.
 
     // Image-generation agents have no tool loop — these fields are meaningless.
     if (data.primaryBehavior === 'image-generation') {
