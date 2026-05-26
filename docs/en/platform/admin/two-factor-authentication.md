@@ -1,59 +1,42 @@
 ---
 title: Two-factor authentication
-description: Require a TOTP second factor on password sign-in, enrol your own account, manage backup codes, and reset a member who lost their device.
+description: TOTP enrolment, backup codes, the org-wide enforce policy, and how an admin resets a member who lost their authenticator. Read this when wiring 2FA for the org or recovering an account.
 ---
 
-Two-factor authentication adds a one-time code from an authenticator app to the password sign-in flow. Tale uses TOTP — the same protocol implemented by Google Authenticator, 1Password, Authy, and most password managers — together with single-use backup codes for recovery. The factor only applies to accounts that sign in with a password; users authenticated through SSO or trusted headers inherit their identity provider's MFA decision and never see the Tale prompts.
+Two-factor authentication adds a second proof of identity on top of the password — a six-digit code from an authenticator app. Tale ships TOTP (time-based one-time passwords) compatible with Google Authenticator, 1Password, Authy, and any other app that follows the standard. The page covers per-user enrolment, the backup codes that recover an account when the phone is gone, the org-wide enforce policy, and the admin reset for a locked-out member.
 
-Two surfaces matter on this page. **Account > Security** is where every user enrols, regenerates backup codes, or disables 2FA on their own account. **Settings > Governance > Two-factor authentication** is where Admins enforce 2FA across the organisation, and **Settings > Members** is where Admins reset the second factor for a member who lost their device.
+Two-factor is optional by default. Admins can require it for the whole organisation with a grace window so members have time to enrol.
 
-## Enrol your own account
+## Per-user enrolment
 
-Open the avatar menu and pick **Account**. Under **Security**, click **Enable two-factor**. Tale confirms your password, then displays a QR code and a manual-entry secret.
+To turn 2FA on for your own account, open **Account > Security**. Click **Enable two-factor**, confirm your password, and scan the QR code with an authenticator app. Enter the six-digit code the app shows to verify the secret was captured, then save the backup codes the next screen presents. The codes show once — download or copy them before clicking **Done**.
 
-1. Scan the QR code with an authenticator app, or paste the secret manually if you cannot scan.
-2. Enter the 6-digit code the app shows. Tale verifies it before activating 2FA, so a wrong scan cannot lock you out — the dialog stays open until the code matches.
-3. Save the **backup codes** Tale displays next. Each code works once and is the only way back into your account if you lose the authenticator. Tale shows the codes exactly once — download or copy them now.
+The same screen carries **Disable** and **Regenerate backup codes**. Disabling clears the second factor; regenerating invalidates every previous backup code. Both actions require the account password as a confirmation.
 
-From the same screen you can **Regenerate backup codes** (invalidates the old set) or **Disable** (requires a fresh password confirmation). A low-codes banner appears when you fall under the threshold so you regenerate before the last code is gone.
+## Backup codes
 
-## Sign in with 2FA
+Backup codes are single-use strings the platform mints when 2FA is enabled or regenerated. Each one substitutes for the authenticator code on a single sign-in — useful when the phone is lost, the authenticator is uninstalled, or you are stuck somewhere without the device. The platform watches the remaining count and surfaces a low-balance banner when only a few codes remain; the banner links straight to the regenerate flow.
 
-After password entry, Tale prompts for the 6-digit code. The verify screen has two modes:
+Treat backup codes like passwords. Store them in a password manager or print them and lock them away. Anyone who has both your password and a backup code can sign in as you.
 
-- **Authenticator app** — the default. Type the current code from your app.
-- **Backup code** — toggle **Use a backup code instead** if you do not have the authenticator. Each code is consumed on use; reusing it is rejected. A low-codes reminder fires below five remaining codes.
+## The enforce-for-org policy
 
-Repeated failures are rate-limited with the same back-off as wrong-password attempts. Lockouts are recorded in the audit log under the **Security** category.
+Admins can require two-factor for every password-authenticated member of the organisation. Open **Settings > Governance > Authentication** and toggle **Require two-factor authentication**. The policy carries a grace period (in days) that gives each member time to enrol from their first sign-in under the policy; set it to zero for immediate enforcement.
 
-## Enforce 2FA across the organisation
+| Field                             | Type    | Required | Description                                                                                                      |
+| --------------------------------- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| Require two-factor authentication | Toggle  | yes      | Off keeps 2FA optional for every member; on turns the policy on.                                                 |
+| Grace period (days)               | Integer | yes      | Days from a member's first signed-in moment under the policy before enrolment is required. Zero means immediate. |
+| Exempt SSO-only users             | Toggle  | no       | When on, members whose only account is a federated identity rely on the upstream IdP for MFA.                    |
 
-Open **Settings > Governance > Two-factor authentication**. The form takes three settings:
+A member inside the grace window sees a count-down banner in the app pointing them at the enrolment flow. Once grace expires, the next sign-in routes through the enrolment screen and the member cannot continue until they have enrolled.
 
-- **Require two-factor authentication** — the master toggle. While off, 2FA is optional for every user.
-- **Grace period (days)** — how many days each user has from their first sign-in under the policy before enrolment is enforced. Set to `0` for immediate enforcement; pick a longer window when you roll out 2FA to an existing organisation so members can enrol without losing access. Members inside their grace window see a banner reminding them to set up; once the grace ends, they cannot reach anything past the sign-in screen until they enrol.
-- **Exempt SSO-only users** — when on, accounts whose only credential is a federated identity (Microsoft Entra ID, OIDC) are exempted because the upstream IdP controls their MFA. A user who has both an SSO account and a password is **never** exempt, because the password is a bypass route.
+## Admin reset for a locked-out member
 
-Click **Save** to apply.
+When a member loses their phone and their backup codes, an Admin clears the second factor on their account. Open **Settings > People**, find the member, and click **Reset two-factor** on their row. Tale disables 2FA for the account and ends every active session, so the member re-enrols on their next sign-in.
 
-## Reset a member's 2FA
-
-Open **Settings > Members**, click the row menu of the affected user, and pick **Reset two-factor**. The confirmation dialog spells out the consequence — 2FA is disabled for that user, every active session of theirs ends, and they must enrol again on their next sign-in. Use it when a member loses their authenticator and runs out of backup codes. Every reset is recorded in the audit log so security teams can review the trail.
-
-## Audit events
-
-Every 2FA action emits a structured audit log entry under **Settings > Governance > Audit logs**, category **Security**:
-
-| Action                   | When it fires                                              |
-| ------------------------ | ---------------------------------------------------------- |
-| `2fa_enrolled`           | A user completes enrolment.                                |
-| `2fa_disabled`           | A user disables 2FA on their own account.                  |
-| `2fa_verified`           | A successful TOTP verification at sign-in.                 |
-| `2fa_verify_failed`      | A failed TOTP verification.                                |
-| `2fa_backup_code_used`   | A backup code was consumed successfully.                   |
-| `2fa_backup_code_failed` | A backup code attempt failed.                              |
-| `2fa_reset_by_admin`     | An Admin reset a member's 2FA from **Settings > Members**. |
+The reset is recorded in the audit log under `2fa_reset_by_admin`. Reach for it as a recovery action — the member should re-enrol immediately once they are back in.
 
 ## Where this fits
 
-Two-factor authentication is the second-factor layer on password sign-in. It interacts with two other surfaces: [Authentication](/self-hosted/admin/authentication) decides whether a user signs in via password (where 2FA applies), SSO, or trusted headers (where the upstream IdP owns the second factor); [Members and roles](/platform/admin/members-and-roles) is where the Admin resets a member's 2FA when the device is lost. The org-wide enforcement policy lives on this page; the broader governance surface that holds budgets, retention, and guardrails is [Governance](/platform/admin/governance).
+Two-factor sits one layer above the password — same login screen, second step. Pair it with [members and roles](/platform/admin/members-and-roles) (the admin who resets the second factor is the same admin who manages the account), with [policies and limits](/platform/admin/governance/policies-and-limits) (the enforce policy lives in the governance surface), and with [audit logs](/platform/admin/governance/audit-logs) (every enrolment, disablement, and admin reset lands there).

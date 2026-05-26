@@ -1,92 +1,36 @@
 ---
-title: Chat with AI
-description: The conversational workspace where you ask questions, attach files, pick an agent, and watch a multi-step plan unfold in plain language.
+title: Chat basics
+description: What happens between you hitting Send and the reply landing — composer, agent pick, model resolution, streaming, citations, and how a chat is stored.
 ---
 
-Chat with AI is Tale's main conversational surface — the place where every role in the product first meets the AI. You write a question in the composer at the bottom of the screen, optionally attach files or pick a specialised agent, and the AI works through the answer in plain language: searching the knowledge base, calling integrations, building artifacts in the Canvas pane, walking a multi-step plan when the question is broad. This page covers the composer itself, the surrounding panes, and the keyboard reach.
+This page is the mental model for everything in the Chat tab. It names the parts of the composer, traces a single message from key-press to streamed reply, and explains how a chat is stored once it lands. Once you have read it, the rest of the chat pages read as variations on the same flow.
 
-The deeper features each have their own page. Attachments handling, the agent picker, Arena Mode for model comparison, Canvas for editable artifacts, the Prompt library, and the Research plan side pane all live one click away in the sidebar.
+The flow is mostly invisible — Tale stitches a half-dozen subsystems together to make a chat feel like a single conversation — but the seams matter when something behaves unexpectedly. Knowing which subsystem owns which step is the difference between filing a useful bug report and a vague one.
 
-## Open a conversation
+## The composer
 
-Chat with AI is the first item in the left sidebar. To start a new conversation, click the plus icon in the top toolbar or press `Alt + Ctrl + N` (`Option + Cmd + N` on macOS). Every conversation saves automatically the moment you send the first message, so closing the browser mid-thought never loses work.
+The composer is the input strip at the bottom of the screen. Three controls matter: the agent picker on the left, the model picker beside it, and the textarea with **Send** on the right. The agent picker exposes every agent the org has marked **Visible in chat**, plus a default **Assistant** when no agent is picked. The model picker exposes every chat-tagged model the agent's policy allows; **Auto** lets Tale resolve at request time. Attachments come in via paste, drag-and-drop, or the upload control — see [Attachments](/platform/chat/attachments) for what is accepted.
 
-## Send messages
+## The agents picker
 
-The composer sits at the bottom of the screen. Press `Enter` to send the message; `Shift + Enter` inserts a newline within the same message. The composer grows as you type — there's no hard length limit beyond the model's context window. Click **Stop generating** to interrupt the AI mid-reply; partial output stays in the thread, so you keep whatever is already useful.
+The agents picker filters by name as you type; the default is an agentless **Assistant** that uses the org's default chat model and no extra knowledge or tools. Picking an agent before the first message makes the agent sticky for the whole chat; picking one mid-chat applies it to the next message and everything after. There is no "back to no agent" toggle — pick **Assistant** to revert. The [Agents in chat](/platform/chat/agents-in-chat) page covers the rules in detail.
 
-## Attach files
+## The model picker
 
-To send a file with a message, click the paperclip icon or drag the file onto the composer. Tale processes the upload before the message reaches the model — a spinner shows per file, with a separate transcription status for audio and video. The full set of accepted formats:
+The model picker lists models the agent (or the org, when no agent is picked) is allowed to use. Each model carries a tag — **Chat**, **Vision**, **Image generation**, **Embedding** — that signals what it is good for. Picking a vision model when the message has no image is fine; picking a non-vision model when the message includes an image will silently drop the image. **Auto** picks the agent's primary; when the primary is rate-limited or unavailable, Tale falls back to whatever the agent's failover order names.
 
-- **Images:** PNG, JPEG, GIF, WebP. The agent analyses the visual content.
-- **Documents:** PDF, DOCX, XLSX, PPTX, TXT, Markdown. The agent reads the extracted text.
-- **Code files:** JavaScript, TypeScript, Python, and the common source-file formats.
-- **Audio:** MP3, M4A, WAV, OGG, WebM. The audio track is transcribed server-side and the transcript is passed to the agent.
-- **Video:** MP4, MOV, MKV, WebM, AVI, MPEG, 3GP, M4V. The audio track is extracted, transcribed, and passed to the agent — visual content is not sent.
+## Reply rendering and citations
 
-The full pipeline (size limits, transcription billing, PII handling) lives at [Chat attachments](/platform/chat/attachments).
+The reply streams in token by token. Tool calls render as collapsed boxes the user can expand to read what the agent did; **Run code** outputs land in the Canvas on the right. When the agent retrieves knowledge, citations attach to the sentences they support — hovering over a citation shows the source title; clicking opens the source. The agent's instructions never appear in the rendered reply; they sit one layer down, shaping behaviour rather than text.
 
-## Pick an agent
+## Conversations versus chats
 
-The agent selector is the bot icon in the bottom-left of the composer. To route a conversation through a specific agent, open the selector and pick it — the default is the system assistant that ships with Tale; custom agents your team has built appear below it. Switching the agent mid-conversation is allowed, and the new agent reads the existing transcript before its first reply.
+Within Chat, the unit is a **chat** — that is the word every button and toast uses. The data model behind it is called `threads`, and the URL slug is `threads/$threadId`; the docs follow the UI and say "chat" in body prose. The separate **Conversations** tab (one over in the sidebar) is the customer-channel inbox, not a list of chats. Two senses of "conversation", two surfaces — see [Conversations overview](/platform/conversations/overview) for the inbox sense.
 
-The agent's instructions, knowledge scope, and enabled tools determine what the chat can do. The runtime behaviour for swapping agents and reading conversation starters lives at [Using agents in chat](/platform/chat/agents-in-chat); the mental model behind the four knobs lives at [Agent concepts](/platform/agents/concepts).
+## History and search
 
-## Browse history
-
-The clock icon in the top toolbar opens the History sidebar. Past conversations are grouped by date — click one to open it, double-click a title to rename it inline, or use the three-dot menu to archive or delete. To search across every conversation, press `Ctrl + K` (`Cmd + K` on macOS) and type — subject and message bodies are indexed.
-
-## What the default assistant can do
-
-The agent that ships with Tale is wired with the broadest set of tools so a fresh organisation has something useful out of the gate. The five tool categories on the default Assistant:
-
-| Tool category         | What you can ask                                                          |
-| --------------------- | ------------------------------------------------------------------------- |
-| Knowledge-base search | Questions answered by your uploaded documents and crawled websites.       |
-| Web search            | Current information from the public internet.                             |
-| Document handling     | Parse and analyse PDF, Word, PowerPoint, Excel, and text files inline.    |
-| Image analysis        | Describe, analyse, or extract information from attached images.           |
-| Audio transcription   | Transcribe attached audio or video files so the agent can summarise them. |
-
-Custom agents you build start with the same defaults; you narrow them. The build flow walks the steps at [Create an agent](/platform/agents/create).
-
-## Arena Mode
-
-Arena Mode runs the same prompt through two models in parallel and shows the responses side by side. To compare models on a real prompt, click the **Swords** icon in the input toolbar, pick two models, and send a message — both responses stream into a split view. Record a verdict to flag which response was better; the verdicts accumulate as a per-model comparison record under usage analytics.
-
-The full doctrine lives at [Arena Mode](/platform/chat/arena-mode).
-
-## Canvas
-
-When the AI produces runnable HTML, an SVG, a Mermaid diagram, a Markdown document, or a code snippet, it creates an **artifact** — a card in the Artifacts bar above the chat that auto-opens in the Canvas pane. The artifact has a stable identity across the whole conversation, so small fixes don't require regenerating the whole document — the AI patches it in place across turns.
-
-The full doctrine lives at [Canvas](/platform/workspace/canvas).
-
-## Prompt library
-
-To reuse a prompt template across the team, open the Prompt library from the composer toolbar — every saved prompt is searchable and insertable with one click. To save the prompt you wrote, open the message's three-dot menu and pick **Save as prompt**; scope it to yourself, your team, or the whole organisation.
-
-The full doctrine lives at [Prompt library](/platform/workspace/prompt-library).
-
-## Research plan
-
-Broad questions that need planning — multi-source research, comparisons, summaries across several documents and the web — get broken into a **Research plan**. The plan opens automatically as a side pane the first time the agent emits a todo for the conversation; pin it open from the strip on the right edge of the chat, or close it when you want the full message stream back.
-
-Each todo shows a status (pending, running, done, failed), a one-line summary, and the sources the agent has captured for that step — knowledge-base hits, retrieved web pages, integration results. The plan updates live as the agent finishes each step, so you watch the reasoning unfold instead of waiting for one long answer at the end.
-
-You can intervene without breaking the run. Collapse a step to hide its sources when the list grows long. Reorder by sending a follow-up message — the agent revises remaining todos based on your feedback. Stop with the composer's stop button — partial results stay in the thread, and the failed-todo count shows at the top of the plan. The plan itself is read-only; steer the run with regular chat messages.
-
-## Keyboard shortcuts
-
-| Action                 | Windows / Linux  | macOS              |
-| ---------------------- | ---------------- | ------------------ |
-| New chat               | `Alt + Ctrl + N` | `Option + Cmd + N` |
-| Search chats           | `Ctrl + K`       | `Cmd + K`          |
-| Toggle History sidebar | `Ctrl + H`       | `Cmd + H`          |
+**History** is the list of every chat the user can resume in this org. New chats appear at the top; selecting one opens the full transcript. **Search chat** filters History by title; full-text search across message bodies is a per-chat operation, not org-wide. **Rename chat** sets a custom title that overrides the model-generated one; **Delete chat** moves the chat into [Trash](/platform/admin/governance/trash) where retention sweeps it after the grace window.
 
 ## Where this fits
 
-Chat is the front door for everything the AI can do. The agents, the knowledge, the tools — every other surface in Tale either feeds the chat (curating the knowledge base, building agents, configuring providers) or replaces it for cases where the chat shape is wrong (automations for unattended work, the API for scripts). Most readers live in this one page; the rest of the platform reads as either _how to make chat better_ or _what to do when chat isn't the right surface_.
-
-To make chat sharper for the team, the natural next step is a purpose-built agent — start with [Agent concepts](/platform/agents/concepts) for the mental model, then walk through [Build your first agent end to end](/tutorials/editor/first-agent-end-to-end).
+Chat basics is the page everything else in this section refines: [Agents in chat](/platform/chat/agents-in-chat) goes deeper on the picker, [Attachments](/platform/chat/attachments) on what the upload does, [Voice mode](/platform/chat/voice-mode) on the STT and TTS handoffs around the same composer. If you came here to build an agent rather than use one, jump to [Agent concepts](/platform/agents/concepts) — the four-knob mental model is the foundation every chat with an agent depends on.

@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { STATUS_CHATTER } from '@tale/ui/i18n/tests';
 import { describe, it } from 'vitest';
 
-import { STATUS_CHATTER } from './data/status-chatter';
 import { assertNoFindings, type Finding } from './lib/findings';
 import { iterProseLines, parseFrontmatter } from './lib/markdown';
 import { CONTENT_ROOT } from './lib/paths';

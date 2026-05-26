@@ -1,62 +1,62 @@
 ---
-title: Déclencheurs
-description: Comment démarrent les automatisations — planifications, webhooks, événements et exécutions manuelles.
+title: Déclencheurs de workflow
+description: Les quatre façons dont un workflow peut démarrer — manuel, planification, webhook, événement — ce que chacun porte dans l'exécution, et comment basculer entre eux sans reconstruire le workflow.
 ---
 
-Un déclencheur nomme le moment où une automatisation démarre et l'entrée avec laquelle elle démarre. Tale en livre quatre formes — planifications, webhooks, événements et exécutions manuelles — et une même automatisation peut en porter n'importe quel mélange, si bien que le même fan-out peut tourner sur une planification nocturne et à chaque webhook entrant d'un système extérieur. Cette page est pour le Développeur ou plus qui câble une automatisation ; la surface de configuration, c'est l'onglet **Déclencheurs** sur n'importe quelle automatisation.
+Un déclencheur est ce qui démarre un workflow. Tale livre quatre types de déclencheurs : manuel (un bouton), planification (cron), webhook (un POST externe) et événement (quelque chose arrive dans Tale). Chaque workflow a au moins un déclencheur ; certains en ont plusieurs. Cette page est la référence pour ce que chaque déclencheur porte dans l'exécution, comment le configurer, et comment choisir entre eux quand plus d'un fonctionnerait.
 
-## Planifications
+Le modèle mental des workflows, étapes, exécutions et approbations vit sur [Concepts d'automatisation](/fr/platform/automations/concepts). Les déclencheurs sont la couche de démarrage au-dessus de ce modèle ; le reste du workflow n'a pas besoin de savoir quel déclencheur l'a lancé, mais les entrées que reçoit la première étape viennent du déclencheur que Tale vient de tirer.
 
-Une planification fait tourner l'automatisation à l'horloge. Ouvre **Déclencheurs > Planifications > Ajouter une planification** et soit tape directement une expression cron (`0 9 * * 1-5` tourne à 09:00 en semaine), soit décris en langage naturel ce que tu veux — « chaque jour ouvré à 9h » — et laisse l'assistant IA traduire. Les cinq préréglages rapides (toutes les 5 minutes, toutes les heures, tous les jours, toutes les semaines, tous les mois) couvrent les cas courants sans rien taper.
+## Où vivent les déclencheurs
 
-Chaque planification tourne en **UTC**. Si ton équipe pense dans un autre fuseau, fais la conversion avant d'enregistrer — `0 9 * * 1-5` vaut 09:00 UTC, soit 10:00 à Zurich en hiver et 11:00 en été. Le champ **Variables du workflow** sur le formulaire de planification te laisse épingler une charge utile JSON avec laquelle l'exécution démarre ; il est pré-rempli depuis le schéma d'entrée de l'automatisation, donc le cas courant, c'est d'ajuster des valeurs au lieu d'écrire la forme de zéro.
+Ouvre le workflow et bascule sur l'onglet **Déclencheurs**. L'onglet liste les déclencheurs actuels du workflow et te laisse en ajouter des nouveaux. Un workflow sans déclencheur ne tourne que depuis le bouton **Exécuter maintenant** dans l'éditeur — utile pour tester, jamais pour la production.
 
-## Webhooks
+Un workflow peut porter plusieurs déclencheurs du même type ou de types différents. Un workflow de rapport quotidien pourrait avoir un déclencheur de planification qui se déclenche chaque matin de semaine plus un déclencheur manuel pour qu'un humain le tire en ad-hoc ; les deux alimentent la même première étape.
 
-Un webhook donne à l'automatisation une URL sur laquelle des appelants extérieurs peuvent envoyer un POST. Ouvre **Déclencheurs > Webhooks > Ajouter un webhook** et Tale génère une URL de la forme :
+## Les quatre types de déclencheurs
 
-```text
-https://<ton-hote-tale>/api/workflows/wh/<token>
-```
+**Manuel** est un bouton. Les Membres et Éditeurs ayant accès au workflow le voient sous **Automatisations > Exécutions manuelles** ; cliquer le bouton ouvre le formulaire d'entrée (un champ par entrée déclarée) et démarre l'exécution. Va vers manuel quand le workflow est occasionnel et qu'un humain sait quand il doit tourner.
 
-Le jeton dans l'URL, c'est le justificatif d'authentification — quiconque le détient peut déclencher l'automatisation, traite-le donc comme une clé API. Range-le dans le coffre de secrets du système appelant, fais-le tourner en supprimant et recréant le webhook, et audite-le via le [Journal d'audit](/fr/platform/admin/governance#audit-log) quand quelque chose semble louche. Il n'y a pas d'en-tête de signature séparé.
+**Planification** est cron. Le déclencheur se déclenche sur un motif horaire récurrent — chaque jour de semaine à 08:00, le premier de chaque mois, toutes les 15 minutes. Le déclencheur de planification ne porte pas de charge utile propre ; la première étape ne voit que les entrées déclarées du workflow (typiquement valorisées par défaut sur le déclencheur). Va vers planification quand le workflow se répète sur une horloge.
 
-Un appel qui marche ressemble à ça :
+**Webhook** est un POST externe. Tale forge une URL unique pour le déclencheur ; tout système qui POST à cette URL déclenche l'exécution. Le déclencheur webhook porte le corps JSON de la requête comme entrée de la première étape. Va vers webhook quand un système externe signale qu'il faut faire du travail — une notification d'un fournisseur, la fin d'une tâche CI, une soumission de formulaire.
 
-```bash
-curl -X POST https://your-tale-host/api/workflows/wh/abc123def456 \
-  -H "Content-Type: application/json" \
-  -d '{"orderId": "ord_42", "amount": 199.00}'
-```
+**Événement** est un signal interne. Tale émet des événements quand des choses changent dans le produit — un document est téléversé, un agent termine une réponse, une approbation est résolue, un client est créé. Le déclencheur événement s'abonne à un de ces événements et porte la charge utile de l'événement comme entrée de la première étape. Va vers événement quand le rôle du workflow est de réagir à quelque chose que Tale vient de faire lui-même.
 
-Le corps est analysé comme du JSON et mis à disposition comme entrée de l'automatisation. La réponse, c'est `{ "status": "accepted", "workflowSlug": "..." }` pour un appel frais. Envoie un en-tête `X-Idempotency-Key` avec une valeur unique si le système appelant peut rejouer la même requête — Tale reconnaît le rejeu et répond `{ "status": "duplicate", "executionId": "..." }` au lieu de lancer une seconde exécution.
+## Un déclencheur de planification mis en pratique
 
-Les webhooks sont limités en débit par IP source pour qu'un appelant bruyant ne puisse pas épuiser le moteur ; les appels au-delà de la limite renvoient `429`. La référence complète de la requête et de la réponse, signatures pour l'ancien schéma signé par Tale comprises sur les anciennes formes de webhook, vit dans [Webhooks](/fr/develop/webhooks).
+Pour faire tourner un workflow chaque jour de semaine à 08:00, ajoute un déclencheur Planification et choisis `Chaque jour de semaine à 08:00` depuis le picker (le picker accepte les expressions cron pour les formes que le builder visuel ne peut pas exprimer). La ligne d'aperçu du déclencheur montre les trois prochaines heures de déclenchement — utile pour vérifier le cron avant d'enregistrer.
 
-## Événements
+Les planifications respectent le fuseau horaire de l'org. Le fuseau configuré est celui dans lequel sont interprétées les heures du picker ; faire tourner `08:00` en `Europe/Zurich` veut dire 08:00 local, pas 08:00 UTC. L'historique d'exécution enregistre l'heure murale de démarrage, le fuseau, et l'ID du déclencheur.
 
-Un déclencheur d'événement fait tourner l'automatisation quand quelque chose se passe à l'intérieur de Tale. Ouvre **Déclencheurs > Événements > Ajouter un déclencheur d'événement**, choisis un type d'événement et ajoute un filtre si l'événement en demande un.
+## Un déclencheur webhook mis en pratique
 
-| Type d'événement                | Se déclenche quand                                                    |
-| ------------------------------- | --------------------------------------------------------------------- |
-| `customer.created`              | Une fiche client est ajoutée (manuellement, par import ou via l'API). |
-| `customer.updated`              | Une fiche client change.                                              |
-| `customer.deleted`              | Une fiche client est supprimée.                                       |
-| `conversation.created`          | Une nouvelle conversation est ouverte dans la boîte de réception.     |
-| `conversation.message_received` | Une réponse arrive sur une conversation existante.                    |
-| `conversation.closed`           | Une conversation est marquée fermée.                                  |
-| `workflow.completed`            | Une autre automatisation termine avec succès. Filtrable par source.   |
+Pour accepter un POST externe, ajoute un déclencheur Webhook. Tale forge une URL de la forme `https://<ton-hôte-tale>/api/automations/triggers/<id>`, génère un secret de signature, et montre les deux dans la ligne du déclencheur. Configure le système appelant pour POST du JSON à l'URL avec le secret dans l'en-tête `X-Tale-Signature` ; le déclencheur vérifie la signature avant de déclencher l'exécution. Une requête avec une mauvaise signature renvoie `401` et ne déclenche pas.
 
-Le filtre est évalué avant le démarrage de l'automatisation — les événements qui ne correspondent pas sont sautés sans laisser d'exécution sur l'onglet **Exécutions**. L'événement `workflow.completed` en particulier, c'est la façon de chaîner les automatisations : l'une finit, l'autre récupère sa sortie et continue le travail.
+Le schéma de charge utile du déclencheur webhook est déclaré sur le déclencheur — Tale valide le JSON entrant contre le schéma avant de déclencher. Une charge utile qui échoue à la validation renvoie `400` avec l'erreur de validation dans le corps et l'exécution ne démarre pas.
 
-## Exécutions manuelles
+## Un déclencheur événement mis en pratique
 
-Le bouton **Tester l'automatisation** dans l'éditeur et l'action **Exécuter** sur une automatisation publiée déclenchent toutes deux une exécution ponctuelle avec l'entrée que tu fournis. Les exécutions manuelles partagent le moteur avec les exécutions planifiées et webhook mais apparaissent sur l'onglet **Exécutions** avec la source de déclenchement étiquetée `manual` — utile pour essayer une nouvelle automatisation avant de la planifier, pour des rattrapages ponctuels et pour rejouer une charge utile issue d'une exécution échouée après avoir corrigé le bogue.
+Pour faire tourner un workflow dès qu'un événement `automation.approval.resolved` atterrit, ajoute un déclencheur Événement et choisis le type d'événement depuis le dropdown. Le schéma de charge utile du déclencheur est fixé par le type d'événement — Tale montre le schéma dans la ligne du déclencheur. Les déclencheurs événement peuvent filtrer par champs de la charge utile : ne se déclencher que si l'approbation a été approuvée (pas rejetée), ne se déclencher que pour des approbations dans une équipe spécifique, et ainsi de suite.
 
-## Plusieurs déclencheurs sur une même automatisation
+La surface événement est ouverte ; la liste des événements disponibles grandit avec Tale. L'ensemble actuel couvre les moments évidents du cycle de vie (téléversement de document, réponse d'agent finie, approbation résolue, identifiants d'intégration rotés, membre ajouté).
 
-Une automatisation avec deux déclencheurs — disons, une planification nocturne et un webhook entrant — tourne une fois par déclencheur qui s'allume. Chaque exécution enregistre quel déclencheur l'a lancée, donc l'onglet **Exécutions** et le tableau de bord des métriques montrent tous deux la répartition par source sans perdre la trace par exécution. Mélanger les déclencheurs, c'est le bon mouvement quand le même travail doit se faire à l'horloge et à la demande ; ne duplique pas l'automatisation juste pour attribuer un déclencheur différent.
+## Choisir le bon déclencheur
 
-## Où ça s'inscrit
+| Utilise … quand                                              | Manuel | Planification | Webhook | Événement |
+| ------------------------------------------------------------ | ------ | ------------- | ------- | --------- |
+| Un humain sait quand le travail doit tourner                 | ✓      |               |         |           |
+| Le travail se répète sur une horloge                         |        | ✓             |         |           |
+| Un système externe signale le travail                        |        |               | ✓       |           |
+| Quelque chose que Tale a fait est la raison de tourner       |        |               |         | ✓         |
+| Tu veux les deux — récurrent plus exécutions humaines ad-hoc | ✓      | ✓             |         |           |
 
-Les déclencheurs sont la frontière entre Tale et tout ce qui veut démarrer une automatisation. Les quatre formes couvrent à peu près toutes les façons de « démarrer maintenant » : du travail régulier sur une planification, du travail réactif sur un événement, du travail intégré sur un webhook, des exceptions sur une exécution manuelle. La référence côté développement pour la forme de l'URL webhook, l'idempotence et les limites de débit, c'est [Webhooks](/fr/develop/webhooks) ; la trace par exécution que chaque déclencheur laisse derrière lui, ce sont les [journaux d'exécution](/fr/platform/automations/execution-logs).
+Un workflow peut porter plus d'un déclencheur ; la colonne de type n'a pas à être une seule ligne.
+
+## Désactiver et retirer un déclencheur
+
+Chaque déclencheur a un commutateur activé au niveau de la ligne. Désactiver un déclencheur stoppe son déclenchement sans le retirer — l'historique d'exécution reste intact, et le réactiver restaure le déclenchement immédiatement. Va vers désactiver quand tu veux mettre un workflow en pause temporairement ; va vers supprimer quand tu es sûr que le déclencheur est retiré.
+
+## Où cela s'inscrit
+
+Les déclencheurs sont la couche de démarrage du modèle d'automatisation ; les étapes qui les suivent sont le vrai travail. La lecture suivante naturelle est [Concepts d'automatisation](/fr/platform/automations/concepts) pour le modèle workflow-étape-exécution dans lequel le déclencheur s'écoule, et [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) pour le gate qui met l'exécution en pause entre étapes.

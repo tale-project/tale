@@ -1,154 +1,95 @@
 ---
 title: Environment reference
-description: Complete reference of all environment variables for configuring Tale.
+description: Every environment variable Tale reads at boot, the default, and the surface in the product the variable controls. The complete operator reference for `.env`.
+i18nLintExclude:
+  - terminology-loanword
+  - prose-exclamation
+  - style-numbers
 ---
 
-The environment reference catalogues every variable Tale reads at container start. Operators consult this page when a knob needs changing — a domain, a TLS mode, an SSO tenant — and again when something the runtime expected to find isn't there. The source of truth is `.env.example` and the per-service env loaders; the tables below are grouped by surface so the variables that govern one concern stay near each other.
+Tale reads its configuration from a single `.env` file at the repo root. About a dozen variables are mandatory at first boot; the rest tune behaviour. This page lists every variable the [`.env.example`](https://github.com/tale-project/tale/blob/main/.env.example) ships with, what it defaults to, and which surface in the product consumes it.
 
-Every variable lives in `.env` at the project root. `tale init` provisions the file with sensible defaults; production deployments override domain, TLS, and database values, and most installs touch nothing else.
+Groups are ordered by when you first need them: domain identity, TLS, secrets, database, instance, observability, provider encryption. If a variable changes value, restart the platform container (`docker compose restart tale-platform tale-convex`) for it to take effect.
 
 ## How to read this page
 
-Variables are grouped by what they control — domain, TLS, secrets, database, monitoring, SSO, trusted headers, retention, deployment. Each group opens with a sentence or two naming what the group governs, then a `Name | Default | Description` table. Variables without a default are unset by default; missing required ones cause the container to refuse to start with the message named on the [Troubleshooting](/self-hosted/operate/observability/troubleshooting) page.
+Each group is a `Name | Default | Description` table. Variables marked **Required** must be set before `docker compose up` succeeds. Variables marked **Optional** can be left unset; the column's description names what disabling the feature does.
 
-Changes take effect at container start, so editing `.env` requires `tale deploy` (production) or `tale start` (local) to pick up. A running stack never re-reads `.env`.
+The `.env.example` file ships with inline comments that explain each variable in context; this page is the structured, grouped reference for the same set.
 
-## Domain
+## Domain identity (required at first boot)
 
-`HOST` is the hostname Docker uses for internal routing and email; `SITE_URL` is the full URL users type into a browser, including any non-standard port. `BASE_PATH` is only set when an upstream proxy serves Tale under a subpath.
+| Name        | Default              | Description                                                                                                               |
+| ----------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `HOST`      | `tale.local`         | **Required.** Hostname without protocol. Used for Docker networking and outbound email.                                   |
+| `SITE_URL`  | `https://tale.local` | **Required.** Full canonical URL including scheme and any non-standard port. Auth callbacks and external links use this.  |
+| `BASE_PATH` | unset                | **Optional.** Path prefix for subpath deployments behind a reverse proxy (e.g. `/app`). Leave unset for root deployments. |
 
-| Name        | Default              | Description                                                                                 |
-| ----------- | -------------------- | ------------------------------------------------------------------------------------------- |
-| `HOST`      | `tale.local`         | Hostname without protocol. Used for Docker network aliases and outbound email headers.      |
-| `SITE_URL`  | `https://tale.local` | Full canonical URL with protocol. Used for external links and auth callbacks.               |
-| `BASE_PATH` | _(empty)_            | Subpath when behind a path-prefixing proxy (e.g. `/app`). Leave empty for root deployments. |
-
-`SITE_URL` must match the URL users actually reach. If your reverse proxy listens on `:8443`, include it: `SITE_URL=https://example.com:8443`. The proxy uses this value to build OAuth callback URLs and the password-reset link, so a mismatch silently breaks both flows.
+The `SITE_URL` must match what the user types in the browser exactly. A trailing slash, a missing port, or `http` instead of `https` will break the auth callback and produce sign-in loops.
 
 ## TLS
 
-Three modes cover the certificate options. `selfsigned` is the local default; `letsencrypt` is the production default; `external` is for deployments where an upstream proxy already terminates TLS.
+| Name        | Default      | Description                                                                                                                       |
+| ----------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `TLS_MODE`  | `selfsigned` | One of `selfsigned`, `letsencrypt`, `external`. See [TLS and domains](/self-hosted/configuration/tls-and-domains) for trade-offs. |
+| `TLS_EMAIL` | unset        | Contact email for Let's Encrypt notifications. Optional but recommended in production.                                            |
 
-| Name        | Default      | Description                                                                             |
-| ----------- | ------------ | --------------------------------------------------------------------------------------- |
-| `TLS_MODE`  | `selfsigned` | Certificate handling: `selfsigned`, `letsencrypt`, or `external`.                       |
-| `TLS_EMAIL` | _(empty)_    | Contact email for Let's Encrypt ACME notifications. Recommended whenever `letsencrypt`. |
+`selfsigned` runs Caddy with a generated cert — the browser warns, fine for development. `letsencrypt` requires a real domain and ports 80/443 reachable from the public Internet. `external` makes Caddy serve plain HTTP; an upstream reverse proxy terminates TLS.
 
-Self-signed certificates trigger a browser warning until you run `docker exec tale-proxy caddy trust` on the host. Let's Encrypt needs ports 80 and 443 reachable from the public internet for the ACME challenge. External mode runs Caddy on HTTP only; the upstream proxy handles TLS and forwards WebSocket upgrades for the Convex realtime channel.
+## Security secrets (required)
 
-## Security secrets
+| Name                    | Default                       | Description                                                                                                                                                                                                                                                     |
+| ----------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`    | example value in shipped file | **Required.** Base64 secret for the Better Auth session signer. Generate with `openssl rand -base64 32`. Rotating invalidates every session.                                                                                                                    |
+| `ENCRYPTION_SECRET_HEX` | example value in shipped file | **Required.** 32-byte hex key. AES-256 key for OAuth and integration credentials and HKDF input for the guardrails secret box. Generate with `openssl rand -hex 32`. Rotating invalidates every DB-stored ciphertext; operators must re-enter affected secrets. |
+| `INSTANCE_SECRET`       | example value in shipped file | **Required.** Used to derive the Convex admin key for `tale deploy`. Deploy fails if unset.                                                                                                                                                                     |
 
-These are the secrets the platform refuses to start without. `tale init` generates each one; rotating them invalidates anything previously encrypted with the old value.
-
-| Name                    | Default   | Description                                                                                                                           |
-| ----------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`    | _(unset)_ | Signing key for auth sessions. Generate with `openssl rand -base64 32`. Required.                                                     |
-| `ENCRYPTION_SECRET_HEX` | _(unset)_ | 32-byte hex key for the in-database secret box. Generate with `openssl rand -hex 32`. Rotating invalidates stored guardrails secrets. |
-| `INSTANCE_SECRET`       | _(unset)_ | Seed for the Convex admin key `tale deploy` derives. Generate with `openssl rand -hex 32`.                                            |
-| `SOPS_AGE_KEY`          | _(unset)_ | Inline age secret key for SOPS encryption of `providers/*.secrets.json`. `tale init` provisions this by default.                      |
-| `SOPS_AGE_KEY_FILE`     | _(unset)_ | Path to a file containing one or more age keys, one per line. Use this form for key rotation.                                         |
-
-The `.env.example` file ships placeholder secrets. Replace every one before starting the stack, even for local development; the placeholders are public on GitHub and an attacker who can reach the instance can forge auth tokens with them. The SOPS modes — encrypted, plaintext, key rotation — are covered on [Providers](/self-hosted/configuration/providers#provider-secrets-storage).
+Replace the values that ship in `.env.example` before exposing the instance — they are intentionally insecure placeholders.
 
 ## Database
 
-`DB_PASSWORD` is the password for the bundled Postgres container. The override variables only matter when pointing Tale at an external Postgres instance — the full pattern is on [Production deployment](/self-hosted/install/linux-server#using-an-external-database).
+| Name           | Default                        | Description                                                                                                                        |
+| -------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `DB_PASSWORD`  | `tale_password_change_me`      | **Required.** Password for the self-hosted Postgres user. Change before production. Used by every service in compose.              |
+| `POSTGRES_URL` | constructed from `DB_PASSWORD` | **Optional.** Override the auto-constructed connection URL. Use when pointing at an external Postgres or a non-standard host/port. |
 
-| Name                   | Default   | Description                                                                                                                       |
-| ---------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `DB_PASSWORD`          | _(unset)_ | Password for the bundled Postgres. Required when using the `db` container.                                                        |
-| `POSTGRES_URL`         | _(unset)_ | Override the auto-built connection URL. Format `postgresql://user:pass@host:port` without a database name. Convex appends `tale`. |
-| `RAG_DATABASE_URL`     | _(unset)_ | Per-service override for RAG. Include the database name (`/tale_knowledge`).                                                      |
-| `CRAWLER_DATABASE_URL` | _(unset)_ | Per-service override for the crawler. Include the database name (`/tale_knowledge`).                                              |
+The auto-constructed form is `postgresql://tale:${DB_PASSWORD}@db:5432`. Convex expects the URL without a database name; the name is derived from the instance configuration.
 
-Without `POSTGRES_URL`, Tale constructs the URL as `postgresql://tale:${DB_PASSWORD}@db:5432`. The two service-specific URLs override the base URL only for the named service, which is what makes read replicas and per-service routing possible.
+## Observability
 
-## Error tracking
+| Name                        | Default | Description                                                                                                                            |
+| --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `SENTRY_DSN`                | unset   | Sentry DSN for error tracking. Leave unset to disable. Compatible with self-hosted GlitchTip and Bugsink.                              |
+| `SENTRY_TRACES_SAMPLE_RATE` | unset   | Optional sample rate for performance traces (`0.0`–`1.0`). Default behaviour depends on the deployment.                                |
+| `METRICS_BEARER_TOKEN`      | unset   | Bearer token required to access the Prometheus `/metrics/*` endpoints. Leave unset to keep metrics endpoints unreachable from outside. |
 
-Tale's error reporting speaks the Sentry DSN format. Set the variable to a Sentry, GlitchTip, or Bugsink DSN; leave it unset to keep errors in Docker logs only.
+Setting `METRICS_BEARER_TOKEN` exposes four endpoints behind the token: `/metrics/crawler`, `/metrics/rag`, `/metrics/platform`, and `/metrics/convex` (Convex's 261 built-in metrics). See [Observability config](/self-hosted/configuration/observability-config) for the scrape config.
 
-| Name                        | Default   | Description                                                                                 |
-| --------------------------- | --------- | ------------------------------------------------------------------------------------------- |
-| `SENTRY_DSN`                | _(unset)_ | DSN endpoint for crash and error reporting. Compatible with Sentry, GlitchTip, and Bugsink. |
-| `SENTRY_TRACES_SAMPLE_RATE` | `1.0`     | Fraction of transactions sampled for performance tracing. Set to `0.0` to disable.          |
+## Provider secrets encryption
 
-## Monitoring
+| Name                | Default | Description                                                                                                                                        |
+| ------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SOPS_AGE_KEY`      | unset   | Inline age secret key. Encrypts `providers/*.secrets.json`. Default mode after `tale init`. Multiple keys are not supported inline.                |
+| `SOPS_AGE_KEY_FILE` | unset   | Path to a file with one or more age keys (one per line; `#` comments allowed). Required for key rotation. Mutually exclusive with the inline form. |
 
-Each service exposes a Prometheus text-format `/metrics` endpoint on the internal Docker network. To expose them through the proxy, set a bearer token:
+When both are unset, Tale stores `providers/*.secrets.json` as plaintext JSON at mode 0600. Reach this mode only when the host disk is encrypted at rest or the files are produced by external tooling (a Kubernetes Secret mount, a Vault template). Rotating an age key is appending the new key, re-saving each provider in the UI, then dropping the old key. See [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops) for the full rotation walk.
 
-| Name                   | Default   | Description                                                                                                             |
-| ---------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `METRICS_BEARER_TOKEN` | _(unset)_ | Bearer token required to read `/metrics/<service>` through the proxy. When unset, every metrics endpoint returns `401`. |
+## Feature flags
 
-The full endpoint list and a sample Prometheus scrape config are on [Operations](/self-hosted/operate/observability/operations#monitoring).
+Optional toggles for features not enabled by default. Each flag turns one feature on or off at boot; toggling requires a restart of the platform container.
 
-## Service URLs
+| Name                      | Default | Description                                                                     |
+| ------------------------- | ------- | ------------------------------------------------------------------------------- |
+| `MICROSOFT_AUTH_ENABLED`  | `false` | Enables the Microsoft Entra sign-in option.                                     |
+| `TRUSTED_HEADERS_ENABLED` | `false` | Enables the trusted-headers auth mode (identity supplied by the reverse proxy). |
+| `FILE_EVENTS_ENABLED`     | `false` | Enables file-watching events for the OneDrive-sync integration.                 |
 
-Docker Compose wires service-to-service traffic automatically, so the URLs below rarely need overriding. The variables exist for custom topologies — running RAG on a separate host, scaling the crawler horizontally, etc.
+## Versioning
 
-| Name          | Default               | Description                                         |
-| ------------- | --------------------- | --------------------------------------------------- |
-| `CRAWLER_URL` | `http://crawler:8002` | Crawler service endpoint, consumed by the platform. |
-| `RAG_URL`     | `http://rag:8001`     | RAG service endpoint, consumed by the platform.     |
-
-## Docker
-
-These control how `docker compose` and `tale deploy` pull images.
-
-| Name          | Default  | Description                                                                     |
-| ------------- | -------- | ------------------------------------------------------------------------------- |
-| `PULL_POLICY` | `build`  | `build` for local development; `always` to pull prebuilt images from GHCR.      |
-| `VERSION`     | `latest` | Image version tag. Combine with `PULL_POLICY=always` to pin a specific release. |
-
-## Microsoft Entra SSO
-
-These three variables only matter when configuring SSO from `.env` instead of the in-app **Settings > Integrations** screen. Most operators use the UI; the env-var form is useful for infrastructure-as-code setups where the SSO config lives in the same repo as `.env`.
-
-| Name                                | Default   | Description                              |
-| ----------------------------------- | --------- | ---------------------------------------- |
-| `AUTH_MICROSOFT_ENTRA_ID_ID`        | _(unset)_ | Microsoft Entra application (client) ID. |
-| `AUTH_MICROSOFT_ENTRA_ID_SECRET`    | _(unset)_ | Microsoft Entra client secret.           |
-| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | _(unset)_ | Microsoft Entra directory (tenant) ID.   |
-
-The end-to-end SSO flow lives on [Authentication](/self-hosted/admin/authentication#microsoft-entra-id-sso).
-
-## Trusted headers
-
-For deployments behind an authenticating reverse proxy — Authelia, Authentik, oauth2-proxy — Tale reads the user's identity from HTTP headers the proxy sets, then provisions an account on first request.
-
-| Name                              | Default        | Description                                                                              |
-| --------------------------------- | -------------- | ---------------------------------------------------------------------------------------- |
-| `TRUSTED_HEADERS_ENABLED`         | `false`        | Set to `true` to enable trusted-header auth. The login page is bypassed when this is on. |
-| `TRUSTED_HEADERS_INTERNAL_SECRET` | _(unset)_      | Shared secret the convex endpoint validates before honouring headers. Defense-in-depth.  |
-| `TRUSTED_EMAIL_HEADER`            | `Remote-Email` | HTTP header name carrying the user's email address.                                      |
-| `TRUSTED_NAME_HEADER`             | `Remote-Name`  | HTTP header name carrying the user's display name.                                       |
-| `TRUSTED_ROLE_HEADER`             | `Remote-Role`  | HTTP header name carrying the role (`admin`, `developer`, `editor`, or `member`).        |
-| `TRUSTED_TEAMS_HEADER`            | `Remote-Teams` | HTTP header name carrying a comma-separated `id:name` team list.                         |
-
-Only enable trusted headers when the upstream proxy strips these headers from external requests. If external clients can set them directly, they can impersonate any user. The full configuration walk-through is on [Authentication](/self-hosted/admin/authentication#trusted-headers).
-
-## Retention
-
-The retention bounds for every data category come from JSON files under `TALE_CONFIG_DIR/retention/`. The environment variables below only tighten those bounds — they cannot widen what the file declares. The full layered model is on [Retention](/self-hosted/configuration/retention).
-
-A handful of variables touch the audit-log floor and the legal-hold flow rather than per-category bounds:
-
-| Name                                     | Default   | Description                                                                        |
-| ---------------------------------------- | --------- | ---------------------------------------------------------------------------------- |
-| `TALE_RETENTION_DISABLED`                | `false`   | Set to `true` to no-op the nightly cleanup. Operator kill-switch for migrations.   |
-| `TALE_AUDIT_PEPPER`                      | _(unset)_ | Secret of 16+ chars. Enables HMAC-SHA256 hashing of email and IP in audit rows.    |
-| `TALE_AUDIT_SIGNING_KEY`                 | _(unset)_ | Signs `auditLogCheckpoints` rows to distinguish retention scrubs from tampering.   |
-| `TALE_LEGAL_HOLD_RELEASE_COOLDOWN_HOURS` | `24`      | Hours between approval and effective release of a legal hold.                      |
-| `TALE_LEGAL_HOLD_SINGLE_ADMIN_OK`        | `false`   | Set to `true` to allow single-admin instances to self-approve legal-hold releases. |
-
-The per-category `_MIN` / `_MAX` overrides are listed in full on [Retention — Environment variables](/self-hosted/configuration/retention#environment-variables-tightening-overlay).
-
-## AI providers
-
-Provider API keys, base URLs, and model definitions are not environment variables — they live in JSON files under `TALE_CONFIG_DIR/providers/`. The on-disk schema, the SOPS encryption modes, and the rules for forwarding provider-specific options are on [Providers](/self-hosted/configuration/providers).
+| Name           | Default       | Description                                                                                     |
+| -------------- | ------------- | ----------------------------------------------------------------------------------------------- |
+| `TALE_VERSION` | latest stable | The image tag pulled by `docker compose pull`. Pin to a specific tag for reproducible upgrades. |
 
 ## Where this fits
 
-The environment reference is the operator's API to Tale. Anything the runtime needs that isn't shipped in code or set through the UI lives in one of the variables above, and most of them have sensible defaults — the production-grade install pages only override domain, TLS, secrets, and the database. The UI counterparts for the values surfaced in the app live under **Settings > Governance**, **Settings > Providers**, and **Settings > Branding**; reach for [Governance](/platform/admin/governance), [Providers](/self-hosted/configuration/providers), and [Branding](/platform/admin/branding) when you need the per-feature reference.
-
-When the runtime expects a variable that isn't there, the boot log says so on stderr. [Troubleshooting](/self-hosted/operate/observability/troubleshooting) catalogues the most common environment-misconfiguration failure modes; the [Release notes format](/self-hosted/operate/release-notes/format) page covers how deprecations land.
+The variables here are the operator's contact surface; the UI surface that consumes most of them lives under [Platform admin](/platform/admin/overview). Provider keys are the one half-and-half: the keys themselves live in `providers/*.secrets.json`, but the UI under **Settings > Providers** is how you add and rotate them in practice. The next read worth queuing is [Providers](/self-hosted/configuration/providers) — it covers the file form, the SOPS modes, and the resolve-and-failover behaviour.

@@ -1,23 +1,26 @@
 ---
-title: Administrer
-description: Paramètres au niveau de l'organisation — membres et rôles, fournisseurs, image de marque, gouvernance, double facteur, analyse d'usage, demandes des personnes concernées et le changelog in-app.
+title: Admin
+description: Admin est le plan de configuration — membres, équipes, fournisseurs, clés API, intégrations, branding, gouvernance. Les pages ici sont ce qu'un Administrateur ou Propriétaire parcourt pour monter une organisation et la faire tourner.
 ---
 
-L'administration est la partie de Tale qui reste invisible jusqu'à ce que quelque chose tourne mal. C'est là que tu décides qui peut se connecter et via quel fournisseur d'identité, quels modèles IA le reste de l'organisation est autorisé à consommer, à quoi ressemble le produit vu de l'extérieur, et combien de temps conversations et journaux survivent sur disque. Aucune de ces décisions n'est quotidienne, mais chacune surgit dans le quotidien de quelqu'un d'autre dès qu'elle est mal réglée — un Développeur qui n'atteint plus Anthropic, un Éditeur dont les brouillons ont disparu, un Membre verrouillé après la migration SSO.
+Admin est le plan de configuration de Tale. Cela couvre les personnes qui peuvent se connecter, les équipes qui les regroupent, les fournisseurs IA derrière chaque réponse, les clés API qui permettent à du code externe de parler à l'organisation, les intégrations tierces que les agents traversent, et le branding que le reste de l'organisation voit. Seuls les Administrateurs et Propriétaires voient le menu Admin complet ; les Développeurs en voient un sous-ensemble, et les autres rôles ne le voient pas du tout.
 
-Les pages de cette section sont destinées aux rôles **Admin** et **Propriétaire** ; tous les autres rôles sont bloqués côté serveur sur la surface d'administration. Leur ordre n'est pas anodin. [Membres et rôles](/fr/platform/admin/members-and-roles) se lit en premier, parce que rien d'autre en administration n'a de réponse sensée tant que tu n'as pas décidé qui peut faire quoi. [Authentification](/fr/self-hosted/admin/authentication) vient ensuite, puisque la question de _qui peut se connecter du tout_ est une version plus stricte de la même question. Les fournisseurs, l'image de marque, la gouvernance et le reste se posent par-dessus.
-
-Si tu mets en place une organisation neuve, lis les pages dans l'ordre de la barre latérale. Si tu auditionnes une organisation existante, saute directement à la page dont tu as déjà l'interface ouverte.
+Ces pages décrivent ce que fait chaque réglage et ce qu'il change au produit en cours. La plupart se lisent une fois au montage, puis se revisitent quand quelque chose change — un nouveau collègue, une clé rotée, un nouveau fournisseur, une nouvelle intégration. L'histoire des rôles et permissions derrière le menu vit dans [Membres et rôles](/fr/platform/admin/members-and-roles) ; les pages indexées ci-dessous présupposent cette histoire et partent par fonctionnalité.
 
 ## Pages dans cette section
 
-- **[Membres et rôles](/fr/platform/admin/members-and-roles)** — inviter, modifier et retirer des membres ; la matrice canonique des six rôles vers laquelle le reste de la doc renvoie.
-- **[Équipes](/fr/platform/admin/teams)** — regrouper les membres pour borner l'accès aux documents, conversations et connaissances d'agent.
-- **[Authentification](/fr/self-hosted/admin/authentication)** — mot de passe, Microsoft Entra ID SSO et en-têtes de reverse-proxy de confiance ; comment Tale décide qu'une connexion passe.
-- **[Fournisseurs IA](/fr/platform/admin/providers)** — connecter Tale à des points de terminaison compatibles OpenAI et décider quels modèles l'organisation peut appeler.
-- **[Image de marque](/fr/platform/admin/branding)** — nom de l'application, logo, favicon et les couleurs de marque et d'accentuation utilisées dans l'application en cours d'exécution.
-- **[Gouvernance](/fr/platform/admin/governance)** — system prompt, modèles par défaut, budgets, politique de téléversement, rétention, politique de mot de passe et de connexion, contrôle des fonctionnalités et la pile de garde-fous à trois étages.
-- **[Authentification à double facteur](/fr/platform/admin/two-factor-authentication)** — inscrire un TOTP, gérer les codes de secours, faire appliquer la politique au niveau de l'organisation, réinitialiser un membre qui a perdu son appareil.
-- **[Analyse d'usage](/fr/platform/admin/usage-analytics)** — analyse des tokens, du coût et des exécutions, filtrée par équipe, utilisateur, agent et plage temporelle.
-- **[Demandes des personnes concernées](/fr/platform/admin/data-subject-requests)** — déposer des demandes RGPD Art. 17 d'effacement, avec suivi SLA et reçu chaîné au journal d'audit.
-- **[Nouveautés](/fr/platform/admin/changelog)** — le visualisateur de changelog in-app qui fait remonter les notes de version après chaque mise à niveau.
+**[Membres et rôles](/fr/platform/admin/members-and-roles)** — Les Administrateurs et Propriétaires lisent ceci quand ils invitent des personnes ou scopent l'accès par rôle.
+
+**[Agents](/fr/platform/admin/agents)** — Les Administrateurs et Propriétaires lisent ceci pour voir chaque agent de l'organisation et intervenir quand l'un d'eux a besoin de gouvernance.
+
+**[Clés API](/fr/platform/admin/api-keys)** — Les Administrateurs et Développeurs lisent ceci quand ils branchent du code externe ou un service interne à l'API REST de Tale.
+
+**[Intégrations](/fr/platform/admin/integrations)** — Les Administrateurs lisent ceci quand ils installent ou rotent les identifiants derrière Slack, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily et MCP.
+
+**[Fournisseurs](/fr/platform/admin/providers)** — Les Administrateurs lisent ceci quand ils branchent OpenAI, Anthropic, Azure ou un Ollama local et choisissent quels modèles l'organisation peut utiliser.
+
+**[Équipes](/fr/platform/admin/teams)** — Les Administrateurs lisent ceci pour regrouper les membres en équipes qui se partagent agents, prompts et intégrations.
+
+## Où cela s'inscrit
+
+Admin est la surface que chaque autre onglet présuppose. Chat résout un modèle à travers les fournisseurs configurés ici ; les agents appellent des tools à travers les intégrations configurées ici ; la bibliothèque de prompts et l'inbox respectent les frontières d'équipe configurées ici. La première lecture naturelle est [Membres et rôles](/fr/platform/admin/members-and-roles) — chaque autre page Admin référence les noms de rôles qui y sont définis.

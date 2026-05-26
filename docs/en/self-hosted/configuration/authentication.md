@@ -1,0 +1,53 @@
+---
+title: Authentication
+description: The four sign-in modes Tale ships with — local password, Microsoft Entra, generic OIDC, and trusted headers — and which env vars switch between them.
+---
+
+Tale ships four sign-in modes that an operator picks per instance. The default is local password, with one user per email; Microsoft Entra and generic OIDC delegate identity to an external provider; trusted headers hands the responsibility to a reverse proxy already terminating SSO upstream. The decision is permanent in the sense that it shapes how users are provisioned — switching modes after rollout is possible, but every existing user has to be re-mapped to the new identity source.
+
+The env vars that turn each mode on live in [Environment reference](/self-hosted/configuration/environment-reference). This page is the mode-by-mode walkthrough — when to choose each, what it changes for the user, what breaks when it is misconfigured.
+
+## Local password (default)
+
+Local password is the mode you get if you set nothing. The platform stores a bcrypt hash in Postgres, signs the session with `BETTER_AUTH_SECRET`, and the user signs in with an email and password the admin invites them with. No external identity provider is involved.
+
+Reach for it on small instances and air-gapped deployments where adding an IdP is more friction than it solves. The cost: password reset goes through the admin (or through email if `SMTP_*` is configured), and there is no SSO story.
+
+```bash
+# .env — no flags needed for local password
+HOST=tale.local
+SITE_URL=https://tale.local
+BETTER_AUTH_SECRET=...
+```
+
+## Microsoft Entra
+
+The Microsoft Entra mode adds an OAuth/OIDC button to the sign-in screen and accepts users from a tenant you control. Set `MICROSOFT_AUTH_ENABLED=true` to turn the button on; the per-tenant client ID, client secret, and redirect URI are configured in **Settings > Authentication** once the platform is up.
+
+```bash
+# .env
+MICROSOFT_AUTH_ENABLED=true
+```
+
+The redirect URI Entra needs is `${SITE_URL}/api/auth/callback/microsoft`. The tenant ID in the Entra app registration narrows who can sign in; a multi-tenant registration accepts anyone with a Microsoft account, which is rarely what you want.
+
+## Generic OIDC
+
+Generic OIDC accepts any spec-compliant identity provider — Keycloak, Authentik, Okta, Google Workspace. The button label is configurable in **Settings > Authentication**, and the flow uses the standard Authorization Code grant with PKCE. Tale stores no secret on disk for OIDC; the client ID and discovery URL go through the UI, the client secret through the encrypted credential store.
+
+This is the mode for teams that already run an IdP and want their existing identity surface in Tale.
+
+## Trusted headers
+
+Trusted headers is the mode for sites that terminate SSO at an upstream reverse proxy — oauth2-proxy, Pomerium, Authelia. The proxy authenticates the user and forwards identifying headers (`X-Auth-Request-Email`, `X-Auth-Request-Preferred-Username`); Tale trusts those headers and creates or updates the user record on the fly.
+
+```bash
+# .env
+TRUSTED_HEADERS_ENABLED=true
+```
+
+The threat model is delicate. Anything that can reach the platform container with those headers becomes the user named in them. Restrict the platform port so only the proxy can speak to it (a Docker network or a host firewall rule), and never expose the platform container directly to the internet when this mode is on.
+
+## Where this fits
+
+The four modes are mutually exclusive in spirit but technically additive — Microsoft Entra and trusted headers can coexist on the same instance if your IdP story is mid-migration. The full per-mode trade-off table lives in [Members and roles](/platform/admin/members-and-roles) on the user side; this page covers the operator's switch. The next configuration page worth reading is [Providers](/self-hosted/configuration/providers) — once users can sign in, you still need at least one model provider wired up before they can do anything.

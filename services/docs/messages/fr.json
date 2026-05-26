@@ -28,7 +28,16 @@
       "developer": "Développeur",
       "admin": "Administration",
       "tutorials": "Tutoriels",
-      "develop": "Développement"
+      "develop": "Développement",
+      "projects": "Projets",
+      "approvals": "Approbations",
+      "governance": "Gouvernance",
+      "conversations": "Conversations",
+      "legal": "Mentions légales",
+      "tutorialsAdmin": "Administration",
+      "tutorialsEditor": "Éditeur",
+      "tutorialsDeveloper": "Développeur",
+      "tutorialsMember": "Membre"
     }
   },
   "search": {

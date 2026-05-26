@@ -1,51 +1,35 @@
 ---
 title: Membre
-description: Le siège consommateur en lecture seule — se connecter, discuter avec l'IA et les agents, parcourir la base de connaissances, lire les conversations et approbations partagées. L'orientation jour-un du Membre.
+description: Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, lire les conversations et approbations assignées. Les pages ici sont ce que fait au quotidien une personne de rôle Membre.
 ---
 
-Un **Membre** dans Tale est le siège consommateur en lecture seule. Tu te connectes, discutes avec les modèles IA et les agents que ton équipe a mis en place, parcours la base de connaissances que tes Éditeurs curent, et lis les conversations et approbations partagées avec toi. Tu ne téléverses pas de documents, ne crées pas d'agents et ne changes aucun paramètre qui affecte les autres — ces surfaces sont réservées aux Éditeurs, Développeurs et Admins. Cette page est pour les personnes qui mettent les pieds dans Tale pour la première fois et pour quiconque n'a jamais besoin que du côté consommateur du produit.
+Membre est le rôle par défaut que portent la plupart des personnes dans la plupart des orgs. C'est la surface utilisateur final de Tale — chatter avec des agents, parcourir la base de connaissances, lire les conversations et approbations que d'autres ont routées vers toi, et laisser des retours sur les réponses. Les Membres ne construisent pas d'agents, ne configurent pas de fournisseurs, ne gèrent pas d'intégrations. Ils utilisent le produit que les Éditeurs et Développeurs ont bâti pour eux.
 
-Il n'y a rien à installer — Tale tourne entièrement dans le navigateur. S'il te faut aussi installer ou opérer une instance Tale toi-même, [Démarrage local](/fr/self-hosted/install/quickstart) et [Déploiement en production](/fr/self-hosted/install/linux-server) couvrent ça, et le reste de l'onglet auto-hébergé couvre l'exploitation de la plateforme.
+Cette vue d'ensemble nomme ce qu'un Membre peut faire et pointe vers les pages par fonctionnalité. Les Membres atterrissent typiquement d'abord sur Chat ; le reste de cette page est ce qu'il faut lire quand chat seul ne suffit pas — quand tu veux savoir d'où vient une citation, ce qu'est une carte d'approbation, ou ce qu'empaquette un projet.
 
-## Une journée de Membre
+## Ce que couvre Membre
 
-Une journée typique commence sur l'écran d'accueil avec un chat tout neuf. Tu poses au modèle une question que l'équipe a documentée ; l'agent ramasse le document pertinent automatiquement et répond avec la citation liée au document d'origine. Plus tard, une Éditrice dépose un nouveau PDF produit dans la base de connaissances ; ta prochaine question sur ce produit tisse la nouvelle information dans la réponse sans que tu ne fasses rien. Si un coéquipier partage une conversation, elle apparaît sous **Conversations** ; si un workflow attend une décision humaine que ton rôle a le droit de voir, elle remonte sous **Approbations** (lecture seule — le verdict revient à un Éditeur).
+La surface Membre est volontairement étroite. Les quatre seaux sont :
 
-## Se connecter
+- **Chat** — choisir un agent (ou aucun), envoyer un message, lire la réponse. Le composer expose la bibliothèque de prompts, les pièces jointes, le mode vocal, le mode arène pour la comparaison côte à côte, et le panneau Canvas quand une réponse produit plus que le chat peut tenir en ligne.
+- **Connaissance** — parcourir les documents, clients, produits, fournisseurs, sites web que l'org a chargés. Lecture seule pour les Membres ; la curation arrive du côté Éditeur.
+- **Conversations** — lire les threads d'inbox qui te sont assignés. Les Membres répondent quand un agent rend une conversation ; ils ne peuvent pas réassigner ou fermer des threads que d'autres possèdent.
+- **Approbations** — lire les cartes d'approbation routées vers toi. Clique sur Approuver, Rejeter, ou Demander des changements ; laisse un commentaire si la règle le demande.
 
-Ton Admin te fait entrer via l'une des trois méthodes, selon la configuration de ton organisation.
+Le menu Paramètres est caché pour les Membres ; tout dans la surface est la surface travail, pas la surface configuration.
 
-- **Courriel et mot de passe.** Ton Admin crée le compte depuis **Paramètres > Membres** avec un mot de passe initial et te le partage. Tu es obligé de le changer à la première connexion.
-- **SSO (Microsoft Entra ID).** Tu te connectes avec ton compte Microsoft existant ; ton compte Tale est provisionné automatiquement la première fois.
-- **Reverse-proxy (en-têtes de confiance).** Quand Tale est derrière Authelia, Authentik, oauth2-proxy ou similaire, le proxy t'authentifie et ton compte est auto-provisionné à la première requête.
+## Pages dans cette section
 
-Si tu ne peux pas te connecter, demande à ton Admin quelle méthode est active. Admins : voir [Authentification](/fr/self-hosted/admin/authentication) pour la configuration à l'échelle de l'instance.
+Cette section est courte — la surface Membre est l'intersection des pages que les Éditeurs construisent et que tout le monde utilise. La lecture plus profonde vit dans les zones par fonctionnalité.
 
-## Ce que tu peux faire
+**[Chat](/fr/platform/chat/overview)** — le point d'entrée quotidien ; composer, agents, pièces jointes, citations.
 
-### Discuter
+**[Vue d'ensemble Connaissance](/fr/platform/knowledge/overview)** — la fenêtre lecture seule sur ce que l'org a chargé.
 
-Démarre une conversation depuis l'écran d'accueil. Choisis un modèle dans le sélecteur, tape un message et envoie. La saisie accepte aussi :
+**[Conversations](/fr/platform/conversations/overview)** — l'inbox unifié où atterrissent les threads de canal client.
 
-- Des pièces jointes — images, PDF, audio, vidéo. Voir [Pièces jointes de chat](/fr/platform/chat/attachments) pour la liste complète et le traitement par type.
-- Une mention `@` d'un agent que ton Éditeur ou ton Développeur a publié. Voir [Agents dans le chat](/fr/platform/chat/agents-in-chat).
-- Deux modèles côte à côte dans le [mode Arena](/fr/platform/chat/arena-mode) quand la question est « quel modèle répond le mieux ? ».
+**[Concepts d'approbation](/fr/platform/approvals/concepts)** — ce qu'est une carte d'approbation et ce que fait chaque bouton.
 
-Référence complète : [Bases du chat](/fr/platform/chat/basics).
+## Où cela s'inscrit
 
-### Parcourir la base de connaissances
-
-La base de connaissances tient les documents que ton organisation a téléversés ou crawlés. Tu peux la chercher, ouvrir des documents et les référencer depuis le chat. En tant que Membre, tu ne peux pas téléverser ni supprimer — c'est une tâche d'Éditeur. Voir [Base de connaissances](/fr/platform/workspace/knowledge-base).
-
-### Lire les conversations et les approbations
-
-- **[Conversations](/fr/platform/workspace/conversations)** — threads clients partagés avec toi. Lecture seule dans le rôle Membre ; les Éditeurs et au-dessus peuvent répondre.
-- **[Approbations](/fr/platform/workspace/approvals)** — sorties d'automatisations qui attendent un verdict humain. Tu peux lire ; les Éditeurs et au-dessus décident.
-
-## Personnaliser ton compte
-
-Pose ton nom affiché, ta langue, ton thème et tes préférences de notification depuis le menu avatar. Les détails sont sur [Tes préférences](/fr/platform/member/preferences).
-
-## Où cela s'insère
-
-Les Membres sont les consommateurs en lecture seule — le siège conçu pour les personnes qui utilisent l'IA sans la curer. Pour créer des agents, modifier des connaissances ou faire tourner des automatisations, demande à un Admin de te faire monter en Éditeur ou Développeur. La matrice canonique des rôles vit sous [Membres et rôles](/fr/platform/admin/members-and-roles) ; les atterrissages spécifiques au rôle ([Éditeur](/fr/platform/editor/overview), [Développeur](/fr/platform/developer/overview)) décrivent ce que chaque montée débloque.
+Membre est le rôle qui consomme ce que l'Éditeur construit et que l'Administrateur gouverne. La première lecture naturelle est [Chat](/fr/platform/chat/overview) — c'est là que chaque Membre passe le plus de temps, et la plupart des autres surfaces Membre se déploient depuis un chat qui voulait faire plus.

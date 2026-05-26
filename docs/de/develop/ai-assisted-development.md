@@ -1,67 +1,53 @@
 ---
-title: KI-gestützte Entwicklung
-description: Mit KI-Editoren Agents, Workflows und Integrationen mit voller Plattform-Kenntnis erstellen.
+title: AI-gestützte Entwicklung
+description: Wie Claude Code, Cursor, Copilot und Windsurf ein Tale-Projekt bearbeiten — die Rules-Datei, die jeder Editor liest, und der Schema-Spiegel, den Tale unter `.tale/reference/` erzeugt.
 ---
 
-Die CLI-Befehle `tale init` und `tale upgrade` erzeugen Editor-Konfigurationsdateien, die KI-Editoren — Claude Code, Cursor, GitHub Copilot, Windsurf — über Tales Projektstruktur, Schemas und Plattform-Quellcode informieren. Mit diesen Dateien an Ort und Stelle kannst du einen Agent, einen Workflow oder eine Integration in natürlicher Sprache beschreiben, und der Editor produziert eine Konfiguration, die zum Schema passt. Diese Seite richtet sich an Source-Contributors und Entwickler mit dateibasiertem Authoring-Workflow; Nutzer, die über die Plattform-UI bearbeiten, brauchen nichts davon.
+Tale-Projekte sind JSON — Agents, Workflows, Integrations, Branding — und JSON lässt sich in AI-Editoren gut bearbeiten, wenn der Editor das Schema kennt. Die CLI legt dafür zwei Dinge an: eine Rules-Datei, die jeder Editor im Projekt-Root liest (`CLAUDE.md` für Claude Code, `.cursor/rules/tale.mdc` für Cursor, `.github/copilot-instructions.md` für Copilot, `.windsurfrules` für Windsurf), und einen schreibgeschützten Schema-Spiegel unter `.tale/reference/`, auf den die Rules-Datei den Editor verweist.
 
-Das Ergebnis eines einzelnen `tale init`-Laufs ist ein Projektverzeichnis, das jeder der genannten Editoren mit vollem Kontext öffnen kann: die Schemas, die Validatoren, die Connector-Tool-Oberfläche und die Beispiel-Bibliothek liegen alle unter `.tale/reference/`.
+Lies das, wenn du ein Tale-Projekt im AI-Editor bearbeiten willst, ohne JSON von Hand zu tippen. Komm zurück, wenn der Editor Felder erfindet oder die falsche Agent-Form verdrahtet — die Antwort ist fast immer, dass das Schema unter `.tale/reference/` veraltet ist.
 
-## Was `tale init` generiert
+## Ein durchgespieltes Setup
 
-Ein per Scaffolding aufgesetztes Projekt liefert eine Editor-Regel-Datei pro unterstütztem Editor und ein read-only Referenzverzeichnis, das der Editor durchsuchen kann:
-
-| Datei                             | Zweck                                        | Editor         |
-| --------------------------------- | -------------------------------------------- | -------------- |
-| `CLAUDE.md`                       | Projektregeln und Kontext                    | Claude Code    |
-| `.cursor/rules/tale.mdc`          | Projektregeln mit Glob-basiertem Frontmatter | Cursor         |
-| `.github/copilot-instructions.md` | Projektregeln                                | GitHub Copilot |
-| `.windsurfrules`                  | Projektregeln                                | Windsurf       |
-| `.tale/reference/`                | Voller Plattform-Quellcode (read-only)       | alle obigen    |
-
-Die vier Regel-Dateien tragen denselben Kerninhalt — Projektstruktur, Konfigurations-Konventionen, eine Anweisung, `.tale/reference/` zu konsultieren, bevor etwas generiert wird — im bevorzugten Format jedes Editors. Das Referenzverzeichnis enthält die Backend-Implementierung: Datenbankschemas, Validatoren, Agent-Tool-Definitionen, Workflow-Schritttypen und Connector-Verträge. Das ist alles, was der Editor braucht, um eine korrekte Konfiguration zu produzieren, ohne zu raten.
-
-## So nutzt du es
-
-Der Workflow ist über jeden Editor hinweg derselbe:
-
-1. Erstelle oder aktualisiere das Projekt: `tale init <project-name>` für einen frischen Baum, `tale upgrade`, um die Regel-Dateien in einem bestehenden zu regenerieren.
-2. Öffne das Projekt im KI-Editor deiner Wahl. Der Editor liest die Regel-Datei automatisch.
-3. Beschreibe in einfacher Sprache, was du willst. Der Editor liest die Schemas aus `.tale/reference/` und schreibt die passenden Konfigurationsdateien.
-4. Speichern. Die Tale-Plattform lädt `agents/`, `workflows/`, `integrations/` und `branding/` live nach — es gibt keinen separaten Deploy-Schritt.
-
-Ein paar Prompts, die in der Praxis funktionieren:
-
-```text
-Erstelle einen Agent, der dem Sales-Team hilft, Produktdetails und Kundenhistorie nachzuschlagen.
-```
-
-```text
-Füge einen Workflow hinzu, der jeden Morgen läuft, überfällige Rechnungen prüft und eine Zusammenfassung an Slack postet.
-```
-
-```text
-Erstelle eine REST-API-Integration für unseren internen Dienst auf api.example.com mit OAuth2-Authentifizierung.
-```
-
-```text
-Aktualisiere den CRM-Assistant-Agent so, dass er auch Zugriff auf das Dokumentsuch-Tool hat.
-```
-
-Der Editor generiert das JSON, du prüfst es, die Plattform wendet es an.
-
-## Regeln und Referenz aktuell halten
-
-Die Regel-Dateien und das Referenzverzeichnis sind ins CLI-Binary gebündelt, also produziert eine veraltete CLI veraltete Regeln. Führe `tale upgrade` regelmäßig aus:
+Initialisier ein Projekt — die CLI schreibt die Rules-Datei und den Schema-Spiegel im selben Schritt:
 
 ```bash
-tale upgrade
+tale init my-org
+cd my-org
+ls -a
+# .cursor/  .github/  .tale/  .windsurfrules
+# CLAUDE.md  agents/  workflows/  integrations/  branding/
 ```
 
-Das Upgrade schreibt jede generierte Datei neu. Bearbeite sie nicht von Hand — lokale Änderungen werden beim nächsten Upgrade überschrieben. Muss eine Regel projektweit geändert werden (eine eigene Konvention, ein Hausstil), reiche die Änderung gegen die CLI selbst ein, statt die generierte Datei zu patchen.
+`CLAUDE.md` (gleichzeitig installiert als Cursor-`.mdc`, Copilot-`.md` und Windsurf-Rules) sagt dem Editor, wo er nachschlagen soll, bevor er eine Config bearbeitet:
 
-## Wo das einsetzt
+> Before creating or editing any config, read the relevant schemas and implementation code in `.tale/reference/` to understand the valid structure, fields, and constraints. Use existing config files in the project as examples.
 
-KI-gestützte Entwicklung ist der dateibasierte Authoring-Pfad für Agents, Automatisierungen, Integrationen und Branding. Er existiert, weil die JSON-Form, die jede UI-Seite stützt, auch die Form ist, die ein KI-Editor aus einer Klartextbeschreibung generieren kann — für eine Flotte von Agents ist das schneller als jeden einzeln in der UI zu bauen.
+Die Direktive zählt, weil jeder Editor unter Last Schema-Reads überspringt, sofern nicht anders gesagt. Die Rules-Datei ist der Vertrag; der Schema-Spiegel ist die Wahrheit am Boden.
 
-Für den kanonischen UI-Build-Pfad ohne Code-Editor ist [Den ersten Agent end-to-end bauen](/de/tutorials/editor/first-agent-end-to-end) der Einstieg. Für die Connector-Authoring-Oberfläche, neben der diese Seite sitzt, ist [Eine Integration bauen](/de/develop/integrations) die Referenz.
+## Was wo liegt
+
+| Pfad                               | Was es ist                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------------ |
+| `agents/`                          | Eine JSON-Datei pro Agent — Anweisungen, Wissen, Tools, Modell.                      |
+| `workflows/`                       | Workflow-JSON-Configs, gruppiert nach Kategorie-Unterverzeichnis.                    |
+| `integrations/<slug>/config.json`  | Integration-Manifest — Operations, Auth-Methode, erlaubte Hosts.                     |
+| `integrations/<slug>/connector.ts` | Optionaler TypeScript-Connector für REST-Formen, die das Manifest nicht abdeckt.     |
+| `branding/branding.json`           | Org-Branding — Farben, Logos, E-Mail-Absender.                                       |
+| `.tale/reference/`                 | Schreibgeschützter Schema-Spiegel; neu erzeugt durch `tale init` und `tale upgrade`. |
+
+Der Reference-Baum ist byte-identisch zu den Schemas, gegen die die Plattform beim Deploy validiert. Behandle ihn als kanonisch: wenn ein Feldname in einer handgeschriebenen Config dem Reference widerspricht, gewinnt das Reference.
+
+## Arbeiten mit dem Editor
+
+Die Rules-Datei nennt drei Regeln, die jeder Editor beim Bearbeiten durchsetzt:
+
+- **Agents binden, delegieren, hängen an.** Ein Agent kann gleichzeitig Integrations binden (`integrationBindings`), an andere Agents delegieren (`delegates`) und Workflows anhängen (`workflows`). Lies bestehende Configs, bevor du eine neue Bindung einführst.
+- **Workflows nutzen Integration-Operations.** Ein Workflow-Schritt referenziert Integration-Operations, die in `integrations/<slug>/config.json` deklariert sind. Ein Schritt gegen eine nicht-existente Operation zu bearbeiten, lässt die Validierung scheitern.
+- **Benennung ist erzwungen.** Agent-Dateinamen matchen `[a-z0-9][a-z0-9_-]*\.json`. Workflow-Step-Slugs matchen `[a-z0-9][a-z0-9_-]*`. Integration-Verzeichnisse sind kleingeschrieben alphanumerisch mit Bindestrichen oder Unterstrichen.
+
+Wenn der Editor eine Änderung vorschlägt, frag ihn, welche Datei in `.tale/reference/` er zugrunde gelegt hat. Wenn er das nicht kann, erzeug den Spiegel mit `tale upgrade` neu und versuch es nochmal.
+
+## Wo das hingehört
+
+AI-gestützte Entwicklung ist der Bearbeitungspfad; Deployment ist der Veröffentlichungspfad. Sobald eine Config die Editor-Validierung passiert, gleicht [`tale deploy`](/de/self-hosted/install/cli-install) sie gegen die Plattform ab — derselbe Schema-Check, diesmal als Schranke. Für Features, die der Editor nicht erreicht (der In-Product-Builder, der visuelle Workflow-Editor), ist der [Platform-Reiter](/de/platform) die kanonische Oberfläche; der AI-Editor-Pfad hier ist für Projekte, die Config-as-Code bevorzugen.

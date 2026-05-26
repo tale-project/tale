@@ -1,68 +1,37 @@
 ---
 title: Mode Arène
-description: Envoie le même prompt à deux modèles IA en parallèle et compare les réponses côte à côte, puis enregistre un verdict qui alimente les données de préférence.
+description: Comparaison de modèles côte à côte dans le Chat — comment il s'affiche, comment choisir les concurrents, comment les verdicts alimentent l'analyse des retours et quand y recourir.
 ---
 
-Le Mode Arène envoie le même message à deux modèles IA en même temps et rend les réponses dans une vue divisée. Sers-t'en pour évaluer un modèle candidat face à ton modèle par défaut, pour réunir des données de préférence à l'échelle de l'équipe avant un déploiement de modèle, ou pour montrer pourquoi un modèle gère une classe de prompts mieux qu'un autre. Tout Membre avec accès au chat peut lancer le Mode Arène ; les menus déroulants de modèle sont filtrés sur ce que l'organisation a configuré dans [Fournisseurs IA](/fr/platform/admin/providers) et sur ce que l'agent actif prend en charge.
+Le Mode Arène exécute le même prompt contre deux modèles en parallèle et te demande quelle réponse est la meilleure. Le verdict alimente l'analyse des retours de l'organisation ; avec le temps, les données disent quel modèle l'équipe préfère vraiment pour quel type de question, séparé du ressenti de chacun.
 
-Cette page couvre l'exécution : activer le mode, la vue divisée, enregistrer un verdict, et comment l'inférence parallèle fonctionne sous le capot.
+Va vers l'Arène quand choisir un modèle a été un débat plutôt qu'une décision — comparer des réponses côte à côte casse l'impasse avec des preuves plutôt qu'avec des opinions. Pour le travail ordinaire, le sélecteur de modèles classique suffit ; la valeur de l'Arène, ce sont les verdicts qu'elle produit, pas la vue de comparaison elle-même.
 
-## Activer le Mode Arène
+## Comment l'Arène s'affiche
 
-Ouvre une conversation et clique sur l'icône **Épées** dans la barre d'outils — l'icône s'allume quand le Mode Arène est actif. Deux menus déroulants de modèle apparaissent au-dessus de la saisie, étiquetés **Modèle A** et **Modèle B** avec **vs** entre les deux. Choisis un modèle de chaque côté et envoie un message ; les deux réponses se diffusent dans une vue divisée. Pour rebasculer le mode, re-clique sur l'icône Épées — tout l'état arène (choix de modèles, fils, verdict) s'efface.
+Active **Activer le mode Arène** dans la zone modèle du composer et le textarea fait pousser deux sélecteurs de modèles étiquetés **Modèle A** et **Modèle B**. Envoyer un message exécute les deux modèles en parallèle ; l'écran se sépare et chaque réponse arrive en streaming dans sa propre colonne. Une fois les deux terminées, **Choisis un verdict** apparaît sous les colonnes avec quatre boutons : **A est meilleur**, **B est meilleur**, **Égalité**, **Les deux sont mauvais**.
 
-Le Mode Arène a besoin d'au moins deux modèles disponibles dans l'ensemble de fournisseurs de l'organisation. Si un seul modèle de chat est configuré, les menus de modèle sont masqués et la bascule désactivée — ajoute d'abord un second fournisseur dans [Fournisseurs IA](/fr/platform/admin/providers).
+## Choisir les concurrents
 
-## La vue divisée
+Les deux sélecteurs sont indépendants — n'importe quel modèle tagué chat que la politique de l'agent autorise est valable de chaque côté. Choisir le même modèle des deux côtés est permis (utile pour tester des différences de température si l'agent expose ça), mais la plupart des comparaisons traversent fournisseurs ou tailles. Les instructions, les connaissances et les outils de l'agent s'appliquent aux deux colonnes ; seul le modèle sous-jacent diffère.
 
-Après l'envoi d'un message, la zone de chat se divise en deux colonnes. La colonne de gauche diffuse la réponse du fil du Modèle A ; celle de droite diffuse celle du Modèle B. Chaque colonne porte un en-tête avec le nom du modèle ; les deux défilent indépendamment et prennent en charge toutes les fonctionnalités du chat, y compris les approbations, les pièces jointes et les actions sur les messages. Continue à envoyer des messages dans la même vue et chaque nouveau message part en parallèle aux deux modèles.
+## Émettre un verdict
 
-## Enregistrer un verdict
+Le verdict se fait en un clic. **A est meilleur** et **B est meilleur** s'expliquent d'eux-mêmes ; **Égalité** sert quand les deux réponses se valent à peu près ; **Les deux sont mauvais** quand aucune n'est acceptable. Le bouton que tu cliques enregistre le verdict et résout le chat sur la colonne gagnante — le message suivant que tu envoies ne va qu'à ce modèle. **Égalité** ou **Les deux sont mauvais** laissent les deux colonnes actives pour un tour supplémentaire.
 
-Une fois que les deux modèles ont répondu, une barre de verdict apparaît sous la vue divisée. Quatre options :
+## Où les verdicts apparaissent
 
-| Verdict              | Effet                                                                    |
-| -------------------- | ------------------------------------------------------------------------ |
-| **A est meilleur**   | Enregistre le Modèle A comme la réponse préférée.                        |
-| **B est meilleur**   | Enregistre le Modèle B comme préféré et fait du Fil B la branche active. |
-| **Égalité**          | Enregistre que les deux réponses se valent.                              |
-| **Les deux mauvais** | Enregistre qu'aucune des deux réponses n'était satisfaisante.            |
+Les verdicts remontent dans [Analyse des retours](/fr/platform/admin/governance/feedback-analytics) sous **Arena verdicts**, à côté d'un tableau **Top Model Matchups** qui classe les paires par taux de victoire. Les données sont scopées à l'organisation, pas par utilisateur, donc les verdicts d'une petite équipe peuvent peser plus que les défauts d'une grande équipe quand un admin utilise le tableau pour fixer le modèle par défaut de l'organisation.
 
-Les verdicts sont stockés comme retour avec le choix du verdict et les deux IDs de modèle. Une fois enregistré, les boutons de verdict sont désactivés pour ce tour de comparaison, donc chaque paire reçoit un seul jugement. Les verdicts s'accumulent comme données de préférence — ton tableau de bord d'analyse d'usage fait remonter les victoires en tête-à-tête par paire et les classements de modèles agrégés dans le temps.
+## Quand y recourir
 
-## Comment marche l'inférence parallèle
-
-Quand tu envoies un message en Mode Arène, la plateforme crée deux fils séparés (ou réutilise les fils arène existants), copie l'historique de la conversation dans les deux si c'est le premier message arène de la conversation, lie le Fil B comme branche du Fil A, et transmet le même message aux deux modèles en parallèle. Aucun modèle ne voit la sortie de l'autre, donc le verdict reflète ce que chaque modèle a produit indépendamment.
-
-```mermaid
-sequenceDiagram
-    participant Toi
-    participant Plateforme
-    participant FilA
-    participant FilB
-    participant ModèleA
-    participant ModèleB
-
-    Toi->>Plateforme: Envoie un message en mode arène
-    Plateforme->>FilA: Trouve ou crée
-    Plateforme->>FilB: Trouve ou crée
-    alt premier message arène de la conversation
-        Plateforme->>FilA: Copie l'historique précédent
-        Plateforme->>FilB: Copie l'historique précédent
-    end
-    Plateforme->>FilB: Lie comme branche du FilA
-    par Inférence parallèle
-        Plateforme->>ModèleA: Transmet le message
-        ModèleA-->>FilA: Réponse
-    and
-        Plateforme->>ModèleB: Transmet le message
-        ModèleB-->>FilB: Réponse
-    end
-    Plateforme->>Toi: Affiche les deux réponses côte à côte
-```
-
-Le lien de branche, c'est ce qui te laisse garder la réponse gagnante : quand tu choisis **B est meilleur**, le Fil B devient la branche active et les messages non-arène qui suivent continuent à partir de lui.
+| Utilise … quand                                                         | Mode Arène | Sélecteur classique |
+| ----------------------------------------------------------------------- | ---------- | ------------------- |
+| Tu décides quel modèle mettre par défaut                                | ✓          |                     |
+| Tu soupçonnes une régression de modèle après une mise à niveau          | ✓          |                     |
+| Tu sais déjà quel modèle tu veux ; tu veux juste une réponse maintenant |            | ✓                   |
+| La requête est courte et ordinaire                                      |            | ✓                   |
 
 ## Où ça s'inscrit
 
-Le Mode Arène est la surface d'évaluation à l'intérieur du chat — le chemin le plus court entre « je veux savoir comment ces deux modèles se comparent sur mes vrais prompts » et un verdict enregistré. Sers-toi des verdicts qu'il produit pour décider quel modèle tu attribues comme préréglage **Standard** dans [Fournisseurs IA](/fr/platform/admin/providers) et quel modèle chaque agent utilise dans [Créer un agent](/fr/platform/agents/create). Pour les tendances agrégées, le tableau de bord d'analyse d'usage affiche les verdicts arène groupés par paire et par agent.
+L'Arène est la boucle de retour légère par-dessus le choix de modèle. La surface lourde est [Analyse des retours](/fr/platform/admin/governance/feedback-analytics) — c'est là que les verdicts que tu émets deviennent un graphique avec lequel quelqu'un argumente plus tard sur les défauts. Si tu es celui qui lira le graphique plus tard, fais une poignée de tours d'Arène avant de le lire ; les verdicts que tu émets toi-même te disent si le cadrage du tableau correspond à ton expérience.

@@ -1,64 +1,42 @@
 ---
 title: Execution logs
-description: Read past automation runs, debug failures, and replay with new input.
+description: The per-workflow run history — every execution with its status, duration, trigger source, step inputs and outputs, and the full journal of what each step did. Developers and Editors read this when a run failed or behaved oddly.
 ---
 
-The **Executions** tab on every automation is the per-run record of everything that has tried to run it — schedules, webhooks, events, and manual runs alike. Each row is one run, each row expands into the step-by-step trace of inputs, outputs, and errors that produced it. This is where a Developer or Admin goes when a third-party API returned `400` overnight and the question is "which step, with what payload, against which model".
+Execution logs are the run history for a single workflow. Every time a trigger fires the workflow, Tale opens a new execution record and writes to it as the run progresses — start time, status, the input the trigger carried, the output each step emitted, the duration, and the error if a step failed. The page is the debugging surface every other automations tab points at when something went wrong.
 
-Runs are kept according to the organisation's [retention policy](/platform/admin/governance#retention). Past that horizon, rows are hard-deleted by the daily cleanup job; long-lived debugging means copying the trace before that happens.
+The list lives on the **Executions** tab of an automation. Open the automation, click **Executions**, and the table loads the most recent runs. Each row expands into a JSON view of the execution, its variables, and the step-by-step journal.
 
-## A worked failure
+## The list view
 
-Click any row to expand it. The detail panel shows a JSON view of the whole run, structured like this:
+The list shows one row per run, sorted by start time. The columns are the execution ID, the status badge, the start time (down to the millisecond), the duration, and the trigger source. The toolbar above carries a search box (matches an execution ID), a status filter, a triggered-by filter, and a date-range picker.
 
-```json
-{
-  "execution": {
-    "id": "exe_…",
-    "status": "failed",
-    "startedAt": "2026-05-15T09:12:04.317Z",
-    "completedAt": "2026-05-15T09:12:06.842Z",
-    "triggeredBy": "webhook",
-    "error": "Shopify returned 400: 'price' must be a positive number"
-  },
-  "metadata": { … trigger source, webhook token id, idempotency key … },
-  "variables": { … workflow variables at run time … },
-  "journal": [
-    { "step": "Start", "status": "completed", "input": { … }, "output": { … } },
-    { "step": "Fetch order", "status": "completed", "output": { … } },
-    { "step": "Create line item", "status": "failed", "error": { … } }
-  ]
-}
-```
+| Column       | Type      | Required | Description                                                                                                            |
+| ------------ | --------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Execution ID | String    | yes      | Stable identifier for the run. Click the copy icon to put it on the clipboard.                                         |
+| Status       | Badge     | yes      | One of `running`, `completed`, `failed`, `pending`, or `waiting_for_input` (when an approval gate has paused the run). |
+| Started at   | Timestamp | yes      | Wall-clock time the run started, in the org's timezone.                                                                |
+| Duration     | Number    | no       | Wall-clock time from start to completion. Empty for a still-running execution.                                         |
+| Triggered by | Enum      | yes      | One of `schedule`, `manual`, `webhook`, `event`, `api`, or `system`.                                                   |
 
-The `journal` is the load-bearing field — every step that ran is recorded in order, with the literal input it saw, the output it produced, and the error if it threw one. Failed steps stay expanded by default, so the failure points itself out without you hunting through siblings.
+The pageful loads incrementally — scroll to the bottom and the next pageful fetches. The approximate row count in the toolbar is a cheap estimate; the exact count is not maintained.
 
-## Filtering and search
+## The expanded execution view
 
-The filter bar above the table covers the cases you reach for most often.
+Expand a row and Tale renders a JSON view of the run. The top level carries five fields: the execution metadata (id, status, start and finish times, the trigger source, the error if any), the run-level metadata block from the trigger, the input variables the run received, the step journal, and a journal-error string if the journal failed to load.
 
-| Filter           | Values                                                                       |
-| ---------------- | ---------------------------------------------------------------------------- |
-| **Status**       | `running`, `completed`, `failed`, `pending`.                                 |
-| **Triggered by** | `schedule`, `manual`, `event`, `webhook`, `api`, `system`.                   |
-| **Date range**   | Today, last 7 days, last 30 days, all time, or a custom from/to.             |
-| **Search**       | Exact match on the run id; useful when you have the id from an error report. |
+The journal is the per-step record: every step in the run emits a journal entry with its inputs, its outputs, and its status. A failed step carries the error string and the step config that produced it; an approval-gate step carries the approver and the decision. Use the journal to follow the run end to end and to spot the step that misbehaved.
 
-The table loads the most recent runs in pages and reads infinite-scroll style as you go deeper. Filters compose — `status: failed` plus `triggered by: webhook` plus the last 24 hours narrows to "what blew up on inbound traffic since this morning".
+## Retry and re-run
 
-## Rerunning
+Step-level retries are built in. Every step type accepts a `retryPolicy` (max attempts and backoff in milliseconds) on the step config; transient failures retry automatically up to the configured ceiling. The workflow-level default applies when a step does not declare its own policy. Open the step's panel in the editor to inspect or change the policy.
 
-From an expanded row, two actions replay the run:
+A run that fails past its retry budget stays in the execution log as `failed`. To re-run with the same inputs, open the **Test automation** panel from the editor toolbar, paste the original input JSON (copy it from the failed execution's variables block), and click **Execute**. The new run is a fresh execution with its own ID; the previous failure stays in the log for the audit trail.
 
-- **Rerun with same input** starts a fresh run using the original payload. Useful when the automation has changed since the original failure and you want to confirm the fix.
-- **Rerun with different input** opens the payload in an editor so you can tweak before firing. Useful for probing edge cases — change one field, observe which step branches differently.
+## A worked debugging session
 
-Reruns land on the **Executions** tab as new rows; the original failure stays in place so the audit story remains intact.
-
-## Alerts
-
-The **Alerts** tab on an automation lets you wire failure notifications to an Admin's email — fire when a run fails, when it runs past a threshold, or when the error matches a pattern. The per-automation alerts cover the per-automation case; for "more than five failures in the last hour across every automation in the org", reach for [Operations](/self-hosted/operate/observability/operations) instead — it carries the cross-automation rollup the alerts surface deliberately does not.
+A daily-report run failed at 08:01. Open the workflow, switch to **Executions**, and filter by `Status = failed` and `Date = today`. The failing execution sits at the top. Expand it: the journal shows the second step (an agent summary) errored with `request timed out`. The step's variables block carries the prompt the agent received; the error and the prompt together usually point at the root cause — too many tokens, a missing knowledge document, an over-eager tool call. Fix the underlying issue, then re-run the workflow from the test panel with the same input to confirm the fix.
 
 ## Where this fits
 
-Execution logs are the per-automation debug surface — the **Executions** tab on the automation in front of you. For the cross-automation rollup (total runs, success rate, top automations by volume), [Automation metrics](/platform/automations/metrics) is the dashboard. For org-wide error trends that mix automations and chat together, [Operations](/self-hosted/operate/observability/operations) is the right surface, one tab over.
+Execution logs are the receipt every workflow leaves behind; they are how you know what ran, what it produced, and where it broke. Pair them with [metrics](/platform/automations/metrics) for the same information rolled up across runs (success rate, p50/p95 duration), with [triggers](/platform/automations/triggers) for the kick-off that opens each execution, and with [audit logs](/platform/admin/governance/audit-logs) for the org-wide trail of who started which run.

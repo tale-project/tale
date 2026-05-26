@@ -1,0 +1,70 @@
+---
+title: Durcissement
+description: La checklist de durcissement pour une instance Tale en production — utilisateur non-root, firewall, TLS, stockage des secrets, rétention d'audit logs, backups.
+---
+
+Les défauts livrés par Tale sont sûrs pour le développement et raisonnables pour une petite installation en production. Passer de « raisonnable » à « prêt pour le régulateur » est une checklist, pas un flag de configuration — chaque ligne ci-dessous resserre une surface d'attaque spécifique. Walk la liste une fois avant d'ouvrir l'URL à de vrais utilisateurs, et walk-la à nouveau après chaque montée de version majeure.
+
+Le détail de référence pour chaque ligne vit ailleurs — TLS dans [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains), backups dans [Backups et restauration](/fr/self-hosted/operate/backups-and-restore), rétention dans [Rétention](/fr/self-hosted/configuration/retention). Cette page est l'index qui nomme ce qu'il faut durcir et pointe vers la page qui le walk.
+
+## Hôte
+
+| Élément                                  | Pourquoi ça compte                                                 |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| Utilisateur opérateur non-root           | Limite le blast radius si l'utilisateur plateforme est compromis   |
+| Auth SSH par clé uniquement              | L'auth par mot de passe est la porte ouverte que les bots scannent |
+| Mises à jour de sécurité non surveillées | Patche l'OS sans attendre une fenêtre de maintenance               |
+| Firewall hôte (ufw / nftables)           | Ferme tout ce qui n'est pas 22, 80, 443                            |
+| Chiffrement du disque au repos           | Requis si tu fais tourner SOPS en mode clair                       |
+
+L'utilisateur non-root est celui que la plupart des équipes sautent. Les conteneurs de Tale font tourner leurs propres processus non-root à l'intérieur, mais le démon Docker lui-même tourne en root — opérer ce démon en tant qu'utilisateur opérateur (membre du groupe `docker`, pas en tant que root) est le resserrement le moins cher de cette page. Le walk complet vit dans [Installation serveur Linux de production](/fr/self-hosted/install/linux-server).
+
+## Réseau
+
+Le proxy est la seule surface entrante. Bloque tout le reste.
+
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
+
+Si tu fais tourner l'auth trusted-headers, le port plateforme ne doit pas être joignable directement depuis ailleurs que le proxy amont — tout ce qui peut le frapper avec les bons en-têtes devient cet utilisateur. Un réseau Docker ou une règle firewall hôte marchent tous les deux ; choisis-en un et vérifie-le depuis l'extérieur de l'hôte.
+
+## TLS
+
+`TLS_MODE=selfsigned` est pour le développement. La production fait tourner `letsencrypt` (ou `external` si tu mets ton propre proxy TLS-terminant devant Tale). Le cron de renouvellement est automatique ; l'alerte qui sonne quand le renouvellement échoue est ce qui te sauve 90 jours plus tard. Voir [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains).
+
+## Secrets
+
+Chaque secret dans `.env` est sensible — le secret de signature d'auth, la clé de chiffrement, le mot de passe de base, la clé age, le bearer token de métriques. La barre minimale :
+
+- `.env` est en mode 0600 et appartient à l'utilisateur opérateur.
+- `BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`, `INSTANCE_SECRET` sont rotés depuis les valeurs d'exemple livrées dans `.env.example`.
+- `DB_PASSWORD` est changé du placeholder par défaut.
+- `SOPS_AGE_KEY` ou `SOPS_AGE_KEY_FILE` est défini — laisser les deux non définis est supporté mais réservé aux hôtes à disque chiffré avec gestion de secrets externe.
+
+Le walk SOPS complet et la procédure de rotation vivent dans [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops).
+
+## Audit logs
+
+Les audit logs sont immuables et bornés par rétention. Les frameworks de compliance attendent au moins un an ; la borne est imposée par déploiement, donc le réglage de l'org le plus strict est ce qui tourne effectivement. Fixe le plancher dans ta config opérateur pour correspondre au framework le plus lâche que tu supportes, et assure-toi que les backups capturent les lignes d'audit log avec le reste de la base. La référence de rétention vit dans [Rétention](/fr/self-hosted/configuration/retention).
+
+## Backups
+
+Un backup qui n'a pas été restauré est un espoir, pas un backup. Le minimum : dumps Postgres quotidiens écrits par le cron `tale-db`, copiés hors-hôte dans l'heure, et un drill de restauration trimestriel qui reconstruit une instance fonctionnelle depuis le snapshot. La procédure complète est dans [Backups et restauration](/fr/self-hosted/operate/backups-and-restore).
+
+## Isolation de la sandbox
+
+Run-code est la surface la plus risquée du produit — le seul endroit où un input fourni par l'utilisateur devient du code exécuté. Les défauts sont déjà stricts : `tale-sandbox-egress` impose une allowlist d'hôtes, `tale-sandbox` tourne sans cap privilégié, et le réseau entre eux est interne uniquement. Le levier de durcissement est l'allowlist elle-même — garde-la courte, préfère des hôtes spécifiques aux wildcards, et audite les ajouts via l'écran [politique run-code](/fr/platform/admin/governance/run-code-policy) plutôt que par édition directe du fichier.
+
+## Monitoring
+
+`METRICS_BEARER_TOKEN` est non défini dans `.env.example` — c'est intentionnel, pour qu'une installation fraîche ne leak pas de métriques. Règle le token, scrape depuis ton Prometheus, et les seuils d'alerte dans [Opérations](/fr/self-hosted/operate/observability/operations) couvrent les signaux client-impactants.
+
+## Où cela s'inscrit
+
+Le durcissement n'est pas une tâche d'une seule passe — la liste ci-dessus est ce que tu walks avant le lancement, et que tu re-walks après chaque montée de version ou après chaque changement de la forme du réseau. La prochaine chose qui vaut la lecture après ceci est la ligne ci-dessus que tu n'as pas encore faite.

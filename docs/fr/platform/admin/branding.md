@@ -1,37 +1,36 @@
 ---
-title: Image de marque
-description: Personnalise le nom de l'application, le logo, le favicon et les couleurs de marque pour que l'application en cours d'exécution se lise comme ton organisation et non comme Tale.
+title: Branding
+description: Logo, favicon, nom d'app et couleurs de marque que ton organisation montre à ses membres. Les Administrateurs lisent ceci quand ils whitelabel une instance auto-hébergée ou alignent le chrome in-produit sur la palette de l'entreprise.
 ---
 
-L'image de marque est la couche cosmétique posée sur Tale. Elle remplace le mot « Tale » dans l'onglet du navigateur et dans l'en-tête par le nom de ton organisation, remplace logo et favicon, et choisit les deux couleurs utilisées pour les boutons et les surlignages dans toute l'application. Le public, ce sont les Admins — pour tout autre rôle, le bouton est caché — et l'usage, c'est réduire le nombre de moments où un membre ouvre Tale et voit un nom qui n'est pas le sien. Les changements s'appliquent à l'échelle de l'organisation dès l'enregistrement ; aucun rechargement client n'est requis.
+Le branding est la surface qui échange le chrome par défaut de Tale contre celui de ton organisation. La page couvre les quatre assets que la plateforme habille — nom d'app, logo, favicon, couleurs de marque et d'accent — et explique où chacun apparaît pour que tu aies un aperçu avant d'enregistrer. Les Administrateurs vont vers le branding quand une instance auto-hébergée s'expose à un public externe ou quand un déploiement interne doit sembler natif à l'entreprise.
 
-L'image de marque ne change pas ce que le produit fait, ni quels modèles sont disponibles. Pour cela, regarde plutôt [Fournisseurs IA](/fr/platform/admin/providers) et [Gouvernance](/fr/platform/admin/governance).
+Seuls les Administrateurs et Propriétaires peuvent éditer le branding. Tous les autres voient le résultat ; le formulaire lui-même est caché aux Éditeurs, Développeurs et Membres.
 
-## Options disponibles
+## Où vit le branding
 
-Le formulaire vit sous **Paramètres > Image de marque** et expose un seul écran d'options.
+Ouvre **Paramètres > Branding**. Le formulaire a quatre sections (nom d'app et logo texte, téléversement du logo, téléversement du favicon, couleurs) et un aperçu en direct qui reflète la sidebar et l'écran de connexion avec les valeurs que tu édites. Enregistrer applique le changement pour chaque membre de l'organisation à son prochain chargement de page — il n'y a pas de surcharge par utilisateur.
 
-| Option                     | Description                                                                                                                                                                                                            |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Nom de l'application**   | Remplace « Tale » dans le titre de l'onglet du navigateur et dans l'en-tête de la page. Le placeholder est `ex., Acme corp`.                                                                                           |
-| **Logo texte**             | Texte court optionnel rendu à côté de l'image du logo dans la barre de navigation — utile quand l'image seule ne porte pas le nom.                                                                                     |
-| **Logo**                   | L'image affichée dans la barre de navigation. Téléverse du PNG, du JPEG ou du SVG ; le SVG est recommandé pour un rendu net à chaque taille. Des variantes Clair et Sombre séparées laissent livrer un logo par thème. |
-| **Favicon**                | L'icône 64 × 64 que Tale sert à l'onglet du navigateur. Comme pour le logo, des variantes Clair et Sombre sont acceptées.                                                                                              |
-| **Couleur de marque**      | Couleur primaire — utilisée pour boutons, états actifs, anneaux de focus.                                                                                                                                              |
-| **Couleur d'accentuation** | Couleur secondaire — utilisée pour les surlignages et les badges.                                                                                                                                                      |
+## Les quatre assets
 
-Le formulaire affiche un aperçu de la marque en direct, de sorte que le choix de couleur et de logo est visible avant l'enregistrement.
+**Nom d'app** remplace le mot `Tale` dans l'en-tête de la sidebar, le titre d'onglet du navigateur et les courriels sortants. Choisis une chaîne courte qui se lit comme ton organisation appelle l'outil en interne.
 
-## Variantes Clair et Sombre
+**Logo texte** est une forme courte optionnelle pour les endroits serrés — la sidebar repliée, l'en-tête adjacent au favicon. Laisse-le vide pour retomber sur les premières lettres du nom d'app.
 
-Logo et favicon acceptent tous deux des fichiers séparés pour les modes Clair et Sombre. Le mode actif suit la préférence de thème de chaque utilisateur — réglée sous [Tes préférences](/fr/platform/member/preferences) — ce qui permet à une seule marque de livrer deux logos visuellement distincts sans bascule de mode explicite dans l'interface. Téléverse une seule variante et Tale s'en sert pour les deux modes.
+**Logo** est une image — PNG, SVG ou JPG. La plateforme la rend à la hauteur de la sidebar ; vise un fond transparent et une marque de mot lisible à environ 32 pixels de haut. Téléverse une variante claire et une variante sombre séparément si ta marque de mot doit s'inverser sur thème sombre.
 
-## Couleurs
+**Favicon** est l'icône d'onglet de 64 par 64 pixels. Téléverse une variante claire et une variante sombre pour que l'icône reste lisible quel que soit le thème que le système d'exploitation a choisi pour le chrome du navigateur.
 
-Les couleurs s'entrent en codes hex. Tale vérifie chaque couleur choisie contre le ratio de contraste avec l'arrière-plan et avertit si la valeur tombe sous le ratio 4,5:1 que WCAG AA exige pour du texte normal ; le sélecteur de couleur propose une alternative proche qui passe le contraste. L'avertissement ne bloque pas l'enregistrement — tu peux passer outre quand la charte graphique l'exige — mais le journal d'audit garde trace du passage en force.
+**Couleur de marque** est l'accent primaire — boutons, anneaux de focus, la ligne active de la sidebar. **Couleur d'accent** est le ton secondaire pour les états de survol et de sélection. Les deux acceptent toute valeur hex ; l'aperçu montre le contraste contre des fonds clairs et sombres.
 
-## Où cela s'insère
+## Un rebranding mis en pratique
 
-L'image de marque est la couche de personnalisation de surface. Elle change la manière dont Tale se présente à l'équipe et aux destinataires des courriels de l'équipe ; elle ne change pas ce que le produit fait, quels modèles existent ou ce que les rôles peuvent faire. Traite les réglages d'ici comme bon marché et réversibles — chaque champ a une icône de réinitialisation qui restaure la valeur Tale par défaut en un clic, pour expérimenter sans t'engager.
+Pour rebrander une instance pour `Acme Corp`, ouvre **Paramètres > Branding** et remplis le formulaire de haut en bas. Mets le nom d'app à `Acme AI`, téléverse la marque de mot de l'entreprise comme logo (variantes claire et sombre), téléverse la marque carrée Acme comme favicon, et colle le hex de marque (`#3B82F6` dans l'exemple) dans le champ couleur de marque. Le panneau d'aperçu à droite se met à jour pendant que tu tapes. Enregistrer applique le changement ; la sidebar, l'onglet du navigateur et le prochain courriel sortant reflètent le nouveau branding immédiatement.
 
-Pour les surfaces de personnalisation plus profondes — le menu des modèles, la politique de rétention, la matrice des rôles — [Fournisseurs IA](/fr/platform/admin/providers), [Gouvernance](/fr/platform/admin/governance) et [Membres et rôles](/fr/platform/admin/members-and-roles) sont les pages.
+## L'écran de connexion personnalisé
+
+L'écran de connexion reprend le logo et la couleur de marque automatiquement. Il n'y a pas d'habillage de connexion séparé — les mêmes assets s'affichent sur la page de connexion, la page d'inscription et le flux de réinitialisation de mot de passe. Déconnecte-toi et recharge l'URL de connexion pour vérifier le résultat.
+
+## Où ça s'inscrit
+
+Le branding est la couche visuelle au-dessus de toute autre surface admin ; SSO, courriels et journaux d'audit portent le chrome brandé jusqu'à tes membres. Combine-le avec [fournisseurs](/fr/platform/admin/providers) pour que les noms de modèles dans l'en-tête de chat correspondent au chrome qui les entoure, et avec [membres et rôles](/fr/platform/admin/members-and-roles) pour que les personnes qui peuvent éditer le branding soient les mêmes qui détiennent le reste du chrome de l'org.

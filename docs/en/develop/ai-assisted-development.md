@@ -1,67 +1,53 @@
 ---
 title: AI-assisted development
-description: Use AI-powered editors to author agents, workflows, and integrations with full platform awareness.
+description: How Claude Code, Cursor, Copilot, and Windsurf edit a Tale project — the rules file each editor reads and the schema reference Tale generates under `.tale/reference/`.
 ---
 
-The `tale init` and `tale upgrade` CLI commands generate editor-configuration files that make AI-powered code editors — Claude Code, Cursor, GitHub Copilot, Windsurf — aware of Tale's project structure, schemas, and platform source. With those files in place, you can describe an agent, a workflow, or an integration in natural language and the editor produces a configuration that matches the schema. This page is for source contributors and developers using a file-based authoring flow; users editing through the platform UI don't need any of this.
+Tale projects are JSON — agents, workflows, integrations, branding — and JSON edits well in AI editors when the editor knows the schema. The CLI emits two things for that: a rules file each editor reads at the project root (`CLAUDE.md` for Claude Code, `.cursor/rules/tale.mdc` for Cursor, `.github/copilot-instructions.md` for Copilot, `.windsurfrules` for Windsurf), and a read-only schema mirror under `.tale/reference/` the rules file points the editor at.
 
-The outcome of running `tale init` once is a project directory that any of the named editors can open with full context: the schemas, the validators, the connector tool surface, and the example library all live under `.tale/reference/`.
+Read this when you want to edit a Tale project in an AI editor without hand-typing JSON. Come back when the editor invents fields or wires the wrong agent shape — the answer is almost always that the schema under `.tale/reference/` is stale.
 
-## What `tale init` generates
+## A worked setup
 
-A scaffolded project ships with one editor-rules file per supported editor and a read-only reference directory the editor can grep:
-
-| File                              | Purpose                                   | Editor           |
-| --------------------------------- | ----------------------------------------- | ---------------- |
-| `CLAUDE.md`                       | Project rules and context                 | Claude Code      |
-| `.cursor/rules/tale.mdc`          | Project rules with glob-based frontmatter | Cursor           |
-| `.github/copilot-instructions.md` | Project rules                             | GitHub Copilot   |
-| `.windsurfrules`                  | Project rules                             | Windsurf         |
-| `.tale/reference/`                | Full platform source (read-only)          | All of the above |
-
-The four rules files carry the same core content — project structure, configuration conventions, an instruction to consult `.tale/reference/` before generating anything — in each editor's preferred format. The reference directory contains the backend implementation: database schemas, validators, agent-tool definitions, workflow step types, and connector contracts. That's everything the editor needs to produce a correct config without guessing.
-
-## How to use it
-
-The workflow is the same across every editor:
-
-1. Create or upgrade the project: `tale init <project-name>` for a fresh tree, `tale upgrade` to regenerate the rules files in an existing one.
-2. Open the project in your AI-powered editor of choice. The editor picks up the rules file automatically.
-3. Describe the thing you want in plain language. The editor reads the schemas from `.tale/reference/` and writes the matching configuration files.
-4. Save. The Tale platform live-reloads `agents/`, `workflows/`, `integrations/`, and `branding/` — there's no separate deploy step.
-
-A few prompts that work well in practice:
-
-```text
-Create an agent that helps the sales team look up product details and customer history.
-```
-
-```text
-Add a workflow that runs every morning, checks for overdue invoices, and posts a summary to Slack.
-```
-
-```text
-Create a REST API integration for our internal service at api.example.com with OAuth2 authentication.
-```
-
-```text
-Update the CRM assistant agent to also have access to the document search tool.
-```
-
-The editor generates the JSON, you review it, the platform applies it.
-
-## Keeping rules and reference up to date
-
-The rules files and the reference directory are bundled into the CLI binary, so an out-of-date CLI produces out-of-date rules. Run `tale upgrade` periodically:
+Initialise a project — the CLI writes the rules file and the schema mirror in the same step:
 
 ```bash
-tale upgrade
+tale init my-org
+cd my-org
+ls -a
+# .cursor/  .github/  .tale/  .windsurfrules
+# CLAUDE.md  agents/  workflows/  integrations/  branding/
 ```
 
-The upgrade rewrites every generated file. Don't edit them by hand — local changes are overwritten on the next upgrade. If a rule needs to change for the whole project (a custom convention, a house style), file the change against the CLI itself rather than patching the generated file.
+`CLAUDE.md` (also installed as the Cursor `.mdc`, the Copilot `.md`, and the Windsurf rules file) tells the editor where to look before editing a config:
+
+> Before creating or editing any config, read the relevant schemas and implementation code in `.tale/reference/` to understand the valid structure, fields, and constraints. Use existing config files in the project as examples.
+
+The directive matters because every editor under load skips schema reads unless told otherwise. The rules file is the contract; the schema mirror is the ground truth.
+
+## What lives where
+
+| Path                               | What it is                                                              |
+| ---------------------------------- | ----------------------------------------------------------------------- |
+| `agents/`                          | One JSON file per agent — instructions, knowledge, tools, model.        |
+| `workflows/`                       | Workflow JSON configs, grouped by category subdirectory.                |
+| `integrations/<slug>/config.json`  | Integration manifest — operations, auth method, allowed hosts.          |
+| `integrations/<slug>/connector.ts` | Optional TypeScript connector for REST shapes the manifest can't cover. |
+| `branding/branding.json`           | Org branding — colours, logos, email senders.                           |
+| `.tale/reference/`                 | Read-only schema mirror; regenerated by `tale init` and `tale upgrade`. |
+
+The reference tree is bytes-identical to the schemas the platform validates against at deploy time. Treat it as canonical: when a field name in a hand-written config disagrees with the reference, the reference wins.
+
+## Working with the editor
+
+The rules file names three rules each editor enforces while editing:
+
+- **Agents bind, delegate, attach.** An agent can simultaneously bind integrations (`integrationBindings`), delegate to other agents (`delegates`), and attach workflows (`workflows`). Read existing configs before introducing a new binding.
+- **Workflows use integration operations.** A workflow step references integration operations declared in `integrations/<slug>/config.json`. Editing a step against an operation that does not exist will fail validation.
+- **Naming is enforced.** Agent filenames match `[a-z0-9][a-z0-9_-]*\.json`. Workflow step slugs match `[a-z0-9][a-z0-9_-]*`. Integration directories are lowercase alphanumeric with hyphens or underscores.
+
+When the editor proposes a change, ask it to cite the file in `.tale/reference/` it relied on. If it cannot, regenerate the mirror with `tale upgrade` and try again.
 
 ## Where this fits
 
-AI-assisted development is the file-based authoring path for agents, automations, integrations, and branding. It exists because the JSON shape that backs every UI screen is also the shape an AI-powered editor can generate from a plain-language description — for a fleet of agents, that's faster than building each one in the UI.
-
-For the canonical UI build flow that doesn't involve a code editor, [Build your first agent end to end](/tutorials/editor/first-agent-end-to-end) is the entry point. For the connector authoring surface this page sits next to, [Build an integration](/develop/integrations) is the reference.
+AI-assisted development is the editing path; deployment is the publishing path. Once a config passes editor validation, [`tale deploy`](/self-hosted/install/cli-install) reconciles it against the platform — the same schema check, this time as a gate. For features the editor cannot reach (the in-product builder, the visual workflow editor), the [Platform tab](/platform) is the canonical surface; the AI-editor path here is for projects that prefer config-as-code.

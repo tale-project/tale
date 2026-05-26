@@ -1,23 +1,26 @@
 ---
-title: Administrieren
-description: Einstellungen auf Organisationsebene — Mitglieder und Rollen, Anbieter, Branding, Richtlinien, Zwei-Faktor, Nutzungsanalyse, Anfragen betroffener Personen und der In-App-Changelog.
+title: Admin
+description: Admin ist die Konfigurationsebene — Mitglieder, Teams, Anbieter, API-Schlüssel, Integrationen, Branding, Richtlinien. Die Seiten hier sind das, was ein Admin oder Inhaber durchklickt, um eine Organisation aufzusetzen und am Laufen zu halten.
 ---
 
-Administration ist der Teil von Tale, der unsichtbar bleibt, bis etwas damit nicht stimmt. Hier entscheidest du, wer sich anmelden darf und über welchen Identitätsanbieter, welche KI-Modelle der Rest der Organisation auf Kosten bringen darf, wie das Produkt für Außenstehende aussieht und wie lange Konversationen und Logs auf der Platte überleben. Keine dieser Entscheidungen ist täglich, aber jede zeigt sich im Alltag eines anderen sofort, sobald sie falsch steht — eine Entwicklerin, die Anthropic nicht erreicht, ein Redakteur, dessen Entwürfe verschwunden sind, ein Mitglied, das nach der SSO-Migration ausgesperrt ist.
+Admin ist die Konfigurationsebene von Tale. Sie umfasst die Personen, die sich anmelden dürfen, die Teams, die sie gruppieren, die KI-Anbieter hinter jeder Antwort, die API-Schlüssel, mit denen externer Code mit der Organisation spricht, die Drittanbieter-Integrationen, durch die Agents nach aussen greifen, und das Branding, das der Rest der Organisation sieht. Nur Admins und Inhaber sehen das volle Admin-Menü; Entwickler sehen eine Teilmenge, andere Rollen sehen es gar nicht.
 
-Die Seiten in diesem Bereich sind für die Rollen **Admin** und **Inhaber**; jede andere Rolle wird serverseitig von der Admin-Oberfläche ausgesperrt. Die Reihenfolge ist Absicht. [Mitglieder und Rollen](/de/platform/admin/members-and-roles) liest du zuerst, weil nichts in der Administration eine sinnvolle Antwort hat, bevor du entschieden hast, wer was darf. [Authentifizierung](/de/self-hosted/admin/authentication) folgt, denn die Frage _wer sich überhaupt anmelden darf_ ist eine strengere Variante derselben Frage. Anbieter, Branding, Richtlinien und der Rest legen sich darüber.
-
-Wenn du eine frische Organisation aufsetzt, lies die Seiten in der Reihenfolge der Seitenleiste. Wenn du eine bestehende prüfst, springe direkt zu der Seite, deren Bildschirm du bereits offen hast.
+Diese Seiten beschreiben, was jede Einstellung tut und was sie am laufenden Produkt ändert. Die meisten liest du einmal beim Aufsetzen und besuchst sie wieder, wenn sich etwas ändert — eine neue Person, ein rotierter Schlüssel, ein neuer Anbieter, eine neue Integration. Die Rollen- und Berechtigungsgeschichte hinter dem Menü liegt in [Mitglieder und Rollen](/de/platform/admin/members-and-roles); die unten verlinkten Seiten setzen sie voraus und gehen pro Funktion weiter.
 
 ## Seiten in diesem Bereich
 
-- **[Mitglieder und Rollen](/de/platform/admin/members-and-roles)** — Mitglieder einladen, bearbeiten und entfernen; die kanonische Sechs-Rollen-Matrix, auf die der Rest der Doku verweist.
-- **[Teams](/de/platform/admin/teams)** — Mitglieder gruppieren, um Zugriff auf Dokumente, Konversationen und Agent-Wissen einzuschränken.
-- **[Authentifizierung](/de/self-hosted/admin/authentication)** — Passwort, Microsoft Entra ID SSO und vertrauenswürdige Reverse-Proxy-Kopfzeilen; wie Tale entscheidet, ob eine Anmeldung durchgeht.
-- **[KI-Anbieter](/de/platform/admin/providers)** — Tale mit OpenAI-kompatiblen Endpunkten verbinden und entscheiden, welche Modelle die Organisation aufrufen darf.
-- **[Branding](/de/platform/admin/branding)** — App-Name, Logo, Favicon und die Marken- und Akzentfarben für die laufende App.
-- **[Richtlinien](/de/platform/admin/governance)** — System-Prompt, Standard-Modelle, Budgets, Upload-Richtlinie, Aufbewahrung, Passwort- und Anmelde-Richtlinie, Funktionssteuerung und der dreistufige Guardrail-Stapel.
-- **[Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication)** — TOTP einrichten, Backup-Codes verwalten, die organisationsweite Richtlinie erzwingen, das Mitglied zurücksetzen, das sein Gerät verloren hat.
-- **[Nutzungsanalyse](/de/platform/admin/usage-analytics)** — Analyse von Tokens, Kosten und Läufen, gefiltert nach Team, Nutzer, Agent und Zeitraum.
-- **[Anfragen betroffener Personen](/de/platform/admin/data-subject-requests)** — GDPR-Art.-17-Löschanträge mit SLA-Verfolgung und Audit-verkettetem Beleg einreichen.
-- **[Was ist neu](/de/platform/admin/changelog)** — der In-App-Changelog-Viewer, der nach jedem Upgrade die Release-Notes hervorbringt.
+**[Mitglieder und Rollen](/de/platform/admin/members-and-roles)** — Admins und Inhaber lesen das, wenn sie Personen einladen oder Zugriff nach Rolle skopieren.
+
+**[Agents](/de/platform/admin/agents)** — Admins und Inhaber lesen das, um jeden Agent der Organisation zu sehen und einzugreifen, wenn einer Steuerung braucht.
+
+**[API-Schlüssel](/de/platform/admin/api-keys)** — Admins und Entwickler lesen das, wenn sie externen Code oder einen internen Dienst an Tales REST-API anschliessen.
+
+**[Integrationen](/de/platform/admin/integrations)** — Admins lesen das, wenn sie die Anmeldedaten hinter Slack, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily und MCP installieren oder rotieren.
+
+**[Anbieter](/de/platform/admin/providers)** — Admins lesen das, wenn sie OpenAI, Anthropic, Azure oder ein lokales Ollama anbinden und festlegen, welche Modelle die Organisation nutzen darf.
+
+**[Teams](/de/platform/admin/teams)** — Admins lesen das, um Mitglieder in Teams zu gruppieren, die sich Agents, Prompts und Integrationen teilen.
+
+## Wo das hingehört
+
+Admin ist die Oberfläche, die jeder andere Tab voraussetzt. Chat löst ein Modell über die hier konfigurierten Anbieter auf; Agents rufen Tools über die hier konfigurierten Integrationen auf; die Prompt-Bibliothek und der Inbox respektieren die hier konfigurierten Team-Grenzen. Die natürliche Erstlektüre ist [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — jede andere Admin-Seite verweist auf die Rollennamen, die dort definiert sind.

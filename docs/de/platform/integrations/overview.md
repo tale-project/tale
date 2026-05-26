@@ -1,84 +1,74 @@
 ---
-title: Integrationen — Überblick
-description: Tale über benannte, sandboxierte Konnektoren mit REST-APIs und SQL-Datenbanken verbinden.
+title: Integrationen
+description: Drittsysteme, aus denen Tale liest und in die es schreibt — Kommunikation, Speicher, Identität, Entwicklung, Wissen — und wie sich die Integrations-Oberfläche von MCP unterscheidet.
 ---
 
-Eine Integration ist ein vom Entwickler definierter Konnektor, der ein externes System als feste Menge benannter Operationen verfügbar macht, die Agents und Automatisierungen namentlich mit typisierten Parametern aufrufen können. Einmal installiert, werden diese Operationen zu Werkzeugen — auswählbar in der Tool-Liste eines Agents, aufrufbar aus einem Schritt vom Typ **Aktion** in einer Automatisierung, beim Schreiben durch Genehmigung abgesichert. Die Konfiguration lebt unter **Einstellungen > Integrationen** und ist dem Entwickler und Admin vorbehalten; alle anderen sehen die daraus entstehenden Werkzeuge, ohne den Konnektor dahinter zu sehen.
+Integrationen sind die Brücken zwischen Tale und dem Rest deines Stacks. Agents rufen sie als Tools auf, Workflows triggern sie an Schritten, und die Dokumenten-Pipeline zieht Dateien aus ihnen. Jede Integration ist eine einzige JSON-Konfiguration plus eine Credential, die die Org einmal speichert; einmal verbunden, kann alles in Tale sie ohne erneute Authentifizierung nutzen. Diese Übersicht benennt die ausgelieferten Integrationen, gruppiert danach, was sie tun.
 
-Diese Seite deckt das Integrationsmodell selbst ab — die zwei Konnektor-Typen, die Authentifizierungsformen, die Teilung zwischen Lesen und Schreiben, die mitgelieferten Beispiele und wie du eine Integration installierst. Die verwandten Verbindungen unten unter **Einstellungen > Integrationen** (Postfächer für den Posteingang, OneDrive für Wissensimporte, API-Schlüssel für die Tale-API selbst) liegen dort der Auffindbarkeit halber, nutzen aber ihre eigenen Einrichtungsoberflächen; sie werden am Ende kurz behandelt. Der Weg „Bring deinen eigenen Tool-Katalog" über einen externen MCP-Server hat eine eigene Seite unter [MCP-Server](/de/platform/integrations/mcp-servers).
+Die Form einer Integration ist über jeden Eintrag unten gleich — eine OpenAI-kompatible REST-Oberfläche oder ein OAuth2-Tanz, mit in einer JSON-Konfiguration unter `examples/integrations/` deklarierten Operationen. Benutzerdefinierte Integrationen folgen derselben Form; eine Code-Änderung brauchst du nicht, um eine hinzuzufügen.
 
-## Die zwei Konnektor-Typen
+## Wie Integrationen sich von MCP unterscheiden
 
-Konnektoren kommen in zwei Formen, jede passend zu einem anderen externen System.
+Zwei Oberflächen lassen einen Agent über Tale hinausreichen. **Integrationen** sind Erstanbieter-Konnektoren, durch OAuth oder API-Key gesichert, die die Org einmal unter **Einstellungen > Integrationen** konfiguriert. **MCP-Server** sind externe Prozesse (oft self-hosted), die das Model Context Protocol freigeben; die Org registriert sie unter **Einstellungen > MCP-Server** und genehmigt jedes Tool beim ersten Aufruf. Greif zu einer Integration, wenn für dein Zielsystem eine existiert; greif zu [MCP-Servern](/de/platform/integrations/mcp-servers), wenn keine Integration abdeckt, was du brauchst, und du die Brücke selbst hosten kannst.
 
-Ein **REST-API**-Konnektor kapselt einen beliebigen HTTP-Dienst. Die `config.json` des Konnektors deklariert die Operationen, die er veröffentlicht, die Authentifizierungsmethoden, die er unterstützt, und eine Liste erlaubter Hosts — der sandboxierte Konnektor-Code kann nur diese Hosts erreichen, sodass ein fehlerhafter Konnektor nicht zu einer fremden Domain exfiltrieren kann. Unterstützte Authentifizierungsmethoden sind API-Schlüssel (in einer Kopfzeile oder einem Query-Parameter), Bearer-Token, HTTP-Basic und OAuth 2.0 (Authorization-Code-Flow mit automatischer Refresh-Token-Rotation).
+## Kommunikation
 
-Ein **SQL**-Konnektor verbindet zu PostgreSQL, MySQL oder Microsoft SQL Server. Der Agent schreibt SQL nie freihändig. Stattdessen deklariert der Konnektor eine feste Liste benannter Operationen, jede paart eine vorgeschriebene Abfrage mit einem Parameterschema; der Agent wählt eine Operation und liefert validierte Werte für die Platzhalter. Nur-Lese-Datenbank-Zugangsdaten sind weiterhin der richtige Schritt — das Konnektor-Modell schränkt die Abfragen ein, die Tale ausführt, aber das Datenbankkonto selbst bleibt in den Händen deines DBAs.
+| Integration | Was sie tut                                                 | Einrichtung                        |
+| ----------- | ----------------------------------------------------------- | ---------------------------------- |
+| **Slack**   | Kanäle lesen, Nachrichten senden, auf Ereignisse reagieren. | OAuth2 vom Slack-Workspace.        |
+| **Teams**   | Dieselbe Form für Microsoft Teams — Kanäle und Chats.       | OAuth über Microsoft Entra ID.     |
+| **Discord** | Bot-getriebener Nachrichtenversand und Kanal-Lesen.         | Discord-Bot-Token.                 |
+| **Gmail**   | Inbox lesen, Mail senden, labeln.                           | OAuth über Google.                 |
+| **Outlook** | Inbox lesen, Mail senden, Kalender lesen.                   | OAuth über Microsoft Entra ID.     |
+| **Twilio**  | SMS, Voice, WhatsApp Business.                              | Twilio Account-SID und Auth-Token. |
 
-## Operationen
+## Speicher und Dokumente
 
-Eine Operation ist die Einheit, die ein Agent oder eine Automatisierung aufruft. Jede Operation hat:
+| Integration       | Was sie tut                                                                                                                                | Einrichtung                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| **Microsoft 365** | OneDrive- und SharePoint-Dokumentensynchronisation ins [Wissen](/de/platform/knowledge/documents); Single Sign-on über Microsoft Entra ID. | OAuth über Microsoft Entra ID; derselbe Tenant treibt SSO und Dokumenten-Sync. |
+| **Google Drive**  | Dateien aus Drive-Ordnern ins Wissen ziehen.                                                                                               | OAuth über Google.                                                             |
+| **Confluence**    | Confluence-Seiten ins Wissen ziehen; Agents zitieren die Quellseite.                                                                       | API-Token + Base-URL (Cloud oder self-hosted).                                 |
+| **WebDAV**        | Ordner von einem beliebigen WebDAV-Server lesen (Nextcloud, ownCloud, generisch).                                                          | Server-URL, Benutzername, Passwort.                                            |
 
-- Einen **Namen** — die Kennung, die der Aufrufer wählt (`create_order`, `list_customers`, `lookup_reservation`).
-- Eine **Beschreibung** — was die Operation tut und wann sie zu nutzen ist. Der Agent liest sie, um zu wählen.
-- Ein **Parameterschema** — JSON-Schema, das die Eingaben beschreibt. Die Plattform validiert vor dem Aufruf.
-- Einen **Operationstyp** — `read` oder `write`. Standard ist `read`.
-- Ein **Genehmigung erforderlich**-Flag — wenn wahr, erzeugt jede Ausführung eine Genehmigungskarte.
+Über jede dieser Quellen synchronisierte Dokumente fliessen durch dieselbe Indexierungs-Pipeline wie Direktuploads — siehe [Dokumente](/de/platform/knowledge/documents). Das Quellfeld jedes indizierten Dokuments benennt die Integration, sodass Zitate auf das Original zurückzeigen.
 
-Operationen sind der Vertrag des Konnektors. Neues Verhalten bedeutet, eine Operation in `config.json` hinzuzufügen (oder zu ändern) und die Änderung auszuliefern; der Agent stellt nie ad hoc HTTP-Anfragen oder SQL-Abfragen gegen das darunterliegende System zusammen.
+## Identität
 
-## Lesen, Schreiben und Genehmigungen
+Microsoft 365 deckt auch Identität ab. Sie unter **Einstellungen > Integrationen** zu verbinden aktiviert OneDrive- und SharePoint-Lesen; sie unter **Einstellungen > Authentifizierung** zu verbinden aktiviert Single Sign-on für die ganze Org über denselben Entra-ID-Tenant. Die zwei Pfade teilen Credentials und Provisionierungsregeln — siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles) für das Rollen-Mapping.
 
-Operationen, die als `write` markiert sind, verlangen standardmäßig eine Genehmigung vor der Ausführung. Wenn ein Agent oder eine Automatisierung eine solche aufruft, pausiert die Plattform den Aufruf, postet eine Genehmigungskarte in den entsprechenden Chat oder den Posteingang **Genehmigungen** und wartet auf eine menschliche Annahme oder Ablehnung. Nur bei Annahme läuft der Aufruf. Lese-Operationen werden sofort ausgeführt. Die vollständige Doktrin — wer genehmigen darf, wie die Karte aussieht, was bei Ablehnung passiert — liegt unter [Genehmigungen](/de/platform/workspace/approvals); nutze sie für Abrechnungsaktionen, Massen-E-Mails, Schreibvorgänge auf Produktionsdaten und alles andere, das von einem zweiten Augenpaar profitiert.
+## Wissen und Recherche
 
-## Authentifizierung und Zugangsdaten
+| Integration | Was sie tut                                                                                     | Einrichtung               |
+| ----------- | ----------------------------------------------------------------------------------------------- | ------------------------- |
+| **Tavily**  | Open-Web-Suche und Seitenextraktion für die [Tiefenrecherche](/de/platform/chat/deep-research). | API-Key von `tavily.com`. |
 
-Das Array `secretBindings` eines Konnektors benennt die Zugangsdaten, die er zur Laufzeit über `secrets.get('<key>')` liest. Wenn du die Integration unter **Einstellungen > Integrationen** verbindest, fragt das Formular genau diese Schlüssel ab; die Werte werden verschlüsselt im Ruhezustand gespeichert, an deine Organisation gebunden und nach dem Speichern nie wieder an die UI zurückgegeben. OAuth-2.0-Konnektoren durchlaufen den Standard-Authorization-Code-Flow, speichern sowohl Access- als auch Refresh-Token und erneuern das Access-Token automatisch vor Ablauf. SQL-Konnektoren speichern Server, Port, Datenbank, Benutzername und Passwort im selben verschlüsselten Speicher.
+## Quellcode
 
-Das Feld **Konfigurationsanleitung** eines Konnektors rendert beliebiges vom Autor geliefertes Markdown im Manage-Dialog unter **Konfigurationsanleitung** — das ist der richtige Ort, um dem Nutzer zu sagen, wo der API-Schlüssel zu erzeugen ist, welche OAuth-Berechtigungen zu erteilen sind oder welche Datenbankrolle anzulegen ist. Nach Eingabe der Zugangsdaten ruft **Verbindung testen** den `testConnection`-Hook des Konnektors vor dem Speichern auf; ein fehlgeschlagener Test zeigt die Fehlermeldung inline, sodass Zugangsdaten korrigiert werden können, ohne den Dialog zu verlassen.
+| Integration | Was sie tut                                                    | Einrichtung                         |
+| ----------- | -------------------------------------------------------------- | ----------------------------------- |
+| **GitHub**  | Repositories lesen, Code suchen, auf Issues und PRs reagieren. | GitHub-App oder persönliches Token. |
 
-## Mitgelieferte Beispiele
+## Vertikal: Commerce und Hospitality
 
-Dreizehn einsatzbereite Konnektoren liegen im Repository unter `examples/integrations/`. Jeder ist eine vollständige `config.json` plus Konnektor-Quelltext; forke ihn als Ausgangspunkt für deine eigene Variante oder installiere ihn so wie er ist.
+| Integration | Was sie tut                                          | Einrichtung              |
+| ----------- | ---------------------------------------------------- | ------------------------ |
+| **Shopify** | Bestellungen, Kunden und Produkte lesen.             | Shopify-Admin-API-Token. |
+| **Protel**  | Hotel-PMS — Reservierungen und Gästedaten lesen.     | API-Key + Property-ID.   |
+| **Circuly** | Subscription-Commerce-Plattform — Abonnements lesen. | API-Key.                 |
 
-| Beispiel         | Typ      | Auth         | Was es abdeckt                                                          |
-| ---------------- | -------- | ------------ | ----------------------------------------------------------------------- |
-| **AI image**     | rest_api | bearer_token | Bildgenerierung gegen OpenAI-kompatible Anbieter.                       |
-| **Circuly**      | rest_api | basic_auth   | Produkte, Kunden und Abonnements in Circuly.                            |
-| **Discord**      | rest_api | bearer_token | Guilds, Kanäle und Nachrichten über die Discord-Bot-API.                |
-| **GitHub**       | rest_api | bearer_token | Repositories, Issues, `Pull Requests` und Code-Suche.                   |
-| **Gmail**        | rest_api | oauth2       | Nachrichten, Labels, Threads und Entwürfe in Gmail.                     |
-| **Google Drive** | rest_api | oauth2       | Dateien aus Drive-Ordnern in Tale-Dokumente synchronisieren.            |
-| **Outlook**      | rest_api | oauth2       | Mail, Kalender und Kontakte über Microsoft Graph.                       |
-| **Protel**       | sql      | basic_auth   | Direkter SQL-Zugriff auf ein Protel-Hotel-PMS — Reservierungen, Folios. |
-| **Shopify**      | rest_api | api_key      | Produkte, Kunden und Bestellungen in der Shopify Admin API.             |
-| **Slack**        | rest_api | oauth2       | Kanäle, Nachrichten, Nutzer und Datei-Uploads.                          |
-| **Tavily**       | rest_api | api_key      | Offene Web-Suche und Seitenextraktion, abgestimmt auf LLM-Agents.       |
-| **Teams**        | rest_api | oauth2       | Teams, Kanäle, Nachrichten und Chats über Microsoft Graph.              |
-| **Twilio**       | rest_api | basic_auth   | SMS, Sprachanrufe und Telefonnummern-Verwaltung.                        |
+## KI-Dienste
 
-## Installieren oder selbst bauen
+| Integration  | Was sie tut                                                                           | Einrichtung                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **AI image** | Bildgenerierungs-Oberfläche, die die konfigurierten bild-getaggten Modelle umwickelt. | Keine Einrichtung — nutzt die Modell-Provider unter [Einstellungen > Provider](/de/platform/admin/providers). |
 
-Zwei Wege landen einen Konnektor mit derselben `config.json` plus Quelltext auf dem Server.
+## Eine eigene Integration hinzufügen
 
-**Aus der UI.** Öffne **Einstellungen > Integrationen > Integration hinzufügen** und lege ein `.zip`-Paket ab oder wähle `config.json`, `connector.ts` (oder `connector.js`) und ein Icon einzeln aus. Der Gesamt-Upload ist auf 1 MB begrenzt. Nach dem Hochladen Zugangsdaten eintragen und auf **Verbindung testen** klicken.
+Eigene Integrationen folgen derselben JSON-Form wie die oben. Leg eine Konfiguration in `TALE_CONFIG_DIR/integrations/<slug>/config.json` ab, die die Operationen, die Auth-Methode und die erlaubten Hosts deklariert; die Integration erscheint in **Einstellungen > Integrationen**, damit User sie verbinden können. Die Form und die Validierungsregeln leben neben den ausgelieferten Konfigurationen in `examples/integrations/`.
 
-**Aus Projektcode.** Ein per `tale init` aufgesetztes Projekt hat ein Verzeichnis `integrations/`; jedes Unterverzeichnis ist ein Konnektor (`integrations/<slug>/{config.json, connector.ts, icon.svg}`). Die Plattform lädt beim Speichern live nach, sodass das Iterieren wie das Bearbeiten jeder anderen Quelldatei ist. Das Dateiformat und die Sandbox-API sind unter [Integration bauen](/de/develop/integrations) dokumentiert; für KI-gestütztes Schreiben in einem Editor siehe [KI-gestützte Entwicklung](/de/develop/ai-assisted-development).
+Für reichere oder selbst gehostete Brücken sind [MCP-Server](/de/platform/integrations/mcp-servers) die alternative Oberfläche — jeder MCP-Server, den du registrierst, fügt seine Tools dem Agent-Werkzeuggürtel hinzu mit pro-Tool-Genehmigung.
 
-## MCP-Server
+## Wo das hineinpasst
 
-Über `rest_api`- und `sql`-Konnektoren hinaus konsumiert Tale auch externe Model-Context-Protocol-Server. Ein MCP-Server ist ein Drittprozess, der seinen eigenen Tool-Katalog über ein kleines standardisiertes RPC veröffentlicht; Tale registriert den Server einmal, und seine Tools werden Agents zugänglich, neben den Konnektor-Operationen. Die mentale Regel: greif zu einem MCP-Server, wenn ein Dritter schon einen für sein Produkt veröffentlicht, und greif zu einem Konnektor, wenn du den Wrapper kontrollierst und Tales Lese-/Schreib-Semantik und die UX der **Konfigurationsanleitung** willst. Die vollständige Referenz für den Registrierungs-Flow, die drei unterstützten Transporte und die Genehmigungssemantik der entdeckten Tools liegt unter [MCP-Server](/de/platform/integrations/mcp-servers).
-
-## Verwandte Verbindungen
-
-Drei Punkte stehen der Auffindbarkeit halber unter **Einstellungen > Integrationen**, sind aber keine `rest_api`- oder `sql`-Konnektoren — jeder hat eine eigene Einrichtungsoberfläche.
-
-**E-Mail-Postfächer (für Konversationen).** Verbinde ein IMAP+SMTP-Postfach, um den [Konversationen](/de/platform/workspace/conversations)-Posteingang zu versorgen. Eingehende Nachrichten werden zu Threads; aus der Plattform gesendete Antworten werden als normale E-Mails zugestellt.
-
-**Microsoft OneDrive.** Verbinde ein Microsoft-365-Konto, sodass Nutzer OneDrive-Dateien direkt in die [Wissensdatenbank](/de/platform/workspace/knowledge-base) importieren können, ohne sie vorher herunterzuladen. Konfiguriert über den Importfluss der Wissensdatenbank, nicht als Konnektor.
-
-**API-Schlüssel.** API-Schlüssel gewähren programmatischen Zugriff auf die Tale-API selbst. Sie liegen unter **Einstellungen > Integrationen > API-Schlüssel**, weil die Oberfläche derselbe Admin-Tab ist, nicht weil sie Konnektoren sind. Jeder Schlüssel erbt die Rolle des Nutzers, der ihn erstellt hat; jederzeit auf demselben Bildschirm widerrufbar. Endpoint-Details liegen in der [API-Referenz](/de/develop/api-reference).
-
-## Wo das hingehört
-
-Integrationen sind die Brücke zwischen Tales KI und den Systemen, in denen die echten Daten leben. Ein Agent ohne Integrationen kann nur reden; ein Agent mit der richtigen Operation kann das Ticket anlegen, die Datenbank abfragen, die E-Mail senden, die Slack-Nachricht posten. Um einem Agent Zugriff auf eine bestimmte Operation zu geben, ist die nächste Seite [Agent erstellen](/de/platform/agents/create); für das API-Schlüssel-Gegenstück, das deinem Code erlaubt, Tale aufzurufen statt Tale hinausrufen zu lassen, öffne die [API-Referenz](/de/develop/api-reference).
+Integrationen sind, wie Agents auf die Welt ausserhalb von Tale wirken. Welche Seite du als Nächstes liest, hängt davon ab, wozu du gekommen bist — für den Agent-Autor erklärt [Agent-Tools](/de/platform/agents/tools), wie die Operationen einer Integration als Tool-Familie am Agent auftauchen; für den Org-Admin ist [Einstellungen > Integrationen](/de/platform/admin/integrations) der Ort, an dem Credentials gespeichert und rotiert werden; für den Entwickler, der etwas Neues verdrahtet, ist [MCP-Server von Grund auf](/de/tutorials/developer/mcp-server-from-scratch) der End-to-End-Bau einer benutzerdefinierten Brücke.

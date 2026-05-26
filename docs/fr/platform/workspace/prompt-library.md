@@ -1,114 +1,54 @@
 ---
 title: Bibliothèque de prompts
-description: Enregistre, parcours et partage des modèles de prompts réutilisables dans toute l'organisation, avec historique de versions, visibilité cadrée et insertion en un clic.
+description: La bibliothèque de prompts est l'endroit où tu enregistres des prompts de chat pour réutilisation — personnel, équipe ou à l'échelle de l'org. Les Membres, Éditeurs et Développeurs lisent ceci quand ils gardent une amorce de chat récurrente sous la main.
 ---
 
-La Bibliothèque de prompts est une collection partagée de modèles de prompts réutilisables. Enregistre les prompts que l'équipe utilise souvent, organise-les par catégorie et tags, et partage-les au bon périmètre — brouillons personnels, playbooks d'équipe, ou modèles canoniques à l'échelle de l'organisation. Chaque modification est capturée dans l'historique de versions, donc comparer deux versions et revenir sur un mauvais enregistrement prend quelques secondes au lieu d'un après-midi.
+La bibliothèque de prompts est la surface des prompts enregistrés de Tale. C'est là que tu gardes les amorces de chat que tu cherches plus d'une fois — un prompt de voix d'écriture que tu réutilises pour chaque brouillon de mail client, un prompt de débogage que ton équipe se passe, un prompt de recherche sur lequel toute l'org devrait s'aligner. Chaque rôle au-dessus de Désactivé peut enregistrer et utiliser des prompts ; le levier **visibilité** sur chaque prompt décide qui d'autre le voit.
 
-La bibliothèque est joignable depuis la barre d'outils du composeur dans chaque chat. Le public, c'est tout le monde dans le produit ; les périmètres de visibilité décident de ce que chaque rôle voit.
+Cette page est la référence pour ce qu'est un prompt, comment se comportent les trois niveaux de visibilité, comment marche l'historique des versions, et comment les prompts entrent dans un chat. La bibliothèque vit sous **Prompts** dans la barre latérale ; la même bibliothèque apparaît en ligne dans le composer de chat.
 
-## Parcourir les prompts
+## Ce qu'est un prompt
 
-Ouvre la bibliothèque depuis la barre d'outils de la saisie du chat — la boîte liste chaque prompt auquel tu as accès. La recherche filtre sur le titre, la description, le contenu, la catégorie et les tags. Quatre onglets filtrent par périmètre : **Tous**, **Global**, **Équipe**, **Personnel**. Les popovers Catégorie et Tag resserrent les lignes visibles selon les facettes de la page chargée ; si un filtre vide la page courante mais que d'autres pages existent, l'état vide propose **Charger plus** pour continuer la recherche, plus **Effacer les filtres** pour réinitialiser. Chaque ligne montre le titre, un aperçu du contenu, un badge de périmètre, la catégorie, les tags et la version courante (par exemple `v3` quand un historique existe).
+Un prompt est un morceau de texte enregistré — généralement une question ou une instruction que tu taperais autrement dans le composer — avec un titre et quelques champs de métadonnées. Quand tu vas chercher un prompt enregistré dans chat, Tale colle son contenu dans le composer ; tu peux éditer avant d'envoyer, le prompt n'est pas un message système caché.
 
-Clique sur **Utiliser** sur une ligne pour insérer son contenu dans la saisie du chat.
+Chaque prompt porte :
 
-## Créer un prompt
+- Un **titre** (utilisé dans le picker ; auto-généré du contenu si tu le laisses vide).
+- Le **contenu** (le texte du prompt lui-même).
+- Une **visibilité** — `Personnel`, `Équipe`, ou `Global`.
+- Une liaison **équipe** optionnelle (quand visibilité est `Équipe`).
+- Des **tags** optionnels pour filtrer.
 
-Pour créer un prompt, ouvre la bibliothèque et clique sur l'icône plus. Le formulaire demande sept champs, dont trois sont requis :
+La bibliothèque est cherchable par titre et contenu, filtrable par visibilité et tag, et triable par récence. Le picker en ligne du composer est la même bibliothèque avec les mêmes filtres.
 
-| Champ           | Requis       | Ce qu'il faut mettre                                              |
-| --------------- | ------------ | ----------------------------------------------------------------- |
-| **Titre**       | Oui          | Un nom court pour le prompt.                                      |
-| **Contenu**     | Oui          | Le texte du prompt. Affiché en police monospace.                  |
-| **Description** | Non          | Brève explication de ce que fait le prompt.                       |
-| **Visibilité**  | Oui          | Qui peut voir ce prompt — Global, Équipe ou Personnel.            |
-| **Équipe**      | Conditionnel | Requis quand la Visibilité est mise sur Équipe.                   |
-| **Catégorie**   | Non          | Un label comme `writing`, `analysis` ou `coding`.                 |
-| **Tags**        | Non          | Mots-clés séparés par virgules pour la recherche et le rangement. |
+## Les trois niveaux de visibilité
 
-Clique sur **Créer**. Le nouveau prompt apparaît dans la bibliothèque en v1.
+**Personnel** est pour tes yeux uniquement. Un prompt personnel apparaît dans ta propre bibliothèque et nulle part ailleurs ; personne dans l'org ne peut le voir. Va vers personnel quand le prompt est formé à ton propre flux et que le reste de l'équipe n'en tirerait pas profit.
 
-### Saisie des tags
+**Équipe** est partagé avec une équipe. Choisis l'équipe à l'enregistrement ; chaque membre de cette équipe voit le prompt dans sa bibliothèque. Va vers équipe quand le prompt est formé à une fonction spécifique — le prompt de ton-de-réponse de l'équipe support, le prompt de triage-bugs de l'équipe ingénierie — et que le reste de l'org n'en tirerait pas profit.
 
-Le champ tags est une saisie à puces. Appuie sur **Entrée** ou tape une virgule pour valider un tag ; **Retour arrière** sur une saisie vide retire la dernière puce ; le × sur une puce la retire. Les doublons sont fusionnés silencieusement sans tenir compte de la casse (`Foo` et `foo` donnent un seul tag). Le compteur sous la saisie passe en destructif quand tu atteins le plafond.
+**Global** est à l'échelle de l'org. Chaque membre de l'org voit le prompt dans sa bibliothèque. Va vers global quand le prompt encode une décision que toute l'org devrait prendre de la même façon — la voix d'écriture qu'attend la marque, le modèle de question avec lequel chaque chercheur devrait commencer.
 
-## Enregistrer un message de chat comme prompt
+La visibilité se règle à l'enregistrement et s'édite plus tard. Promouvoir un prompt personnel à global est un clic et ne déclenche aucune migration sur les chats qui l'avaient déjà utilisé — les anciens chats gardent leur contenu collé, la nouvelle visibilité n'affecte que l'entrée de bibliothèque.
 
-Pour capter un message déjà envoyé, ouvre le menu du message dans la conversation et choisis **Enregistrer comme prompt**. Le contenu du message est pré-rempli — ajoute un titre et une description optionnelle, puis enregistre. Le nouveau prompt atterrit en visibilité Personnel et est publié tout de suite.
+## Versionnement
 
-## Périmètres
+Enregistrer un prompt par-dessus une entrée existante crée une nouvelle version. L'historique des versions est joignable depuis la ligne du prompt ; chaque version enregistre l'éditeur, l'horodatage, et le diff de contenu. Tu peux revenir à n'importe quelle version antérieure en un clic.
 
-Trois niveaux de visibilité décident de qui voit un prompt :
+L'historique des versions est l'endroit où regarder quand un coéquipier a édité un prompt global et que le nouveau contenu ne marche pas pour ton cas d'usage. Reviens en arrière au niveau bibliothèque si tout le monde devrait revenir ; copie la version plus ancienne dans un prompt personnel si seul toi veux l'ancien comportement.
 
-| Périmètre     | Qui peut le voir                   | Qui peut créer à ce périmètre  | Couleur du badge |
-| ------------- | ---------------------------------- | ------------------------------ | ---------------- |
-| **Personnel** | Toi uniquement.                    | Tout le monde.                 | Bleu.            |
-| **Équipe**    | Membres de l'équipe choisie.       | Membres de cette équipe.       | Orange.          |
-| **Global**    | Tout le monde dans l'organisation. | Admins et Propriétaires seuls. | Vert.            |
+## Utiliser un prompt dans chat
 
-Les prompts non publiés ne sont visibles que par leur créateur, quel que soit le périmètre.
+Le composer de chat a un picker de prompts à sa base. Ouvre-le, cherche ou filtre pour trouver le prompt voulu, et clique-le pour coller le contenu dans le composer. Le prompt est maintenant ton message — édite-le, attache des fichiers, ajoute du contexte, envoie. Une fois envoyé, le prompt agit comme n'importe quelle entrée de composer ; Tale ne suit pas quels chats ont utilisé quels prompts.
 
-Promouvoir un prompt existant au périmètre **Global** — ou restaurer une version qui était auparavant Globale — est aussi réservé aux Admins et Propriétaires. Un créateur non-admin peut continuer à éditer un prompt Global qui lui appartient déjà.
+Certains prompts contiennent des variables de template — placeholders comme `{{customer_name}}` ou `{{topic}}`. Le picker te demande chaque variable avant de coller ; le contenu résultant est le prompt avec les placeholders remplis. Les variables sont déclarées dans le contenu du prompt avec la syntaxe `{{variable_name}}`.
 
-## Éditer et supprimer
+## Limites et cycle de vie
 
-Seul le créateur du prompt ou un Admin peut éditer ou supprimer un prompt. Utilise le menu kebab sur une ligne pour atteindre ces actions. Supprimer un prompt est définitif et irréversible.
+Le contenu d'un prompt a une limite de taille — le formulaire de bibliothèque montre l'usage actuel contre le maximum, et le bouton Enregistrer est désactivé si tu dépasses. La limite est généreuse assez pour que la plupart des prompts passent ; si tu butes, la bonne réponse est généralement que le prompt est deux prompts.
 
-## Historique de versions
+Supprimer un prompt n'est réversible que via l'historique des versions si tu l'avais enregistré au moins une fois avant. Les prompts personnels sont supprimés définitivement à la suppression de compte ; les prompts d'équipe survivent à la réorganisation d'équipe sauf si l'équipe est supprimée ; les prompts globaux survivent à tout sauf à une suppression explicite.
 
-Chaque enregistrement crée une nouvelle version. Pour parcourir l'historique, ouvre le menu kebab sur une ligne et choisis **Historique de versions** — la boîte liste chaque version avec sa date de publication et son auteur. Les prompts qui n'ont pas été édités depuis la livraison de la versionnalisation n'ont pas encore de dialogue Historique ; fais une première édition pour créer v2, l'élément de menu devient alors disponible et v1 reste préservé comme état antérieur.
+## Où cela s'inscrit
 
-### Comparer deux versions
-
-Appuie sur **Entrée** sur une version (ou clique sur **Comparer avec l'actuelle**) pour ouvrir un diff côte à côte. Le diff est ligne par ligne, optimisé pour la prose. Les lignes marquées `−` sont dans le contenu actuel mais pas dans l'instantané comparé ; les lignes marquées `+` sont dans l'instantané — ce sont celles que **Restaurer** ramènerait. Les changements de métadonnées (titre, description, catégorie, tags, périmètre) apparaissent au-dessus du diff de contenu avec la valeur avant/après. Les utilisateurs de lecteurs d'écran entendent chaque ligne ajoutée ou retirée annoncée avec un préfixe explicite.
-
-### Restaurer une version
-
-Appuie sur **R** ou **Maj+Entrée** sur une version (ou clique sur **Restaurer** dans la vue de comparaison) pour ramener le prompt à cet instantané. Restaurer est réversible — ça crée une nouvelle version v(courante + 1) qui porte le contenu et les métadonnées de l'instantané ; la version courante précédente reste dans l'historique pour pouvoir la restaurer plus tard si besoin.
-
-Si quelqu'un d'autre a enregistré une nouvelle version pendant que ta boîte d'historique était ouverte, la restauration échoue avec **L'historique de versions a changé — rafraîchis et réessaie**. Ferme et rouvre la boîte pour voir l'état le plus récent avant de retenter.
-
-### Raccourcis clavier dans la boîte d'historique
-
-| Touche                 | Action                                                 |
-| ---------------------- | ------------------------------------------------------ |
-| **↑ / ↓**              | Se déplacer entre les versions.                        |
-| **Début / Fin**        | Aller à la version la plus récente / la plus ancienne. |
-| **Entrée**             | Ouvrir la vue de comparaison pour la ligne focalisée.  |
-| **R** / **Maj+Entrée** | Restaurer la version focalisée.                        |
-| **Échap**              | Fermer la boîte (ou la vue de comparaison).            |
-
-## Modifications concurrentes
-
-Si tu ouvres un prompt en édition pendant que quelqu'un d'autre publie une nouvelle version, le formulaire affiche une bannière **Nouvelle version disponible**. Clique sur **Charger la dernière** pour ré-ancrer le formulaire sur l'instantané le plus récent avant d'enregistrer. Tes modifications non enregistrées seront jetées, donc l'avertissement passe en destructif quand le formulaire est dirty.
-
-## Limites
-
-Les plafonds par prompt sont appliqués côté serveur et reflétés côté client :
-
-| Champ         | Plafond                                       |
-| ------------- | --------------------------------------------- |
-| Contenu       | 16 KiB (UTF-8).                               |
-| Titre         | 200 caractères.                               |
-| Description   | 2 000 caractères.                             |
-| Catégorie     | 100 caractères.                               |
-| Tag (chacun)  | 50 caractères.                                |
-| Tags (nombre) | 20 par prompt.                                |
-| Historique    | 12 versions (la plus ancienne tombe au save). |
-
-Quand l'historique atteint le plafond, la version la plus ancienne tombe (FIFO) et un événement d'audit **history truncated** est émis.
-
-## Limites de débit
-
-Les mutations sur les prompts sont rate-limitées par utilisateur pour que les opérations en masse restent fluides. Si tu touches une limite, un toast affiche **Enregistrement trop rapide — patiente un instant avant de réessayer**, et l'action redémarre proprement dès que la fenêtre se réinitialise.
-
-## Suivi d'utilisation
-
-Chaque prompt suit combien de fois il a été inséré. Le compteur d'utilisation apparaît sur la carte du prompt et se met à jour dès qu'on choisit le prompt pour une conversation — un signal utile pour repérer les modèles qui portent l'équipe en silence et ceux qui se sont révélés des coups uniques.
-
-## Où ça s'inscrit
-
-La Bibliothèque de prompts est la surface de texte réutilisable pour le composeur du chat. Elle existe pour la même raison que le contrôle de version : le prompt que tu as écrit la semaine dernière, celui qui a enfin obtenu la bonne réponse, devrait être enregistré une fois et joignable depuis chaque conversation — pas pêché dans une recherche d'historique de chat. Les périmètres personnels sont pour les brouillons ; les périmètres d'équipe pour les playbooks partagés ; les périmètres à l'échelle de l'organisation pour les modèles canoniques que toute l'entreprise devrait prendre.
-
-Pour les prompts qui changent durablement le comportement de l'IA plutôt que d'encadrer un seul message, édite les instructions de l'agent dans [Créer un agent](/fr/platform/agents/create) — les instructions sont le prompt qui tourne avant _chaque_ message d'une conversation d'agent, alors qu'un prompt de bibliothèque est le corps d'un seul message.
+La bibliothèque de prompts est la forme la plus légère de réutilisation dans Tale — plus légère qu'un agent (qui porte instructions, connaissance et tools), plus légère qu'un skill (qui empaquette instructions et un script). Va vers un prompt quand la réutilisation est juste le texte ; va vers un agent quand la réutilisation est un comportement configuré. La lecture suivante naturelle est [Amorces et prompts](/fr/platform/chat/starters-and-prompts) pour comment les prompts surgissent dans le composer de chat à côté des amorces propres d'un agent.

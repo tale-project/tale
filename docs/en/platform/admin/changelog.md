@@ -1,47 +1,34 @@
 ---
-title: What's new
-description: The in-app changelog viewer — release notes for the Tale version your instance is running, refreshed every upgrade and badge-driven so users can see what changed without leaving the product.
+title: Changelog
+description: The in-product release viewer that surfaces what changed in the Tale platform itself. Admins read this after an upgrade to see what landed and to share the highlights with the org.
 ---
 
-The **What's new** dialog is the in-app changelog viewer. After a release lands — whether the Cloud edition rolled forward automatically or `tale deploy` finished on a self-hosted instance — a small badge appears next to each user's avatar pointing at the new entries. Opening the dialog shows the release notes for the version the instance is on, plus every prior version since the user last marked the changelog read. The audience is everyone in the product: Members see what changed in their UI, Admins read the same notes to know what to brief the team on.
+The changelog is the in-product viewer that surfaces release notes for the Tale platform itself — not for content your members produce. After a self-hosted upgrade or a managed-cloud rollout, the viewer lists what changed between the previous version and the one running now. Admins read it after an upgrade to brief the team and to flag anything that affects how members work.
 
-This page is for Admins and Developers who need to understand how the dialog renders, where the content comes from, and what is in scope versus excluded. There is no dialog the Admin configures; the badge and the content are driven entirely by released versions.
+The viewer reads release notes from the Tale repository on GitHub and caches them inside your instance so the page loads even when GitHub is unreachable.
 
-## How the dialog reaches the reader
+## Where the changelog lives
 
-Tale shows the badge the moment a release with user-visible changes is detected. Clicking the badge opens the dialog. Each entry has a version number, a release date, and a Markdown body describing what changed in that version.
+The changelog has two surfaces. The **What's new** page under **Help** lists every recent release with its full notes. The **upgrade toast** fires once per major-version bump and links straight to the page — the toast shows `Upgraded to v<version>` and stays until dismissed so a member who was away does not miss the heads-up.
 
-The badge clears when the dialog is acknowledged — not when it is merely opened. A user who closes the dialog without scrolling through every new entry still sees the badge on the next session, so the indicator behaves like an unread counter rather than a one-shot notification.
+Open the page from the help menu in the top bar, or from the upgrade toast when it appears. The page caches up to roughly thirty recent releases; older ones link out to the GitHub release history.
 
-When an instance jumps multiple versions in a single upgrade — say `v1.4` to `v1.6` because `v1.5` was skipped — the dialog lists every intermediate version's notes in chronological order. Nothing between the two endpoints is hidden by the jump.
+## What each entry shows
 
-## Where the content comes from
+Each release entry carries four fields: the version tag, the publish date, the release name (often a short headline), and the release body in Markdown. Tale renders the body the way GitHub does — headings, lists, links, and code fences all survive. Releases that GitHub has not yet published surface a short explainer card with a link to the public release history.
 
-Release notes are published in the canonical format described in [Release notes format](/self-hosted/operate/release-notes/format) on the project's GitHub repository. The platform fetches the notes for every version visible to the current edition at install and upgrade time, caches them locally, and renders the per-version sections through the same Markdown renderer the rest of the docs use.
+## Scope
 
-The render path is short:
+The changelog is the platform's changelog — what changed in Tale itself. It does not show changes to your agents, your workflows, or your knowledge base; those have their own per-resource history. If you are looking for the version history of an agent or a workflow, open the resource and switch to the **History** tab.
 
-1. CI publishes notes on every tagged release.
-2. The platform pulls the canonical Markdown at install and upgrade.
-3. The dialog renders each per-version section, newest first.
-4. The badge counter increments whenever a new version's notes land.
+The viewer is read-only and visible to every signed-in member. There is no Admin-only flag — anyone with an account can open the page. The data the viewer fetches is public release information from the Tale GitHub repository, so there is nothing org-scoped to hide.
 
-If a self-hosted instance is offline or restricted from reaching GitHub, the upgrade still completes — the dialog falls back to the notes bundled with the release artifact rather than blocking on the network fetch.
+## A worked upgrade
 
-## What is in scope, what isn't
+After a self-hosted upgrade from `v0.42` to `v0.45`, sign in and look for the upgrade toast in the top right. Click **View** to open the changelog page. The page shows three release entries (`v0.43`, `v0.44`, `v0.45`) newest first, each with the engineer-written notes from the GitHub release. Skim the highlights, share the link with the team if anything needs a wider audience, and the toast clears the next time you reload.
 
-The in-app changelog mirrors the canonical GitHub release notes. The content is identical; only the surface differs. The covered changes are the ones a user would notice: new features, breaking changes, fixes the reader can verify, and migration notes for upgrades that require operator action.
-
-Out of scope, by design:
-
-- **Infrastructure-only changes** — dependency bumps, internal refactors, CI tweaks. These live in git history.
-- **Cloud-specific operational notes** — incidents and planned maintenance go on the [status page](/develop/status-page), not the changelog.
-- **Roadmap announcements** — the marketing site carries those; the changelog only describes shipped versions.
-
-For the operator-side details of an upgrade — the exact CLI flags, the downgrade caveats, the deprecated env vars — [Release notes format](/self-hosted/operate/release-notes/format) is the authoritative source.
+When the upgrade spans more than the cached window, the page shows the most recent entries with a banner that links to GitHub for the earlier notes. The cache stays warm for the next reader on your instance.
 
 ## Where this fits
 
-The changelog is the user-facing half of every release. Operators read the GitHub release notes before running `tale deploy` to plan the action items; everyone in the product reads the in-app dialog after the upgrade lands to learn what changed. Together they cover the two ends of every release.
-
-For the live state of the Cloud edition — incidents, maintenance, region status — [Status page](/develop/status-page) is the surface to read instead. For the historical release-notes catalogue across every version, the [release notes format](/self-hosted/operate/release-notes/format) reference is where the canonical entries live.
+The changelog is the operator's read-out of what Tale itself just did; it sits next to the audit log (which records what your members did) and the providers page (which tracks which model versions are wired). Pair it with [self-hosted upgrade](/self-hosted/operate/upgrades) when you operate the instance — the upgrade guide walks the version bump, and the changelog reads out the result on the other side.

@@ -2,7 +2,7 @@
 /**
  * Glossary audit script.
  *
- * Cross-references `.agents/terminology/GLOSSARY.json` against the shipped
+ * Cross-references `packages/ui/src/i18n/tests/glossary/glossary.json` against the shipped
  * UI strings in `services/platform/messages/{en,de,fr}.json` and the docs
  * corpus, then writes three Markdown reports under
  * `services/docs/scripts/audit-output/`:
@@ -26,11 +26,33 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { loadGlossary, type Term } from '../tests/lib/glossary';
-import { GLOSSARY_PATH, MESSAGES_ROOT, REPO_ROOT } from '../tests/lib/paths';
-import { escapeRegex } from '../tests/lib/regex';
-import { walkDocs } from '../tests/lib/walk';
+import { escapeRegex, loadGlossary, walkDocsRoot } from '@tale/ui/i18n/tests';
+import type { Term } from '@tale/ui/i18n/tests';
+
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+);
+const MESSAGES_ROOT = path.join(REPO_ROOT, 'services', 'platform', 'messages');
+const GLOSSARY_PATH = path.join(
+  REPO_ROOT,
+  'packages',
+  'ui',
+  'src',
+  'i18n',
+  'tests',
+  'glossary',
+  'glossary.json',
+);
+const DOCS_ROOT = path.join(REPO_ROOT, 'docs');
+
+// Local shim that matches the prior walkDocs API surface (used only via
+// `void` reference below, so the implementation is minimal).
+const walkDocs = (): unknown => walkDocsRoot(DOCS_ROOT, ['en', 'de', 'fr']);
 
 const OUT_DIR = path.join(
   REPO_ROOT,
@@ -79,7 +101,7 @@ function countMatches(messages: FlatMessage[], term: string): FlatMessage[] {
 }
 
 function reportStale(
-  glossary: Term[],
+  glossary: ReadonlyArray<Term>,
   messagesByLocale: Record<string, FlatMessage[]>,
 ): string {
   const lines = [
@@ -110,7 +132,7 @@ function reportStale(
 }
 
 function reportLeaks(
-  glossary: Term[],
+  glossary: ReadonlyArray<Term>,
   messagesByLocale: Record<string, FlatMessage[]>,
 ): string {
   const lines = [
@@ -141,7 +163,10 @@ function reportLeaks(
   return lines.join('\n') + '\n';
 }
 
-function reportMissing(glossary: Term[], en: FlatMessage[]): string {
+function reportMissing(
+  glossary: ReadonlyArray<Term>,
+  en: FlatMessage[],
+): string {
   const known = new Set(glossary.map((t) => t.en.toLowerCase()));
   const candidates = new Map<string, number>();
   // Find capitalised standalone words ≥4 chars. Skip common English words
@@ -174,7 +199,7 @@ function reportMissing(glossary: Term[], en: FlatMessage[]): string {
 }
 
 function main(): void {
-  const glossary = loadGlossary().terms;
+  const glossary = loadGlossary(GLOSSARY_PATH).all;
   const messagesByLocale = {
     en: loadMessages('en'),
     de: loadMessages('de'),

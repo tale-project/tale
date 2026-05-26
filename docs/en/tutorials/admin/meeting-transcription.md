@@ -1,102 +1,62 @@
 ---
-title: Meeting transcription
-description: Capture meeting audio locally with Meetily and summarise through a Tale agent.
+title: Pipe meeting transcripts into the Knowledge Base
+description: Wire Meetily (or a similar local meeting-transcription tool) into a Tale project's Knowledge Base so transcripts land as documents on their own without anyone uploading a file.
 ---
 
-Tale supports audio transcription two ways, and this integration tutorial walks the **fully local** option. If you only need to summarise ad-hoc recordings, dropping an audio or video file into chat is the simplest path — the platform's transcription pipeline handles it server-side, documented at [Chat attachments](/platform/chat/attachments#audio-and-video-transcription). For a full meeting-capture workflow where the raw audio never leaves the presenter's laptop, pair Tale with [Meetily](https://github.com/Zackriya-Solutions/meetily) — an MIT-licensed, fully local meeting recorder that transcribes with Whisper.cpp on-device and sends only the transcript to an LLM for summarisation.
+A meeting transcript is one of the highest-value documents a project can keep — names, decisions, follow-ups, all in one searchable place. This walk integrates Meetily, a local meeting-transcription tool, with a Tale project so every transcript Meetily produces lands in the project's Knowledge Base as a document on its own. The walk is for an Admin on a self-hosted Tale instance pairing it with a Meetily install on the same network.
 
-The outcome at the end is a meeting flow where audio bytes never cross the endpoint boundary, but the resulting summary lands as a normal Tale conversation thread with full audit and retention coverage.
+You need an Admin role in Tale, a Meetily install reachable from the `tale-platform` container, and one project in Tale with a Knowledge Base you want the transcripts routed into. The Knowledge Base concept lives in [Knowledge Base](/platform/knowledge/overview); this page is the integration walk, not the concept page.
 
 ## Before you begin
 
-You need Admin or Owner access in Tale, plus a Tale instance reachable on HTTPS from the laptop that will record. You also need at least one [agent](/platform/agents/create) tuned for summarisation; the system prompt in Step 1 is a starting point you can paste in. On the recording laptop you need Meetily installed — see the project's [latest release](https://github.com/Zackriya-Solutions/meetily/releases), which ships builds for macOS and Windows.
+Confirm four things. Your role is Admin or Owner in Tale — the **Integrations** panel is hidden below that. Meetily is running and producing transcripts in a format Tale accepts (Markdown, plain text, or VTT). The Meetily host is reachable from `tale-platform` on its webhook or shared-folder path. And the target project already exists in Tale with a Knowledge Base attached — the integration writes _into_ a Knowledge Base, it does not create one.
 
-No Tale-side feature flag, no per-user permission beyond Admin.
+## Step 1 — Pick a delivery path
 
-## Step 1 — Configure a summarisation agent
+Meetily can hand transcripts to Tale in two shapes, and they have different operational properties. The pick locks in how the rest of the walk reads.
 
-A dedicated agent gives summaries the model, tone, and structure you want, and keeps the meeting threads from cluttering the general chat agent's history. Open **Agents > Create agent** and paste the prompt below as the system instructions:
+The **webhook** path has Meetily POST each finished transcript to a Tale ingestion endpoint as soon as the meeting ends; the transcript is in the Knowledge Base within seconds of the meeting closing. The **shared folder** path has Meetily write transcripts as files into a directory the Tale platform polls every minute; latency is up to a minute but the path needs no public URL and survives Meetily restarts without retry logic.
 
-```text
-You are the meeting-summary agent.
+Pick webhook when both services run in the same network and you want fast indexing; pick shared folder when Meetily runs on a workstation that wakes irregularly or when the operations team prefers a file-based audit trail.
 
-Input: a raw transcript of a meeting, possibly with imperfect speaker labels.
-Output, in Markdown:
-1. A one-paragraph summary.
-2. Decisions — bullet list, each with the person responsible.
-3. Action items — bullet list in the format "Owner — task — due date (if mentioned)".
-4. Open questions — bullet list of things that were raised but not resolved.
+## Step 2 — Create the ingestion endpoint or folder in Tale
 
-Rules:
-- Do not invent content. If something is unclear, say so.
-- Preserve the language of the transcript.
-- Never include raw quotes longer than one sentence.
-```
+Tale needs to know where transcripts will land and which project they belong to. Without this binding, transcripts arrive but no Knowledge Base claims them.
 
-Pick a capable model — quality matters more than cost on a once-per-meeting call. The rest of the agent's configuration follows [Create an agent](/platform/agents/create).
+Open **Settings > Integrations**, click **Add integration**, and pick **Meeting transcripts**. Pick the project from the dropdown — the Knowledge Base the project uses is the destination. Pick the delivery path you chose in Step 1.
 
-The step worked when the agent's chat preview produces the four-section structure on a short test transcript pasted into the composer.
+If you picked webhook, Tale generates a URL of the shape `https://<your-host>/integrations/transcripts/<token>` and shows it once. Copy the URL; it doubles as the bearer credential, so treat it like a secret.
 
-## Step 2 — Create a webhook for the agent
+If you picked shared folder, Tale prompts for the path on disk that `tale-platform` should watch (typically `/data/transcripts/<project-slug>`). Create the directory on the host, give it group ownership matching the `tale-platform` container user, and confirm.
 
-Open the agent's **Webhook** tab and click **Create**. Tale generates a URL of the form `https://<your-tale-instance>/api/agents/wh/<TOKEN>` — the token is 64 hex characters and is the only credential. Anyone holding the URL can invoke this agent; treat it the way you'd treat an API key, and disable or delete the webhook to revoke access.
+## Step 3 — Point Meetily at Tale
 
-Meetily speaks OpenAI-compatible chat completions, so use the `/chat/completions` sub-path when configuring it in Step 4:
+Meetily now needs to know where to deliver each transcript. The settings live in Meetily's own config.
 
-```text
-https://<your-tale-instance>/api/agents/wh/<TOKEN>/chat/completions
-```
+For the webhook path, open Meetily's settings and add a webhook destination with the URL from Step 2. Pick the transcript format — Markdown is what reads best inside a Tale document preview, but VTT and plain text both index correctly.
 
-The step worked when the Webhook tab shows the URL with a copy button and an "Active" toggle on.
+For the shared-folder path, set Meetily's transcript-output directory to the path you created in Step 2. Make sure Meetily writes one file per meeting, named with the meeting title and timestamp.
 
-## Step 3 — Install Meetily
+End a short test meeting in Meetily and watch the Tale Integrations panel. The integration row shows a **Last delivery** timestamp that updates within a minute (folder mode) or a few seconds (webhook mode).
 
-Download and install Meetily from the project's releases page. The project docs at [meetily.ai](https://meetily.ai) and the [GitHub README](https://github.com/Zackriya-Solutions/meetily) cover per-OS install, including the first-run permission grants for system audio. Record a short test clip — fifteen seconds of you reading any paragraph — and confirm the live transcript appears in the side panel.
+## Step 4 — Verify the document lands and indexes
 
-The step worked when the test transcript matches what you said, confirming Whisper runs locally on the laptop.
+The proof the wiring works is one transcript visible in the Knowledge Base as a searchable document. Without this step you do not know whether Tale received the file _and_ indexed it.
 
-## Step 4 — Point Meetily at the Tale webhook
+Open the target project, navigate to its Knowledge Base, and look for the new transcript at the top of the document list. Click into the preview — the transcript renders as a document with the meeting title as the document name and the meeting date as the document's created-at. Wait for the indexing badge to clear (a few seconds for a short transcript, up to a minute for a long one), then run a search for a name or a phrase you remember from the test meeting. The transcript should be the first result with the phrase highlighted.
 
-In Meetily's settings, open the LLM provider panel (the exact label varies by release — recent builds use **Settings > Models** or **Settings > LLM provider**). Choose the **Custom OpenAI-compatible** option and configure:
+If the document is there but the indexing badge stays orange, the RAG service is behind — the [Troubleshooting](/self-hosted/operate/observability/troubleshooting) page names the symptoms.
 
-| Field    | Value                                                                                                                |
-| -------- | -------------------------------------------------------------------------------------------------------------------- |
-| Base URL | The `/chat/completions` URL from Step 2 — e.g. `https://<your-tale-instance>/api/agents/wh/<TOKEN>/chat/completions` |
-| API key  | Any non-empty value — the URL token is the credential                                                                |
-| Model    | A model ID from the agent's `supportedModels` (e.g. `openai/gpt-4o`); unrecognised values fall back to the default   |
+## Privacy notes
 
-Save. Meetily now sends summaries through the configured Tale agent.
+The integration crosses one network in each direction and the data shape matters.
 
-The step worked when Meetily's settings UI shows the saved provider and "Test" (if present) returns a 200 response.
+- **Meetily → Tale.** The transcript body crosses, plus the meeting title, the timestamp, and any speaker labels Meetily attached. Audio does not cross — Meetily transcribes locally and only the text is delivered. The webhook path uses HTTPS with the bearer token in the URL; the folder path uses a filesystem path with no network at all.
+- **Tale → Meetily.** Nothing. The integration is one-way; Tale never calls back into Meetily.
+- **Tale → external services.** The transcript text crosses to whichever embedding provider is bound to the Knowledge Base. If the embedding provider is a local one (Ollama, LM Studio, vLLM via [Connect a local LLM provider](/tutorials/admin/connect-local-provider)), no transcript text leaves the host. If the embedding provider is OpenAI, Anthropic, or another hosted endpoint, the transcript text is sent to that endpoint for vectorisation per the provider's data-handling policy.
 
-## Step 5 — Record and summarise a meeting
-
-Click **Start recording** at the top of the next meeting. Meetily transcribes locally — the CPU or GPU on the laptop does the work, and nothing is uploaded during the meeting. When the meeting ends, stop the recording and click **Generate summary**. The transcript is POSTed to Tale, the agent runs, and the structured summary appears in Meetily alongside the transcript.
-
-In Tale, the request becomes a real conversation thread under the summarisation agent — visible in the agent's history, counted against the org's usage ledger, tagged in the audit log, and governed by the agent's team and knowledge rules.
-
-The step worked when both Meetily shows the summary and the agent's conversation history shows a new thread with the same content.
-
-## Trust boundary
-
-What crosses the network in each direction:
-
-- **Audio**: never leaves the recording laptop. Whisper.cpp runs locally; there's no upload of the raw recording at any point in the flow.
-- **Transcript**: crosses the network from the laptop to your Tale instance over HTTPS, under your reverse proxy and existing auth. It doesn't go to any third party — Meetily speaks to Tale directly.
-- **Tale's outbound model call**: from Tale to whichever provider serves the agent's model. To keep this hop in-network too, pair this tutorial with [Connect a local provider](/tutorials/admin/connect-local-provider) — the summary LLM then also stays local.
-- **Client system prompt**: any `system` message Meetily sends is concatenated after the agent's own system prompt. The agent's prompt frames identity and output format; Meetily's prompt adds use-case detail.
-
-Retention follows Tale's standard rules — the summary thread expires on whatever your org retention policy sets, and access is scoped by the agent's [Knowledge tab](/platform/agents/create#knowledge-tab) and [team rules](/platform/admin/teams).
-
-## Troubleshooting
-
-- **Context-window errors on long meetings** — the transcript exceeds the model's input limit. Switch the agent to a model with a larger context, or pre-chunk the transcript in Meetily's summary settings. See [Agent concepts — Model](/platform/agents/concepts#model).
-- **Meetily timed out** — Meetily's client-side timeout is 300 seconds, and a long transcript on a slow provider can exceed it. Switch to a faster model, shorten the transcript, or retry; the thread in Tale still holds the full summary even if Meetily gave up waiting.
-- **Summaries land in the wrong language** — the transcript was mixed-language, or the prompt didn't pin output language. Tighten the "Rules" section of the agent's instructions.
-- **401 Unauthorized** — the webhook token is invalid or the webhook is disabled. Re-check the agent's **Webhook** tab, toggle Active, or regenerate.
+When transcripts contain content the org cannot send to a cloud provider, the supported pattern is to bind the project's Knowledge Base to a local embedding model. The provider-bind happens in the Knowledge Base settings, not in this integration.
 
 ## Where this fits
 
-What you built is a privacy-preserving meeting capture: raw audio stays on the laptop, only the transcript crosses the network, and Tale handles the summary as a normal agent conversation — auditable, retention-bound, knowledge-scoped. The trade-off versus the server-side transcription path is one of trust boundary: Meetily moves the audio handling under your endpoint policy at the cost of an extra desktop dependency.
-
-Two directions from here: pipe transcripts through an automation instead of a single agent call with [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook), or close the loop on the model side with [Connect a local provider](/tutorials/admin/connect-local-provider) so the summary LLM also stays in-network.
+The meeting-transcription integration is the cleanest example of "Tale indexes what your other tools already produce" — no copy-paste, no manual upload, no extra step in the meeting workflow. The natural next reads are [Knowledge Base](/platform/knowledge/overview) for what the indexed transcript can then be used for inside an agent, and [Connect a local LLM provider](/tutorials/admin/connect-local-provider) when the privacy section above pushes you toward keeping the embedding step on-host.

@@ -1,44 +1,52 @@
 ---
 title: Strukturierte Daten
-description: Produkte, Kunden und Lieferanten als strukturierte Datensätze verwalten, die die KI abfragen kann.
+description: Tales Wissensdatenbank kennt vier eingebaute strukturierte Entitäten — Kunden, Produkte, Lieferanten, Websites — neben Dokumenten. Diese Seite erklärt, wann du eine strukturierte Aufzeichnung statt eines Dokuments wählst.
 ---
 
-Strukturierte Daten sind die Zeilen-und-Spalten-Hälfte der Wissensdatenbank — die drei Bereiche (**Produkte**, **Kunden**, **Lieferanten**), die Geschäftsdatensätze mit festen Feldern speichern, die der KI-Agent neben Dokumenten und gecrawlten Websites abfragen kann. Zielgruppe sind Redakteur und Entwickler, die diese Datensätze einzeln oder per CSV-Import pflegen. Diese Seite zeigt, was jeder Bereich enthält, das CSV-Format und wie du einschränkst, welche Entitäten ein bestimmter Agent sieht.
+Tales Wissensdatenbank kennt zwei Formen nebeneinander. Dokumente sind freie Text-Blobs, aus denen der Agent Chunks abruft; strukturierte Aufzeichnungen sind typisierte Zeilen, aus denen der Agent Felder liest. Die Form, die du wählst, ist die wichtigste Entscheidung dafür, wie ein Agent dein Wissen nutzt — wählst du falsch, verwässert der Agent eine klare Antwort oder rät einen Wert, den du in der Datei stehen hast.
 
-## Produkte
+Diese Seite vermittelt dir das mentale Modell, wann jede Form die richtige ist. Lies sie, bevor du einen Ordner an Dateien lädst; komm zurück, wenn du in Versuchung gerätst, eine Tabelle als PDF hochzuladen.
 
-Der Bereich **Produkte** speichert deinen Produktkatalog. Jeder Produktdatensatz enthält Namen, Beschreibung, Bild-URL, Bestand, Preis, Währung, Kategorie und Status.
+## Dokumente vs. strukturierte Aufzeichnungen
 
-Produkte lassen sich einzeln anlegen oder in Masse per CSV importieren. Das CSV-Format hat keine Kopfzeile-Zeile; die Spalten stehen in dieser Reihenfolge:
+Ein Dokument ist frei: die Indexier-Pipeline extrahiert Text, chunked ihn, embeddet die Chunks und liefert sie zur Antwortzeit per RAG. Der Agent sieht Passagen und zitiert sie per Dateinamen. Das ist die richtige Form, wenn die Quelle Prosa ist — Verträge, Handbücher, Wissensdatenbank-Artikel, Besprechungsnotizen.
 
-```text
-name, description, imageUrl, stock, price, currency, category, status
-```
+Eine strukturierte Aufzeichnung ist typisiert: die Entität hat bekannte Felder (ein Kunde hat `name`, `email`, `industry`; ein Produkt hat `sku`, `price`, `stock`). Der Agent liest die Felder direkt, joint über Entitäten hinweg und antwortet mit dem Wert. Das ist die richtige Form, wenn die Quelle eine Datenbankzeile ist — Accounts, Bestellungen, Teile, Lieferanten-Daten.
 
-Gültige Status-Werte: `active`, `inactive`, `draft`, `archived`. Ungültige Werte fallen auf `draft` zurück.
+## Die vier eingebauten Modelle
 
-## Kunden
+Vier strukturierte Entitäts-Typen sind in jeder Tale-Instanz dabei:
 
-Der Bereich **Kunden** speichert deine Kundenliste. Jeder Kunde hat eine E-Mail-Adresse, ein Locale, einen Status und optionale benutzerdefinierte Metadaten. Importierte Kunden haben standardmäßig den Status `churned`.
+- **Kunden** — die Personen und Organisationen, mit denen du Geschäfte machst.
+- **Produkte** — die Dinge, die du verkaufst.
+- **Lieferanten** — die Lieferanten, von denen du kaufst.
+- **Websites** — Seiten, die ein Crawler zeitgesteuert abruft; strukturiert als URL + gecrawlter Inhalt + Metadaten.
 
-CSV-Import in diesem Format:
+Plus **Dokumente** für alles andere.
 
-```text
-email, locale
-```
+## Inhaltsmodelle für eigene Formen
 
-Gültige Locale-Werte: `en`, `de`, `es`, `fr`, `it`, `nl`, `pt`, `zh`. Ungültige Locales fallen auf `en` zurück.
+Wenn die vier Eingebauten nicht passen, kannst du mit Inhaltsmodellen einen eigenen strukturierten Aufzeichnungs-Typ definieren. Ein Inhaltsmodell ist eine JSON-Schema-förmige Definition unter [Governance Inhaltsmodelle](/de/platform/admin/governance/content-models): benenne die Entität, deklarier ihre Felder, setz den Feldzugriff, und der neue Typ erscheint neben Kunden, Produkten, Lieferanten und Websites.
 
-## Lieferanten
+Inhaltsmodelle kosten Governance-Aufmerksamkeit — jede Zugriffs- und Aufbewahrungsrichtlinie eines Felds liegt bei dir — also greif dazu, wenn die Daten wirklich eine neue Form sind, nicht eine leichte Variante einer der vier Eingebauten.
 
-Der Bereich **Lieferanten** speichert Lieferanten- und Partnerdatensätze. Die Lieferantendaten sind vom KI-Agent durchsuchbar und lassen sich in automatisierten Workflows referenzieren. Derselbe CSV-Import wie bei Kunden funktioniert auch hier.
+## Zusammengesetzt — ein CRM-Agent
 
-## Strukturierte Daten in Agents nutzen
+Ein CRM-Agent, der „Wo stehen wir mit Acme?" beantwortet, nutzt beide Formen. Die Kunden-Entität hat die kanonische Aufzeichnung von Acme — Name, primärer Kontakt, Branche, Status. Dokumente halten die Gesprächsnotizen und Verträge. Der Agent liest die Felder des Kunden direkt, holt Chunks aus den Dokumenten und antwortet mit beidem: dem strukturierten Status aus Kunden, dem letzten Kontext aus der jüngsten Gesprächsnotiz.
 
-Strukturierte Datensätze werden in denselben Wissens-Store wie Dokumente indiziert. Agents mit Wissens-Zugriff können alle Typen gleichzeitig durchsuchen. Um einen Agent auf eine Teilmenge zu beschränken — etwa einen Vertriebs-Agent, der nur Produkte und Kunden sieht — konfiguriere seinen Wissen-Tab. Siehe [Agent erstellen](/de/platform/agents/create).
+Ohne strukturierte Aufzeichnungen muss der Agent Acme per Namen über PDFs hinweg finden und riskiert, zwei Kunden mit ähnlichen Namen zu verwechseln. Ohne Dokumente kennt der Agent Acmes Status, kann dir aber nicht sagen, was am Dienstag im Gespräch passiert ist.
+
+## Wann du danach greifst
+
+| Nutz … wenn                                                        | Dokumente | Strukturierte Aufzeichnung |
+| ------------------------------------------------------------------ | --------- | -------------------------- |
+| Die Quelle ist freie Prosa                                         | ✓         |                            |
+| Die Quelle hat typisierte Felder und du willst exakte Werte zurück |           | ✓                          |
+| Du musst über viele Aufzeichnungen joinen                          |           | ✓                          |
+| Der Agent soll Passagen per Stelle zitieren                        | ✓         |                            |
+
+Freie Dokumente und typisierte Aufzeichnungen sind nicht austauschbar; die falsche Form macht den Agent schlechter im Job, den du wolltest.
 
 ## Wo das hingehört
 
-Strukturierte Daten sind die Hälfte der Wissensdatenbank, die Reihen und Spalten hat, statt Absätze und Überschriften. Die Freitext-Hälfte (Dokumente, gecrawlte Websites) ist für prosa-förmigen Inhalt; diese Hälfte ist für Entitäten — die Kataloge, Kundenlisten und Lieferanten-Datensätze, die die KI zitiert, wenn sie domänenspezifische Fragen beantwortet. Beide Hälften werden in denselben Store indiziert und sind über dieselbe Wissens-Suche erreichbar; ein Agent, der sich in beiden verankert, mischt sie fliessend.
-
-Für die Prosa-Hälfte der Wissensdatenbank deckt [Wissensdatenbank](/de/platform/workspace/knowledge-base) Dokumenten-Upload und Website-Crawling ab. Für die agent-seitigen Stellen, die entscheiden, welche Entitäten ein Agent sieht, ist [Agent erstellen → Wissen](/de/platform/agents/create) die nächste Seite.
+Strukturierte Daten sind die Naht zwischen deinen operativen Daten und der Agent-Oberfläche. Nutz die vier Eingebauten für das, was sie abdecken; greif zu [Inhaltsmodellen](/de/platform/admin/governance/content-models), wenn eine fünfte Form auftaucht. Die nächste Lektüre, die sich lohnt, ist [Dokumente](/de/platform/knowledge/documents) — sie deckt die Dokument-Indexier-Pipeline ab und wie Agents zur Antwortzeit nach Chunks greifen.

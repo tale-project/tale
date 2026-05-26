@@ -1,84 +1,43 @@
 ---
 title: KI-Anbieter
-description: Tale über OpenAI-kompatible Anbieter mit KI-Modellen verbinden — den Katalog aus der Einstellungen-UI verwalten und Lieferanten-APIs, Gateways und selbst gehostete Inferenz unter einem Dach mischen.
+description: Einstellungen > Anbieter ist der Ort, an dem Admins OpenAI, Anthropic, Azure OpenAI und ein lokales Ollama anbinden, wählen, welche Modelle jeder davon freigibt, und das Standardmodell der Organisation setzen. Jede Antwort, die Tale streamt, kommt aus einem Modell, das über diese Seite aufgelöst wird.
 ---
 
-Tale spricht mit KI-Modellen über **Anbieter** — jeder Anbieter ist ein OpenAI-kompatibler API-Endpunkt mit einem Katalog an Modell-Definitionen. Der Endpunkt kann ein gehosteter Lieferant sein (OpenAI, Anthropic über OpenRouter, Google), ein Routing-Gateway (OpenRouter, Vercel AI Gateway) oder ein selbst gehosteter Inferenz-Server (Ollama, vLLM, LocalAI, faster-whisper-server). Ein Anbieter exponiert, _welche_ Modelle existieren und _wie_ sie eingesetzt werden — Chat, Vision, Embedding, Bild-Generierung, Bild-Bearbeitung, Transkription. Admins verwalten Anbieter unter **Einstellungen > Anbieter**; Nutzer sehen die resultierenden Modelle dann in der Chat-Modellauswahl und in der Agent-Konfiguration.
+Einstellungen > Anbieter ist die Oberfläche, an der Tale auf die LLMs trifft, die es bedient. Admins binden die Anbieter an, die die Organisation nutzen will — OpenAI, Anthropic, Azure OpenAI oder ein lokales Ollama — wählen, welche der jeweiligen Modelle die Organisation aufrufen darf, und setzen das Standardmodell für neue Chats und neue Agents. Jede Antwort, die Tale streamt, läuft durch diese Seite; sie zu berühren ändert, was der Rest des Produkts kann.
 
-Tale liefert einen [OpenRouter](https://openrouter.ai)-Beispiel-Anbieter mit, der über einen einzigen API-Schlüssel Zugriff auf Modelle von OpenAI, Anthropic, Google, Mistral, Meta und anderen gibt — der schnellste Weg von einer frischen Installation zu einem funktionierenden Chat. Mitglieder, Redakteure und Entwickler können Anbieter nicht bearbeiten; der Bildschirm ist Admin-only.
+Diese Seite behandelt die Oberfläche: wie du einen Anbieter hinzufügst, was die Modell-Allowlist steuert, wie der Default aufgelöst wird und wie du einen Anbieter ausser Dienst stellst, ohne bestehende Chats zu brechen. Der Anbieter-Katalog selbst und die tiefere Konfigurationsdatei-Form derselben Oberfläche liegen einen Tab weiter unter [Modelle](/de/platform/models) für den Katalog und dem Self-hosted-Konfigurations-Tab für die Datei-Form.
 
-## Anbieter in den Einstellungen verwalten
+## Was die Liste zeigt
 
-Öffne **Einstellungen > Anbieter**. Die Listenansicht lässt Admins:
+Öffne **Einstellungen > Anbieter** und du landest auf der Liste der Anbieter, die die Organisation angebunden hat. Jede Zeile nennt den Anbieter, zeigt seinen Anmeldedaten-Status (verbunden, Fehler, ungetestet), die Zahl der Modelle, die der Anbieter freigibt, und die Zahl jener, die die Organisation in die Allowlist aufgenommen hat. Ein Verbindungsfehler zeigt die Upstream-Meldung neben der Zeile — meist ein falscher Schlüssel oder ein fehlender Scope.
 
-- **Anbieter hinzufügen** — öffnet den Erstellen-Dialog. Name, Anzeigename, Basis-URL, API-Schlüssel und ein oder mehrere Modelle. Jedes Modell trägt eine ID (muss zu dem passen, was der Endpunkt akzeptiert), einen Anzeigenamen, eine optionale Beschreibung und ein oder mehrere Tags.
-- **Anbieter bearbeiten** — aufgeteilt in **Details bearbeiten** (Anzeigename, Beschreibung, Basis-URL), **Standards bearbeiten** (das Standard-Modell pro Fähigkeit — siehe unten), den API-Schlüssel und den Modell-Katalog.
-- **Anbieter löschen** — entfernt den Anbieter komplett. Agents, die noch eines seiner Modelle referenzieren, zeigen eine Warnung, bis der Agent neu gebunden ist.
-- **Verbindung testen** — schickt eine kleine Anfrage an jedes Modell im Katalog und meldet je-Modell-Latenz und Erreichbarkeit. Nutze sie nach einem API-Schlüssel-Tausch oder nach Umstellung der Basis-URL auf einen neuen Endpunkt.
+Die Zeile klappt in den Modell-Picker des Anbieters auf. Tale holt die volle Modell-Liste des Anbieters zur Anmelde-Verifikations-Zeit; der Picker zeigt diese Liste mit einer Checkbox neben jedem Modell, plus einem Per-Modell-Tag (Chat, Bild, Embedding, Audio), das steuert, wo das Modell stromabwärts eingesetzt werden kann.
 
-Das in der Anbieter-Liste angezeigte **Beschreibung**-Feld ist für den Menschen — etwa `OpenAI — Whisper für Speech-to-Text` macht den Katalog selbsterklärend, wenn ein Team mehrere mischt. **Standard-Modelle** pro Fähigkeit entscheiden, welches Modell für Chat, Vision, Embedding, Bild-Generierung, Bild-Bearbeitung und Transkription verwendet wird, wenn weder Nutzer noch Agent explizit eines wählen.
+## Einen Anbieter hinzufügen
 
-## Modell-Tags
+Klick auf **Anbieter hinzufügen** und wähl den Anbieter-Typ. Jeder Anbieter-Typ verlangt die nötige Anmeldung:
 
-Jedes Modell gehört zu einem oder mehreren Tags. Das Tag steuert, wo das Modell wählbar ist.
+- **OpenAI** — API-Schlüssel von `platform.openai.com`. Der Schlüssel erbt Quote und Rate-Limits des OpenAI-Kontos.
+- **Anthropic** — API-Schlüssel von `console.anthropic.com`. Gleiche Form wie OpenAI.
+- **Azure OpenAI** — Endpoint-URL plus Schlüssel; Tale löst Modelle gegen das Azure-Deployment auf, nicht den OpenAI-Modellnamen.
+- **Ollama** — Base-URL des Ollama-Servers (typischerweise `http://ollama:11434` im Tale-Netzwerk). Kein Schlüssel; Erreichbarkeit ist die Auth.
 
-| Tag                | Wo das Modell angeboten wird                                                                                                              |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `chat`             | Die Chat-Modellauswahl und `supportedModels` eines Agents.                                                                                |
-| `vision`           | Geeignet für Nachrichten mit Bildanhängen.                                                                                                |
-| `embedding`        | Wird von der [Wissensdatenbank](/de/platform/workspace/knowledge-base) für die Dokument-Suche verwendet.                                  |
-| `image-generation` | Wird von Bild-Generierungs-Agents verwendet (`/v1/images/generations` oder `/v1/chat/completions` mit Bild-Content-Parts, je nach Modus). |
-| `image-edit`       | Wird von Bild-Bearbeitungs-Agents verwendet.                                                                                              |
-| `transcription`    | Transkribiert Audio- und Video-Chat-Uploads — siehe [Chat-Anhänge](/de/platform/chat/attachments#audio-and-video-transcription).          |
+Sobald die Anmeldedaten ankommen, ruft Tale den Modell-Listen-Endpoint des Anbieters auf, zeigt jedes gefundene Modell und wartet, bis du die Allowlist auswählst, bevor irgendein Agent sie aufrufen kann. Eine leere Allowlist zu speichern ist erlaubt, aber kein Modell dieses Anbieters ist aufrufbar, bis du mindestens eines in die Allowlist nimmst.
 
-Ein einzelner Anbieter darf Tags mischen — ein OpenAI-Anbieter kann `chat`-, `vision`- und `transcription`-Modelle nebeneinander exponieren. Modelle ohne Tag sind im übrigen Produkt unsichtbar, sodass der Katalog je Fähigkeit Opt-in ist.
+## Die Allowlist und Per-Modell-Tags
 
-## Wie Modelle in den Chat gelangen
+Die Allowlist ist der Vertrag der Organisation mit sich selbst darüber, welche Modelle ihre Agents nutzen dürfen. Ein Modell, das nicht auf der Allowlist steht, erscheint in keinem Picker, selbst wenn der Upstream-Anbieter es freigibt. Füg Modelle hinzu, wenn du dem Preis des Anbieters für sie vertraust; entferne Modelle, wenn du sie nicht mehr aufrufbar willst.
 
-Anbieter definieren, welche Modelle _existieren_. Agents definieren, auf welchen dieser Modelle sie _laufen können_. Öffne den Agent unter **Agents > (Agent-Name)** und füge seinem **Modell**-Abschnitt Modell-IDs hinzu; nur Modelle, die mindestens bei einem Anbieter vorhanden _und_ auf dem Agent gelistet sind, erscheinen in der Chat-Modellauswahl. Der Standard-Chat-Agent ist mit den OpenRouter-Beispiel-Modellen vorkonfiguriert; eigene Agents starten leer, damit der Katalog explizit bleibt.
+Jedes Modell trägt ein oder mehrere Tags, die Tale beim Holen anhand der Metadaten des Anbieters zuweist: `chat` (Text rein, Text raus), `image` (Text rein, Bild raus), `embedding` (Text rein, Vektor raus), `audio` (Audio rein oder raus). Agents binden an Chat-getaggte Modelle; die Bildgenerierungs-Tool-Familie nutzt Bild-getaggte Modelle; Dokument-Indexierung nutzt Embedding-getaggte Modelle. Das einzige in der Allowlist befindliche Modell einer Tag-Klasse zu entfernen, bricht die Funktionen, die davon abhängen; die Zeile warnt, wenn du gerade dabei bist, das zu tun.
 
-Wie sich die Auswahl verhält, wenn zwei Anbieter dieselbe Modell-ID definieren, und welche Pinning-Syntax Agents einen bestimmten Anbieter bevorzugen lässt, steht in der Datei-Referenz, die unten verlinkt ist.
+## Der Organisations-Standard
 
-## Anbieter-Optionen (Fortgeschritten)
+Der Organisations-Standard ist das Modell, das neue Chats und neue Agents nehmen, wenn kein anderes Modell benannt wird. Setz ihn aus der Zeile **Standardmodell** oben in der Anbieter-Liste. Den Standard zu ändern, wirkt nur auf neue Objekte — bestehende Chats und Agents behalten das Modell, an das sie gebunden waren. Greif zum Standard, wenn du eine neue Modell-Generation organisationsweit ausrollst, ohne jeden Agent neu zu bearbeiten.
 
-Das Panel **Anbieter-Optionen** leitet ein frei geformtes JSON-Objekt als zusätzliche Felder im Anfrage-Body bei jedem Modell-Aufruf weiter. Tale interpretiert das JSON nicht — es reicht es wortgetreu durch — also wird die Form vom Upstream-API diktiert. Gateways und Direkt-Lieferanten exponieren unterschiedliche Stellschrauben:
+## Einen Anbieter ausmustern
 
-- **OpenRouter (Gateway)** — Routing-Steuerung unter einem Top-Level-`provider`-Schlüssel:
-
-  ```json
-  { "provider": { "quantizations": ["fp8"], "allow_fallbacks": false } }
-  ```
-
-- **Vercel AI Gateway (Gateway)** — routet vor allem über Modell-ID-Präfix und HTTP-Kopfzeilen; Body-Passthrough ist auf Observability-Felder wie `metadata` begrenzt:
-
-  ```json
-  { "metadata": { "tale_agent": "support" } }
-  ```
-
-- **OpenAI (direkt)** — Modell-Verhaltens-Stellschrauben auf Top-Level:
-
-  ```json
-  { "service_tier": "priority", "parallel_tool_calls": false }
-  ```
-
-- **Together AI (direkt)** — Moderations- und Decoding-Stellschrauben auf Top-Level:
-
-  ```json
-  { "safety_model": "meta-llama/Llama-Guard-4-12B", "repetition_penalty": 1.1 }
-  ```
-
-Direkt-Lieferanten exponieren `quantizations` nicht als Anfrage-Feld — die Präzision liegt zur Deploy-Zeit fest, also wähle stattdessen eine andere Modell-ID. Schlüssel wie `model`, `messages`, `max_tokens` und `temperature` werden auf dieser Schicht abgelehnt, weil sie auf den Agent gehören, nicht auf den Anbieter.
-
-Dasselbe Panel existiert auf Modell-Ebene — das Modell-JSON wird auf die Anbieter-Voreinstellungen draufgemerged, sodass ein Modell-Override das gemeinsame Objekt nicht duplizieren muss.
-
-## Selbst gehostete Instanzen: Konfiguration als Dateien
-
-Selbst gehostete Operatoren dürfen Anbieter zusätzlich über JSON-Konfigurationsdateien verwalten — nützlich für Infrastructure-as-Code-Workflows, Massen-Edits oder Deployments, bei denen die UI nicht erreichbar ist. UI und Dateien bleiben synchron; das Speichern aus **Einstellungen > Anbieter** schreibt dasselbe JSON. Geheimnisse dürfen auf der Platte SOPS-verschlüsselt sein und bleiben aus dem UI bearbeitbar.
-
-Für das Datei-Schema, die mitgelieferten Beispiel-Anbieter, die selbst gehosteten Inferenz-Backends (Ollama, vLLM, LocalAI, faster-whisper-server), Docker-Host-Networking und die Pinning-Syntax siehe [Anbieter — Konfigurations-Referenz](/de/self-hosted/configuration/providers).
+Klick auf die Zeile, dann auf **Trennen**. Ein getrennter Anbieter erscheint nicht mehr in Pickern; Agents, die an eines seiner Modelle gebunden sind, melden einen Konfigurationsfehler und fallen auf den Organisations-Standard zurück, wenn der Agent Fallback aktiv hat. Die Zeile bleibt mit einem Getrennt-Badge für den Audit-Pfad in der Liste. Trennen ist umkehrbar — ein Klick auf **Erneut verbinden** geht den Anmeldungs-Fluss neu — aber die Per-Modell-Allowlist muss neu gewählt werden, weil sich die zugrundeliegende Modell-Liste upstream verschoben haben kann.
 
 ## Wo das hingehört
 
-Anbieter sind das Tor zwischen Tale und den KI-Modellen, mit denen der Rest der Organisation spricht. Ein Agent wählt eine Modell-Vorlage (Schnell, Standard, Erweitert); jede Vorlage ist an ein bestimmtes Modell eines Anbieters gebunden. Einen Anbieter hinzuzufügen erweitert das Menü; einen Standard zu ändern leitet jeden Agent um, der sich nicht explizit auf ein Modell festgelegt hat.
-
-Die UI, die diese Seite beschreibt, ist die gleiche, die Cloud-Admins verwenden. Selbst gehostete Operatoren haben die Wahl zwischen UI und JSON-Datei-Form, dokumentiert unter [Anbieter — Konfigurations-Referenz](/de/self-hosted/configuration/providers). Sobald die Anbieter-Liste sitzt, leben die Modell-Vorlagen je Agent auf dem Agent selbst — siehe [Agent erstellen](/de/platform/agents/create) für die Agent-Konfiguration.
+Anbieter sind der Boden des Stacks — jeder Agent, jeder Chat, jeder Workflow-Schritt, der Text produziert, löst über sie auf. Die natürliche nächste Lektüre ist [Modelle](/de/platform/models) für den Katalog dessen, was jeder Anbieter aktuell liefert und welche Tags sie tragen, und [Agent-Konzepte](/de/platform/agents/concepts) dafür, wie der Modell-Knopf in das Vier-Knöpfe-Modell passt, aus dem ein Agent gebaut ist.

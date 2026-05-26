@@ -1,109 +1,56 @@
 ---
-title: Release-Notes-Format
-description: Maßgebliches Format für GitHub-Release-Notes auf tale-project/tale.
+title: Wie du Release-Notes liest
+description: Die Form, der Tales Release-Notes folgen — das semver-Versprechen, wo breaking Changes und Deprecations sitzen, wie Security-Einträge markiert sind und wo die Migrations-Notes pro Release leben.
 ---
 
-Tale liefert seine Release-Historie als GitHub-Release-Notes gegen das Repository `tale-project/tale` aus, in einer festen Form, damit Operatoren ein Release vor einem Upgrade auf die drei wichtigen Dinge — Sicherheitsrelevanz, Verhaltensänderung, Breaking-Change — überfliegen können, ohne jeden Punkt zu lesen. Diese Seite ist der Vertrag: sie benennt jeden Abschnitt, die Reihenfolge, in der sie erscheinen, die Rahmung, die jedes Release teilt, und die Klassifikationsregeln, die entscheiden, welcher Punkt wo landet.
+Tale liefert ein Release pro Minor-Version und Patches als Bugfix-Tags dazwischen aus. Die Release-Notes für jeden Tag folgen derselben Form, damit du eine in einer Minute scannen kannst und weißt, ob das Upgrade ein Fünf-Minuten-Bump oder ein Wartungsfenster ist. Diese Seite deckt das Format ab: das semver-Versprechen, was jeder Abschnitt garantiert, und wo du tiefer liest, wenn eine Zeile auf eine Migration zeigt.
 
-Operatoren lesen diese Notes vor `tale upgrade`; dasselbe Markdown, das der `/release`-Slash-Befehl im Haupt-Repo entwirft, ist das, was die **Was ist neu**-Ansicht im Produkt rendert. Die Konsistenz der Form ist die tragende Eigenschaft — sobald ein Operator drei Releases gelesen hat, weiß er genau, wo die Security-Einträge, die Modell-Sprünge und die Migrations-Schritte zu suchen sind.
+Die Notes selbst leben auf der GitHub-Release-Seite zu jedem Tag. Das CLI bringt sie ebenfalls hoch — `tale upgrade --notes` druckt die Notes für die Version, die es gerade installieren will.
 
-## Warum dieser Vertrag existiert
+## Das semver-Versprechen
 
-Operatoren und Endnutzer verlassen sich auf Release-Notes, um drei Fragen vor dem Upgrade zu beantworten:
+Tale-Versionen sind semver, und die Versionsnummer ist die wichtigste Tatsache über ein Upgrade.
 
-- Behebt dieses Release ein Sicherheitsproblem, das mich betrifft?
-- Hat eine Modell- oder Anbieter-Änderung die Ausgabe eines Workflows verschoben, den ich fahre?
-- Verlangt dieses Upgrade manuelle Schritte?
+- **Patch (`0.9.0 → 0.9.1`)** — nur Bugfixes. Keine Schema-Migrationen, keine Config-Änderungen, keine Verhaltens-Änderungen außer dem Fix selbst. Sicher zu upgraden, ohne weiter als bis zum Security-Abschnitt zu lesen.
+- **Minor (`0.9.x → 0.10.x`)** — neue Features, möglicherweise forward-only Migrationen. Rückwärtskompatibel standardmäßig; Deprecations werden ein Minor im Voraus angekündigt.
+- **Major (`0.x → 1.x`)** — breaking Changes sind erlaubt. Trägt immer einen Link auf die Migrations-Notes oben am Release; lies sie End-to-End, bevor du anfängst.
 
-Konsistente Sektionierung in einer konsistenten Reihenfolge macht diese drei Antworten in Sekunden auffindbar, ohne jeden Punkt zu lesen. Der Vertrag existiert, um diesen Vertrag über jedes Release laut zu halten.
+Die Versionszeile oben auf jeder Release-Seite nennt die Art des Bumps in Klartext, damit du die Rechnerei nicht selbst machen musst.
 
-## Erforderliche Abschnitte
+## Die Abschnitte, die jedes Release hat
 
-Nimm nur Abschnitte auf, die Inhalt haben; nimm nie einen leeren Abschnitt auf. Die Reihenfolge ist fest:
+Jede Release-Seite ist dieselbe geordnete Abschnitts-Liste. Leere Abschnitte werden weggelassen, nicht leer gelassen — siehst du einen Abschnitt nicht, gibt es dort nichts zu melden.
 
-| Reihenfolge | Abschnitts-Überschrift   | Bereich                                                                                                 |
-| ----------- | ------------------------ | ------------------------------------------------------------------------------------------------------- |
-| 1           | `## 🔒 Security`         | CVE-Behebungen, Abhängigkeits-Patches, Auth/Session/Krypto-Härtung, Geheimnis-Handling.                 |
-| 2           | `## 🤖 Model & Provider` | LLM-Modell-Tausch/-Upgrade/-Deprecation, Anbieter-Konfigurations-Änderungen, die die Ausgabe verändern. |
-| 3           | `## 💥 Breaking Changes` | API-Entfernung/-Umbenennung, Schema-Änderungen, die manuelle Migration verlangen, entfernte Funktionen. |
-| 4           | `## 🚀 Features`         | Neue nutzersichtbare Funktionalität.                                                                    |
-| 5           | `## ⚡ Performance`      | Messbare Performance-Gewinne, die erwähnenswert sind.                                                   |
-| 6           | `## 🛠 Improvements`     | Nicht-brechende Verbesserungen, UX-Politur.                                                             |
-| 7           | `## 🐛 Fixes`            | Bug-Fixes (nicht-Security).                                                                             |
-| 8           | `## 📝 Other`            | Docs, Refactors, Aufgaben. Sparsam einsetzen.                                                           |
+- **Highlights** — ein oder zwei Absätze dazu, wofür das Release da ist. Lies das zuerst.
+- **Breaking Changes** — jede Änderung, die verlangt, dass der Operator vor oder nach dem Upgrade etwas tut. Jede Zeile nennt das Symptom, das du treffen würdest, wenn du sie überspringst, und die Aktion, die das vermeidet.
+- **Deprecations** — Features, die in diesem Release noch laufen, aber zur Entfernung markiert sind. Jede Zeile nennt die Removal-Version, damit du den Cutover planen kannst.
+- **Security** — Einträge im CVE-Format für Fixes, die eine Schwachstelle schließen. Der vollständige Feed lebt unter [Security-Advisories](/de/self-hosted/operate/security/advisories); die Release-Notes tragen die Ein-Zeilen-Zusammenfassung plus den Link auf das Advisory.
+- **Features und Fixes** — die lange Liste. Gruppiert nach Bereich (Platform, RAG, Crawler, CLI, Docs); jede Zeile liest sich als ein Satz.
+- **Migrations-Notes** _(Major-Versionen und manche Minors)_ — der verlinkte Walk durch Schema-Migrationen, Config-Datei-Änderungen oder operatorseitige Umbenennungen. Bei Majors immer lesen.
 
-## Erforderliche Rahmung
+## Wie du ein Release scannst
 
-Jedes Release enthält mindestens vier Stücke Rahmung oben auf den Abschnitts-Punkten.
+Lies die Versionszeile, die Highlights und den Breaking-Changes-Abschnitt. Ist Breaking Changes leer und nennt der Security-Abschnitt keinen Fix, der dein Install berührt, ist das Upgrade die Zwei-Kommando-Sequenz aus [Upgrades](/de/self-hosted/operate/upgrades). Hat einer der beiden Abschnitte Zeilen, gehst du sie durch, bevor du `tale deploy` läufst.
 
-**Titel.** Format `v{version} — {short tagline}`, z. B. `v1.6.0 — Usage analytics & multi-tenancy`. Die Tagline ist die einzeilige Schlagzeile, die der Changelog-Viewer neben der Versionsnummer rendert.
+```text
+0.12.0 (minor) — 14.05.2026
 
-**Zusammenfassung.** Zwei bis drei Sätze ganz oben, die beschreiben, was sich geändert hat und warum. Kein Emoji in der Zusammenfassung — Emoji sind den Abschnitts-Überschriften unten vorbehalten.
+Highlights
+  Streaming-Tool-Calls streamen jetzt in den Chat, sobald sie emittieren.
 
-**Upgrade-Anweisungen.** Ein kurzer Block am Ende der Notes, der die zwei Befehle benennt, die jedes Upgrade beinhaltet:
+Breaking Changes
+  (keine)
 
-```markdown
-## Upgrade
+Deprecations
+  AGENTS_LEGACY_PROMPT env var — entfernt in 0.14.
 
-Run `tale upgrade` to update the CLI, then `tale deploy` to apply the new version.
+Security
+  CVE-2026-XXXX — gepatchter Bypass in der Run-Code-Sandbox.
+  Siehe: Advisory TAL-2026-007.
 ```
 
-Beide Schritte sind erforderlich. `tale upgrade` holt die neue CLI-Binärdatei; `tale deploy` rollt die neue Version auf den laufenden Stack. Einen der beiden auszulassen, lässt das Deployment auf der alten Version, was der häufigste Upgrade-Fehler ist.
+Die Form oben ist das, was `tale upgrade --notes` druckt. Die Web-Version desselben Releases fügt auf jeder Advisory- und Migrations-Zeile Links hinzu.
 
-**Manuelle Migrationshinweise** (nur wenn relevant). Wenn eine Breaking-Change Operator-Aktion jenseits von `tale deploy` verlangt, nimm einen `## Migration Guide`-Abschnitt mit nummerierten Schritten auf. Das ist der Abschnitt, den Operatoren suchen, wenn der Titel oder die Zusammenfassung eine Breaking-Change erwähnt.
+## Wo das hingehört
 
-**Full-Changelog-Link** am Ende:
-
-```markdown
-**Full Changelog**: https://github.com/tale-project/tale/compare/v{previous}...v{new}
-```
-
-## Klassifikationsregeln
-
-Ein Punkt landet in `## 🔒 Security`, wann immer er Authentifizierung, Sessions, Geheimnis-Storage, Kryptographie oder einen erreichbaren Abhängigkeits-CVE berührt. Wenn die Kategorisierung mehrdeutig ist, klassifiziere als Security und reiche zusätzlich einen [Security Advisory](/de/self-hosted/operate/security/advisories) ein — es ist billiger, eine Nicht-Problemstellung zurückzuziehen, als ein echtes Problem unter zu offenbaren.
-
-`## 🤖 Model & Provider` fängt alles, was die LLM-Ausgabe für denselben Nutzer-Input verändern könnte — Modell-Sprünge, Anbieter-Tausche, Prompt- oder Template-Änderungen in Standard-Agents.
-
-`## 💥 Breaking Changes` ist reserviert für Änderungen, bei denen Nutzer oder Operatoren etwas tun müssen, um nach dem Upgrade weiterzuarbeiten. Wenn `tale upgrade` gefolgt von `tale deploy` reicht, ist es nicht brechend.
-
-`## 📝 Other` ist für erwähnenswerte Änderungen, die nirgendwo sonst passen. Triviale Aufgaben (Tippfehler-Behebungen, interne Refactors, reine Test-Änderungen) werden ganz ausgelassen — die sind git-Historie, keine Release-Notes.
-
-## Ein durchgespieltes Release
-
-```markdown
-# v1.6.0 — Usage analytics & multi-tenancy
-
-This release adds time-based usage analytics, hardens multi-tenant org isolation,
-and bumps the default reasoning model. No breaking changes.
-
-## 🔒 Security
-
-- Tighten org-scoping on governance policy queries (#1573)
-
-## 🤖 Model & Provider
-
-- Default reasoning model bumped from Opus 4.6 → Opus 4.7 (#1590)
-
-## 🚀 Features
-
-- Time-based usage analytics dashboard under `/metrics/usage` (#1574)
-- Multi-org support: users can belong to multiple organizations (#1573)
-
-## 🛠 Improvements
-
-- Tabs underline variant adopted across settings surfaces (#1571)
-
-## 🐛 Fixes
-
-- Fix prompt library sidebar scroll on short viewports (#1572)
-
-## Upgrade
-
-Run `tale upgrade` to update the CLI, then `tale deploy` to apply the new version.
-
-**Full Changelog**: https://github.com/tale-project/tale/compare/v1.5.2...v1.6.0
-```
-
-## Wo das einsetzt
-
-Das Release-Notes-Format ist der Vertrag zwischen Ruler GmbH und jedem Operator, der eine selbst gehostete Tale-Instanz fährt. Dasselbe Markdown, das die In-App-[Was ist neu](/de/platform/admin/changelog)-Ansicht rendert, ist das, was Operatoren vor `tale upgrade` konsultieren; konsistente Form ist, was die Notes überfliegbar macht. Der `/release`-Slash-Befehl im Haupt-Repository entwirft Notes nach diesem Vertrag. Für Security-Behebungen, die auch eine CVE-Offenlegung rechtfertigen, ist [Sicherheitshinweise](/de/self-hosted/operate/security/advisories) die parallele Oberfläche.
+Das Release-Notes-Format ist der Vertrag zwischen Projekt und Operator — dieselbe Form bei jedem Release, damit die Upgrade-Entscheidung ein Scan ist, kein tiefes Lesen. Die natürlichen nächsten Schritte sind [Upgrades](/de/self-hosted/operate/upgrades) für die Deploy-Mechanik und [Security-Advisories](/de/self-hosted/operate/security/advisories) für den langen Schwachstellen-Feed, in den der Security-Abschnitt verlinkt.

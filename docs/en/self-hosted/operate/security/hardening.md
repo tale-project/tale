@@ -1,0 +1,70 @@
+---
+title: Hardening
+description: The hardening checklist for a production Tale instance — non-root user, firewall, TLS, secret storage, audit-log retention, backups.
+---
+
+The defaults Tale ships with are safe for development and reasonable for a small production install. Going from "reasonable" to "ready for the regulator" is a checklist, not a configuration flag — every row below tightens one specific attack surface. Walk the list once before opening the URL to real users, and run it again after every major upgrade.
+
+The reference detail for each row lives elsewhere — TLS in [TLS and domains](/self-hosted/configuration/tls-and-domains), backups in [Backups and restore](/self-hosted/operate/backups-and-restore), retention in [Retention](/self-hosted/configuration/retention). This page is the index that names what to harden and points at the page that walks it.
+
+## Host
+
+| Item                           | Why it matters                                          |
+| ------------------------------ | ------------------------------------------------------- |
+| Non-root operator user         | Limits blast radius if the platform user is compromised |
+| SSH key auth only              | Password auth is the open door bots scan for            |
+| Unattended security updates    | Patches the OS without waiting for a maintenance window |
+| Host firewall (ufw / nftables) | Closes everything that is not 22, 80, 443               |
+| Disk encryption at rest        | Required if you run SOPS in plaintext mode              |
+
+The non-root user is the one most teams skip. Tale's containers run their own non-root processes inside, but the docker daemon itself runs as root — operating that daemon as the operator user (member of the `docker` group, not as root) is the cheapest tightening on this page. The full walk lives in [Production Linux server install](/self-hosted/install/linux-server).
+
+## Network
+
+The proxy is the only inbound surface. Block everything else.
+
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
+
+If you run trusted-headers auth, the platform port must not be reachable directly from anywhere except the upstream proxy — anything that can hit it with the right headers becomes that user. A Docker network or a host firewall rule both work; pick one and verify it from outside the host.
+
+## TLS
+
+`TLS_MODE=selfsigned` is for development. Production runs `letsencrypt` (or `external` if you front Tale with your own TLS-terminating proxy). The renewal cron is automatic; the alert that fires when renewal fails is what saves you 90 days later. See [TLS and domains](/self-hosted/configuration/tls-and-domains).
+
+## Secrets
+
+Every secret in `.env` is sensitive — the auth signing secret, the encryption key, the database password, the age key, the metrics bearer token. The minimum bar:
+
+- `.env` is mode 0600 and owned by the operator user.
+- `BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`, `INSTANCE_SECRET` are rotated off the example values that ship in `.env.example`.
+- `DB_PASSWORD` is changed from the default placeholder.
+- `SOPS_AGE_KEY` or `SOPS_AGE_KEY_FILE` is set — leaving both unset is supported but reserved for disk-encrypted hosts with external secret management.
+
+The full SOPS walk and rotation procedure lives in [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops).
+
+## Audit logs
+
+Audit logs are immutable and retention-bound. Compliance frameworks expect at least a year; the bound is enforced per-deployment, so the strictest org's setting is what actually runs. Set the floor in your operator config to match the loosest framework you support, and make sure backups capture audit-log rows along with the rest of the database. The retention reference lives in [Retention](/self-hosted/configuration/retention).
+
+## Backups
+
+A backup that has not been restored is a hope, not a backup. The minimum: daily Postgres dumps written by the `tale-db` cron, copied off-host within the hour, and a quarterly restore drill that rebuilds a working instance from the snapshot. The full procedure is in [Backups and restore](/self-hosted/operate/backups-and-restore).
+
+## Sandbox isolation
+
+Run-code is the riskiest surface in the product — the only place where user-supplied input becomes executed code. The defaults are already strict: `tale-sandbox-egress` enforces a host allowlist, `tale-sandbox` runs with no privileged caps, and the network between them is internal-only. The hardening lever is the allowlist itself — keep it short, prefer specific hosts over wildcards, and audit additions through the [run-code policy](/platform/admin/governance/run-code-policy) screen rather than by editing the file directly.
+
+## Monitoring
+
+`METRICS_BEARER_TOKEN` is unset in `.env.example` — that is intentional, so a fresh install does not leak metrics. Set the token, scrape from your Prometheus, and the alert thresholds in [Operations](/self-hosted/operate/observability/operations) cover the customer-impacting signals.
+
+## Where this fits
+
+Hardening is not a one-pass task — the list above is what to walk before launch, and re-walk after every upgrade or after every change to the network shape. The next thing worth reading after this is whichever row above you have not done yet.

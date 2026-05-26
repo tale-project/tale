@@ -1,90 +1,46 @@
 ---
-title: Status-Seite
-description: Die öffentliche /status-Oberfläche — was jede Komponente meldet, was das Rollup bedeutet und wie externe Monitore sie konsumieren.
+title: Status-Page
+description: Tales öffentliche Status-Page — was sie abdeckt, wie Incidents pro Service skopiert sind, wo der RSS-Feed lebt und worin sie sich von deinen Self-hosted-Metriken unterscheidet.
 ---
 
-Tale exponiert auf jeder Instanz eine öffentliche Status-Oberfläche unter `/status` (HTML) und `/status.json` (JSON). Beide spiegeln denselben Probe: einen fünf Sekunden gecachten Health-Check gegen die drei internen Backends — Anwendung, Wissensdatenbank, Web- & Dokumentendienste —, zusammengeführt zu einem einzelnen Urteil aus `operational` / `degraded` / `outage`. Die Seite ist für zwei Leser: den Betreiber, der eine einzelne URL prüfen will, bevor er einen Vorfall meldet, und den externen Monitoring-Agent, der Tales öffentliche Oberfläche pollt.
+Die Status-Page ist die kanonische Aufzeichnung der Verfügbarkeit von Tale Cloud. Jeder rotierbare Service hat seine eigene Status-Zeile, die Incident-Historie wird für den Audit-Pfad geführt, und die Seite ist der Kanal, den Tale während eines Incidents nutzt — bevor E-Mails rausgehen, bevor Support-Tickets beantwortet sind, wird die Seite aktualisiert.
 
-Diese Seite ist die Drahtreferenz: was jedes Feld bedeutet, welche Werte es annehmen kann und was die Seite absichtlich nicht sagt. Für Pro-Anfrage-Fehlerraten oder KI-Anbieter-Verfügbarkeit ist der Observability-Stack unter [Operations](/de/self-hosted/operate/observability/operations) die richtige Oberfläche.
+Lies das, wenn etwas sich seltsam verhält und du wissen willst, ob es nicht nur dich trifft. Abonnier den Feed, wenn du auf deiner Seite für die Integration verantwortlich bist — die Seite sagt dir, welcher Service degradiert ist, damit du den Alarm zum richtigen Team routen kannst, ohne die falsche Bereitschaft zu wecken.
 
-## Durchgespieltes Beispiel — den Status-Feed abrufen
+## Ein durchgespieltes Abonnement
 
-Der kleinstmögliche Monitor-Probe ist ein GET gegen `/status.json`:
+Die Status-Page liegt unter `https://status.tale.dev`. Abonnieren ist eine URL:
 
 ```bash
-curl -s https://your-tale-instance.com/status.json
+curl -sS https://status.tale.dev/history.rss
 ```
 
-Wenn alles gesund ist, ist die Antwort:
+Der RSS-Feed trägt jeden Status-Wechsel — offen, Update, gelöst — für jeden Service. E-Mail-Abonnement ist dasselbe Ein-Klick-Formular auf der Seite; der E-Mail-Kanal liefert dieselben Events mit fünf Minuten Debounce.
 
-```json
-{
-  "status": "operational",
-  "checkedAt": "2026-05-15T13:45:07.123Z",
-  "components": [
-    { "id": "convex", "status": "operational" },
-    { "id": "rag", "status": "operational" },
-    { "id": "crawler", "status": "operational" }
-  ]
-}
-```
+## Umfang pro Service
 
-Beide Endpoints antworten mit `200 OK` und `Cache-Control: public, max-age=5` — auch während eines Ausfalls, damit externe Monitore eine stabile Antwortform statt eines Timeouts bekommen.
+| Service    | Was er abdeckt                                                                          | Wann er rot wird                                            |
+| ---------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `platform` | Die TanStack-Start-+-Convex-Anwendung — Agents, Workflows, Integrations, UI.            | UI nicht erreichbar; API gibt 5xx; Auth defekt.             |
+| `rag`      | Der Python-FastAPI-Dokumentdienst — Indexierung, Retrieval.                             | Dokument-Uploads stocken; Retrieval ist leer.               |
+| `crawler`  | Der Crawl4AI-Web-Extraktionsdienst — verwendet von Document-Ingest und Tavily-Fallback. | Web-gezogene Dokumente scheitern; Deep Research stockt.     |
+| `proxy`    | Der Caddy-Edge — TLS-Terminierung, HTTP-Routing.                                        | Gesamter Tale-Cloud-Verkehr betroffen.                      |
+| `db`       | TimescaleDB — dauerhafter Zustand für die Convex-Schicht und Plattform-Metadaten.       | Schreiben abgelehnt; die platform-Zeile wird ebenfalls rot. |
 
-## Die beiden Endpoints
+Jede Zeile trägt die letzten 90 Tage Uptime als Sparkline. Ein Incident liest sich als farbiges Band auf der Zeile; ein Klick aufs Band öffnet den Verlauf — erstes Update, Folge-Updates, Auflösung, Post-Mortem, wenn eines ansteht.
 
-| Endpoint       | Verwendung                                                                                                                               |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `/status`      | Menschen-lesbare HTML-Seite. Sprache aus `Accept-Language` gewählt (Englisch, Deutsch, Französisch). Kein JavaScript, kein Auto-Refresh. |
-| `/status.json` | Maschinen-lesbarer Feed für externe Monitore — BetterStack, UptimeRobot, Atlassian Statuspage, Datadog Synthetics, alles andere.         |
+## Incident-Historie
 
-Beide Endpoints teilen denselben Probe (ein einzelner In-Memory-Cache liegt vor beiden), sodass HTML-Seite und JSON-Feed nicht driften können. Der Unterschied liegt nur in der Darstellung.
+Die Historie wird unbefristet aufbewahrt. Jeder Incident hält die betroffenen Services fest, die Kundenwirkungs-Aussage, den Verlauf und das Post-Mortem, wenn der Incident die Schwere-Schwelle reisst, die eines verlangt. Die Schwelle steht auf der Seite selbst; die Faustregel ist alles mit Cross-Org-Kundenwirkung und einer Dauer über 30 Minuten.
 
-## Drahtform (`/status.json`)
+Die Seite gehört der Bereitschafts-Rotation. Updates werden vom Engineer geschoben, der die Seite hält, nicht von einem automatisierten System — die Wahl ist bewusst, weil die Seite auch das Dokument ist, das nach dem Vorfall zu Kunden und Auditoren geht.
 
-| Name                  | Typ    | Beschreibung                                                                                                                  |
-| --------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `status`              | string | Rollup-Urteil: `operational` (jede Komponente verfügbar), `degraded` (einige verfügbar, einige nicht), `outage` (alle nicht). |
-| `checkedAt`           | string | ISO-8601-Zeitstempel der letzten Probe-Runde.                                                                                 |
-| `components`          | array  | Pro-Komponenten-Health. Form und Reihenfolge sind über Versionen hinweg stabil.                                               |
-| `components[].id`     | string | Stabiler Komponenten-Identifier: `convex`, `rag` oder `crawler`.                                                              |
-| `components[].status` | string | `operational` oder `outage`. Aktuell gibt es keinen Pro-Komponenten-`degraded`-Wert.                                          |
+## Self-hosted: was sich ändert
 
-Die Felder sind über Versionen hinweg stabil: neue Felder können hinzukommen, bestehende werden nicht umbenannt oder entfernt. Schlüsselwort-basierte Uptime-Monitore können auf den Case-sensitiven Substring `"status":"outage"` alarmieren und auf diesen Treffer über Upgrades hinweg vertrauen.
+Selbst gehostete Instanzen erscheinen nicht auf Tales Status-Page — die Seite deckt nur Tale Cloud ab. Für dein eigenes Deployment ist die Observability-Oberfläche im Produkt der richtige Kanal: Container-Gesundheit von `tale status`, Anfrage-Metriken aus den Caddy-Logs und das In-Product-Audit-Log für Control-Plane-Events. Die [Observability-Troubleshooting-Seite](/de/self-hosted/operate/observability/troubleshooting) bildet Symptome auf Logs ab.
 
-## Was jede Komponente abdeckt
+Wenn du eine selbst gehostete Instanz betreibst und eine kundenseitige Status-Page willst, betreib eines der quelloffenen Status-Page-Projekte gegen deine eigenen Probes — Tale liefert heute keines für Self-hosted-Betreiber aus.
 
-Die IDs mappen auf Subsysteme, nicht auf die zugrunde liegenden Stack-Namen — eine bewusste Wahl, damit die öffentliche Oberfläche lesbar bleibt, wenn sich der Stack ändert.
+## Wo das hingehört
 
-| ID        | Abgedeckt                                                                             |
-| --------- | ------------------------------------------------------------------------------------- |
-| `convex`  | Das Anwendungs-Backend (Lese-, Schreib-, Realtime-Sync). Ist das aus, ist die UI aus. |
-| `rag`     | Die Wissensdatenbank — neue Dokumente indizieren und bestehende durchsuchen.          |
-| `crawler` | Web- & Dokumentendienste — Site-Crawls und On-Demand-URL-Fetches.                     |
-
-Das Rollup ist auf Komponenten-Ebene binär: jedes Subsystem ist entweder erreichbar und liefert (`operational`) oder nicht (`outage`). Ein künftiger Pro-Komponenten-`degraded`-Wert (z. B. latenz-basiert) kann landen, ohne Konsumenten zu brechen, weil `status` schon das breitere `OverallStatus`-Vokabular akzeptiert.
-
-## Wie der Probe funktioniert
-
-Eine einzelne Probe-Runde verteilt drei HTTP-Anfragen parallel — eine an jeden Backend-Health-Endpunkt — mit zwei Sekunden Pro-Probe-Timeout. Das Ergebnis wird fünf Sekunden im Prozess-Speicher gecacht, damit eine nicht-authentifizierte `/status`-Route nicht von einem feindlichen Client zu einem Probe-Verstärker gemacht werden kann. Nur der HTTP-Status jedes Upstreams wird inspiziert; Antwort-Bodies werden sofort verworfen, sodass ein sich fehlverhaltender Upstream keine Bytes in die öffentliche Antwort drücken kann.
-
-Der Platform-Prozess selbst ist im Rollup implizit: wenn `/status` überhaupt antwortet, ist die Platform erreichbar. `outage` heisst also, dass jeder Backend-Probe fehlschlug — das ist, was Nutzer effektiv sehen, weil keiner der nutzerseitigen Flows ohne mindestens einen der drei funktioniert.
-
-## Was nicht auf der Seite ist
-
-`/status` ist eine grobkörnige Oberfläche — „ist die Plattform erreichbar" — keine Metrik-Health-Ansicht. Die Seite meldet nicht:
-
-- **Pro-Anfrage-Fehlerraten.** Nutze den Sentry-Stack unter [Operations](/de/self-hosted/operate/observability/operations).
-- **KI-Anbieter-Verfügbarkeit.** Die eigene Status-Seite des Anbieters ist die autoritative Quelle dafür.
-- **Queue-Tiefe, Latenz-Histogramme oder Pro-Mandanten-Metriken.** Die liegen in den Prometheus-Endpoints, ebenfalls unter Operations abgedeckt.
-- **Nur-interne Dienste.** Die Datenbank, der Proxy, die Hintergrund-Worker — ihre Fehlermodi laufen ohnehin durch eine der drei genannten Komponenten, also würde sie separat zu exponieren Rauschen ohne Information hinzufügen.
-
-## Was zu scrapen ist
-
-Für einen externen Uptime-Monitor GET `/status.json` in dem Intervall, das zum Alarm-Fenster passt — 1–5 Minuten sind typisch. Die Antwort ist klein (~500 Bytes) und der Endpunkt ist nicht authentifiziert; er gatet absichtlich nicht hinter einem Login, damit Monitore ihn ohne Anmelde-Provisioning erreichen.
-
-Für internes Alarming, das tiefer geht als das Rollup, scrape stattdessen die Prometheus-Endpoints unter [Operations](/de/self-hosted/operate/observability/operations). `/status` ist die URL, die du in einen Incident-Channel postest; Prometheus ist die URL, die Grafana abfragt.
-
-## Wo das einsetzt
-
-Die Status-Seite ist die leichteste Operator-Oberfläche — die URL, die jemand vor dem Melden eines Vorfalls trifft, der Endpunkt, den ein Drittanbieter-Monitor pollt. Das API-Gegenstück zu dieser Seite ist der Rest der [API-Referenz](/de/develop/api-reference); der tiefere Observability-Stack für selbst-gehostete Betreiber liegt unter [Operations](/de/self-hosted/operate/observability/operations), und der In-App-Kommunikations-Kanal für Upgrades und bekannte Probleme ist [Was ist neu](/de/platform/admin/whats-new).
+Die Status-Page ist der operative Kanal; [Vertrauen und Compliance](/de/cloud/trust-and-compliance) ist der Audit-Kanal und listet die Seite als Beleg für die Infrastruktur-Verfügbarkeits-Kontrolle. Wenn du Tale in eine Pipeline verdrahtest und die Integration auf einen Tale-Ausfall reagieren soll, ist der RSS-Feed der Eingang; wenn du das hier liest, weil gerade etwas in deiner Integration scheitert, listet die [API-Referenz](/de/develop/api-reference) die Error-Codes, auf die du verzweigen solltest.

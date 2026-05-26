@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { stubsForLocale } from '@tale/ui/i18n/tests';
 import { describe, it } from 'vitest';
 
-import { stubsForLocale } from './data/heading-stubs';
 import { assertNoFindings, type Finding } from './lib/findings';
 import { extractHeadings, parseFrontmatter } from './lib/markdown';
 import { CONTENT_ROOT } from './lib/paths';

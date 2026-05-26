@@ -1,47 +1,34 @@
 ---
-title: Nouveautés
-description: Le visualisateur de changelog in-app — notes de version pour la version Tale que ton instance fait tourner, rafraîchies à chaque mise à niveau et pilotées par badge afin que les utilisateurs voient les changements sans quitter le produit.
+title: Changelog
+description: Le visualiseur de releases in-produit qui montre ce qui a changé dans la plateforme Tale elle-même. Les Administrateurs lisent ceci après une mise à jour pour voir ce qui a atterri et partager les points saillants avec l'org.
 ---
 
-La boîte **Nouveautés** est le visualisateur de changelog in-app. Après l'arrivée d'une version — que ce soit l'édition Cloud qui a roulé automatiquement ou `tale deploy` qui a terminé sur une instance auto-hébergée — un petit badge apparaît à côté de l'avatar de chaque utilisateur et pointe vers les nouvelles entrées. Ouvrir la boîte affiche les notes de version pour la version sur laquelle se trouve l'instance, plus chaque version antérieure depuis le dernier marquage comme lu par l'utilisateur. Le public, c'est tout le monde dans le produit : les Membres voient ce qui a changé dans leur interface, les Admins lisent les mêmes notes pour savoir quoi communiquer à l'équipe.
+Le changelog est le visualiseur in-produit qui montre les notes de version pour la plateforme Tale elle-même — pas pour le contenu que tes membres produisent. Après une mise à jour auto-hébergée ou un déploiement en cloud géré, le visualiseur liste ce qui a changé entre la version précédente et celle qui tourne maintenant. Les Administrateurs le lisent après une mise à jour pour briefer l'équipe et signaler tout ce qui affecte le travail des membres.
 
-Cette page est pour les Admins et les Développeurs qui doivent comprendre comment la boîte se rend, d'où vient son contenu et ce qui entre ou sort du périmètre. L'Admin ne configure pas la boîte ; badge et contenu sont entièrement pilotés par les versions publiées.
+Le visualiseur lit les notes de version depuis le dépôt Tale sur GitHub et les met en cache dans ton instance pour que la page charge même quand GitHub est injoignable.
 
-## Comment la boîte atteint le lecteur
+## Où vit le changelog
 
-Tale affiche le badge au moment où une version avec des changements visibles aux utilisateurs est détectée. Cliquer le badge ouvre la boîte. Chaque entrée porte un numéro de version, une date de sortie et un corps Markdown décrivant ce qui a changé dans cette version.
+Le changelog a deux surfaces. La page **Quoi de neuf** sous **Aide** liste chaque release récente avec ses notes complètes. Le **toast de mise à jour** se déclenche une fois par saut de version majeure et renvoie directement à la page — le toast montre `Mis à jour vers v<version>` et reste jusqu'à fermeture pour qu'un membre absent ne manque pas l'info.
 
-Le badge s'efface quand la boîte est reconnue — pas à la simple ouverture. Un utilisateur qui ferme la boîte sans dérouler chaque nouvelle entrée voit toujours le badge à la session suivante, de sorte que l'indicateur se comporte comme un compteur de non-lus plutôt qu'une notification ponctuelle.
+Ouvre la page depuis le menu d'aide dans la barre supérieure, ou depuis le toast de mise à jour quand il apparaît. La page met en cache environ trente releases récentes ; les plus anciennes renvoient vers l'historique des releases GitHub.
 
-Quand une instance saute plusieurs versions en une seule mise à niveau — par exemple `v1.4` à `v1.6` parce que `v1.5` a été sautée — la boîte liste chaque version intermédiaire dans l'ordre chronologique. Rien entre les deux extrémités ne disparaît à cause du saut.
+## Ce que chaque entrée montre
 
-## D'où vient le contenu
+Chaque entrée de release porte quatre champs : le tag de version, la date de publication, le nom de la release (souvent un titre court) et le corps de la release en Markdown. Tale rend le corps comme GitHub — titres, listes, liens et blocs de code survivent tous. Les releases que GitHub n'a pas encore publiées affichent une courte carte explicative avec un lien vers l'historique public des releases.
 
-Les notes de version sont publiées au format canonique décrit dans [Format des notes de version](/fr/self-hosted/operate/release-notes/format) sur le dépôt GitHub du projet. La plateforme va chercher les notes de chaque version visible pour l'édition courante à l'installation et à la mise à niveau, les met en cache localement, et rend les sections par version via le même renderer Markdown que le reste de la doc.
+## Portée
 
-Le chemin de rendu est court :
+Le changelog est le changelog de la plateforme — ce qui a changé dans Tale lui-même. Il ne montre pas les changements à tes agents, à tes workflows ou à ta base de connaissances ; ceux-là ont leur propre historique par ressource. Si tu cherches l'historique de version d'un agent ou d'un workflow, ouvre la ressource et passe à l'onglet **Historique**.
 
-1. CI publie les notes à chaque tag de release.
-2. La plateforme tire le Markdown canonique à l'installation et à la mise à niveau.
-3. La boîte rend chaque section par version, la plus récente en premier.
-4. Le compteur du badge s'incrémente dès que les notes d'une nouvelle version arrivent.
+Le visualiseur est en lecture seule et visible pour chaque membre connecté. Il n'y a pas de flag Admin-seul — quiconque a un compte peut ouvrir la page. Les données que le visualiseur récupère sont des informations publiques de release du dépôt GitHub Tale, donc il n'y a rien de portée-org à cacher.
 
-Si une instance auto-hébergée est hors-ligne ou ne peut pas atteindre GitHub, la mise à niveau se termine quand même — la boîte se replie sur les notes embarquées dans l'artefact de release plutôt que bloquer sur la requête réseau.
+## Une mise à jour mise en pratique
 
-## Ce qui est dans le périmètre, ce qui ne l'est pas
+Après une mise à jour auto-hébergée de `v0.42` à `v0.45`, connecte-toi et cherche le toast de mise à jour en haut à droite. Clique sur **Voir** pour ouvrir la page changelog. La page montre trois entrées de release (`v0.43`, `v0.44`, `v0.45`), les plus récentes en premier, chacune avec les notes écrites par les ingénieurs depuis la release GitHub. Parcours les points saillants, partage le lien avec l'équipe si quelque chose mérite un public plus large, et le toast s'efface au prochain rechargement.
 
-Le changelog in-app reflète les notes de version GitHub canoniques. Le contenu est identique ; seule la surface diffère. Les changements couverts sont ceux qu'un utilisateur remarquerait : nouvelles fonctionnalités, ruptures de compatibilité, correctifs que le lecteur peut vérifier, et notes de migration pour les mises à niveau qui exigent une action de l'opérateur.
+Quand la mise à jour dépasse la fenêtre cachée, la page montre les entrées les plus récentes avec une bannière qui renvoie à GitHub pour les notes plus anciennes. Le cache reste chaud pour le prochain lecteur sur ton instance.
 
-Hors périmètre, par conception :
+## Où ça s'inscrit
 
-- **Changements purement infrastructure** — bumps de dépendances, refactorings internes, ajustements CI. Ça vit dans l'historique git.
-- **Notes opérationnelles spécifiques au Cloud** — incidents et maintenance planifiée vont sur la [page de statut](/fr/develop/status-page), pas dans le changelog.
-- **Annonces de roadmap** — le site marketing porte ça ; le changelog ne décrit que les versions livrées.
-
-Pour les détails côté opérateur d'une mise à niveau — les flags CLI exacts, les réserves de rétrogradation, les variables d'env dépréciées — [Format des notes de version](/fr/self-hosted/operate/release-notes/format) est la source faisant autorité.
-
-## Où cela s'insère
-
-Le changelog est la moitié côté utilisateur de chaque release. Les opérateurs lisent les notes de version GitHub avant de lancer `tale deploy` pour planifier les actions ; tout le monde dans le produit lit la boîte in-app après l'arrivée de la mise à niveau pour apprendre ce qui a changé. Ensemble, les deux surfaces couvrent les deux bouts de chaque release.
-
-Pour l'état en direct de l'édition Cloud — incidents, maintenance, statut par région — [Page de statut](/fr/develop/status-page) est la surface à lire à la place. Pour le catalogue historique de notes de version sur chaque version, la référence [Format des notes de version](/fr/self-hosted/operate/release-notes/format) est l'endroit où vivent les entrées canoniques.
+Le changelog est la lecture opérateur de ce que Tale lui-même vient de faire ; il se tient à côté du journal d'audit (qui enregistre ce que tes membres ont fait) et de la page fournisseurs (qui suit quelles versions de modèles sont câblées). Combine-le avec [mise à jour auto-hébergée](/fr/self-hosted/operate/upgrades) quand tu opères l'instance — le guide de mise à jour parcourt le saut de version, et le changelog en lit le résultat de l'autre côté.

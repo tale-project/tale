@@ -1,36 +1,40 @@
 ---
 title: Agents in chat
-description: Pick a specialised agent from the composer to scope knowledge, restrict tools, and route conversations through the right voice.
+description: How the agents picker works in Chat — which agents appear, what "Visible in chat" controls, one-shot versus sticky agents, switching mid-thread, and sub-agent calls.
 ---
 
-An agent is a version of the AI tailored for a specific job — a support agent answering customer questions from the help-centre folder, a sales-research agent allowed to call the web, an internal-research agent with read-only access to engineering documents. Each agent carries its own instructions, knowledge scope, and tool permissions, and the chat composer lets you pick which agent answers a given conversation. The audience is anyone in the product: Members pick agents the team has shipped, Editors and Developers build new ones.
+Picking an agent in Chat is the difference between asking a generic Assistant and asking something the org has shaped for a domain. The agents picker is the most-used control in the composer; the rules behind which agent appears, when an agent persists, and what happens when you switch mid-chat are the subject of this page.
 
-This page covers the runtime behaviour of agents inside chat — switching the active agent, reading conversation starters, watching delegation hand the conversation off to a specialist. The mental model for what an agent _is_ lives at [Agent concepts](/platform/agents/concepts); building one is at [Create an agent](/platform/agents/create).
+The picker is conceptually simple — type a name, hit enter — but the rules about visibility and stickiness cause most "why can I not see this agent" support tickets in the wild. Knowing the rules saves the round trip.
 
-## Switch the active agent
+## The agents picker
 
-To route a conversation through a specific agent, open the agent selector (the bot icon in the bottom-left of the composer), scroll to the agent, and click it. The next message goes to the new agent's instructions, knowledge scope, and tools; the conversation header updates to show the active agent. Switching mid-conversation is allowed — the new agent reads the existing transcript before its first reply, so the context isn't lost.
+Click **Select agent** on the composer (or the chip showing the currently picked agent) and the picker opens with **Search agents** at the top. The list shows every agent the user has access to that is marked **Visible in chat**; agents without that toggle exist in the org but never surface in the picker, which keeps the list short. **Add agent** at the bottom is a shortcut for Editors and above to create a new one — see [Create an agent](/platform/agents/create).
 
-Each conversation remembers its selected agent. Starting a new chat resets the picker to the default Assistant that ships with Tale.
+## "Visible in chat"
 
-## Conversation starters
+Every agent has a **Visible in chat** toggle on its instructions page. Turning it off does not disable the agent — automations and workflows can still call it; sub-agent calls from other agents still work — it just hides the agent from the chat picker. The reasoning: organisations end up with dozens of agents the average user never picks (utility agents called by other agents, agents bound to a specific workflow), and surfacing them all would drown the everyday picks.
 
-When the active agent has **starters** configured, a row of clickable suggestions appears on a fresh conversation. Click one to send it as the first message — it's faster than typing the prompt by hand, and it's a good way to see what the agent was built to handle. Starters are configured per agent on the **Agents > [agent] > Starters** tab; an agent with no starters shows an empty composer.
+## One-shot versus sticky
 
-## Why switch agents
+Picking an agent **before** the first message in a chat makes it sticky — every subsequent message in the same chat goes to the same agent. Picking an agent **mid-chat** applies it to the next message and everything after, until you switch again. There is no "use this agent once and revert" gesture; to revert to the generic Assistant, pick **Assistant** in the picker explicitly. The transcript keeps the per-message agent, so a chat with a mid-stream switch reads as two agents collaborating.
 
-Three reasons readers reach for a non-default agent. A narrower knowledge scope gives sharper answers — a support agent that searches only the help-centre folder doesn't get distracted by internal engineering documents. A trimmer tool list keeps exploratory questions safe — a read-only research agent with every write operation toggled off can't accidentally update a ticket. A different voice changes the output shape — agents can be configured with distinct tones, output formats (Markdown, JSON, plain prose), and strictness.
+## Switching mid-thread
 
-The single biggest quality lever is the agent's instructions. Most "the AI keeps doing X" complaints trace back to a missing or wrong sentence in the system prompt, not a wrong model.
+The agent's knowledge and tools change with the picker, but the conversation history does not. The new agent reads everything that came before — your messages and the previous agent's replies — and continues from there. This is useful for handoffs: a triage agent answers the first message, you switch to a specialist for follow-up, the specialist has the full context without anyone copy-pasting.
 
-## Delegation hand-offs
+## Sub-agent calls
 
-Some agents are configured to **delegate** to specialists when the topic drifts. If a general support agent receives a billing question and has a billing-specialist agent registered as a delegation target, it hands the conversation off automatically. The hand-off shows in the transcript as a short note naming the new agent, and replies from that point onwards come from the delegate's instructions.
+An agent's instructions can include a sub-agent tool; when it does, the primary agent can delegate part of the work without the user picking anything. Sub-agent calls render in the reply as collapsed tool calls — the user sees what was delegated and what came back, not a full second conversation. Delegation rules and the loop-prevention model live on [Agent delegation](/platform/agents/delegation).
 
-Delegation is opt-in per agent. To enable it, open the agent's **Delegation** tab and pick which agents it can hand off to, with the topic or condition that triggers the hand-off. The configuration surface is documented at [Create an agent](/platform/agents/create).
+## When to reach for each shape
+
+| Use … when                                        | Chat | Projects | Conversations |
+| ------------------------------------------------- | ---- | -------- | ------------- |
+| Personal task, one-off question                   | ✓    |          |               |
+| Shared workspace across a team, recurring threads |      | ✓        |               |
+| Inbound from a customer channel (email, webhook)  |      |          | ✓             |
 
 ## Where this fits
 
-The agent picker is how the right specialist answers each question — instead of forcing one generic Assistant to cover every topic, you pick the agent built for the topic. Member roles can use whatever the team has shipped; Editor or higher is required to build a new agent.
-
-To build a specialist, start with [Agent concepts](/platform/agents/concepts) for the four-knob mental model, then walk [Create an agent](/platform/agents/create) end to end.
+Agents in Chat is the user-facing half of the agents story — what the picker does, what shows up, how stickiness works. The build-facing half is [Agent concepts](/platform/agents/concepts): the four knobs that determine what an agent does once picked. If you came here to build the agent you wish were in the picker, that is the next read.

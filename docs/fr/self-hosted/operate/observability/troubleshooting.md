@@ -1,45 +1,99 @@
 ---
 title: Dépannage
-description: Carte symptôme-d'abord des problèmes que les opérateurs rencontrent vraiment sur une instance Tale en marche, avec les correctifs qui ont tenu en pratique.
+description: Index par symptôme pour les problèmes que les opérateurs ont réellement rencontrés sur des instances Tale — ce que l'utilisateur rapporte, ce qui est cassé et quoi faire à ce sujet.
 ---
 
-Cette page cartographie les problèmes que les opérateurs ont rencontrés sur une instance Tale en marche avec les correctifs qui ont fonctionné. La liste est courte exprès — un catalogue exhaustif de modes de défaillance encourage à survoler le symptôme qui correspond au tien. Parcours les sous-titres jusqu'à ce qu'un colle, puis lis la prose en dessous ; tout ce qui n'est pas listé ici est assez rare pour que le chemin de diagnostic soit le même dans tous les cas : lis les journaux, puis ouvre une issue.
+Cette page est la recherche par symptôme quand quelque chose ne va pas, là, tout de suite. Chaque section commence par ce que l'utilisateur rapporte réellement — ce que le navigateur affiche, sur quoi l'agent échoue, ce que l'écran de téléversement dit — et remonte à la cause et au fix. Tout ce qui n'est pas listé ici est candidat pour une nouvelle section dès qu'il s'est présenté deux fois.
 
-Pour tout symptôme qui n'est pas ci-dessous, le drapeau `--verbose` du CLI `tale` plus les journaux de conteneur par service (voir [Exploitation — Journaux](/fr/self-hosted/operate/observability/operations#logs)) font presque toujours remonter la cause racine. Quand ça ne suffit pas, ouvre une issue sur [GitHub Issues](https://github.com/tale-project/tale/issues) avec la sortie verbose du CLI et l'extrait de journal pertinent attaché.
+Le côté proactif — signaux qui méritent une alerte, ce qu'il faut câbler à Prometheus — vit dans [Opérations](/fr/self-hosted/operate/observability/operations). Cette page est pour le moment après que la page a sonné.
 
-## La plateforme ne reporte jamais sain
+## Le navigateur voit 502 ou « Bad Gateway »
 
-Un conteneur `platform` frais met jusqu'à trois minutes avant que `/tmp/platform-ready` atterrisse, parce que l'entrypoint attend que la synchronisation d'environnement finisse et que `bunx convex deploy` pousse le jeu de fonctions avant de signaler sain. Les lignes `200 OK` de la sonde de santé du proxy arrivent bien avant — elles ne veulent pas dire que l'interface est joignable.
+Le conteneur `tale-proxy` a joint la plateforme, mais la plateforme n'a pas répondu. Soit `tale-platform` est down, soit son endpoint de santé est injoignable. Vérifie l'état du conteneur en premier :
 
-Surveille `docker compose logs -f platform` et attends la ligne `Tale Dev v0.x.x  Ready.`. Si elle n'arrive jamais, trois causes sont courantes. La plus fréquente est un service `convex` injoignable — l'étape de déploiement de la plateforme a besoin que Convex soit en marche avant de pouvoir pousser les fonctions, donc un conteneur Convex qui crashe au démarrage entraîne la plateforme avec lui. La deuxième est un secret mal formé dans `.env` que la synchronisation d'environnement rejette ; cherche `[env-sync] rejecting key` dans les journaux Convex. La troisième est la RAM de l'hôte : la topologie blue-green fait tourner les deux couleurs pendant la bascule, et sur un hôte 8 Go le conteneur green est tué avant son déploiement. Monter l'hôte à 12 Go est la correction.
+```bash
+docker compose ps tale-platform
+docker compose logs --tail=200 tale-platform
+```
 
-## « DB_PASSWORD must be set » sur chaque service
+Si le conteneur redémarre, les logs en bas montrent la raison du crash — habituellement une variable d'env mal configurée (mismatch `SITE_URL`, `BETTER_AUTH_SECRET` manquant) ou un échec de connexion Postgres. Fix l'env, redémarre, réessaie. Si le conteneur est sain mais que le navigateur voit encore 502, le proxy est le suspect — `docker compose restart tale-proxy` règle la plupart.
 
-`DB_PASSWORD` gate quatre services, et chacun fait remonter une erreur légèrement différente quand la valeur manque :
+## Le navigateur voit un avertissement TLS
 
-- `ERROR: DB_PASSWORD or POSTGRES_PASSWORD must be set` depuis le conteneur de base de données.
-- `ERROR: DB_PASSWORD or POSTGRES_URL must be set` depuis la plateforme.
-- `ERROR: DB_PASSWORD or RAG_DATABASE_URL must be set` depuis le service RAG.
-- `ERROR: DB_PASSWORD or CRAWLER_DATABASE_URL must be set` depuis le crawler.
+`TLS_MODE=selfsigned` est la cause la plus commune — le navigateur ne fait pas confiance à la CA interne de Caddy à la première visite. Soit fais confiance à la CA sur l'hôte (`docker exec tale-proxy caddy trust`), soit bascule sur `TLS_MODE=letsencrypt` pour un vrai certificat. Le walk complet des modes vit dans [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains).
 
-Ouvre `.env`, pose `DB_PASSWORD` sur une valeur non vide et relance `tale start` (ou `docker compose up`). La variable est lue au démarrage du conteneur, donc un stack en marche ne la prend pas tant que tu ne l'arrêtes pas et ne le redémarres pas. Quand tu te connectes à un Postgres externe, pose `POSTGRES_URL` à la place et laisse `DB_PASSWORD` non défini — les quatre services lisent alors l'URL directement. Le schéma complet vit sur [Déploiement en production — Utiliser une base de données externe](/fr/self-hosted/install/linux-server#using-an-external-database).
+Si le mode est déjà `letsencrypt`, vérifie les logs du proxy pour les échecs ACME — DNS qui ne résout pas vers l'IP publique de l'hôte et port 80 injoignable depuis l'Internet public sont les deux causes communes.
 
-## Les éditions de clé de fournisseur ne prennent pas effet
+## L'UI charge mais aucune donnée n'apparaît
 
-La configuration de fournisseur sous `$TALE_CONFIG_DIR/providers/<name>.json` (et le `.secrets.json` correspondant) est surveillée par le conteneur Convex — enregistrer depuis **Paramètres > Fournisseurs IA** ou éditer le fichier à la main déclenche le même rechargement. Deux cas cassent ça.
+Le shell UI sont des assets statiques servis par `tale-platform` ; tout le reste circule par `tale-convex` sur un WebSocket. Quand le WebSocket ne peut pas se connecter, le shell charge et reste vide. Symptômes : spinners qui ne se résolvent jamais, toasts « reconnecting », le champ de chat qui n'accepte jamais un message.
 
-Le premier, c'est le fichier de secrets chiffré SOPS quand `SOPS_AGE_KEY` n'est plus défini. Le format de fichier est auto-descriptif, donc le loader refuse d'écraser du contenu chiffré avec du texte clair pour empêcher la perte de données — ça aurait l'air d'un opérateur qui aurait silencieusement rétrogradé son stockage de secrets. Restaure la clé age, ou supprime le fichier chiffré avant de réenregistrer. Le flux complet est sur [Fournisseurs — Changer de mode](/fr/self-hosted/configuration/providers#switching-modes).
+```bash
+docker compose logs --tail=200 tale-convex
+```
 
-Le deuxième, c'est quand le fichier est édité depuis le mauvais point de montage. Le compose de Tale monte `convex-data:/app/data` en écriture sur le service convex, et le même volume en lecture seule sur platform, RAG et crawler. Édite les fichiers depuis l'hôte (le chemin hôte mappé dans `/app/data/platform-config` sur le conteneur convex) ou passe par l'interface ; un `vi` en conteneur contre le montage en lecture seule échoue silencieusement pour les services voisins et n'atteint jamais la veille.
+Le conteneur convex redémarre probablement (cherche `panic` dans les logs) ou est injoignable depuis le proxy. Redémarre avec `docker compose restart tale-convex` — les sessions sont côté serveur et les clients se réabonnent à la reconnexion, donc le redémarrage est sûr.
 
-## Les documents restent « en indexation » indéfiniment
+## Téléversements bloqués en « indexation »
 
-L'indexation de documents est un pipeline en plusieurs étapes : le service RAG extrait le texte, le découpe en morceaux, génère des embeddings contre un fournisseur tagué embedding, et écrit les morceaux et les entrées vectorielles dans ParadeDB. Un PDF de cent pages prend quelques minutes ; un export de mille pages peut prendre une demi-heure. La progression est visible par fichier sous **Base de connaissances > Documents**.
+Le conteneur RAG indexe les téléversements en asynchrone. Un long état « indexation » signifie soit que la file est engorgée, soit que le conteneur a arrêté de la consommer. Vérifie la profondeur de la file via l'endpoint de métriques :
 
-Quand l'indexation se bloque indéfiniment, deux causes dominent. Le fournisseur tagué embedding est soit mal configuré, soit en train de rate-limiter — regarde `docker compose logs rag` pour des lignes `provider error` qui nomment le fournisseur défaillant et le code HTTP que l'amont a retourné. Ou le Postgres externe sur lequel tu as pointé Tale n'a pas l'extension `vector` ; le symptôme est `extension "vector" is not available` dans les journaux RAG. Installe pgvector sur l'instance externe d'après [Déploiement en production — Utiliser une base de données externe](/fr/self-hosted/install/linux-server#using-an-external-database).
+```bash
+curl -H "Authorization: Bearer $METRICS_BEARER_TOKEN" \
+  https://$HOST/metrics/rag | grep queue_depth
+```
 
-## Où trouver de l'aide
+Si la profondeur monte sans drainer, redémarre RAG : `docker compose restart tale-rag`. Le conteneur reprend où il s'est arrêté ; les téléversements n'ont pas besoin d'être re-soumis. Si la file est vide mais un téléversement spécifique est bloqué, le fichier lui-même est le suspect — les PDFs corrompus et les documents protégés par mot de passe atterrissent en état d'échec et exigent suppression + re-téléversement.
 
-Les journaux sont le premier endroit où regarder — `docker compose logs -f` pour un flux en direct, `tale logs <service> --tail 200` quand le stack tourne sous `tale deploy`. Le smoke test des conteneurs (`bun run docker:test`) valide le stack complet depuis un état propre et attrape les conflits de port et la dérive de dépendances sur un hôte de développement avant qu'ils n'atteignent la production.
+## Les réponses chat s'arrêtent au milieu du stream
 
-Pour les problèmes qui survivent à une lecture de journal, ouvre une issue sur [GitHub Issues](https://github.com/tale-project/tale/issues) avec la sortie verbose du CLI et le fragment de `compose.yml` que tu fais tourner. Les découvertes liées à la sécurité passent par [Avis de sécurité](/fr/self-hosted/operate/security/advisories) à la place, où un brouillon privé précède la divulgation publique jusqu'à ce qu'un correctif soit disponible.
+Le stream de tokens depuis le fournisseur amont est tombé — soit le fournisseur a rate-limité, soit la connexion a timeouté, soit le service du fournisseur est dégradé. Vérifie la page de statut du fournisseur d'abord ; puis regarde dans les logs plateforme :
+
+```bash
+docker compose logs --tail=200 tale-platform | grep -E "429|503|stream"
+```
+
+Un `429` est le cas commun. Soit le budget de l'org touche le rate limit du fournisseur, soit la clé fournisseur elle-même est throttlée. Basculer le modèle par défaut de l'org sur un fournisseur moins chargé efface le symptôme pendant que l'amont refroidit.
+
+## La sauvegarde échoue avec un toast « saving failed »
+
+Le conteneur convex n'a pas pu écrire dans Postgres. Soit `tale-db` est down, soit son disque est plein :
+
+```bash
+docker compose ps tale-db
+docker compose exec db df -h /var/lib/postgresql/data
+```
+
+Un disque à 100 % est l'échec qui produit le plus de visages surpris. Libère de l'espace, redémarre `tale-db`, et les écritures en file flushent. Si le disque a de l'espace, le suspect est l'épuisement du pool de connexions ou un lock — redémarre `tale-convex` pour vider le pool.
+
+## L'outil « Exécuter du code » échoue avec « egress denied »
+
+Le conteneur `tale-sandbox-egress` est le seul chemin réseau sortant pour le code en sandbox ; s'il est down ou mal configuré, chaque requête sortante de la sandbox échoue en mode fermé. Vérifie le conteneur egress d'abord :
+
+```bash
+docker compose ps tale-sandbox-egress
+docker compose logs --tail=100 tale-sandbox-egress
+```
+
+Si le conteneur est sain, la requête a touché l'allowlist. La liste des hôtes permis vit dans la [politique run-code](/fr/platform/admin/governance/run-code-policy) ; ajoute la destination ou réécris l'appel d'outil de l'agent pour utiliser un hôte autorisé.
+
+## Le sign-in revient en boucle à l'écran de sign-in
+
+`SITE_URL` ne correspond pas à ce que le navigateur a effectivement demandé. Les cookies d'auth sont scope sur l'URL où la requête a atterri ; un mismatch (slash en queue, port manquant, `http` vs `https`, préfixe base-path) signifie que le cookie posé au callback n'est pas envoyé à la prochaine requête.
+
+Fix `.env` :
+
+```bash
+SITE_URL=https://tale.example.com  # exactement ce que l'utilisateur tape
+```
+
+Recrée le conteneur plateforme (`docker compose up -d --force-recreate tale-platform`) pour que le changement atterrisse dans le HTML rendu.
+
+## Où obtenir de l'aide
+
+Les instances auto-hébergées ne téléphonent pas à la maison, donc le support commence chez toi. Les deux canaux :
+
+- **GitHub Issues** — bugs et problèmes reproductibles. Le tracker [tale-project/tale](https://github.com/tale-project/tale/issues) a un template qui demande le bundle de diagnostics que `tale diagnostics` produit.
+- **Discord** — questions, débats de configuration, triage « est-ce un bug ». L'invitation vit dans le README du repo.
+
+Des diagnostics reproductibles rendent chaque canal plus rapide. `tale diagnostics` collecte les logs assainis, les variables d'env (secrets caviardés) et la santé des conteneurs dans une archive unique qui vaut la peine d'être attachée.

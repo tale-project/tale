@@ -1,46 +1,44 @@
 ---
 title: Teams
-description: Group members into teams to scope which documents, conversations, and agent knowledge each group sees by default.
+description: Teams are named groups of members that share access to agents, prompts, projects, and integrations. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer.
 ---
 
-Teams are how you slice an organisation into Engineering, Sales, Support, Legal — or whatever shape your company actually has — and decide which knowledge each slice sees by default. A team is a soft grouping: it does not change roles, it does not change permissions, and it does not gate sign-in. What it does change is which documents and conversations surface in each member's filtered views, which knowledge an agent will search, and which scope a Governance rule (a budget, a default model, a feature flag) applies to. The page lives under **Settings > Teams** and is Admin-only.
+A team is a named group of members that shares access to agents, prompts, projects, integrations, and conversations. Where roles define what a person _can_ do, teams define which slice of the org's data that person works in. Most orgs end up with a handful of teams — support, sales, ops — and most of the day-to-day permission decisions land on the team boundary, not the role boundary. Admins manage teams under **Settings > Teams**.
 
-The same member can belong to any number of teams. Most organisations end up with three to ten — more becomes hard to maintain because every filter and every team-scoped Governance rule now has to be authored against more slices than anyone tracks.
+This page is the reference for what a team owns, how membership works, and how the team boundary interacts with the role-based permissions documented under [Members and roles](/platform/admin/members-and-roles). Read it once when you stand up the org's teams; come back when you reorganise.
 
-## Create a team
+## What a team owns
 
-Open **Settings > Teams** and click **Create team**. The dialog asks for two fields:
+A team holds membership and a set of resources scoped to it. The resources are:
 
-1. **Team name** — short, since it appears in filter menus across the UI. Required.
-2. **Members** — the checklist below the name picks which members join the team. A member can be on any number of teams; if you leave the checklist empty, the Admin who created the team is added automatically so the team has at least one occupant.
+- **Agents** — agents created with a team scope are visible and editable only by members of that team. Org-wide agents stay visible to everyone with the right role.
+- **Prompts** — saved prompts with `Team` visibility appear only to that team's members. Personal prompts stay private to their owner; Global prompts are visible org-wide.
+- **Projects** — projects can be assigned to a team; the team's members inherit project access without being added one by one.
+- **Integrations** — integrations restricted to certain teams (under the **Allowed teams** lever on **Settings > Integrations**) only appear in pickers for those teams.
+- **Conversations** — customer-channel conversations can be routed to a team; the inbox filter respects the team scope.
 
-Click **Create team**. The team appears in the table with its name, member count, and creation date. Members can be added or removed later from the team's detail row via **Members**.
+A resource without a team scope stays visible to everyone whose role allows it. Teams are an _additive_ scoping layer — they narrow visibility, never widen it.
 
-## What teams actually scope
+## Creating a team
 
-| Surface              | What team membership controls                                                                                                                                                           |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Documents**        | A document can be tagged to one or more teams at upload. Members see only documents tagged to their teams when a team filter is active.                                                 |
-| **Conversations**    | A conversation can be assigned to a team. Team-scoped inboxes let Support see support threads and Sales see sales threads without cross-pollution.                                      |
-| **Agents**           | An agent's **Knowledge** tab can be restricted to team-tagged knowledge, so a Support agent only searches Support-tagged content.                                                       |
-| **Governance rules** | Budgets, default models, model access, and feature controls (see [Governance](/platform/admin/governance)) can be scoped per team. The precedence rule is user > team > role > default. |
+Open **Settings > Teams** and click **Create team**. Give the team a name (`Support`, `Sales`, `Operations`) and an optional description; the name appears everywhere the team shows up — pickers, badges, the prompt library tabs, the integration allowed-teams field. Saving creates an empty team you can fill with members from the team's row.
 
-Teams do _not_ control whether someone can _see_ the surface at all — that is the role's job. An Editor can always reach Conversations; what teams decide is which conversations are filtered in by default.
+The team's row carries three sub-views: **Members** (who is in the team), **Resources** (what the team owns), and **Settings** (the team's name, description, and lifecycle). The Resources view is the easiest way to see what a team can reach into; it doubles as the audit surface when someone asks why a team can see a particular agent.
 
-## Manage members of a team
+## Adding and removing members
 
-Open a team's row and click **Members**. The drawer shows the team's current member list with a checklist of organisation members to add or remove. The member-checklist hint reminds the Admin that a member can be on multiple teams, and that the team will end up with the Admin themselves if no one else is selected.
+Open the team's row and click **Add members**. The picker lists the org's members; checking one adds them to the team. A member can belong to multiple teams; their access is the union of every team they are in plus their role's org-wide reach. Removing a member from a team strips the team-scoped visibility on the next request; in-flight chats finish, but the next thread does not see the team's resources.
 
-## Team managers
+## Team versus role
 
-Teams do not have formal manager roles — every member of the organisation has the same role across every team they belong to. For delegated team-level administration, use the org-level **Editor** role and scope that Editor's knowledge and agent access to their team via the same scoping table above. That keeps the role matrix in [Members and roles](/platform/admin/members-and-roles) authoritative and avoids a parallel permission system.
+The role decides what a person can do; the team decides what they can do it to. A Member-role user in the Support team can read the support team's agents but cannot edit them; a Developer-role user in the Support team can read and write the support team's agents but cannot see Sales's. Teams never grant capabilities the role lacks; roles never widen visibility past the team scope.
 
-## External identity providers
+When you need a permission decision the existing roles and teams cannot express, the next lever is a governance policy — see [Members and roles](/platform/admin/members-and-roles) for how policies attach to roles, and the governance section for the policy fields themselves.
 
-When SSO or trusted headers are enabled, the external identity provider is the single source of truth for team membership. Tale reads the teams header (or the IdP group claim) on each sign-in and updates the user's team list to match. Edits made in **Settings > Teams** for those users will be overwritten on the next sign-in. See [Authentication](/self-hosted/admin/authentication) for the header names and the group-mapping configuration.
+## Deleting a team
+
+Click the team's row, then **Delete team**. Deletion is hard-stop — the team is gone, every team-scoped resource it owned moves to org-wide visibility, and members lose the team-scoped slice of their access. There is no undo; orphaned resources stay reachable by everyone whose role allows them, which is rarely the right outcome. Reach for delete when a team is genuinely retired, not when it is reorganising.
 
 ## Where this fits
 
-Teams are the knowledge-and-conversation scoping layer. They do not change roles or permissions — those live on [Members and roles](/platform/admin/members-and-roles). Use teams to decide who sees which documents and which conversation channels by default; use roles to decide what each member can do. A team-scoped Governance rule (a tighter budget, a cheaper default model, a feature toggle) is how you compose the two systems without overlap.
-
-When a team grows past the point a single Editor can curate alone, the natural next move is to split it; when it shrinks so far that two teams have the same members, fold them together. Both edits are cheap from this page.
+Teams are the scoping layer right below roles — roles say _what_, teams say _where_. The natural next read depends on the resource you are scoping: [Prompt library](/platform/workspace/prompt-library) for how prompts attach to teams, [Integrations (admin view)](/platform/admin/integrations) for the allowed-teams lever, and [Projects](/platform/projects/overview) for project-to-team assignment.

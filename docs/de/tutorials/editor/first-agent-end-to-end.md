@@ -1,99 +1,45 @@
 ---
-title: Den ersten Agent end-to-end bauen
-description: Einen gezielten Agent anlegen, Wissen anhängen, testen und eine Version veröffentlichen.
+title: Deinen ersten Agent bauen
+description: Bring eine frische Org von „ich will einen Agent" zu einer funktionierenden Chat-Antwort, indem du die vier Knöpfe — Instruktionen, Wissen, Tools, Modell — der Reihe nach auf einer Instanz drehst.
 ---
 
-Generischer Chat beantwortet Fragen mit dem, womit das Modell trainiert wurde; ein zweckgebauter Agent antwortet mit dem Wissen deiner Organisation, in deinem Ton, eingegrenzt auf eine Aufgabe — „Produkt-Support", „HR-Richtlinien", „Sales-Enablement". Dieses Tutorial führt dich von einer leeren Agent-Seite zu einem versionierten Agent, den dein Team in der Chat-Agent-Auswahl wählen kann. Feature-Referenz liegt unter [Agent-Konzepte](/de/platform/agents/concepts) und [Einen Agent erstellen](/de/platform/agents/create); diese Seite verbindet die Schritte zu einem konkreten Ergebnis.
+Ein erster Agent ist das kleinste nützliche Ding in Tale: Instruktionen plus Modell, manchmal mit einem Tool oder einem gebundenen Dokument. Dieser Spaziergang dreht die vier Knöpfe der Reihe nach — Instruktionen, Wissen, Tools, Modell — und hinterlässt dir einen veröffentlichten Agent, der im Chat eine echte Frage beantwortet. Die Form verallgemeinert sich: jeder spätere Agent ist dieselben vier Züge mit anderen Entscheidungen.
 
-Das Ergebnis am Ende ist ein veröffentlichter Agent mit einer Aufgabe, dem richtigen Wissens-Scope und einem Rauchtest, den du selbst gefahren bist.
+Du brauchst eine Editor-Rolle und ein konfiguriertes Chat-getaggtes Modell beim Anbieter der Org. Die konzeptuelle Seite lebt in [Agent-Konzepte](/de/platform/agents/concepts); dieser Spaziergang ist der End-to-End-Mechanismus.
 
 ## Bevor du beginnst
 
-Du brauchst Redakteur-Zugriff oder höher in deiner Tale-Instanz — Inhaber, Admin, Entwickler und Redakteur qualifizieren sich; Mitglied und Deaktiviert nicht. Prüfe die Rolle auf deiner Profilseite, wenn du unsicher bist. Du brauchst außerdem mindestens einen Ordner in der [Wissensdatenbank](/de/platform/workspace/knowledge-base), der zur Aufgabe des Agents passt; ist das Wissen deiner Organisation noch nicht in Ordnern strukturiert, lege einen mit drei oder vier repräsentativen Dokumenten an, bevor du weitermachst — ein Agent ohne relevantes Wissen lässt sich nicht ehrlich testen.
+Bestätige drei Dinge. Deine Rolle ist mindestens Editor — die Agent-Bearbeitung ist auf Editor und höher begrenzt. Die Org hat einen Anbieter konfiguriert und mindestens ein Chat-getaggtes Modell darauf; ohne das scheitert die Test-Antwort am Ende beim Modell-Call. Du hast eine Frage im Kopf, die der Agent beantworten soll — wähl etwas eng genug, dass ein Absatz Instruktionen sie rahmen kann, etwa „fass eine eingehende Kundennachricht in einen Satz plus eine empfohlene nächste Aktion zusammen".
 
-Kein externes Konto, kein API-Schlüssel, kein Feature-Flag.
+## Schritt 1 — Die Instruktionen schreiben
 
-## Schritt 1 — Entscheide, wofür der Agent da ist
+Instruktionen sind der System-Prompt — die Prosa, die jede Antwort rahmt. Der erste Knopf ist der, bei dem die meisten überdrehen. Öffne **Agenten > Neuer Agent** und setze:
 
-Das Schwierigste an einem Agent ist zu benennen, was er **nicht** tut. Bevor du irgendwo klickst, schreib einen Satz auf Papier oder in ein Notizfeld: „Dieser Agent beantwortet X mit Y und macht Z nicht." Zum Beispiel: „Dieser Agent beantwortet Produkt-Support-Fragen mit dem Help-Center-Ordner und gibt keinen rechtlichen oder Abrechnungs-Rat." Dieser Satz wird zum Rückgrat deiner Systemanweisungen — ohne ihn driftet der Agent in Richtung dessen, was der Nutzer fragt, auch wenn die Antwort außerhalb seines Scopes liegt.
+- **Name** — `Triage assistant`
+- **Instruktionen** — `You read a customer message and produce two lines. Line one: a one-sentence summary in plain English. Line two: a recommended next action — reply, escalate, or close. If the message is blank or off-topic, refuse and say so.`
 
-Der Schritt hat funktioniert, wenn der Satz Aufgabe und Ablehnungsfälle des Agents beide explizit macht.
+Speicher vorerst als Entwurf; veröffentlichen kommt nach den anderen Knöpfen. Kurze, meinungsstarke, konkrete Instruktionen schlagen lange — halt die Regeln unter einem Absatz.
 
-## Schritt 2 — Den Agent erstellen
+## Schritt 2 — Über das Wissen entscheiden
 
-Öffne **Agents** in der Seitenleiste und klicke **Agent erstellen**. Gib einen **Anzeigenamen** ein („Produkt-Support"), einen **Internen Namen** — einen URL-tauglichen Slug, der in API-Aufrufen und der Chat-URL benutzt wird (`product-support`), und eine kurze Beschreibung. Speichern.
+Wissen ist das, worauf der Agent zur Antwortzeit zurückgreifen kann. Lass Wissen für diesen ersten Agent leer: die Aufgabe ist, die Nachricht zu lesen, nicht etwas zu holen. Der Wissen-Tab bleibt unangetastet.
 
-Der interne Name ist faktisch dauerhaft: Agents werden per Slug aus Automatisierungen, der API und der Chat-URL adressiert, also bricht ein späteres Umbenennen jeden Link, der auf den alten Namen zeigt. Wähle etwas, mit dem du leben kannst.
+Wolltest du später Wissen ergänzen — etwa eine Eskalations-Matrix, die der Agent konsultieren soll — würdest du das Dokument hochladen, den **Wissen**-Tab des Agenten öffnen und es binden. Der ganze Mechanismus liegt in [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge).
 
-Der Schritt hat funktioniert, wenn die Konfigurationsseite des Agents mit ihren Tabs (Anweisungen, Wissen, Tools, Konversationsstarter, Webhook, Versionen) oben angeordnet öffnet.
+## Schritt 3 — Die Tools wählen
 
-## Schritt 3 — Die Anweisungen schreiben
+Tools sind das, was der Agent jenseits von Text-Antworten tun kann. Für Triage brauchst du keine Tools: der Agent liest Input und schreibt Output. Öffne den Tab **Tools** und lass jeden Schalter aus. Jedes Tool, das du gewährst, erweitert die Vertrauensgrenze; halt die Liste kurz.
 
-Öffne den **Anweisungen**-Tab und füge einen Systemprompt ein, der auf dem Satz aus Schritt 1 aufbaut. Das Skelett unten deckt die vier Dinge ab, die jeder Agent-Prompt braucht — Identität, Scope, Regeln, Output-Form:
+Soll der Agent die empfohlene Aktion in ein CRM zurückschreiben, würdest du später den entsprechenden Integrations-Tool-Schalter aktivieren — aber nicht, bevor die reine Text-Variante funktioniert.
 
-```text
-Du bist <Rolle> für <Organisation>.
+## Schritt 4 — Modell wählen und veröffentlichen
 
-Deine Aufgabe ist es, <Aufgabe> zu tun, mit <Scope des Wissens>.
+Öffne den Tab **Modell** und wähl als primäres den Org-Default; setz ein kleineres Modell als Fallback, damit der Agent läuft, wenn das primäre rate-limited ist. Speicher, dann klick **Veröffentlichen**. Der Agent ist nun für alle mit passender Rolle im Chat sichtbar.
 
-Regeln:
-- Antworte immer in der Sprache des Nutzers.
-- Zitiere das Quelldokument, wenn du aus der Wissensdatenbank antwortest.
-- Liegt eine Frage ausserhalb des Scopes, sag das und schlage vor, wo gefragt werden kann.
+Öffne einen Chat mit `Triage assistant` und füg eine echte Kundennachricht ein. Die Antwort sollte gemäss Instruktionen in zwei Zeilen landen — Ein-Satz-Zusammenfassung und empfohlene Aktion. Driftet das Format ab, zieh die Instruktionen straffer und veröffentliche neu; das ist die Schleife, in der du am meisten Zeit verbringst.
 
-Ton: <Ton>.
-Format: <Format>.
-```
+## Wo das eingesetzt wird
 
-Wähle ein **Modell-Preset** (Fast / Standard / Advanced), das zur Aufgabe passt: Fast für kurze Lookups, Advanced für mehrstufiges Reasoning. Die Zuordnung von Preset zu tatsächlichem Modell liegt in [Agent-Konzepte — Modell](/de/platform/agents/concepts#model).
+Vier Knöpfe, ein veröffentlichter Agent, eine verifizierte Antwort: dieselbe Form, der jeder später gebaute Agent folgt. Die nächsten Spaziergänge spezialisieren sich auf je einen Knopf — [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge) auf den zweiten, [Zwischen Agenten delegieren](/de/tutorials/editor/delegate-between-agents) auf den dritten.
 
-Änderungen speichern automatisch; ein Indikator oben rechts zeigt den Speicher-Stand.
-
-Der Schritt hat funktioniert, wenn der Speicher-Indikator auf „gespeichert" steht und die Prompt-Vorschau den eingefügten Text ungekürzt rendert.
-
-## Schritt 4 — Das Wissen eingrenzen
-
-Öffne den **Wissen**-Tab. Die Voreinstellung ist die ganze Wissensdatenbank der Organisation, was fast immer zu breit ist — irrelevante Suchtreffer verdrängen die relevanten, und die Antworten des Agents werden unscharf. Hake alles ab, was nicht zur Aufgabe des Agents gehört, und lass nur die passenden Ordner aktiv.
-
-Ein enger Scope produziert schärfere Antworten. Ein Support-Agent, der nur `Help Center` liest, schlägt einen Support-Agent, der jeden Ordner der Organisation liest, jedes Mal.
-
-Der Schritt hat funktioniert, wenn der Wissen-Tab einen oder zwei Ordner aktiv listet und der Rest abgehakt ist.
-
-## Schritt 5 — Tools abschalten, die du nicht brauchst
-
-Öffne den **Tools**-Tab und deaktiviere alles, was der Agent nicht nutzen soll. Ein Support-Agent braucht wahrscheinlich keine Websuche; ein Recherche-Agent braucht wahrscheinlich keine Abrechnungs-Integration. Weniger Tools bedeutet weniger Überraschungen in Produktion — und weniger Tools, über die das Modell nachdenken muss, was die Antwort beschleunigt.
-
-Der Schritt hat funktioniert, wenn nur die Tools eingeschaltet sind, die der Agent wirklich nutzt.
-
-## Schritt 6 — Konversationsstarter hinzufügen
-
-Öffne den **Konversationsstarter**-Tab und füge zwei oder drei Beispiel-Prompts hinzu. Die Starter erscheinen auf dem leeren Bildschirm, wenn ein Nutzer eine neue Konversation mit dem Agent öffnet, und dienen als Rauchtest-Liste für Schritt 7: antwortet ein Starter gut, zeigt der Agent zumindest in die richtige Richtung.
-
-Der Schritt hat funktioniert, wenn die Starter unter dem Composer erscheinen, sobald du einen neuen Chat mit dem Agent öffnest.
-
-## Schritt 7 — Aus dem Chat testen
-
-Öffne **Chat** in der Seitenleiste, wähle den neuen Agent in der Agent-Auswahl und probier jeden Konversationsstarter plus ein oder zwei Fragen, die du von einem Kollegen erwarten würdest. Achte auf drei Dinge: zitiert der Agent die richtigen Dokumente, lehnt er Out-of-Scope-Fragen sauber ab, und passt der Ton zu dem, was du in den Anweisungen geschrieben hast.
-
-Iteriere, indem du zurück in den Anweisungen-Tab gehst, den Prompt straffst und erneut testest. Diese Schleife ist der Großteil des Agent-Bauens — die meisten Agents brauchen drei oder vier Runden, bevor sie gut sind.
-
-Der Schritt hat funktioniert, wenn der Agent eine repräsentative In-Scope-Frage mit Zitat beantwortet und eine Out-of-Scope-Frage mit einer Satz-langen Umleitung ablehnt.
-
-## Schritt 8 — Eine Version veröffentlichen
-
-Jede Änderung bis hierhin hat einen **Entwurf** aktualisiert; die Live-Version (sofern es eine vorherige gibt) serviert weiter den Chat, bis du veröffentlichst. Klicke **Veröffentlichen** in der Versions-Kopfzeile. Zukünftige Änderungen starten einen neuen Entwurf — Nutzer treffen weiter die veröffentlichte Version, bis du erneut veröffentlichst.
-
-Der Schritt hat funktioniert, wenn die Versions-Kopfzeile eine frische Versionsnummer und ein „Veröffentlicht"-Badge zeigt und der Entwurf-Tab des Agents leer ist.
-
-## Fehlerbehebung
-
-- **Der Agent zitiert auf jede Frage das falsche Dokument** — der Scope des Wissen-Tabs ist immer noch zu breit, oder ein Ordner dominiert nach Dokumentenanzahl. Engere weiter ein oder teile in zwei Agents (`support-public` und `support-internal`) mit unterschiedlichem Scope.
-- **Der Agent lehnt In-Scope-Fragen ab** — der „Regeln"-Abschnitt des Systemprompts ist zu restriktiv, oder die Aufgabenbeschreibung passt nicht dazu, wie Nutzer Fragen wirklich formulieren. Lockere die Regeln und formuliere die Aufgabe in der Sprache des Nutzers.
-- **Konversationsstarter erscheinen nicht** — der Agent hat mindestens eine veröffentlichte Version, aber du siehst eine Entwurfsvorschau, oder die Starter wurden auf einem anderen Agent-Entwurf gespeichert. Wechsle in die Vorschau der veröffentlichten Version.
-- **Veröffentlichen schlug mit Validierungsfehler fehl** — Pflichtfelder (Anzeigename, Slug, Systemanweisungen) sind leer oder der Slug kollidiert mit einem bestehenden Agent. Der Fehler-Toast nennt das Feld.
-
-## Wo das einsetzt
-
-Was du gebaut hast, ist ein versionierter, wissensgescopter Agent, den dein Team aus der Chat-Auswahl wählen kann — und derselbe Agent ist auch aus Automatisierungen, der öffentlichen API und dem Webhook-Tab erreichbar, ohne zusätzliche Verdrahtung. Die vier Entscheidungen, die du gerade getroffen hast (Anweisungen, Wissen, Tools, Modell), halten über jede Oberfläche, auf der der Agent läuft — das ist der ganze Sinn der Agent-Abstraktion.
-
-Zwei natürliche nächste Schritte von hier: lass Skripte den Agent direkt aufrufen mit [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script), oder binde denselben Agent mit [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) in einen mehrstufigen Workflow ein.
+Für die Konzept-Seite, die die vier Knöpfe und ihre Trade-offs benennt, siehe [Agent-Konzepte](/de/platform/agents/concepts). Für Versionierung und Rollback, sobald der Agent reift, siehe [Agent-Versionen](/de/platform/agents/versions).

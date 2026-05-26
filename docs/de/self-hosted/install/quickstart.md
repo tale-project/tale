@@ -1,114 +1,24 @@
 ---
-title: Lokaler Schnellstart
-description: Tale lokal mit Docker Desktop in etwa zehn Minuten starten — für Evaluierung, Demos und Beiträge.
+title: Self-hosted Quickstart
+description: Single-Host-Tale-Instanz auf einem frischen Server in zwanzig Minuten — klonen, zwei Variablen konfigurieren, docker compose up, ersten Admin erstellen.
 ---
 
-Der lokale Schnellstart ist der schnellste Weg, eine laufende Tale-Instanz auf deinen Laptop zu bringen. Die `tale`-CLI erledigt die Installation — ein Befehl gerüstet das Projekt, ein Befehl startet den Stack, dann ein Browser auf `https://localhost`. Nutze ihn, um das Produkt zu evaluieren, einem Team eine Demo zu zeigen oder am Quelltext zu schrauben. Für eine öffentliche Instanz mit echtem TLS und Upgrades ohne Ausfallzeit folge stattdessen [Produktions-Deployment](/de/self-hosted/install/linux-server).
+Dieser Quickstart bringt eine funktionierende Single-Host-Tale-Instanz in etwa zwanzig Minuten auf einen frischen Server. Das Ergebnis ist deine eigene Org, die auf deiner eigenen Maschine läuft, erreichbar unter einer URL, die du kontrollierst. Das ist die kleinste Menge an Bewegungen, die dich zu einem Anmelde-Bildschirm bringt; das Produktions-Härten lebt auf der Seite [Linux-Server](/de/self-hosted/install/linux-server).
 
-Diese Anleitung nimmt einen Entwickler-Laptop mit installiertem Docker Desktop an. Alles unten nutzt dieselbe CLI, die auch in Produktion läuft — die einzigen Unterschiede sind der TLS-Modus (selbstsigniert als Voreinstellung) und dass alle Ports lokal aus Entwicklungsbequemlichkeit exponiert sind.
+Du brauchst einen Host mit installiertem Docker und Docker Compose, einen DNS-Namen, der auf den Host zeigt (oder die Bereitschaft, vorerst die IP des Hosts zu nutzen), und die Ports 80 und 443 offen. Der Spaziergang nutzt die mitgelieferten Compose-Dateien unverändert — keine Edits jenseits der beiden Environment-Variablen `HOST` und `SITE_URL`.
 
 ## Bevor du beginnst
 
-- **Docker Desktop 24.0 oder neuer** — installiert und laufend. Die Linux-, macOS- und Windows-Builds funktionieren alle.
-- **Ein API-Schlüssel von OpenRouter** — kostenlos auf [openrouter.ai](https://openrouter.ai) erstellbar. OpenRouter gibt dir über einen einzigen Schlüssel Zugriff auf hunderte Modelle. Jeder OpenAI-kompatible Endpunkt funktioniert, einschließlich eines lokalen Ollama-Servers; OpenRouter ist die empfohlene Voreinstellung, weil sie am meisten abdeckt.
-
-Hol den Schlüssel aus dem Bereich **Keys** im OpenRouter-Dashboard, sobald du ein Konto hast, und halte ihn bereit — `tale init` fragt während der Einrichtung danach.
-
-## Schritt 1 — Die CLI installieren
-
-Die `tale`-CLI ist eine Binärdatei, die den vollen Lebenszyklus fährt: init, start, upgrade, deploy, logs, rollback. Das Installationsskript schreibt unter Linux und macOS nach `/usr/local/bin/tale`:
+Verifiziere, dass der Host bereit ist:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
+docker --version
+docker compose version
 ```
 
-Unter Windows läuft es über PowerShell:
+Beide Befehle müssen Versions-Strings ausgeben. Fehlt einer, installiere Docker Engine plus das Compose-Plugin aus den offiziellen Docker-Docs, bevor du fortfährst. Produktions-Hosts laufen ein aktuelles Ubuntu LTS, ein aktuelles Debian oder ein aktuelles Fedora; andere Container-Runtimes als Docker werden nicht unterstützt.
 
-```powershell
-irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
-```
-
-Beide Installer respektieren eine `VERSION`-Umgebungsvariable, um eine bestimmte Version anzuheften:
-
-```bash
-VERSION=0.9.0 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
-```
-
-```powershell
-$env:VERSION = '0.9.0'
-irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
-```
-
-Verfügbare Tags stehen auf der Seite [GitHub Releases](https://github.com/tale-project/tale/releases). Wenn du das Installationsskript überspringen willst, ist die Binärdatei auch als direkter Download an jedem Release-Tag verfügbar.
-
-## Schritt 2 — Ein Projekt erstellen
-
-Wähle ein Verzeichnis und fahre `tale init`:
-
-```bash
-tale init my-project
-cd my-project
-```
-
-Die CLI fragt nach Domain (Voreinstellung `localhost`), OpenRouter-Schlüssel und TLS-Modus (Voreinstellung `selfsigned`). Sie schreibt eine `.env`-Datei mit automatisch erzeugten Secrets — `BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`, `INSTANCE_SECRET` und einen `SOPS_AGE_KEY` für den SOPS-verschlüsselten Anbieter-Secret-Modus. Das Projektverzeichnis ist die Wahrheitsquelle für diese Instanz: `.env` hält die Secrets, `TALE_CONFIG_DIR` hält die Anbieter-, Aufbewahrungs- und Agent-JSON-Dateien.
-
-`tale init` legt auch Konfigurationsdateien für KI-Editoren ab (Claude Code, Cursor, GitHub Copilot, Windsurf) und entpackt den Platform-Quelltext nach `.tale/reference/`, sodass du das Projekt in einem KI-unterstützten Editor öffnen und Agents, Workflows und Integrationen in natürlicher Sprache erstellen kannst. Das vollständige Muster steht unter [KI-unterstützte Entwicklung](/de/develop/ai-assisted-development).
-
-## Schritt 3 — Tale starten
-
-```bash
-tale start
-```
-
-Health-Check-Meldungen strömen, während die Dienste hochfahren — das ist erwartet. Warte auf die Zeile `Tale Dev v0.x.x  Ready.`, bevor du den Browser öffnest; der `platform`-Container braucht bei einem Kaltstart bis zu drei Minuten, weil der Entrypoint wartet, bis die Env-Synchronisation fertig ist und `bunx convex deploy` die Funktionsmenge geschoben hat, bevor er gesund signalisiert.
-
-Um im Hintergrund zu fahren, übergib `--detach`:
-
-```bash
-tale start --detach
-```
-
-## Schritt 4 — Die App öffnen
-
-Öffne `https://localhost` (oder welche Domain du auch immer bei `tale init` konfiguriert hast). Der erste Besuch führt dich auf eine Registrierungsseite — der erste registrierte Nutzer wird Inhaber der Instanz.
-
-Das selbstsignierte Zertifikat löst beim ersten Besuch eine Browser-Warnung aus. Klick durch (Chrome: **Erweitert → Weiter**; Firefox: **Erweitert → Risiko akzeptieren**); die Warnung ist für `TLS_MODE=selfsigned` erwartet. Für eine öffentliche Instanz wähle bei `tale init` `letsencrypt` oder folge [Produktions-Deployment](/de/self-hosted/install/linux-server).
-
-## Tagesrhythmus
-
-`tale start` und `docker compose down` sind das Start/Stopp-Paar, das du am häufigsten nutzt.
-
-```bash
-tale start                       # Alle Dienste im Vordergrund starten
-tale start --detach              # Im Hintergrund starten
-docker compose -p tale-dev down  # Container stoppen, Volumes (und Daten) behalten
-```
-
-Die Option `-p tale-dev` ist nötig, weil `tale start` diesen Compose-Projektnamen verwendet und nicht eine Standard-`docker-compose.yml`. **Hänge nie `-v` an den `down`-Befehl** — er löscht jedes benannte Volume, also die Datenbank, jede hochgeladene Datei und den Crawler-Zustand. Es gibt keine Wiederherstellung.
-
-### Upgrade
-
-```bash
-tale upgrade                       # Das neueste Release ziehen und Projektdateien synchronisieren
-tale upgrade --version 0.9.0       # Migrieren oder zurück auf eine bestimmte Version
-tale start                         # Mit der neuen Version neu starten
-```
-
-Lies die [Release-Notes](https://github.com/tale-project/tale/releases) vor dem Upgrade; Breaking-Changes und Migrationshinweise werden gemäß [Release-Notes-Format](/de/self-hosted/operate/release-notes/format) explizit ausgewiesen.
-
-### Convex-Daten inspizieren
-
-Das gebündelte Convex-Backend liefert ein Dashboard zum Inspizieren von Sammlungen, Funktionslogs und Hintergrundjobs. Erzeuge einen Admin-Schlüssel und öffne dann das Dashboard:
-
-```bash
-tale convex admin
-```
-
-Öffne `/convex-dashboard` im Browser und füge den Schlüssel ein. Das Dashboard gibt direkten Lese- und Schreibzugriff auf alles in Convex, also halte den Schlüssel lokal.
-
-## Aus dem Quelltext bauen
-
-Wenn du beitragen oder die Plattform anpassen möchtest, fahre aus einem Checkout statt aus vorgefertigten Images. Das Repository klonen, die Beispiel-Env kopieren und die Platzhalter-Secrets ersetzen:
+## Schritt 1 — Klonen und HOST plus SITE_URL setzen
 
 ```bash
 git clone https://github.com/tale-project/tale.git
@@ -116,30 +26,57 @@ cd tale
 cp .env.example .env
 ```
 
-Die `.env.example` liefert Platzhalter-Secrets aus, die ersetzt werden müssen, bevor der Stack startet. Generiere frische Werte:
+Öffne `.env` in deinem Editor und setze zwei Variablen:
 
-| Variable                | Generieren mit                        |
-| ----------------------- | ------------------------------------- |
-| `BETTER_AUTH_SECRET`    | `openssl rand -base64 32`             |
-| `ENCRYPTION_SECRET_HEX` | `openssl rand -hex 32`                |
-| `DB_PASSWORD`           | Beliebiges Passwort für die lokale DB |
+- `HOST` — der Hostname, unter dem User die Instanz erreichen (z.B. `tale.example.com` oder die öffentliche IP des Hosts für lokale Tests).
+- `SITE_URL` — die volle URL mit Schema (`https://tale.example.com` oder `http://<host>:80` für lokal).
 
-Dann bauen und starten:
+Lass den Rest vorerst in Ruhe. Die anderen Variablen haben vernünftige Defaults; die [Environment-Referenz](/de/self-hosted/configuration/environment-reference) benennt sie alle.
 
-```bash
-docker compose up --build
-```
+## Schritt 2 — Secrets generieren
 
-Für einen schnelleren Edit-Reload-Zyklus leg das Entwicklungs-Override auf, das deinen lokalen Quelltext in die Container bindet:
+Der erste Boot braucht drei initialisierte Secrets. Die `.env.example` liefert Platzhalter; ersetz sie durch Werte aus `openssl`:
 
 ```bash
-docker compose -f compose.yml -f compose.dev.yml up --build
+echo "BETTER_AUTH_SECRET=$(openssl rand -base64 48)" >> .env
+echo "ENCRYPTION_SECRET_HEX=$(openssl rand -hex 32)" >> .env
+echo "DB_PASSWORD=$(openssl rand -base64 24)" >> .env
+echo "INSTANCE_SECRET=$(openssl rand -base64 48)" >> .env
 ```
 
-Nach Änderungen an einer `Dockerfile` oder einer Abhängigkeit fahre `bun run docker:test`, um den Build zu rauchprüfen. Die [Contributing-Docker-Anleitung](/de/develop/contributing-docker) deckt die Image-Validierungs- und Schwachstellenscan-Skripte ab.
+Diese werden beim ersten Boot in die Container eingebettet. Bewahr die `.env` an einem sicheren Ort auf; verlierst du `ENCRYPTION_SECRET_HEX` oder `DB_PASSWORD`, kannst du die Daten nicht wiederherstellen.
 
-## Wo das einsetzt
+## Schritt 3 — docker compose up ausführen
 
-Was du jetzt hast, ist eine laufende Tale-Instanz auf `localhost` mit Beispiel-Agents, Beispielwissen und einem konfigurierten KI-Anbieter. Das reicht, um das Produkt zu evaluieren, es einem Team zu demonstrieren oder gegen die Plattform zu entwickeln. Es reicht nicht, um es jemandem außerhalb deines Laptops zugänglich zu machen — der Schnellstart nutzt selbstsigniertes TLS, fährt jeden Dienst auf einem Container und überspringt die Blue-Green-Topologie, die Upgrades ohne Wartungsfenster übersteht.
+```bash
+docker compose up -d
+```
 
-Wenn du bereit bist, Tale Nutzern vorzulegen, läuft [Produktions-Deployment](/de/self-hosted/install/linux-server) dieselbe Installation mit echter Domain, echtem TLS und dem Blue-Green-Roll. Für den Rest der Operator-Oberfläche — Observability, Aufbewahrung, Sicherheitshinweise — ist [Betrieb](/de/self-hosted/operate/observability/operations) der Index.
+Der erste Lauf zieht jedes Image und baut den Container-Graph. Rechne mit fünf bis zehn Minuten auf einer frischen Maschine. Zeigt `docker compose ps` jeden Service im Zustand `running` (oder `healthy`), ist die Plattform oben. Die nach aussen freigegebenen Services sind Caddy auf 80 und 443; alles andere ist intern.
+
+## Schritt 4 — Den ersten Admin erstellen
+
+Das erste Konto auf einer brandneuen Instanz braucht einen Bootstrap-Key. Der mitgelieferte Helper generiert einen:
+
+```bash
+./scripts/get-admin-key.sh
+```
+
+Kopier den Key, den das Skript ausgibt. Besuch `SITE_URL`, klick **Sign up**, füll deinen Namen, deine E-Mail und ein Passwort aus. Auf dem nächsten Bildschirm füg den Admin-Key ein und erstelle die **Organisation**. Du landest im Dashboard mit der Rolle **Owner**.
+
+Für den tieferen Spaziergang zur Bootstrap-Regel siehe [Erster Admin](/de/self-hosted/install/first-admin).
+
+## Schritt 5 — SITE_URL besuchen
+
+Öffne `SITE_URL` in einem Browser. Du solltest das Dashboard deiner Org sehen, die Sidebar und eine leere Agents-Liste. Füg einen Provider unter **Einstellungen > Provider** hinzu, veröffentliche einen Agent (siehe [Agent erstellen](/de/platform/agents/create)), und du machst dasselbe, womit das Cloud-Onboarding endet.
+
+## Fehlersuche
+
+- **`docker compose up` beendet mit einem Port-Konflikt.** Ein anderer Dienst auf dem Host bindet bereits 80 oder 443. Stopp ihn (`sudo systemctl stop nginx` und Konsorten), oder setze `TLS_MODE=external` in `.env` und stell deinen bestehenden Reverse-Proxy vor Tale.
+- **Die Sign-up-Seite lädt, aber der Admin-Key wird abgelehnt.** Lauf `./scripts/get-admin-key.sh` erneut — Keys rotieren pro Boot. Bricht das Skript mit „container not running" ab, ist der Platform-Container noch nicht hochgefahren; `docker compose ps` sagt dir, welcher Service unhealthy ist.
+- **HTTPS-Fehler beim ersten Besuch.** Let's Encrypt braucht, dass das DNS lebt und Port 80 aus dem öffentlichen Internet erreichbar ist, bevor es ein Zertifikat ausstellen kann. Während die DNS propagiert, browse über `http://`, oder setze `TLS_MODE=selfsigned` in `.env`.
+- **Container crash-loopen beim frischen Boot.** Fast immer fehlende Secrets. `docker compose logs platform` benennt die fehlende Variable wörtlich.
+
+## Wo das eingesetzt wird
+
+Du hast jetzt eine funktionierende Tale-Instanz, aber der Host ist nicht für Produktion gehärtet. Der Spaziergang [Linux-Server](/de/self-hosted/install/linux-server) deckt TLS, Firewall, Non-root-User und die operativen Haken ab, die du vor echtem Verkehr willst. Willst du den Host mit der `tale`-CLI verwalten statt mit `docker compose`, ist [CLI installieren](/de/self-hosted/install/cli-install) die nächste Lektüre.

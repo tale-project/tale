@@ -1,65 +1,40 @@
 ---
 title: Effektiv chatten
-description: Agents, Anhänge, Diktat und Canvas zu einem täglichen Tale-Workflow verbinden.
+description: Fünf Gewohnheiten, die einen Chat von „danke für die Textwand" zu „genau, was ich brauchte" drehen — den Agent benennen, das Modell wählen, die richtige Datei anhängen, im Scope fragen und die Zitate lesen.
 ---
 
-Die meisten Mitglieder nutzen den Tale-Chat jeden Tag gleich: den richtigen Agent auswählen, Kontext mitgeben, fragen, nachfassen. Dieses Tutorial läuft die Schleife durch, damit deine Antworten im Wissen deiner Organisation verankert sind statt in generischem Modell-Output. Feature-Referenz zu jedem Schritt liegt unter [Chat](/de/platform/chat/basics); diese Seite verbindet die Teile zu einem wiederholbaren Workflow.
+Effektives Chatten in Tale dreht sich nicht um clevere Prompts; es dreht sich darum, dem Chat genug Kontext zu geben, damit das Modell deine Absicht beim ersten Lesen erfasst. Fünf kleine Gewohnheiten — den richtigen Agent wählen, das richtige Modell wählen, nur Wichtiges anhängen, im Scope fragen, die Zitate lesen — drehen die durchschnittliche Antwort von „danke für die Textwand" zu „genau, was ich brauchte". Diese Seite läuft die Gewohnheiten der Reihe nach in einem frischen Chat ab.
 
-Die ganze Schleife dauert unter fünf Minuten, sobald du sie einmal gemacht hast. Das Ergebnis am Ende ist eine Konversation, die Antworten liefert, die du weiterleiten würdest.
+Du brauchst eine Member-Rolle (das Minimum für Chat) und einen veröffentlichten Agent in der Org, den du ansprechen kannst. Die konzeptuelle Seite lebt in [Chat-Grundlagen](/de/platform/chat/basics); dieser Spaziergang ist der Alltags-Mechanismus.
 
-## Bevor du beginnst
+## Gewohnheit 1 — Den Agent vor der ersten Nachricht wählen
 
-Du brauchst Mitglied-Zugriff oder höher in der Tale-Instanz, in der du angemeldet bist — jedes angemeldete Konto ausser `Deaktiviert` kann den Chat nutzen. Mindestens ein Agent muss in der Organisation existieren; der allgemeine Chat-Agent wird standardmäßig ausgeliefert, also ist diese Voraussetzung auf jeder Instanz erfüllt. Kein externes Setup, kein API-Schlüssel, keine Admin-Berechtigung nötig.
+Der Agent ist der Hebel mit dem höchsten Ertrag pro Klick. Der Default-Assistant ist eine leere Leinwand; ein Agent mit gebundenem Wissen, aktiven Tools und justierter Stimme schlägt ihn bei jeder nicht-generischen Frage. Öffne den Agent-Picker im Composer und wähl den Agent, dessen Scope zu deiner Frage passt — Support, Sales, Research — bevor du tippst.
 
-## Schritt 1 — Den richtigen Agent auswählen
+Passt kein Agent, lass den Assistant an; greif nicht zu einem schief sitzenden Agent für „passt schon ungefähr". Ein schief sitzender Agent verweigert oft oder weicht vom gebundenen Wissen ab.
 
-Ein zweckgebauter Agent durchsucht einen engeren Ausschnitt der Wissensdatenbank und folgt einem strafferen Systemprompt — das produziert fast immer eine schärfere Antwort als der allgemeine Chat-Agent. Öffne **Chat** in der Seitenleiste und klicke auf die Agent-Auswahl unten links am Composer; das Dropdown listet jeden Agent auf, den deine Rolle sehen kann.
+## Gewohnheit 2 — Das Modell zur Nachricht passend wählen
 
-Wähle den, dessen Beschreibung deiner Aufgabe am nächsten kommt — ein `product-support`-Agent für eine Kundenanfrage, ein `legal-review`-Agent für eine Vertragsklausel, der Standard-Chat-Agent für alles andere. Bist du unsicher, fang beim nächsten Treffer an und wechsle mitten in der Konversation: der neue Agent behält die Nachrichten-Historie.
+Der Modell-Picker neben dem Agent-Picker listet die für den Agent erlaubten Modelle. **Auto** reicht meistens; wechsle, wenn die Nachricht ihre Form ändert. Eine lange Reasoning-Frage will ein grösseres Modell; ein schneller Lookup will ein kleineres, schnelleres. Eine Nachricht mit Bild braucht ein Vision-fähiges Modell — ohne dieses fällt das Bild stillschweigend weg.
 
-Der Schritt hat funktioniert, wenn der Anzeigename des Agents über dem Composer steht und der Platzhalter-Text seine Konversationsstarter zeigt.
+Der Modell-Picker zeigt den Tag (`Chat`, `Vision`, `Image`, `Embedding`) neben jedem Namen; pass den Tag zur Nachricht.
 
-## Schritt 2 — Kontext über Anhänge mitgeben
+## Gewohnheit 3 — Nur anhängen, was der Agent braucht
 
-Anhänge lassen den Agent die exakte Datei lesen, nach der du fragst, statt aus seinem Gedächtnis zu raten. Ziehe eine Datei oder ein Bild auf das Chat-Fenster oder klicke auf das Büroklammer-Symbol im Composer. Unterstützte Typen — PDFs, Office-Dokumente, Bilder, Audio, Video und die meisten Code-Dateien — sind in [Anhängen](/de/platform/chat/attachments) gelistet; Dateien außerhalb der Liste werden vor dem Upload abgelehnt.
+Anhänge laden zur Übernutzung ein. Ein 200-Seiten-PDF als einzelner Anhang füllt das Kontext-Budget und verdünnt die Antwort; die relevanten Seiten in den Prompt exzerpiert schlagen die ganze Datei. Hängst du ein langes Dokument doch an, stell eine spezifische Frage dagegen („was steht auf Seite 12 zu Rückerstattungen?") statt einer offenen („erzähl mir alles").
 
-Anhänge bleiben auf die Konversation begrenzt, nicht auf die geteilte Wissensdatenbank. Soll die Datei später für alle abfragbar sein, lade sie über die [Wissensdatenbank](/de/platform/workspace/knowledge-base) hoch — dort wird sie einmal indiziert und von jedem Agent wiederverwendet.
+Für Dateien, auf die du oft verweisen wirst — eine Preisliste, ein Richtlinien-Dokument — lad sie in den [Wissen](/de/platform/knowledge/documents)-Bereich und binde sie an einen Agent. Einmal gebunden, hat jeder Chat mit diesem Agent sie verfügbar, ohne erneutes Hochladen.
 
-Der Schritt hat funktioniert, wenn die Datei als Chip unter dem Composer erscheint, mit Name und Größe, und die erste Antwort des Agents auf den Inhalt eingeht.
+## Gewohnheit 4 — Innerhalb des Scopes des Agenten fragen
 
-## Schritt 3 — Diktieren, wenn Sprechen schneller ist als Tippen
+Jeder Agent hat einen impliziten Scope aus seinen Instruktionen und seinem gebundenen Wissen. Einen Billing-Agent zu Marketing-Strategie zu fragen, bringt im besten Fall eine höfliche Verweigerung, im schlimmsten eine Halluzination. Der billige Fix: lies die Bio des Agenten oben im Picker, bevor du fragst — sie benennt den Scope. Liegt deine Frage ausserhalb, wechsle den Agent.
 
-Das Mikrofon-Symbol im Composer aktiviert das Browser-Diktat; das Audio wird lokal über die Web Speech API verarbeitet und das Transkript fließt in das Eingabefeld, während du sprichst. Audio-Bytes erreichen die Tale-Server nicht — nur der erkannte Text verlässt dein Gerät.
+## Gewohnheit 5 — Die Zitate lesen und ihnen folgen
 
-Schalte das Mikrofon ein, sprich die Frage, schalte es aus und bearbeite das Transkript vor dem Absenden. Diktat ist ein Werkzeug pro Anfrage, kein Modus: es gibt keine Einstellung zu setzen, und es bleibt keine Spur, sobald die Nachricht abgeschickt ist.
+Enthält die Antwort Zitate (die kleinen inline Links), öffne eines. Das Zitat zeigt auf das Chunk der Quelle, aus dem der Agent zitiert hat; das Lesen bestätigt, dass der Agent nicht über das hinaus paraphrasiert hat, was die Quelle wirklich sagt. Die Zwei-Minuten-Gewohnheit, pro Antwort ein Zitat zu öffnen, fängt die kleine Teilmenge der Antworten ab, bei denen der Agent übergriffig war.
 
-Der Schritt hat funktioniert, wenn das Transkript im Eingabefeld erscheint, während du sprichst.
+## Wo das eingesetzt wird
 
-## Schritt 4 — Bei der Antwort nachfassen
+Fünf Gewohnheiten, ein Chat, dieselbe Schleife jedes Mal, wenn du den Chat-Tab öffnest. Die Gewohnheiten verstärken sich — der richtige Agent macht das richtige Modell offensichtlich; das richtige Modell macht die Zitate vertrauenswürdig; die Zitate schliessen die Schleife.
 
-Die erste Antwort ist selten die endgültige. Kurze Nachfragen sind der schnellste Weg, einzugrenzen: `fass in drei Punkten zusammen`, `jetzt auf Englisch`, `zitiere das Dokument, das du verwendet hast`, `formuliere für nicht-technische Leser um`. Der Agent behält den ganzen Thread im Kontext, also profitiert jede Nachfrage vom vorherigen Zug — du musst nicht wiederholen, was du schon gesagt hast.
-
-Landest du auf einem Ergebnis, das es wert ist, wiederverwendet zu werden, speichere den Prompt in der [Prompt-Bibliothek](/de/platform/workspace/prompt-library). Beim nächsten Mal ist der gleiche Ausgangspunkt einen Klick vom Composer entfernt.
-
-Der Schritt hat funktioniert, wenn die nächste Antwort des Agents sichtbar auf die Einschränkung eingeht, die du in der Nachfrage hinzugefügt hast.
-
-## Schritt 5 — Artefakte in Canvas sehen, wenn es mehr als Text ist
-
-Ein langes Markdown-Dokument, eine lauffähige HTML-Seite, ein SVG oder ein Mermaid-Diagramm ist in einer Chat-Blase schlecht lesbar. Wenn der Agent so etwas erzeugt, öffnet Tale es automatisch als Artefakt im Seitenbereich [Canvas](/de/platform/workspace/canvas) und listet es in der Artefakt-Leiste über dem Chat — Live-Vorschau, Quellansicht und Export liegen alle im Canvas-Bereich.
-
-Fordere den Agent auf, das Artefakt direkt zu überarbeiten (`mach das Diagramm horizontal`, `füge eine zweite Spalte hinzu`), und Canvas aktualisiert es, ohne eine neue Chat-Blase zu erzeugen.
-
-Der Schritt hat funktioniert, wenn sich der Canvas-Bereich rechts mit dem gerenderten Artefakt öffnet und die Chat-Blase eine kurze Zusammenfassung statt des vollen Inhalts zeigt.
-
-## Fehlerbehebung
-
-- **Der Agent antwortet aus dem falschen Wissen** — der Agent hat Zugriff auf zu viele Ordner. Wechsle zu einem engeren Agent oder lasse den Besitzer des Agents den **Wissen**-Tab einschränken. Die volle Zuordnung liegt in [Agent-Konzepte — Wissen](/de/platform/agents/concepts#knowledge).
-- **Der Anhang wurde hochgeladen, aber der Agent ignoriert ihn** — die Datei ist größer als das Kontext-Budget des Modells oder ihr Typ ist nicht in der unterstützten Liste. Probier eine kleinere Datei oder konvertiere zu PDF; [Anhänge](/de/platform/chat/attachments) listet die unterstützten Typen und Limits.
-- **Das Mikrofon-Symbol erscheint nicht** — der Browser unterstützt die Web Speech API nicht (ältere Firefox-Builds, manche eingebetteten WebViews) oder die Seite hat keine Mikrofon-Berechtigung. Wechsle zu Chrome, Edge oder Safari und erteile die Berechtigung, wenn du gefragt wirst.
-- **Der Canvas-Bereich öffnet sich nicht** — der Output des Agents ist nicht lang genug oder passt zu keinem Artefakt-Format. Frage im Prompt explizit nach einem HTML-, Mermaid- oder Markdown-Artefakt.
-
-## Wo das einsetzt
-
-Dieselbe Fünf-Schritte-Schleife deckt fast die ganze tägliche Chat-Arbeit eines Mitglieds ab: Agent, Kontext, fragen, nachfassen, Artefakte aus der Blase ziehen, wenn sie woanders hingehören. Die Abkürzungen, die das Tempo geben — Drag-and-Drop-Anhänge, Diktat, Agent-Wechsler, Prompt-Bibliothek — liegen alle im Composer; Muskelgedächtnis macht aus der Schleife etwas, das einer Suchleiste über dem Wissen deiner Organisation nahekommt.
-
-Willst du einen passgenaueren Agent als das, was es gibt, führt [Den ersten Agent end-to-end bauen](/de/tutorials/editor/first-agent-end-to-end) durch das Erstellen — dafür braucht es die Redakteur-Rolle. Für die Tastenkürzel, die die Schleife weiter komprimieren, trägt [Chat-Grundlagen — Tastenkürzel](/de/platform/chat/basics#keyboard-shortcuts) die volle Liste.
+Für die Oberfläche, auf der diese Gewohnheiten leben, siehe [Chat-Grundlagen](/de/platform/chat/basics). Für die Datei-Seite — was wortwörtlich eingefügt wird, was indexiert wird — siehe [Anhänge](/de/platform/chat/attachments).

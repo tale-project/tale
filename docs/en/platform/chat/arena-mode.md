@@ -1,68 +1,37 @@
 ---
 title: Arena Mode
-description: Send the same prompt to two AI models in parallel and compare the responses side by side, then record a verdict that flows into preference data.
+description: Side-by-side model comparison inside Chat — how it renders, how to pick the contenders, how verdicts feed feedback analytics, and when to reach for it.
 ---
 
-Arena Mode sends the same message to two AI models at the same time and renders the responses in a split view. Use it to evaluate a candidate model against your current default, to gather preference data across the team before a model rollout, or to demonstrate why one model handles a particular prompt class better than another. Every Member with chat access can run Arena Mode; the model dropdowns are filtered to whatever the organisation has configured under [AI providers](/platform/admin/providers) and whatever the active agent supports.
+Arena Mode runs the same prompt against two models at once and asks you which reply is better. The verdict feeds the org's feedback analytics; over time, the data tells which model the team actually prefers for which kind of question, separate from anyone's gut feel.
 
-This page covers the runtime: turning the mode on, the split view, recording a verdict, and how the parallel inference works under the hood.
+Reach for Arena when picking a model has been a debate rather than a decision — comparing replies side by side breaks the deadlock with evidence rather than opinions. For ordinary work the regular model picker is enough; Arena's value is the verdicts it produces, not the comparison view itself.
 
-## Turn Arena Mode on
+## How Arena renders
 
-Open any chat conversation and click the **Swords** icon in the input toolbar — the icon highlights when Arena Mode is active. Two model dropdowns appear above the input, labelled **Model A** and **Model B** with **vs** between them. Pick a model on each side and send a message; both responses stream into a split view. To turn the mode back off, click the Swords icon again — all arena state (model selections, threads, verdict) clears.
+Toggle **Enable Arena Mode** in the composer's model area and the textarea sprouts two model pickers labelled **Model A** and **Model B**. Sending a message runs both models in parallel; the screen splits and each reply streams into its own column. Once both finish, **Choose a verdict** appears under the columns with four buttons: **A is better**, **B is better**, **Tie**, **Both bad**.
 
-Arena Mode needs at least two available models in the organisation's provider set. If only one chat model is configured, the model dropdowns are hidden and the toggle is disabled — add a second provider under [AI providers](/platform/admin/providers) first.
+## Picking the contenders
 
-## The split view
+The two pickers are independent — any chat-tagged model the agent's policy allows is fair game on each side. Picking the same model on both sides is allowed (useful for testing temperature differences if the agent exposes that), but most comparisons span vendors or sizes. The agent's instructions, knowledge, and tools apply to both columns; only the underlying model differs.
 
-After you send a message, the chat area splits into two columns. The left column streams the response from Model A's thread; the right column streams Model B's. Each column has a header showing the model name; both scroll independently and support the full set of chat features including approvals, attachments, and message actions. Continue sending messages in the same view and every new message goes to both models in parallel.
+## Casting a verdict
 
-## Record a verdict
+The verdict is single-click. **A is better** and **B is better** are self-explanatory; **Tie** is for when both replies are roughly equally good; **Both bad** is for when neither is acceptable. The button you click records the verdict and resolves the chat to the winning column — the next message you send goes to that model only. Picking **Tie** or **Both bad** leaves both columns active for one more round.
 
-Once both models have responded, a verdict bar appears below the split view. Four options:
+## Where verdicts surface
 
-| Verdict         | Effect                                                                         |
-| --------------- | ------------------------------------------------------------------------------ |
-| **A is better** | Records Model A as the preferred response                                      |
-| **B is better** | Records Model B as the preferred response and makes Thread B the active branch |
-| **Tie**         | Records that both responses were equally good                                  |
-| **Both bad**    | Records that neither response was satisfactory                                 |
+Verdicts roll up into [Feedback analytics](/platform/admin/governance/feedback-analytics) under **Arena verdicts**, alongside a **Top Model Matchups** table that ranks pairings by win rate. The data is org-scoped, not per-user, so a small team's verdicts can outweigh a large team's defaults when an admin uses the table to set the org's default model.
 
-Verdicts are stored as feedback with the verdict choice plus both model IDs. Once recorded, the verdict buttons are disabled for that comparison round, so each pair gets one judgement. The verdicts accumulate as preference data — your usage-analytics dashboard surfaces head-to-head wins per pair and aggregate model rankings over time.
+## When to reach for it
 
-## How parallel inference works
-
-When you send a message in Arena Mode, the platform creates two separate threads (or reuses the existing arena threads), copies the conversation history to both if this is the first arena message in the conversation, links Thread B as a branch of Thread A, and forwards the same message to both models in parallel. Neither model sees the other's output, so the verdict reflects what each model produced independently.
-
-```mermaid
-sequenceDiagram
-    participant You
-    participant Platform
-    participant ThreadA
-    participant ThreadB
-    participant ModelA
-    participant ModelB
-
-    You->>Platform: Send message in arena mode
-    Platform->>ThreadA: Find or create
-    Platform->>ThreadB: Find or create
-    alt first arena message in conversation
-        Platform->>ThreadA: Copy prior history
-        Platform->>ThreadB: Copy prior history
-    end
-    Platform->>ThreadB: Link as branch of ThreadA
-    par parallel inference
-        Platform->>ModelA: Forward message
-        ModelA-->>ThreadA: Response
-    and
-        Platform->>ModelB: Forward message
-        ModelB-->>ThreadB: Response
-    end
-    Platform->>You: Render both responses side by side
-```
-
-The branch link is what lets you keep the winning response: when you pick **B is better**, Thread B becomes the active branch and subsequent non-arena messages continue from it.
+| Use … when                                                       | Arena Mode | Regular model picker |
+| ---------------------------------------------------------------- | ---------- | -------------------- |
+| You are deciding which model to default to                       | ✓          |                      |
+| You suspect a model regression after an upgrade                  | ✓          |                      |
+| You already know which model you want; you just want a reply now |            | ✓                    |
+| The query is short and ordinary                                  |            | ✓                    |
 
 ## Where this fits
 
-Arena Mode is the evaluation surface inside chat — the fastest path from "I want to know how these two models compare on my real prompts" to a recorded verdict. Use the verdicts it produces to inform which model you assign as the **Standard** preset on [AI providers](/platform/admin/providers) and which model each agent uses at [Create an agent](/platform/agents/create). For aggregate trends, the usage-analytics dashboard shows arena verdicts grouped by pair and by agent.
+Arena is the lightweight feedback loop on top of model choice. The heavier surface is [Feedback analytics](/platform/admin/governance/feedback-analytics) — that is where the verdicts you cast become a chart someone uses to argue about defaults. If you are the one who will read the chart later, run a handful of Arena rounds before reading the chart; the verdicts you cast yourself will tell you whether the table's framing matches your experience.

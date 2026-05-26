@@ -33,7 +33,7 @@ tale init my-project
 cd my-project
 ```
 
-Le CLI demande ton domaine, ta clé API et le mode TLS. Les secrets de sécurité sont générés automatiquement. Il génère aussi des fichiers de configuration pour les éditeurs IA et extrait le code source de la plateforme dans `.tale/reference/` pour que les éditeurs IA puissent créer et modifier des configs en connaissant la plateforme. Voir [Développement assisté par IA](docs/fr/develop/ai-assisted-development.md).
+Le CLI demande ton domaine, ta clé API et le mode TLS. Les secrets de sécurité sont générés automatiquement. Il génère aussi des fichiers de configuration pour les éditeurs IA et extrait le code source de la plateforme dans `.tale/reference/` pour que les éditeurs IA puissent créer et modifier des configs en connaissant la plateforme.
 
 ### 3. Démarrer Tale
 
@@ -45,7 +45,7 @@ Ouvre https://localhost (ou ton domaine configuré) dès que tu vois « Tale Pla
 
 > **Note :** ton navigateur affichera un avertissement de certificat pour les certificats auto-signés. C'est sûr de l'accepter.
 
-Pour les instructions détaillées d'installation, voir le [Guide de démarrage](docs/fr/platform/member/overview.md).
+Pour les instructions détaillées d'installation, voir le [démarrage rapide auto-hébergé](docs/fr/self-hosted/install/quickstart.md).
 
 ## Que peux-tu faire ?
 
@@ -101,7 +101,7 @@ Le CLI gère des déploiements blue-green sans downtime avec health-checks et ro
 
 ## Options d'authentification
 
-Tale utilise par défaut l'authentification par mot de passe. Le premier utilisateur crée le compte propriétaire ; tous les autres sont créés par un admin. Pour activer le login en self-service, branche un SSO ou des trusted headers. Détails complets dans le [guide d'authentification](docs/fr/self-hosted/admin/authentication.md).
+Tale utilise par défaut l'authentification par mot de passe. Le premier utilisateur crée le compte propriétaire ; tous les autres sont créés par un admin. Pour activer le login en self-service, branche un SSO ou des trusted headers via Microsoft Entra ID — voir l'[aperçu des intégrations](docs/fr/platform/integrations/overview.md) pour le connecteur Microsoft 365 qui alimente à la fois la synchro de documents et le SSO.
 
 - **Microsoft Entra ID (SSO) :** single sign-on avec Microsoft 365 / Azure AD avec provisioning automatique
 - **Trusted headers :** pour les déploiements derrière un reverse proxy authentifiant (Authelia, Authentik, oauth2-proxy)
@@ -152,48 +152,49 @@ cd services/crawler && uv sync --extra dev
 
 ## Documentation
 
-Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`, `de`, `fr`) plus des variantes régionales lorsque la formulation locale diffère (aujourd'hui : `de-CH` ; le chargeur détecte tout nouveau bundle `xx-YY` automatiquement). Les variantes ne portent que les chaînes qui diffèrent de leur base ; les clés manquantes retombent via la base jusqu'à l'anglais. Démarre par [`docs/index.md`](docs/index.md) pour choisir un point d'entrée par persona.
+Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`, `de`, `fr`) plus des variantes régionales lorsque la formulation locale diffère (aujourd'hui : `de-CH` ; le chargeur détecte tout nouveau bundle `xx-YY` automatiquement). Les variantes ne portent que les chaînes qui diffèrent de leur base ; les clés manquantes retombent via la base jusqu'à l'anglais. Démarre par [`docs/fr/index.md`](docs/fr/index.md) pour choisir un point d'entrée par persona.
 
 ### Pour les utilisateurs au quotidien
 
-- **[Démarrage](docs/fr/platform/member/overview.md)** — installer Tale et ouvrir l'app
-- **[Bases du chat IA](docs/fr/platform/chat/basics.md)** — discuter, joindre des fichiers, coller des liens vidéo, choisir un agent
-- **[Base de connaissances](docs/fr/platform/workspace/knowledge-base.md)** — documents et sites web
-- **[Conversations](docs/fr/platform/workspace/conversations.md)** — inbox client
-- **[Approbations](docs/fr/platform/workspace/approvals.md)** — relire les actions IA
-- **[Tes préférences](docs/fr/platform/member/preferences.md)** — mot de passe, langue, thème
+- **[Aperçu du chat](docs/fr/platform/chat/overview.md)** — les quatre parties de l'écran, où creuser
+- **[Bases du chat IA](docs/fr/platform/chat/basics.md)** — composer, agents, sélecteur de modèles, streaming, citations
+- **[Recherche approfondie](docs/fr/platform/chat/deep-research.md)** — l'agent Chercheur avec plan en direct et rapport PDF
+- **[Pièces jointes](docs/fr/platform/chat/attachments.md)** — fichiers dans le chat, RAG vs tel quel
+- **[Chats partagés](docs/fr/platform/chat/shared-threads.md)** — partager un chat avec l'organisation, dupliquer en un chat à toi
+- **[Approbations](docs/fr/platform/approvals/concepts.md)** — relire les actions IA
 
 ### Pour les bâtisseurs (agents, automatisations, intégrations)
 
-- **[Ce que tu peux construire](docs/fr/platform/developer/overview.md)** — orientation pour Editor/Developer
-- **[Créer un agent](docs/fr/platform/agents/create.md)** — assistants IA spécialisés
-- **[Workflows](docs/fr/platform/automations/workflows.md)** — automatisations multi-étapes
-- **[Données structurées](docs/fr/platform/knowledge/structured-data.md)** — produits, clients, fournisseurs
-- **[Vue des intégrations](docs/fr/platform/integrations/overview.md)** — REST, SQL, email, OneDrive
+- **[Concepts d'agent](docs/fr/platform/agents/concepts.md)** — le modèle à quatre boutons derrière chaque agent
+- **[Créer un agent](docs/fr/platform/agents/create.md)** — assistants IA spécialisés de bout en bout
+- **[Outils d'agent](docs/fr/platform/agents/tools.md)** — les familles d'outils intégrées
+- **[Projets](docs/fr/platform/projects/overview.md)** — espace de travail partagé pour fichiers, chats et agents de Projet
+- **[Concepts d'automatisation](docs/fr/platform/automations/concepts.md)** — workflows, déclencheurs, portes d'approbation
+- **[Aperçu des intégrations](docs/fr/platform/integrations/overview.md)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
+- **[Modèles livrés en standard](docs/fr/platform/models.md)** — OpenRouter, OpenAI, Vercel AI Gateway et les listes de modèles livrées
 
 ### Pour les admins
 
 - **[Membres et rôles](docs/fr/platform/admin/members-and-roles.md)** — gestion des utilisateurs et matrice de permissions
-- **[Authentification](docs/fr/self-hosted/admin/authentication.md)** — mot de passe, SSO, trusted headers
-- **[Fournisseurs IA](docs/fr/platform/admin/providers.md)** — configurer les modèles dans l'UI admin
-- **[Gouvernance](docs/fr/platform/admin/governance.md)** — budgets, rétention, guardrails (sûreté du contenu, détection PII, fournisseur de modération), journaux d'audit
-- **[Analytics d'usage](docs/fr/platform/admin/usage-analytics.md)** — reporting tokens et coûts dans le temps
+- **[Modèles livrés en standard](docs/fr/platform/models.md)** — quels modèles les défauts embarquent ; échanger ou ajouter un fournisseur
+- **[Aperçu des intégrations](docs/fr/platform/integrations/overview.md)** — connecteurs tiers, serveurs MCP, configurations personnalisées
+- **[Cloud trust et conformité](docs/fr/cloud/trust-and-compliance.md)** — cadres, responsabilité partagée, preuves à remettre aux auditeurs
 
 ### Pour les opérateurs
 
-- **[Vue de la plateforme](docs/fr/self-hosted/overview.md)** — architecture et services
-- **[Déploiement production](docs/fr/self-hosted/install/linux-server.md)** — Docker Compose, déploiements zero-downtime, reverse proxy
+- **[Aperçu auto-hébergé](docs/fr/self-hosted/overview.md)** — architecture et services
+- **[Démarrage rapide](docs/fr/self-hosted/install/quickstart.md)** — installation sur un seul hôte en vingt minutes
+- **[Déploiement production](docs/fr/self-hosted/install/linux-server.md)** — serveur Linux avec TLS, pare-feu, utilisateur non-root
+- **[Référence Docker Compose](docs/fr/self-hosted/install/docker-compose-reference.md)** — fichier de base et overlays
 - **[CLI Tale](tools/cli/README.md)** — référence du CLI
 - **[Référence d'environnement](docs/fr/self-hosted/configuration/environment-reference.md)** — toutes les variables d'environnement
-- **[Exploitation](docs/fr/self-hosted/operate/observability/operations.md)** — monitoring, suivi des erreurs, sauvegardes
-- **[Dépannage](docs/fr/self-hosted/operate/observability/troubleshooting.md)** — problèmes courants
+- **[Architecture des conteneurs](docs/fr/self-hosted/operate/container-architecture.md)** — sept conteneurs, qui possède quoi
 
 ### Pour les développeurs
 
 - **[Référence API](docs/fr/develop/api-reference.md)** — API REST pour RAG, Crawler et Platform
 - **[Webhooks](docs/fr/develop/webhooks.md)** — webhooks de workflows et d'agents avec vérification de signature
-- **[Développement assisté par IA](docs/fr/develop/ai-assisted-development.md)** — configurer agents/workflows dans des éditeurs IA
-- **[Contribuer Docker](docs/fr/develop/contributing-docker.md)** — modifier les Dockerfiles et lancer les tests conteneurs
+- **[Aperçu développeur](docs/fr/develop/overview.md)** — la surface développeur de bout en bout
 
 ## Besoin d'aide ?
 
@@ -205,7 +206,7 @@ Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`,
 
 ## Contribuer
 
-Lis [`AGENTS.md`](AGENTS.md) avant ton premier PR — c'est le contrat unique pour le style de code, la sécurité, les tests, l'i18n et la documentation à travers tous les workspaces. Le skill [`docs`](.agents/docs/AGENTS.md) couvre le site de doc ; le skill [`terminology`](.agents/terminology/AGENTS.md) les règles de traduction inter-langues. Lance `bun run check` (format, lint, typecheck, tests) avant d'ouvrir un PR ; le [pull request template](.github/pull_request_template.md) liste le reste de la checklist pre-merge.
+Lis [`AGENTS.md`](AGENTS.md) avant ton premier PR — c'est le contrat unique pour le style de code, la sécurité, les tests, l'i18n et la documentation à travers tous les workspaces. Le skill [`docs`](.agents/docs/AGENTS.md) couvre le site de doc ; le skill [`translation`](.agents/translation/AGENTS.md) les règles de traduction inter-langues. Lance `bun run check` (format, lint, typecheck, tests) avant d'ouvrir un PR ; le [pull request template](.github/pull_request_template.md) liste le reste de la checklist pre-merge.
 
 ---
 

@@ -33,7 +33,7 @@ tale init my-project
 cd my-project
 ```
 
-The CLI prompts for your domain, API key, and TLS mode. Security secrets are generated automatically. It also generates AI editor configuration files and extracts the platform source code to `.tale/reference/` so AI-powered editors can create and edit configs with full platform awareness. See [AI-assisted development](docs/develop/ai-assisted-development.md).
+The CLI prompts for your domain, API key, and TLS mode. Security secrets are generated automatically. It also generates AI editor configuration files and extracts the platform source code to `.tale/reference/` so AI-powered editors can create and edit configs with full platform awareness.
 
 ### 3. Start Tale
 
@@ -45,7 +45,7 @@ Visit https://localhost (or your configured domain) when you see "Tale Platform 
 
 > **Note:** Your browser will show a certificate warning for self-signed certificates. This is safe to accept.
 
-For detailed setup instructions, see the [Getting started guide](docs/platform/member/overview.md).
+For detailed setup instructions, see the [self-hosted quickstart](docs/en/self-hosted/install/quickstart.md).
 
 ## What can you do?
 
@@ -97,11 +97,11 @@ See the [CLI reference](tools/cli/README.md) for all options and flags. Pending 
 tale deploy
 ```
 
-The CLI handles blue-green zero-downtime deployments with automatic health checks and rollback. For full production setup including reverse proxy configuration and subpath deployment, see the [Production deployment guide](docs/self-hosted/install/linux-server.md).
+The CLI handles blue-green zero-downtime deployments with automatic health checks and rollback. For full production setup including reverse proxy configuration and subpath deployment, see the [Production deployment guide](docs/en/self-hosted/install/linux-server.md).
 
 ## Authentication options
 
-Tale uses password-based authentication by default. The first user creates the owner account; all other users are created by an admin. To enable self-service login, connect SSO or trusted headers. See the [Authentication guide](docs/self-hosted/admin/authentication.md) for full details.
+Tale uses password-based authentication by default. The first user creates the owner account; all other users are created by an admin. To enable self-service login, connect SSO or trusted headers via Microsoft Entra ID — see the [Integrations overview](docs/en/platform/integrations/overview.md) for the Microsoft 365 connector that powers both document sync and SSO.
 
 - **Microsoft Entra ID (SSO):** Single sign-on with Microsoft 365 / Azure AD with automatic provisioning
 - **Trusted headers:** For deployments behind an authenticating reverse proxy (Authelia, Authentik, oauth2-proxy)
@@ -152,48 +152,49 @@ cd services/crawler && uv sync --extra dev
 
 ## Documentation
 
-The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) plus regional variants where local wording differs (today: `de-CH`; the loader picks up any new `xx-YY` bundle automatically). Variants carry only the strings that differ from their base; missing keys fall back through the base to English. Start at [`docs/index.md`](docs/index.md) to pick an entry point by persona.
+The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) plus regional variants where local wording differs (today: `de-CH`; the loader picks up any new `xx-YY` bundle automatically). Variants carry only the strings that differ from their base; missing keys fall back through the base to English. Start at [`docs/en/index.md`](docs/en/index.md) to pick an entry point by persona.
 
 ### For everyday users
 
-- **[Getting started](docs/platform/member/overview.md)** — install Tale and open the app
-- **[AI chat basics](docs/platform/chat/basics.md)** — chat, attach files, paste video links, pick agents
-- **[Knowledge base](docs/platform/workspace/knowledge-base.md)** — documents and websites
-- **[Conversations](docs/platform/workspace/conversations.md)** — customer inbox
-- **[Approvals](docs/platform/workspace/approvals.md)** — review AI actions
-- **[Your preferences](docs/platform/member/preferences.md)** — password, language, theme
+- **[Chat overview](docs/en/platform/chat/overview.md)** — the four parts of the screen, where to read deeper
+- **[AI chat basics](docs/en/platform/chat/basics.md)** — composer, agents, model picker, streaming, citations
+- **[Deep research](docs/en/platform/chat/deep-research.md)** — the Researcher agent with live plan and PDF report
+- **[Attachments](docs/en/platform/chat/attachments.md)** — files in chat, RAG vs verbatim
+- **[Shared chats](docs/en/platform/chat/shared-threads.md)** — share a chat with the org, fork into your own
+- **[Approvals](docs/en/platform/approvals/concepts.md)** — review AI actions
 
 ### For builders (agents, automations, integrations)
 
-- **[What you can build](docs/platform/developer/overview.md)** — orientation for Editors/Developers
-- **[Create an agent](docs/platform/agents/create.md)** — specialised AI assistants
-- **[Workflows](docs/platform/automations/workflows.md)** — multi-step automations
-- **[Structured data](docs/platform/knowledge/structured-data.md)** — products, customers, vendors
-- **[Integrations overview](docs/platform/integrations/overview.md)** — REST, SQL, email, OneDrive
+- **[Agent concepts](docs/en/platform/agents/concepts.md)** — the four-knob model behind every agent
+- **[Create an agent](docs/en/platform/agents/create.md)** — specialised AI assistants end to end
+- **[Agent tools](docs/en/platform/agents/tools.md)** — the built-in tool families
+- **[Projects](docs/en/platform/projects/overview.md)** — shared workspace for files, chats, project agents
+- **[Automation concepts](docs/en/platform/automations/concepts.md)** — workflows, triggers, approval gates
+- **[Integrations overview](docs/en/platform/integrations/overview.md)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
+- **[Models out of the box](docs/en/platform/models.md)** — OpenRouter, OpenAI, Vercel AI Gateway plus the shipped model lists
 
 ### For admins
 
-- **[Members and roles](docs/platform/admin/members-and-roles.md)** — user management and permission matrix
-- **[Authentication](docs/self-hosted/admin/authentication.md)** — password, SSO, trusted headers
-- **[AI providers](docs/platform/admin/providers.md)** — configure models in the admin UI
-- **[Governance](docs/platform/admin/governance.md)** — budgets, retention, guardrails (content safety, PII detection, moderation provider), audit logs
-- **[Usage analytics](docs/platform/admin/usage-analytics.md)** — time-based token and cost reporting
+- **[Members and roles](docs/en/platform/admin/members-and-roles.md)** — user management and permission matrix
+- **[Models out of the box](docs/en/platform/models.md)** — which models the defaults ship with; swap or add providers
+- **[Integrations overview](docs/en/platform/integrations/overview.md)** — third-party connectors, MCP servers, custom configs
+- **[Cloud trust and compliance](docs/en/cloud/trust-and-compliance.md)** — frameworks, shared responsibility, evidence to hand auditors
 
 ### For operators
 
-- **[Platform overview](docs/self-hosted/overview.md)** — architecture and services
-- **[Production deployment](docs/self-hosted/install/linux-server.md)** — Docker Compose, zero-downtime deploys, reverse proxy
+- **[Self-hosted overview](docs/en/self-hosted/overview.md)** — architecture and services
+- **[Quickstart](docs/en/self-hosted/install/quickstart.md)** — single-host install in twenty minutes
+- **[Production deployment](docs/en/self-hosted/install/linux-server.md)** — Linux server with TLS, firewall, non-root user
+- **[Docker Compose reference](docs/en/self-hosted/install/docker-compose-reference.md)** — base file and overlays
 - **[Tale CLI](tools/cli/README.md)** — CLI reference
-- **[Environment reference](docs/self-hosted/configuration/environment-reference.md)** — all environment variables
-- **[Operations](docs/self-hosted/operate/observability/operations.md)** — monitoring, error tracking, backups
-- **[Troubleshooting](docs/self-hosted/operate/observability/troubleshooting.md)** — common issues
+- **[Environment reference](docs/en/self-hosted/configuration/environment-reference.md)** — all environment variables
+- **[Container architecture](docs/en/self-hosted/operate/container-architecture.md)** — seven containers, what owns what
 
 ### For developers
 
-- **[API reference](docs/develop/api-reference.md)** — REST API for RAG, Crawler, and Platform
-- **[Webhooks](docs/develop/webhooks.md)** — workflow and agent webhooks with signature verification
-- **[AI-assisted development](docs/develop/ai-assisted-development.md)** — configure agents/workflows in AI editors
-- **[Contributing Docker](docs/develop/contributing-docker.md)** — modify Dockerfiles and run container tests
+- **[API reference](docs/en/develop/api-reference.md)** — REST API for RAG, Crawler, and Platform
+- **[Webhooks](docs/en/develop/webhooks.md)** — workflow and agent webhooks with signature verification
+- **[Develop overview](docs/en/develop/overview.md)** — the developer surface end to end
 
 ## Need help?
 
@@ -205,7 +206,7 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 
 ## Contributing
 
-Read [`AGENTS.md`](AGENTS.md) before your first PR — it is the single contract for code style, security, testing, i18n, and documentation across every workspace. The [`docs`](.agents/docs/AGENTS.md) skill covers the documentation site; the [`terminology`](.agents/terminology/AGENTS.md) skill covers cross-locale translation rules. Run `bun run check` (format, lint, typecheck, tests) before opening a PR; the [pull request template](.github/pull_request_template.md) lists the rest of the pre-merge checklist.
+Read [`AGENTS.md`](AGENTS.md) before your first PR — it is the single contract for code style, security, testing, i18n, and documentation across every workspace. The [`docs`](.agents/docs/AGENTS.md) skill covers the documentation site; the [`translation`](.agents/translation/AGENTS.md) skill covers cross-locale translation rules. Run `bun run check` (format, lint, typecheck, tests) before opening a PR; the [pull request template](.github/pull_request_template.md) lists the rest of the pre-merge checklist.
 
 ---
 

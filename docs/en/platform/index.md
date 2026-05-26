@@ -1,43 +1,37 @@
 ---
-title: Platform overview
-description: Product documentation for Tale — features, roles, and organisation admin. Applies identically to Cloud and Self-hosted.
+title: Platform
+description: Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted. Chat, projects, agents, automations, conversations, knowledge, approvals, admin.
+kind: index
 ---
 
-Platform is the complete product documentation for Tale. It covers every user-visible feature — chat, knowledge base, agents, automations, integrations — plus role-specific task guidance and all org-level admin settings (members, roles, teams, branding, governance, AI providers, analytics). Everything here applies identically whether you are on the managed [Cloud](/cloud) edition or running a [Self-hosted](/self-hosted) instance.
+Platform is the canonical product reference: every user-visible feature in Tale, identical for Cloud and self-hosted. The pages here describe the UI someone clicks, the concept behind the UI, and the trade-offs between features that look similar.
 
-The only docs that do **not** live here are the edition-specific ones: Cloud billing, residency, and hosted SSO live under Cloud; instance installation, environment configuration, observability, and release notes live under Self-hosted. If a page describes a feature you see in the product UI, it is in this tab.
+The section is organised by area, then by feature within an area. Most readers do not read it front to back — they land here from a search result or a link from a tutorial, and the page they landed on should answer the question they brought. The role-indexed entries (Member, Editor, Developer, Admin) at the bottom of this section are for someone setting up their first day with the product.
 
-## By feature
+## Pages in this section
 
-- **[Chat](/platform/chat/basics)** — the conversational surface. Attachments, agents in chat, Arena Mode for side-by-side model comparison.
-- **[Workspace](/platform/workspace/knowledge-base)** — knowledge base, conversations, approvals, canvas, prompt library, document comparison.
-- **[Agents](/platform/agents/concepts)** — custom AI assistants: what they are, how to create one, how versions work.
-- **[Automations](/platform/automations/concepts)** — multi-step workflows, triggers, execution logs.
-- **[Knowledge](/platform/knowledge/structured-data)** — structured data and website crawling.
-- **[Integrations](/platform/integrations/overview)** — connecting Tale to AI providers, data sources, and third-party tools.
+**[Chat](/platform/chat/overview)** — threads, agents in chat, attachments, arena mode, voice mode, the canvas pane, sharing.
 
-## By role
+**[Projects](/platform/projects/overview)** — shared workspaces that bundle files, instructions, threads, and project-scoped agents.
 
-Tale has six roles. Four have task-oriented guidance here; Owner is Admin plus a small set of lifecycle actions; Disabled has no product access.
+**[Agents](/platform/agents/concepts)** — instructions, knowledge, tools, model, skills, delegation, versioning, webhook triggers.
 
-- **[Member](/platform/member/overview)** — read-only: chat, browse knowledge, read conversations and approvals.
-- **[Editor](/platform/editor/overview)** — Member plus content management and approval decisions.
-- **[Developer](/platform/developer/overview)** — Editor plus agents, automations, integrations, API keys.
-- **[Admin](/platform/admin/overview)** — Developer plus org settings.
+**[Automations](/platform/automations/concepts)** — workflows, triggers, executions, metrics, approval gates.
 
-## Organisation admin
+**[Conversations](/platform/conversations/overview)** — the customer-channel inbox; status filtering, search.
 
-Org-level settings apply equally to Cloud and Self-hosted, except where noted. Canonical reference:
+**[Knowledge](/platform/knowledge/overview)** — documents, customers, products, vendors, websites, structured-data model.
 
-- [Members and roles](/platform/admin/members-and-roles) — the six-role permission matrix.
-- [Teams](/platform/admin/teams) — scope knowledge and chat access.
-- [AI providers](/platform/admin/providers) — configure OpenAI, Anthropic, Google, and self-hosted models.
-- [Branding](/platform/admin/branding) — logos, colours, product name.
-- [Governance](/platform/admin/governance) — content and policy controls.
-- [Usage analytics](/platform/admin/usage-analytics) — per-user and org-wide activity.
+**[Approvals](/platform/approvals/concepts)** — inline cards, workflow gates, the approver pool.
 
-For authentication setup (password, SSO, trusted headers), see [Self-hosted authentication](/self-hosted/admin/authentication) — the configuration surface is Self-hosted-specific; Cloud handles it via the hosted admin UI.
+**[Workspace](/platform/workspace/prompt-library)** — prompt library and document comparison.
+
+**[Integrations](/platform/integrations/overview)** — third-party SaaS pairings and MCP servers.
+
+**[Member](/platform/member/overview)**, **[Editor](/platform/editor/overview)**, **[Developer](/platform/developer/overview)** — role-indexed quick tours for someone setting up their first day.
+
+**[Admin](/platform/admin/overview)** — organization settings, providers, branding, integrations, plus the governance sub-tree.
 
 ## Where this fits
 
-Platform is the single source of truth for what Tale does, and it stays the same surface regardless of where the instance runs. Anything that requires a config file, an environment variable, or a CLI command lives one tab over under [Self-hosted](/self-hosted/overview); anything that only exists for managed customers — billing, hosted SSO, custom domains — lives under [Cloud](/cloud). If you landed here from a search result and aren't sure what role to read as, start with [Members and roles](/platform/admin/members-and-roles) — every other admin question reads differently once that page has answered who can do what.
+Platform is the gravity well — Cloud and self-hosted both link into it for feature documentation, and every tutorial cites pages here for the underlying concepts. The page worth bookmarking on your first day is [Agents → concepts](/platform/agents/concepts) — almost every other product page assumes the four-knob mental model that page builds.

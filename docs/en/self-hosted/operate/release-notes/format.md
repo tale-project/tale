@@ -1,109 +1,56 @@
 ---
-title: Release notes format
-description: Authoritative format for GitHub release notes on tale-project/tale.
+title: How to read release notes
+description: The shape Tale's release notes follow — the semver promise, where breaking changes and deprecations sit, how security entries are flagged, and where the per-release migration notes live.
 ---
 
-Tale ships its release history as GitHub release notes against the `tale-project/tale` repository, in a fixed shape so operators can scan a release for the three things that matter before an upgrade — security relevance, behavioural change, breaking change — without reading every bullet. This page is the contract: it names every section, the order they appear in, the framing every release shares, and the classification rules that decide which bullet lands where.
+Tale ships a release per minor version and patches as bug-fix tags between them. The release notes for every tag follow the same shape so you can scan one in a minute and know whether the upgrade is a five-minute bump or a maintenance window. This page covers the format: the semver promise, what each section guarantees, and where to read deeper when a row points at a migration.
 
-Operators read these notes before running `tale upgrade`; the same Markdown the `/release` slash command in the main repo drafts is what the in-product **What's new** viewer renders. Consistency of shape is the load-bearing property — once an operator has read three releases, they know exactly where to look for the security entries, the model bumps, and the migration steps.
+The notes themselves live on the GitHub release page for each tag. The CLI also surfaces them — `tale upgrade --notes` prints the notes for the version it is about to install.
 
-## Why this spec exists
+## The semver promise
 
-Operators and end users rely on release notes to answer three questions before upgrading:
+Tale versions are semver, and the version number is the headline fact about an upgrade.
 
-- Does this release fix a security issue that affects me?
-- Did a model or provider change shift the output of any workflow I run?
-- Does this upgrade require manual steps?
+- **Patch (`0.9.0 → 0.9.1`)** — bug fixes only. No schema migrations, no config changes, no behaviour changes other than the fix itself. Safe to upgrade without reading past the security section.
+- **Minor (`0.9.x → 0.10.x`)** — new features, possibly forward-only migrations. Backwards-compatible by default; deprecations are announced one minor in advance.
+- **Major (`0.x → 1.x`)** — breaking changes are allowed. Always carries a migration-notes link at the top of the release; read it end-to-end before starting.
 
-Consistent sectioning in a consistent order makes those three answers findable in seconds, without reading every bullet. The spec exists to keep that contract loud across every release.
+The version line at the top of every release page names the bump kind in plain English so you do not have to do the arithmetic yourself.
 
-## Required sections
+## The sections every release has
 
-Include only the sections that have content; never include an empty section. The order is fixed:
+Each release page is the same ordered list of sections. Empty sections are omitted, not left blank — if you do not see a section, there is nothing to report there.
 
-| Order | Section header           | Scope                                                                              |
-| ----- | ------------------------ | ---------------------------------------------------------------------------------- |
-| 1     | `## 🔒 Security`         | CVE fixes, dependency patches, auth/session/crypto hardening, secret handling.     |
-| 2     | `## 🤖 Model & Provider` | LLM model swap/upgrade/deprecation, provider config changes that alter output.     |
-| 3     | `## 💥 Breaking Changes` | API removal/renaming, schema changes requiring manual migration, removed features. |
-| 4     | `## 🚀 Features`         | New user-visible functionality.                                                    |
-| 5     | `## ⚡ Performance`      | Measurable performance wins worth calling out.                                     |
-| 6     | `## 🛠 Improvements`     | Non-breaking enhancements, UX polish.                                              |
-| 7     | `## 🐛 Fixes`            | Bug fixes (non-security).                                                          |
-| 8     | `## 📝 Other`            | Docs, refactors, chores. Use sparingly.                                            |
+- **Highlights** — one or two paragraphs naming what the release is for. Read this first.
+- **Breaking changes** — every change that requires the operator to do something before or after the upgrade. Each row names the symptom you would hit if you skipped, and the action that avoids it.
+- **Deprecations** — features still working in this release but flagged for removal. Each row names the removal version so you can plan the cutover.
+- **Security** — CVE-format entries for fixes that close a vulnerability. The full feed lives under [Security advisories](/self-hosted/operate/security/advisories); the release notes carry the one-line summary plus the advisory link.
+- **Features and fixes** — the long list. Grouped by area (Platform, RAG, Crawler, CLI, Docs); each row reads as one sentence.
+- **Migration notes** _(major versions and some minors)_ — the linked walk through schema migrations, config-file changes, or operator-facing renames. Always read for majors.
 
-## Required framing
+## How to scan a release
 
-Every release includes, at minimum, four pieces of framing on top of the section bullets.
+Read the version line, the highlights, and the breaking-changes section. If breaking changes is empty and the security section does not name a fix that touches your install, the upgrade is the two-command sequence from [Upgrades](/self-hosted/operate/upgrades). If either section has rows, walk them before running `tale deploy`.
 
-**Title.** Format `v{version} — {short tagline}`, e.g. `v1.6.0 — Usage analytics & multi-tenancy`. The tagline is the one-line headline the changelog viewer renders next to the version number.
+```text
+0.12.0 (minor) — 2026-05-14
 
-**Summary.** Two to three sentences at the top describing what changed and why. No emoji in the summary — emoji are reserved for the section headers below.
+Highlights
+  Streaming tool calls now stream into the chat as they emit.
 
-**Upgrade instructions.** A short block at the bottom of the notes that names the two commands every upgrade involves:
+Breaking changes
+  (none)
 
-```markdown
-## Upgrade
+Deprecations
+  AGENTS_LEGACY_PROMPT env var — removed in 0.14.
 
-Run `tale upgrade` to update the CLI, then `tale deploy` to apply the new version.
+Security
+  CVE-2026-XXXX — patched bypass in the run-code sandbox.
+  See: advisory TAL-2026-007.
 ```
 
-Both steps are required. `tale upgrade` fetches the new CLI binary; `tale deploy` rolls the new version onto the running stack. Omitting either leaves the deployment on the old version, which is the most common upgrade mistake.
-
-**Manual migration notes** (only when relevant). If any breaking change requires operator action beyond `tale deploy`, include a `## Migration Guide` section with numbered steps. This is the section operators look for when the title or summary mentions a breaking change.
-
-**Full Changelog link** at the bottom:
-
-```markdown
-**Full Changelog**: https://github.com/tale-project/tale/compare/v{previous}...v{new}
-```
-
-## Classification rules
-
-A bullet lands in `## 🔒 Security` whenever it touches authentication, sessions, secrets storage, cryptography, or any reachable dependency CVE. When the categorisation is ambiguous, classify as security and also file a [Security Advisory](/self-hosted/operate/security/advisories) — it's cheaper to retract a non-issue than to under-disclose a real one.
-
-`## 🤖 Model & Provider` catches anything that could alter LLM output for the same user input — model bumps, provider swaps, prompt or template changes in default agents.
-
-`## 💥 Breaking Changes` is reserved for changes where users or operators must do something to keep working after upgrade. If `tale upgrade` followed by `tale deploy` is enough, it isn't breaking.
-
-`## 📝 Other` is for changes worth mentioning that fit nowhere else. Trivial chores (typo fixes, internal refactors, test-only changes) are omitted entirely — they're git history, not release notes.
-
-## A worked release
-
-```markdown
-# v1.6.0 — Usage analytics & multi-tenancy
-
-This release adds time-based usage analytics, hardens multi-tenant org isolation,
-and bumps the default reasoning model. No breaking changes.
-
-## 🔒 Security
-
-- Tighten org-scoping on governance policy queries (#1573)
-
-## 🤖 Model & Provider
-
-- Default reasoning model bumped from Opus 4.6 → Opus 4.7 (#1590)
-
-## 🚀 Features
-
-- Time-based usage analytics dashboard under `/metrics/usage` (#1574)
-- Multi-org support: users can belong to multiple organizations (#1573)
-
-## 🛠 Improvements
-
-- Tabs underline variant adopted across settings surfaces (#1571)
-
-## 🐛 Fixes
-
-- Fix prompt library sidebar scroll on short viewports (#1572)
-
-## Upgrade
-
-Run `tale upgrade` to update the CLI, then `tale deploy` to apply the new version.
-
-**Full Changelog**: https://github.com/tale-project/tale/compare/v1.5.2...v1.6.0
-```
+The shape above is what `tale upgrade --notes` prints. The web version of the same release adds links on every advisory and migration row.
 
 ## Where this fits
 
-The release-notes format is the contract between Ruler GmbH and every operator running a self-hosted Tale instance. The same Markdown the in-app [What's new](/platform/admin/changelog) viewer renders is what operators consult before running `tale upgrade`; consistent shape is what makes the notes scannable. The `/release` slash command in the main repository drafts notes following this spec. For security-grade fixes that also warrant a CVE disclosure, [Security advisories](/self-hosted/operate/security/advisories) is the parallel surface.
+The release-notes format is the contract between the project and the operator — the same shape every release so the upgrade decision is a scan, not a deep read. The natural next steps are [Upgrades](/self-hosted/operate/upgrades) for the deploy mechanics and [Security advisories](/self-hosted/operate/security/advisories) for the long-form vulnerability feed the security section links into.

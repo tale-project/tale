@@ -1,99 +1,55 @@
 ---
-title: Eine Automatisierung per Webhook auslösen
-description: Ein externes System per Token-Webhook an einen Tale-Workflow anbinden.
+title: Eine Automation per Webhook auslösen
+description: Erzeug in einem Tale-Workflow einen Trigger-Schlüssel und POSTe von einem externen System auf die Trigger-URL, um mit Idempotenz einen Lauf zu starten.
 ---
 
-Webhook-Trigger verwandeln jedes externe Ereignis — eine Formular-Einreichung, einen Upstream-Hook, einen CI-Schritt, einen Slack-Slash-Command — in einen Tale-Workflow-Lauf. Der externe Dienst sendet JSON per POST an eine URL, die ein eindeutiges Token enthält; das Token ist die Anmeldeberechtigung, und der Workflow startet mit diesem JSON als Eingabe. Dieses Tutorial führt das Erstellen eines minimalen Workflows durch, exponiert seinen Webhook, sendet eine Anfrage und verifiziert die Zustellung. Die Referenz liegt in [Webhooks](/de/develop/webhooks) und [Triggers](/de/platform/automations/triggers).
+Ein Webhook-Trigger macht aus einem Tale-Workflow etwas, das ein externes System per POSTen von JSON auslöst. Tale verifiziert das Bearer-Token, speichert den Idempotenz-Schlüssel, startet einen Lauf und gibt eine Execution-ID zurück — dieselbe Form, die jeder eingehende Webhook braucht, um wiederholungssicher zu sein. Dieser Spaziergang führt einen neuen Workflow von „ich will ihn von aussen feuern" zu „ein Order-Event POSTet und der Workflow läuft" auf einer Instanz.
 
-Das Ergebnis am Ende ist ein extern aufrufbarer Workflow, den du von jedem HTTPS-Client treiben kannst.
+Du brauchst eine Developer-Rolle in der Org, einen vorhandenen Workflow (oder den leeren Starter) und eine Shell mit `curl`. Der volle Webhook-Vertrag — Signierung, Idempotenz, Wiederholungen — lebt in [Webhooks](/de/develop/webhooks); dieser Spaziergang ist die kleinste End-to-End-Nutzung der eingehenden Seite.
 
 ## Bevor du beginnst
 
-Du brauchst eine Rolle, die Workflows erstellen und veröffentlichen darf — Inhaber, Admin oder Entwickler qualifizieren sich. Du brauchst außerdem eine Tale-Instanz, die per HTTPS erreichbar ist von dort, wo das externe aufrufende System läuft; für einen lokalen Test ist der Client dein Laptop, in Produktion das Upstream-System, das den POST macht. Kein externes Dienstkonto, kein API-Schlüssel — das Webhook-Token ist seine eigene Anmeldeberechtigung.
+Bestätige zwei Dinge. Der Workflow, den du auslöst, existiert und ist veröffentlicht — Entwürfe lassen sich nicht triggern. Deine Rolle ist mindestens Developer — Trigger-Schlüssel zu erzeugen ist auf Developer und höher beschränkt. Hast du noch keinen Workflow, ist der kanonisch kleine „log das Payload in den Execution-Record"; erstell ihn über [Workflow mit Genehmigungen](/de/tutorials/editor/workflow-with-approvals) und entferne den Genehmigungs-Schritt für diesen Spaziergang.
 
-## Schritt 1 — Einen Workflow mit Webhook-Trigger erstellen
+## Schritt 1 — Einen Webhook-Trigger an den Workflow binden
 
-Öffne **Automatisierungen** in der Seitenleiste und klicke **Workflow erstellen**. Gib ihm einen Slug (`incoming-order-intake`) — Slugs sind URL-tauglich und faktisch dauerhaft, da die Webhook-URL nichts anderes enthält, das den Workflow identifiziert. Öffne das **Triggers**-Panel und füge einen **Webhook**-Trigger hinzu. Tale generiert eine eindeutige URL der Form:
+Der erste Zug ist, einen Webhook-Trigger an den Workflow zu binden. Ohne Trigger lässt sich der Workflow nur aus der UI aufrufen; mit einem bekommt er eine URL und einen Schlüssel.
 
-```text
-https://<deine-tale-instanz>/api/workflows/wh/<TOKEN>
-```
+Öffne den Workflow-Editor, klick oben auf den Trigger-Knoten und wähl **Webhook**. Gib dem Trigger einen Namen (`order-created`) — die von Tale generierte URL nutzt diesen Namen. Speichern. Das rechte Panel zeigt jetzt zwei Dinge, die du brauchst: die **Trigger-URL** und den **Trigger-Schlüssel**.
 
-Das Token besteht aus 64 Hex-Zeichen und ist die einzige Anmeldeberechtigung — wer die URL hält, kann Ereignisse an den Workflow posten. Behandle sie, wie du einen API-Schlüssel behandeln würdest: in den Secret-Manager des aufrufenden Systems, niemals committen.
-
-Der Schritt hat funktioniert, wenn das Trigger-Panel die URL und einen „Kopieren"-Knopf daneben zeigt.
-
-## Schritt 2 — Die Payload in einem Schritt referenzieren
-
-Der POST-Body wird zur Workflow-Eingabe, adressierbar als `{{ trigger.body }}` in jedem Schritt. Füge nach dem Trigger einen **LLM**-Schritt hinzu und referenziere die Eingabe im Prompt:
-
-```text
-Klassifiziere diese Order-Aufnahme als dringend, normal oder Follow-up.
-
-Payload:
-{{ trigger.body | json }}
-```
-
-Der `| json`-Filter rendert den ganzen Body als JSON-String, den das Modell lesen kann. Die volle Filter- und Variablen-Syntax liegt in [Workflows](/de/platform/automations/workflows).
-
-Der Schritt hat funktioniert, wenn die Vorschau des Schritts den Prompt mit dem noch sichtbaren Platzhalter zeigt (der Body löst zur Ausführungszeit auf, nicht zur Vorschauzeit).
-
-## Schritt 3 — Veröffentlichen und den Webhook aufrufen
-
-Speichere den Workflow und schalte **Veröffentlichen** ein, damit der Trigger live ist; unveröffentlichte Workflows weisen Webhook-POSTs mit `403` ab. Rufe dann die URL aus deinem Client auf:
+Tale zeigt den Trigger-Schlüssel einmal, wie jeden anderen API-Schlüssel. Kopier ihn; du wirst ihn nicht mehr sehen.
 
 ```bash
-curl -X POST "https://<deine-tale-instanz>/api/workflows/wh/<TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{"customerId":"c-42","priority":"high","lines":3}'
+export TALE_TRIGGER_KEY="tk_trigger_..."
+export TALE_TRIGGER_URL="https://your-host.example.com/api/v1/workflows/triggers/order-created"
 ```
 
-Der POST liefert sofort `200 OK` mit einem kleinen Body zurück:
+## Schritt 2 — Ein Payload per curl POSTen
 
-```json
-{ "status": "accepted", "workflowSlug": "incoming-order-intake" }
-```
-
-Der Workflow selbst läuft asynchron. Tale plant den Lauf auf einer Hintergrund-Queue; das aufrufende System wartet nie auf den Output des Workflows.
-
-Der Schritt hat funktioniert, wenn der Response-Status `200` ist und der Body der Form oben entspricht.
-
-## Schritt 4 — Den Lauf verifizieren
-
-Öffne den **Ausführungen**-Tab des Workflows, um den Lauf zu sehen. Jede Zeile zeigt die Trigger-Payload, Eingabe und Ausgabe jedes Schritts und die Gesamt-Laufzeit. Filtere nach Zeitstempel oder Status, um einen bestimmten Lauf zu finden. Dieser Tab ist die kanonische Debug-Oberfläche — wenn ein Schritt fehlschlägt, stehen Fehlermeldung und Stack-Trace hier, nicht in der HTTP-Antwort.
-
-Der Schritt hat funktioniert, wenn der Ausführungen-Tab eine neue Zeile mit der gesendeten Payload und grünem `succeeded`-Status zeigt.
-
-## Schritt 5 — Idempotenz für sichere Wiederholungen ergänzen
-
-Wenn dein Client von sich aus wiederholt — flackerndes Netzwerk, ein CI-Schritt, der zweimal läuft, ein Stripe-Webhook, der mehr als einmal zustellt — lösen doppelte POSTs doppelte Workflow-Läufe aus. Sende eine stabile `X-Idempotency-Key`-Kopfzeile, um Wiederholungen sicher zu machen; Tale erkennt die zweite Zustellung und liefert die ursprüngliche Ausführung zurück, ohne einen neuen Lauf zu starten.
+Eine Trigger-URL ist ein normaler POST-Endpoint. Der Body wird zum Input des ersten Schritts des Workflows; die Antwort trägt die Execution-ID, damit der Aufrufer Läufe korrelieren kann.
 
 ```bash
-curl -X POST "https://<deine-tale-instanz>/api/workflows/wh/<TOKEN>" \
+curl -sS "$TALE_TRIGGER_URL" \
+  -H "Authorization: Bearer $TALE_TRIGGER_KEY" \
   -H "Content-Type: application/json" \
-  -H "X-Idempotency-Key: order-2026-05-15-42" \
-  -d '{"customerId":"c-42","priority":"high","lines":3}'
+  -H "Idempotency-Key: order-12345" \
+  -d '{ "orderId": "12345", "amount": 199.0 }'
 ```
 
-Eine doppelte Zustellung liefert:
+Eine 200 gibt `{ "executionId": "exe_..." }` zurück. Der Workflow läuft jetzt asynchron; öffne den Tab **Executions** des Workflows und du solltest einen laufenden Run mit deinem Payload als Trigger-Input sehen.
 
-```json
-{ "status": "duplicate", "executionId": "exec_..." }
-```
+Eine 401 heisst, der Schlüssel ist falsch; eine 404 heisst, der Trigger-Name in der URL passt zu keinem veröffentlichten Workflow; eine 422 heisst, der Workflow ist archiviert oder der Trigger deaktiviert.
 
-Wähle einen Schlüssel, der über Wiederholungen hinweg stabil und über verschiedene Ereignisse hinweg eindeutig ist — die meisten Clients nutzen die eigene Ereignis-ID des Upstream.
+## Schritt 3 — Wiederholungen mit Idempotenz absichern
 
-Der Schritt hat funktioniert, wenn ein zweiter POST mit demselben Schlüssel `status: "duplicate"` zurückgibt und keine neue Zeile in **Ausführungen** erscheint.
+Externe Systeme wiederholen bei Timeouts und 5xx-Fehlern; ohne Idempotenz feuert eine Wiederholung den Workflow doppelt. Die Kopfzeile `Idempotency-Key` aus Schritt 2 ist die Lösung: Tale speichert den Schlüssel 24 Stunden und gibt bei jeder Wiederholung mit demselben Schlüssel die ursprüngliche Execution zurück.
 
-## Fehlerbehebung
+Test das, indem du dieselbe curl-Anfrage oben erneut laufen lässt. Die Antwort trägt dieselbe `executionId` wie der erste Call, und der Tab **Executions** zeigt weiterhin einen Lauf. Ändere den Schlüssel auf `order-12346` und curl erneut — der feuert einen zweiten Lauf.
 
-- **404 Invalid webhook token** — das Token in der URL ist falsch, oder der Trigger wurde gelöscht und neu erstellt (Neugenerierung prägt ein neues Token). Kopiere die URL erneut aus dem Triggers-Panel des Workflows.
-- **403 Webhook is disabled** — der Toggle des Triggers ist aus, oder der Workflow selbst ist nicht veröffentlicht. Schalte beides im Triggers-Panel des Workflows ein.
-- **400 Invalid JSON payload** — der Anfrage-Body ist kein gültiges JSON, oft weil Middleware auf der Client-Seite Anführungszeichen entfernt oder einen formularkodierten Body gesendet hat. Sende rohes JSON mit `Content-Type: application/json`.
-- **429 Rate limit exceeded** — die Client-IP hat das Pro-IP-Webhook-Limit überschritten. Drossle den Client oder verteile auf mehr Workflows.
+Das Quell-System muss pro logischem Event einen stabilen, deterministischen Schlüssel verwenden. Ein verbreitetes Muster ist `<event-type>-<event-id>`; nutze nie eine zur Wiederholungszeit generierte zufällige UUID, sonst erzeugt jede Wiederholung einen neuen Lauf.
 
-## Wo das einsetzt
+## Wo das eingesetzt wird
 
-Du hast jetzt ein externes System, das einen Tale-Workflow treiben kann: einen HTTPS-Endpunkt, eine Token-basierte Anmeldeberechtigung, einen asynchronen Lauf und einen Ausführungen-Tab, in dem jeder Schritt debugbar ist. Dieselbe Form — Token-in-URL, sofortige `202`-artige Antwort, asynchroner Lauf — gilt für jede Quelle, die du anschließen kannst, vom Stripe-Webhook über einen CI-Job bis zum Slack-Slash-Command, indem du nur den Client änderst.
+Webhook-Trigger sind die eingehende Hälfte von Tales Automation-API — die Naht, in die dein CRM, dein Order-System oder dein Monitoring-Tool POSTet. Nimm sie für „das ist in unserer Welt passiert, bitte lass dazu einen Tale-Workflow laufen"; greif zur [API-Referenz](/de/develop/api-reference), wenn du stattdessen eine synchrone Antwort willst.
 
-Brauchst du eine direkte Agent-Antwort statt eines Workflow-Laufs, gilt dasselbe Protokoll für Agent-Webhooks unter [Webhooks — Agent-Webhooks](/de/develop/webhooks#agent-webhooks). Für ausgehende Webhooks aus Tale in deinen eigenen Dienst deckt [Webhooks](/de/develop/webhooks) die Empfänger-Seite ab.
+Für die ausgehende Hälfte — Tale POSTet auf deine URL, wenn ein Tale-Event passiert — und für den vollen Signier- und Wiederholungs-Vertrag siehe [Webhooks](/de/develop/webhooks). Die Workflow-seitige Konfiguration des Triggers lebt auf der Seite [Automation-Konzepte](/de/platform/automations/concepts).

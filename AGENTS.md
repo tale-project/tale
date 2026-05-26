@@ -1,6 +1,6 @@
 # Tale — coding standards
 
-The single contract for writing code in this repository. Read this file in full before your first change. Documentation rules live in the [`docs`](.agents/docs/AGENTS.md) skill; cross-locale terminology in the [`terminology`](.agents/terminology/AGENTS.md) skill.
+The single contract for writing code in this repository. Read this file in full before your first change. Documentation rules live in the [`docs`](.agents/docs/AGENTS.md) skill; cross-locale translation rules in the [`translation`](.agents/translation/AGENTS.md) skill.
 
 Tale is a monorepo on Bun workspaces (`@tale/platform`, `@tale/cli`, `@tale/crawler`, `@tale/rag`, `@tale/db`, `@tale/proxy`, `@tale/web`, `@tale/docs`, `@tale/ui`, `@tale/webui`). The marketing site lives at `services/web/`; the documentation site at `services/docs/`; cross-site UI primitives, the markdown pipeline, and SEO/LLM helpers live at `packages/webui/`. Every script runs through the workspace filter:
 
@@ -127,7 +127,7 @@ Every user-facing string goes through the translation layer. Never compare again
 - **`en.json` is the schema.** Every key in `en.json` exists in `de.json` and `fr.json` on the same commit. Regional variants (`de-CH` today, more later) carry only the keys whose values differ from their base — missing keys fall through to the base, then to English.
 - **Add, change, and remove keys in every base locale on the same commit.** Variants only move when they override the changed key.
 - **When code that referenced a key disappears, remove the key from every locale.** Dead keys rot in place — the orphan-key test in `services/platform/lib/i18n/messages-usage.test.ts` enforces this.
-- **UI wins over terminology.** If a `TERMINOLOGY_<LOCALE>.md` file disagrees with the shipped label, update the terminology file to match the UI, then propagate the new form into any doc page that quotes it.
+- **UI wins over the glossary.** If the [glossary](packages/ui/src/i18n/tests/glossary/glossary.json) disagrees with the shipped label, update the glossary to match the UI, then propagate the new form into any doc page that quotes it.
 
 ### Implementation
 
@@ -142,7 +142,7 @@ Every user-facing string goes through the translation layer. Never compare again
 - **ICU placeholders are sacred.** `{count, plural, ...}`, `{field}`, `{error, select, ...}` copy exactly, including argument order.
 - **Brand names don't translate.** Tale, Convex, Gmail, Shopify, OpenRouter, Claude, GitHub, Slack.
 
-Read [`.agents/terminology/TERMINOLOGY.md`](.agents/terminology/TERMINOLOGY.md) for cross-locale rules and the per-locale `TERMINOLOGY_<LOCALE>.md` files in the same directory for forms.
+Read [`.agents/translation/AGENTS.md`](.agents/translation/AGENTS.md) for cross-locale rules and the per-locale `locales/<locale>/AGENTS.md` files in the same directory for forms.
 
 ## Documentation
 

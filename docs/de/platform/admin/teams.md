@@ -1,46 +1,44 @@
 ---
 title: Teams
-description: Mitglieder in Teams gruppieren, um zu steuern, welche Dokumente, Konversationen und Agent-Wissen jede Gruppe standardmäßig sieht.
+description: Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte und Integrationen teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, ist die Skopierungs-Ebene für alles unterhalb der Rollen-Ebene.
 ---
 
-Teams sind die Art, eine Organisation in Engineering, Sales, Support, Legal — oder welche Form deine Firma tatsächlich hat — zu schneiden und zu entscheiden, welches Wissen jede Scheibe standardmäßig sieht. Ein Team ist eine weiche Gruppierung: Es ändert keine Rollen, keine Berechtigungen und nichts an der Anmeldung. Was es ändert, ist, welche Dokumente und Konversationen in den gefilterten Ansichten jedes Mitglieds auftauchen, welches Wissen ein Agent durchsucht und auf welchen Geltungsbereich eine Richtlinien-Regel (ein Budget, ein Standard-Modell, ein Feature-Flag) anschlägt. Die Seite liegt unter **Einstellungen > Teams** und ist Admin-only.
+Ein Team ist eine benannte Gruppe von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte, Integrationen und Konversationen teilt. Wo Rollen definieren, was eine Person tun _kann_, definieren Teams, in welchem Ausschnitt der Organisationsdaten diese Person arbeitet. Die meisten Organisationen landen bei einer Handvoll Teams — Support, Vertrieb, Betrieb — und die meisten alltäglichen Berechtigungs-Entscheidungen liegen auf der Team-Grenze, nicht auf der Rollen-Grenze. Admins verwalten Teams unter **Einstellungen > Teams**.
 
-Dasselbe Mitglied darf in beliebig vielen Teams sein. Die meisten Organisationen landen bei drei bis zehn — mehr wird mühsam zu pflegen, weil jeder Filter und jede team-skopierte Richtlinien-Regel gegen mehr Scheiben verfasst werden muss, als irgendwer im Kopf hat.
+Diese Seite ist die Referenz dafür, was ein Team besitzt, wie Mitgliedschaft funktioniert und wie die Team-Grenze mit den rollenbasierten Berechtigungen aus [Mitglieder und Rollen](/de/platform/admin/members-and-roles) zusammenspielt. Lies sie einmal, wenn du die Teams der Organisation aufsetzt; komm wieder, wenn du umorganisierst.
 
-## Ein Team anlegen
+## Was ein Team besitzt
 
-Öffne **Einstellungen > Teams** und klicke **Team erstellen**. Der Dialog fragt zwei Felder ab:
+Ein Team hält Mitgliedschaft und eine Menge ihm zugeordneter Ressourcen. Die Ressourcen sind:
 
-1. **Team-Name** — kurz halten, denn er erscheint in Filter-Menüs durch die UI. Pflicht.
-2. **Mitglieder** — die Checkliste unter dem Namen wählt, wer dem Team beitritt. Ein Mitglied darf in beliebig vielen Teams sein; lässt du die Checkliste leer, wird der Admin, der das Team erstellt hat, automatisch hinzugefügt, damit das Team mindestens eine Person hat.
+- **Agents** — Agents, die mit Team-Scope erstellt wurden, sind nur für Mitglieder dieses Teams sichtbar und editierbar. Organisationsweite Agents bleiben für alle mit passender Rolle sichtbar.
+- **Prompts** — gespeicherte Prompts mit Sichtbarkeit `Team` erscheinen nur für die Mitglieder dieses Teams. Persönliche Prompts bleiben privat beim Eigentümer; Globale Prompts sind organisationsweit sichtbar.
+- **Projekte** — Projekte können einem Team zugewiesen werden; die Mitglieder des Teams erben den Projekt-Zugriff, ohne einzeln hinzugefügt zu werden.
+- **Integrationen** — Integrationen, die auf bestimmte Teams beschränkt sind (über den Hebel **Erlaubte Teams** unter **Einstellungen > Integrationen**), erscheinen nur in Pickern dieser Teams.
+- **Konversationen** — Kundenkanal-Konversationen können an ein Team geroutet werden; der Inbox-Filter respektiert den Team-Scope.
 
-Klicke **Team erstellen**. Das Team erscheint in der Tabelle mit Name, Mitgliederzahl und Erstellungs-Datum. Mitglieder lassen sich später aus der Detail-Zeile des Teams über **Mitglieder** hinzufügen oder entfernen.
+Eine Ressource ohne Team-Scope bleibt für alle sichtbar, deren Rolle es erlaubt. Teams sind eine _additive_ Skopierungs-Ebene — sie engen Sichtbarkeit ein, weiten sie nie aus.
 
-## Was Teams tatsächlich beschränken
+## Ein Team erstellen
 
-| Oberfläche             | Was die Team-Mitgliedschaft steuert                                                                                                                                                                       |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Dokumente**          | Ein Dokument lässt sich beim Upload einem oder mehreren Teams taggen. Mitglieder sehen nur Dokumente, die ihren Teams getaggt sind, wenn ein Team-Filter aktiv ist.                                       |
-| **Konversationen**     | Eine Konversation lässt sich einem Team zuweisen. Team-skopierte Eingänge lassen Support nur Support-Threads und Sales nur Sales-Threads sehen, ohne Vermischung.                                         |
-| **Agents**             | Die **Wissen**-Registerkarte eines Agents lässt sich auf team-getaggtes Wissen einschränken, sodass ein Support-Agent nur Support-getaggte Inhalte durchsucht.                                            |
-| **Richtlinien-Regeln** | Budgets, Standard-Modelle, Modell-Zugriff und Funktionssteuerung (siehe [Richtlinien](/de/platform/admin/governance)) lassen sich je Team konfigurieren. Vorrang: Nutzer > Team > Rolle > Voreinstellung. |
+Öffne **Einstellungen > Teams** und klick auf **Team erstellen**. Gib dem Team einen Namen (`Support`, `Vertrieb`, `Betrieb`) und eine optionale Beschreibung; der Name erscheint überall, wo das Team auftaucht — Picker, Badges, die Tabs der Prompt-Bibliothek, das Erlaubte-Teams-Feld der Integration. Speichern erstellt ein leeres Team, das du aus der Team-Zeile mit Mitgliedern füllen kannst.
 
-Teams steuern _nicht_, ob jemand die Oberfläche überhaupt _sieht_ — das ist Aufgabe der Rolle. Ein Redakteur kann immer Konversationen erreichen; Teams entscheiden lediglich, welche Konversationen standardmäßig in den Filter rutschen.
+Die Team-Zeile trägt drei Untersichten: **Mitglieder** (wer im Team ist), **Ressourcen** (was das Team besitzt) und **Einstellungen** (Name, Beschreibung und Lebenszyklus des Teams). Die Ressourcen-Sicht ist der einfachste Weg, zu sehen, wohin ein Team reicht; sie dient zusätzlich als Audit-Oberfläche, wenn jemand fragt, warum ein Team einen bestimmten Agent sieht.
 
-## Mitglieder eines Teams verwalten
+## Mitglieder hinzufügen und entfernen
 
-Öffne die Team-Zeile und klicke **Mitglieder**. Die Schublade zeigt die aktuelle Mitgliederliste mit einer Checkliste der Organisationsmitglieder zum Hinzufügen oder Entfernen. Der Mitglieder-Checklisten-Hinweis erinnert den Admin, dass ein Mitglied in mehreren Teams sein darf und dass das Team mit dem Admin selbst endet, wenn niemand sonst gewählt wurde.
+Öffne die Team-Zeile und klick auf **Mitglieder hinzufügen**. Der Picker listet die Mitglieder der Organisation; eines anzuhaken fügt es dem Team hinzu. Ein Mitglied kann mehreren Teams angehören; sein Zugriff ist die Vereinigung jedes Teams, in dem es ist, plus der organisationsweiten Reichweite seiner Rolle. Ein Mitglied aus einem Team zu entfernen, entzieht beim nächsten Request die team-skopierte Sichtbarkeit; laufende Chats werden fertig, aber der nächste Thread sieht die Ressourcen des Teams nicht mehr.
 
-## Team-Manager
+## Team versus Rolle
 
-Teams haben keine formellen Manager-Rollen — jedes Organisationsmitglied trägt in jedem Team, dem es angehört, dieselbe Rolle. Für delegierte Team-Administration nutze die org-weite **Redakteur**-Rolle und beschränke deren Wissens- und Agent-Zugriff über dieselbe Skopierungs-Tabelle oben auf das Team. Das hält die Rollen-Matrix in [Mitglieder und Rollen](/de/platform/admin/members-and-roles) maßgeblich und vermeidet ein paralleles Berechtigungs-System.
+Die Rolle entscheidet, was eine Person tun darf; das Team entscheidet, woran. Ein Mitglied-Rollen-Benutzer im Support-Team kann die Agents des Support-Teams lesen, aber nicht bearbeiten; ein Entwickler-Rollen-Benutzer im Support-Team kann die Agents des Support-Teams lesen und schreiben, aber die des Vertriebs nicht sehen. Teams gewähren nie Fähigkeiten, die der Rolle fehlen; Rollen weiten Sichtbarkeit nie über den Team-Scope hinaus.
 
-## Externe Identitätsanbieter
+Wenn du eine Berechtigungs-Entscheidung brauchst, die bestehende Rollen und Teams nicht ausdrücken können, ist der nächste Hebel eine Governance-Richtlinie — siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles) dafür, wie Richtlinien sich an Rollen heften, und den Governance-Bereich für die Richtlinien-Felder selbst.
 
-Sind SSO oder vertrauenswürdige Kopfzeilen aktiv, ist der externe Identitätsanbieter die alleinige Quelle der Wahrheit für die Team-Mitgliedschaft. Tale liest die Teams-Kopfzeile (oder den IdP-Group-Claim) bei jeder Anmeldung und aktualisiert die Team-Liste des Nutzers entsprechend. Edits an diesen Nutzern unter **Einstellungen > Teams** werden bei der nächsten Anmeldung überschrieben. Siehe [Authentifizierung](/de/self-hosted/admin/authentication) für die Kopfzeilen-Namen und die Group-Mapping-Konfiguration.
+## Ein Team löschen
+
+Klick auf die Team-Zeile, dann auf **Team löschen**. Löschen ist Hard-Stop — das Team ist weg, jede team-skopierte Ressource, die es besass, wechselt auf organisationsweite Sichtbarkeit, und Mitglieder verlieren den team-skopierten Ausschnitt ihres Zugriffs. Es gibt kein Undo; verwaiste Ressourcen bleiben für alle erreichbar, deren Rolle es erlaubt, was selten das richtige Ergebnis ist. Greif zu Löschen, wenn ein Team wirklich aufgelöst wird, nicht wenn es umorganisiert wird.
 
 ## Wo das hingehört
 
-Teams sind die Skopierungs-Schicht für Wissen und Konversationen. Sie ändern keine Rollen oder Berechtigungen — die leben auf [Mitglieder und Rollen](/de/platform/admin/members-and-roles). Nutze Teams, um zu entscheiden, wer welche Dokumente und welche Konversations-Kanäle standardmäßig sieht; nutze Rollen, um zu entscheiden, was jedes Mitglied darf. Eine team-skopierte Richtlinien-Regel (ein engeres Budget, ein günstigeres Standard-Modell, ein Feature-Toggle) ist die Art, beide Systeme ohne Überlappung zu komponieren.
-
-Wenn ein Team über das hinauswächst, was ein einzelner Redakteur allein kuratiert, ist der natürliche nächste Schritt, es zu splitten; wenn es so klein wird, dass zwei Teams dieselben Mitglieder haben, lege sie zusammen. Beide Edits sind aus dieser Seite günstig.
+Teams sind die Skopierungs-Ebene direkt unter Rollen — Rollen sagen _was_, Teams sagen _wo_. Die natürliche nächste Lektüre hängt von der Ressource ab, die du skopierst: [Prompt-Bibliothek](/de/platform/workspace/prompt-library) dafür, wie Prompts sich an Teams binden, [Integrationen (Admin-Sicht)](/de/platform/admin/integrations) für den Hebel Erlaubte Teams, und [Projekte](/de/platform/projects/overview) für die Projekt-zu-Team-Zuweisung.

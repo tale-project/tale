@@ -1,36 +1,28 @@
 ---
 title: Developer
-description: The build-and-integrate seat — agents, automations, integrations, MCP servers, and API keys. The Developer's task-oriented landing for the day-to-day.
+description: Developer is the in-app developer surface — API keys, custom tools, agent webhooks, MCP servers. The pages here are what someone with the Developer role clicks through when they wire Tale to external code.
 ---
 
-A **Developer** in Tale is the build-and-integrate seat. You wire up the parts of the platform everyone else uses: the agents your Editors curate knowledge for, the automations that run in the background, the integrations that connect Tale to other systems, and the API keys that let scripts and webhooks call into Tale from the outside. Everything an Editor can do, you can do; on top of that you create and publish automations, configure integrations and MCP servers, and manage API keys. You do not change organisation settings — branding, governance, providers, member roles — those are Admin territory.
+Developer is the in-app surface for the people who wire Tale to the rest of their stack. It groups the four levers that let external code talk to Tale and Tale talk to external code: API keys for the REST surface, custom tools that extend an agent's reach, agent webhooks for inbound triggers, and MCP servers for the external-process bridge. People with the Developer role see this menu; Members and Editors do not.
 
-Building in Tale is mostly composition rather than coding. You decide what an agent should know, what it can do, and how it should behave; Tale handles the model calls, the conversation memory, the tool orchestration, and the run history. The mental model below is the small set of pieces you compose. The canonical permission matrix lives at [Members and roles](/platform/admin/members-and-roles) — read it when a tutorial fails on a missing button.
+This overview names what each page covers and points to the deeper reference. Developer-role users typically land here on their first day, set up the credentials and tools they need, and come back when they extend the stack — adding a new MCP server, rotating a key, registering a new webhook.
 
-## A Developer's day
+## What Developer covers
 
-A typical Developer day starts in **Automations** to look at last night's runs — green is boring; red is the first thing to triage from the execution logs. From there the work splits two ways: the Editor team needs an agent updated with a new knowledge filter and a new tool, and an inbound webhook from the support system needs a new automation step. The agent edit is a single screen change in **Agents** and a publish; the new step is added in the workflow editor, tested in a dry run, and shipped behind a feature flag. Late afternoon, an Admin asks for an API key rotation; you create the replacement key, swap it on the external caller, and revoke the old one.
+The Developer surface sits beside the rest of the org's settings but with a narrower audience. It assumes you know what a REST API is, what a webhook looks like, and what an MCP server does — the pages do not re-explain the underlying concepts; they explain how Tale exposes them.
 
-The pages below are arranged in the order the day asks for them — agents first because the question is usually "is the agent doing the right thing?", automations next because the question becomes "what about when no one is watching?", knowledge and integrations because those are the inputs to both.
+The same surface in the Cloud and self-hosted tabs differs only in deployment shape; the UI here is identical. The configuration-file equivalents of some of these features (env vars, JSON configs for custom tools) live one tab over in the self-hosted documentation.
 
 ## Pages in this section
 
-- **[Agent concepts](/platform/agents/concepts)** — the four pieces every agent is made of (instructions, knowledge, tools, model) and the trade-offs each piece names.
-- **[Create an agent](/platform/agents/create)** — the step-by-step from an empty `Agents > New` to a published agent the rest of the team can pick in chat.
-- **[Agent versions](/platform/agents/versions)** — how to iterate on a live agent without breaking the conversations and automations that already use it.
-- **[Automation concepts](/platform/automations/concepts)** — the mental model: workflow, step, trigger, run, branch, loop. Read once, refer back to.
-- **[Workflows](/platform/automations/workflows)** — the visual editor where steps are added, wired, and dry-run.
-- **[Triggers](/platform/automations/triggers)** — schedules, webhooks, events, manual runs; how an automation starts.
-- **[Execution logs](/platform/automations/execution-logs)** — per-run inputs, outputs, branch decisions, and errors; the debugger you reach for when an automation went the wrong way.
-- **[Structured data](/platform/knowledge/structured-data)** — products, customers, vendors; the rows agents ground against when an answer needs more than a document.
-- **[Website crawling](/platform/knowledge/crawling)** — point Tale at a website, schedule recrawls, watch the indexer fill the knowledge base.
-- **[Integrations overview](/platform/integrations/overview)** — REST, SQL, email, Microsoft 365; the systems where the real data lives.
-- **[AI providers](/platform/admin/providers)** — Admin-owned but linked here because every agent's model selection draws from this catalogue.
+**[API keys](/platform/admin/api-keys)** — Developers read this when they wire a script, a cron job, or an internal service to Tale's REST API; the surface is shared with Admin under Settings > API keys.
 
-## AI-assisted building
+**[MCP servers](/platform/integrations/mcp-servers)** — Developers read this when they register an external MCP-protocol process and pick which of its tools the org's agents may call.
 
-Every building block above can also be authored from JSON files in your project directory. If you open the project in an AI-aware editor (Claude Code, Cursor, GitHub Copilot, Windsurf), the editor has full context about the schemas and platform capabilities — describe what you want in plain language, and the editor generates the configuration. For complex workflows or fleets of agents, this is often faster than the UI. See [AI-assisted development](/develop/ai-assisted-development) for the setup.
+**[Agent webhook triggers](/platform/agents/webhook-triggers)** — Developers read this when they want an external system to fire a specific agent on an inbound POST.
+
+**[Agent tools](/platform/agents/tools)** — Developers read this when they extend an agent's toolbelt with a custom tool the org's agents can call.
 
 ## Where this fits
 
-The Developer role is the build-and-integrate seat. The same person who builds the agents Editors curate also wires up the integrations the agents call, the automations that run in the background, and the API keys that let external systems call into Tale. For the canonical permission matrix, see [Members and roles](/platform/admin/members-and-roles); for cross-system work (calling Tale from a script, receiving webhooks), the [Develop](/develop/api-reference) section is one tab over.
+Developer is the bridge between Tale and the rest of the codebase the org runs. The natural first read depends on what you came to wire — for outbound (something inside Tale calls outside) [Agent tools](/platform/agents/tools) and [MCP servers](/platform/integrations/mcp-servers); for inbound (something outside calls into Tale) [API keys](/platform/admin/api-keys) and [Agent webhook triggers](/platform/agents/webhook-triggers).

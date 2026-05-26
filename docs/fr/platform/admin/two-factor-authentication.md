@@ -1,59 +1,42 @@
 ---
-title: Authentification à double facteur
-description: Imposer un second facteur TOTP à la connexion par mot de passe, inscrire ton propre compte, gérer les codes de secours et réinitialiser un membre qui a perdu son appareil.
+title: Authentification à deux facteurs
+description: Inscription TOTP, codes de secours, la politique d'application org-large et comment un admin réinitialise un membre qui a perdu son authenticator. Lis ceci quand tu câbles la 2FA pour l'org ou que tu récupères un compte.
 ---
 
-L'authentification à double facteur ajoute au flux de connexion par mot de passe un code à usage unique tiré d'une application d'authentification. Tale utilise TOTP — le même protocole qu'implémentent Google Authenticator, 1Password, Authy et la plupart des gestionnaires de mot de passe — couplé à des codes de secours à usage unique pour la récupération. Le facteur ne s'applique qu'aux comptes qui se connectent par mot de passe ; les utilisateurs authentifiés par SSO ou par en-têtes de confiance héritent de la décision MFA de leur fournisseur d'identité et ne voient jamais les invites Tale.
+L'authentification à deux facteurs ajoute une seconde preuve d'identité par-dessus le mot de passe — un code à six chiffres d'une appli authenticator. Tale embarque TOTP (mots de passe à usage unique basés sur le temps) compatible avec Google Authenticator, 1Password, Authy et toute autre appli qui suit le standard. La page couvre l'inscription par utilisateur, les codes de secours qui récupèrent un compte quand le téléphone n'est plus là, la politique d'application org-large et la réinitialisation admin pour un membre verrouillé.
 
-Deux surfaces comptent sur cette page. **Compte > Sécurité** est l'endroit où chaque utilisateur s'inscrit, régénère des codes de secours ou désactive le double facteur sur son propre compte. **Paramètres > Gouvernance > Authentification à double facteur** est l'endroit où les Admins font appliquer le double facteur à l'échelle de l'organisation, et **Paramètres > Membres** est l'endroit où les Admins réinitialisent le second facteur d'un membre qui a perdu son appareil.
+La 2FA est optionnelle par défaut. Les Administrateurs peuvent l'exiger pour toute l'organisation avec une fenêtre de grâce pour que les membres aient le temps de s'inscrire.
 
-## Inscrire ton propre compte
+## Inscription par utilisateur
 
-Ouvre le menu avatar et choisis **Compte**. Sous **Sécurité**, clique **Activer le double facteur**. Tale confirme ton mot de passe, puis affiche un code QR et un secret pour saisie manuelle.
+Pour activer la 2FA sur ton propre compte, ouvre **Compte > Sécurité**. Clique sur **Activer la deux-facteurs**, confirme ton mot de passe et scanne le code QR avec une appli authenticator. Saisis le code à six chiffres que l'appli affiche pour vérifier que le secret a été capté, puis sauvegarde les codes de secours que l'écran suivant présente. Les codes apparaissent une seule fois — télécharge-les ou copie-les avant de cliquer sur **Terminé**.
 
-1. Scanne le code QR avec une application d'authentification, ou colle le secret manuellement si tu ne peux pas scanner.
-2. Saisis le code à 6 chiffres que l'application affiche. Tale le vérifie avant d'activer le double facteur, de sorte qu'un mauvais scan ne puisse pas te verrouiller — la boîte reste ouverte tant que le code ne correspond pas.
-3. Enregistre les **codes de secours** que Tale affiche ensuite. Chaque code fonctionne une seule fois et constitue le seul chemin de retour dans ton compte si tu perds l'authentificateur. Tale n'affiche les codes qu'une fois — télécharge-les ou copie-les maintenant.
+Le même écran porte **Désactiver** et **Régénérer les codes de secours**. Désactiver supprime le second facteur ; régénérer invalide chaque code de secours précédent. Les deux actions exigent le mot de passe du compte comme confirmation.
 
-Depuis le même écran, tu peux **Régénérer les codes de secours** (invalide l'ancien lot) ou **Désactiver** (exige une nouvelle confirmation de mot de passe). Une bannière de codes faibles apparaît quand tu passes sous le seuil, de sorte que tu régénères avant que le dernier code ne soit consommé.
+## Codes de secours
 
-## Se connecter avec le double facteur
+Les codes de secours sont des chaînes à usage unique que la plateforme frappe quand la 2FA est activée ou régénérée. Chacun remplace le code authenticator sur une seule connexion — utile quand le téléphone est perdu, l'authenticator désinstallé, ou que tu es coincé quelque part sans l'appareil. La plateforme surveille le compte restant et affiche une bannière de niveau bas quand il ne reste que quelques codes ; la bannière renvoie directement au flux de régénération.
 
-Après la saisie du mot de passe, Tale demande le code à 6 chiffres. L'écran de vérification a deux modes :
+Traite les codes de secours comme des mots de passe. Range-les dans un gestionnaire de mots de passe ou imprime-les et mets-les sous clé. Quiconque a ton mot de passe et un code de secours peut se connecter à ta place.
 
-- **Application d'authentification** — le défaut. Tape le code courant depuis ton application.
-- **Code de secours** — bascule sur **Utiliser un code de secours à la place** si tu n'as pas l'authentificateur. Chaque code est consommé à l'usage ; le réutiliser est refusé. Un rappel de codes faibles se déclenche en dessous de cinq codes restants.
+## La politique d'application pour l'org
 
-Les échecs répétés sont limités par le même backoff que les tentatives de mauvais mot de passe. Les verrouillages sont consignés au journal d'audit sous la catégorie **Sécurité**.
+Les Administrateurs peuvent exiger le second facteur pour chaque membre authentifié par mot de passe de l'organisation. Ouvre **Paramètres > Gouvernance > Authentification** et bascule **Exiger l'authentification à deux facteurs**. La politique porte une période de grâce (en jours) qui donne à chaque membre du temps pour s'inscrire à partir de sa première connexion sous la politique ; mets-la à zéro pour une application immédiate.
 
-## Faire appliquer le double facteur à l'échelle de l'organisation
+| Champ                                     | Type    | Requis | Description                                                                                                                          |
+| ----------------------------------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Exiger l'authentification à deux facteurs | Bascule | oui    | Off garde la 2FA optionnelle pour chaque membre ; on active la politique.                                                            |
+| Période de grâce (jours)                  | Entier  | oui    | Jours à partir de la première connexion d'un membre sous la politique avant que l'inscription soit requise. Zéro veut dire immédiat. |
+| Exempter les utilisateurs SSO-seuls       | Bascule | non    | Quand on, les membres dont le seul compte est une identité fédérée s'appuient sur l'IdP en amont pour la MFA.                        |
 
-Ouvre **Paramètres > Gouvernance > Authentification à double facteur**. Le formulaire prend trois réglages :
+Un membre dans la fenêtre de grâce voit une bannière de compte à rebours dans l'appli qui pointe vers le flux d'inscription. Une fois la grâce expirée, la connexion suivante passe par l'écran d'inscription et le membre ne peut pas continuer tant qu'il n'est pas inscrit.
 
-- **Exiger l'authentification à double facteur** — l'interrupteur maître. Tant qu'il est éteint, le double facteur est optionnel pour chaque utilisateur.
-- **Période de grâce (jours)** — combien de jours chaque utilisateur a depuis sa première connexion sous la politique avant que l'inscription ne soit imposée. Pose `0` pour application immédiate ; choisis une fenêtre plus longue quand tu déploies le double facteur dans une organisation existante, de sorte que les membres puissent s'inscrire sans perdre l'accès. Les membres dans leur fenêtre de grâce voient une bannière qui rappelle de configurer ; une fois la grâce écoulée, ils ne dépassent pas l'écran de connexion tant qu'ils ne se sont pas inscrits.
-- **Exempter les utilisateurs SSO uniquement** — quand allumé, les comptes dont la seule identité est fédérée (Microsoft Entra ID, OIDC) sont exemptés parce que l'IdP en amont contrôle leur MFA. Un utilisateur qui a à la fois un compte SSO et un mot de passe n'est **jamais** exempté, parce que le mot de passe est une voie de contournement.
+## Réinitialisation admin pour un membre verrouillé
 
-Clique **Enregistrer** pour appliquer.
+Quand un membre perd son téléphone et ses codes de secours, un Administrateur efface le second facteur sur son compte. Ouvre **Paramètres > Membres**, trouve le membre et clique sur **Réinitialiser la deux-facteurs** sur sa ligne. Tale désactive la 2FA pour le compte et met fin à chaque session active, donc le membre se réinscrit à sa prochaine connexion.
 
-## Réinitialiser le double facteur d'un membre
+La réinitialisation est enregistrée dans le journal d'audit sous `2fa_reset_by_admin`. Va vers ça comme action de récupération — le membre doit se réinscrire immédiatement une fois revenu.
 
-Ouvre **Paramètres > Membres**, clique le menu de ligne de l'utilisateur concerné et choisis **Réinitialiser le double facteur**. La boîte de confirmation explique la conséquence — le double facteur est désactivé pour cet utilisateur, chacune de ses sessions actives se termine, et il doit s'inscrire à nouveau à sa prochaine connexion. Sers-t'en quand un membre perd son authentificateur et a épuisé ses codes de secours. Chaque réinitialisation est inscrite au journal d'audit, de sorte que les équipes sécurité puissent suivre la piste.
+## Où ça s'inscrit
 
-## Événements d'audit
-
-Chaque action double facteur émet une entrée structurée au journal d'audit sous **Paramètres > Gouvernance > Journaux d'audit**, catégorie **Sécurité** :
-
-| Action                   | Quand elle se déclenche                                                                |
-| ------------------------ | -------------------------------------------------------------------------------------- |
-| `2fa_enrolled`           | Un utilisateur termine l'inscription.                                                  |
-| `2fa_disabled`           | Un utilisateur désactive le double facteur sur son propre compte.                      |
-| `2fa_verified`           | Une vérification TOTP réussie à la connexion.                                          |
-| `2fa_verify_failed`      | Une vérification TOTP échouée.                                                         |
-| `2fa_backup_code_used`   | Un code de secours a été consommé avec succès.                                         |
-| `2fa_backup_code_failed` | Une tentative de code de secours a échoué.                                             |
-| `2fa_reset_by_admin`     | Un Admin a réinitialisé le double facteur d'un membre depuis **Paramètres > Membres**. |
-
-## Où cela s'insère
-
-L'authentification à double facteur est la couche de second facteur posée sur la connexion par mot de passe. Elle interagit avec deux autres surfaces : [Authentification](/fr/self-hosted/admin/authentication) décide si un utilisateur se connecte par mot de passe (où le double facteur s'applique), SSO ou en-têtes de confiance (où l'IdP en amont possède le second facteur) ; [Membres et rôles](/fr/platform/admin/members-and-roles) est l'endroit où l'Admin réinitialise le double facteur d'un membre quand l'appareil est perdu. La politique d'application à l'échelle de l'organisation vit sur cette page ; la surface de gouvernance plus large qui tient budgets, rétention et garde-fous est [Gouvernance](/fr/platform/admin/governance).
+La 2FA est une couche au-dessus du mot de passe — même écran de connexion, deuxième étape. Combine-la avec [membres et rôles](/fr/platform/admin/members-and-roles) (l'admin qui réinitialise le second facteur est le même admin qui gère le compte), avec [politiques et limites](/fr/platform/admin/governance/policies-and-limits) (la politique d'application vit dans la surface gouvernance) et avec [journaux d'audit](/fr/platform/admin/governance/audit-logs) (chaque inscription, désactivation et réinitialisation admin y atterrit).

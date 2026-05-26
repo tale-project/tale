@@ -8,7 +8,14 @@
     },
     {
       "label": "cloud",
-      "pages": ["cloud/index"]
+      "pages": [
+        "cloud/index",
+        "cloud/onboarding",
+        "cloud/data-residency",
+        "cloud/billing",
+        "cloud/trust-and-compliance",
+        "cloud/migrate-to-self-hosted"
+      ]
     },
     {
       "label": "selfHosted",
@@ -19,14 +26,21 @@
           "label": "install",
           "pages": [
             "self-hosted/install/quickstart",
-            "self-hosted/install/linux-server"
+            "self-hosted/install/linux-server",
+            "self-hosted/install/docker-compose-reference",
+            "self-hosted/install/first-admin",
+            "self-hosted/install/cli-install"
           ]
         },
         {
           "label": "configuration",
           "pages": [
             "self-hosted/configuration/environment-reference",
+            "self-hosted/configuration/authentication",
             "self-hosted/configuration/providers",
+            "self-hosted/configuration/secrets-with-sops",
+            "self-hosted/configuration/tls-and-domains",
+            "self-hosted/configuration/observability-config",
             "self-hosted/configuration/retention"
           ]
         },
@@ -34,6 +48,8 @@
           "label": "operate",
           "pages": [
             "self-hosted/operate/container-architecture",
+            "self-hosted/operate/upgrades",
+            "self-hosted/operate/backups-and-restore",
             {
               "label": "observability",
               "pages": [
@@ -43,7 +59,10 @@
             },
             {
               "label": "security",
-              "pages": ["self-hosted/operate/security/advisories"]
+              "pages": [
+                "self-hosted/operate/security/hardening",
+                "self-hosted/operate/security/advisories"
+              ]
             },
             {
               "label": "releaseNotes",
@@ -51,70 +70,14 @@
             }
           ]
         },
-        {
-          "label": "authentication",
-          "pages": ["self-hosted/admin/authentication"]
-        }
+        "self-hosted/contributing-docker"
       ]
     },
     {
       "label": "platform",
       "pages": [
         "platform/index",
-        {
-          "label": "chat",
-          "pages": [
-            "platform/chat/basics",
-            "platform/chat/attachments",
-            "platform/chat/agents-in-chat",
-            "platform/chat/arena-mode",
-            "platform/chat/voice-output"
-          ]
-        },
-        {
-          "label": "workspace",
-          "pages": [
-            "platform/workspace/knowledge-base",
-            "platform/workspace/conversations",
-            "platform/workspace/approvals",
-            "platform/workspace/canvas",
-            "platform/workspace/prompt-library",
-            "platform/workspace/document-comparison"
-          ]
-        },
-        {
-          "label": "agents",
-          "pages": [
-            "platform/agents/concepts",
-            "platform/agents/create",
-            "platform/agents/image-generation",
-            "platform/agents/versions"
-          ]
-        },
-        {
-          "label": "automations",
-          "pages": [
-            "platform/automations/concepts",
-            "platform/automations/workflows",
-            "platform/automations/triggers",
-            "platform/automations/execution-logs",
-            "platform/automations/metrics"
-          ]
-        },
-        {
-          "label": "knowledge",
-          "pages": [
-            "platform/knowledge/structured-data",
-            "platform/knowledge/crawling"
-          ]
-        },
-        {
-          "label": "integrations",
-          "pages": [
-            "platform/integrations/overview",
-            "platform/integrations/mcp-servers"
-          ]
-        },
+        "platform/models",
         {
           "label": "member",
           "pages": [
@@ -132,18 +95,118 @@
           "pages": ["platform/developer/overview"]
         },
         {
+          "label": "chat",
+          "pages": [
+            "platform/chat/overview",
+            "platform/chat/basics",
+            "platform/chat/attachments",
+            "platform/chat/agents-in-chat",
+            "platform/chat/arena-mode",
+            "platform/chat/voice-mode",
+            "platform/chat/deep-research",
+            "platform/chat/shared-threads",
+            "platform/chat/starters-and-prompts",
+            "platform/chat/canvas-pane"
+          ]
+        },
+        {
+          "label": "projects",
+          "pages": [
+            "platform/projects/overview",
+            "platform/projects/concepts",
+            "platform/projects/manage-files",
+            "platform/projects/project-agents"
+          ]
+        },
+        {
+          "label": "agents",
+          "pages": [
+            "platform/agents/concepts",
+            "platform/agents/create",
+            "platform/agents/tools",
+            "platform/agents/skills",
+            "platform/agents/knowledge",
+            "platform/agents/conversation-starters",
+            "platform/agents/delegation",
+            "platform/agents/webhook-triggers",
+            "platform/agents/versions",
+            "platform/agents/image-generation",
+            "platform/agents/categories"
+          ]
+        },
+        {
+          "label": "automations",
+          "pages": [
+            "platform/automations/concepts",
+            "platform/automations/workflows",
+            "platform/automations/triggers",
+            "platform/automations/execution-logs",
+            "platform/automations/metrics",
+            "platform/automations/approvals-in-workflows"
+          ]
+        },
+        {
+          "label": "knowledge",
+          "pages": [
+            "platform/knowledge/overview",
+            "platform/knowledge/documents",
+            "platform/knowledge/crawling",
+            "platform/knowledge/structured-data"
+          ]
+        },
+        {
+          "label": "conversations",
+          "pages": ["platform/conversations/overview"]
+        },
+        {
+          "label": "workspace",
+          "pages": [
+            "platform/workspace/prompt-library",
+            "platform/workspace/document-comparison"
+          ]
+        },
+        {
+          "label": "approvals",
+          "pages": [
+            "platform/approvals/concepts",
+            "platform/approvals/configure"
+          ]
+        },
+        {
+          "label": "integrations",
+          "pages": [
+            "platform/integrations/overview",
+            "platform/integrations/mcp-servers"
+          ]
+        },
+        {
           "label": "admin",
           "pages": [
             "platform/admin/overview",
             "platform/admin/members-and-roles",
             "platform/admin/teams",
+            "platform/admin/agents",
             "platform/admin/providers",
+            "platform/admin/integrations",
+            "platform/admin/api-keys",
             "platform/admin/branding",
-            "platform/admin/governance",
-            "platform/admin/data-subject-requests",
             "platform/admin/two-factor-authentication",
-            "platform/admin/usage-analytics",
-            "platform/admin/changelog"
+            "platform/admin/changelog",
+            {
+              "label": "governance",
+              "pages": [
+                "platform/admin/governance/audit-logs",
+                "platform/admin/governance/policies-and-limits",
+                "platform/admin/governance/run-code-policy",
+                "platform/admin/governance/guardrails",
+                "platform/admin/governance/content-models",
+                "platform/admin/governance/usage-analytics",
+                "platform/admin/governance/feedback-analytics",
+                "platform/admin/governance/data-subject-requests",
+                "platform/admin/governance/legal-hold",
+                "platform/admin/governance/trash"
+              ]
+            }
           ]
         }
       ]
@@ -153,26 +216,36 @@
       "pages": [
         "tutorials/overview",
         {
-          "label": "member",
-          "pages": ["tutorials/member/chat-effectively"]
-        },
-        {
-          "label": "editor",
-          "pages": ["tutorials/editor/first-agent-end-to-end"]
-        },
-        {
-          "label": "developer",
+          "label": "tutorialsMember",
           "pages": [
-            "tutorials/developer/call-tale-from-a-script",
-            "tutorials/developer/trigger-automation-via-webhook"
+            "tutorials/member/chat-effectively",
+            "tutorials/member/use-projects"
           ]
         },
         {
-          "label": "admin",
+          "label": "tutorialsEditor",
           "pages": [
-            "tutorials/admin/office-add-in",
+            "tutorials/editor/first-agent-end-to-end",
+            "tutorials/editor/agent-with-knowledge",
+            "tutorials/editor/delegate-between-agents",
+            "tutorials/editor/workflow-with-approvals"
+          ]
+        },
+        {
+          "label": "tutorialsDeveloper",
+          "pages": [
+            "tutorials/developer/call-tale-from-a-script",
+            "tutorials/developer/trigger-automation-via-webhook",
+            "tutorials/developer/build-a-custom-tool",
+            "tutorials/developer/mcp-server-from-scratch"
+          ]
+        },
+        {
+          "label": "tutorialsAdmin",
+          "pages": [
+            "tutorials/admin/connect-local-provider",
             "tutorials/admin/meeting-transcription",
-            "tutorials/admin/connect-local-provider"
+            "tutorials/admin/office-add-in"
           ]
         }
       ]
@@ -180,12 +253,13 @@
     {
       "label": "develop",
       "pages": [
+        "develop/overview",
         "develop/api-reference",
         "develop/webhooks",
-        "develop/ai-assisted-development",
         "develop/integrations",
+        "develop/rate-limits",
         "develop/status-page",
-        "develop/contributing-docker"
+        "develop/ai-assisted-development"
       ]
     }
   ]

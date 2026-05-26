@@ -1,71 +1,55 @@
 ---
 title: MCP servers
-description: Connect external Model Context Protocol servers so their tools and resources show up as agent tools.
+description: MCP servers are external processes that expose tools to Tale's agents over the Model Context Protocol. Admins register them under Settings > MCP servers; the per-tool approval rule decides what each agent may call.
 ---
 
-A Model Context Protocol (MCP) server is an external process that publishes a catalogue of tools, resources, and prompts over a small standardised RPC. Tale registers one once and then makes its tools available to every agent in the organisation that opts in. Where a Tale [integration](/platform/integrations/overview) wraps a vendor's REST or SQL surface in a manifest you author and ship, an MCP server lets the third party publish the tool catalogue and Tale consumes it without writing a connector at all. This page is the reference for **Settings > MCP servers** and the schema behind it; the audience is Admin and Developer.
+An MCP server is an external process that exposes tools to Tale's agents over the Model Context Protocol. Where a first-party integration is a vendor-specific connector Tale ships, an MCP server is a generic bridge anyone can host — the protocol is open, the contract is one of tools and resources, and the org decides per server what its agents may reach. Admins register MCP servers under **Settings > MCP servers**; Developers and Editors point agents at them.
 
-## A worked registration
+This page is the reference for what an MCP server brings into Tale, how registration works, how the per-tool approval rule shapes what an agent may call, and how MCP servers differ from first-party integrations. The protocol itself is documented upstream; what follows is the Tale-side surface.
 
-The shortest path to a working MCP server is a public Streamable HTTP endpoint with an API key. Open **Settings > MCP servers > Add MCP server** and fill in:
+## What an MCP server brings
 
-```json
-{
-  "name": "example-tools",
-  "displayName": "Example Tools",
-  "transportType": "streamable_http",
-  "url": "https://mcp.example.com/mcp",
-  "authType": "api_key"
-}
-```
+An MCP server speaks the Model Context Protocol over HTTP or stdio. Once registered, Tale fetches the server's tool manifest — a list of named tools, their input schemas, and what each one does — and exposes the tools as a tool family on every agent the server is bound to. The agent calls the tool the same way it calls any other tool; the request travels through Tale to the MCP server, the server's reply travels back, and the agent uses it in the reply.
 
-Save, paste the API key when the form asks for it, and the server moves into the `discovering` status. The discovery RPC calls `tools/list` on the server within seconds; the status flips to `active` and the discovered tools become available to enable on agents under **Agents > [agent] > Tools**.
+The server can also expose **resources** (read-only context the agent can pull) and **prompts** (named templates the agent can compose). Tools are the most common surface; resources and prompts are optional capabilities a server may or may not implement.
 
-## Transport types
+## Registering a server
 
-Three transports cover where an MCP server can run. Pick by how Tale reaches it.
+Open **Settings > MCP servers** and click **Add server**. The form asks for:
 
-| Transport         | Reach for when …                                                                                                           |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `streamable_http` | The server is a public HTTP service speaking the MCP Streamable HTTP transport. Default for hosted MCP servers.            |
-| `sse`             | The server is an HTTP service speaking the older Server-Sent Events transport. Kept for compatibility with older servers.  |
-| `stdio`           | The server is a local process Tale spawns by command. Only valid on self-hosted instances where Tale can launch processes. |
+- **Name** — a human label that appears on the agent's tool list and on every approval card.
+- **Transport** — HTTP or stdio. HTTP servers carry a URL; stdio servers carry a command Tale spawns.
+- **Authentication** — none, bearer token, or OAuth. Tokens go into a secret field; OAuth walks the dance like a first-party integration.
+- **Allowed agents** — which agents may bind to this server. The default is no agents; reach for **All agents** only when the server is generic enough that every agent benefits.
 
-`streamable_http` and `sse` both need a `url`. `stdio` needs a `command`, optional `args`, and an optional `env` map for environment variables passed to the spawned process.
+Saving the form triggers a handshake: Tale connects to the server, fetches the manifest, and stores it. A handshake failure surfaces the upstream error next to the row.
 
-## Authentication
+## The per-tool approval rule
 
-Three auth shapes cover the common cases.
+The first time an agent calls a tool from an MCP server, Tale surfaces an approval card to the org's MCP approver pool (configured under **Settings > Governance > MCP approvals**). The approver decides whether the tool is allowed for that agent. Three outcomes:
 
-| Auth type | What Tale stores                                                                                                                                                                       |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `none`    | Nothing. The server is open or auth-free (typical for `stdio` transports running locally).                                                                                             |
-| `api_key` | A single API key, passed on every request per the server's convention.                                                                                                                 |
-| `oauth2`  | An OAuth 2.0 client config (token URL, optional authorisation URL, client id and secret, scopes, grant type) plus the access and refresh tokens Tale obtains after the flow completes. |
+- **Approve once** — the tool runs this time, and the next call surfaces the card again.
+- **Approve for this agent** — the tool is allowed for this agent forever; subsequent calls run without a card.
+- **Deny** — the tool is blocked for this agent; subsequent calls fail with an authorisation error.
 
-OAuth 2.0 supports two grant types. `client_credentials` is the server-to-server case; `authorization_code` is the case where an admin authorises Tale to act on behalf of an account, with a redirect to the authorisation URL when the integration is connected. In both cases Tale stores access and refresh tokens and refreshes the access token automatically before it expires. Every secret — API keys, client secrets, access tokens, refresh tokens — is encrypted at rest and scoped to your organisation.
+The per-tool approval is per agent and per tool. Approving the `read_file` tool for the support agent does not approve it for the sales agent, and does not approve the `write_file` tool on the same server. This is intentional — every tool on every MCP server widens the trust boundary, and the per-tool decision is how the org keeps the boundary tight.
 
-## Status states
+## What an MCP server is good for
 
-Every MCP server entry carries a status that mirrors the connection health.
+Reach for an MCP server when you want an agent to reach into something no first-party integration covers — an internal API, a vendor without a Tale connector, a local script that does a calculation Tale's built-in tools cannot. The deployment is on you; Tale only talks to the server.
 
-| Status        | What it means                                                                                                      |
-| ------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `discovering` | Initial state after registering. Tale is calling `tools/list` to populate the discovered-tools array.              |
-| `active`      | Discovery succeeded and the server is reachable. Tools are available to enable on agents.                          |
-| `inactive`    | An admin disabled the server. The discovered tool list is preserved, so re-enabling skips re-discovery.            |
-| `error`       | The last connection attempt failed. The reason is in the last-error field; fix credentials or the URL and re-test. |
+A common pattern is one MCP server per internal service the agents need. The server runs alongside the rest of the org's infrastructure, speaks MCP, and the team that owns the service also owns the contract.
 
-## Discovered tools
+## Disabling and removing a server
 
-Once discovery completes, the server's tool catalogue lands in the **Discovered tools** section of the server detail. Each tool has a name, an optional description, an optional input schema (JSON Schema for parameters), and an optional **requires approval** flag.
+Each server has an enabled toggle on its row. Disabling stops Tale from calling it; the server's tools stop appearing in agent tool lists, and any agent that depended on them surfaces a configuration error. Removing the server deletes its manifest and revokes every per-tool approval that referenced it.
 
-The **requires approval** flag is the load-bearing field. When it is set, every invocation of that tool generates an approval card in the chat — the same flow as a `write` operation on a Tale-native integration. Reach for it on tools that touch billing systems, send messages on someone's behalf, or modify production data. The full doctrine — who can approve, how the card looks, how rejects propagate — is at [Approvals](/platform/workspace/approvals).
+Re-adding a server with the same name starts from a clean slate — the manifest is re-fetched, and every per-tool approval has to be re-decided. There is no opaque carry-over of approvals across a delete-and-re-add.
 
-The discovered list is what agent owners pick from under **Agents > [agent] > Tools > MCP servers**. Enabling a server on an agent grants the agent access to that server's tools; per-tool granularity lives on the agent's tool configuration, not on the server registration.
+## MCP servers versus first-party integrations
+
+Both surfaces let an agent reach beyond Tale; the difference is who owns the connector. First-party integrations are vendor-specific, ship as part of Tale, and carry the credentials and the operation list Tale's team maintains. MCP servers are generic, hosted by you, and carry whatever tools the server's author chose to expose. Reach for an integration when one exists for the target system; reach for an MCP server when you need to host the bridge yourself.
 
 ## Where this fits
 
-MCP servers are the "bring your own tool catalogue" path; [integrations](/platform/integrations/overview) are the "wrap a vendor we know about" path. They coexist — one agent can use both, and both show up in the same agent tool picker. Reach for an MCP server when the server already exists (a third party publishes one for their product) and for a connector when you control the wrapper and want Tale's read/write operation model and the **Configuration guide** UX.
-
-To enable an MCP server's tools on a specific agent, open the agent and follow the **Tools** section of [Create an agent](/platform/agents/create). To audit which agents have which MCP tools enabled, the [Audit log](/platform/admin/governance#audit-log) records every enable and disable change with the actor and timestamp.
+MCP servers are the open-ended extension surface for an agent's toolbelt — the lever for when no first-party integration covers what you need. The natural next read is [Integrations overview](/platform/integrations/overview) for the first-party catalogue, and [Agent tools](/platform/agents/tools) for how an MCP server's tools surface to the agent and the trust boundary they widen.

@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-export interface MessagesUsageConfig {
+interface MessagesUsageConfig {
   /** Absolute path to the service root (e.g. `services/web`). */
   serviceRoot: string;
   /** Override the messages directory. Defaults to `<serviceRoot>/messages`. */

@@ -1,46 +1,44 @@
 ---
 title: Équipes
-description: Grouper les membres en équipes pour cadrer quels documents, conversations et connaissances d'agent chaque groupe voit par défaut.
+description: Les équipes sont des groupes nommés de membres qui partagent l'accès aux agents, prompts, projets et intégrations. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu'elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle.
 ---
 
-Les équipes sont la manière de découper une organisation en Ingénierie, Ventes, Support, Juridique — ou la forme que ta boîte a réellement — et de décider quel savoir chaque tranche voit par défaut. Une équipe est un groupement souple : elle ne change pas les rôles, ne change pas les permissions et ne contrôle pas la connexion. Ce qu'elle change, c'est quels documents et conversations remontent dans les vues filtrées de chaque membre, quel savoir un agent cherche, et à quelle borne s'applique une règle de Gouvernance (un budget, un modèle par défaut, un flag de fonctionnalité). La page vit sous **Paramètres > Équipes** et est réservée à l'Admin.
+Une équipe est un groupe nommé de membres qui partage l'accès aux agents, prompts, projets, intégrations et conversations. Là où les rôles définissent ce qu'une personne _peut_ faire, les équipes définissent dans quelle tranche des données de l'org cette personne travaille. La plupart des orgs finissent avec une poignée d'équipes — support, ventes, opérations — et la plupart des décisions quotidiennes de permission atterrissent sur la frontière équipe, pas sur la frontière rôle. Les Administrateurs gèrent les équipes sous **Paramètres > Équipes**.
 
-Le même membre peut appartenir à n'importe quel nombre d'équipes. La plupart des organisations finissent à trois jusqu'à dix — au-delà, ça devient dur à entretenir parce que chaque filtre et chaque règle de Gouvernance bornée à l'équipe doit être rédigée contre plus de tranches que personne ne suit en tête.
+Cette page est la référence pour ce qu'une équipe possède, comment marche l'appartenance, et comment la frontière équipe interagit avec les permissions basées sur les rôles documentées sous [Membres et rôles](/fr/platform/admin/members-and-roles). Lis-la une fois quand tu mets les équipes de l'org en place ; reviens quand tu réorganises.
+
+## Ce qu'une équipe possède
+
+Une équipe porte l'appartenance et un ensemble de ressources qui lui sont cadrées. Les ressources sont :
+
+- **Agents** — les agents créés avec un cadre d'équipe ne sont visibles et éditables que par les membres de cette équipe. Les agents à l'échelle de l'org restent visibles pour quiconque a le bon rôle.
+- **Prompts** — les prompts enregistrés avec visibilité `Équipe` n'apparaissent que pour les membres de cette équipe. Les prompts personnels restent privés à leur propriétaire ; les prompts Globaux sont visibles à l'échelle de l'org.
+- **Projets** — les projets peuvent être assignés à une équipe ; les membres de l'équipe héritent de l'accès au projet sans être ajoutés un par un.
+- **Intégrations** — les intégrations restreintes à certaines équipes (sous le levier **Équipes autorisées** dans **Paramètres > Intégrations**) n'apparaissent que dans les pickers de ces équipes.
+- **Conversations** — les conversations de canal client peuvent être routées vers une équipe ; le filtre de l'inbox respecte le cadre équipe.
+
+Une ressource sans cadre équipe reste visible pour quiconque dont le rôle l'autorise. Les équipes sont une couche de cadrage _additive_ — elles rétrécissent la visibilité, jamais ne l'élargissent.
 
 ## Créer une équipe
 
-Ouvre **Paramètres > Équipes** et clique **Créer une équipe**. La boîte demande deux champs :
+Ouvre **Paramètres > Équipes** et clique sur **Créer une équipe**. Donne à l'équipe un nom (`Support`, `Ventes`, `Opérations`) et une description optionnelle ; le nom apparaît partout où l'équipe surgit — pickers, badges, onglets de la bibliothèque de prompts, champ équipes-autorisées de l'intégration. Enregistrer crée une équipe vide que tu peux remplir de membres depuis la ligne de l'équipe.
 
-1. **Nom de l'équipe** — court, puisqu'il apparaît dans les menus de filtre à travers l'interface. Requis.
-2. **Membres** — la checklist sous le nom choisit quels membres rejoignent l'équipe. Un membre peut être sur n'importe quel nombre d'équipes ; si tu laisses la checklist vide, l'Admin qui a créé l'équipe est ajouté automatiquement, de sorte que l'équipe ait au moins un occupant.
+La ligne de l'équipe porte trois sous-vues : **Membres** (qui est dans l'équipe), **Ressources** (ce que l'équipe possède) et **Paramètres** (nom, description et cycle de vie de l'équipe). La vue Ressources est la façon la plus simple de voir jusqu'où une équipe peut atteindre ; elle sert aussi de surface d'audit quand quelqu'un demande pourquoi une équipe voit un agent particulier.
 
-Clique **Créer une équipe**. L'équipe apparaît dans la table avec son nom, son compteur de membres et la date de création. Les membres peuvent être ajoutés ou retirés plus tard depuis la ligne de détail de l'équipe via **Membres**.
+## Ajouter et retirer des membres
 
-## Ce que les équipes cadrent réellement
+Ouvre la ligne de l'équipe et clique sur **Ajouter des membres**. Le picker liste les membres de l'org ; en cocher un l'ajoute à l'équipe. Un membre peut appartenir à plusieurs équipes ; son accès est l'union de chaque équipe dans laquelle il est plus la portée à l'échelle de l'org de son rôle. Retirer un membre d'une équipe arrache la visibilité cadrée équipe à la requête suivante ; les chats en vol se terminent, mais le thread suivant ne voit pas les ressources de l'équipe.
 
-| Surface                   | Ce que pilote l'appartenance à l'équipe                                                                                                                                                                               |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Documents**             | Un document peut être tagué à une ou plusieurs équipes au téléversement. Les membres ne voient que les documents tagués à leurs équipes quand un filtre d'équipe est actif.                                           |
-| **Conversations**         | Une conversation peut être assignée à une équipe. Les boîtes par équipe laissent Support voir les threads support et Sales voir les threads sales sans contamination croisée.                                         |
-| **Agents**                | L'onglet **Connaissances** d'un agent peut être restreint aux connaissances taguées à l'équipe, de sorte qu'un agent Support ne cherche que du contenu tagué Support.                                                 |
-| **Règles de Gouvernance** | Budgets, modèles par défaut, accès aux modèles et contrôle des fonctionnalités (voir [Gouvernance](/fr/platform/admin/governance)) peuvent être bornés par équipe. Précédence : utilisateur > équipe > rôle > défaut. |
+## Équipe versus rôle
 
-Les équipes ne contrôlent _pas_ si quelqu'un _voit_ la surface tout court — c'est le travail du rôle. Un Éditeur peut toujours atteindre Conversations ; ce que les équipes décident, c'est quelles conversations entrent dans le filtre par défaut.
+Le rôle décide ce qu'une personne peut faire ; l'équipe décide à quoi elle peut le faire. Un utilisateur de rôle Membre dans l'équipe Support peut lire les agents de l'équipe support mais ne peut pas les éditer ; un utilisateur de rôle Développeur dans l'équipe Support peut lire et écrire les agents de l'équipe support mais ne peut pas voir ceux des Ventes. Les équipes n'accordent jamais des capacités que le rôle n'a pas ; les rôles n'élargissent jamais la visibilité au-delà du cadre équipe.
 
-## Gérer les membres d'une équipe
+Quand tu as besoin d'une décision de permission que les rôles et équipes existants ne peuvent pas exprimer, le levier suivant est une politique de gouvernance — voir [Membres et rôles](/fr/platform/admin/members-and-roles) pour comment les politiques s'attachent aux rôles, et la section gouvernance pour les champs de politique eux-mêmes.
 
-Ouvre la ligne d'une équipe et clique **Membres**. Le tiroir affiche la liste de membres actuelle avec une checklist de membres de l'organisation à ajouter ou retirer. L'indication checklist de membres rappelle à l'Admin qu'un membre peut être sur plusieurs équipes et que l'équipe se retrouvera avec l'Admin lui-même si personne d'autre n'est sélectionné.
+## Supprimer une équipe
 
-## Managers d'équipe
+Clique la ligne de l'équipe, puis **Supprimer l'équipe**. La suppression est définitive — l'équipe est partie, chaque ressource cadrée équipe qu'elle possédait passe à la visibilité à l'échelle de l'org, et les membres perdent la tranche cadrée équipe de leur accès. Pas d'annulation ; les ressources orphelines restent joignables par quiconque dont le rôle l'autorise, ce qui est rarement le bon résultat. Va vers supprimer quand une équipe est vraiment retirée, pas quand elle se réorganise.
 
-Les équipes n'ont pas de rôles de manager formels — chaque membre de l'organisation porte le même rôle dans toutes les équipes auxquelles il appartient. Pour une administration déléguée au niveau de l'équipe, sers-toi du rôle **Éditeur** au niveau de l'organisation et borne son accès aux connaissances et aux agents via la même table de cadrage ci-dessus à son équipe. Ça garde la matrice de rôles dans [Membres et rôles](/fr/platform/admin/members-and-roles) faisant autorité et évite un système de permissions parallèle.
+## Où cela s'inscrit
 
-## Fournisseurs d'identité externes
-
-Quand SSO ou les en-têtes de confiance sont actifs, le fournisseur d'identité externe est la seule source de vérité pour l'appartenance aux équipes. Tale lit l'en-tête équipes (ou le claim de groupe IdP) à chaque connexion et met à jour la liste d'équipes de l'utilisateur. Les édits faits dans **Paramètres > Équipes** pour ces utilisateurs seront écrasés à la prochaine connexion. Voir [Authentification](/fr/self-hosted/admin/authentication) pour les noms d'en-têtes et la configuration du mapping de groupes.
-
-## Où cela s'insère
-
-Les équipes sont la couche de cadrage des connaissances et des conversations. Elles ne changent pas les rôles ou les permissions — ceux-là vivent sur [Membres et rôles](/fr/platform/admin/members-and-roles). Sers-toi des équipes pour décider qui voit quels documents et quels canaux de conversation par défaut ; sers-toi des rôles pour décider ce que chaque membre peut faire. Une règle de Gouvernance bornée à l'équipe (un budget plus serré, un modèle par défaut moins cher, un toggle de fonctionnalité) est la manière de composer les deux systèmes sans recouvrement.
-
-Quand une équipe dépasse ce qu'un seul Éditeur peut curer seul, le pas suivant naturel est de la scinder ; quand elle rétrécit au point que deux équipes ont les mêmes membres, fusionne-les. Les deux édits sont bon marché depuis cette page.
+Les équipes sont la couche de cadrage juste sous les rôles — les rôles disent _quoi_, les équipes disent _où_. La lecture suivante naturelle dépend de la ressource que tu cadres : [Bibliothèque de prompts](/fr/platform/workspace/prompt-library) pour comment les prompts s'attachent aux équipes, [Intégrations (vue Admin)](/fr/platform/admin/integrations) pour le levier équipes-autorisées, et [Projets](/fr/platform/projects/overview) pour l'assignation projet-à-équipe.

@@ -1,1 +1,0 @@
-../../../.agents/terminology/AGENTS.md

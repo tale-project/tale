@@ -1,53 +1,38 @@
 ---
-title: Dokumenten-Vergleich
-description: Zwei Dokumente nebeneinander vergleichen und ein detailliertes Diff lesen, das Hinzufügungen, Löschungen und Änderungen Absatz für Absatz hervorhebt.
+title: Dokumentenvergleich
+description: Der Seite-an-Seite-Diff-Dialog, der zwei Dokumente — hochgeladen oder aus der Bibliothek — nimmt und die Unterschiede absatzweise mit einer RAG-gestützten Zusammenfassung durchläuft.
 ---
 
-Der Dokumenten-Vergleich lässt dich zwei Dokumente hochladen oder auswählen und liest ein Diff auf Absatzebene zwischen den beiden. Nutze ihn, um eine Vertragsrevision gegen die vorherige Fassung zu prüfen, Richtlinien-Updates zwischen jährlichen Aktualisierungen zu verfolgen oder zu verifizieren, dass eine aufgefrischte Vorlage zur Spezifikation passt. Zielgruppe sind Redakteure und Admins, die Dokumente prüfen; Mitglieder mit Lesezugriff auf die Wissensdatenbank können ebenfalls einen Vergleich laufen lassen, wenn ihre Rolle es zulässt.
+Dokumentenvergleich ist der Dialog, der die Frage beantwortet „was hat sich zwischen diesen beiden Versionen geändert". Du zeigst ihm ein Basis-Dokument und ein Vergleichs-Dokument; Tale jagt beide durch dieselbe Extraktions-Pipeline, die die Wissensdatenbank speist, übergibt sie einem deterministischen Diff-Endpunkt im RAG-Dienst und rendert das Ergebnis als strukturierten Durchgang durch hinzugefügte, gelöschte und geänderte Absätze. Es ist das richtige Werkzeug für Verträge vorher-nachher, Policy-Überarbeitungen, zwei Entwürfe desselben Vorschlags — alles, wo die Worte zählen und die Worte sich bewegt haben.
 
-Das Diff wird im Browser berechnet und gerendert; nichts erreicht die KI, solange ein Agent nicht ausdrücklich gebeten wird, das Ergebnis im Nachgang zusammenzufassen.
+Der Dialog lebt neben den Dokumenten, die du vergleichst: öffne ihn aus **Wissen > Dokumente** mit der Aktion **Dokumente vergleichen**. Die Basis- und Vergleichsdatei können je ein bereits indexiertes Dokument aus der Bibliothek oder ein einmaliger Upload sein, sodass keine Seite in die Wissensdatenbank geladen werden muss, wenn du nur einen Diff sehen willst.
 
-## Einen Vergleich starten
+## Die zwei Seiten wählen
 
-Um den Vergleichs-Dialog zu öffnen, navigiere zu **Wissen > Dokumente** und wähle den Vergleichs-Eintrag aus dem Aktionsmenü. Der Dialog fragt nach zwei Dokumenten — die Basis links, der Vergleich rechts:
+Zwei Auswahlfelder sitzen nebeneinander: **Basis-Dokument** links, **Vergleichs-Dokument** rechts. Jedes Feld hat zwei Tabs — **Hochladen** und **Vorhandene** — und beide Tabs füllen denselben Slot.
 
-| Seite  | Label               | Optionen                                              |
-| ------ | ------------------- | ----------------------------------------------------- |
-| Links  | Basis-Dokument      | Datei hochladen oder ein vorhandenes Dokument wählen. |
-| Rechts | Vergleichs-Dokument | Datei hochladen oder ein vorhandenes Dokument wählen. |
+Der Hochladen-Tab nimmt jedes Format, das die Wissensdatenbank-Pipeline bereits beherrscht: PDF, DOCX, DOC, XLSX, PPTX, Plaintext, Markdown, CSV. Die Datei lädt in Tales Objektspeicher, denselben Ort, an dem Chat-Anhänge und Bibliotheks-Dokumente leben; sie wird nicht indexiert und nicht an einen Agent gebunden, der Upload ist also ein einmaliger Input für diesen Diff und sonst nichts. Der Vorhandene-Tab listet jedes Dokument in der Bibliothek mit herunterladbarer Datei — wähle eines über die durchsuchbare Auswahl und der Slot füllt sich mit dem Namen des Dokuments.
 
-Jede Seite hat zwei Tabs. **Hochladen** lässt dich eine Datei vom Gerät ablegen oder über den Dateiauswahl-Dialog suchen. **Vorhanden** sucht und wählt aus Dokumenten, die schon in der Wissensdatenbank liegen. Klicke **Vergleichen**, sobald beide Seiten gefüllt sind; Tale schickt beide Dokumente zur Analyse an den RAG-Dienst, und das Ergebnis erscheint inline.
+Misch die Tabs frei. Vergleich zwei Uploads gegeneinander, wenn keine Version in der Bibliothek ist, vergleich einen Upload gegen ein vorhandenes Bibliotheks-Dokument, wenn du sehen willst, was ein eingehender Entwurf ändert, oder vergleich zwei Bibliotheks-Dokumente, wenn du sie im Wissensbereich versioniert hast.
 
-Die akzeptierten Formate: PDF, DOCX, XLSX, CSV, TXT, PPTX und gängige Bildformate. Alles ausserhalb dieses Satzes wird beim Upload abgelehnt.
+## Den Diff laufen lassen
 
-## Die Ergebnisse lesen
+Klick **Vergleichen**. Der Dialog zeigt einen Spinner, während der RAG-Dienst beide Dateien herunterlädt, den Text extrahiert, Absatzgrenzen normalisiert und einen deterministischen Diff auf Absatzebene fährt. Der Endpunkt ist der einzige modellfreie Pfad der Vergleichsfunktion — der Diff selbst ist reines Stringmatching, das Ergebnis ist also bei gleichem Input reproduzierbar.
 
-Die Ergebnisansicht besteht aus zwei Teilen: einer Zusammenfassungsleiste mit Statistiken über das gesamte Diff und einer scrollbaren Liste von Änderungs-Blöcken. Die Zusammenfassung nennt, wie viele Absätze in welcher Kategorie landen:
+Das Warten ist begrenzt — die Anfrage läuft nach zwei Minuten in den Timeout, wenn der RAG-Dienst nicht geantwortet hat. Große Dateien treffen den Timeout häufiger als kleine; wenn er auslöst, wiederhol einmal und überleg, die Datei auf den Teil zu kürzen, der zählt.
 
-| Statistik       | Was sie zählt                                                                     |
-| --------------- | --------------------------------------------------------------------------------- |
-| **Hinzugefügt** | Absätze, die im Vergleichs-Dokument vorhanden sind, aber nicht im Basis-Dokument. |
-| **Gelöscht**    | Absätze, die im Basis-Dokument vorhanden sind, aber nicht im Vergleichs-Dokument. |
-| **Geändert**    | Absätze, die sich zwischen den Dokumenten geändert haben.                         |
-| **Unverändert** | Absätze ohne Unterschiede.                                                        |
+## Das Ergebnis lesen
 
-Eine **Hohe-Divergenz**-Warnung erscheint oben am Ergebnis, wenn die Dokumente sich stark unterscheiden — nützlich, um einen falschen Versions-Mix vor dem Weiterlesen zu erkennen. Eine **Abschneide-Meldung** erscheint, wenn die Zahl der Änderungen die Anzeigegrenze übersteigt; die fehlenden Blöcke fallen aus dem gerenderten Diff, aber die Zusammenfassung zählt das ganze Dokument.
+Vier Stat-Badges sitzen über dem Diff: **Hinzugefügt**, **Gelöscht**, **Geändert**, **Unverändert**, je mit der Absatzzahl für den Eimer. Die Badges sind auch die Legende für das Farbschema unten — grün für hinzugefügt, rot für gelöscht, gelb für geändert, neutral für unveränderten Kontext.
 
-## Farbcodierung der Änderungs-Blöcke
+Unter den Badges sitzt die Änderungsliste. Jeder Eintrag ist ein **Change-Block** — eine Strecke zusammenhängender Änderungen plus ein Absatz Kontext davor und danach — gerendert als eine Karte. Innerhalb der Karte trägt jeder Absatz ein führendes Zeichen (`+` hinzugefügt, `-` gelöscht, `~` geändert, leer für Kontext) und eine Farbfüllung. Geänderte Absätze rendern den Inline-Diff, wenn der Endpunkt einen liefert — gelöschter Text durchgestrichen, hinzugefügter Text hervorgehoben — und fallen sonst auf das vollständige Vorher-Nachher-Paar zurück.
 
-Jeder Block in der scrollbaren Liste ist nach Art der Änderung farbcodiert:
+Wenn Basis und Vergleich so wenig gemeinsam haben, dass der Diff im Wesentlichen „lösche alles, füge alles hinzu" lautet, sitzt eine Warnung **Hohe Abweichung** über der Änderungsliste. Das ist der Diff, der dir sagt, dass die beiden Dateien eigentlich nicht zwei Versionen desselben Dokuments sind — sie mögen aus derselben Vorlage gestartet sein, aber die Inhalte sind über den Punkt hinausgedriftet, an dem ein Absatz-Diff die richtige Form ist.
 
-| Typ         | Farbe | Präfix        | Was er zeigt                                                            |
-| ----------- | ----- | ------------- | ----------------------------------------------------------------------- |
-| Hinzugefügt | Grün  | `+`           | Neuer Inhalt im Vergleichs-Dokument.                                    |
-| Gelöscht    | Rot   | `−`           | Aus dem Basis-Dokument entfernter Inhalt (durchgestrichen dargestellt). |
-| Geändert    | Gelb  | `~`           | Geänderter Inhalt mit Inline-Diffs, die einzelne Wörter hervorheben.    |
-| Kontext     | Grau  | (Leerzeichen) | Unveränderter umgebender Text als Referenz.                             |
+## Das Trunkierungs-Banner
 
-Geänderte Blöcke zeigen Inline-Diffs, wenn die Änderung klein genug ist, um auf Wort-Ebene darstellbar zu sein: gelöschte Teile erscheinen als `[-Text-]`, hinzugefügte als `{+Text+}`. Wenn Inline-Diffs nicht verfügbar sind — typischerweise, weil die Änderung den grössten Teil des Absatzes umgeschrieben hat —, werden alte und neue Fassung auf getrennten Zeilen gerendert.
+Der Endpunkt deckelt die Zahl der Change-Blöcke, damit der Dialog benutzbar bleibt. Wenn der Deckel greift, sitzt ein Banner **Ergebnisse gekürzt** unter den Stats: die angezeigten Blöcke sind die wichtigsten, die Summen in den Badges spiegeln weiterhin das volle Dateipaar. Der Deckel betrifft nur die Anzeige — der zugrundeliegende Diff sieht jeden Absatz.
 
-## Wo das einsetzt
+## Wann du dazu greifst
 
-Der Dokumenten-Vergleich ist die zielgerichtete Diff-Oberfläche für die Wissensdatenbank. Er existiert, weil das Prüfen einer Vertragsrevision, eines Richtlinien-Updates oder einer aufgefrischten Vorlage nicht in den Chat passt — das Auge braucht beide Versionen gleichzeitig sichtbar, mit den Änderungen hervorgehoben. Um zwei Versionen desselben Dokuments über die Zeit zu vergleichen, lade jede Version als separate Datei in die [Wissensdatenbank](/de/platform/workspace/knowledge-base) hoch und lass sie gegeneinander vergleichen.
-
-Für eine KI-Zusammenfassung des Diffs kopiere den Vergleichslink in einen Chat und lass den Assistenten die Änderungen durchgehen; der Chat-Agent kann dieselbe RAG-Ausgabe lesen, die der Vergleichs-Dialog rendert.
+Greif zum Dokumentenvergleich, wenn die Frage „was hat sich geändert" ist, nicht „was steht hier". Für „was steht hier" lad die Datei als Chat-Anhang an oder in die Wissensdatenbank und frag einen Agent — das Modell ist besser im Lesen von Prosa als der Diff. Der Diff ist besser darin, zwei Dateien parallel zu lesen und zu berichten, welche Absätze sich unterscheiden, was jedes zeilennummerierte Diff-Tool tut, aber erweitert auf extrahierten Text aus jedem Format, das die Pipeline unterstützt. Die nächste Lektüre, die sich lohnt, ist [Dokumente](/de/platform/knowledge/documents) — sie deckt die Indexier-Pipeline ab, die der Vergleich mit dem Rest der Wissensdatenbank teilt, und wo versionierte Dokumente leben, sobald du sie verglichen hast.

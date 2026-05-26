@@ -1,53 +1,38 @@
 ---
 title: Comparaison de documents
-description: Compare deux documents côte à côte et lis un diff détaillé qui met en évidence les ajouts, les suppressions et les modifications, paragraphe par paragraphe.
+description: La boîte de dialogue diff côte à côte qui prend deux documents — téléversés ou tirés de la bibliothèque — et parcourt les différences paragraphe par paragraphe avec un résumé assisté par RAG.
 ---
 
-La comparaison de documents te laisse téléverser ou choisir deux documents et lire un diff au niveau du paragraphe entre les deux. Sers-t'en pour relire une révision de contrat face à la version précédente, suivre les mises à jour de politiques entre deux rafraîchissements annuels, ou vérifier qu'un modèle actualisé colle au cahier des charges. Le public visé : les Éditeurs et les Admins qui font la relecture de documents ; les Membres avec un accès en lecture à la base de connaissances peuvent aussi lancer une comparaison si leur rôle le permet.
+La comparaison de documents est la boîte de dialogue qui répond à la question « qu'est-ce qui a changé entre ces deux versions ». Tu lui pointes un document de base et un document de comparaison ; Tale les passe tous deux dans le même pipeline d'extraction qui alimente la base de connaissances, les remet à un endpoint diff déterministe sur le service RAG, et rend le résultat sous la forme d'un parcours structuré des paragraphes ajoutés, supprimés et modifiés. C'est le bon outil pour les contrats avant-après, les révisions de politique, deux brouillons d'une même proposition — tout ce où les mots comptent et où les mots ont bougé.
 
-Le diff est calculé et rendu dans le navigateur ; rien ne parvient à l'IA tant qu'un agent n'est pas explicitement chargé de résumer le résultat ensuite.
+La boîte de dialogue vit à côté des documents que tu compares : ouvre-la depuis **Connaissance > Documents** avec l'action **Comparer les documents**. Les fichiers de base et de comparaison peuvent chacun être un document déjà indexé de la bibliothèque ou un téléversement ponctuel, donc il n'y a pas besoin de charger les deux côtés dans la base de connaissances si tu veux seulement regarder un diff.
 
-## Démarrer une comparaison
+## Choisir les deux côtés
 
-Pour ouvrir la boîte de dialogue de comparaison, va dans **Base de connaissances > Documents** et choisis l'entrée de comparaison dans le menu d'actions. La boîte demande deux documents — la base à gauche, la comparaison à droite :
+Deux sélecteurs siègent côte à côte : **Document de base** à gauche, **Document de comparaison** à droite. Chaque sélecteur a deux onglets — **Téléverser** et **Existant** — et chaque onglet remplit la même fente.
 
-| Côté   | Libellé                 | Options                                            |
-| ------ | ----------------------- | -------------------------------------------------- |
-| Gauche | Document de base        | Téléverser un fichier ou sélectionner un existant. |
-| Droite | Document de comparaison | Téléverser un fichier ou sélectionner un existant. |
+L'onglet Téléverser prend n'importe lequel des formats que le pipeline de la base de connaissances gère déjà : PDF, DOCX, DOC, XLSX, PPTX, texte brut, Markdown, CSV. Le fichier part dans le stockage objet de Tale, le même endroit que vivent les pièces jointes de chat et les documents de la bibliothèque ; il n'est pas indexé et pas lié à un agent, donc le téléversement est une entrée ponctuelle pour ce diff et rien d'autre. L'onglet Existant liste chaque document de la bibliothèque ayant un fichier téléchargeable — choisis-en un via le sélecteur recherchable et la fente se remplit avec le nom du document.
 
-Chaque côté a deux onglets. **Téléverser** te laisse déposer un fichier depuis l'appareil ou parcourir le sélecteur de fichiers. **Existant** cherche et choisit parmi les documents déjà dans la base de connaissances. Clique sur **Comparer** une fois les deux côtés remplis ; Tale envoie les deux documents au service RAG pour analyse, et le résultat s'affiche en ligne.
+Mélange les onglets librement. Compare deux téléversements l'un contre l'autre quand aucune version n'est dans la bibliothèque, compare un téléversement contre un document de bibliothèque existant quand tu veux voir ce qu'un brouillon entrant change, ou compare deux documents de bibliothèque quand tu les as versionnés dans Connaissance.
 
-Les formats acceptés : PDF, DOCX, XLSX, CSV, TXT, PPTX et les formats d'image courants. Tout ce qui sort de cet ensemble est rejeté au téléversement.
+## Lancer le diff
 
-## Lire les résultats
+Clique **Comparer**. La boîte de dialogue affiche un spinner pendant que le service RAG télécharge les deux fichiers, extrait le texte, normalise les frontières de paragraphes, et lance un diff déterministe au niveau du paragraphe. L'endpoint est le seul chemin sans modèle de la fonctionnalité de comparaison — le diff lui-même est du pur appariement de chaînes, donc la sortie est reproductible pour les mêmes entrées.
 
-La vue de résultat comporte deux parties : une barre de résumé avec les statistiques sur tout le diff, puis une liste défilante de blocs de modification. Le résumé indique combien de paragraphes tombent dans chaque catégorie :
+L'attente est bornée — la requête timeoute à deux minutes si le service RAG n'a pas répondu. Les gros fichiers atteignent le timeout plus souvent que les petits ; s'il déclenche, retente une fois et envisage de tailler le fichier sur la partie qui compte.
 
-| Statistique   | Ce qu'elle compte                                                           |
-| ------------- | --------------------------------------------------------------------------- |
-| **Ajoutés**   | Paragraphes présents dans le document de comparaison mais pas dans la base. |
-| **Supprimés** | Paragraphes présents dans le document de base mais pas dans la comparaison. |
-| **Modifiés**  | Paragraphes qui ont changé entre les documents.                             |
-| **Inchangés** | Paragraphes sans différence.                                                |
+## Lire le résultat
 
-Un avertissement de **divergence élevée** apparaît en tête du résultat lorsque les documents diffèrent fortement — pratique pour repérer un mélange de versions avant de lire la suite. Un **avertissement de troncature** apparaît si le nombre de modifications dépasse la limite d'affichage ; les blocs manquants sortent du diff rendu, mais le résumé compte tout le document.
+Quatre badges statistiques siègent au-dessus du diff : **Ajoutés**, **Supprimés**, **Modifiés**, **Inchangés**, chacun portant le nombre de paragraphes pour ce seau. Les badges sont aussi la légende du schéma de couleurs en dessous — vert pour ajouté, rouge pour supprimé, jaune pour modifié, neutre pour le contexte inchangé.
 
-## Code couleur des blocs de modification
+Sous les badges siège la liste des changements. Chaque entrée est un **bloc de changement** — une plage de changements contigus plus un paragraphe de contexte avant et après — rendu comme une seule carte. À l'intérieur de la carte, chaque paragraphe porte un signe en tête (`+` ajouté, `-` supprimé, `~` modifié, vide pour contexte) et un remplissage de couleur. Les paragraphes modifiés rendent le diff inline quand l'endpoint en fournit un — texte supprimé barré, texte ajouté surligné — et retombent sur la paire complète avant-après quand il n'en fournit pas.
 
-Chaque bloc de la liste défilante est coloré selon le type de modification :
+Quand la base et la comparaison ont si peu en commun que le diff dit essentiellement « supprime tout, ajoute tout », un avertissement **Forte divergence** siège au-dessus de la liste des changements. C'est le diff qui te dit que les deux fichiers ne sont en fait pas deux versions du même document — ils peuvent être partis du même modèle mais les corps ont dérivé au-delà du point où un diff au niveau du paragraphe est la bonne forme.
 
-| Type     | Couleur | Préfixe  | Ce qu'il montre                                                          |
-| -------- | ------- | -------- | ------------------------------------------------------------------------ |
-| Ajouté   | Vert    | `+`      | Nouveau contenu dans le document de comparaison.                         |
-| Supprimé | Rouge   | `−`      | Contenu retiré du document de base (affiché barré).                      |
-| Modifié  | Jaune   | `~`      | Contenu changé, avec diffs en ligne mettant en évidence des mots précis. |
-| Contexte | Gris    | (espace) | Texte environnant inchangé, pour référence.                              |
+## La bannière de troncature
 
-Les blocs modifiés affichent des diffs en ligne quand la modification est assez petite pour le niveau du mot : les parties supprimées apparaissent comme `[-texte-]` et les ajouts comme `{+texte+}`. Quand les diffs en ligne ne sont pas disponibles — généralement parce que la modification a réécrit l'essentiel du paragraphe —, les anciennes et nouvelles versions se rendent sur des lignes séparées.
+L'endpoint plafonne le nombre de blocs de changement pour que la boîte de dialogue reste utilisable. Quand le plafond mord, une bannière **Résultats tronqués** siège sous les stats : les blocs affichés sont les plus significatifs, les totaux dans les badges reflètent toujours la paire de fichiers complète. Le plafond porte uniquement sur l'affichage — le diff sous-jacent voit chaque paragraphe.
 
-## Où ça s'inscrit
+## Quand y recourir
 
-La comparaison de documents est la surface diff ciblée pour la base de connaissances. Elle existe parce que relire la révision d'un contrat, une mise à jour de politique ou un modèle rafraîchi ne tient pas dans le chat — l'œil a besoin des deux versions visibles en même temps, avec les modifications en relief. Pour comparer deux versions d'un même document dans le temps, téléverse chaque version comme fichier distinct dans la [base de connaissances](/fr/platform/workspace/knowledge-base) et lance une comparaison entre les deux.
-
-Pour un résumé IA du diff, copie le lien de comparaison dans un chat et demande à l'assistant de parcourir les modifications ; l'agent de chat peut lire la même sortie RAG que celle que rend la boîte de comparaison.
+Recours à la comparaison de documents quand la question est « qu'est-ce qui a changé », pas « que dit ce texte ». Pour « que dit ce texte », téléverse le fichier en tant que pièce jointe de chat ou charge-le dans la base de connaissances et demande à un agent — le modèle est meilleur pour lire de la prose que le diff. Le diff est meilleur pour lire deux fichiers en parallèle et rapporter quels paragraphes diffèrent, ce que fait tout outil diff à numéros de ligne, mais étendu au texte extrait de tout format que le pipeline supporte. La lecture suivante à mettre en file est [Documents](/fr/platform/knowledge/documents) — elle couvre le pipeline d'indexation que la comparaison partage avec le reste de la base de connaissances, et où vivent les documents versionnés une fois que tu les as comparés.

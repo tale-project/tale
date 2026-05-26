@@ -1,58 +1,46 @@
 ---
-title: Automatisations
-description: Construis, configure et teste des automatisations dans l'éditeur visuel.
+title: Workflows
+description: Le manuel d'exploitation de la fonctionnalité workflows — la vue liste, comment lancer un workflow, comment le mettre en pause et le désactiver, comment l'éditer et comment l'historique versionné fonctionne. Lis ceci quand tu fais tourner des automatisations au quotidien, pas quand tu apprends le modèle.
 ---
 
-L'éditeur d'automatisations, c'est l'endroit où le vocabulaire des [Concepts des automatisations](/fr/platform/automations/concepts) devient un graphe exécutable. Cette page couvre le flux de construction lui-même : ouvrir l'éditeur, les six types d'étapes, les boutons de configuration qui façonnent reprises et délais, les variables que chaque étape peut lire et le chemin **Tester l'automatisation** qui valide un brouillon avant la mise en ligne. Le public, c'est le Développeur ou plus qui construit ou maintient une automatisation ; les surfaces des déclencheurs et des exécutions ont leurs propres pages, liées en bas.
+Workflows est le manuel d'exploitation de la fonctionnalité. Le modèle mental — ce qu'est un workflow, un trigger, une étape et une exécution — vit sur [Concepts des automatisations](/fr/platform/automations/concepts). Cette page est l'autre moitié : comment la vue liste est agencée, comment tu lances un workflow depuis l'UI, comment tu en mets un en pause sans le supprimer, comment tu édites et comment l'historique versionné fonctionne. Les rôles Éditeur et Développeur lisent ceci quand ils travaillent avec des workflows au quotidien.
 
-## Ouvrir l'éditeur
+La fonctionnalité s'atteint depuis **Automatisations** dans la barre latérale. La vue liste est le point d'entrée ; toute autre surface (l'éditeur, l'onglet exécutions, le tableau de bord des métriques) pend à un workflow unique que tu as ouvert depuis la liste.
 
-Ouvre **Automatisations** dans la barre latérale et clique **Créer une automatisation**. La boîte de dialogue a deux onglets : **Vierge** te laisse décrire ce que l'automatisation doit faire dans un seul champ, et l'assistant IA transforme cette description en un premier brouillon d'étapes que tu raffines dans l'éditeur. **À partir d'un modèle** liste les automatisations prêtes à l'emploi livrées avec les intégrations installées — choisis-en une, donne-lui un nom, et l'éditeur s'ouvre avec les étapes du modèle déjà câblées.
+## La vue liste
 
-L'éditeur lui-même est un canevas. Les étapes sont des nœuds, les liens entre elles sont orientés, et le panneau de droite ouvre ce qui est sélectionné. La barre d'outils en haut du canevas porte **Ajouter une étape**, **Tester l'automatisation**, **Assistant IA** et **Focus** (replie le canevas sur une seule colonne pour un plus petit écran).
+La liste affiche chaque workflow de l'organisation. La barre d'outils porte une zone de recherche, un bouton **Créer une automatisation** et une entrée de menu **Importer depuis un fichier** pour importer un JSON de workflow. Les colonnes sont le nom du workflow, la description, l'ensemble de triggers, l'horodatage de la dernière exécution et un menu d'actions de ligne (renommer, dupliquer, supprimer).
 
-## Types d'étapes
+La liste charge en lazy au défilement. La recherche s'applique au nom et à la description. Un clic sur une ligne ouvre le workflow.
 
-Six types d'étapes couvrent le travail qu'une automatisation peut accomplir. Choisis selon ce que l'étape doit faire.
+## Lancer un workflow
 
-| Étape         | À utiliser pour                                                                                       |
-| ------------- | ----------------------------------------------------------------------------------------------------- |
-| **Début**     | Le point d'entrée. Nomme le schéma d'entrée et lie les déclencheurs.                                  |
-| **Action**    | Appeler une opération d'intégration, un outil MCP ou une action native Tale.                          |
-| **LLM**       | Envoyer un prompt à un modèle et router la réponse vers la suite.                                     |
-| **Condition** | Bifurquer vers un chemin parmi plusieurs selon une vérification sur la sortie d'une étape précédente. |
-| **Boucle**    | Répéter un bloc d'étapes une fois par élément d'une liste.                                            |
-| **Sortie**    | Nommer les données que l'automatisation renvoie quand elle se termine.                                |
+Trois chemins déclenchent un workflow.
 
-Chaque étape atterrit sur le canevas avec des valeurs par défaut sensées ; tu la configures en cliquant dessus et en éditant dans le panneau de droite. Le panneau valide à la frappe et marque les champs manquants par une erreur en ligne, plutôt que de laisser l'automatisation s'enregistrer dans un état cassé.
+L'onglet **Triggers** sur le workflow attache les chemins de déclenchement : un trigger manuel fait apparaître un bouton sous **Automatisations > Exécutions manuelles** que les membres peuvent cliquer, un trigger planifié se déclenche sur un cron, un trigger webhook accepte un POST externe, un trigger d'événement s'abonne à des événements internes. La [référence des triggers](/fr/platform/automations/triggers) couvre chacun en profondeur.
 
-## Configuration
+Le panneau **Tester l'automatisation** dans la barre d'outils de l'éditeur déclenche une exécution ponctuelle directement depuis l'éditeur. Colle le JSON d'entrée que l'exécution doit recevoir, clique **Exécuter** et l'exécution apparaît dans l'onglet Exécutions avec son ID. Sers-toi du panneau de test quand tu itères sur un workflow et veux voir le journal d'exécution complet sans câbler de trigger d'abord.
 
-Ouvre l'onglet **Configuration** de n'importe quelle automatisation pour régler les boutons qui s'appliquent à toute l'exécution, pas à une étape.
+Le bouton **Dry run** dans le même panneau simule une exécution sans effets de bord — le workflow valide contre l'entrée, parcourt le graphe d'étapes et signale erreurs et avertissements sans appeler aucun agent, API ou serveur de mail. Sers-toi du dry run quand le workflow n'est pas encore sûr à exécuter de bout en bout.
 
-| Champ                           | Défaut      | Ce qu'il fait                                                                                            |
-| ------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------- |
-| **Nom**                         | —           | Le nom affiché partout dans la plateforme. Obligatoire.                                                  |
-| **Description**                 | —           | Description en texte libre, remontée dans les sélecteurs et les métriques.                               |
-| **Délai d'expiration (ms)**     | 300 000     | Combien de temps l'automatisation peut tourner avant que le moteur ne l'arrête. Cinq minutes par défaut. |
-| **Nombre max de tentatives**    | 3           | Nombre de reprises par étape quand une étape échoue avec une erreur passagère.                           |
-| **Délai entre tentatives (ms)** | 1 000       | Délai entre tentatives. Double à chaque essai jusqu'à une borne raisonnable.                             |
-| **Variables**                   | `{}` (JSON) | Sac partagé clé-valeur lu par chaque étape via `{{ variables.<key> }}`. Édite comme un objet JSON.       |
+## Mettre en pause et désactiver
 
-Le bouton **Enregistrer la configuration** écrit la modification. Les modifications enregistrées s'appliquent à la prochaine exécution — les exécutions en cours gardent la configuration avec laquelle elles ont démarré.
+Mettre un workflow en pause sans le supprimer passe par les triggers — chaque trigger porte un bouton **Activé**. Bascule chaque trigger sur off et le workflow cesse de se déclencher ; remets-les sur on pour reprendre. Le workflow lui-même reste dans la liste et son historique reste intact.
 
-## Variables
+Supprimer un workflow est permanent et vit dans le menu d'actions de ligne de la vue liste. Tale demande confirmation avant la suppression ; les exécutions et l'historique de versions partent avec le workflow.
 
-Le champ **Variables** est un objet JSON. Tout ce que tu y mets se lit depuis chaque configuration d'étape avec la syntaxe `{{ variables.<key> }}`. Les deux formes courantes, ce sont les identifiants référencés par plusieurs étapes et les drapeaux de fonctionnalité qui font varier le comportement entre brouillons et version en ligne. Deux points à garder en tête : les valeurs secrètes stockées en variables ne sont pas chiffrées à part — pour les identifiants qu'un connecteur lit, passe plutôt par la surface d'identifiants de l'intégration ; et les variables sont versionnées avec le reste de l'automatisation, donc une restauration depuis **Historique** les ramène avec les étapes.
+## Éditer
 
-## Tester l'automatisation
+Ouvre le workflow et l'éditeur affiche le graphe d'étapes sur une canvas. Un clic sur une étape ouvre son panneau à droite ; le panneau porte le nom de l'étape, son type, sa configuration et les transitions vers les étapes suivantes en cas de succès et d'échec. La barre d'outils en haut de la canvas porte **Focus** (zoomer le graphe), **Assistant IA** (un chat qui édite le workflow à ta place), **Tester l'automatisation** et **Ajouter une étape**.
 
-Clique **Tester l'automatisation** dans la barre d'outils pour faire tourner le brouillon avec une charge utile d'entrée de ton choix. Le test tourne sur le même moteur que les exécutions de production, mais il est enregistré sur l'onglet **Exécutions** avec la source de déclenchement étiquetée `manual` — tu peux donc le rejouer, comparer sa sortie à une exécution précédente et réutiliser son entrée plus tard. Utilise-le avant de publier — un brouillon publié commence à se déclencher sur ses vrais déclencheurs immédiatement, et cinq secondes de test valent mieux qu'un appel à 3 h du matin pour une étape **Action** mal configurée.
+Un bandeau au-dessus de la canvas avertit quand le workflow a des triggers actifs — les modifications sur un workflow déclenché prennent effet immédiatement, donc une sauvegarde en pleine itération peut changer le comportement d'une exécution en cours. Mets les triggers en pause d'abord quand les modifications ne sont pas encore prêtes.
 
-## Historique
+## Versionnage et historique
 
-Chaque édition enregistrée atterrit dans **Historique**, à côté du canevas principal de l'éditeur. Le bouton **Restaurer** rembobine l'automatisation jusqu'au cliché choisi ; la vue **Comparer les modifications** montre le diff avant que tu ne valides la restauration. L'historique, c'est le filet de sécurité pour « le changement que j'ai livré ce matin a cassé l'exécution nocturne » — ouvre-le, trouve le cliché précédent, restaure.
+Chaque sauvegarde fige une nouvelle version du workflow. L'onglet **Historique** dans le rail gauche de l'éditeur liste les versions, plus récente en tête, chacune avec un horodatage et le membre qui a sauvegardé. Un clic sur une ligne ouvre un diff contre la définition actuelle ; un clic sur **Restaurer** revient à cette capture. Restaurer crée une nouvelle version en haut de l'historique — l'état restauré est le nouvel état courant, et la version que tu as remplacée reste dans la liste.
 
-## Construis-en une
+L'historique est par workflow, pas par étape. Restaurer rétablit toute la définition ; les restaurations partielles vivent dans l'éditeur (copie la config de l'étape depuis le diff et colle-la dans la version actuelle).
 
-L'éditeur est volontairement directif : chaque étape fait un mouvement, le graphe va de **Début** à **Sortie**, et **Tester l'automatisation** valide la forme avant publication. Les deux pages suivantes couvrent les morceaux du modèle que l'éditeur ne fait que pointer — [Déclencheurs](/fr/platform/automations/triggers) pour les quatre façons dont une automatisation démarre, et [journaux d'exécution](/fr/platform/automations/execution-logs) pour la trace par exécution qu'on lit quand quelque chose échoue.
+## Où ça s'inscrit
+
+Workflows est le manuel d'exploitation ; [Concepts des automatisations](/fr/platform/automations/concepts) est le modèle mental. Les voisins naturels sont les [triggers](/fr/platform/automations/triggers) (le déclenchement), les [logs d'exécution](/fr/platform/automations/execution-logs) (le détail par exécution), les [métriques](/fr/platform/automations/metrics) (le bilan global) et les [approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) (la barrière humaine entre étapes). Sers-toi de cette page quand tu travailles sur un workflow qui existe déjà ; sers-toi des concepts quand tu construis le premier.

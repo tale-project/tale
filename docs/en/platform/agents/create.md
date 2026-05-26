@@ -1,72 +1,64 @@
 ---
 title: Create an agent
-description: The end-to-end build flow for a custom agent — naming, model, instructions, knowledge, tools, conversation starters, delegation, and the worker URL.
+description: Walk from an empty Create-agent dialog to a published agent — pick the model, write instructions, bind knowledge, toggle tools, and verify in Chat.
 ---
 
-Creating an agent means picking values for the four knobs the concept page introduced — instructions, knowledge, tools, model — then giving the agent a name, a worker URL for external callers, and the conversation starters that appear on a fresh chat. The audience is Editor role or higher; Members can use shipped agents but not build them.
+This tutorial walks from an empty **Create agent** dialog to an agent you publish and use. The result is a working agent that knows its domain, has the tools to act on what it reads, and is reachable from any chat in your org. About fifteen minutes if you have a model provider already configured; longer if you also have to set one up.
 
-This page walks the build flow tab by tab. The conceptual model behind the four knobs is at [Agent concepts](/platform/agents/concepts). The iteration loop after the first publish — history snapshots, comparison, restore — is at [Agent versions](/platform/agents/versions). This page sits between the two.
+You need the Editor role or higher and a model provider configured under **Settings > Providers**; the first prerequisite below links the setup walkthrough if you do not. The voice this tutorial uses is the same voice the [Agent concepts](/platform/agents/concepts) page builds — read that page once before you write your first agent's instructions.
 
-## Create the agent
+## Before you begin
 
-To start a new agent, open **Agents** in the sidebar and click **Create agent**. The create dialog asks for three things:
+Make sure two things are in place:
 
-| Field        | What goes in                                                                                                                         |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Display name | The name shown in the agent selector and conversations. `Support agent`, `Sales research`.                                           |
-| Name         | URL-safe slug used in API calls and JSON file references. Auto-derived from the display name; override when a specific slug matters. |
-| Description  | Optional one-liner describing what the agent does. Appears in the agent picker tooltip.                                              |
+- A model provider is configured under **Settings > Providers**. Cloud users get one by default; self-hosted users follow [Configuration → providers](/self-hosted/configuration/providers).
+- You hold the Editor role or higher in this org. Check **Settings > People** if you are not sure; the role is on your member row.
 
-Click **Continue**. The next screen is the agent's configuration page, which carries seven tabs: General, Instructions & model, Tools, Knowledge, Starters, Delegation, and Workers.
+The tutorial uses a support-triage agent as the running example — the same one [Agent concepts](/platform/agents/concepts) introduces. Substitute your own domain freely; the steps do not depend on the example.
 
-### File-based creation with AI assistance
+## Step 1 — Pick the primary model
 
-To create agents by adding JSON files directly, open the project's `agents/` directory and add a new file. An AI-powered editor (Claude Code, Cursor, GitHub Copilot, Windsurf) opened on the project sees the agent schema and the platform's capabilities through the extracted reference code — describe the agent and the editor generates a valid configuration file. See [AI-assisted development](/develop/ai-assisted-development) for setup.
+Open **Agents** in the sidebar and click **Create agent**. The dialog drops you on the **Instructions & model** tab. Open the model picker and the search field expects a model name or family — type "gpt", "claude", or "llama" to filter. Pick a capable model for the primary; the agent's behaviour leans heavily on this choice. The picker also exposes a fallback slot — pick a smaller, cheaper model so the agent keeps running when the primary is rate-limited.
 
-## Instructions & model
+## Step 2 — Write the instructions
 
-This is the most load-bearing tab. The **System instructions** field is the system prompt the model sees before every conversation; it defines the agent's role, scope, tone, and output shape. Keep it short, specific, and rule-listed — state who the agent is, what it can answer, what it must refuse, and how to format replies.
+The instructions field is plain markdown. Three pieces of advice from the field:
 
-Two other fields live on this tab. The **Model** picker selects the AI model that backs this agent — pick from the models your organisation has configured under [AI providers](/platform/admin/providers); the picker also lets you add fallback models that run when the primary is unavailable. The **Structured responses** toggle lets the agent format substantial answers with `[[CONCLUSION]]`, `[[KEY_POINTS]]`, and `[[DETAILS]]` markers that render as rich UI sections in the chat; turn it off to force plain-text replies.
+- **Open with the voice.** One paragraph naming who the agent is, who it answers to, and what tone it strikes. The model treats this as the strongest signal.
+- **Name the refusal cases explicitly.** Three or four sentences that say what the agent declines to do and what it says when it declines.
+- **Resist the temptation to specify every behaviour.** Long instructions get diluted in long conversations. If a behaviour belongs in code, lean on a tool; if it belongs in data, lean on knowledge.
 
-Changes save automatically; a save indicator in the top-right shows the current status.
+Save the agent with the **Save** button at the top right. The dialog stays open with the agent's ID visible in the URL — you can come back to refine.
 
-## Tools
+## Step 3 — Bind knowledge sources
 
-To grant the agent access to a capability, open the Tools tab and toggle the relevant entry on. Built-in tools include knowledge search, web search, document handling, and image analysis — each with a four-way retrieval-mode selector (**Off**, **Tool**, **Context**, **Both**) that decides whether the agent searches on demand, gets results auto-injected into every reply, or both. Every configured integration and every active [MCP server](/platform/integrations/mcp-servers) appears as a togglable group below the built-ins.
+Switch to the **Knowledge** tab. Knowledge is what the agent can look at; nothing is bound by default. Click **Agent knowledge** and pick from the org's documents, customers, products, vendors, or websites. The agent will retrieve from these sources at reply time and cite what it used.
 
-The tool list is what separates an agent that can only talk from an agent that can act. A read-only research agent has web search on and every write operation off; an agent that updates tickets has the support integration on and everything else off.
+Two cautions:
 
-## Knowledge
+- Bind the smallest useful set. A document bound but rarely retrieved still costs embedding cycles.
+- Knowledge bound here is in addition to anything an agent's instructions tell it to retrieve directly. The instructions name the policy; the binding names the surface.
 
-To scope what the agent can search, open the Knowledge tab and narrow the default (all organisation knowledge) down by folder, by team, or by entity type (documents, products, customers, vendors). Narrower scopes give more relevant search hits — a support agent searching only the help-centre folder doesn't get distracted by engineering documents — and cost less, because fewer documents reach the model.
+## Step 4 — Toggle the tools
 
-The Knowledge tab also lets you upload **agent documents** — files only this agent can access, useful for private style guides or response templates you don't want exposed to the rest of the organisation. To turn off knowledge entirely (the agent answers purely from instructions and tools), set **Retrieval mode** to **Off** on this tab.
+Switch to the **Tools** tab. Tools are what the agent can do beyond generating text. The toggles are grouped by family — web, files, RAG, run code, sub-agents, workflows, MCP, integrations, human input. Toggle on what the agent needs and leave the rest off. Every toggle widens the trust boundary, so be parsimonious.
 
-## Starters
+The toggles that need particular thought:
 
-To suggest first messages on a fresh chat, open the Starters tab and add starter entries. Each starter has a **title** (the clickable suggestion) and a **prompt** (the message sent when clicked). Starters reduce the friction of writing the first message and they're a good way to demonstrate what the agent was built to handle.
+- **Run code** is gated by the org's [run-code policy](/platform/admin/governance/run-code-policy). If your org policy disallows it, the toggle reads as disabled.
+- **Sub-agents** lets this agent delegate to others; [Agent delegation](/platform/agents/delegation) covers when that is the right move.
 
-An agent with no starters shows an empty composer on a fresh chat — the feature is opt-in.
+## Step 5 — Publish and try it
 
-## Delegation
+Back on **Instructions & model**, flip **Visible in chat** on and click **Save**. A toast confirms **Agent saved**. Open a new chat, pick the agent from the picker, and send a message that exercises the knowledge and tools you bound. If the agent answers the way you wrote it to, you are done; if it does not, the **History** tab on the agent shows every change you have made and lets you compare or restore.
 
-To let the agent hand conversations off to specialists when the topic drifts, open the Delegation tab and pick target agents. For each target, name the topic or condition that triggers the hand-off; the agent then routes matching conversations to the chosen delegate. The hand-off shows in the transcript as a short note naming the new agent, and replies from that point onwards come from the delegate's instructions.
+## Troubleshooting
 
-Delegation is opt-in. An agent with no delegation targets answers every topic itself.
+- **Save is greyed out.** The instructions field is empty or the model picker has no selection. Both are required.
+- **Agent does not appear in the chat picker.** Confirm **Visible in chat** is on. If it is, confirm the user picking the agent has access to it — Project agents do not appear outside their Project.
+- **Replies say "no access" to a tool.** A governance policy is gating the tool. The agent definition allows it; the runtime is refusing. Check [Policies and limits](/platform/admin/governance/policies-and-limits).
+- **Retrieval returns nothing.** The knowledge sources you bound may not contain what the prompt asked for. Verify the source is indexed by opening it from [Documents](/platform/knowledge/documents) and confirming the chunks render.
 
-## Workers
+## Where this gets used
 
-Every agent gets a unique **worker URL**. To call the agent from outside Tale — a chat widget on a marketing site, a Slack bot, an external workflow — POST a message and the conversation context to the worker URL and the agent responds with the same shape it would have used in chat. The Workers tab supports multiple worker URLs per agent so you can rotate credentials or scope different integrations to different keys.
-
-The agent has to be published before its Workers tab activates — until then, the tab shows _Publish this agent to enable worker access_. The signature scheme and a worked example in cURL, Node, and Python live at [Webhooks](/develop/webhooks).
-
-## History
-
-To browse the agent's history of saved snapshots, open the **History** menu. The dialog lists every published snapshot with timestamp and actor; from there you can compare two snapshots side by side or restore a previous one as the new working state. See [Agent versions](/platform/agents/versions) for the full lifecycle.
-
-## Where this fits
-
-This page is the build flow — name, instructions, model, knowledge, tools, starters, delegation, workers. Most of the iteration on an agent happens _after_ this initial create: rewriting instructions as you learn what the agent gets wrong, narrowing knowledge as you see what it grounds in, toggling tools as the use case sharpens. The four knobs the concept page introduced are the four knobs you keep tuning.
-
-For the iteration loop — drafting, publishing, rolling back live agents — [Agent versions](/platform/agents/versions) is the dedicated reference. To call this agent from outside the UI, [Webhooks](/develop/webhooks) and the [API reference](/develop/api-reference) cover the two non-UI surfaces.
+Creating one agent is the moment the rest of the platform starts to feel like Tale rather than a generic chat. The natural next walk is [Agent with knowledge](/tutorials/editor/agent-with-knowledge) — same shape, but binds a folder of PDFs and exercises the citation pipeline end to end. If the agent you just built needs to hand off to a specialist, [Delegate between agents](/tutorials/editor/delegate-between-agents) is the chain pattern.

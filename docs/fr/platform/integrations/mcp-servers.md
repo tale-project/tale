@@ -1,75 +1,55 @@
 ---
 title: Serveurs MCP
-description: Connecte des serveurs Model Context Protocol externes à Tale pour que leurs outils et ressources apparaissent comme des outils d'agent.
+description: Les serveurs MCP sont des processus externes qui exposent des tools aux agents de Tale via le Model Context Protocol. Les Administrateurs les enregistrent sous Paramètres > Serveurs MCP ; la règle d'approbation par tool décide ce que chaque agent peut appeler.
 ---
 
-Un serveur Model Context Protocol (MCP) est un processus externe qui expose un ensemble d'outils, de ressources et de prompts via un petit RPC standardisé. Tale enregistre un serveur MCP une fois et rend ensuite ses outils disponibles à chaque agent de l'organisation qui s'y branche. Là où une [intégration](/fr/platform/integrations/overview) Tale enveloppe la surface REST ou SQL d'un fournisseur dans un manifeste écrit par Tale, un serveur MCP laisse un tiers publier son propre catalogue d'outils — et Tale le consomme sans écrire de connecteur.
+Un serveur MCP est un processus externe qui expose des tools aux agents de Tale via le Model Context Protocol. Là où une intégration premier-party est un connecteur spécifique au fournisseur que Tale ship, un serveur MCP est un pont générique que n'importe qui peut héberger — le protocole est ouvert, le contrat est un ensemble de tools et de ressources, et l'org décide par serveur ce que ses agents peuvent atteindre. Les Administrateurs enregistrent les serveurs MCP sous **Paramètres > Serveurs MCP** ; les Développeurs et Éditeurs pointent les agents dessus.
 
-Cette page est la référence de l'écran **Paramètres > Serveurs MCP** et du schéma sous-jacent. Le public visé : Admins et Développeurs qui connectent un serveur MCP à une organisation. Les Membres et Éditeurs ne voient pas cette surface ; ils voient apparaître de nouveaux outils sur leurs agents.
+Cette page est la référence pour ce qu'un serveur MCP apporte dans Tale, comment marche l'enregistrement, comment la règle d'approbation par tool forme ce qu'un agent peut appeler, et en quoi les serveurs MCP diffèrent des intégrations premier-party. Le protocole lui-même est documenté en amont ; ce qui suit est la surface côté Tale.
 
-## Un exemple complet
+## Ce qu'apporte un serveur MCP
 
-Le chemin le plus court vers une intégration MCP qui marche est d'enregistrer un serveur Streamable HTTP public avec auth par clé API. Pour enregistrer le serveur `example-tools` à `https://mcp.example.com`, ouvre **Paramètres > Serveurs MCP**, clique sur **Ajouter un serveur MCP** et remplis :
+Un serveur MCP parle le Model Context Protocol par HTTP ou stdio. Une fois enregistré, Tale récupère le manifeste de tools du serveur — une liste de tools nommés, leurs schémas d'entrée et ce que fait chacun — et expose les tools comme famille de tools sur chaque agent auquel le serveur est lié. L'agent appelle le tool de la même façon qu'il appelle n'importe quel autre tool ; la requête voyage à travers Tale jusqu'au serveur MCP, la réponse du serveur revient, et l'agent l'utilise dans la réponse.
 
-```json
-{
-  "name": "example-tools",
-  "displayName": "Example Tools",
-  "transportType": "streamable_http",
-  "url": "https://mcp.example.com/mcp",
-  "authType": "api_key"
-}
-```
+Le serveur peut aussi exposer des **ressources** (contexte en lecture seule que l'agent peut tirer) et des **prompts** (templates nommés que l'agent peut composer). Les tools sont la surface la plus courante ; ressources et prompts sont des capacités optionnelles qu'un serveur peut implémenter ou non.
 
-Après l'enregistrement, Tale demande la clé API, la stocke chiffrée et fait passer le serveur en état `discovering`. Le RPC de découverte renvoie la liste d'outils du serveur en quelques secondes ; le statut bascule sur `active` et chaque outil découvert est désormais activable sur les agents à **Agents > [agent] > Outils**.
+## Enregistrer un serveur
 
-## Types de transport
+Ouvre **Paramètres > Serveurs MCP** et clique sur **Ajouter un serveur**. Le formulaire demande :
 
-Tale supporte trois transports MCP. Choisis selon l'endroit où tourne le serveur et comment Tale l'atteint.
+- **Nom** — une étiquette humaine qui apparaît dans la liste de tools de l'agent et sur chaque carte d'approbation.
+- **Transport** — HTTP ou stdio. Les serveurs HTTP portent une URL ; les serveurs stdio portent une commande que Tale spawn.
+- **Authentification** — aucune, jeton bearer, ou OAuth. Les jetons vont dans un champ secret ; OAuth déroule la danse comme une intégration premier-party.
+- **Agents autorisés** — quels agents peuvent se lier à ce serveur. Le défaut est aucun agent ; va vers **Tous les agents** seulement quand le serveur est assez générique pour que chaque agent en bénéficie.
 
-| Transport         | Quand le choisir                                                                                                                                                                                  |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `streamable_http` | Le serveur est un service HTTP public qui parle le transport MCP Streamable HTTP. Le défaut pour les serveurs MCP hébergés.                                                                       |
-| `sse`             | Le serveur est un service HTTP qui parle l'ancien transport Server-Sent Events. Encore supporté pour la compatibilité avec d'anciens serveurs.                                                    |
-| `stdio`           | Le serveur est un processus local que Tale lance via une commande (`command` + `args`). Valide uniquement sur les instances auto-hébergées où le processus peut tourner à côté du conteneur Tale. |
+Enregistrer le formulaire déclenche un handshake : Tale se connecte au serveur, récupère le manifeste et le range. Un échec du handshake fait remonter l'erreur amont à côté de la ligne.
 
-`streamable_http` et `sse` ont tous deux besoin d'une `url` ; `stdio` a besoin de `command`, d'`args` optionnel et d'une `env` optionnelle pour les variables d'environnement passées au processus lancé.
+## La règle d'approbation par tool
 
-## Authentification
+La première fois qu'un agent appelle un tool d'un serveur MCP, Tale fait remonter une carte d'approbation au pool d'approbateurs MCP de l'org (configuré sous **Paramètres > Gouvernance > Approbations MCP**). L'approbateur décide si le tool est autorisé pour cet agent. Trois issues :
 
-Trois types d'auth couvrent les formes courantes :
+- **Approuver une fois** — le tool tourne cette fois, et l'appel suivant fait remonter la carte à nouveau.
+- **Approuver pour cet agent** — le tool est autorisé pour cet agent pour toujours ; les appels suivants tournent sans carte.
+- **Refuser** — le tool est bloqué pour cet agent ; les appels suivants échouent avec une erreur d'autorisation.
 
-| Type d'auth | Ce que Tale stocke                                                                                                                                                                                              |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `none`      | Rien. Le serveur est ouvert ou sans auth (typique pour les transports `stdio` qui tournent en local).                                                                                                           |
-| `api_key`   | Une clé API unique (`apiKeyEncrypted`), passée à chaque requête selon la convention du serveur.                                                                                                                 |
-| `oauth2`    | Une config client OAuth 2.0 (`tokenUrl`, `authorizationUrl` optionnel, `clientId`, `clientSecretEncrypted`, `scopes`, `grantType`) plus les tokens d'accès/refresh que Tale obtient après l'achèvement du flux. |
+L'approbation par tool est par agent et par tool. Approuver le tool `read_file` pour l'agent support ne l'approuve pas pour l'agent ventes, et n'approuve pas le tool `write_file` sur le même serveur. C'est intentionnel — chaque tool sur chaque serveur MCP élargit la frontière de confiance, et la décision par tool est la façon dont l'org garde la frontière serrée.
 
-OAuth2 supporte deux types de grant : `client_credentials` pour serveur-à-serveur, et `authorization_code` pour les flux où un admin autorise Tale à agir au nom d'un compte. Ce dernier déclenche une redirection vers `authorizationUrl` quand l'intégration est connectée ; Tale stocke les tokens d'accès et de refresh et rafraîchit le token d'accès automatiquement quand il expire.
+## À quoi est bon un serveur MCP
 
-Tous les secrets — `apiKeyEncrypted`, `clientSecretEncrypted`, `accessTokenEncrypted`, `refreshTokenEncrypted` — sont stockés chiffrés au repos, restreints à l'organisation.
+Va vers un serveur MCP quand tu veux qu'un agent atteigne quelque chose qu'aucune intégration premier-party ne couvre — une API interne, un fournisseur sans connecteur Tale, un script local qui fait un calcul que les tools intégrés de Tale ne peuvent pas. Le déploiement est à toi ; Tale ne parle qu'au serveur.
 
-## États de statut
+Un motif courant est un serveur MCP par service interne dont les agents ont besoin. Le serveur tourne à côté du reste de l'infrastructure de l'org, parle MCP, et l'équipe propriétaire du service possède aussi le contrat.
 
-Chaque entrée serveur MCP porte un champ `status` qui reflète la santé de la connexion.
+## Désactiver et retirer un serveur
 
-| Statut        | Signification                                                                                                                    |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `discovering` | État initial après enregistrement. Tale appelle le RPC `tools/list` du serveur pour peupler `discoveredTools`.                   |
-| `active`      | Découverte réussie et serveur joignable. Les outils sont activables sur les agents.                                              |
-| `inactive`    | L'admin a désactivé le serveur manuellement. La liste d'outils découverts est préservée ; la réactivation saute la redécouverte. |
-| `error`       | La dernière tentative de connexion a échoué. La raison est dans `lastError` ; corrige les identifiants ou l'URL et re-teste.     |
+Chaque serveur a un commutateur activé sur sa ligne. Désactiver empêche Tale de l'appeler ; les tools du serveur arrêtent d'apparaître dans les listes de tools des agents, et tout agent qui en dépendait fait remonter une erreur de configuration. Retirer le serveur supprime son manifeste et révoque chaque approbation par tool qui le référençait.
 
-## Outils découverts
+Réajouter un serveur avec le même nom repart à zéro — le manifeste est recharché, et chaque approbation par tool doit être redécidée. Pas de report opaque d'approbations à travers un retirer-et-rajouter.
 
-Quand la découverte se termine, le catalogue d'outils du serveur atterrit dans le tableau `discoveredTools`. Chaque outil a un `name`, une `description` optionnelle, un `inputSchema` optionnel (JSON Schema pour les paramètres) et un flag `requiresApproval` optionnel.
+## Serveurs MCP versus intégrations premier-party
 
-`requiresApproval: true` fait que chaque invocation de cet outil génère une carte d'approbation dans le chat — le même flux qu'une opération `write` sur une intégration native Tale. Utilise-le pour les outils qui touchent les systèmes de facturation, envoient des messages au nom de quelqu'un ou modifient des données de production. La doctrine complète sur les approbations vit à [Approbations](/fr/platform/workspace/approvals).
+Les deux surfaces laissent un agent atteindre au-delà de Tale ; la différence est qui possède le connecteur. Les intégrations premier-party sont spécifiques au fournisseur, livrées en partie de Tale, et portent les identifiants et la liste d'opérations que l'équipe Tale maintient. Les serveurs MCP sont génériques, hébergés par toi, et portent les tools que l'auteur du serveur a choisi d'exposer. Va vers une intégration quand une existe pour le système cible ; va vers un serveur MCP quand tu dois héberger le pont toi-même.
 
-La liste découverte est ce parmi quoi les propriétaires d'agents choisissent quand ils activent des outils MCP à **Agents > [agent] > Outils > Serveurs MCP**. Activer un serveur MCP sur un agent accorde l'accès à tous les outils de ce serveur ; la granularité au niveau outil par outil vit dans la config d'outils de l'agent, pas dans l'enregistrement du serveur MCP.
+## Où cela s'inscrit
 
-## Où ça s'inscrit
-
-Les serveurs MCP sont le chemin « apporte ton propre catalogue d'outils » ; les [intégrations](/fr/platform/integrations/overview) sont le chemin « emballons un fournisseur qu'on connaît ». Ils coexistent — un agent peut utiliser les deux — et tous deux apparaissent dans le même sélecteur d'outils d'agent. Va vers MCP quand le serveur existe déjà (un tiers en publie un pour son produit), et vers un connecteur quand tu contrôles le wrapper et veux la sémantique lecture/écriture de Tale, le tableau d'opérations et le guide de configuration du connecteur.
-
-Pour activer les outils d'un serveur MCP sur un agent spécifique, ouvre l'agent et suis la [section Outils](/fr/platform/agents/create) du flux de construction d'agent. Pour vérifier quels agents ont quels outils MCP activés, le [Journal d'audit](/fr/platform/admin/governance) enregistre chaque changement d'activation/désactivation avec l'acteur et l'horodatage.
+Les serveurs MCP sont la surface d'extension ouverte du toolbelt d'un agent — le levier quand aucune intégration premier-party ne couvre ton besoin. La lecture suivante naturelle est [Vue d'ensemble des intégrations](/fr/platform/integrations/overview) pour le catalogue premier-party, et [Tools d'agent](/fr/platform/agents/tools) pour comment les tools d'un serveur MCP surgissent à l'agent et la frontière de confiance qu'ils élargissent.

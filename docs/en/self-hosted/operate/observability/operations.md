@@ -1,137 +1,53 @@
 ---
 title: Operations
-description: Monitoring, error tracking, logs, database backups, health checks, and container validation.
+description: What to alert on, which metrics matter, and the oncall checklist when a Tale instance starts behaving badly.
 ---
 
-Operations is everything that happens after Tale is running — the metrics you scrape, the logs you ship, the backups you take, the health probes you alert on. This page is the index for operators living with a production instance day to day: what each service exposes, how to wire it into a Prometheus and a log-aggregator stack, and the validation steps that prove a deploy is actually healthy.
+The operations page is the alert playbook — which signals are worth waking someone for, which can ride out a coffee, and what the first five minutes of an incident look like. Tale's metrics surface lives behind `METRICS_BEARER_TOKEN`; this page assumes you have wired up Prometheus and Grafana per [Observability config](/self-hosted/configuration/observability-config) and now need to know which numbers to watch.
 
-The defaults are sane enough that a fresh install is operable on day one. The work documented below is what you tune once you have traffic worth protecting.
+The symptom-first index is at [Troubleshooting](/self-hosted/operate/observability/troubleshooting). This page is the proactive side — signals first, oncall checklist second.
 
-## Monitoring
+## Signals worth alerting on
 
-Every Tale service exposes a Prometheus text-format `/metrics` endpoint on the internal Docker network. The endpoints are useful for the platform's own service-to-service health checks even when nothing external scrapes them; to expose them through the proxy for an external Prometheus, set a bearer token in `.env`:
+| Signal                                    | Severity | Why it matters                                      |
+| ----------------------------------------- | -------- | --------------------------------------------------- |
+| `tale-proxy` health probe failing > 1 min | page     | Every user sees a connection error                  |
+| `tale-platform` HTTP 5xx rate > 5 %       | page     | The UI is broken for a meaningful share of requests |
+| `tale-convex` WebSocket reconnect storm   | page     | UI loads but no data flows                          |
+| Postgres connections > 80 % of pool       | warn     | The next spike will start blocking                  |
+| `db-data` volume > 80 % full              | warn     | Postgres goes read-only at full                     |
+| RAG indexing queue depth > 100 for 10 min | warn     | Uploads stuck in "indexing"                         |
+| Provider request error rate > 20 %        | warn     | The upstream LLM provider is having a bad day       |
+| Daily backup did not write                | page     | Restore drill will fail at the worst moment         |
+| TLS cert renewal failed                   | warn     | Renews 30 d before expiry — you have time           |
 
-```dotenv
-METRICS_BEARER_TOKEN=your-secret-token-here
-```
+The first two pages are the actually-customer-impacting ones. The warns are catching trends before they tip into page territory.
 
-The metrics surfaces then answer on the public URL behind the proxy:
+## Log signals to grep for
 
-| Service        | Metrics endpoint                          |
-| -------------- | ----------------------------------------- |
-| Crawler        | `https://yourdomain.com/metrics/crawler`  |
-| RAG            | `https://yourdomain.com/metrics/rag`      |
-| Platform (Bun) | `https://yourdomain.com/metrics/platform` |
-| Convex         | `https://yourdomain.com/metrics/convex`   |
+Logs come through stdout per container, captured by Docker's `json-file` driver. The four phrases that consistently mean trouble:
 
-The Convex backend exposes over 260 built-in metrics covering query latency, mutation throughput, scheduler queue depth, and per-function call counts. When the bearer token is unset, every `/metrics/*` endpoint returns `401` — that's intentional, because the metrics carry enough operational detail to be worth gating.
+- `panic` or `unexpected error` in `tale-convex` logs — Convex action crash.
+- `decryption failed` in `tale-platform` logs — SOPS age key mismatch with the file on disk.
+- `429 Too Many Requests` repeated from a provider — rate limit hit, agents will start failing.
+- `connection refused` from `tale-rag` or `tale-crawler` — the platform cannot reach a sibling container.
 
-### Prometheus scrape config
+Pipe these to your aggregator as derived alerts; the metrics endpoints do not surface them as gauges.
 
-```yaml
-scrape_configs:
-  - job_name: tale-crawler
-    scheme: https
-    metrics_path: /metrics/crawler
-    authorization:
-      credentials: your-secret-token-here
-    static_configs:
-      - targets: ['your-tale-host.com']
+## Oncall checklist
 
-  # Repeat for tale-rag, tale-platform, tale-convex — only metrics_path changes.
-```
+When a page lands, the first five minutes follow the same shape every time.
 
-The four `job_name` blocks differ only in the `metrics_path` and `job_name` strings, so most operators paste the same config four times with one line changed.
+1. **Confirm the alert is real.** Open `$SITE_URL` in a browser. If the UI loads and chat works, you are looking at a metrics or scraper issue, not a customer-impacting one.
+2. **Identify the container.** `docker compose ps` shows which is unhealthy; `docker compose logs --tail=200 <service>` shows the last error.
+3. **Restart the most-likely culprit.** `docker compose restart <service>` resolves a surprising fraction of incidents — process crashes, file watchers gone stale, exhausted connection pools. The architecture is built to survive a single container restart cleanly.
+4. **Check upstream providers.** `https://status.openai.com`, `https://status.anthropic.com`, etc. If the provider is on fire, agents fail; Tale is not the cause.
+5. **Page the on-call engineer if the user-visible symptom persists after a restart.** No need to escalate sooner — most incidents resolve in the first three steps.
 
-## Error tracking
+## What does not need oncall
 
-Tale's error pipeline speaks the Sentry DSN format. Self-hosted Sentry, GlitchTip, and Bugsink all accept the same DSN shape, so any of them works as a drop-in replacement. Set the DSN in `.env`:
-
-```dotenv
-SENTRY_DSN=https://your-key@your-sentry-host/project-id
-```
-
-With `SENTRY_DSN` unset, error tracking is off and errors only surface in Docker logs. The `SENTRY_TRACES_SAMPLE_RATE` variable controls the fraction of transactions sent for performance tracing; the default of `1.0` (every transaction) is fine for low-traffic instances, and you'd lower it on a busy production deployment.
-
-## Logs
-
-All service logs go to Docker stdout. The compose file caps every container at 10 MB per log file with three rotated files retained, so a misbehaving service can't fill the disk overnight.
-
-```bash
-# Stream every service's log.
-docker compose logs -f
-
-# Stream one service.
-docker compose logs -f rag
-
-# Recent lines without streaming.
-docker compose logs --tail=100 platform
-```
-
-When the stack is running under `tale deploy`, `tale logs <service>` is the same picture filtered through the active blue-green color — useful when both colors exist briefly during a deploy and you only want the new one.
-
-## Database backups
-
-The bundled `db` container holds every persistent piece of state Tale writes — Convex tables, RAG embeddings, crawler URLs, audit log, the lot. Take a snapshot with `pg_dump` inside the container:
-
-```bash
-docker exec tale-db pg_dump -U tale tale > backup-$(date +%Y%m%d).sql
-```
-
-The restore is the inverse:
-
-```bash
-docker exec -i tale-db psql -U tale tale < backup-20260101.sql
-```
-
-For production, schedule the dump through cron and ship the file off the host. The `db-backup` named volume mounted at `/var/lib/postgresql/backup` is the staging area for off-host shipping; the bundled compose mounts it but does not write to it automatically.
-
-## Health checks
-
-Each service answers a health endpoint that's also what the proxy and Docker's own healthcheck poll:
-
-| Endpoint                       | What it checks                                                |
-| ------------------------------ | ------------------------------------------------------------- |
-| `GET /health`                  | The proxy is running and listening.                           |
-| `GET /api/health`              | The platform is up and Convex is reachable from inside.       |
-| `http://localhost:8001/health` | RAG is running and the database pool is connected.            |
-| `http://localhost:8002/health` | The crawler is running and the browser engine is initialised. |
-
-The platform endpoint is the most useful single check during a deploy because it exercises the full chain — Bun answering, Convex reachable, the readiness file written by the entrypoint after env sync.
-
-## Container health validation
-
-Two scripts validate a fresh build before you push it to production. Both run in CI on every pull request and both are safe to run on a development host.
-
-```bash
-bun run docker:test
-```
-
-This builds every image, starts every container on non-conflicting ports (the test compose file uses the `13000+` range), validates the health endpoints, exercises inter-service connectivity, and tears down. It's the closest thing to a real production deploy that fits on a laptop.
-
-For image-level validation — OCI labels, no secrets in layers, size budgets, non-root user, HEALTHCHECK instruction:
-
-```bash
-bun run docker:test:image
-```
-
-Both scripts are documented in detail on the [Contributing Docker guide](/develop/contributing-docker).
-
-## Image size monitoring
-
-Every container image has a size budget enforced by CI. The current sizes and budgets:
-
-| Service  | Current size | Budget |
-| -------- | ------------ | ------ |
-| Crawler  | ~1.85 GB     | 2.1 GB |
-| RAG      | ~515 MB      | 600 MB |
-| Platform | ~320 MB      | 400 MB |
-| Convex   | ~485 MB      | 600 MB |
-| DB       | ~1.06 GB     | 1.2 GB |
-| Proxy    | ~88 MB       | 100 MB |
-
-A change that pushes an image over its budget fails `bun run docker:test:image`. The [Container architecture](/self-hosted/operate/container-architecture) page covers the multi-stage build strategies that keep each image inside its budget.
+`tale-crawler` and `tale-rag` outages are not pages. The crawler's schedule absorbs hours of downtime without user impact; uploads to RAG queue rather than fail. Catch these in the warn band and fix them in business hours.
 
 ## Where this fits
 
-Operations is the day-to-day surface for the operator running Tale in production — metrics to scrape, logs to ship, health probes to monitor, image budgets to enforce. When something starts going wrong on a live instance, [Troubleshooting](/self-hosted/operate/observability/troubleshooting) is the symptom-to-fix map; for the architectural model behind the services emitting those metrics, [Container architecture](/self-hosted/operate/container-architecture) is one click away.
+The signals above are the proactive side of operating a Tale instance; the reactive side is [Troubleshooting](/self-hosted/operate/observability/troubleshooting), and the configuration that gets the metrics into Prometheus is [Observability config](/self-hosted/configuration/observability-config). If you have not yet set `METRICS_BEARER_TOKEN`, every threshold above is unmonitored — start there.

@@ -1,0 +1,1 @@
+../../../.agents/translation/AGENTS.md

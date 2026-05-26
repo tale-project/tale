@@ -1,53 +1,38 @@
 ---
 title: Document comparison
-description: Compare two documents side by side and read a detailed diff that highlights additions, deletions, and modifications paragraph by paragraph.
+description: The side-by-side diff dialog that takes two documents — uploaded or pulled from the library — and walks the differences paragraph by paragraph with a RAG-assisted summary.
 ---
 
-Document comparison lets you upload or pick two documents and read a paragraph-level diff between them. Use it to review a contract revision against the previous version, track policy updates between annual refreshes, or verify that a refreshed template matches the spec. The audience is Editors and Admins who handle document review; Members with read access to the knowledge base can also run a comparison if their role permits.
+Document comparison is the dialog that answers the question "what changed between these two versions". You point it at a base document and a comparison document; Tale runs both through the same extraction pipeline that feeds the knowledge base, hands them to a deterministic diff endpoint on the RAG service, and renders the result as a structured walk-through of added, deleted, and modified paragraphs. It is the right tool for contracts before-and-after, policy revisions, two drafts of the same proposal — anything where the words matter and the words moved.
 
-The diff is computed and rendered in the browser; nothing reaches the AI unless an agent is explicitly asked to summarise the result afterwards.
+The dialog lives next to the documents you compare: open it from **Knowledge > Documents** with the **Compare documents** action. The base and comparison files can each be either an already-indexed document from the library or a one-off upload, so there is no need to load both sides into the knowledge base if you only want to look at one diff.
 
-## Start a comparison
+## Picking the two sides
 
-To open the comparison dialog, navigate to **Knowledge > Documents** and pick the comparison entry from the action menu. The dialog asks for two documents — the base on the left, the comparison on the right:
+Two pickers sit side by side: **Base document** on the left, **Comparison document** on the right. Each picker has two tabs — **Upload** and **Existing** — and either tab fills the same slot.
 
-| Side  | Label               | Options                                        |
-| ----- | ------------------- | ---------------------------------------------- |
-| Left  | Base document       | Upload a file, or select an existing document. |
-| Right | Comparison document | Upload a file, or select an existing document. |
+The Upload tab takes any of the formats the knowledge-base pipeline already handles: PDF, DOCX, DOC, XLSX, PPTX, plain text, Markdown, CSV. The file uploads to Tale's object store, the same place chat attachments and library documents live; it is not indexed and not bound to an agent, so the upload is a one-shot input to this diff and nothing else. The Existing tab lists every document in the library that has a downloadable file — pick one with the searchable selector and the slot fills with that document's name.
 
-Each side has two tabs. **Upload** lets you drop a file from the device or browse the file picker. **Existing** searches and selects from documents already in the knowledge base. Click **Compare** once both sides are filled in; Tale sends both documents to the RAG service for analysis and the result renders inline.
+Mix the tabs freely. Compare two uploads against each other when neither version is in the library, compare an upload against an existing library document when you want to see what an incoming draft changes, or compare two library documents when you have versioned them in Knowledge.
 
-The accepted formats: PDF, DOCX, XLSX, CSV, TXT, PPTX, and common image formats. Anything outside this set is rejected on upload.
+## Running the diff
 
-## Read the results
+Click **Compare**. The dialog shows a spinner while the RAG service downloads both files, extracts the text, normalises paragraph boundaries, and runs a paragraph-level deterministic diff. The endpoint is the comparison feature's only model-free path — the diff itself is plain string-matching, so the output is reproducible for the same inputs.
 
-The result view has two parts: a summary bar of statistics across the whole diff, then a scrollable list of change blocks. The summary names how many paragraphs landed in each bucket:
+The wait is bounded — the request times out at two minutes if the RAG service has not returned. Large files hit the timeout more often than small ones; if it trips, retry once and consider trimming the file to the part that matters.
 
-| Stat          | What it counts                                                     |
-| ------------- | ------------------------------------------------------------------ |
-| **Added**     | Paragraphs present in the comparison document but not in the base. |
-| **Deleted**   | Paragraphs present in the base document but not in the comparison. |
-| **Modified**  | Paragraphs that changed between documents.                         |
-| **Unchanged** | Paragraphs with no differences.                                    |
+## Reading the result
 
-A **high divergence** warning appears at the top of the result when the documents differ significantly — useful for catching a wrong-version mix-up before reading further. A **truncation notice** appears when the number of changes exceeds the display limit; the missing blocks are dropped from the rendered diff but the summary counts the whole document.
+Four stat badges sit above the diff: **Added**, **Deleted**, **Modified**, **Unchanged**, each carrying the paragraph count for that bucket. The badges are also the legend for the colour scheme below — green for added, red for deleted, yellow for modified, neutral for unchanged context.
 
-## Change-block colour coding
+Below the badges sits the change list. Each entry is one **change block** — a stretch of contiguous changes plus a paragraph of context before and after — rendered as a single card. Inside the card, each paragraph carries a leading sign (`+` added, `-` deleted, `~` modified, blank for context) and a colour fill. Modified paragraphs render the inline diff when the endpoint provides one — deleted text crossed out, added text highlighted — and fall back to the full before-and-after pair when it does not.
 
-Each block in the scrollable list is colour-coded by the kind of change:
+When the base and comparison have so little in common that the diff is essentially "delete everything, add everything", a **high divergence** warning sits above the change list. That is the diff telling you the two files are not actually two versions of the same document — they may have started from the same template but the bodies have drifted past the point where a paragraph-level diff is the right shape.
 
-| Type     | Colour | Prefix  | What it shows                                                        |
-| -------- | ------ | ------- | -------------------------------------------------------------------- |
-| Added    | Green  | `+`     | New content in the comparison document.                              |
-| Deleted  | Red    | `−`     | Content removed from the base document (shown with strikethrough).   |
-| Modified | Yellow | `~`     | Content that changed, with inline diffs highlighting specific words. |
-| Context  | Gray   | (space) | Unchanged surrounding text for reference.                            |
+## The truncation banner
 
-Modified blocks show inline diffs when the change is small enough to display word-level: deleted portions appear as `[-text-]` and added portions as `{+text+}`. When inline diffs aren't available — typically because the modification rewrote most of the paragraph — the old and new versions render on separate lines.
+The endpoint caps the change-block count to keep the dialog usable. When the cap trips, a **Results truncated** banner sits below the stats: the displayed blocks are the most significant ones, the totals in the badges still reflect the full file pair. The cap is on display only — the underlying diff sees every paragraph.
 
-## Where this fits
+## When to reach for it
 
-Document comparison is the targeted diff surface for the knowledge base. It exists because reviewing a contract revision, a policy update, or a refreshed template doesn't fit inside chat — the eye needs both versions visible at once, with the changes highlighted. To compare two versions of the same document over time, upload each version as a separate file in the [knowledge base](/platform/workspace/knowledge-base) and run a comparison between them.
-
-For an AI summary of the diff, copy the comparison link into a chat and ask the assistant to walk the changes; the chat agent can read the same RAG output the comparison dialog renders.
+Reach for document comparison when the question is "what changed", not "what does this say". For "what does this say", upload the file as a chat attachment or load it into the knowledge base and ask an agent — the model is better at reading prose than the diff is. The diff is better at reading two files in parallel and reporting which paragraphs are different, which is what every line-numbered diff tool does but extended to extracted text from any format the pipeline supports. The next read worth queuing is [Documents](/platform/knowledge/documents) — it covers the indexing pipeline the comparison shares with the rest of the knowledge base, and where versioned documents live once you have compared them.

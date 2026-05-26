@@ -1,51 +1,35 @@
 ---
 title: Member
-description: The read-only consumer seat — sign in, chat with AI and agents, browse the knowledge base, read shared conversations and approvals. The Member's day-one orientation.
+description: Member is the end-user surface — chat, browse the knowledge base, read assigned conversations and approvals. The pages here are what someone with the Member role does day to day.
 ---
 
-A **Member** in Tale is the read-only consumer seat. You sign in, chat with AI models and agents your team has set up, browse the knowledge base your Editors curate, and read the conversations and approvals shared with you. You do not upload documents, create agents, or change any setting that affects other people — those surfaces are gated to Editors, Developers, and Admins. This page is for people stepping into Tale for the first time and for anyone who only ever needs the consumer side of the product.
+Member is the default role most people in most orgs carry. It is the end-user surface of Tale — chat with agents, browse the knowledge base, read the conversations and approvals others have routed to you, and leave feedback on replies. Members do not build agents, do not configure providers, do not manage integrations. They use the product the Editors and Developers built for them.
 
-There is nothing to install — Tale runs entirely in the browser. If you also need to install or operate a Tale instance yourself, [Local quickstart](/self-hosted/install/quickstart) and [Production deployment](/self-hosted/install/linux-server) cover that, and the rest of the self-hosted tab covers running the platform.
+This overview names what a Member can do and points at the per-feature pages. Members typically land on Chat first; the rest of this page is what to read once chat alone is not enough — when you want to know where a citation came from, what an approval card is, or what a project bundles.
 
-## A Member's day
+## What Member covers
 
-A typical day starts on the home screen with a fresh chat. You ask the model a question the team has documented; the agent picks up the relevant document automatically and answers with the citation linked back to the original. Later, an Editor drops a new product PDF into the knowledge base; your next question about that product threads the new information into the answer without you doing anything. If a teammate shares a conversation, it shows up under **Conversations**; if a workflow is waiting on a human decision your role is allowed to see, it surfaces under **Approvals** (read-only — the verdict belongs to an Editor).
+The Member surface is intentionally narrow. The four buckets are:
 
-## Sign in
+- **Chat** — pick an agent (or none), send a message, read the reply. The composer surfaces the prompt library, attachments, voice mode, arena mode for side-by-side comparison, and the Canvas pane when a reply produces more than the chat can hold inline.
+- **Knowledge** — browse documents, customers, products, vendors, websites the org has loaded. Read-only for Members; the curating happens on the Editor side.
+- **Conversations** — read the inbox threads assigned to you. Members reply when an agent hands a conversation back; they cannot reassign or close threads other people own.
+- **Approvals** — read the approval cards routed to you. Click Approve, Reject, or Request changes; leave a comment if the rule asks for one.
 
-Your Admin gets you in via one of three methods, depending on how your organisation is configured.
+The Settings menu is hidden for Members; everything in the surface is the work surface, not the configuration surface.
 
-- **Email and password.** Your Admin creates the account from **Settings > Members** with an initial password and shares it with you. You are required to change it on first sign-in.
-- **SSO (Microsoft Entra ID).** You sign in with your existing Microsoft account; your Tale account is provisioned automatically the first time.
-- **Reverse proxy (trusted headers).** When Tale sits behind Authelia, Authentik, oauth2-proxy, or similar, the proxy authenticates you and your account is auto-provisioned on first request.
+## Pages in this section
 
-If you cannot sign in, ask your Admin which method is enabled. Admins: see [Authentication](/self-hosted/admin/authentication) for the instance-wide configuration.
+This section is short — the Member surface is the cross-section of pages that Editors build for and that everyone uses. The deeper reading lives in the per-feature areas.
 
-## What you can do
+**[Chat](/platform/chat/overview)** — the everyday entry point; composer, agents, attachments, citations.
 
-### Chat
+**[Knowledge overview](/platform/knowledge/overview)** — the read-only window into what the org has loaded.
 
-Start a conversation from the home screen. Pick a model from the selector, type a message, and send. The input also accepts:
+**[Conversations](/platform/conversations/overview)** — the unified inbox where customer-channel threads land.
 
-- File attachments — images, PDFs, audio, video. See [Chat attachments](/platform/chat/attachments) for the full list and the per-type processing.
-- An `@`-mention of an agent your Editor or Developer has published. See [Agents in chat](/platform/chat/agents-in-chat).
-- Two-model side-by-side in [Arena Mode](/platform/chat/arena-mode) when the question is "which model answers this better?".
-
-Full reference: [Chat basics](/platform/chat/basics).
-
-### Browse the knowledge base
-
-The knowledge base holds the documents your organisation has uploaded or crawled. You can search it, open documents, and reference them from chat. As a Member you cannot upload or delete — that is an Editor task. See [Knowledge base](/platform/workspace/knowledge-base).
-
-### Read conversations and approvals
-
-- **[Conversations](/platform/workspace/conversations)** — customer threads shared with you. Read-only at the Member role; Editors and above can reply.
-- **[Approvals](/platform/workspace/approvals)** — outputs from automations awaiting a human verdict. You can read; Editors and above decide.
-
-## Personalise your account
-
-Set your display name, language, theme, and notification preferences from the avatar menu. The details are on [Your preferences](/platform/member/preferences).
+**[Approval concepts](/platform/approvals/concepts)** — what an approval card is and what each button does.
 
 ## Where this fits
 
-Members are the read-only consumers — the seat designed for people who use the AI without curating it. To create agents, edit knowledge, or run automations, ask an Admin to upgrade your role to Editor or Developer. The canonical role matrix is at [Members and roles](/platform/admin/members-and-roles); the role-specific landings ([Editor](/platform/editor/overview), [Developer](/platform/developer/overview)) describe what each upgrade unlocks.
+Member is the role that consumes what the Editor builds and the Admin governs. The natural first read is [Chat](/platform/chat/overview) — it is where every Member spends most of their time, and most of the other Member surfaces fan out from a chat that wanted to do something more.

@@ -1,62 +1,62 @@
 ---
-title: Triggers
-description: How automations start — schedules, webhooks, events, and manual runs.
+title: Workflow triggers
+description: The four ways a workflow can start — manual, schedule, webhook, event — what each one carries into the run, and how to switch between them without rebuilding the workflow.
 ---
 
-A trigger names the moment an automation starts and the input it starts with. Tale ships four kinds — schedules, webhooks, events, and manual runs — and one automation can carry any mix of them, so the same fan-out can run on a nightly schedule and on every inbound webhook from an outside system. This page is for the Developer or higher wiring an automation up; the configuration surface is the **Triggers** tab on any automation.
+A trigger is the thing that starts a workflow. Tale ships four trigger types: manual (a button), schedule (cron-shaped), webhook (an external POST), and event (something happens inside Tale). Every workflow has at least one trigger; some have several. This page is the reference for what each trigger carries into the run, how to configure it, and how to pick between them when more than one would work.
 
-## Schedules
+The mental model of workflows, steps, executions, and approvals lives on [Automation concepts](/platform/automations/concepts). Triggers are the kick-off layer above that model; the rest of the workflow does not need to know which trigger started it, but the inputs the first step receives come from the trigger Tale just fired.
 
-A schedule runs the automation on a clock. Open **Triggers > Schedules > Add schedule** and either type a cron expression directly (`0 9 * * 1-5` runs at 09:00 on weekdays) or describe what you want in plain language — "every weekday at 9am" — and let the AI assistant translate. The five quick presets (every five minutes, hourly, daily, weekly, monthly) cover the common cases without typing.
+## Where triggers live
 
-Each schedule runs in **UTC**. If your team thinks in another timezone, do the conversion before you save — `0 9 * * 1-5` is 09:00 UTC, which is 10:00 in Zurich winter time and 11:00 in summer. The **Workflow variables** field on the schedule form lets you pin a JSON payload that the run starts with; it is pre-filled from the automation's input schema, so the common case is editing values rather than writing the shape from scratch.
+Open the workflow and switch to the **Triggers** tab. The tab lists the workflow's current triggers and lets you add new ones. A workflow with no trigger only runs from the **Run now** button in the editor — useful for testing, never for production.
 
-## Webhooks
+A workflow can carry multiple triggers of the same type or different types. A daily-report workflow might have a schedule trigger that fires every weekday morning plus a manual trigger so a human can fire it ad-hoc; both feed into the same first step.
 
-A webhook gives the automation a URL outside callers can POST to. Open **Triggers > Webhooks > Add webhook** and Tale generates a URL of the form:
+## The four trigger types
 
-```text
-https://<your-tale-host>/api/workflows/wh/<token>
-```
+**Manual** is a button. Members and Editors who have access to the workflow see it under **Automations > Manual runs**; clicking the button opens the input form (one field per declared input) and starts the run. Reach for manual when the workflow is occasional and a human knows when it should run.
 
-The token in the URL is the credential — anyone holding it can fire the automation, so treat it like an API key. Store it in the calling system's secret store, rotate it by deleting and re-adding the webhook, and audit it with [Audit log](/platform/admin/governance#audit-log) when something looks off. There is no separate signature header.
+**Schedule** is cron-shaped. The trigger fires on a recurring time pattern — every weekday at 08:00, the first of every month, every 15 minutes. The schedule trigger carries no payload of its own; the first step sees only the workflow's declared inputs (typically defaulted on the trigger). Reach for schedule when the workflow recurs on a clock.
 
-A working call looks like this:
+**Webhook** is an external POST. Tale mints a unique URL for the trigger; any system that POSTs to that URL fires the run. The webhook trigger carries the request's JSON body as the first step's input. Reach for webhook when an external system signals that work needs to happen — a vendor's notification, a CI job's completion, a form submission.
 
-```bash
-curl -X POST https://your-tale-host/api/workflows/wh/abc123def456 \
-  -H "Content-Type: application/json" \
-  -d '{"orderId": "ord_42", "amount": 199.00}'
-```
+**Event** is an internal signal. Tale emits events when things change inside the product — a document is uploaded, an agent finishes a reply, an approval is resolved, a customer is created. The event trigger subscribes to one of those events and carries the event's payload as the first step's input. Reach for event when the workflow's job is to react to something Tale itself just did.
 
-The body is parsed as JSON and made available as the automation's input. The response is `{ "status": "accepted", "workflowSlug": "..." }` for a fresh call. Send an `X-Idempotency-Key` header with a unique value if the calling system might retry the same request — Tale will recognise the retry and respond with `{ "status": "duplicate", "executionId": "..." }` instead of starting a second run.
+## A worked schedule trigger
 
-Webhooks are rate-limited per source IP so a noisy caller can not exhaust the engine; calls past the limit return `429`. The full request/response reference, including signatures for the legacy Tale-signed scheme on older webhook shapes, lives at [Webhooks](/develop/webhooks).
+To run a workflow every weekday at 08:00, add a Schedule trigger and pick `Every weekday at 08:00` from the picker (the picker accepts cron expressions for shapes the visual builder cannot express). The trigger's preview line shows the next three fire times — useful for sanity-checking the cron before saving.
 
-## Events
+Schedules respect the org's timezone. The configured timezone is the one the picker's hours are interpreted in; running `08:00` in `Europe/Zurich` means 08:00 local, not 08:00 UTC. The run history records the wall-clock time the run started, the timezone, and the trigger ID.
 
-An event trigger runs the automation when something happens inside Tale. Open **Triggers > Events > Add event trigger**, pick an event type, and add a filter if the event needs one.
+## A worked webhook trigger
 
-| Event type                      | Fires when                                                        |
-| ------------------------------- | ----------------------------------------------------------------- |
-| `customer.created`              | A customer record is added (manually, by import, or via the API). |
-| `customer.updated`              | A customer record changes.                                        |
-| `customer.deleted`              | A customer record is deleted.                                     |
-| `conversation.created`          | A new conversation is opened in the inbox.                        |
-| `conversation.message_received` | A reply arrives on an existing conversation.                      |
-| `conversation.closed`           | A conversation is marked closed.                                  |
-| `workflow.completed`            | Another automation finishes successfully. Filterable by source.   |
+To accept an external POST, add a Webhook trigger. Tale mints a URL of the shape `https://<your-tale-host>/api/automations/triggers/<id>`, generates a signing secret, and shows both in the trigger's row. Configure the calling system to POST JSON to the URL with the secret in the `X-Tale-Signature` header; the trigger verifies the signature before firing the run. A request with a bad signature returns `401` and does not fire.
 
-The filter is evaluated before the automation starts — non-matching events are skipped without leaving a run on the **Executions** tab. The `workflow.completed` event in particular is how you chain automations: one finishes, another picks up its output and continues the work.
+The webhook trigger's payload schema is declared on the trigger — Tale validates incoming JSON against the schema before firing. A payload that fails validation returns `400` with the validation error in the body and the run does not start.
 
-## Manual runs
+## A worked event trigger
 
-The **Test automation** button in the editor and the **Run** action on a published automation both fire a one-off run with input you supply. Manual runs share the engine with scheduled and webhook runs but show up on the **Executions** tab with the trigger source labelled `manual` — useful for trying a new automation before scheduling it, for one-off backfills, and for replaying a payload from a past failed run after you have fixed the bug.
+To run a workflow whenever an `automation.approval.resolved` event lands, add an Event trigger and pick the event type from the dropdown. The trigger's payload schema is fixed by the event type — Tale shows the schema in the trigger's row. Event triggers can filter by payload fields: only fire when the approval was approved (not rejected), only fire for approvals in a specific team, and so on.
 
-## Multiple triggers on one automation
+The event surface is open-ended; the list of available events grows as Tale grows. The current set covers the obvious lifecycle moments (document upload, agent reply finished, approval resolved, integration credential rotated, member added).
 
-An automation with two triggers — say, a nightly schedule and an inbound webhook — runs once per trigger that fires. Every run records which trigger started it, so the **Executions** tab and the metrics dashboard both show the source breakdown without losing the per-run trace. Mixing triggers is the right move when the same work has to happen on a clock and on demand; do not duplicate the automation only to assign a different trigger.
+## Picking the right trigger
+
+| Use … when                                       | Manual | Schedule | Webhook | Event |
+| ------------------------------------------------ | ------ | -------- | ------- | ----- |
+| A human knows when the work should run           | ✓      |          |         |       |
+| The work recurs on a clock                       |        | ✓        |         |       |
+| An external system signals the work              |        |          | ✓       |       |
+| Something Tale did is the reason to run          |        |          |         | ✓     |
+| You want both — recurring plus ad-hoc human runs | ✓      | ✓        |         |       |
+
+A workflow can carry more than one trigger; the type column does not have to be one row only.
+
+## Disabling and removing a trigger
+
+Each trigger has an enabled toggle at the row level. Disabling a trigger stops it firing without removing it — the run history stays intact, and re-enabling restores firing immediately. Reach for disable when you want to pause a workflow temporarily; reach for delete when you are sure the trigger is retired.
 
 ## Where this fits
 
-Triggers are the boundary between Tale and everything that wants to start an automation. The four kinds cover almost every shape of "start now": regular work on a schedule, reactive work on an event, integrated work on a webhook, exceptions on a manual run. The development-side reference for the webhook URL shape, idempotency, and rate limits is [Webhooks](/develop/webhooks); the per-run trace each trigger leaves behind is [Execution logs](/platform/automations/execution-logs).
+Triggers are the kick-off layer of the automations model; the steps that follow them are the actual work. The natural next read is [Automation concepts](/platform/automations/concepts) for the workflow, step, and execution model the trigger feeds into, and [Approvals in workflows](/platform/automations/approvals-in-workflows) for the gate that pauses the run between steps.

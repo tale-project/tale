@@ -1,62 +1,38 @@
 ---
-title: Website crawling
-description: Point Tale's crawler at a domain and the content lands in the knowledge base.
+title: Crawling
+description: How Tale turns a Website entity into knowledge — domain registration, sitemap-driven URL discovery, scheduled re-scans, and the indexed-pages view.
 ---
 
-The website crawler walks a public domain, extracts the text from every page it reaches, and indexes it into the knowledge base alongside uploaded documents and structured records. Once a site is indexed, agents and chat answer questions grounded in its content — "what is our current pricing on the website", "which features changed in the v3 release notes", "what does the help-centre article say about refunds". The audience for this page is the Editor or Developer who manages the **Knowledge > Websites** surface; for the end-user shortcut of adding a site directly from chat, see [Knowledge base](/platform/workspace/knowledge-base).
+A Website is the structured-data shape for "a public site the agent should know about". You hand Tale a domain and a scan interval; the crawler discovers URLs, fetches pages, extracts main content, chunks and embeds the text, and serves the chunks back at reply time the same way it does for Documents. This page hands you the mental model and walks through what you see when a website goes from added to indexed.
 
-## What the crawler does on a fresh site
+Crawling is one half of the Websites story. The other half — what the structured Website record holds and how agents read it — lives in [Structured data](/platform/knowledge/structured-data). Read that first if the question is "should this be a website or a document"; read this if the question is "what does the crawler actually do".
 
-The first scan walks the site end to end.
+## Adding a website
 
-1. The crawler fetches the domain and tries the sitemap first, falling back to a breadth-first walk from the homepage if no sitemap is reachable.
-2. Every discovered URL on the same domain is queued.
-3. Each page is fetched, parsed, and converted to clean text — navigation, footers, and ad blocks are stripped.
-4. The text is chunked and indexed into the same knowledge store that holds uploaded documents, with the page URL as the source.
-5. Non-HTML documents (PDF, DOCX, and similar) linked from crawled pages are fetched, converted, and indexed alongside the HTML.
+Open **Knowledge > Websites** and click **Add website**. Two fields: **Domain** (for example `example.com`) and **Scan interval** (every hour, every 6 hours, every 12 hours, daily, every 5 days, every 7 days, every 30 days). Tale normalises the domain — `https://`, `www.`, trailing slashes are tolerated — and rejects anything that does not parse as a hostname. Save, and the website lands in the table with status **Scanning**.
 
-The status on **Knowledge > Websites** moves from `idle` to `scanning` while the work is in flight, back to `active` (or `error`) when it lands.
+There is no auth field, no per-path include list, no per-path exclude list on the form. The crawler treats the domain as a public surface; anything that needs a session, a header, or a bypass is not in scope for Websites. For private content, upload [Documents](/platform/knowledge/documents) or wire an [integration](/platform/integrations/overview).
 
-## Scan intervals
+## How URLs are discovered
 
-Every site rescans on its own clock. Pick the cadence on the **Add website** form or change it later from the site's detail.
+The crawler tries the cooperative path first and falls back to the rude one.
 
-| Scan interval               | Reach for when …                                                    |
-| --------------------------- | ------------------------------------------------------------------- |
-| **Every 1 hour**            | The site changes through the day (a news desk, a live status page). |
-| **Every 6 hours** (default) | A docs site or a company wiki that lands several edits a day.       |
-| **Every 12 hours**          | A semi-active marketing site.                                       |
-| **Every 1 day**             | A marketing site or a blog that ships once a day at most.           |
-| **Every 5 days**            | Moderately static reference material.                               |
-| **Every 7 days**            | A reference site that changes weekly.                               |
-| **Every 30 days**           | Pages that almost never change but still need to stay current.      |
+The first try is the site's sitemap. The crawler resolves the homepage, asks `ultimate-sitemap-parser` to walk every `sitemap.xml` and sitemap index it can find — including gzipped sitemaps and robots-declared sitemaps — and collects every URL the site itself published. Sites that maintain their sitemap get a clean, complete URL list with no link-graph guessing.
 
-Each rescan diffs against the last fetch. Pages that have not changed are not re-indexed — only new, changed, and deleted pages trigger work, so the per-cycle load stays small even on large sites.
+When the sitemap is missing, broken, or empty, the crawler falls back to a breadth-first link walk from the homepage. It follows in-domain links only, drops external and social-media links, and strips navigation and footer chrome before extracting content. The fallback covers sites without a sitemap; it does not match a well-maintained sitemap for completeness.
 
-## Respect for the target
+## The scan schedule
 
-The crawler is designed to be a polite guest on the sites it reads.
+The scan interval you picked decides how often the crawler re-discovers URLs and re-fetches pages. Behind the table, a scheduler wakes every interval, asks the store which websites are due, and runs them with bounded concurrency. New websites have no last-scanned timestamp, so they are picked up on the next scheduler tick and start scanning within seconds of being added.
 
-- It honours `robots.txt`. Paths disallowed there are skipped.
-- It rate-limits itself per domain so the target is not flooded.
-- It identifies itself with a user agent of `Mozilla/5.0 (compatible; TaleCrawler/1.0)`, so site owners can recognise the traffic in their logs.
+Each scan is incremental: pages that have not changed are skipped, pages that have changed are re-extracted and re-embedded, new pages are added, removed pages are dropped from the index. Agents pointed at the website see the new content on the next retrieval.
 
-For sites behind authentication or sites that demand a custom user agent, the crawler is the wrong tool — configure a REST API integration instead. See [Integrations overview](/platform/integrations/overview).
+## What the table tells you
 
-## Debugging a crawl
+Each row shows the domain, the scan interval, the status, the last-scanned timestamp, and an indexed-pages percentage. Status reads as **Idle** between scans, **Scanning** while a scan is in flight, **Active** when a scan completed successfully, **Error** when the last scan failed, or **Deleting** when a row is being removed. The percentage is `crawled / total` from the most recent scan — hover for the raw counts.
 
-When a crawl is not picking up the pages you expect, the diagnosis is almost always on the site detail page under **Knowledge > Websites**.
-
-- The page list shows exactly what the crawler discovered. If a URL you expect is missing, the crawler could not reach it — usually because nothing on the homepage or the sitemap links to it.
-- The error list shows pages that failed to fetch or parse, with the HTTP status and the error message. A burst of `403` or `429` is the cue that the target is blocking the crawler — rate-limit the scan, or switch to an integration with explicit credentials.
-- The **Indexed** percentage on the **Websites** table shows what fraction of discovered pages made it into the index. A low number with no errors usually means the sitemap is wrong about which URLs are public.
-
-## Removing a site
-
-Delete a site from **Knowledge > Websites** to drop its content from the knowledge base. The removal is immediate — the next chat or agent answer cannot pull from it. The delete is recorded in the audit log, so an accidental removal is reconstructible after the fact.
+Open a row to read the website's discovered title, description, and creation date. Click **View pages** for the page list — every URL the crawler has indexed, with the per-page word count, chunk count, last-crawled timestamp, and a search box that runs over the indexed chunks.
 
 ## Where this fits
 
-Crawling is the bulk-import path for public web content. The alternative — copying a help-centre into the knowledge base article by article — does not scale; pointing the crawler at the domain pulls the whole thing in one move. Once content lands, it reads exactly like an uploaded document — same search, same agents, same access controls.
-
-For authenticated sources (a private file share, a vendor portal, a paid corpus), reach for an integration in [Integrations overview](/platform/integrations/overview) instead. For the chat-side shortcut that lets a Member add a public site without opening **Knowledge > Websites**, see [Knowledge base](/platform/workspace/knowledge-base).
+Crawling is the cheap way to bring a public site into agent context. You give it a domain and a cadence, and the rest is the crawler's problem — sitemap discovery, link-graph fallback, scheduled re-scans, incremental indexing. The trade-off is that the crawler only sees what an anonymous visitor sees. Anything behind a login lives in [Documents](/platform/knowledge/documents) or an [integration](/platform/integrations/overview). The next read worth queuing is [Structured data](/platform/knowledge/structured-data) — it covers how the Website record and the indexed pages fit alongside Customers, Products, and Vendors in the knowledge base.

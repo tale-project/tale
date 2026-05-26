@@ -1,61 +1,50 @@
 ---
 title: Agent concepts
-description: The four-knob mental model behind every Tale agent — instructions, knowledge, tools, and model — and when to reach for an agent over an automation.
+description: An agent is the four-knob combination of instructions, knowledge, tools, and a model. This page hands you the mental model the rest of the agents section assumes.
 ---
 
-An agent is a bundle of four things: **instructions** that govern how it behaves, **knowledge** that bounds what it can read, **tools** that decide what it can do, and a **model** that determines how it thinks. Everything else in the agent surface — versioning, conversation starters, worker URLs, delegation — is plumbing around those four. The audience is anyone building or reasoning about agents; once you can list the four for the agent you want, the build itself takes minutes.
+An agent is the unit Tale reaches for when the same question is going to come back. It is the four-knob combination of instructions, knowledge, tools, and a model — the four things you change to make the agent behave differently. Editors and Developers build them; Members and other roles run them.
 
-This page is the mental model. The end-to-end build walks the same four tabs in order at [Create an agent](/platform/agents/create).
+This page hands you the mental model the rest of the section assumes. Read it once before you build your first agent; come back to it when you can't remember whether a behaviour you want to change lives in the instructions, the knowledge, the tools, or the model.
 
-## Instructions
+## The four knobs
 
-The instructions are the system prompt the model sees before every message in the conversation. They answer "who are you and what's your job?". Good instructions are short, specific, and list the rules the agent has to follow — what the agent is, what it can answer, what it must refuse, and how to format its replies.
+**Instructions** are the system prompt — the prose that frames every reply. Keep instructions short, opinionated, and concrete; long instructions get diluted in long conversations. Specify the voice, the constraints, and the refusal cases.
 
-A worked example:
+**Knowledge** is what the agent can reference. Bind documents, customers, products, vendors, or websites from the knowledge base; the agent retrieves chunks at reply time and cites them. Knowledge that is not bound is invisible to the agent — there is no implicit pull from the org's whole library.
 
-> You are the support agent for Acme Corp. Answer questions about our products, shipping, and returns. Do not give medical or legal advice. Always respond in the user's language. Keep replies under 200 words.
+**Tools** are what the agent can do beyond reply with text. Built-in tool families cover web, files, RAG over knowledge, code execution, sub-agent delegation, workflow invocation, MCP servers, and human input. Toggle them per agent — every tool you grant widens the trust boundary, so keep the list short.
 
-Changing the instructions changes the agent's personality, scope, and output format. Treat them as the most load-bearing part of the agent — most quality wins come from rewriting instructions, not swapping models.
+**Model** is the LLM behind every reply. Pick the primary, set a fallback, and Tale resolves at request time. Switching the model does not re-train anything — the agent's other three knobs are the model's "memory" of the job.
 
-## Knowledge
+## Skills as a bundle
 
-Knowledge is the subset of the [knowledge base](/platform/workspace/knowledge-base) the agent can search. By default, agents can search everything the organisation has uploaded; you narrow this scope down by folder, by team, or by entity type (documents, products, customers, vendors).
+A Skill packages instructions and (optionally) a sandbox script into a reusable bundle you can attach to an agent. Reach for a skill when the same pattern appears across multiple agents — a writing voice, a calculation, a multi-step task. Skills compose with the four knobs: an agent with three skills has the instructions of each skill plus its own.
 
-Narrower knowledge means more relevant search hits — a support agent that only searches the customer-facing folder doesn't get distracted by internal engineering documents. Narrower also means lower cost, because fewer documents reach the model on each retrieval.
+The Skills concept page covers the trade-off between Skills and inline instructions in detail: see [Agent skills](/platform/agents/skills).
 
-## Tools
+## Putting it together — a support-triage agent
 
-Tools are the capabilities the agent can invoke during a conversation. Built-in tools include knowledge search, web search, document handling, and image analysis. Every integration you've configured (REST APIs, SQL, email) appears as a tool, as does every active [MCP server](/platform/integrations/mcp-servers).
+A first useful agent is the support-triage one: it reads the inbound conversation, decides whether to answer directly, escalate to a human, or hand off to a specialist. The four knobs:
 
-You toggle each tool on or off per agent. A read-only research agent might have web search on and every write operation off. An agent that updates tickets in a support system has the support integration tool on and everything else off. The tool list is what separates an agent that can only talk from an agent that can act.
+- Instructions: a one-paragraph voice + three explicit refusal cases.
+- Knowledge: the product documentation and the FAQ folder; not the source code.
+- Tools: RAG, web search, and the sub-agent tool for escalation. No code execution.
+- Model: a capable model for the primary, a smaller one for the fallback when the primary is rate-limited.
 
-## Model
-
-Every agent is tied to a model preset — **Fast**, **Standard**, or **Advanced**. Each preset maps to a specific AI model configured in your [AI providers](/platform/admin/providers). Fast is cheapest and quickest; Advanced is the most capable. Most agents end up on Standard; reach for Advanced when reasoning quality matters more than latency, and Fast for high-volume routine tasks where speed beats nuance.
-
-## Putting it together
-
-The four knobs combine into many agents from the same platform. Three worked shapes:
-
-| Scenario         | Instructions                            | Knowledge                       | Tools                              | Model    |
-| ---------------- | --------------------------------------- | ------------------------------- | ---------------------------------- | -------- |
-| Friendly support | Helpful, concise, refuses out-of-scope. | Help-centre docs only.          | Knowledge search, customer lookup. | Standard |
-| Sales research   | Dig deep, cite sources.                 | All docs + websites + products. | Knowledge search, web search.      | Advanced |
-| Data exploration | Safe, explains queries.                 | All SQL connections.            | SQL integration, knowledge search. | Fast     |
+The conversation then flows: user message → instructions frame the reply → knowledge retrieval finds three relevant chunks → tools either answer or delegate → the reply lands with citations.
 
 ## When to reach for it
 
-Agents are the conversational primitive in Tale. Their sibling primitive is the **automation** — a multi-step program that runs without a human in the loop. The two solve different problems, and most teams end up running both.
+A single agent is the right shape when the conversation stays in one domain and one voice. Reach for an [automation](/platform/automations/concepts) when the work is multi-step and you want approvals or scheduling in between; reach for a raw chat (no agent) when you are exploring an answer yourself and the model's defaults are fine.
 
-| Use an agent when …                                          | Use an automation when …                                                 |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| A human is in the conversation asking questions.             | A scheduled trigger, an external webhook, or an internal event fires it. |
-| The flow is open-ended — the next step depends on the reply. | The flow is deterministic — same steps every time, in the same order.    |
-| Output is text or a small structured payload.                | Output is an effect on another system (record updated, email sent).      |
-| Latency matters because someone is waiting.                  | Background latency is fine; correctness matters more.                    |
-
-Many features mix the two: an agent that delegates a long-running job to an automation, or a workflow whose LLM step uses an agent's instructions. Pick the primary primitive based on whether the user is in the conversation when the work has to happen.
+| Use … when                                     | Agent | Raw chat | Automation |
+| ---------------------------------------------- | ----- | -------- | ---------- |
+| Same question recurs                           | ✓     |          |            |
+| The voice or constraints matter                | ✓     |          |            |
+| You need approvals or scheduling between steps |       |          | ✓          |
+| You are exploring an answer one time           |       | ✓        |            |
 
 ## Build one
 
-Concepts done. The next page walks the create flow end to end — naming, picking a model, writing instructions, attaching knowledge, enabling tools, and publishing the first version. Start there: [Create an agent](/platform/agents/create).
+The four knobs are what every Tale agent is made of: change one of them and you have changed the agent's behaviour, change three and you have made a new product. The natural next read is [Build your first agent](/tutorials/editor/first-agent-end-to-end) — it walks the four knobs end to end on a fresh instance.

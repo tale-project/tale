@@ -49,6 +49,8 @@
     "./i18n/sync": "./src/i18n/sync.tsx",
     "./i18n/use-current-locale": "./src/i18n/use-current-locale.ts",
     "./i18n/tests": "./src/i18n/tests/index.ts",
+    "./i18n/tests/internals/report-sink-setup": "./src/i18n/tests/internals/report-sink-setup.ts",
+    "./i18n/tests/locales": "./src/i18n/tests/locales/index.ts",
     "./cn": "./src/lib/cn.ts",
     "./format": "./src/lib/format.ts",
     "./use-resize-observer": "./src/hooks/use-resize-observer.ts",

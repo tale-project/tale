@@ -1,36 +1,40 @@
 ---
-title: Agents im Chat nutzen
-description: Spezialisierte Agents im Composer wählen, um Wissen einzugrenzen, Tools zu beschränken und Konversationen über die richtige Stimme zu führen.
+title: Agents im Chat
+description: Wie der Agents-Picker im Chat funktioniert — welche Agents erscheinen, was Visible in chat steuert, einmalige versus klebrige Agents, mitten im Thread wechseln und Sub-Agent-Aufrufe.
 ---
 
-Ein Agent ist eine auf einen bestimmten Zweck zugeschnittene Version der KI — ein Support-Agent, der Kundenfragen aus dem Hilfe-Center-Ordner beantwortet, ein Vertriebs-Recherche-Agent mit Web-Zugriff, ein interner Research-Agent mit Nur-Lese-Rechten auf Entwicklungs-Dokumenten. Jeder Agent trägt seine eigenen Anweisungen, seinen eigenen Wissensumfang und seine eigenen Tool-Berechtigungen, und im Chat-Composer wählst du, welcher Agent eine Konversation bedient. Die Zielgruppe ist jeder im Produkt: Mitglieder greifen auf Agents zu, die das Team veröffentlicht hat, Redakteure und Entwickler bauen neue.
+Einen Agent im Chat zu wählen ist der Unterschied zwischen einem generischen Assistant zu fragen und etwas zu fragen, das die Org für eine Domäne geformt hat. Der Agents-Picker ist das meistgenutzte Bedienelement im Composer; die Regeln, welcher Agent erscheint, wann ein Agent bestehen bleibt und was beim Wechsel mitten im Chat passiert, sind das Thema dieser Seite.
 
-Diese Seite behandelt das Laufzeitverhalten von Agents im Chat — den aktiven Agent wechseln, Gesprächseinstiege nutzen, Delegation beim Themenwechsel beobachten. Das mentale Modell, _was_ ein Agent ist, liegt unter [Agent-Konzepte](/de/platform/agents/concepts); den Bau zeigt [Agent erstellen](/de/platform/agents/create).
+Der Picker ist konzeptuell einfach — Namen tippen, Enter drücken — aber die Regeln zu Sichtbarkeit und Klebrigkeit verursachen in der Praxis die meisten „Warum sehe ich diesen Agent nicht"-Supporttickets. Die Regeln zu kennen erspart den Hin- und Herweg.
 
-## Aktiven Agent wechseln
+## Der Agents-Picker
 
-Um eine Konversation an einen bestimmten Agent zu leiten, öffne den Agent-Selector (das Bot-Icon unten links im Composer), scrolle zum Agent und klicke ihn an. Die nächste Nachricht geht an die Anweisungen, das Wissen und die Tools des neuen Agents; die Titelzeile der Konversation zeigt den aktiven Agent. Mitten in der Konversation zu wechseln ist erlaubt — der neue Agent liest das bisherige Transkript, bevor er antwortet, der Kontext geht also nicht verloren.
+Klick **Select agent** am Composer (oder den Chip mit dem aktuell gewählten Agent), und der Picker öffnet mit **Search agents** oben. Die Liste zeigt jeden Agent, auf den der User Zugriff hat und der als **Visible in chat** markiert ist; Agents ohne diesen Schalter existieren in der Org, tauchen aber nie im Picker auf, was die Liste kurz hält. **Add agent** unten ist eine Abkürzung für Redakteure und höher, um einen neuen zu erstellen — siehe [Agent erstellen](/de/platform/agents/create).
 
-Jede Konversation merkt sich den gewählten Agent. Ein neuer Chat setzt den Selector auf den Standard-Assistenten zurück, der mit Tale ausgeliefert wird.
+## „Visible in chat"
 
-## Gesprächseinstiege
+Jeder Agent hat einen **Visible in chat**-Schalter auf seiner Instructions-Seite. Ihn auszuschalten deaktiviert den Agent nicht — Automatisierungen und Workflows können ihn weiterhin aufrufen; Sub-Agent-Aufrufe aus anderen Agents funktionieren weiterhin — es versteckt den Agent nur vor dem Chat-Picker. Der Grund: Orgs enden mit Dutzenden von Agents, die ein durchschnittlicher User nie wählt (Hilfsagents, die andere Agents rufen, an einen bestimmten Workflow gebundene Agents), und sie alle anzuzeigen würde die Alltagsauswahl überschwemmen.
 
-Wenn der aktive Agent **Starter** konfiguriert hat, erscheint bei einer frischen Konversation eine Reihe klickbarer Vorschläge. Klicke einen an, um ihn als erste Nachricht zu senden — das ist schneller als Tippen und zeigt sofort, wofür der Agent gebaut wurde. Starter konfigurierst du pro Agent unter **Agents > [Agent] > Starter**; ein Agent ohne Starter zeigt einen leeren Composer.
+## Einmalig versus klebrig
 
-## Warum Agents wechseln
+Einen Agent **vor** der ersten Nachricht im Chat zu wählen, macht ihn klebrig — jede folgende Nachricht im selben Chat geht an denselben Agent. Einen Agent **mitten im Chat** zu wählen, wendet ihn auf die nächste Nachricht und alles danach an, bis du wieder wechselst. Es gibt keine „Agent einmal nutzen und zurückkehren"-Geste; um zum generischen Assistant zurückzukehren, wähl im Picker explizit **Assistant**. Das Transkript behält den Pro-Nachricht-Agent, also liest sich ein Chat mit einem Wechsel mittendrin wie zwei kollaborierende Agents.
 
-Drei Gründe, zu einem nicht standardmäßigen Agent zu greifen. Ein engerer Wissensumfang liefert schärfere Antworten — ein Support-Agent, der nur den Hilfe-Center-Ordner durchsucht, lässt sich nicht von internen Entwicklungs-Dokumenten ablenken. Eine schlankere Tool-Liste hält Erkundungsfragen sicher — ein Nur-Lese-Research-Agent mit allen Schreib-Operationen aus kann nicht versehentlich ein Ticket aktualisieren. Eine andere Stimme verändert die Antwortform — Agents lassen sich mit unterschiedlichen Tönen, Ausgabeformaten (Markdown, JSON, reine Prosa) und Strenge konfigurieren.
+## Mitten im Thread wechseln
 
-Der grösste Qualitäts-Hebel sind die Anweisungen des Agents. Die meisten „Die KI macht ständig X"-Klagen führen auf einen fehlenden oder falschen Satz im System-Prompt zurück, nicht auf das falsche Modell.
+Wissen und Tools des Agents wechseln mit dem Picker, die Konversationshistorie aber nicht. Der neue Agent liest alles, was davor war — deine Nachrichten und die Antworten des vorherigen Agents — und macht von dort weiter. Das ist nützlich für Übergaben: ein Triage-Agent antwortet auf die erste Nachricht, du wechselst zu einem Spezialisten für Folgefragen, der Spezialist hat den vollen Kontext, ohne dass jemand kopieren und einfügen muss.
 
-## Delegation
+## Sub-Agent-Aufrufe
 
-Manche Agents sind so konfiguriert, dass sie bei Themenwechsel an Spezialisten **delegieren**. Erhält ein allgemeiner Support-Agent eine Abrechnungsfrage und hat einen Abrechnungs-Spezialisten als Delegationsziel registriert, übergibt er die Konversation automatisch. Die Übergabe erscheint im Transkript als kurze Notiz mit dem Namen des neuen Agents, und Antworten ab diesem Punkt kommen aus den Anweisungen des Delegaten.
+Die Instructions eines Agents können ein Sub-Agent-Tool enthalten; wenn ja, kann der primäre Agent einen Teil der Arbeit delegieren, ohne dass der User irgendetwas wählt. Sub-Agent-Aufrufe rendern in der Antwort als eingeklappte Tool-Aufrufe — der User sieht, was delegiert wurde und was zurückkam, nicht eine vollständige zweite Konversation. Die Delegationsregeln und das Loop-Vermeidungsmodell leben auf [Agent-Delegation](/de/platform/agents/delegation).
 
-Delegation ist pro Agent opt-in. Um sie zu aktivieren, öffne den **Delegation**-Tab des Agents und wähle, an welche Agents er übergeben darf, mit dem Thema oder der Bedingung, die die Übergabe auslöst. Die Konfigurationsoberfläche ist unter [Agent erstellen](/de/platform/agents/create) dokumentiert.
+## Wann du nach welcher Form greifst
 
-## Wo das einsetzt
+| Nutz … wenn                                         | Chat | Projects | Conversations |
+| --------------------------------------------------- | ---- | -------- | ------------- |
+| Persönliche Aufgabe, einmalige Frage                | ✓    |          |               |
+| Geteilter Workspace im Team, wiederkehrende Threads |      | ✓        |               |
+| Eingehend aus einem Kundenkanal (E-Mail, Webhook)   |      |          | ✓             |
 
-Der Agent-Picker ist, wie der richtige Spezialist jede Frage beantwortet — statt einen generischen Assistenten jedes Thema abdecken zu lassen, wählst du den Agent, der für das Thema gebaut wurde. Die Mitglied-Rolle nutzt, was das Team veröffentlicht hat; Redakteur oder höher ist nötig, um einen neuen Agent zu bauen.
+## Wo das hineinpasst
 
-Um einen Spezialisten zu bauen, starte mit [Agent-Konzepte](/de/platform/agents/concepts) für das Vier-Knöpfe-Modell und arbeite dann [Agent erstellen](/de/platform/agents/create) Schritt für Schritt durch.
+Agents im Chat ist die User-zugewandte Hälfte der Agents-Geschichte — was der Picker tut, was erscheint, wie Klebrigkeit funktioniert. Die Bau-zugewandte Hälfte ist [Agent-Konzepte](/de/platform/agents/concepts): die vier Knöpfe, die bestimmen, was ein Agent tut, sobald er gewählt ist. Wenn du hier bist, um den Agent zu bauen, den du dir im Picker wünschst, ist das die nächste Lektüre.

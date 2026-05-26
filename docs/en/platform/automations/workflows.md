@@ -1,58 +1,46 @@
 ---
-title: Automations
-description: Build, configure, and test automations in the visual editor.
+title: Workflows
+description: The operating manual for the workflows feature — the list view, how to run a workflow, how to pause and disable, how to edit, and how the versioned history works. Read this when you are running automations day to day, not when you are learning the model.
 ---
 
-The automation editor is where the vocabulary from [Automation concepts](/platform/automations/concepts) becomes a runnable graph. This page covers the build flow itself: opening the editor, the six step types, the configuration knobs that shape retries and timeouts, the variables every step can read, and the **Test automation** path that proves a draft before it goes live. The audience is the Developer or higher who is building or maintaining an automation; the trigger and execution surfaces have their own pages, linked at the bottom.
+Workflows is the operating manual for the feature. The mental model — what a workflow, trigger, step, and execution are — lives on [Automation concepts](/platform/automations/concepts). This page is the other half: how the list view is laid out, how you run a workflow from the UI, how you pause one without deleting it, how you edit and how the versioned history works. Editors and Developers read this when they are working with workflows day to day.
 
-## Open the editor
+The feature is reached from **Automations** in the sidebar. The list view is the entry point; every other surface (the editor, the executions tab, the metrics dashboard) hangs off a single workflow you opened from the list.
 
-Open **Automations** in the sidebar and click **Create automation**. The dialog has two tabs: **Blank** lets you describe what the automation should do in a single field, and the AI assistant turns that description into a first draft of steps you can refine in the editor. **From template** lists the ready-made automations bundled with installed integrations — pick one, give it a name, and the editor opens with the template's steps already wired up.
+## The list view
 
-The editor itself is a canvas. Steps are nodes, links between them are directional, and the panel on the right opens whatever step is currently selected. The toolbar at the top of the canvas carries **Add step**, **Test automation**, **AI assistant**, and **Focus** (collapse the canvas to a single column for a smaller screen).
+The list shows every workflow in the org. The toolbar carries a search box, a **Create automation** button, and an **Upload from file** menu item for importing workflow JSON. The columns are the workflow name, the description, the trigger set, the last-run timestamp, and a row action menu (rename, duplicate, delete).
 
-## Step types
+The list lazily loads as you scroll. Search matches the name and the description. Click any row to open the workflow.
 
-Six step types cover the work an automation can do. Pick by what the step has to accomplish.
+## Running a workflow
 
-| Step          | Use it for                                                               |
-| ------------- | ------------------------------------------------------------------------ |
-| **Start**     | The entry point. Names the input schema and binds the triggers.          |
-| **Action**    | Calling an integration operation, an MCP tool, or a Tale-native action.  |
-| **LLM**       | Sending a prompt to a model and routing the reply forward.               |
-| **Condition** | Branching to one of several paths based on a check on prior step output. |
-| **Loop**      | Repeating a block of steps once per item in a list.                      |
-| **Output**    | Naming the data the automation returns when it finishes.                 |
+Three paths fire a workflow.
 
-Every step lands on the canvas with sensible defaults; you configure it by clicking it and editing in the right-hand panel. The panel validates as you type and flags missing fields with an inline error rather than letting the automation save in a broken state.
+The **Triggers** tab on the workflow attaches the running paths: a manual trigger surfaces a button under **Automations > Manual runs** that members can click, a schedule trigger fires on a cron, a webhook trigger accepts an external POST, an event trigger subscribes to internal events. The [triggers reference](/platform/automations/triggers) covers each in depth.
 
-## Configuration
+The **Test automation** panel in the editor toolbar fires a one-off run from the editor. Paste the input JSON the run should receive, click **Execute**, and the run shows up in the Executions tab with its ID. Reach for the test panel when you are iterating on a workflow and want to see the full execution journal without wiring a trigger first.
 
-Open the **Configuration** tab of any automation to set the knobs that apply to the whole run rather than to one step.
+The **Dry run** button on the same panel simulates a run without side effects — the workflow validates against the input, walks the step graph, and reports errors and warnings without calling out to any agent, API, or mail server. Reach for dry run when the workflow is not yet safe to run end to end.
 
-| Field            | Default     | What it does                                                                               |
-| ---------------- | ----------- | ------------------------------------------------------------------------------------------ |
-| **Name**         | —           | The name shown everywhere in the platform. Required.                                       |
-| **Description**  | —           | Free-text description, surfaced in pickers and metrics.                                    |
-| **Timeout (ms)** | 300,000     | How long the whole automation may run before the engine stops it. Default is five minutes. |
-| **Max retries**  | 3           | Per-step retry count when a step fails with a transient error.                             |
-| **Backoff (ms)** | 1,000       | Delay between retry attempts. Doubles per attempt up to a sensible cap.                    |
-| **Variables**    | `{}` (JSON) | Shared key-value bag read by every step as `{{ variables.<key> }}`. Edit as a JSON object. |
+## Pausing and disabling
 
-The **Save configuration** button writes the change. Saved changes apply to the next run — in-flight runs keep the configuration they started with.
+Pausing a workflow without deleting it lives on the triggers — every trigger has an **Enabled** toggle. Switch each trigger off and the workflow stops firing; switch them back on to resume. The workflow itself stays in the list and its history stays intact.
 
-## Variables
+Deleting a workflow is permanent and lives on the row action menu in the list view. Tale prompts for confirmation before the delete; the executions and the version history go with the workflow.
 
-The **Variables** field is a JSON object. Anything you put there is readable from every step config with the `{{ variables.<key> }}` syntax. The two common shapes are credentials referenced by multiple steps and feature flags that change behaviour between drafts and the live version. Two notes worth remembering: secret values stored as variables are not separately encrypted — for credentials a connector reads, use the integration's credential surface instead; and variables are versioned with the rest of the automation, so a restore from **History** restores them along with the steps.
+## Editing
 
-## Test automation
+Open the workflow and the editor surfaces the step graph on a canvas. Click a step to open its panel on the right; the panel carries the step's name, type, configuration, and the transitions to the next steps on success and failure. The toolbar at the top of the canvas carries **Focus** (zoom the graph), **AI assistant** (a chat that edits the workflow for you), **Test automation**, and **Add step**.
 
-Click **Test automation** in the toolbar to run the draft with an input payload of your choice. The test runs against the same engine as production runs but is recorded on the **Executions** tab with the trigger source labelled `manual`, so you can replay it, diff its output against a previous run, and reuse its input later. Use it before publishing — a published draft starts firing on its real triggers immediately, and a five-second test catch beats a 3 am pager about a misconfigured **Action** step.
+A banner above the canvas warns when the workflow has active triggers — edits to a triggered workflow take effect immediately, so a save mid-iteration can change a live run's behaviour. Pause the triggers first when the edits are not yet ready.
 
-## History
+## Versioning and history
 
-Every saved edit lands in **History**, alongside the editor's main canvas. The **Restore** button rolls the automation back to the snapshot you pick; the **Compare changes** view shows the diff before you commit to the restore. History is the safety net for "the change I shipped this morning broke the nightly run" — open it, find the previous snapshot, restore.
+Every save snapshots a new version of the workflow. The **History** tab in the editor's left rail lists the versions newest first, each with a timestamp and the member who saved it. Click a row to open a diff against the current definition; click **Restore** to roll back to that snapshot. Restoring creates a new version on top of the history — the rolled-back state is the new current, and the version you replaced still sits in the list.
 
-## Build one
+The history is per-workflow, not per-step. Restoring rolls the whole definition; partial restores live in the editor (copy the step config from the diff and paste it into the current version).
 
-The editor is opinionated by design: each step does one move, the graph runs from **Start** to **Output**, and **Test automation** proves the shape before publishing. The next two pages cover the parts of the model the editor only points at — [Triggers](/platform/automations/triggers) for the four ways an automation starts, and [Execution logs](/platform/automations/execution-logs) for the per-run trace you read when something fails.
+## Where this fits
+
+Workflows is the operating manual; [Automation concepts](/platform/automations/concepts) is the mental model. The natural neighbours are [triggers](/platform/automations/triggers) (the kick-off), [execution logs](/platform/automations/execution-logs) (the per-run detail), [metrics](/platform/automations/metrics) (the org-wide roll-up), and [approvals in workflows](/platform/automations/approvals-in-workflows) (the human gate between steps). Reach for this page when you are working with a workflow that already exists; reach for concepts when you are building your first one.

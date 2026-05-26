@@ -1,32 +1,32 @@
 ---
 title: Redakteur
-description: Der Kuratierungs-Sitz — die Wissensdatenbank, Konversationen, Freigaben, strukturierte Daten und die Agents, die der Rest des Teams nutzt. Die aufgabenorientierte Landung des Redakteurs für den Alltag.
+description: Redakteur ist die Bau-Oberfläche — Agents, Projekte, Automatisierungen und das Wissen erstellen, in das sie reichen. Die Seiten hier sind das, was eine Person mit Redakteurs-Rolle tagtäglich tut.
 ---
 
-Ein **Redakteur** in Tale ist der Kuratierungs-Sitz. Du bist die Person, die entscheidet, was die KI weiß und welche ausstehenden Aktionen durchgehen — die Dokumente, die Produkte, die Kunden, die Websites, aus denen der Rest der Organisation liest, plus die Kunden-Konversationen und Freigaben, die einen Menschen im Loop brauchen. Alles, was ein Mitglied kann, kannst du auch; obendrein schreibst du in die Wissensdatenbank, bearbeitest Agents und handelst auf Freigaben. Du veröffentlichst keine Automatisierungen, konfigurierst keine Integrationen und änderst keine Organisations-Einstellungen — das ist Entwickler- und Admin-Territorium.
+Redakteur ist die Bau-Oberfläche von Tale. Während Mitglied die Rolle ist, die das Produkt nutzt, und Admin die Rolle ist, die es steuert, ist Redakteur die Rolle, die die Dinge erstellt, die alle anderen nutzen — Agents, Projekte, Automatisierungen, die Dokumente und strukturierten Daten, die die Wissensdatenbank hält, die Prompts, die fürs Team gespeichert sind. Personen mit Redakteurs-Rolle sehen das volle Set an Bau-Tabs ohne die Admin-Governance-Oberfläche und ohne die nur-Entwickler-Hebel.
 
-Der Sinn eines dedizierten Redakteurs ist, dass Wissenskuratierung eine eigene Aufgabe ist. Ein vom Entwickler gebauter Agent ist nur so gut wie die Dokumente, gegen die er grounden kann; eine Automatisierung, die einen Entwurf produziert, ist nur so nützlich wie der Redakteur, der ihn prüft und sendet. Diese Seite ist ein aufgabenorientierter Index für den Redakteur-Tag; die kanonische Berechtigungsmatrix lebt unter [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
+Diese Übersicht nennt, was ein Redakteur tut, wo er es tut und welche Seiten jeden Teil abdecken. Redakteure landen typischerweise hier am ersten Tag, bauen den ersten nützlichen Agent und das erste Projekt der Organisation aus und kommen wieder auf diesen Tab, wann immer das Nächste gebaut werden muss. Die Rollen- und Berechtigungs-Geschichte hinter den Tabs liegt auf [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
 
-## Ein Redakteur-Tag
+## Was Redakteur abdeckt
 
-Ein typischer Tag startet in **Konversationen**, um die nächtlichen Kunden-Threads zu klären — die, für die die KI eine Antwort entworfen hat, und die, die die KI zur Prüfung markiert hat. Von dort wandert die Arbeit zu **Freigaben**: Ausgaben aus Automatisierungen, die auf ein menschliches Urteil warten. Am Vormittag übergibt ein Entwickler einen frisch gebauten Agent, der einen Wissens-Tag und ein paar Starter-Prompts braucht; du öffnest den Agent in **Agents**, richtest sein Wissen auf den richtigen team-getaggten Ordner aus und ergänzt die Prompts. Später lässt ein Produkt-Team ein neues Preis-PDF im Team-Chat fallen; du lädst es in die **Dokumente**-Ansicht hoch und taggst es so, dass der richtige Agent es bei der nächsten Nachricht aufgreift.
+Die Arbeit eines Redakteurs fällt in vier Kübel: **Agents** bauen (Anweisungen, Wissensbindungen, Tools, Modelle), die **Wissensdatenbank** kuratieren (Dokumente hochladen, Kunden, Produkte, Lieferanten, Websites pflegen), **Automatisierungen** verfassen (Workflows mit Triggern, Schritten und Genehmigungs-Gates) und **Projekte** bündeln (Dateimengen, skopierte Agents, Projekt-Anweisungen). Jeder Kübel hat seinen eigenen Bereich in Platform; der Redakteurs-Tab ist der Index über sie hinweg.
 
-Die Seiten unten stehen in der Reihenfolge, die der Tag verlangt — zuerst Wissen, weil jede andere Oberfläche davon abhängt, dann die Human-in-the-Loop-Oberflächen, dann Agents, weil sie zu tunen die Stelle ist, an der Kuratierung auf Verhalten trifft.
+Redakteure teilen die Bau-Oberfläche mit Entwicklern — Entwickler sehen ebenfalls alle vier Kübel und können alles, was ein Redakteur kann, plus die API- und Integrations-Ebene. Greif zu einem Redakteur, wenn die tägliche Arbeit Inhalt und Konfiguration ist; greif zu einem Entwickler, wenn die Arbeit in Code oder externe Systeme übergeht.
 
 ## Seiten in diesem Bereich
 
-- **[Wissensdatenbank](/de/platform/workspace/knowledge-base)** — Dokumente hochladen, bearbeiten, taggen und entfernen; die Oberfläche, aus der jede gegroundete Antwort stammt.
-- **[Website-Crawling](/de/platform/knowledge/crawling)** — Tale auf eine Website richten, Recrawls planen, dem Indexer beim Füllen der Wissensdatenbank zusehen.
-- **[Strukturierte Daten](/de/platform/knowledge/structured-data)** — Produkte, Kunden, Lieferanten; die Zeilen, gegen die Agents grounden, wenn eine Antwort mehr als ein Dokument braucht.
-- **[Konversationen](/de/platform/workspace/conversations)** — geteilte Kunden-Threads. Antworten, schließen, erneut öffnen, archivieren oder als Spam markieren.
-- **[Freigaben](/de/platform/workspace/approvals)** — Ausgaben aus Automatisierungen, die auf ein menschliches Urteil warten; freigeben oder ablehnen, und der Workflow läuft weiter.
-- **[Agents](/de/platform/agents/create)** — die Agents erstellen, bearbeiten und veröffentlichen, die der Rest des Teams im Chat wählt.
-- **[Agent-Versionen](/de/platform/agents/versions)** — an einem laufenden Agent arbeiten, ohne die Konversationen und Automatisierungen zu brechen, die ihn schon nutzen.
+Die Redakteurs-Oberfläche ist dieselbe Oberfläche, die die Per-Bereich-Sektionen von Platform dokumentieren. Was folgt, ist der Index über sie hinweg.
 
-## Was Redakteure nicht können
+**[Agents → Konzepte](/de/platform/agents/concepts)** — das Vier-Knöpfe-Mentalmodell, aus dem ein Redakteur jeden Agent baut.
 
-Automatisierungen erstellen oder bearbeiten, Integrationen und MCP-Server konfigurieren, API-Schlüssel erzeugen und jede organisationsweite Einstellung (Mitglieder, Branding, Richtlinien, Anbieter) sind Entwicklern und Admins vorbehalten. Brauchst du eines davon erledigt, frage jemanden mit der richtigen Rolle — einen Agent ohne Redakteur im Team zu bauen ist schwieriger als umgekehrt.
+**[Automatisierungen → Konzepte](/de/platform/automations/concepts)** — Workflows, Trigger, Schritte, Ausführungen.
 
-## Wo anfangen
+**[Wissen → Übersicht](/de/platform/knowledge/overview)** — der Dokumente- und Strukturdaten-Bereich, den ein Redakteur kuratiert.
 
-Steigst du heute in den Sitz ein, ist die kleinste nützliche erste Bewegung, die [Wissensdatenbank](/de/platform/workspace/knowledge-base) zu öffnen, ein Dokument hochzuladen, das das Team täglich referenziert, und zu prüfen, dass die KI eine Frage daraus beantworten kann. Von da aus schließt [Den ersten Agent von Anfang bis Ende bauen](/de/tutorials/editor/first-agent-end-to-end) den Kreis zwischen kuratierten Wissen und einer KI-Oberfläche, die es nutzt.
+**[Projekte → Übersicht](/de/platform/projects/overview)** — der geteilte Workspace, den ein Redakteur um einen Kunden oder einen Launch bündelt.
+
+**[Prompt-Bibliothek](/de/platform/workspace/prompt-library)** — der Bereich für gespeicherte Prompts, in dem ein Redakteur wiederkehrende Chat-Starter wiederverwendbar hält.
+
+## Wo das hingehört
+
+Redakteur ist die Rolle, von der die meisten Teams mehrere haben — die Personen, die die Bauarbeit machen, die andere Rollen konsumieren. Die natürliche Erstlektüre am ersten Tag ist [Agent-Konzepte](/de/platform/agents/concepts), weil das Vier-Knöpfe-Modell das ist, was jede andere Bau-Seite voraussetzt. Die natürliche Zweite ist [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) — sie geht die vier Knöpfe Ende zu Ende auf einer frischen Instanz durch.

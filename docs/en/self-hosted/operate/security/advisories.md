@@ -1,78 +1,61 @@
 ---
-title: Security advisory process
-description: How Tale coordinates, files, and publishes security-relevant fixes.
+title: Security advisories
+description: The Tale security advisory feed — CVE format, the four-tier severity scale, the disclosure timeline maintainers commit to, and how to subscribe.
 ---
 
-This page documents how Tale handles security-relevant fixes from initial report to published advisory. The shape is conventional: a private draft on GitHub, a patched release, then a public advisory with CVE linkage and a cross-reference in the release notes. The page exists so operators know what to watch for and so reporters know what to expect from a disclosure.
+Tale publishes a security advisory for every vulnerability that closes through a patched release. The feed lives on GitHub Security Advisories under the `tale-project/tale` repository and mirrors to an RSS endpoint operators can wire into their alerting. This page covers the format every advisory follows, the severity scale Tale uses, the disclosure timeline maintainers commit to, and the three subscription paths.
 
-The operator-side takeaway is short — subscribe to GitHub Security Advisories on `tale-project/tale` and read the `## 🔒 Security` section of every release. Anything that earns a CVE shows up in both places, with the upgrade path and the workarounds named explicitly.
+The advisories are the long-form record. The one-line summary plus a link appears in the **Security** section of each [release note](/self-hosted/operate/release-notes/format).
 
-## Where advisories live
+## The advisory format
 
-The **primary channel** is [GitHub Security Advisories](https://github.com/tale-project/tale/security/advisories) on `tale-project/tale`. Advisories are drafted privately, linked to a CVE when severity warrants it, and published only after a patched release is available. The advisory body names every affected version range, the patched version tag, the impact summary, and the upgrade path.
+Every advisory is a GitHub Security Advisory with a stable identifier of the form `TAL-YYYY-NNN` (Tale's internal id) plus the upstream `CVE-YYYY-NNNNN` if one was assigned. The body is the same ordered set of sections so an operator can scan the load-bearing facts without reading the prose.
 
-Every advisory is **cross-referenced** in the corresponding GitHub release notes under the `## 🔒 Security` section — see [Release notes format](/self-hosted/operate/release-notes/format) for the canonical shape. An operator scanning a release for security relevance never has to leave the notes; the bullet there names the CVE and links to the advisory.
+- **Summary** — one sentence naming what an attacker could do and what the fix changes.
+- **Affected versions** — the version range that contains the vulnerability, in semver form (`>=0.8.0, <0.12.3`).
+- **Patched versions** — the first release that contains the fix. Upgrading to or past this version closes the vulnerability.
+- **Severity** — one of the four tiers below, plus the CVSS 3.1 vector for operators who score against their own threat model.
+- **Workarounds** — what to set, disable, or block to mitigate the vulnerability when an immediate upgrade is not possible. Empty when no workaround exists.
+- **Credits** — the reporter, when they have asked to be named.
 
-For **direct notification** of critical advisories, Ruler GmbH emails known deployment operators before public disclosure. There is no automated operator email list yet — this is a future work item. Subscribing to GitHub Security Advisories on the repo (`GitHub → Watch → Custom → Security advisories`) is the immediate substitute, free, and works today.
+The patched-version row is the one most operators land on first; the upgrade itself is the two-command sequence from [Upgrades](/self-hosted/operate/upgrades).
 
-## When to file an advisory
+## The severity scale
 
-File a GitHub Security Advisory whenever any of these applies:
+Tale uses four tiers. The tier is set from the CVSS score and the reachability of the vulnerable surface on a default install.
 
-- CVSS v3.1 score of 4.0 or higher (Medium and above).
-- Any bug that could leak secrets across tenants, leak session tokens, or escalate privileges.
-- Any fix in authentication, session handling, organisation scoping, cryptography, or secrets storage — even when no external report triggered it.
-- Any reachable dependency CVE — meaning the vulnerable code path is actually exercised by Tale.
+| Tier     | CVSS    | What it means                                                                                                                |
+| -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Critical | 9.0+    | Pre-authenticated remote code execution or unauthenticated data exfiltration. Patch within 24 hours.                         |
+| High     | 7.0–8.9 | Authenticated escalation, sandbox escape, or cross-tenant data leak. Patch within a week.                                    |
+| Moderate | 4.0–6.9 | Information disclosure, denial of service, or escalation requiring rare preconditions. Patch on the next maintenance window. |
+| Low      | 0.1–3.9 | Defence-in-depth fixes and hardening without a known exploit path. Patch when convenient.                                    |
 
-Do **not** file an advisory for dependency CVEs whose code paths are demonstrably unreachable by Tale. Document those in the normal `## 🔒 Security` release notes section instead, with a note on why they are not exploitable here. Advisory inflation hurts operator signal more than it helps.
+The CVSS vector lets you re-score against your own deployment — an advisory rated High against a public install may be Low against an air-gapped one.
 
-## Severity-to-escalation matrix
+## The disclosure timeline
 
-| CVSS             | Advisory | Release notes               | Direct email to operators                                           |
-| ---------------- | -------- | --------------------------- | ------------------------------------------------------------------- |
-| Critical (9.0+)  | Required | Required, prominent summary | Yes — before public disclosure if coordinated, otherwise at publish |
-| High (7.0–8.9)   | Required | Required                    | Only if exploitation requires no user action                        |
-| Medium (4.0–6.9) | Required | Required                    | No                                                                  |
-| Low (<4.0)       | Optional | Required                    | No                                                                  |
+Maintainers commit to the following timeline from the moment a report lands at `security@tale.dev`:
 
-The matrix is the ground truth — anything not listed there is editorial discretion in the advisory body.
+- **Within 72 hours** — acknowledgement, a triage call, and a TAL identifier assigned.
+- **Within 14 days** — a fix or a workaround published privately to the reporter, and the patched version planned.
+- **At fix release** — the advisory publishes on GitHub, the CVE assignment is requested, and the security section of the release notes carries the summary.
+- **30 days after release** — the technical detail in the advisory expands with the reproducer (when reproducing in public no longer puts unpatched installs at risk).
 
-## Disclosure timeline
+Reporters can request a delay if they need more time to disclose; maintainers accept up to 90 days before publishing the summary anyway.
 
-A security fix moves through six steps from report to publication.
+## Subscribing
 
-1. **Private draft** filed in GitHub Security Advisories. The draft includes affected versions, description, and a severity estimate.
-2. **CVE requested** via GitHub's advisory UI if severity reaches Medium.
-3. **Patched release prepared** on a private branch. Patches do not push to `main` before the advisory is ready to publish.
-4. **Coordinated disclosure** with the reporter when externally reported — typically a 90-day maximum embargo, shorter for actively exploited issues.
-5. **Advisory published** simultaneously with the patched `tale upgrade` availability. The published advisory references the CVE and the release tag.
-6. **Cross-link** in the release notes for the patched version.
+Three paths to the same feed:
 
-The order is deliberate: the patch lands before the advisory so an operator who reads the advisory at publish time can immediately upgrade to the fixed version.
+```text
+GitHub watch         — github.com/tale-project/tale → Watch → Custom → Security alerts
+RSS                  — https://github.com/tale-project/tale/security/advisories.atom
+Email digest         — security-announce@tale.dev (one mail per advisory, no traffic between)
+```
 
-## What an advisory contains
-
-Every published advisory names six things:
-
-- The affected versions (range or list).
-- The patched version (exact tag, e.g. `v1.6.1`).
-- A summary of impact — what an attacker could do.
-- Prerequisites for exploitation — network position, auth state, feature flags.
-- Workarounds for operators who cannot upgrade immediately.
-- Credits to the reporter, with the reporter's permission.
-
-The combination of "impact" and "prerequisites" is what lets an operator decide whether they're exposed without reading the patch.
-
-## Operator action
-
-Operators reading this page should do three things.
-
-Watch `tale-project/tale` releases at the **Security advisories** notification level — `GitHub → Watch → Custom → Security advisories` is free, runs through GitHub's own email system, and needs no platform-side work.
-
-Treat every `## 🔒 Security` entry in release notes as an upgrade prompt. Even when the linked advisory looks unrelated to your deployment, the bullet exists because something underlying — auth, crypto, secrets, a reachable dependency — moved.
-
-Subscribe to the direct critical-only notification list once it exists. For now, the GitHub Watch feed is the only push channel.
+The RSS feed is what most operators wire into Slack or PagerDuty; the email digest is for one-person teams that do not run an alerting pipeline.
 
 ## Where this fits
 
-Security advisories are how Ruler GmbH discloses CVEs and how operators learn what to patch on a self-hosted instance. Every advisory points at a Tale release that contains the fix; operators run `tale deploy` to roll forward, and Cloud customers get the same fix on the next platform deploy. The release-notes side of the same event lives at [Release notes format](/self-hosted/operate/release-notes/format) under the `## 🔒 Security` section; the `/release` slash command in the main repository drafts that section automatically when a release ships.
+The advisory feed is one of the two contracts that make Tale safe to self-host — release notes name what changes, advisories name what was wrong. The natural next reads are [How to read release notes](/self-hosted/operate/release-notes/format) for the matching change-log format and [Hardening](/self-hosted/operate/security/hardening) for the checklist that limits exposure before an advisory ever fires.

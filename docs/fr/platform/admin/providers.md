@@ -1,84 +1,43 @@
 ---
 title: Fournisseurs IA
-description: Connecte Tale aux modèles IA via des fournisseurs compatibles OpenAI — gère le catalogue depuis l'interface Paramètres, mélange API de vendeur, gateways et inférence auto-hébergée sous un même toit.
+description: Paramètres > Fournisseurs est l'endroit où les Administrateurs branchent OpenAI, Anthropic, Azure OpenAI et un Ollama local, choisissent quels modèles chacun expose, et fixent le défaut de l'org. Chaque réponse que Tale stream vient d'un modèle résolu par cette page.
 ---
 
-Tale parle aux modèles IA via des **fournisseurs** — chaque fournisseur est un endpoint d'API compatible OpenAI doublé d'un catalogue de définitions de modèles. L'endpoint peut être un vendeur hébergé (OpenAI, Anthropic via OpenRouter, Google), un gateway de routage (OpenRouter, Vercel AI Gateway), ou un serveur d'inférence auto-hébergé (Ollama, vLLM, LocalAI, faster-whisper-server). Un fournisseur expose _quels_ modèles existent et _comment_ ils peuvent être utilisés — chat, vision, embedding, génération d'image, édition d'image, transcription. Les Admins gèrent les fournisseurs depuis **Paramètres > Fournisseurs** ; les utilisateurs voient ensuite les modèles résultants dans le sélecteur de modèle de chat et dans la configuration d'agent.
+Paramètres > Fournisseurs est la surface où Tale rencontre les LLM qu'il sert. Les Administrateurs branchent les fournisseurs que l'org veut utiliser — OpenAI, Anthropic, Azure OpenAI, ou un Ollama local — choisissent lesquels des modèles de chaque fournisseur l'org peut appeler, et fixent le modèle par défaut pour les nouveaux chats et nouveaux agents. Chaque réponse que Tale stream est routée par cette page ; y toucher change ce que le reste du produit peut faire.
 
-Tale est livré avec un fournisseur d'exemple [OpenRouter](https://openrouter.ai) qui donne accès à des modèles d'OpenAI, Anthropic, Google, Mistral, Meta et d'autres via une seule clé API — le chemin le plus rapide d'une installation fraîche à un chat qui marche. Membres, Éditeurs et Développeurs ne peuvent pas modifier les fournisseurs ; l'écran est réservé à l'Admin.
+Cette page couvre l'UI : comment ajouter un fournisseur, ce que contrôle l'allowlist de modèles, comment se résout le défaut, et comment retirer un fournisseur sans casser les chats existants. Le catalogue de fournisseurs lui-même et la forme plus profonde du fichier de configuration de la même surface vivent un onglet plus loin sous [Modèles](/fr/platform/models) pour le catalogue et l'onglet configuration self-hosted pour la forme fichier.
 
-## Gérer les fournisseurs dans Paramètres
+## Ce que la liste montre
 
-Ouvre **Paramètres > Fournisseurs**. La vue liste permet aux Admins :
+Ouvre **Paramètres > Fournisseurs** et tu atterris sur la liste des fournisseurs que l'org a branchés. Chaque ligne nomme le fournisseur, montre son statut d'identifiants (connecté, erreur, non testé), le nombre de modèles que le fournisseur expose, et le nombre de ceux que l'org a allowlistés. Une erreur de connexion fait remonter le message amont à côté de la ligne — généralement une mauvaise clé ou un périmètre manquant.
 
-- **Ajouter un fournisseur** — ouvre la boîte de création. Nom, nom affiché, URL de base, clé API et un ou plusieurs modèles. Chaque modèle porte un ID (doit correspondre à ce que l'endpoint accepte), un nom affiché, une description optionnelle et un ou plusieurs tags.
-- **Modifier un fournisseur** — réparti en **Modifier les détails** (nom affiché, description, URL de base), **Modifier les défauts** (le modèle par défaut par capacité — voir ci-dessous), la clé API et le catalogue de modèles.
-- **Supprimer un fournisseur** — retire le fournisseur entièrement. Les agents qui référencent encore un de ses modèles font remonter un avertissement jusqu'à ce que l'agent soit redirigé.
-- **Tester la connexion** — envoie une petite requête à chaque modèle du catalogue et rapporte la latence et la joignabilité par modèle. Sers-t'en après avoir tourné une clé API ou pointé l'URL de base sur un nouvel endpoint.
+La ligne se déplie vers le picker de modèles du fournisseur. Tale récupère la liste complète des modèles du fournisseur à la vérification des identifiants ; le picker montre cette liste avec une case à cocher à côté de chaque modèle, plus un tag par modèle (chat, image, embedding, audio) qui pilote où le modèle peut être utilisé en aval.
 
-Le champ **Description** affiché dans la liste des fournisseurs est pour la consommation humaine — par exemple, `OpenAI — Whisper pour la transcription audio` rend le catalogue auto-explicite quand une équipe en mélange plusieurs. Les **Modèles par défaut** par capacité décident quel modèle est utilisé pour chat, vision, embedding, génération d'image, édition d'image et transcription quand un utilisateur ou un agent n'en choisit pas un explicitement.
+## Ajouter un fournisseur
 
-## Tags de modèles
+Clique sur **Ajouter un fournisseur** et choisis le type de fournisseur. Chaque type demande l'identifiant qu'il faut :
 
-Chaque modèle appartient à un ou plusieurs tags. Le tag pilote où le modèle peut être choisi.
+- **OpenAI** — clé API depuis `platform.openai.com`. La clé hérite du quota et des limites de débit du compte OpenAI.
+- **Anthropic** — clé API depuis `console.anthropic.com`. Même forme qu'OpenAI.
+- **Azure OpenAI** — URL d'endpoint plus une clé ; Tale résout les modèles contre le déploiement Azure, pas le nom de modèle OpenAI.
+- **Ollama** — URL de base du serveur Ollama (typiquement `http://ollama:11434` dans le réseau Tale). Pas de clé ; l'accessibilité est l'auth.
 
-| Tag                | Où le modèle est proposé                                                                                                                                 |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `chat`             | Le sélecteur de modèle de chat et le `supportedModels` d'un agent.                                                                                       |
-| `vision`           | Éligible pour les messages qui incluent des pièces jointes image.                                                                                        |
-| `embedding`        | Utilisé par la [base de connaissances](/fr/platform/workspace/knowledge-base) pour la récupération de documents.                                         |
-| `image-generation` | Utilisé par les agents de génération d'image (`/v1/images/generations` ou `/v1/chat/completions` avec des content-parts image, selon le mode du modèle). |
-| `image-edit`       | Utilisé par les agents d'édition d'image.                                                                                                                |
-| `transcription`    | Transcrit les téléversements audio et vidéo de chat — voir [Pièces jointes de chat](/fr/platform/chat/attachments#audio-and-video-transcription).        |
+Une fois l'identifiant déposé, Tale appelle l'endpoint de liste de modèles du fournisseur, fait remonter chaque modèle trouvé, et attend que tu choisisses l'allowlist avant qu'aucun agent puisse les appeler. Enregistrer une allowlist vide est autorisé, mais aucun modèle de ce fournisseur n'est appelable jusqu'à ce que tu en allowlistes au moins un.
 
-Un seul fournisseur peut mélanger les tags — un fournisseur OpenAI peut exposer des modèles `chat`, `vision` et `transcription` côte à côte. Les modèles sans tag sont invisibles au reste du produit, de sorte que le catalogue est opt-in par capacité.
+## L'allowlist et les tags par modèle
 
-## Comment les modèles atteignent le chat
+L'allowlist est le contrat que l'org passe avec elle-même sur les modèles que ses agents peuvent utiliser. Un modèle qui n'est pas dans l'allowlist n'apparaît dans aucun picker, même si le fournisseur amont l'expose. Ajoute des modèles quand tu fais confiance au prix du fournisseur pour eux ; retire des modèles quand tu ne les veux plus appelables.
 
-Les fournisseurs définissent quels modèles _existent_. Les agents définissent sur quels modèles ils _peuvent tourner_. Ouvre l'agent dans **Agents > (nom de l'agent)** et ajoute des IDs de modèles à sa section **Modèle** ; seuls les modèles présents dans au moins un fournisseur _et_ listés sur l'agent apparaissent dans le sélecteur de modèle de chat. L'agent de chat par défaut est livré pré-configuré avec les modèles d'exemple OpenRouter ; les agents personnalisés démarrent vides, de sorte que le catalogue reste explicite.
+Chaque modèle porte un ou plusieurs tags assignés par Tale à la récupération en se basant sur les métadonnées du fournisseur : `chat` (texte entrant, texte sortant), `image` (texte entrant, image sortante), `embedding` (texte entrant, vecteur sortant), `audio` (audio entrant ou sortant). Les agents se lient à des modèles tagués chat ; la famille de tools de génération d'images utilise des modèles tagués image ; l'indexation de documents utilise des modèles tagués embedding. Retirer le seul modèle allowlisté d'une classe de tag casse les fonctionnalités qui en dépendent ; la ligne avertit quand tu es sur le point de le faire.
 
-Pour le comportement du sélecteur quand deux fournisseurs définissent le même ID de modèle, et pour la syntaxe d'épinglage qui laisse les agents préférer un fournisseur précis, voir la référence sur fichier liée plus bas.
+## Le défaut de l'org
 
-## Options du fournisseur (avancé)
+Le défaut de l'org est le modèle que les nouveaux chats et nouveaux agents prennent quand aucun autre n'est nommé. Fixe-le depuis la ligne **Modèle par défaut** en haut de la liste des fournisseurs. Changer le défaut n'affecte que les nouveaux objets — les chats et agents existants gardent le modèle auquel ils étaient liés. Va vers le défaut quand tu déroules une nouvelle génération de modèle à l'échelle de l'org sans rééditer chaque agent.
 
-Le panneau **Options du fournisseur** transmet un objet JSON libre comme champs supplémentaires du corps de requête à chaque appel de modèle. Tale n'interprète pas le JSON — il le passe tel quel — donc la forme est dictée par l'API en amont. Gateways et vendeurs directs exposent des sortes de réglages différentes :
+## Retirer un fournisseur
 
-- **OpenRouter (gateway)** — contrôles de routage sous une clé `provider` de premier niveau :
+Clique la ligne, puis **Déconnecter**. Un fournisseur déconnecté arrête d'apparaître dans les pickers ; les agents liés à un de ses modèles font remonter une erreur de configuration et basculent sur le défaut de l'org si l'agent a le fallback activé. La ligne reste dans la liste avec un badge déconnecté pour la piste d'audit. Déconnecter est réversible — cliquer sur **Reconnecter** repart le flux d'identifiants — mais l'allowlist par modèle doit être recoché car la liste de modèles sous-jacente peut avoir bougé en amont.
 
-  ```json
-  { "provider": { "quantizations": ["fp8"], "allow_fallbacks": false } }
-  ```
+## Où cela s'inscrit
 
-- **Vercel AI Gateway (gateway)** — route principalement via le préfixe d'ID de modèle et les en-têtes HTTP ; le passthrough côté corps est limité à des champs d'observabilité comme `metadata` :
-
-  ```json
-  { "metadata": { "tale_agent": "support" } }
-  ```
-
-- **OpenAI (direct)** — réglages de comportement du modèle au niveau du corps :
-
-  ```json
-  { "service_tier": "priority", "parallel_tool_calls": false }
-  ```
-
-- **Together AI (direct)** — réglages de modération et de décodage au niveau du corps :
-
-  ```json
-  { "safety_model": "meta-llama/Llama-Guard-4-12B", "repetition_penalty": 1.1 }
-  ```
-
-Les vendeurs directs n'exposent pas `quantizations` comme champ de requête — la précision est fixée au déploiement, donc choisis un autre ID de modèle. Des clés comme `model`, `messages`, `max_tokens` et `temperature` sont refusées à cette couche parce qu'elles appartiennent à l'agent, pas au fournisseur.
-
-Le même panneau existe au niveau du modèle — le JSON au niveau du modèle est fusionné par-dessus les défauts au niveau du fournisseur, de sorte qu'un override par modèle ne demande pas de dupliquer l'objet partagé.
-
-## Instances auto-hébergées : configuration en fichiers
-
-Les opérateurs auto-hébergés peuvent gérer les fournisseurs via des fichiers de configuration JSON en plus de l'interface — utile pour les workflows infrastructure-as-code, les édits en masse ou les déploiements où l'interface n'est pas joignable. L'interface et les fichiers restent synchronisés ; enregistrer depuis **Paramètres > Fournisseurs** écrit le même JSON. Les secrets peuvent être chiffrés SOPS sur disque tout en restant éditables depuis l'interface.
-
-Pour le schéma de fichier, les fournisseurs d'exemple embarqués, les backends d'inférence auto-hébergés (Ollama, vLLM, LocalAI, faster-whisper-server), le networking hôte Docker et la syntaxe d'épinglage de fournisseur, voir [Fournisseurs — Référence de configuration](/fr/self-hosted/configuration/providers).
-
-## Où cela s'insère
-
-Les fournisseurs sont la porte entre Tale et les modèles IA auxquels parle le reste de l'organisation. Un agent choisit un préréglage de modèle (Rapide, Standard, Avancé) ; chaque préréglage est lié à un modèle précis défini sur un fournisseur. Ajouter un fournisseur étend le menu ; changer un défaut redirige chaque agent qui n'a pas explicitement opté pour un modèle.
-
-L'interface que cette page décrit est la même que celle qu'utilisent les Admins Cloud. Les opérateurs auto-hébergés ont le choix entre l'interface et la forme fichier JSON documentée à [Fournisseurs — Référence de configuration](/fr/self-hosted/configuration/providers). Une fois la liste des fournisseurs posée, les préréglages de modèles qu'utilise chaque agent vivent sur l'agent lui-même — voir [Créer un agent](/fr/platform/agents/create) pour la configuration côté agent.
+Les fournisseurs sont le bas de la pile — chaque agent, chaque chat, chaque étape de workflow qui produit du texte se résout à travers eux. La lecture suivante naturelle est [Modèles](/fr/platform/models) pour le catalogue de ce que chaque fournisseur ship actuellement et quels tags ils portent, et [Concepts agents](/fr/platform/agents/concepts) pour comment le bouton modèle s'inscrit dans le modèle à quatre boutons à partir duquel un agent est construit.

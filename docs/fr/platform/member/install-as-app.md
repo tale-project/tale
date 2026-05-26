@@ -1,45 +1,38 @@
 ---
-title: Installer Tale comme application
-description: Installe Tale sur ton téléphone ou ton ordinateur portable comme une Progressive Web App. La version installée s'ouvre dans sa propre fenêtre, apparaît sur l'écran d'accueil ou dans le Dock et c'est la façon recommandée d'utiliser Tale sur mobile.
+title: Installer en tant qu'app
+description: Comment installer Tale en tant que Progressive Web App sur ordinateur et mobile — le raccourci de menu dans les navigateurs Chromium, le chemin iOS Safari, et ce qui change une fois l'app installée.
 ---
 
-Tale est une Progressive Web App, ce qui veut dire que ton navigateur peut l'installer comme application autonome. La version installée s'ouvre dans sa propre fenêtre sans barre d'adresse, vit sur ton écran d'accueil ou dans le Dock, et sur mobile, elle est indiscernable d'une application native — la même barre d'onglets en bas, les mêmes marges respectant les zones sécurisées, les mêmes gestes. Il n'y a rien à télécharger depuis un app store ; l'installation est un simple geste ou clic dans le navigateur où tu te connectes déjà à Tale.
+Tale est livré comme Progressive Web App. L'installer pose une icône dans ton dock ou sur ton écran d'accueil, lance Tale dans sa propre fenêtre sans l'habillage du navigateur, et garde la même session que tu avais dans le navigateur. Il n'y a pas de build natif séparé à télécharger et pas d'extension à installer — la même URL avec laquelle tu te connectes est la même app, dans une coque autonome.
 
-Cette page t'explique comment installer Tale sur iOS, Android et le bureau. Les capacités de la version installée sont identiques sur chaque plateforme : tu restes connecté, toutes les fonctionnalités fonctionnent, et Tale t'informe avec un petit toast dans l'application quand une nouvelle version est prête. L'accès hors ligne est volontairement limité — la plateforme a besoin d'une connexion active au backend, donc Tale affiche un écran hors ligne clair quand tu perds le réseau et reprend automatiquement dès que tu es à nouveau en ligne.
+Cette page couvre les trois endroits où tu déclenches l'installation : la ligne **Installer l'app** dans ton menu de profil sur les navigateurs Chromium, l'étape de la feuille de partage sur iOS Safari, et la bannière d'installation qu'Android Chrome affiche de lui-même. Une fois installé, Tale se comporte de manière identique ; l'installation ne change que l'habillage autour.
 
-## Installer sur iPhone ou iPad
+## Le raccourci du menu de profil
 
-Ouvre `app.tale.dev` (ou ton URL auto-hébergée) dans Safari — Apple ne laisse pas d'autres navigateurs iOS installer des applications web. Appuie sur le bouton **Partager** dans la barre d'outils, puis fais défiler vers le bas et appuie sur **Sur l'écran d'accueil**. Confirme le nom et appuie sur **Ajouter**. L'icône Tale apparaît sur ton écran d'accueil, et appuyer dessus lance Tale dans une fenêtre autonome sans la barre d'URL de Safari. La barre d'état respecte ton thème : claire quand le système est en mode clair, sombre sinon.
+Sur Chrome, Edge, Brave, Arc et les autres navigateurs Chromium, le menu déroulant de profil de Tale porte une ligne **Installer l'app** quand le navigateur est prêt à installer. Ouvre le menu depuis ton avatar en haut à droite, fais défiler après le sélecteur de thème et le sélecteur de langue, et clique **Installer l'app**. Le navigateur ouvre sa confirmation d'installation native ; accepte-la, et Tale atterrit dans ton dock (macOS), ta barre des tâches (Windows) ou ta liste d'apps (ChromeOS) en une seconde ou deux.
 
-Tu restes connecté entre les lancements. Pour supprimer l'application, appuie longuement sur l'icône et choisis **Supprimer l'app**, comme tu le ferais pour n'importe quelle application native — ton compte reste intact.
+La ligne n'est là que quand le navigateur a tiré son événement `beforeinstallprompt` et que l'app n'est pas déjà installée. Les navigateurs qui ne tirent pas cet événement — Firefox, Safari, tout en fenêtre privée — n'affichent pas la ligne, donc le menu reste plus court d'un élément plutôt que de promettre ce qu'il ne peut pas livrer.
 
-## Installer sur Android
+## iOS et iPadOS
 
-Dans Chrome, Edge ou tout navigateur basé sur Chromium, ouvre Tale et cherche l'invite d'installation qui apparaît dans la barre d'URL ou dans le menu de débordement (l'icône à trois points). Choisis **Installer l'application** ou **Ajouter à l'écran d'accueil**. Tale s'installe comme une entrée d'application séparée, accessible depuis le lanceur et la liste des récents. Les notifications ne sont pas utilisées aujourd'hui ; l'application fonctionnera entièrement comme une expérience au premier plan.
+iOS Safari ne tire pas `beforeinstallprompt`, donc la ligne **Installer l'app** n'apparaît pas dans le menu. Le chemin d'installation vit dans la feuille de partage de Safari à la place.
 
-Pour désinstaller, appuie longuement sur l'icône Tale et choisis **Désinstaller**, ou supprime l'application depuis les paramètres système.
+Ouvre Tale dans Safari, tape l'icône de partage dans la barre d'outils, fais défiler jusqu'à **Sur l'écran d'accueil**, et confirme. Tale apparaît sur ton écran d'accueil avec la même icône que la favicon du navigateur. Tape dessus, et Tale s'ouvre dans sa propre fenêtre — pas de barre d'adresse Safari, pas de barre d'onglets, pas de bouton retour au-delà de ce que Tale lui-même expose. Les notifications fonctionnent de la même manière que dans l'onglet du navigateur ; l'installation est la seule différence.
 
-## Installer sur le bureau
+Les autres navigateurs iOS — Chrome, Edge, Firefox sur iOS — sont Safari sous le capot. Ils n'ont pas leur propre entrée Sur-l'écran-d'accueil. Le chemin Safari est le seul chemin d'installation iOS qui produit une vraie app autonome.
 
-Dans Chrome, Edge, Brave ou Arc, ouvre Tale et clique sur l'icône d'installation à droite de la barre d'URL (un petit moniteur avec une flèche vers le bas). Le navigateur demande une confirmation ; clique sur **Installer**. Tale s'ouvre dans une fenêtre dédiée sans interface du navigateur et apparaît dans le Dock (macOS), la barre des tâches (Windows) ou les activités (Linux).
+## Android
 
-Firefox n'installe pas les applications web comme fenêtres séparées pour l'instant, mais Tale fonctionne intégralement dans un onglet Firefox normal. Safari sur macOS prend en charge l'installation depuis le menu **Fichier** (**Fichier → Ajouter au Dock** dans les versions récentes).
+Android Chrome gère l'installation à deux endroits. Le premier est la même ligne **Installer l'app** dans le menu de profil de Tale, identique au flux desktop. Le second est la bannière d'installation propre à Chrome — une barre d'une ligne qui glisse depuis le bas de la page sur les sites qu'il considère installables. Tape **Installer** sur la bannière, confirme dans la feuille système, et Tale atterrit sur ton écran d'accueil.
 
-## Ce que "installé" t'apporte
+Si tu as écarté la bannière une fois, elle ne revient généralement pas avant un moment. Le raccourci du menu de profil continue à fonctionner que la bannière ait été affichée ou non. Les autres navigateurs Android — Firefox, Samsung Internet, Brave — ont chacun leur propre chemin d'installation dans le menu du navigateur, généralement étiqueté **Installer l'app** ou **Sur l'écran d'accueil**.
 
-L'application installée se charge plus vite qu'un onglet vierge car la coque hors ligne et les assets de marque sont mis en cache localement par le service worker. Tale appelle quand même le backend pour chaque opération — il n'y a pas de stockage de données local — donc une connexion active est requise pour toute interaction utile. Les avantages sont d'ordre présentation, pas d'autonomie hors ligne :
+## Après l'installation
 
-- Une fenêtre et une icône dédiées, sans l'interface du navigateur qui gêne.
-- Des layouts mobiles avec une barre d'onglets en bas conforme aux conventions de la plateforme.
-- Des marges respectant la zone sécurisée pour que le contenu ne glisse pas sous le notch iOS ou la barre de gestes Android.
-- Un petit toast quand une nouvelle version de Tale est prête, avec un seul geste pour recharger.
+Tale tournant dans une fenêtre PWA est le même Tale tournant dans un onglet de navigateur. La session, les chats, la base de connaissances, les agents — tout cela est la même surface. Les différences sont cosmétiques et petites : pas d'habillage navigateur autour de la fenêtre de l'app, une icône dans ton lanceur, et sur la plupart des plateformes la fenêtre se rappelle de sa taille et de sa position entre les lancements.
 
-Quand la connexion tombe, Tale affiche une superposition dans l'app qui explique que la plateforme a besoin d'Internet et se reconnecte automatiquement dès que tu retrouves du signal. Si tu lances l'app sans connexion du tout, tu vois l'écran hors ligne autonome — toujours aucune fonctionnalité, mais un message plus clair qu'une page cassée.
+La désinstallation suit la convention de la plateforme. Sur macOS, glisse l'icône hors du dock ; sur Windows, clic droit et désinstaller ; sur iOS et Android, appui long sur l'icône et retirer. La désinstallation efface la coque PWA mais pas la session — reconnecte-toi via le navigateur, et tes données sont là où tu les as laissées.
 
-## Mises à jour et désinstallation
+## Quand y recourir
 
-Les mises à jour sont déployées en continu. Quand Tale publie une nouvelle version, l'app en cours la récupère en arrière-plan ; la prochaine interaction déclenche un toast proposant la mise à jour. Appuyer sur **Mettre à jour** recharge l'app sur la nouvelle version sans réinstallation complète. Si tu ignores le toast, la nouvelle version s'applique la prochaine fois que tu fermes et ouvres complètement Tale.
-
-Pour désinstaller sur n'importe quelle plateforme, supprime l'icône ou l'entrée d'app de la même façon que pour toute autre application. Réinstaller plus tard restaure tout, car toutes tes données sont côté serveur — rien dans l'installation n'est lié à un appareil spécifique.
-
-Installer Tale est l'un des changements les plus simples que tu puisses faire à ton flux de travail quotidien. L'expérience mobile s'améliore considérablement une fois la barre d'adresse partie, l'expérience desktop a un onglet de moins à perdre, et le chemin de mise à jour est intégré. Si tu passes plus de quelques minutes par jour dans Tale, installe-le une fois et oublie l'URL.
+L'installation vaut le coup dès que tu te retrouves à ouvrir Tale chaque jour et que tu veux qu'il se sente comme une de tes apps plutôt que comme un de tes onglets. C'est aussi le bon mouvement quand tu veux la fenêtre de chat épinglée sur un bureau virtuel ou une fente Stage Manager que les onglets de navigateur ne respecteraient pas. Saute l'installation si tu te connectes depuis beaucoup de machines et préfères l'onglet du navigateur — Tale marche pareil dans les deux cas. La lecture voisine est [Vue d'ensemble Membre](/fr/platform/member/overview) — c'est la carte de ce que couvre le reste de la surface Membre une fois Tale posé dans ton dock.

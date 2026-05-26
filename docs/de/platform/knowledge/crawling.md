@@ -1,60 +1,38 @@
 ---
-title: Website-Crawling
-description: Tales Crawler konfigurieren, um externe Websites für KI-Suche zu indizieren.
+title: Crawling
+description: Wie Tale eine Website-Entität in Wissen verwandelt — Domain-Registrierung, sitemap-basierte URL-Erkennung, geplante Re-Scans und die Ansicht indexierter Seiten.
 ---
 
-Tales Crawler besucht Seiten einer Domain, die du angibst, extrahiert den Textinhalt und indiziert ihn in die Wissensdatenbank neben deinen hochgeladenen Dokumenten. Der KI-Agent kann dann Fragen beantworten, die sich auf diesen Inhalt stützen — "Wie ist unser aktueller Preis auf der Website?", "Welche Features sind in den v3-Release-Notes neu?".
+Eine Website ist die strukturierte Form für „eine öffentliche Seite, die der Agent kennen soll". Du gibst Tale eine Domain und ein Scan-Intervall; der Crawler entdeckt URLs, ruft Seiten ab, extrahiert den Hauptinhalt, zerlegt und embeddet den Text und liefert die Chunks zur Antwortzeit zurück — genauso wie bei Dokumenten. Diese Seite vermittelt dir das mentale Modell und führt durch das, was du siehst, wenn eine Website vom Hinzufügen bis zur Indexierung läuft.
 
-Diese Seite ist für Redakteur/Entwickler. Für den Endnutzer-Workflow (eine Website aus dem Chat hinzufügen) siehe [Wissensdatenbank](/de/platform/workspace/knowledge-base).
+Crawling ist die eine Hälfte der Websites-Geschichte. Die andere — was die strukturierte Website-Aufzeichnung enthält und wie Agents sie lesen — liegt in [Strukturierte Daten](/de/platform/knowledge/structured-data). Lies die zuerst, wenn die Frage lautet „soll das eine Website oder ein Dokument sein"; lies diese hier, wenn die Frage lautet „was tut der Crawler eigentlich".
 
-## Was der Crawler tut
+## Eine Website hinzufügen
 
-1. Ruft die angegebene URL ab und parst das HTML.
-2. Entdeckt verlinkte Seiten auf derselben Domain.
-3. Holt jede entdeckte Seite und wiederholt den Prozess bis zum Discovered-URL-Limit der Domain.
-4. Wandelt jede Seite in sauberen Text um (entfernt Navigation, Footer und Ads).
-5. Indiziert den Text in den gemeinsamen Wissens-Store mit der Seiten-URL als Quelle.
+Öffne **Wissen > Websites** und klick **Website hinzufügen**. Zwei Felder: **Domain** (zum Beispiel `example.com`) und **Scan-Intervall** (jede Stunde, alle 6 Stunden, alle 12 Stunden, täglich, alle 5 Tage, alle 7 Tage, alle 30 Tage). Tale normalisiert die Domain — `https://`, `www.`, abschließende Schrägstriche werden toleriert — und weist alles ab, was nicht als Hostname parst. Speichere, und die Website landet in der Tabelle mit Status **Wird gescannt**.
 
-Nicht-HTML-Dokumente (PDF, DOCX), die auf gecrawlten Seiten verlinkt sind, werden ebenfalls geholt, konvertiert und indiziert.
+Es gibt kein Auth-Feld, keine pfadbasierte Include-Liste, keine pfadbasierte Exclude-Liste im Formular. Der Crawler behandelt die Domain als öffentliche Oberfläche; alles, was eine Session, eine Kopfzeile oder einen Bypass braucht, ist für Websites außen vor. Für private Inhalte lad [Dokumente](/de/platform/knowledge/documents) hoch oder verdrahte eine [Integration](/de/platform/integrations/overview).
 
-## Scan-Intervalle
+## Wie URLs entdeckt werden
 
-Der Crawler besucht die Site nach einem Zeitplan, den du pro Site wählst:
+Der Crawler probiert zuerst den kooperativen Weg und fällt auf den groben zurück.
 
-| Scan-Intervall            | Ideal für                              |
-| ------------------------- | -------------------------------------- |
-| Jede Stunde               | Seiten mit häufigen Inhaltsänderungen. |
-| Alle 6 Stunden (Standard) | Dokumentations-Sites und Firmen-Wikis. |
-| Alle 12 Stunden           | Halbwegs aktive Sites.                 |
-| Täglich                   | Marketing-Sites und Blogs.             |
-| Alle 5 Tage               | Moderat statische Inhalte.             |
-| Alle 7 Tage               | Referenz-Sites mit seltenen Updates.   |
-| Alle 30 Tage              | Kaum wechselnde Referenzinhalte.       |
+Der erste Versuch ist die Sitemap der Seite. Der Crawler löst die Startseite auf, lässt `ultimate-sitemap-parser` jede `sitemap.xml` und jeden Sitemap-Index durchlaufen, den er findet — inklusive gzip-komprimierter Sitemaps und in `robots.txt` deklarierter Sitemaps — und sammelt jede URL ein, die die Seite selbst veröffentlicht hat. Seiten, die ihre Sitemap pflegen, erhalten eine saubere, vollständige URL-Liste ohne Linkgraphen-Raterei.
 
-Jeder Rescan vergleicht gegen den letzten Fetch. Unveränderte Seiten werden nicht neu indiziert — nur neue, geänderte oder gelöschte Seiten lösen Arbeit aus.
+Wenn die Sitemap fehlt, kaputt oder leer ist, fällt der Crawler auf einen breitensuchen-basierten Link-Walk von der Startseite aus zurück. Er folgt nur Links innerhalb der Domain, lässt externe Links und Social-Media-Links fallen und entfernt Navigations- und Fußzeilen-Beiwerk, bevor er Inhalt extrahiert. Der Rückfall deckt Seiten ohne Sitemap ab; er erreicht nicht die Vollständigkeit einer gepflegten Sitemap.
 
-## Rücksicht auf die Ziel-Site
+## Der Scan-Zeitplan
 
-- Der Crawler beachtet `robots.txt`. Disallowed-Pfade werden übersprungen.
-- Anfragen sind ratelimit-begrenzt (standardmäßig ein Fetch pro 2 Sekunden pro Domain), um das Ziel nicht zu überlasten.
-- Der User-Agent ist `TaleCrawler/1.0 (+https://tale.dev/crawler)`, damit Website-Betreiber den Traffic identifizieren können.
+Das gewählte Scan-Intervall entscheidet, wie oft der Crawler URLs neu entdeckt und Seiten neu abruft. Hinter der Tabelle wacht ein Scheduler in jedem Intervall auf, fragt den Store, welche Websites fällig sind, und führt sie mit begrenzter Parallelität aus. Neue Websites haben keinen Last-Scanned-Zeitstempel, also werden sie beim nächsten Scheduler-Tick aufgegriffen und beginnen den Scan innerhalb von Sekunden nach dem Hinzufügen.
 
-Für Sites mit Auth oder angepasstem User-Agent konfiguriere stattdessen eine REST-API-Integration — siehe [Integrationen – Überblick](/de/platform/integrations/overview).
+Jeder Scan ist inkrementell: Seiten, die sich nicht geändert haben, werden übersprungen, geänderte Seiten werden neu extrahiert und neu embedded, neue Seiten werden hinzugefügt, entfernte Seiten fallen aus dem Index. Agents, die auf die Website zeigen, sehen den neuen Inhalt beim nächsten Retrieval.
 
-## Einen Crawl debuggen
+## Was die Tabelle dir sagt
 
-Wenn ein Crawl Seiten nicht findet, die du erwartest:
+Jede Zeile zeigt die Domain, das Scan-Intervall, den Status, den Last-Scanned-Zeitstempel und einen Prozentwert indexierter Seiten. Der Status liest sich als **Inaktiv** zwischen Scans, **Wird gescannt** während ein Scan läuft, **Aktiv** wenn ein Scan erfolgreich war, **Fehler** wenn der letzte Scan scheiterte, oder **Lösche…** wenn eine Zeile entfernt wird. Der Prozentwert ist `gecrawlt / gesamt` aus dem letzten Scan — fahr drüber für die Rohzahlen.
 
-- Öffne die Detailseite der Site unter **Wissen > Websites**. Die Liste der gefundenen Seiten zeigt, was der Crawler entdeckt hat.
-- Der Fehler-Tab listet Seiten, deren Abruf oder Parsing fehlgeschlagen ist, mit HTTP-Status und Fehlermeldung.
-- Prüfe, ob die erwarteten Seiten von der Startseite oder der Sitemap verlinkt sind. Der Crawler findet nur, was er über Links erreichen kann.
+Öffne eine Zeile, um den entdeckten Titel, die Beschreibung und das Erstellungsdatum der Website zu lesen. Klick **Seiten anzeigen** für die Seitenliste — jede URL, die der Crawler indexiert hat, mit Wortzahl, Chunk-Anzahl, Last-Crawled-Zeitstempel und einer Suchbox, die über die indexierten Chunks läuft.
 
-## Eine Site entfernen
+## Wo das hingehört
 
-Eine Site aus **Wissen > Websites** zu löschen, entfernt alle indizierten Inhalte dieser Site. Das geschieht sofort — die KI findet diese Seiten danach nicht mehr.
-
-## Wo das einsetzt
-
-Crawling ist der Bulk-Import-Pfad für öffentliche Web-Inhalte. Er existiert, weil Artikel für Artikel aus einem Help-Center in die Wissensdatenbank kopieren Beschäftigungsarbeit ist, die schlecht skaliert; den Crawler auf die Domain zu richten, holt alles in einem Zug rein. Sobald Inhalt in der Wissensdatenbank ist, liest er sich identisch zu hochgeladenen Dokumenten — dieselbe Suche, dieselben Agents, dieselben Zugriffskontrollen.
-
-Für das Aufnehmen von OneDrive-Dateien oder anderen authentifizierten Quellen nutze die entsprechende Integration in [Integrationen – Überblick](/de/platform/integrations/overview). Für den Endnutzer-Workflow zum Hinzufügen einer Website aus dem Chat siehe [Wissensdatenbank](/de/platform/workspace/knowledge-base).
+Crawling ist der günstige Weg, eine öffentliche Seite in den Agent-Kontext zu bringen. Du gibst eine Domain und eine Taktung, der Rest ist das Problem des Crawlers — Sitemap-Erkennung, Linkgraphen-Rückfall, geplante Re-Scans, inkrementelle Indexierung. Der Trade-off: der Crawler sieht nur das, was ein anonymer Besucher sieht. Alles hinter einem Login liegt in [Dokumenten](/de/platform/knowledge/documents) oder einer [Integration](/de/platform/integrations/overview). Die nächste Lektüre, die sich lohnt, ist [Strukturierte Daten](/de/platform/knowledge/structured-data) — sie deckt ab, wie die Website-Aufzeichnung und die indexierten Seiten neben Kunden, Produkten und Lieferanten in die Wissensdatenbank passen.

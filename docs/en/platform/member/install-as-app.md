@@ -1,45 +1,38 @@
 ---
-title: Install Tale as an app
-description: Install Tale on your phone or laptop as a Progressive Web App. The installed version runs in its own window, shows up in the home screen or Dock, and is the recommended way to use Tale on mobile.
+title: Install as app
+description: How to install Tale as a Progressive Web App on desktop and mobile — the menu shortcut on Chromium browsers, the iOS Safari path, and what changes once the app is installed.
 ---
 
-Tale is a Progressive Web App, which means your browser can install it as a standalone application. The installed version opens in its own window without the address bar, lives on your home screen or in the Dock, and on mobile feels indistinguishable from a native app — the same bottom tab bar, the same safe-area-aware chrome, the same gestures. There is nothing to download from an app store; the install is a single tap or click inside the browser you already use to sign in to Tale.
+Tale ships as a Progressive Web App. Installing it puts an icon on your dock or home screen, runs Tale in its own window without browser chrome, and keeps the same session you had in the browser. There is no separate native build to download and no extension to install — the same URL you sign in with is the same app, in a standalone shell.
 
-This page walks you through installing Tale on iOS, Android, and desktop. The capabilities of the installed version are identical on every platform: you stay signed in, every feature works, and Tale tells you when a new version is ready with a small toast inside the app. Offline access is intentionally limited — the platform requires a live connection to the backend, so when you lose the network Tale shows a clear offline screen and recovers automatically once you are back online.
+This page covers the three places you trigger the install: the **Get app** row in your profile menu on Chromium browsers, the share-sheet step on iOS Safari, and the install banner Android Chrome surfaces on its own. Once installed, Tale behaves identically; the install only changes the chrome around it.
 
-## Install on iPhone or iPad
+## The profile-menu shortcut
 
-Open `app.tale.dev` (or your self-hosted URL) in Safari — Apple does not let other iOS browsers install web apps. Tap the **Share** button in the toolbar, then scroll down and tap **Add to Home Screen**. Confirm the name and tap **Add**. The Tale icon appears on your home screen, and tapping it launches Tale in a standalone window without the Safari URL bar. The status bar respects your theme: light when the operating system is in light mode, dark otherwise.
+On Chrome, Edge, Brave, Arc, and the other Chromium browsers, Tale's profile dropdown carries a **Get app** row when the browser is willing to install. Open the menu from your avatar in the top-right, scroll past the theme switcher and the language switcher, and click **Get app**. The browser opens its native install confirmation; accept it, and Tale lands in your dock (macOS), your taskbar (Windows), or your apps list (ChromeOS) within a second or two.
 
-You stay signed in across launches. To remove the app, long-press the icon and choose **Remove App**, the same way you would for any native app — your account is unaffected.
+The row is only there when the browser fired its `beforeinstallprompt` event and the app is not already installed. Browsers that do not fire that event — Firefox, Safari, anything in a private window — do not show the row, so the menu stays one item shorter rather than asking for something it cannot deliver.
 
-## Install on Android
+## iOS and iPadOS
 
-In Chrome, Edge, or any Chromium-based browser, open Tale and look for the install prompt that appears in the URL bar or the address-bar overflow menu (the three-dot icon). Choose **Install app** or **Add to Home screen**. Tale installs as a separate app entry, available from the launcher and the recents list. Notifications are not used today; the app will work entirely as a foreground experience.
+iOS Safari does not fire `beforeinstallprompt`, so the **Get app** row does not appear in the menu. The install path lives in Safari's share sheet instead.
 
-To uninstall, long-press the Tale icon and choose **Uninstall**, or remove the app from the system app settings.
+Open Tale in Safari, tap the share icon in the toolbar, scroll down to **Add to Home Screen**, and confirm. Tale appears on your home screen with the same icon as the browser favicon. Tap it, and Tale opens in its own window — no Safari address bar, no tab strip, no back button beyond what Tale itself surfaces. Notifications work the same way they do in the browser tab; the install is the only difference.
 
-## Install on desktop
+Other iOS browsers — Chrome, Edge, Firefox on iOS — are Safari under the hood. They do not have an Add-to-Home-Screen entry of their own. The Safari path is the only iOS install path that produces a real standalone app.
 
-In Chrome, Edge, Brave, or Arc, open Tale and click the install icon at the right edge of the URL bar (a small monitor with a downward arrow). The browser asks for confirmation; click **Install**. Tale opens in a dedicated window without browser chrome and appears in the Dock (macOS), taskbar (Windows), or activities (Linux).
+## Android
 
-Firefox does not currently install web apps as separate windows, but Tale runs fully in a normal Firefox tab. Safari on macOS supports installation from the **File** menu (**File → Add to Dock** in recent versions).
+Android Chrome handles installation in two places. The first is the same **Get app** row in Tale's profile menu, identical to the desktop flow. The second is Chrome's own install banner — a one-line bar that slides up from the bottom of the page on sites it considers installable. Tap **Install** on the banner, confirm in the system sheet, and Tale lands on your home screen.
 
-## What "installed" gives you
+If you dismissed the banner once, it usually does not come back for a while. The profile-menu shortcut keeps working whether or not the banner has been shown. Other Android browsers — Firefox, Samsung Internet, Brave — each have their own install path under their browser menu, typically labelled **Install app** or **Add to Home Screen**.
 
-The installed app loads faster than a fresh tab because the offline shell and brand assets are cached locally by the service worker. Tale still calls the backend for every operation — there is no local data store — so a live connection is required for any meaningful interaction. The benefits are presentation, not offline capability:
+## After installing
 
-- A dedicated window and icon, no browser chrome in the way.
-- Mobile layouts with a bottom tab bar that matches platform conventions.
-- Safe-area-aware padding so content does not slide under the iOS notch or Android gesture bar.
-- A small toast when a new version of Tale is ready, with a single tap to refresh.
+Tale running in a PWA window is the same Tale running in a browser tab. The session, the chats, the knowledge base, the agents — all of it is the same surface. The differences are cosmetic and small: no browser chrome around the app window, an icon in your launcher, and on most platforms the window remembers its size and position between launches.
 
-When the connection drops, Tale shows an in-app overlay explaining that the platform needs internet and reconnects automatically the moment you regain signal. If you launch the app with no connection at all, you see the standalone offline screen instead — still no functionality, but a clearer message than a broken page.
+Uninstalling follows the platform convention. On macOS, drag the icon out of the dock; on Windows, right-click and uninstall; on iOS and Android, long-press the icon and remove. Uninstalling clears the PWA shell but not the session — sign back in through the browser, and your data is where you left it.
 
-## Updates and uninstall
+## When to reach for it
 
-Updates roll out continuously. When Tale ships a new version, the running app picks it up in the background; the next interaction triggers a toast offering to apply the update. Tapping **Update now** reloads the app on the new version without a full reinstall. If you ignore the toast, the new version applies the next time you fully close and reopen Tale.
-
-To uninstall on any platform, remove the icon or app entry the same way you would for any other application. Reinstalling later restores everything, because all your data lives server-side — nothing about the install is tied to a specific device.
-
-Installing Tale is one of the lowest-effort changes you can make to your daily workflow. The mobile experience improves dramatically once the address bar is gone, the desktop experience is one fewer tab to lose, and the update path is built in. If you spend more than a few minutes a day in Tale, install it once and forget the URL.
+The install is worth it once you find yourself opening Tale every day and want it to feel like one of your apps rather than one of your tabs. It is also the right move when you want the chat window pinned to a virtual desktop or a stage-manager slot that browser tabs would not respect. Skip the install if you sign in from many machines and prefer the browser tab — Tale works the same way either way. The neighbouring read is [Member overview](/platform/member/overview) — it is the map of what the rest of the Member surface covers once Tale is sitting in your dock.

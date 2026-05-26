@@ -1,36 +1,40 @@
 ---
-title: Your preferences
-description: Per-user settings — password, display name, interface language, theme, and notification preferences. Edit them from Account in the avatar menu.
+title: Preferences
+description: The member-level settings that follow you across orgs and chats — display name and password under Account, theme and locale in the profile menu, custom instructions and memories under Personalization, and sign-out.
 ---
 
-Your preferences are the per-user surface for personal settings — password, language, theme, notifications, display name. They live under **Account**, reachable from your avatar in the bottom-left corner. Every role — Member, Editor, Developer, Admin, Owner — can edit their own preferences from the same screen; the page is identical across roles.
+Preferences are the dials that belong to you rather than to the org. Your display name is the name agents and teammates see in chats and approvals. Your locale and theme follow you between devices. Your custom instructions and memories shape how agents reply to you specifically — separately from anything the Admin or Editor has set at the org level. This page maps where each lever lives and what it changes.
 
-Nothing on this page changes anything for the rest of the organisation. The changes you make here only affect how Tale presents itself to you. For organisation-wide settings (branding, governance, providers), an Admin works from [Admin](/platform/admin/overview).
+The shape is intentionally two-layered: the profile menu (everywhere, one click from the avatar) carries the quick toggles; **Settings > Account** and **Settings > Personalization** carry the deeper account fields. Everything here is yours — none of it leaks to other members or other orgs.
 
-## Password
+## The profile menu
 
-Change the password you use to sign in. The form asks for your current password and the new one, plus a confirmation. The new password is checked against the org's password policy (length, character classes), so a too-weak password is rejected before the form submits.
+Click your avatar in the top-right. The dropdown opens with your name, your email, and the current build version. Below the header sit four quick controls every member sees regardless of role: the **theme** switcher (System / Light / Dark), the **language** sub-menu (English, Deutsch, Français), the **Get app** row when the browser can install Tale as a PWA, and **Log out**. Theme and language take effect immediately and persist per-device.
 
-If you signed up through SSO or trusted headers and never had a password, the same form lets you _set_ one. Adding a password enables direct email-and-password sign-in in addition to your existing federated route.
+The menu also carries an organisation switcher when you belong to more than one org and a team filter when your current org has teams. Those are not preferences — they change what Tale shows you, not how Tale behaves. Below the team filter, **User settings** opens **Settings > Account**, the page covered next.
 
-## Display name
+## Account — name, email, password, two-factor
 
-The name shown in the sidebar, chat messages, and comments. Admins can override your display name from **Settings > Members**, but when they have not, the field is yours to edit. Pick something the rest of the team recognises — the name is what shows up next to your messages, not your email.
+Open **Settings > Account**. Three sections sit on the page: **Profile**, **Security**, and **Two-factor authentication**.
 
-## Language
+The Profile section holds your **display name** and your **email**. The display name is editable inline; the change saves on blur and propagates to every chat and approval the next time they render. Email is read-only — it is what you signed in with, and changing it goes through support. There is no avatar field on the page; Tale derives an avatar from your display name initials.
 
-Pick the interface language. Tale ships English, German (with a Swiss variant), and French. The language preference applies to the platform UI and to system messages; it does _not_ change the language of documents you have uploaded or the style of the AI's replies, which follow the content and the agent's instructions.
+The Security section holds a single button: **Change password** if you signed up with email and password, **Set password** if your account is federated through SSO and you want to add a password as a fallback. Both flows enforce the org's password policy and surface the rules live as you type. The Two-factor section pairs the account with a TOTP app or a hardware key and shows the backup codes once at enrolment.
 
-For agents, the org-wide default response language is set by the Admin under **Settings > Organization > Agent response language**; your interface language follows your own setting independently.
+## Personalization — custom instructions, memories, voice output
 
-## Theme
+Open **Settings > Personalization**. The page gates each feature with an on/off toggle that follows the org default until you override it.
 
-Choose between **Light**, **Dark**, and **System**. **System** follows your operating system's light or dark setting and updates live when it changes — useful when you switch between bright desks and dim evenings on the same laptop.
+**Custom instructions** is a free-form text field — up to 4,000 characters — that every agent receives as additional context for your conversations specifically. Use it for the things you would otherwise say at the top of every chat: your role, your preferred reply style, the projects you are working on, the constraints the agent should respect. The org default decides whether the feature is on for new members; your toggle overrides it for your own account.
 
-## Notifications
+**Memories** are short facts the agent saves about you between chats — a topic you asked about, a preference you stated, a context you would not want to repeat. Saved memories appear in a list with a delete button on each row; pending memories surface in their own section with **Approve** and **Dismiss** controls so nothing lands in your record without you seeing it. Toggle the feature off and existing memories stop being used until you turn it back on.
 
-Opt in or out of email notifications for approval requests, conversation assignments, and workflow completions. Each toggle is independent; the in-product notifications stay regardless of the email toggles.
+**Voice output** picks the voice an agent uses when it speaks in voice mode. The setting only applies when the org has a voice provider configured; otherwise the section explains the gap and points at the Admin.
+
+## Signing out
+
+The **Log out** row at the bottom of the profile menu confirms with a dialog before clearing the session. After confirming, Tale does a full page reload to the sign-in page so no stale state lingers in the tab. Sign-out is per-device — signing out on your laptop does not log you out on your phone, and vice versa.
 
 ## Where this fits
 
-Preferences are the per-user surface — your password, your language, your theme, your notification preferences. They do not change anything for the rest of the organisation; they only change how Tale presents itself to you. For organisation-wide settings (branding, retention, governance, providers), an Admin works from [Admin](/platform/admin/overview); for the second factor on your account (TOTP and backup codes), see [Two-factor authentication](/platform/admin/two-factor-authentication).
+Preferences are the line between you and the rest of the org. The org Admin sets defaults — including whether personalization is on for new members, what the password policy is, which models are allowed — and your preferences override the defaults where Tale lets them. The next read worth queuing is [Member overview](/platform/member/overview) for the map of the rest of the Member surface, or [Install as app](/platform/member/install-as-app) if you want Tale to live in your dock rather than your browser tabs.

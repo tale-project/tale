@@ -1,36 +1,40 @@
 ---
-title: Utiliser des agents dans le chat
-description: Choisis un agent spécialisé depuis le composeur pour cadrer les connaissances, restreindre les outils et router les conversations vers la bonne voix.
+title: Agents dans le chat
+description: Comment fonctionne le sélecteur d'agents dans le Chat — quels agents apparaissent, ce que contrôle Visible in chat, agents ponctuels versus persistants, changement en cours de thread, et appels de sous-agents.
 ---
 
-Un agent est une version de l'IA taillée pour une mission précise — un agent support qui répond aux questions des clients depuis le dossier du Centre d'aide, un agent de recherche commerciale autorisé à appeler le web, un agent de recherche interne en lecture seule sur les documents d'ingénierie. Chaque agent porte ses propres instructions, son périmètre de connaissances et ses permissions d'outils, et le composeur du chat te laisse choisir quel agent répond à une conversation donnée. Le public : tout le monde dans le produit — les Membres prennent les agents que l'équipe a livrés, les Éditeurs et les Développeurs en construisent de nouveaux.
+Choisir un agent dans le Chat est la différence entre demander à un Assistant générique et demander à quelque chose que l'organisation a façonné pour un domaine. Le sélecteur d'agents est le contrôle le plus utilisé du composer ; les règles qui définissent quel agent apparaît, quand un agent persiste, et ce qui se passe quand tu changes en milieu de chat, font l'objet de cette page.
 
-Cette page couvre le comportement à l'exécution des agents dans le chat — bascule de l'agent actif, lecture des amorces de conversation, observation des transferts vers un spécialiste. Le modèle mental de ce qu'_est_ un agent vit dans [Concepts des agents](/fr/platform/agents/concepts) ; en construire un, c'est dans [Créer un agent](/fr/platform/agents/create).
+Le sélecteur est conceptuellement simple — tape un nom, appuie sur entrée — mais les règles autour de la visibilité et de la persistance provoquent en pratique la plupart des tickets « pourquoi je ne vois pas cet agent ». Connaître les règles évite l'aller-retour.
 
-## Basculer l'agent actif
+## Le sélecteur d'agents
 
-Pour router une conversation vers un agent précis, ouvre le sélecteur d'agent (l'icône bot en bas à gauche du composeur), descends jusqu'à l'agent et clique. Le message suivant part vers les instructions, le périmètre de connaissances et les outils du nouvel agent ; la barre de titre de la conversation affiche l'agent actif. Basculer en cours de conversation est permis — le nouvel agent lit le transcript existant avant sa première réponse, donc le contexte n'est pas perdu.
+Clique **Select agent** sur le composer (ou la puce affichant l'agent actuellement choisi) et le sélecteur s'ouvre avec **Search agents** en haut. La liste montre chaque agent auquel l'utilisateur a accès et qui est marqué **Visible in chat** ; les agents sans ce toggle existent dans l'organisation mais ne montent jamais dans le sélecteur, ce qui garde la liste courte. **Add agent** en bas est un raccourci pour les Éditeurs et au-dessus pour en créer un nouveau — voir [Créer un agent](/fr/platform/agents/create).
 
-Chaque conversation retient l'agent choisi. Démarrer un nouveau chat remet le sélecteur sur l'Assistant par défaut livré avec Tale.
+## « Visible in chat »
 
-## Amorces de conversation
+Chaque agent a un toggle **Visible in chat** sur sa page d'instructions. Le désactiver ne désactive pas l'agent — les automatisations et les workflows peuvent toujours l'appeler ; les appels de sous-agents depuis d'autres agents fonctionnent encore — ça cache seulement l'agent du sélecteur du chat. La raison : les organisations finissent avec des dizaines d'agents que l'utilisateur moyen ne choisit jamais (agents utilitaires appelés par d'autres agents, agents liés à un workflow précis), et les afficher tous noierait les choix quotidiens.
 
-Quand l'agent actif a des **amorces** configurées, une rangée de suggestions cliquables apparaît sur une conversation neuve. Clique sur une amorce pour l'envoyer comme premier message — c'est plus rapide que de taper le prompt, et c'est un bon moyen de découvrir ce que l'agent sait gérer. Les amorces se configurent par agent dans l'onglet **Agents > [agent] > Amorces** ; un agent sans amorces affiche un composeur vide.
+## Ponctuel versus persistant
 
-## Pourquoi basculer d'agent
+Choisir un agent **avant** le premier message d'un chat le rend persistant — chaque message suivant dans le même chat va au même agent. En choisir un **en milieu de chat** l'applique au message suivant et tout ce qui suit, jusqu'à un nouveau changement. Il n'y a pas de geste « utilise cet agent une fois et reviens » ; pour revenir à l'Assistant générique, choisis **Assistant** explicitement dans le sélecteur. Le transcript garde l'agent par message, donc un chat avec un changement en cours de route se lit comme deux agents qui collaborent.
 
-Trois raisons de prendre un agent autre que le défaut. Un périmètre de connaissances plus étroit donne des réponses plus tranchantes — un agent support qui ne fouille que le dossier du Centre d'aide ne se laisse pas distraire par les documents internes d'ingénierie. Une liste d'outils plus mince garde les questions exploratoires sûres — un agent de recherche en lecture seule, avec toutes les opérations d'écriture coupées, ne peut pas mettre à jour un ticket par accident. Une voix différente change la forme de la sortie — les agents se configurent avec des tons, des formats de sortie (Markdown, JSON, prose nue) et des niveaux de rigueur distincts.
+## Changer en cours de thread
 
-Le plus gros levier de qualité, ce sont les instructions de l'agent. La plupart des « l'IA n'arrête pas de faire X » se ramènent à une phrase manquante ou fausse dans le system prompt, pas à un mauvais modèle.
+Les connaissances et les outils de l'agent changent avec le sélecteur, mais l'historique de la conversation, non. Le nouvel agent lit tout ce qui précède — tes messages et les réponses de l'agent précédent — et continue à partir de là. C'est utile pour les passations : un agent de tri répond au premier message, tu passes à un spécialiste pour la suite, le spécialiste a tout le contexte sans que personne ne copie-colle.
 
-## Transferts de délégation
+## Appels de sous-agents
 
-Certains agents sont configurés pour **déléguer** à des spécialistes quand le sujet dérive. Si un agent support général reçoit une question de facturation et a un agent spécialiste de la facturation inscrit comme cible de délégation, il transfère la conversation tout seul. Le transfert apparaît dans le transcript sous forme d'une note courte qui nomme le nouvel agent, et les réponses qui suivent viennent des instructions du délégué.
+Les instructions d'un agent peuvent inclure un outil sous-agent ; quand c'est le cas, l'agent primaire peut déléguer une partie du travail sans que l'utilisateur choisisse quoi que ce soit. Les appels de sous-agents s'affichent dans la réponse comme des appels d'outils pliés — l'utilisateur voit ce qui a été délégué et ce qui est revenu, pas une seconde conversation complète. Les règles de délégation et le modèle de prévention de boucles vivent sur [Délégation d'agents](/fr/platform/agents/delegation).
 
-La délégation est opt-in par agent. Pour l'activer, ouvre l'onglet **Délégation** de l'agent et choisis vers quels agents il peut transférer, avec le sujet ou la condition qui déclenche le transfert. La surface de configuration est documentée dans [Créer un agent](/fr/platform/agents/create).
+## Quand opter pour chaque forme
+
+| Utilise … quand                                         | Chat | Projects | Conversations |
+| ------------------------------------------------------- | ---- | -------- | ------------- |
+| Tâche personnelle, question ponctuelle                  | ✓    |          |               |
+| Espace de travail partagé en équipe, threads récurrents |      | ✓        |               |
+| Entrée depuis un canal client (e-mail, webhook)         |      |          | ✓             |
 
 ## Où ça s'inscrit
 
-Le sélecteur d'agent, c'est comment le bon spécialiste répond à chaque question — au lieu de forcer un Assistant générique à couvrir tous les sujets, tu prends l'agent bâti pour le sujet. Le rôle Membre peut utiliser ce que l'équipe a livré ; Éditeur ou plus est requis pour construire un nouvel agent.
-
-Pour bâtir un spécialiste, démarre par [Concepts des agents](/fr/platform/agents/concepts) pour le modèle mental à quatre boutons, puis parcours [Créer un agent](/fr/platform/agents/create) de bout en bout.
+Agents dans le chat est la moitié côté utilisateur de l'histoire des agents — ce que le sélecteur fait, ce qui s'affiche, comment la persistance fonctionne. La moitié côté construction est [Concepts d'agent](/fr/platform/agents/concepts) : les quatre boutons qui déterminent ce qu'un agent fait une fois choisi. Si tu es venu ici pour construire l'agent que tu aimerais avoir dans le sélecteur, c'est la lecture suivante.

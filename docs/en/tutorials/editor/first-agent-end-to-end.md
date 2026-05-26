@@ -1,99 +1,45 @@
 ---
-title: Build your first agent end to end
-description: Create a purpose-built agent, attach knowledge, test it, and publish a version.
+title: Build your first agent
+description: Walk a fresh org from "I want an agent" to a working chat reply by turning the four knobs — instructions, knowledge, tools, model — in order on one instance.
 ---
 
-Generic chat answers questions with whatever the model has been trained on; a purpose-built agent answers with your organisation's knowledge, in your tone, scoped to one job — "Product support", "HR policies", "Sales enablement". This tutorial takes you from an empty agent page to a versioned agent your team can pick in the chat agent selector. Feature reference lives at [Agent concepts](/platform/agents/concepts) and [Create an agent](/platform/agents/create); this page stitches those into a concrete outcome.
+A first agent is the smallest useful thing in Tale: instructions plus a model, sometimes with one tool or one document bound. This walk turns the four knobs in order — instructions, knowledge, tools, model — and leaves you with a published agent that answers a real question in a chat. The shape generalises: every agent you build later is the same four moves with different choices.
 
-The outcome at the end is a published agent with one job, the right knowledge scope, and a smoke test you've run yourself.
+You need an Editor role and a configured chat-tagged model on the org's provider. The conceptual side lives in [Agent concepts](/platform/agents/concepts); this walk is the end-to-end mechanic.
 
 ## Before you begin
 
-You need Editor access or higher in your Tale instance — Owner, Admin, Developer, and Editor all qualify; Member and Disabled don't. Confirm the role on your profile page if you're not sure. You also need at least one folder in the [Knowledge base](/platform/workspace/knowledge-base) that matches the agent's job; if your org's knowledge isn't structured into folders yet, create one with three or four representative documents before continuing — an agent with no relevant knowledge is harder to test honestly.
+Confirm three things. Your role is at least Editor — agent editing is gated to Editor and above. The org has a provider configured and at least one chat-tagged model on it; without that, the test reply at the end fails on the model call. You have a question in mind the agent should answer — pick something narrow enough that a paragraph of instructions can frame it, like "summarise an inbound customer message into one sentence plus a recommended next action".
 
-No external account, no API key, no feature flag.
+## Step 1 — Write the instructions
 
-## Step 1 — Decide what the agent is for
+Instructions are the system prompt — the prose that frames every reply. The first knob is the one most people overshoot. Open **Agents > New agent** and set:
 
-The single hardest thing about an agent is naming what it doesn't do. Before clicking anything, write one sentence on paper or in a draft: "This agent answers X using Y, and does not do Z." For example: "This agent answers product-support questions using the Help Center folder, and does not give legal or billing advice." That sentence becomes the backbone of your system instructions — without it, the agent drifts towards whatever the user asks, even when the answer is outside its scope.
+- **Name** — `Triage assistant`
+- **Instructions** — `You read a customer message and produce two lines. Line one: a one-sentence summary in plain English. Line two: a recommended next action — reply, escalate, or close. If the message is blank or off-topic, refuse and say so.`
 
-The step worked when the sentence makes the agent's job and its refusal cases both explicit.
+Save as a draft for now; publishing comes after the other knobs. Short, opinionated, concrete instructions outperform long ones — keep the rules under a paragraph.
 
-## Step 2 — Create the agent
+## Step 2 — Decide on knowledge
 
-Open **Agents** in the sidebar and click **Create agent**. Give it a **Display name** ("Product Support"), an **Internal name** — a URL-safe slug used in API calls and the chat URL (`product-support`), and a short description. Save.
+Knowledge is what the agent can reference at reply time. For this first agent, leave Knowledge empty: the job is reading the message, not retrieving anything. The Knowledge tab stays untouched.
 
-The internal name is permanent in practice: agents are addressed by slug from automations, the API, and the chat URL, so renaming later breaks every link that points at the old one. Pick something you can live with.
+If you wanted to add knowledge later — say, an escalation matrix the agent should consult — you would upload the document, open the agent's **Knowledge** tab, and bind it. The full mechanic is in [Agent with knowledge](/tutorials/editor/agent-with-knowledge).
 
-The step worked when the agent's configuration page opens with its tabs (Instructions, Knowledge, Tools, Conversation starters, Webhook, Versions) lined up at the top.
+## Step 3 — Pick the tools
 
-## Step 3 — Write the instructions
+Tools are what the agent can do beyond reply with text. For triage, no tools are needed: the agent reads input and writes output. Open the **Tools** tab and leave every toggle off. Every tool you grant widens the trust boundary; keep the list short.
 
-Open the **Instructions** tab and paste a system prompt built around the sentence from Step 1. The skeleton below covers the four things every agent's prompt needs — identity, scope, rules, output shape:
+If the agent should write the recommended action back to a CRM, you would toggle the corresponding integration tool on later — but not before the text-only version works.
 
-```text
-You are the <role> for <organisation>.
+## Step 4 — Pick the model and publish
 
-Your job is to <task>, using <scope of knowledge>.
+Open the **Model** tab and pick the org default for the primary; set a smaller model as the fallback so the agent still runs when the primary is rate-limited. Save, then click **Publish**. The agent is now visible in chat to everyone with the right role.
 
-Rules:
-- Always respond in the user's language.
-- Cite the source document when you answer from the knowledge base.
-- If a question is out of scope, say so and suggest where to ask.
+Open a chat with `Triage assistant` and paste in a real customer message. The reply should land in two lines per the instructions — a one-sentence summary and a recommended action. If the format drifts, tighten the instructions and republish; this is the loop you spend the most time in.
 
-Tone: <tone>.
-Format: <format>.
-```
+## Where this fits
 
-Pick a **Model preset** (Fast / Standard / Advanced) that matches the task: Fast for short lookups, Advanced for multi-step reasoning. The mapping from preset to actual model lives in [Agent concepts — Model](/platform/agents/concepts#model).
+Four knobs, one published agent, one verified reply: the same shape every agent you build later follows. The next walks specialise on one knob each — [Agent with knowledge](/tutorials/editor/agent-with-knowledge) on the second knob, [Delegate between agents](/tutorials/editor/delegate-between-agents) on the third.
 
-Changes save automatically; an indicator in the top-right shows the save state.
-
-The step worked when the save indicator settles on "saved" and the prompt preview renders the text you pasted without truncation.
-
-## Step 4 — Scope the knowledge
-
-Open the **Knowledge** tab. The default is the full organisation knowledge base, which is almost always too broad — irrelevant search hits crowd out the relevant ones, and the agent's answers blur. Uncheck everything that isn't the agent's job and keep only the folders that match.
-
-A narrow scope produces sharper answers. A support agent reading `Help Center` only will outperform a support agent reading every folder in the org, every time.
-
-The step worked when the Knowledge tab lists one or two folders and the rest are unchecked.
-
-## Step 5 — Turn off the tools you don't need
-
-Open the **Tools** tab and disable anything the agent shouldn't use. A support agent probably doesn't need web search; a research agent probably doesn't need the billing integration. Fewer tools means fewer surprises in production — and fewer tools the model has to reason over, which speeds up the response.
-
-The step worked when only the tools the agent genuinely uses are toggled on.
-
-## Step 6 — Add conversation starters
-
-Open the **Conversation starters** tab and add two or three example prompts. They show on the empty-state screen when a user opens a new conversation with the agent, and they double as a smoke-test list for Step 7: if a starter answers well, the agent is at least pointing in the right direction.
-
-The step worked when the starters appear under the composer when you open a new chat with the agent.
-
-## Step 7 — Test from chat
-
-Open **Chat** in the sidebar, pick the new agent in the agent selector, and try each conversation starter plus one or two ad-hoc questions you'd expect a colleague to ask. Watch for three things: does the agent cite the right documents, does it refuse out-of-scope questions cleanly, and does the tone match what you wrote in the instructions.
-
-Iterate by switching back to the Instructions tab, tightening the prompt, and retesting. This loop is the bulk of agent building — most agents need three or four iteration rounds before they're good.
-
-The step worked when the agent answers a representative in-scope question with a citation and refuses an out-of-scope question with a one-sentence redirect.
-
-## Step 8 — Publish a version
-
-Every edit so far has updated a **draft**; the live version (if there's a previous one) keeps serving chat until you publish. Click **Publish** in the version header. Future edits start a new draft — users keep hitting the published version until you publish again.
-
-The step worked when the version header shows a fresh version number and "Published" badge, and the agent's draft tab is empty.
-
-## Troubleshooting
-
-- **The agent cites the wrong document on every question** — the Knowledge tab's scope is still too broad, or one folder dominates by document count. Narrow further, or split into two agents (`support-public` and `support-internal`) with different scopes.
-- **The agent refuses in-scope questions** — the system prompt's "Rules" section is too restrictive, or the task description doesn't match how users actually phrase questions. Loosen the rules and rephrase the task in the user's voice.
-- **Conversation starters don't appear** — the agent has at least one published version but you're looking at a draft preview, or the starters were saved on a different agent draft. Switch to the published version's preview.
-- **Publishing failed with a validation error** — required fields (display name, slug, system instructions) are empty, or the slug collides with an existing agent. The error toast names the field.
-
-## Where this gets used
-
-What you built is a versioned, knowledge-scoped agent your team can pick from the chat selector — and the same agent is also reachable from automations, the public API, and the Webhook tab without any extra wiring. The four decisions you made (instructions, knowledge, tools, model) hold across every surface where the agent runs, which is the whole point of the agent abstraction.
-
-Two natural next moves from here: let scripts call the agent directly with [Call Tale from a script](/tutorials/developer/call-tale-from-a-script), or wire the same agent into a multi-step workflow with [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook).
+For the concept page that names the four knobs and the trade-offs between them, see [Agent concepts](/platform/agents/concepts). For versioning and rollback once the agent matures, see [Agent versions](/platform/agents/versions).

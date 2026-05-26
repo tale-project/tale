@@ -1,64 +1,42 @@
 ---
 title: Journaux d'exécution
-description: Relire les exécutions passées d'une automatisation, déboguer les échecs, et rejouer avec une nouvelle entrée.
+description: L'historique des exécutions par workflow — chaque exécution avec son statut, sa durée, sa source de déclencheur, les entrées et sorties d'étapes et le journal complet de ce que chaque étape a fait. Les Développeurs et Éditeurs lisent ceci quand une exécution a échoué ou s'est comportée bizarrement.
 ---
 
-L'onglet **Exécutions** de chaque automatisation est le journal par exécution de tout ce qui a tenté de la lancer — planifications, webhooks, événements et exécutions manuelles confondus. Chaque ligne est une exécution, chaque ligne se déplie sur la trace pas-à-pas des entrées, des sorties et des erreurs qui l'ont produite. C'est là qu'un Développeur ou un Admin atterrit quand une API tierce a renvoyé `400` dans la nuit et que la question est « quelle étape, avec quelle charge, contre quel modèle ».
+Les journaux d'exécution sont l'historique d'exécutions pour un seul workflow. Chaque fois qu'un déclencheur tire le workflow, Tale ouvre un nouvel enregistrement d'exécution et y écrit pendant que l'exécution avance — heure de début, statut, l'entrée que le déclencheur a portée, la sortie que chaque étape a émise, la durée et l'erreur si une étape a échoué. La page est la surface de débogage que chaque autre onglet automatisation pointe quand quelque chose a mal tourné.
 
-Les exécutions sont conservées selon la [politique de rétention](/fr/platform/admin/governance#aufbewahrung) de l'organisation. Au-delà de cet horizon, les lignes sont supprimées définitivement par le travail de nettoyage quotidien ; déboguer sur la durée veut dire copier la trace avant que cela arrive.
+La liste vit sur l'onglet **Exécutions** d'une automatisation. Ouvre l'automatisation, clique sur **Exécutions**, et la table charge les exécutions les plus récentes. Chaque ligne se déplie en une vue JSON de l'exécution, de ses variables et du journal étape par étape.
 
-## Un échec détaillé
+## La vue liste
 
-Clique sur n'importe quelle ligne pour la déplier. Le panneau de détail montre une vue JSON de l'exécution complète, structurée ainsi :
+La liste montre une ligne par exécution, triée par heure de début. Les colonnes sont l'ID d'exécution, le badge de statut, l'heure de début (à la milliseconde près), la durée et la source de déclencheur. La barre d'outils au-dessus porte une boîte de recherche (matche un ID d'exécution), un filtre de statut, un filtre déclenché-par et un sélecteur de plage de dates.
 
-```json
-{
-  "execution": {
-    "id": "exe_…",
-    "status": "failed",
-    "startedAt": "2026-05-15T09:12:04.317Z",
-    "completedAt": "2026-05-15T09:12:06.842Z",
-    "triggeredBy": "webhook",
-    "error": "Shopify returned 400: 'price' must be a positive number"
-  },
-  "metadata": { … trigger source, webhook token id, idempotency key … },
-  "variables": { … workflow variables at run time … },
-  "journal": [
-    { "step": "Start", "status": "completed", "input": { … }, "output": { … } },
-    { "step": "Fetch order", "status": "completed", "output": { … } },
-    { "step": "Create line item", "status": "failed", "error": { … } }
-  ]
-}
-```
+| Colonne        | Type       | Requis | Description                                                                                                                            |
+| -------------- | ---------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| ID d'exécution | Chaîne     | oui    | Identifiant stable pour l'exécution. Clique sur l'icône de copie pour la mettre dans le presse-papiers.                                |
+| Statut         | Badge      | oui    | Un parmi `running`, `completed`, `failed`, `pending` ou `waiting_for_input` (quand un point d'approbation a mis l'exécution en pause). |
+| Démarré à      | Horodatage | oui    | Heure murale du démarrage de l'exécution, dans le fuseau horaire de l'org.                                                             |
+| Durée          | Nombre     | non    | Heure murale du démarrage à l'achèvement. Vide pour une exécution encore en cours.                                                     |
+| Déclenché par  | Énum       | oui    | Un parmi `schedule`, `manual`, `webhook`, `event`, `api` ou `system`.                                                                  |
 
-Le champ `journal` porte la charge — chaque étape qui s'est exécutée est enregistrée dans l'ordre, avec l'entrée littérale qu'elle a vue, la sortie qu'elle a produite et l'erreur si elle en a levé une. Les étapes en échec restent dépliées par défaut, donc le point de rupture se signale lui-même sans que tu chasses parmi les autres.
+La pleine page charge par incréments — défile en bas et la page suivante se récupère. Le décompte approximatif de lignes dans la barre d'outils est une estimation bon marché ; le compte exact n'est pas tenu.
 
-## Filtres et recherche
+## La vue d'exécution dépliée
 
-La barre de filtres au-dessus du tableau couvre les cas que tu sors le plus souvent.
+Déplie une ligne et Tale rend une vue JSON de l'exécution. Le niveau supérieur porte cinq champs : les métadonnées d'exécution (id, statut, heures de début et de fin, la source de déclencheur, l'erreur le cas échéant), le bloc de métadonnées au niveau de l'exécution venant du déclencheur, les variables d'entrée que l'exécution a reçues, le journal d'étapes et une chaîne d'erreur journal si le journal n'a pas pu charger.
 
-| Filtre            | Valeurs                                                                                         |
-| ----------------- | ----------------------------------------------------------------------------------------------- |
-| **Statut**        | `running`, `completed`, `failed`, `pending`.                                                    |
-| **Déclenché par** | `schedule`, `manual`, `event`, `webhook`, `api`, `system`.                                      |
-| **Période**       | Aujourd'hui, 7 derniers jours, 30 derniers jours, toute la période, ou un de/à personnalisé.    |
-| **Recherche**     | Correspondance exacte sur l'id d'exécution ; utile quand tu as l'id depuis un rapport d'erreur. |
+Le journal est l'enregistrement par étape : chaque étape de l'exécution émet une entrée de journal avec ses entrées, ses sorties et son statut. Une étape échouée porte la chaîne d'erreur et la config d'étape qui l'a produite ; une étape de point d'approbation porte l'approbateur et la décision. Utilise le journal pour suivre l'exécution de bout en bout et repérer l'étape qui s'est mal comportée.
 
-Le tableau charge les exécutions les plus récentes par pages et bascule en défilement infini quand tu descends. Les filtres se combinent — `status: failed` plus `triggered by: webhook` plus les dernières 24 heures resserre sur « qu'est-ce qui a sauté sur le trafic entrant depuis ce matin ».
+## Retry et relance
 
-## Rejouer
+Les retries au niveau étape sont intégrés. Chaque type d'étape accepte une `retryPolicy` (tentatives max et backoff en millisecondes) dans la config d'étape ; les défaillances transitoires se rejouent automatiquement jusqu'au plafond configuré. Le défaut au niveau workflow s'applique quand une étape ne déclare pas sa propre politique. Ouvre le panneau de l'étape dans l'éditeur pour inspecter ou changer la politique.
 
-Depuis une ligne dépliée, deux actions rejouent l'exécution :
+Une exécution qui échoue au-delà de son budget retry reste dans le journal d'exécution comme `failed`. Pour relancer avec les mêmes entrées, ouvre le panneau **Tester l'automatisation** dans la barre d'outils éditeur, colle le JSON d'entrée d'origine (copie-le depuis le bloc variables de l'exécution échouée) et clique sur **Exécuter**. La nouvelle exécution est une exécution fraîche avec son propre ID ; l'échec précédent reste dans le journal pour la piste d'audit.
 
-- **Rejouer avec la même entrée** démarre une nouvelle exécution avec la charge d'origine. Utile quand l'automatisation a changé depuis l'échec initial et que tu veux confirmer le correctif.
-- **Rejouer avec une autre entrée** ouvre la charge dans un éditeur pour que tu l'ajustes avant le tir. Utile pour sonder des cas limites — change un champ, observe quelle étape se ramifie autrement.
+## Une session de débogage mise en pratique
 
-Les nouvelles exécutions arrivent dans l'onglet **Exécutions** comme de nouvelles lignes ; l'échec d'origine reste en place pour que l'historique d'audit reste intact.
+Une exécution de rapport quotidien a échoué à 08h01. Ouvre le workflow, passe à **Exécutions** et filtre par `Statut = failed` et `Date = aujourd'hui`. L'exécution défaillante est en haut. Déplie-la : le journal montre que la deuxième étape (un résumé d'agent) a erroré avec `request timed out`. Le bloc variables de l'étape porte le prompt que l'agent a reçu ; erreur et prompt ensemble pointent généralement la cause racine — trop de tokens, un document de connaissance manquant, un appel d'outil trop empressé. Corrige le problème sous-jacent, puis relance le workflow depuis le panneau de test avec la même entrée pour confirmer le correctif.
 
-## Alertes
+## Où ça s'inscrit
 
-L'onglet **Alertes** d'une automatisation te laisse câbler des notifications d'échec vers le courriel d'un Admin — déclencher quand une exécution échoue, qu'elle dépasse un seuil, ou que l'erreur correspond à un motif. Les alertes par automatisation couvrent le cas par automatisation ; pour « plus de cinq échecs dans la dernière heure sur toutes les automatisations de l'organisation », passe plutôt à [Operations](/fr/self-hosted/operate/observability/operations) — il porte l'agrégation inter-automatisations que la surface des alertes ne couvre volontairement pas.
-
-## Où cela s'inscrit
-
-Les journaux d'exécution sont la surface de débogage par automatisation — l'onglet **Exécutions** sur l'automatisation que tu as devant toi. Pour l'agrégation inter-automatisations (exécutions totales, taux de réussite, top automatisations par volume), [Métriques d'automatisation](/fr/platform/automations/metrics) est le tableau de bord. Pour les tendances d'erreurs à l'échelle de l'organisation qui mêlent automatisations et chat, [Operations](/fr/self-hosted/operate/observability/operations) est la bonne surface, un onglet à côté.
+Les journaux d'exécution sont le reçu que chaque workflow laisse derrière lui ; ils sont comment tu sais ce qui a tourné, ce que ça a produit et où ça a cassé. Combine-les avec [métriques](/fr/platform/automations/metrics) pour les mêmes informations agrégées sur des exécutions (taux de succès, durée p50/p95), avec [déclencheurs](/fr/platform/automations/triggers) pour le coup d'envoi qui ouvre chaque exécution, et avec [journaux d'audit](/fr/platform/admin/governance/audit-logs) pour la piste org-large de qui a démarré quelle exécution.

@@ -1,45 +1,99 @@
 ---
 title: Troubleshooting
-description: Symptom-first map of the issues operators actually hit on a running Tale instance, with the fixes that have landed in practice.
+description: Symptom-first index for the issues operators have actually hit on Tale instances — what the user reports, what is broken, and what to do about it.
 ---
 
-This page maps the issues operators have hit on a running Tale instance to the fixes that have worked. The list is short on purpose — a comprehensive failure-mode catalogue encourages skimming past the symptom that matches yours. Scan the sub-headings until one fits, then read the prose underneath; anything not listed here is rare enough that the diagnosis path is the same in every case: read the logs, then file an issue.
+This page is the symptom-first lookup when something is wrong right now. Each section starts with what the user actually reports — what the browser shows, what the agent fails on, what the upload screen says — and walks back to the cause and the fix. Anything not listed here is a candidate for a new section once it has shown up twice.
 
-For any symptom that isn't below, the `tale` CLI's `--verbose` flag plus the per-service container logs (see [Operations — Logs](/self-hosted/operate/observability/operations#logs)) almost always surface the root cause. When that isn't enough, file at [GitHub Issues](https://github.com/tale-project/tale/issues) with the verbose CLI output and the relevant log excerpt attached.
+The proactive side — signals worth alerting on, what to wire into Prometheus — lives in [Operations](/self-hosted/operate/observability/operations). This page is for the moment after the page fired.
 
-## The platform never reports ready
+## Browser sees 502 or "Bad Gateway"
 
-A fresh `platform` container takes up to three minutes before `/tmp/platform-ready` lands, because the entrypoint waits for env sync to finish and `bunx convex deploy` to push the function set before signalling healthy. The `200 OK` lines from the proxy health probe arrive long before that — they do not mean the UI is reachable.
+The `tale-proxy` container reached the platform, but the platform did not reply. Either `tale-platform` is down or its health endpoint is unreachable. Check container state first:
 
-Watch `docker compose logs -f platform` and wait for the `Tale Dev v0.x.x  Ready.` line. If it never arrives, three causes are common. The most frequent is an unreachable `convex` service — the platform's deploy step needs Convex up before it can push functions, so a convex container that crashes on boot drags the platform with it. The second is a malformed secret in `.env` that the env sync rejects; look for `[env-sync] rejecting key` in the convex logs. The third is host RAM: the blue-green topology runs both colors during the swap, and on an 8 GB host the green container is killed before it deploys. Bumping the host to 12 GB is the fix.
+```bash
+docker compose ps tale-platform
+docker compose logs --tail=200 tale-platform
+```
 
-## "DB_PASSWORD must be set" on every service
+If the container is restarting, the logs at the bottom show the crash reason — usually a misconfigured env var (`SITE_URL` mismatch, missing `BETTER_AUTH_SECRET`) or a Postgres connection failure. Fix the env, restart, retry. If the container is healthy but the browser still sees 502, the proxy is the suspect — `docker compose restart tale-proxy` clears most of these.
 
-`DB_PASSWORD` gates four services, and each one surfaces a slightly different error when the value is missing:
+## Browser sees a TLS warning
 
-- `ERROR: DB_PASSWORD or POSTGRES_PASSWORD must be set` from the database container.
-- `ERROR: DB_PASSWORD or POSTGRES_URL must be set` from the platform.
-- `ERROR: DB_PASSWORD or RAG_DATABASE_URL must be set` from the RAG service.
-- `ERROR: DB_PASSWORD or CRAWLER_DATABASE_URL must be set` from the crawler.
+`TLS_MODE=selfsigned` is the most common cause — the browser does not trust Caddy's internal CA on first visit. Either trust the CA on the host (`docker exec tale-proxy caddy trust`) or switch to `TLS_MODE=letsencrypt` for a real certificate. The full mode walk lives in [TLS and domains](/self-hosted/configuration/tls-and-domains).
 
-Open `.env`, set `DB_PASSWORD` to a non-empty value, and re-run `tale start` (or `docker compose up`). The variable is read at container start, so a running stack won't pick it up until you bring it down and back up. When connecting to an external Postgres, set `POSTGRES_URL` instead and leave `DB_PASSWORD` unset — the four services then read the URL directly. The full pattern lives at [Production deployment — Using an external database](/self-hosted/install/linux-server#using-an-external-database).
+If the mode is already `letsencrypt`, check the proxy logs for ACME failures — DNS not resolving to this host's public IP and port 80 unreachable from the public Internet are the two common causes.
 
-## Provider key edits don't take effect
+## UI loads but no data appears
 
-Provider config under `$TALE_CONFIG_DIR/providers/<name>.json` (and the matching `.secrets.json`) is watched by the convex container — saving from **Settings > Providers** or editing the file by hand trigger the same reload. Two cases break that.
+The UI shell is static assets served by `tale-platform`; everything else flows through `tale-convex` over a WebSocket. When the WebSocket cannot connect, the shell loads and stays empty. Symptoms: spinners that never resolve, "reconnecting" toasts, the chat input that never accepts a message.
 
-The first is the SOPS-encrypted secrets file when `SOPS_AGE_KEY` is no longer set. The file format is self-describing, so the loader refuses to overwrite encrypted content with plaintext to prevent data loss — it would otherwise look like the operator silently downgraded their secrets storage. Restore the age key, or delete the encrypted file before re-saving. The full flow is on [Providers — Switching modes](/self-hosted/configuration/providers#switching-modes).
+```bash
+docker compose logs --tail=200 tale-convex
+```
 
-The second is when the file is edited from inside the wrong mount. Tale's compose mounts `convex-data:/app/data` writable on the convex service, and the same volume read-only on platform, RAG, and crawler. Edit the files from the host (the host path mapped into `/app/data/platform-config` on the convex container) or use the UI; an in-container `vi` against the read-only mount silently fails for sibling services and never reaches the watcher.
+The convex container is probably restarting (look for `panic` in the logs) or unreachable from the proxy. Restart with `docker compose restart tale-convex` — sessions are server-side and clients re-subscribe on reconnect, so the restart is safe.
 
-## Documents stay "indexing" forever
+## Uploads stuck in "indexing"
 
-Document indexing is a multi-stage pipeline: the RAG service extracts text, splits it into chunks, generates embeddings against an embedding-tagged provider, and writes the chunks and vector entries to ParadeDB. A hundred-page PDF takes minutes; a thousand-page export can take half an hour. The progress is visible per file under **Knowledge > Documents**.
+The RAG container indexes uploads asynchronously. A long "indexing" state means either the queue is backed up or the container has stopped consuming it. Check the queue depth via the metrics endpoint:
 
-When indexing stalls indefinitely, two causes dominate. The embedding-tagged provider is either misconfigured or rate-limiting — check `docker compose logs rag` for `provider error` lines, which name the failing provider and the HTTP status the upstream returned. Or the external Postgres you pointed Tale at is missing the `vector` extension; the symptom is `extension "vector" is not available` in the RAG logs. Install pgvector on the external instance per [Production deployment — Using an external database](/self-hosted/install/linux-server#using-an-external-database).
+```bash
+curl -H "Authorization: Bearer $METRICS_BEARER_TOKEN" \
+  https://$HOST/metrics/rag | grep queue_depth
+```
+
+If queue depth is climbing without draining, restart RAG: `docker compose restart tale-rag`. The container picks up where it left off; uploads do not have to be re-submitted. If the queue is empty but a specific upload is stuck, the file itself is the suspect — corrupt PDFs and password-protected documents land in a failure state and require deletion + re-upload.
+
+## Chat replies stop mid-stream
+
+The token stream from the upstream provider dropped — either the provider rate-limited, the connection timed out, or the provider's service is degraded. Check the provider's status page first; then look in the platform logs:
+
+```bash
+docker compose logs --tail=200 tale-platform | grep -E "429|503|stream"
+```
+
+A `429` is the common case. Either the org's budget is hitting the provider's rate limit, or the provider key itself is throttled. Switching the org's default model to a less-loaded provider clears the symptom while the upstream cools off.
+
+## Saving fails with "saving failed" toast
+
+The convex container could not write to Postgres. Either `tale-db` is down or its disk is full:
+
+```bash
+docker compose ps tale-db
+docker compose exec db df -h /var/lib/postgresql/data
+```
+
+A disk at 100 % is the failure that produces the most surprised faces. Free space, restart `tale-db`, and the queued writes flush. If the disk has room, the suspect is connection-pool exhaustion or a lock — restart `tale-convex` to clear the pool.
+
+## "Run code" tool errors with "egress denied"
+
+The `tale-sandbox-egress` container is the only outbound network path for sandboxed code; if it is down or misconfigured, every outbound request from the sandbox fails closed. Check the egress container first:
+
+```bash
+docker compose ps tale-sandbox-egress
+docker compose logs --tail=100 tale-sandbox-egress
+```
+
+If the container is healthy, the request hit the allowlist. The list of permitted hosts lives in the [run-code policy](/platform/admin/governance/run-code-policy); add the destination or rewrite the agent's tool call to use an allowed host.
+
+## Sign-in loops back to the sign-in screen
+
+`SITE_URL` does not match what the browser actually requested. Auth cookies are scoped to the URL the request landed on; a mismatch (trailing slash, missing port, `http` vs `https`, base-path prefix) means the cookie set on the callback does not get sent on the next request.
+
+Fix `.env`:
+
+```bash
+SITE_URL=https://tale.example.com  # exactly what the user types
+```
+
+Recreate the platform container (`docker compose up -d --force-recreate tale-platform`) for the change to land in the rendered HTML.
 
 ## Where to get help
 
-Logs are the first place to look — `docker compose logs -f` for a live stream, `tale logs <service> --tail 200` when the stack is running under `tale deploy`. The container smoke test (`bun run docker:test`) validates the full stack from a clean state and catches port conflicts and dependency drift on a development host before they reach production.
+Self-hosted instances do not phone home, so support starts with you. The two channels:
 
-For issues that survive a log read, file at [GitHub Issues](https://github.com/tale-project/tale/issues) with the verbose CLI output and the `compose.yml` snippet you're running. Security-relevant findings go through [Security advisories](/self-hosted/operate/security/advisories) instead, where a private draft pre-empts public disclosure until a patch is available.
+- **GitHub Issues** — bugs and reproducible problems. The [tale-project/tale](https://github.com/tale-project/tale/issues) tracker has a template that asks for the diagnostics bundle `tale diagnostics` produces.
+- **Discord** — questions, configuration debates, "is this a bug" triage. The invite lives in the repo README.
+
+Reproducible diagnostics make every channel faster. `tale diagnostics` collects sanitised logs, env vars (secrets redacted), and container health into a single archive worth attaching.

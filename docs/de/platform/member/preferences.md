@@ -1,36 +1,40 @@
 ---
-title: Deine Einstellungen
-description: Persönliche Einstellungen pro Nutzer — Passwort, Anzeigename, Oberflächen-Sprache, Theme und Benachrichtigungs-Voreinstellungen. Bearbeite sie aus Konto im Avatar-Menü.
+title: Einstellungen
+description: Die Mitglieder-Einstellungen, die dir über Organisationen und Chats hinweg folgen — Anzeigename und Passwort unter Konto, Theme und Locale im Profilmenü, eigene Anweisungen und Erinnerungen unter Personalisierung, und Abmelden.
 ---
 
-Deine Einstellungen sind die Pro-Nutzer-Oberfläche für persönliche Einstellungen — Passwort, Sprache, Theme, Benachrichtigungen, Anzeigename. Sie leben unter **Konto**, erreichbar vom Avatar in der unteren linken Ecke. Jede Rolle — Mitglied, Redakteur, Entwickler, Admin, Inhaber — bearbeitet ihre eigenen Einstellungen aus demselben Bildschirm; die Seite ist über die Rollen hinweg identisch.
+Einstellungen sind die Schrauben, die dir gehören, nicht der Organisation. Dein Anzeigename ist der Name, den Agents und Teamkolleginnen in Chats und Genehmigungen sehen. Deine Locale und dein Theme folgen dir zwischen Geräten. Deine eigenen Anweisungen und Erinnerungen prägen, wie Agents speziell dir antworten — getrennt von allem, was Admin oder Redakteur auf Organisationsebene gesetzt hat. Diese Seite zeigt, wo jeder Hebel sitzt und was er ändert.
 
-Nichts auf dieser Seite ändert etwas für den Rest der Organisation. Die Änderungen hier wirken nur darauf, wie Tale sich dir präsentiert. Für organisationsweite Einstellungen (Branding, Richtlinien, Anbieter) arbeitet ein Admin aus [Administrieren](/de/platform/admin/overview).
+Die Form ist bewusst zweischichtig: das Profilmenü (überall, einen Klick vom Avatar entfernt) trägt die schnellen Schalter; **Einstellungen > Konto** und **Einstellungen > Personalisierung** tragen die tieferen Kontofelder. Alles hier gehört dir — nichts davon lecken zu anderen Mitgliedern oder anderen Organisationen durch.
 
-## Passwort
+## Das Profilmenü
 
-Ändere das Passwort, mit dem du dich anmeldest. Das Formular fragt das aktuelle Passwort, das neue und eine Bestätigung ab. Das neue Passwort wird gegen die Passwort-Richtlinie der Organisation geprüft (Länge, Zeichen-Klassen), sodass ein zu schwaches Passwort vor dem Absenden abgelehnt wird.
+Klick auf deinen Avatar oben rechts. Das Dropdown öffnet sich mit deinem Namen, deiner E-Mail und der aktuellen Build-Version. Unter dem Kopf sitzen vier Schnellschalter, die jedes Mitglied unabhängig von der Rolle sieht: der **Theme**-Wechsler (System / Hell / Dunkel), das **Sprach**-Untermenü (English, Deutsch, Français), die Zeile **App installieren**, wenn der Browser Tale als PWA installieren kann, und **Abmelden**. Theme und Sprache greifen sofort und bleiben pro Gerät erhalten.
 
-Hast du dich über SSO oder vertrauenswürdige Kopfzeilen angemeldet und nie ein Passwort gehabt, lässt dasselbe Formular dich eines _setzen_. Ein Passwort hinzuzufügen aktiviert die direkte E-Mail-und-Passwort-Anmeldung zusätzlich zu deinem bestehenden föderierten Weg.
+Das Menü trägt außerdem einen Organisationswechsler, wenn du zu mehr als einer Organisation gehörst, und einen Team-Filter, wenn deine aktuelle Organisation Teams hat. Das sind keine Einstellungen — sie ändern, was Tale dir zeigt, nicht wie Tale sich verhält. Unter dem Team-Filter öffnet **Benutzereinstellungen** den Bereich **Einstellungen > Konto**, die nächste Seite hier.
 
-## Anzeigename
+## Konto — Name, E-Mail, Passwort, Zwei-Faktor
 
-Der Name, der in der Seitenleiste, in Chat-Nachrichten und in Kommentaren erscheint. Admins können deinen Anzeigenamen aus **Einstellungen > Mitglieder** überschreiben; haben sie es nicht, gehört das Feld dir. Wähle etwas, das der Rest des Teams erkennt — der Name erscheint neben deinen Nachrichten, nicht deine E-Mail.
+Öffne **Einstellungen > Konto**. Drei Abschnitte sitzen auf der Seite: **Profil**, **Sicherheit** und **Zwei-Faktor-Authentifizierung**.
 
-## Sprache
+Der Profil-Abschnitt hält deinen **Anzeigenamen** und deine **E-Mail**. Der Anzeigename ist inline bearbeitbar; die Änderung speichert beim Verlassen des Felds und schlägt beim nächsten Render in jedem Chat und jeder Genehmigung durch. Die E-Mail ist schreibgeschützt — sie ist das, womit du dich angemeldet hast, und ein Wechsel läuft über den Support. Es gibt kein Avatar-Feld auf der Seite; Tale leitet einen Avatar aus den Initialen deines Anzeigenamens ab.
 
-Wähle die Oberflächen-Sprache. Tale liefert Englisch, Deutsch (mit einer Schweizer Variante) und Französisch. Die Spracheinstellung gilt für die Plattform-Oberfläche und für System-Nachrichten; sie ändert _nicht_ die Sprache der Dokumente, die du hochgeladen hast, oder den Stil der KI-Antworten — die folgen dem Inhalt und den Anweisungen des Agents.
+Der Sicherheits-Abschnitt hält einen einzelnen Knopf: **Passwort ändern**, wenn du dich mit E-Mail und Passwort registriert hast, **Passwort setzen**, wenn dein Konto über SSO föderiert ist und du ein Passwort als Rückfall hinzufügen willst. Beide Abläufe erzwingen die Passwort-Richtlinie der Organisation und zeigen die Regeln live, während du tippst. Der Zwei-Faktor-Abschnitt paart das Konto mit einer TOTP-App oder einem Hardware-Schlüssel und zeigt die Backup-Codes einmal bei der Einrichtung.
 
-Für Agents wird die org-weite Standard-Antwortsprache vom Admin unter **Einstellungen > Organisation > Antwortsprache der Agents** gesetzt; deine Oberflächen-Sprache folgt deiner eigenen Einstellung unabhängig davon.
+## Personalisierung — eigene Anweisungen, Erinnerungen, Sprachausgabe
 
-## Theme
+Öffne **Einstellungen > Personalisierung**. Die Seite öffnet jede Funktion mit einem An/Aus-Schalter, der dem Org-Standard folgt, bis du ihn überschreibst.
 
-Wähle zwischen **Hell**, **Dunkel** und **System**. **System** folgt der Hell-/Dunkel-Einstellung deines Betriebssystems und aktualisiert sich live, wenn sie wechselt — nützlich, wenn du auf demselben Laptop zwischen hellem Schreibtisch und dämmrigem Abend wechselst.
+**Eigene Anweisungen** ist ein freies Textfeld — bis zu 4.000 Zeichen —, das jeder Agent speziell für deine Konversationen als zusätzlichen Kontext erhält. Nutz es für das, was du sonst oben in jeden Chat schreiben würdest: deine Rolle, deinen bevorzugten Antwortstil, die Projekte, an denen du arbeitest, die Einschränkungen, die der Agent achten soll. Der Org-Standard entscheidet, ob die Funktion für neue Mitglieder an ist; dein Schalter überschreibt ihn für dein eigenes Konto.
 
-## Benachrichtigungen
+**Erinnerungen** sind kurze Fakten, die der Agent zwischen Chats über dich speichert — ein Thema, nach dem du gefragt hast, eine Vorliebe, die du genannt hast, ein Kontext, den du nicht wiederholen willst. Gespeicherte Erinnerungen erscheinen in einer Liste mit einem Lösch-Knopf je Zeile; ausstehende Erinnerungen tauchen in einem eigenen Abschnitt mit **Genehmigen** und **Verwerfen** auf, damit nichts in deinem Profil landet, ohne dass du es siehst. Schalte die Funktion ab, und bestehende Erinnerungen werden nicht mehr genutzt, bis du sie wieder einschaltest.
 
-Aktiviere oder deaktiviere E-Mail-Benachrichtigungen für Freigabe-Anfragen, Konversations-Zuweisungen und Workflow-Abschlüsse. Jeder Schalter ist unabhängig; die In-Produkt-Benachrichtigungen bleiben unabhängig von den E-Mail-Schaltern.
+**Sprachausgabe** wählt die Stimme, die ein Agent im Voice-Modus benutzt. Die Einstellung greift nur, wenn die Organisation einen Voice-Anbieter konfiguriert hat; sonst erklärt der Abschnitt die Lücke und verweist auf den Admin.
+
+## Abmelden
+
+Die Zeile **Abmelden** unten im Profilmenü bestätigt mit einem Dialog, bevor sie die Session löscht. Nach der Bestätigung lädt Tale die Seite zur Anmeldeseite hart neu, damit kein veralteter Zustand im Tab hängenbleibt. Das Abmelden ist pro Gerät — dich auf dem Laptop abzumelden, meldet dich nicht auf dem Handy ab, und umgekehrt.
 
 ## Wo das hingehört
 
-Einstellungen sind die Pro-Nutzer-Oberfläche — dein Passwort, deine Sprache, dein Theme, deine Benachrichtigungs-Voreinstellungen. Sie ändern nichts für den Rest der Organisation; sie ändern nur, wie Tale sich dir präsentiert. Für organisationsweite Einstellungen (Branding, Aufbewahrung, Richtlinien, Anbieter) arbeitet ein Admin aus [Administrieren](/de/platform/admin/overview); für den zweiten Faktor an deinem Konto (TOTP und Backup-Codes) siehe [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication).
+Einstellungen sind die Linie zwischen dir und dem Rest der Organisation. Der Org-Admin setzt Standardwerte — inklusive ob Personalisierung für neue Mitglieder an ist, was die Passwort-Richtlinie ist, welche Modelle erlaubt sind — und deine Einstellungen überschreiben die Standardwerte dort, wo Tale es zulässt. Die nächste Lektüre, die sich lohnt, ist [Mitglieds-Übersicht](/de/platform/member/overview) für die Karte des restlichen Mitglieder-Bereichs, oder [Als App installieren](/de/platform/member/install-as-app), wenn du willst, dass Tale in deinem Dock statt in deinen Browser-Tabs lebt.

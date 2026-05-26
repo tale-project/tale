@@ -1,65 +1,40 @@
 ---
 title: Chat effectively
-description: Combine agents, attachments, dictation, and Canvas into a daily Tale workflow.
+description: Five habits that turn a chat from "thanks for the wall of text" into "exactly what I needed" — naming the agent, picking the model, attaching the right file, asking in scope, and reading the citations.
 ---
 
-Most Members use Tale chat the same way every day: pick the right agent, drop in context, ask, iterate. This tutorial walks that loop end to end so your answers are grounded in your organisation's knowledge instead of generic model output. Feature reference for each step lives at [Chat](/platform/chat/basics); this page stitches the pieces into one repeatable workflow.
+Chatting effectively in Tale is not about clever prompts; it is about giving the chat enough context for the model to read your intent the first time. Five small habits — picking the right agent, picking the right model, attaching only what matters, asking inside a scope, reading the citations — turn the average reply from "thanks for the wall of text" into "exactly what I needed". This page walks the habits in order on a fresh chat.
 
-The whole flow takes under five minutes once you've done it once. The outcome at the end is a conversation that produces answers you'd trust to forward.
+You need a Member role (the floor for chat) and one published agent on the org you can address. The conceptual side lives in [Chat basics](/platform/chat/basics); this walk is the daily-driver mechanic.
 
-## Before you begin
+## Habit 1 — Pick the agent before the first message
 
-You need Member access or higher in the Tale instance you're signed in to — every signed-in account except `Disabled` can use chat. At least one agent has to exist in the org; the general chat agent ships by default, so this prerequisite is met on every instance. No external setup, no API key, no admin permission required.
+The agent is the lever with the highest payoff per click. The default Assistant is a blank canvas; an agent with knowledge bound, tools enabled, and a tuned voice will out-answer it for any non-generic question. Open the agent picker in the composer and pick the agent whose scope matches your question — Support, Sales, Research — before typing.
 
-## Step 1 — Pick the right agent
+If no agent fits, leave the Assistant on; do not pick a wrong-fit agent for "close enough". A wrong-fit agent often refuses or veers off the bound knowledge.
 
-A purpose-built agent searches a narrower slice of the knowledge base and follows a tighter system prompt, which almost always produces a sharper answer than the general chat agent. Open **Chat** from the sidebar and click the agent selector at the bottom-left of the composer; the dropdown lists every agent your role can see.
+## Habit 2 — Pick the model to match the message
 
-Pick the one whose description matches your task closest — a `product-support` agent for a customer question, a `legal-review` agent for a contract clause, the default chat agent for everything else. If you're not sure, start with the closest match and switch mid-conversation: the new agent keeps the message history.
+The model picker beside the agent picker lists the agent's allowed models. **Auto** is fine most of the time; switch when the message changes shape. A long reasoning question wants a larger model; a quick lookup wants a smaller, faster one. A message with an image needs a vision-capable model — without that, the image is silently dropped.
 
-You'll know the step worked when the agent's display name shows above the composer and the placeholder text reflects its conversation starters.
+The model picker shows the tag (`Chat`, `Vision`, `Image`, `Embedding`) next to each name; match the tag to the message.
 
-## Step 2 — Give it context via attachments
+## Habit 3 — Attach only what the agent needs
 
-Attachments let the agent read the exact file you're asking about, instead of guessing from what it remembers. Drop a file or image onto the chat window, or click the paperclip icon in the composer. Supported types — PDFs, Office documents, images, audio, video, and most code files — are listed in [Attachments](/platform/chat/attachments); files outside the list are rejected before upload.
+Attachments are tempting to overuse. A 200-page PDF as a single attachment fills the context budget and dilutes the answer; the relevant pages excerpted into the prompt outperform the whole file. If you do attach a long document, ask a specific question against it ("what does page 12 say about refunds?") rather than an open one ("tell me everything").
 
-Attachments stay scoped to the conversation, not the shared knowledge base. If the file is something everyone should be able to ask about later, upload it through the [Knowledge base](/platform/workspace/knowledge-base) instead — that way it's indexed once and reused by every agent.
+For files you will reference often — a price list, a policy document — upload them into the [Knowledge](/platform/knowledge/documents) section and bind them to an agent. Once bound, every chat with that agent has them on tap without re-uploading.
 
-The step worked when the file appears as a chip under the composer with its name and size, and the agent's first response cites or quotes content from it.
+## Habit 4 — Ask inside the agent's scope
 
-## Step 3 — Dictate when speaking is faster than typing
+Every agent has an implicit scope from its instructions and bound knowledge. Asking a billing agent about marketing strategy gets you a polite refusal at best, a hallucination at worst. The cheap fix: read the agent's bio at the top of the picker before you ask — it names the scope. If your question is outside the scope, switch agents.
 
-The microphone icon in the composer turns on browser dictation; the audio is processed locally by the Web Speech API and the transcript streams into the input as you speak. Audio bytes don't reach Tale's servers — the only thing that leaves your device is the recognised text.
+## Habit 5 — Read the citations and follow them
 
-Toggle the microphone on, speak the question, toggle it off, and edit the transcript before sending. Dictation is a per-request tool, not a mode: there's no preference to set, and it leaves no trace once the message is sent.
+When the reply includes citations (the small inline links), open one. The citation points to the chunk of the source the agent quoted from; reading it confirms the agent did not paraphrase past what the source actually says. The two-minute habit of opening one citation per reply catches the small subset of replies where the agent overreached.
 
-The step worked when the transcript appears in the input while you speak.
+## Where this fits
 
-## Step 4 — Iterate on the answer
+Five habits, one chat, the same loop every time you open the Chat tab. The habits compound — picking the right agent makes the right model obvious; the right model makes the citations trustworthy; the citations close the loop.
 
-The first answer is rarely the final one. Short follow-ups are the fastest way to narrow: `summarise in three bullets`, `now in French`, `cite the document you used`, `rewrite for a non-technical reader`. The agent keeps the whole thread in context, so each follow-up benefits from the previous turn — no need to repeat what you've already said.
-
-When you land on a result worth reusing, save the prompt to the [Prompt library](/platform/workspace/prompt-library). Next time, the same starting point is one click away from the composer.
-
-The step worked when the agent's next response visibly responds to the constraint you added in the follow-up.
-
-## Step 5 — See artifacts in Canvas when it's more than text
-
-A long markdown document, a runnable HTML page, an SVG, or a Mermaid diagram is hard to read inside a chat bubble. When the agent produces one, Tale auto-opens it as an artifact in the [Canvas](/platform/workspace/canvas) side pane and lists it in the Artifacts bar above the chat — live preview, source view, and export are all in the Canvas pane.
-
-Ask the agent to revise the artifact in place (`make the diagram horizontal`, `add a second column`) and Canvas updates without producing a new chat bubble.
-
-The step worked when the Canvas pane opens on the right with the artifact rendered, and the chat bubble shows a short summary instead of the full content.
-
-## Troubleshooting
-
-- **The agent answers from the wrong knowledge** — the agent has access to too broad a folder set. Switch to a narrower agent, or ask the agent's owner to scope its **Knowledge** tab. The full mapping lives in [Agent concepts — Knowledge](/platform/agents/concepts#knowledge).
-- **The attachment was uploaded but the agent ignores it** — the file is bigger than the model's context budget, or its type isn't in the supported set. Try a smaller file or convert to PDF; [Attachments](/platform/chat/attachments) lists the supported types and limits.
-- **The microphone icon doesn't appear** — the browser doesn't support the Web Speech API (older Firefox builds, some embedded WebViews) or the site doesn't have microphone permission. Switch to Chrome, Edge, or Safari, and grant permission when prompted.
-- **The Canvas pane doesn't open** — the agent's output isn't long enough or doesn't match any artifact format. Ask explicitly for an HTML, Mermaid, or markdown artifact in the prompt.
-
-## Where this gets used
-
-The same five-step loop covers most of the day-to-day chat work a Member does: agent, context, ask, iterate, pull artifacts out of the bubble when they belong somewhere bigger. The shortcuts that make it feel fast — drag-drop attachments, dictation, agent switcher, Prompt library — all live in the composer; muscle memory turns the loop into something close to a search bar over your org's knowledge.
-
-When you find yourself wanting a tighter-fit agent than what's available, [Build your first agent end to end](/tutorials/editor/first-agent-end-to-end) walks through creating one — that requires the Editor role. For the keyboard shortcuts that compress this loop further, [Chat basics — Keyboard shortcuts](/platform/chat/basics#keyboard-shortcuts) carries the full list.
+For the surface these habits live on, see [Chat basics](/platform/chat/basics). For the file side — what gets pasted verbatim, what gets indexed — see [Attachments](/platform/chat/attachments).

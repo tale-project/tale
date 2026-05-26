@@ -33,7 +33,7 @@ tale init my-project
 cd my-project
 ```
 
-Die CLI fragt nach Domain, API-Key und TLS-Modus. Sicherheits-Secrets werden automatisch generiert. Sie legt ausserdem Konfigurationsdateien für KI-Editoren an und entpackt den Plattform-Quellcode nach `.tale/reference/`, damit KI-Editoren Configs mit voller Plattform-Kenntnis erstellen und ändern können. Siehe [KI-gestützte Entwicklung](docs/de/develop/ai-assisted-development.md).
+Die CLI fragt nach Domain, API-Key und TLS-Modus. Sicherheits-Secrets werden automatisch generiert. Sie legt ausserdem Konfigurationsdateien für KI-Editoren an und entpackt den Plattform-Quellcode nach `.tale/reference/`, damit KI-Editoren Configs mit voller Plattform-Kenntnis erstellen und ändern können.
 
 ### 3. Tale starten
 
@@ -45,7 +45,7 @@ tale start
 
 > **Hinweis:** Dein Browser zeigt eine Zertifikatswarnung für selbstsignierte Zertifikate. Die ist sicher zu akzeptieren.
 
-Eine ausführliche Einrichtungsanleitung findest du im [Erste-Schritte-Guide](docs/de/platform/member/overview.md).
+Eine ausführliche Einrichtungsanleitung findest du im [Self-hosted-Quickstart](docs/de/self-hosted/install/quickstart.md).
 
 ## Was kannst du tun?
 
@@ -101,7 +101,7 @@ Die CLI macht Blue-Green-Zero-Downtime-Deployments mit automatischen Health-Chec
 
 ## Authentifizierungs-Optionen
 
-Tale nutzt standardmässig passwortbasierte Authentifizierung. Der erste User legt das Owner-Konto an; alle weiteren werden vom Admin angelegt. Für Self-Service-Login verbindest du SSO oder Trusted Headers. Volle Details im [Authentifizierungs-Guide](docs/de/self-hosted/admin/authentication.md).
+Tale nutzt standardmässig passwortbasierte Authentifizierung. Der erste User legt das Owner-Konto an; alle weiteren werden vom Admin angelegt. Für Self-Service-Login verbindest du SSO oder Trusted Headers über Microsoft Entra ID — siehe die [Integrationen-Übersicht](docs/de/platform/integrations/overview.md) für den Microsoft-365-Connector, der sowohl Dokumentensynchronisation als auch SSO bedient.
 
 - **Microsoft Entra ID (SSO):** Single Sign-On mit Microsoft 365 / Azure AD inkl. automatischem Provisioning
 - **Trusted Headers:** Für Deployments hinter einem authentifizierenden Reverse-Proxy (Authelia, Authentik, oauth2-proxy)
@@ -152,48 +152,49 @@ cd services/crawler && uv sync --extra dev
 
 ## Dokumentation
 
-Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plus regionalen Varianten, wo lokale Formulierungen abweichen (heute: `de-CH`; der Loader erkennt jedes neue `xx-YY`-Bundle automatisch). Varianten tragen nur die Strings, die von ihrer Basis abweichen; fehlende Keys fallen über die Basis bis auf Englisch zurück. Start unter [`docs/index.md`](docs/index.md), um nach Persona einzusteigen.
+Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plus regionalen Varianten, wo lokale Formulierungen abweichen (heute: `de-CH`; der Loader erkennt jedes neue `xx-YY`-Bundle automatisch). Varianten tragen nur die Strings, die von ihrer Basis abweichen; fehlende Keys fallen über die Basis bis auf Englisch zurück. Start unter [`docs/de/index.md`](docs/de/index.md), um nach Persona einzusteigen.
 
 ### Für alltägliche Nutzer
 
-- **[Erste Schritte](docs/de/platform/member/overview.md)** — Tale installieren und die App öffnen
-- **[KI-Chat-Grundlagen](docs/de/platform/chat/basics.md)** — chatten, Dateien anhängen, Video-Links einfügen, Agents auswählen
-- **[Wissensdatenbank](docs/de/platform/workspace/knowledge-base.md)** — Dokumente und Websites
-- **[Konversationen](docs/de/platform/workspace/conversations.md)** — Kunden-Posteingang
-- **[Genehmigungen](docs/de/platform/workspace/approvals.md)** — KI-Aktionen prüfen
-- **[Deine Einstellungen](docs/de/platform/member/preferences.md)** — Passwort, Sprache, Theme
+- **[Chat-Übersicht](docs/de/platform/chat/overview.md)** — die vier Bereiche des Bildschirms, wo es tiefer geht
+- **[KI-Chat-Grundlagen](docs/de/platform/chat/basics.md)** — Composer, Agents, Modell-Picker, Streaming, Zitate
+- **[Tiefenrecherche](docs/de/platform/chat/deep-research.md)** — der Researcher-Agent mit Live-Plan und PDF-Bericht
+- **[Anhänge](docs/de/platform/chat/attachments.md)** — Dateien im Chat, RAG vs wörtlich
+- **[Geteilte Chats](docs/de/platform/chat/shared-threads.md)** — Chat per Link mit der Org teilen, in einen eigenen forken
+- **[Genehmigungen](docs/de/platform/approvals/concepts.md)** — KI-Aktionen prüfen
 
 ### Für Bauende (Agents, Automatisierungen, Integrationen)
 
-- **[Was du bauen kannst](docs/de/platform/developer/overview.md)** — Orientierung für Editor/Developer
-- **[Einen Agent erstellen](docs/de/platform/agents/create.md)** — spezialisierte KI-Assistenten
-- **[Workflows](docs/de/platform/automations/workflows.md)** — mehrstufige Automatisierungen
-- **[Strukturierte Daten](docs/de/platform/knowledge/structured-data.md)** — Produkte, Kunden, Lieferanten
-- **[Integrationen-Übersicht](docs/de/platform/integrations/overview.md)** — REST, SQL, Email, OneDrive
+- **[Agent-Konzepte](docs/de/platform/agents/concepts.md)** — das Vier-Knöpfe-Modell hinter jedem Agent
+- **[Einen Agent erstellen](docs/de/platform/agents/create.md)** — spezialisierte KI-Assistenten von Anfang bis Ende
+- **[Agent-Tools](docs/de/platform/agents/tools.md)** — die eingebauten Tool-Familien
+- **[Projekte](docs/de/platform/projects/overview.md)** — geteilter Workspace für Dateien, Chats und Projekt-Agents
+- **[Automatisierungs-Konzepte](docs/de/platform/automations/concepts.md)** — Workflows, Trigger, Genehmigungstore
+- **[Integrationen-Übersicht](docs/de/platform/integrations/overview.md)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
+- **[Modelle out of the box](docs/de/platform/models.md)** — OpenRouter, OpenAI, Vercel AI Gateway plus die ausgelieferten Modelllisten
 
 ### Für Admins
 
 - **[Mitglieder und Rollen](docs/de/platform/admin/members-and-roles.md)** — Userverwaltung und Berechtigungs-Matrix
-- **[Authentifizierung](docs/de/self-hosted/admin/authentication.md)** — Passwort, SSO, Trusted Headers
-- **[KI-Anbieter](docs/de/platform/admin/providers.md)** — Modelle im Admin-UI konfigurieren
-- **[Richtlinien](docs/de/platform/admin/governance.md)** — Budgets, Retention, Guardrails (Content Safety, PII-Erkennung, Moderation-Provider), Audit-Logs
-- **[Nutzungs-Analytics](docs/de/platform/admin/usage-analytics.md)** — zeitbasiertes Token- und Kosten-Reporting
+- **[Modelle out of the box](docs/de/platform/models.md)** — welche Modelle die Defaults mitbringen; Provider tauschen oder hinzufügen
+- **[Integrationen-Übersicht](docs/de/platform/integrations/overview.md)** — Drittanbieter-Konnektoren, MCP-Server, eigene Konfigurationen
+- **[Cloud-Trust und Compliance](docs/de/cloud/trust-and-compliance.md)** — Frameworks, geteilte Verantwortung, Belege für Auditoren
 
 ### Für Operators
 
-- **[Plattform-Übersicht](docs/de/self-hosted/overview.md)** — Architektur und Dienste
-- **[Produktions-Deployment](docs/de/self-hosted/install/linux-server.md)** — Docker Compose, Zero-Downtime-Deploys, Reverse Proxy
+- **[Self-hosted-Übersicht](docs/de/self-hosted/overview.md)** — Architektur und Dienste
+- **[Quickstart](docs/de/self-hosted/install/quickstart.md)** — Single-Host-Installation in zwanzig Minuten
+- **[Produktions-Deployment](docs/de/self-hosted/install/linux-server.md)** — Linux-Server mit TLS, Firewall, Non-Root-User
+- **[Docker-Compose-Referenz](docs/de/self-hosted/install/docker-compose-reference.md)** — Basis-Datei und Overlays
 - **[Tale CLI](tools/cli/README.md)** — CLI-Referenz
 - **[Environment-Referenz](docs/de/self-hosted/configuration/environment-reference.md)** — alle Environment-Variablen
-- **[Betrieb](docs/de/self-hosted/operate/observability/operations.md)** — Monitoring, Error-Tracking, Backups
-- **[Troubleshooting](docs/de/self-hosted/operate/observability/troubleshooting.md)** — typische Probleme
+- **[Container-Architektur](docs/de/self-hosted/operate/container-architecture.md)** — sieben Container, was was besitzt
 
 ### Für Developer
 
 - **[API-Referenz](docs/de/develop/api-reference.md)** — REST-API für RAG, Crawler und Platform
 - **[Webhooks](docs/de/develop/webhooks.md)** — Workflow- und Agent-Webhooks mit Signaturprüfung
-- **[KI-gestützte Entwicklung](docs/de/develop/ai-assisted-development.md)** — Agents/Workflows in KI-Editoren konfigurieren
-- **[Docker beitragen](docs/de/develop/contributing-docker.md)** — Dockerfiles ändern und Container-Tests laufen lassen
+- **[Develop-Übersicht](docs/de/develop/overview.md)** — die Entwickler-Oberfläche von Anfang bis Ende
 
 ## Brauchst du Hilfe?
 
@@ -205,7 +206,7 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 
 ## Mitwirken
 
-Lies [`AGENTS.md`](AGENTS.md) vor deinem ersten PR — das ist der einzige Vertrag für Code-Stil, Security, Tests, i18n und Dokumentation über alle Workspaces hinweg. Der [`docs`](.agents/docs/AGENTS.md)-Skill deckt die Doku-Seite ab; der [`terminology`](.agents/terminology/AGENTS.md)-Skill die sprachübergreifenden Übersetzungsregeln. Lass `bun run check` (Format, Lint, Typecheck, Tests) durchlaufen, bevor du einen PR öffnest; das [Pull-Request-Template](.github/pull_request_template.md) listet den Rest der Pre-Merge-Checkliste.
+Lies [`AGENTS.md`](AGENTS.md) vor deinem ersten PR — das ist der einzige Vertrag für Code-Stil, Security, Tests, i18n und Dokumentation über alle Workspaces hinweg. Der [`docs`](.agents/docs/AGENTS.md)-Skill deckt die Doku-Seite ab; der [`translation`](.agents/translation/AGENTS.md)-Skill die sprachübergreifenden Übersetzungsregeln. Lass `bun run check` (Format, Lint, Typecheck, Tests) durchlaufen, bevor du einen PR öffnest; das [Pull-Request-Template](.github/pull_request_template.md) listet den Rest der Pre-Merge-Checkliste.
 
 ---
 

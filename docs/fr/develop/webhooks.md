@@ -1,160 +1,80 @@
 ---
 title: Webhooks
-description: Invoquer workflows et agents depuis des systèmes externes via des endpoints HTTP à jeton unique.
+description: Déclencheurs webhook entrants (toi vers Tale) et webhooks d'événement sortants (Tale vers toi). Signature, idempotence, retraitements.
 ---
 
-Tale expose deux surfaces de webhook entrantes : **webhooks de workflow** (un POST externe lance une exécution de workflow) et **webhooks d'agent** (un POST externe envoie un message à un agent et reçoit la réponse). Les deux utilisent une URL à jeton unique où le jeton est l'identifiant — pas de signature HMAC séparée, pas de secret partagé à faire tourner, pas de code de signature à écrire côté appelant. Cette page est la référence de fil pour les deux surfaces ; pour le parcours détaillé end-to-end, [Déclencher une automatisation via webhook](/fr/tutorials/developer/trigger-automation-via-webhook) couvre le côté workflow.
+Les webhooks sont la manière dont Tale et le reste de ta stack se parlent en asynchrone. Deux directions existent : entrant — ton système POST sur un déclencheur de workflow Tale pour tirer une exécution — et sortant — Tale POST sur ton URL quand quelque chose qui l'intéresse arrive. Les deux moitiés partagent le modèle d'auth (un bearer token), le schéma de signature (HMAC-SHA256 sur le body) et la politique de retraitement (backoff exponentiel avec jitter).
 
-Le public, ce sont les intégrateurs qui branchent un système externe sur Tale. Le pendant — l'API sortante de Tale, ce que ton code appelle — vit sous [Référence API](/fr/develop/api-reference).
+Lis ceci quand tu câbles une intégration qui doit réagir à des événements dans une des directions. Reviens-y quand un webhook tire mais que le récepteur ne le voit pas, ou quand les retries ne se comportent pas comme tu l'attendais.
 
-## Exemple travaillé — déclencher un webhook de workflow
+## Un webhook sortant mis en pratique
 
-Le déclencheur de workflow le plus petit possible depuis cURL :
+Quand un événement que Tale surveille survient — une exécution de workflow se termine, un agent finit une réponse, une écriture de document s'achève — Tale POST l'événement sur ton URL configurée :
 
-```bash
-curl -X POST "https://your-tale-instance.com/api/workflows/wh/<TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{"customerId":"c-42","priority":"high","lines":3}'
-```
+```http
+POST https://your-host.example.com/webhooks/tale
+Content-Type: application/json
+X-Tale-Event: workflow.execution.completed
+X-Tale-Signature: sha256=<hex>
+X-Tale-Delivery: <uuid>
+X-Tale-Timestamp: 1717000000
 
-La réponse revient immédiatement, avant que le workflow tourne :
-
-```json
-{ "status": "accepted", "workflowSlug": "incoming-order-intake" }
-```
-
-Le workflow tourne de manière asynchrone ; l'appelant ne bloque jamais en attendant la sortie. Les statuts et résultats par étape vivent dans l'onglet **Exécutions** du workflow — voir [Journaux d'exécution](/fr/platform/automations/execution-logs).
-
-## Webhooks de workflow
-
-Chaque workflow avec un déclencheur webhook a une URL unique de la forme :
-
-```text
-https://<ton-instance-tale>/api/workflows/wh/<TOKEN>
-```
-
-Le jeton fait 64 caractères hexadécimaux et est généré quand tu ajoutes le déclencheur dans **Automatisations > <workflow> > Déclencheurs**. C'est le seul identifiant — quiconque détient l'URL peut poster des événements vers le workflow.
-
-### POST /api/workflows/wh/{token}
-
-Lance une exécution de workflow. Le corps du POST devient l'entrée du workflow, adressable comme `{{ trigger.body }}` dans chaque étape.
-
-| Nom                 | Type   | Obligatoire | Description                                                                                                                              |
-| ------------------- | ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `Content-Type`      | string | Oui         | `application/json`. Les autres content-types sont rejetés.                                                                               |
-| `X-Idempotency-Key` | string | Non         | Identifiant stable pour des relances sûres. Les livraisons en double renvoient l'exécution originale au lieu d'en démarrer une nouvelle. |
-| _corps de requête_  | object | Oui         | JSON arbitraire. Tout le corps est passé en entrée au workflow.                                                                          |
-
-**Réponse — première livraison :**
-
-```json
-{ "status": "accepted", "workflowSlug": "<workflow-slug>" }
-```
-
-**Réponse — livraison en double (même `X-Idempotency-Key`) :**
-
-```json
-{ "status": "duplicate", "executionId": "<id>" }
-```
-
-Le chemin de doublon renvoie l'ID de l'exécution originale pour que l'appelant puisse consulter l'exécution existante au lieu de deviner si la relance a pris.
-
-### Codes de statut
-
-| Code | Signification                                                            |
-| ---- | ------------------------------------------------------------------------ |
-| 200  | Accepté (ou doublon). Le corps distingue les deux cas.                   |
-| 400  | Charge utile JSON invalide, jeton manquant, ou format de jeton invalide. |
-| 403  | Webhook désactivé, ou workflow non publié / non installé.                |
-| 404  | Le jeton ne correspond à aucun webhook.                                  |
-| 429  | Limite de taux par IP dépassée.                                          |
-
-## Webhooks d'agent
-
-Chaque agent avec un webhook actif a une URL unique :
-
-```text
-https://<ton-instance-tale>/api/agents/wh/<TOKEN>
-```
-
-Les jetons suivent le même format de 64 caractères hexadécimaux que les jetons de workflow ; crée-les ou révoque-les dans l'onglet **Webhook** de l'agent. L'endpoint expose deux formats de fil — une forme native Tale (legacy) et un sous-chemin OpenAI-compatible — pour qu'un client OpenAI existant puisse adresser un agent sans réécrire la requête.
-
-### POST /api/agents/wh/{token} — forme native Tale
-
-Envoie un message utilisateur unique à l'agent. La réponse interroge jusqu'à ce que l'agent ait terminé la génération, ou diffuse des Server-Sent Events quand `stream: true`.
-
-| Nom        | Type    | Obligatoire | Description                                                                  |
-| ---------- | ------- | ----------- | ---------------------------------------------------------------------------- |
-| `message`  | string  | Oui         | Le message utilisateur. Texte brut.                                          |
-| `threadId` | string  | Non         | Réutiliser un fil de conversation existant. Un nouveau fil est créé si omis. |
-| `stream`   | boolean | Non         | Diffuser la réponse en SSE. Défaut `false`.                                  |
-
-Le corps peut aussi être envoyé en `multipart/form-data` pour joindre un fichier à côté du message — les champs sont `message`, `threadId`, `stream` et `file`.
-
-**Réponse — sans streaming :**
-
-```json
 {
-  "threadId": "<id>",
-  "message": "<la réponse de l'agent>",
-  "status": "done"
+  "event": "workflow.execution.completed",
+  "data": { "workflowId": "...", "executionId": "...", "status": "succeeded", ... }
 }
 ```
 
-### POST /api/agents/wh/{token}/chat/completions — OpenAI-compatible
+Vérifie la signature avant de faire confiance au body : HMAC-SHA256 sur le body brut avec le secret par endpoint, encodé en hex. Compare en temps constant. Rejette toute requête plus vieille que cinq minutes en comparant `X-Tale-Timestamp` à ton horloge.
 
-Le même agent est adressable comme endpoint Chat Completions OpenAI. Le sous-chemin laisse n'importe quel client OpenAI parler à l'agent sans réécriture :
+## Un déclencheur entrant mis en pratique
+
+Quand ton système doit tirer un workflow Tale, POST sur l'URL du déclencheur du workflow :
 
 ```bash
-curl -X POST "https://<ton-instance-tale>/api/agents/wh/<TOKEN>/chat/completions" \
+curl -sS https://your-host.example.com/api/v1/workflows/triggers/<trigger-name> \
+  -H "Authorization: Bearer $TALE_TRIGGER_KEY" \
+  -H "Idempotency-Key: order-12345" \
   -H "Content-Type: application/json" \
-  -d '{
-    "model": "openai/gpt-4o",
-    "messages": [{"role": "user", "content": "Bonjour !"}]
-  }'
+  -d '{ "orderId": "12345", "amount": 199.0 }'
 ```
 
-Le champ `model` est optionnel — quand présent, Tale le valide contre les `supportedModels` de l'agent et retombe silencieusement sur le défaut de l'agent quand le modèle demandé n'est pas autorisé. La forme de réponse correspond à `/v1/chat/completions` d'OpenAI.
+La clé de déclencheur est une clé API portée sur le déclencheur webhook, émise aux côtés du déclencheur dans l'éditeur de workflow. Le body devient l'entrée de la première étape du workflow. La réponse est du JSON avec un `executionId` que tu peux citer en vérifiant l'exécution.
 
-### Codes de statut (les deux formes)
+## Signer et vérifier
 
-| Code | Signification                                                                                |
-| ---- | -------------------------------------------------------------------------------------------- |
-| 200  | Réponse livrée.                                                                              |
-| 400  | Corps invalide (`message` manquant, JSON mal formé, tableau messages vide).                  |
-| 401  | Jeton webhook invalide.                                                                      |
-| 403  | Webhook désactivé.                                                                           |
-| 404  | Le jeton ne correspond à aucun webhook d'agent.                                              |
-| 429  | Limite de taux par IP dépassée.                                                              |
-| 413  | Texte `system` client concaténé dépassant 50 000 caractères (sous-chemin OpenAI uniquement). |
-| 504  | La réponse a fini en timeout (l'agent n'a pas terminé dans la limite stricte de 9 minutes).  |
+Sortant : le secret de signature par endpoint est affiché une fois quand tu ajoutes l'endpoint sous **Paramètres > Intégrations** ou dans le panneau de déclencheur webhook de l'éditeur de workflow. Tale signe chaque body en HMAC-SHA256 avec ce secret ; la vérification est une comparaison de chaînes en temps constant.
 
-## Rotation des jetons
+Entrant : il n'y a pas de signature — le bearer token est l'auth. Si tu ne peux pas garder le token secret, n'expose pas l'URL du déclencheur.
 
-Il n'y a pas de secret de signature à faire tourner — l'identifiant est le jeton lui-même. Pour faire tourner :
+```python
+import hmac, hashlib
 
-1. Ouvre le panneau **Déclencheurs** du workflow ou l'onglet **Webhook** de l'agent.
-2. Clique **Régénérer**. Tale frappe un nouveau jeton ; l'ancien arrête d'accepter les requêtes immédiatement.
-3. Mets à jour l'URL stockée de l'appelant vers le nouveau jeton.
+def verify(body: bytes, signature: str, secret: str) -> bool:
+    expected = "sha256=" + hmac.new(
+        secret.encode(),
+        body,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)
+```
 
-Il n'y a pas de fenêtre de chevauchement : la régénération est instantanée, donc les mises à jour côté appelant doivent atterrir dans la même fenêtre de changement. Pour les flux de rotation automatisés, traite la rotation du jeton comme une rotation de clé API — garde les deux URL valides brièvement en ajoutant un second déclencheur avant de retirer l'ancien.
+## Idempotence
 
-## Relances et idempotence
+Entrant : passe `Idempotency-Key` à chaque appel de déclencheur. Tale stocke la clé contre l'exécution résultante pendant 24 heures ; un retry avec la même clé renvoie le même ID d'exécution sans retirer le workflow.
 
-Pour les **webhooks de workflow**, l'appelant est responsable des relances. Tale ne relance pas le POST entrant lui-même — les relances par étape internes au workflow gèrent les échecs internes, mais une réponse HTTP non-2xx est la responsabilité de l'appelant. Utilise `X-Idempotency-Key` pour rendre les relances côté appelant sûres.
+Sortant : chaque livraison porte un UUID `X-Tale-Delivery` unique. Utilise-le pour dédupliquer de ton côté — Tale retraite sur les réponses non-2xx, et le même UUID de livraison apparaîtra à chaque retry jusqu'à ce que le récepteur acquitte.
 
-Pour les **webhooks d'agent**, la requête est synchrone — l'appelant attend la réponse de l'agent — et une relance répète l'appel au modèle. Mets un timeout côté client raisonnable (assez long pour un modèle lent, assez court pour que les connexions pendues ne s'empilent pas) et évite de relancer sur des réponses `200`.
+## Retraitements
 
-## Limite de confiance
+Les retraitements sortants suivent un backoff exponentiel avec jitter, plafonnés à 24 heures de tentatives. Le calendrier :
 
-Ce qui traverse le réseau dans chaque direction :
+- Retry immédiat sur un 5xx ou un timeout.
+- 30 s, 1 m, 5 m, 30 m, 2 h, 8 h, 24 h après le premier échec.
+- Après 24 h sans 2xx, la livraison est marquée comme échouée ; le journal d'audit l'enregistre.
 
-- **De l'appelant vers Tale** : le corps du POST et les en-têtes, y compris le jeton dans l'URL. HTTPS protège tout en transit ; le jeton n'est pas envoyé comme en-tête, donc il reste hors des lignes de log `Authorization` standard, mais il apparaît dans l'URL de tout journal d'accès que l'appelant écrit. Traite-le en conséquence.
-- **De Tale vers l'appelant** : le corps de la réponse. Les webhooks d'agent renvoient la réponse complète du modèle ; les webhooks de workflow ne renvoient que `accepted` / `duplicate` plus le slug du workflow ou l'ID d'exécution — pas la sortie du workflow.
-- **Ce que Tale fait de la charge utile** : le corps JSON atterrit dans le journal d'exécution du workflow ou l'historique de conversation de l'agent, régi par les politiques de rétention et d'audit de ton organisation. Pas de persistance externe séparée.
+Les retraitements entrants sont la responsabilité de l'appelant — la réponse de Tale indique le succès ou l'échec du déclencheur, pas des étapes du workflow. Si tu veux retraiter, utilise une clé d'idempotence stable.
 
-## Où ça s'inscrit
+## Où cela s'inscrit
 
-Les webhooks sont le pendant entrant de l'API sortante de Tale. L'API est ce que ton code appelle quand tu pilotes la conversation ; les webhooks sont ce que Tale expose pour qu'un système externe puisse piloter un workflow ou adresser un agent sans être assis dans l'UI de chat. Les deux surfaces partagent le même journal d'audit, donc une seule configuration d'observabilité couvre tout ce que Tale reçoit.
-
-Pour les pièces liées : [Référence API](/fr/develop/api-reference) est le côté sortant de la même famille de protocole, [Déclencheurs](/fr/platform/automations/triggers) couvre comment un workflow opte pour un déclencheur webhook, et l'[onglet Webhook d'un agent](/fr/platform/agents/create#webhook-tab) déroule la configuration par agent.
+Les webhooks sont la couture entre Tale et les systèmes externes des deux côtés. La [référence API](/fr/develop/api-reference) couvre la moitié synchrone — les endpoints que tu appelles quand tu veux une valeur en retour immédiate. La [référence Déclencheurs](/fr/platform/automations/triggers) couvre le côté workflow des webhooks entrants — la configuration qui transforme un POST en une exécution de workflow.
