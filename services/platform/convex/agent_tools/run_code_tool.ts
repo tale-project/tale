@@ -421,10 +421,25 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
       };
 
       const success = run.status === 'completed';
+      const emptyFilesHint = `run_code succeeded in ${run.durationMs}ms. No output files were harvested.
+
+If the script was supposed to produce a deliverable file, only paths under \`/workspace/output/\` are harvested back into the thread workspace — files written to the cwd, \`/tmp\`, or \`/workspace/code/\` are discarded when the container exits.
+
+Wrong (file is lost, NOT harvested):
+  open("report.pptx", "wb").write(data)              # Python
+  fs.writeFileSync("report.json", data)              // Node
+
+Correct (harvested into the thread workspace):
+  open("/workspace/output/report.pptx", "wb").write(data)
+  fs.writeFileSync("/workspace/output/report.json", data)
+
+Same rule for bash: \`cp report.pdf /workspace/output/report.pdf\`.
+
+If your script genuinely had no file deliverable (e.g. a sanity check or package install), you can ignore this — the run did succeed.`;
       const message = success
         ? run.files.length > 0
           ? `run_code succeeded in ${run.durationMs}ms. Produced ${run.files.length} output file(s) at /workspace/output/: ${run.files.map((f) => f.path).join(', ')}.`
-          : `run_code succeeded in ${run.durationMs}ms. No output files produced.`
+          : emptyFilesHint
         : run.errorCode
           ? `run_code FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}. Read stderrPreview, fix the script via file_write, then call run_code again.`
           : `run_code finished with status=${run.status} and no output files.`;
