@@ -25,8 +25,6 @@ const LOCALE_PATTERN = /^[a-z]{2}(?:-[A-Z]{2})?$/;
  *  rule (presence only, no full mirror requirement). */
 export const BASE_LOCALES = ['en', 'de', 'fr'] as const;
 
-export type Locale = string;
-
 /**
  * Walk the content tree recursively and return every `.md`/`.mdx` path as a
  * forward-or-system-slash content-relative string (`en/platform/agents/concepts.md`).
@@ -56,9 +54,9 @@ export function walkDocs(
 
 /** All top-level locale directories under `docs/` whose name matches
  *  `LOCALE_PATTERN`. Sorted for deterministic test output. */
-export function discoverLocales(): Locale[] {
+export function discoverLocales(): string[] {
   if (!fs.existsSync(CONTENT_ROOT)) return [];
-  const out: Locale[] = [];
+  const out: string[] = [];
   for (const entry of fs.readdirSync(CONTENT_ROOT, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
     if (LOCALE_PATTERN.test(entry.name)) out.push(entry.name);
@@ -75,8 +73,8 @@ export function discoverLocales(): Locale[] {
  */
 export function localeOf(
   relPath: string,
-  locales: Locale[] = discoverLocales(),
-): Locale {
+  locales: string[] = discoverLocales(),
+): string {
   const first = relPath.split(path.sep)[0];
   return locales.includes(first) ? first : 'en';
 }
@@ -86,7 +84,7 @@ export function localeOf(
  * callers can directly diff trees across locales (`platform/agents/concepts.md`).
  */
 export function filesInLocale(
-  locale: Locale,
+  locale: string,
   all: string[] = walkDocs(),
 ): string[] {
   const prefix = locale + path.sep;

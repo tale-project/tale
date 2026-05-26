@@ -18,7 +18,7 @@ import type { Finding } from '../checks/types';
 import type { CheckId, CheckMode } from '../config';
 import { pushToReportSink } from './report-sink';
 
-export interface AssertContext {
+interface AssertContext {
   readonly checkId: CheckId;
   readonly label: string;
   readonly doctrine?: string;

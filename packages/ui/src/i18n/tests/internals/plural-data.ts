@@ -10,9 +10,9 @@
  * locale's plural function distinguishes. `other` is always required.
  */
 
-export type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
+type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
 
-export const REQUIRED_PLURAL_CATEGORIES: Record<
+const REQUIRED_PLURAL_CATEGORIES: Record<
   string,
   ReadonlyArray<PluralCategory>
 > = {

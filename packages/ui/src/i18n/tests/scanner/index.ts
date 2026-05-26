@@ -17,10 +17,8 @@ export type {
   MarkdownSource,
   Source,
 } from './types';
-export { applyJsonMasks, applyMarkdownMasks } from './mask';
 export { walkDocsRoot, walkMessagesDir } from './walk';
 export { lexIcu } from './icu-lexer';
-export type { IcuShape } from './icu-lexer';
 export { extractHeadingSlugs, slugifyHeading } from './slug';
 
 export interface Scanner {

@@ -20,7 +20,3 @@ export function getCached(source: Source): Fragment[] | undefined {
 export function setCached(source: Source, fragments: Fragment[]): void {
   cache.set(source.path, fragments);
 }
-
-export function clearCache(): void {
-  cache.clear();
-}

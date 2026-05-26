@@ -11,8 +11,3 @@ import path from 'node:path';
 export function resolveRepoRoot(serviceRoot: string): string {
   return path.resolve(serviceRoot, '..', '..');
 }
-
-/** Repo-relative path. */
-export function relative(repoRoot: string, absolute: string): string {
-  return path.relative(repoRoot, absolute);
-}

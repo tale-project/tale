@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-export interface MessagesParityConfig {
+interface MessagesParityConfig {
   /** Absolute path to the directory containing locale JSON files. */
   messagesDir: string;
   /** Base locale that all primary locales must match. Defaults to `'en'`. */

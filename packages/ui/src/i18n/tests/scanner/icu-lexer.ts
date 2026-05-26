@@ -10,7 +10,7 @@
  * Tolerates malformed input: returns whatever it can parse, never throws.
  */
 
-export interface IcuShape {
+interface IcuShape {
   /** All placeholder names that appear in the value (deduplicated). */
   readonly placeholders: ReadonlySet<string>;
   /** True if at least one placeholder uses ICU `plural` form. */

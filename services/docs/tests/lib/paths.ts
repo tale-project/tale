@@ -13,11 +13,6 @@ import { fileURLToPath } from 'node:url';
  *         tests/
  *           lib/
  *             paths.ts             ← this file
- *       platform/
- *         messages/                ← shipped UI strings (MESSAGES_ROOT)
- *           en.json, de.json, fr.json
- *     .agents/translation/
- *       GLOSSARY.json              ← term contract (GLOSSARY_PATH)
  *
  * Resolved once at module-load time. No filesystem checks here — that lives in
  * `walk.ts`. Keeping this file pure makes the helpers easy to unit-test and
@@ -37,25 +32,3 @@ export const REPO_ROOT = path.resolve(DOCS_ROOT, '..', '..');
 
 /** `docs/` — the content tree the docs site reads from. */
 export const CONTENT_ROOT = path.join(REPO_ROOT, 'docs');
-
-/** `services/platform/messages/` — the shipped-UI source of truth. */
-export const MESSAGES_ROOT = path.join(
-  REPO_ROOT,
-  'services',
-  'platform',
-  'messages',
-);
-
-/** Glossary path — moved into the framework data folder in Phase 1.
- *  The full migration of services/docs/tests/ to defineDocsTests happens in
- *  Phase 2; until then the existing tests read the file from its new home. */
-export const GLOSSARY_PATH = path.join(
-  REPO_ROOT,
-  'packages',
-  'ui',
-  'src',
-  'i18n',
-  'tests',
-  'glossary',
-  'glossary.json',
-);

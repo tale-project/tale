@@ -21,13 +21,13 @@
 const SPACES = (n: number): string => ' '.repeat(n);
 
 /** Inline-code mask: `` `…` `` → spaces of equal length. */
-export function maskInlineCode(line: string): string {
+function maskInlineCode(line: string): string {
   // Match backtick spans non-greedily; ignore double-backtick code spans.
   return line.replace(/`[^`\n]*`/g, (m) => SPACES(m.length));
 }
 
 /** Link-URL mask: `[label](url)` keeps `[label]`; `(url)` → spaces. */
-export function maskLinkUrls(line: string): string {
+function maskLinkUrls(line: string): string {
   return line.replace(
     /(\[[^\]]*\])\(([^)]*)\)/g,
     (_full, label: string, url: string) => {
@@ -41,7 +41,7 @@ export function maskLinkUrls(line: string): string {
  * plural/select forms) with spaces. Uses a depth counter so nested
  * `{count, plural, one {…}}` mask correctly.
  */
-export function maskIcuPlaceholders(text: string): string {
+function maskIcuPlaceholders(text: string): string {
   const out: string[] = [];
   let i = 0;
   while (i < text.length) {
@@ -64,12 +64,12 @@ export function maskIcuPlaceholders(text: string): string {
 }
 
 /** Backtick-span mask inside JSON values: `` `npm install` `` → spaces. */
-export function maskBacktickSpans(value: string): string {
+function maskBacktickSpans(value: string): string {
   return value.replace(/`[^`\n]*`/g, (m) => SPACES(m.length));
 }
 
 /** Template-literal placeholder mask: `${...}` → spaces (rare in JSON). */
-export function maskTemplateLiterals(value: string): string {
+function maskTemplateLiterals(value: string): string {
   return value.replace(/\$\{[^}]*\}/g, (m) => SPACES(m.length));
 }
 
