@@ -3476,6 +3476,10 @@
       "title": "Agent-Tools",
       "description": "Tools für deinen Agent auswählen und konfigurieren."
     },
+    "agentSkills": {
+      "title": "Agent-Skills",
+      "description": "Skills binden, die der Agent zur Laufzeit lesen kann."
+    },
     "agentWebhook": {
       "title": "Agent-Workers",
       "description": "Worker-URLs für deinen Agent verwalten."
@@ -4038,6 +4042,9 @@
       "providers": {
         "description": "Eigene API-Schlüssel für OpenAI, Anthropic und andere mitbringen."
       },
+      "skills": {
+        "description": "Skills, die deine Agenten für bestimmte Dateitypen oder Aufgaben laden können."
+      },
       "apiKeys": {
         "description": "Programmatische Zugriffstoken für die Tale-API."
       },
@@ -4178,6 +4185,7 @@
         "general": "Allgemein",
         "instructionsModel": "Anweisungen & Modell",
         "tools": "Tools",
+        "skills": "Skills",
         "knowledge": "Wissen",
         "webhook": "Worker",
         "delegation": "Delegation",
@@ -4246,6 +4254,13 @@
         "sectionWorkflowBindings": "Gebundene Workflows",
         "sectionWorkflowBindingsDescription": "Bestimmte Workflows als dedizierte Tools binden. Der Agent muss die Workflow-ID nicht angeben.",
         "noWorkflowsAvailable": "Keine aktiven Workflows verfügbar.",
+        "sectionSkillBindings": "Gebundene Skills",
+        "sectionSkillBindingsDescription": "Skills, die der Agent zur Laufzeit lesen kann. Leer lassen für einen Agent ohne Skills — es gibt keinen impliziten Fallback auf organisationsweite Sichtbarkeit.",
+        "skillBindingsCounter": "{count}/{max} gebunden",
+        "skillBindingsToggleAria": "{slug} binden",
+        "skillBindingsAtCapReason": "Maximal {max} Skills gebunden — löse eine Bindung, um eine andere hinzuzufügen.",
+        "skillBindingsNoSkillsInOrgDescription": "In dieser Organisation existieren noch keine Skills.",
+        "skillBindingsNoSkillsInOrgCta": "In den Skills-Einstellungen anlegen",
         "sectionKnowledge": "Wissen",
         "sectionKnowledgeDescription": "Zugriff auf die Wissensdatenbank konfigurieren",
         "knowledgeHint": "Die Wissensdatenbank durchsucht Dokumente, die in deine Organisation hochgeladen wurden.",
@@ -4395,7 +4410,8 @@
       "skillDeleteConflict": "Skill wurde geändert, seit du diesen Dialog geöffnet hast. Lade neu und versuche es noch einmal.",
       "skillDuplicated": "Skill als {slug} dupliziert",
       "skillDuplicateFailed": "Skill konnte nicht dupliziert werden",
-      "deleteConfirmation": "Dadurch wird das Skill-Bundle von der Festplatte entfernt. Daran gebundene Agents behalten den Bindungseintrag und protokollieren zur Laufzeit eine Warnung, bis du sie erneut bearbeitest.",
+      "deleteConfirmation": "Skill-Bundle wirklich löschen? Jeder gebundene Agent verliert den Zugriff.",
+      "manageInSettings": "In Skill-Einstellungen verwalten",
       "actions": {
         "duplicate": "Duplizieren",
         "replaceBundle": "Bundle ersetzen"

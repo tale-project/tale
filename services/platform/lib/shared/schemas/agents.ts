@@ -4,6 +4,13 @@ import { isValidModelRef } from '../utils/model-ref';
 import { SKILL_NAME_REGEX } from './skills';
 
 /**
+ * Hard cap on the number of skill slugs a single agent may list in
+ * `skillBindings`. Shared so the UI counter and the schema validator
+ * cannot drift.
+ */
+export const MAX_SKILL_BINDINGS_PER_AGENT = 10;
+
+/**
  * Canonical shape of one entry in an agent's `skillBindingsResolved`
  * array — the trusted snapshot the runtime reads at chat-turn start to
  * decide which tools / integrations / workflows a bound skill grants.
@@ -88,11 +95,11 @@ export const agentJsonSchema = z
     workflows: z.array(z.string()).optional(),
     skillBindings: z
       .array(z.string().min(1).max(64).regex(SKILL_NAME_REGEX))
-      .max(10)
+      .max(MAX_SKILL_BINDINGS_PER_AGENT)
       .optional(),
     skillBindingsResolved: z
       .array(skillBindingResolvedEntrySchema)
-      .max(10)
+      .max(MAX_SKILL_BINDINGS_PER_AGENT)
       .optional(),
     supportedModels: z
       .array(
@@ -175,10 +182,16 @@ export const agentJsonSchema = z
       }
     }
 
-    // skillBindings / skillBindingsResolved are vestigial — the new skill
-    // model exposes all org skills to every agent, so per-agent gating no
-    // longer exists. The fields stay `.optional()` so historical agent
-    // JSON keeps validating, but no cross-reference check is enforced.
+    // `skillBindings` is the agent's hard allowlist of skill slugs. An empty
+    // or absent list means the agent has zero skills available — there is no
+    // implicit "all org skills" fallback. Cross-reference to actual org skills
+    // is left to runtime (a stale slug is silently dropped from the snapshot),
+    // so an operator can list a skill that will be uploaded later without
+    // tripping schema validation.
+    //
+    // `skillBindingsResolved` is a legacy snapshot from the old transitive
+    // tool-grant model and is no longer read at runtime; it remains optional
+    // for back-compat reading of historical agent JSON.
 
     // Image-generation agents have no tool loop — these fields are meaningless.
     if (data.primaryBehavior === 'image-generation') {

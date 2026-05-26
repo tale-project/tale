@@ -1,18 +1,23 @@
 'use node';
 
 /**
- * Runtime support for skills in the new "skill = knowledge pack" model.
+ * Runtime support for skills in the "skill = knowledge pack" model.
  *
- * Skills are no longer agent-bound, no longer grant tools/integrations/
- * workflows transitively, and are never directly executed. The LLM reads
- * a skill's SKILL.md + bundle files via {@link createExpandSkillTool} and
- * {@link createReadSkillFileTool}, then writes whatever code it needs to
- * the thread workspace (`file_write`) and runs it (`run_code`).
+ * Skills no longer grant tools/integrations/workflows transitively and are
+ * never directly executed. The LLM reads a skill's SKILL.md + bundle files
+ * via {@link createExpandSkillTool} and {@link createReadSkillFileTool},
+ * then writes whatever code it needs to the thread workspace (`file_write`)
+ * and runs it (`run_code`).
+ *
+ * Skills are gated per-agent via `skillBindings` on the agent JSON — a hard
+ * allowlist. An empty or absent list means the agent has zero skills
+ * available and no `expand_skill` tool is exposed at all.
  *
  * This module exposes:
- *  1. {@link buildSkillContext} — load every org skill at turn start (one
- *     disk read per skill, all in parallel) so the model can `expand_skill`
- *     anything in the org. Returns a snapshot scoped to a single chat turn.
+ *  1. {@link buildSkillContext} — given the agent's bound slugs, load each
+ *     one's SKILL.md + bundle in parallel and produce a snapshot scoped to
+ *     a single chat turn. Bound slugs that point at non-existent org skills
+ *     are silently dropped.
  *  2. Closure-bound `expand_skill` and `read_skill_file` tool factories that
  *     only see the snapshot the runtime captured — never a model-supplied
  *     org id.
@@ -72,26 +77,32 @@ const EMPTY_SNAPSHOT: SkillSnapshot = {
 /**
  * Resolve the current turn's skill snapshot.
  *
- * Lists every skill in the org via `listSkillsForExecution`, loads each
- * one's SKILL.md + bundle in parallel, and produces the closure-bound
- * `expand_skill` / `read_skill_file` tools. All org skills are visible
- * to every agent — there is no per-agent skill binding gate.
+ * `boundSlugs` is the agent's hard allowlist (from `skillBindings`). If it
+ * is empty or undefined, this returns the empty snapshot immediately — no
+ * list call, no disk reads, no `expand_skill` tool exposed. Otherwise the
+ * function intersects `boundSlugs` with the slugs actually present in the
+ * org and loads only the intersection in parallel. Slugs that reference
+ * skills not in the org are silently dropped.
  */
 export async function buildSkillContext(
   ctx: ActionCtx,
   orgSlug: string,
+  boundSlugs: readonly string[] | undefined,
 ): Promise<SkillSnapshot> {
-  let slugs: string[];
-  try {
-    const listed = await ctx.runAction(
-      internal.skills.file_actions.listSkillsForExecution,
-      { orgSlug },
-    );
-    slugs = Array.isArray(listed) ? listed : [];
-  } catch (err) {
-    console.warn('[skills_runtime] listSkillsForExecution failed:', err);
-    return EMPTY_SNAPSHOT;
-  }
+  if (!boundSlugs || boundSlugs.length === 0) return EMPTY_SNAPSHOT;
+  const boundSet = new Set(boundSlugs);
+
+  // Let `listSkillsForExecution` failures propagate. Sibling builders
+  // (`buildIntegrationTools` / `buildWorkflowTools` / `buildMcpTools`)
+  // all let listing errors abort the turn — silently degrading here
+  // would hide a real fault from the operator and contradict the
+  // promise of a hard `skillBindings` allowlist.
+  const listed = await ctx.runAction(
+    internal.skills.file_actions.listSkillsForExecution,
+    { orgSlug },
+  );
+  const orgSlugs = Array.isArray(listed) ? listed : [];
+  const slugs = orgSlugs.filter((s) => boundSet.has(s));
   if (slugs.length === 0) return EMPTY_SNAPSHOT;
 
   const loads = await Promise.all(
@@ -173,7 +184,7 @@ function buildAvailableSkillsSection(entries: SkillRuntimeEntry[]): string {
     '',
     '## Available Skills',
     '',
-    'You have these skills available in this organization. The full instructions for each are loaded on demand — call `expand_skill({ skillSlug: "<slug>" })` when one is relevant to the user request.',
+    'You have these skills available. Before reaching for a generic tool or `run_code`, scan this list and call `expand_skill({ skillSlug: "<slug>" })` for any skill whose description matches the user request — follow its instructions first.',
     '',
     'Skills are **knowledge packs** — they teach you how to approach a task. They are not executable. To do work, read the skill (`expand_skill` + `read_skill_file`), then write your own code into the thread workspace with `file_write` and execute it via `run_code`.',
     '',

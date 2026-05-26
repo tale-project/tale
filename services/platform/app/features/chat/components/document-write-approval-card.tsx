@@ -155,9 +155,13 @@ function DocumentWriteApprovalCardComponent({
                 <Text as="span" variant="caption" className="truncate">
                   {file.fileName}
                 </Text>
-                <Badge variant="outline" className="shrink-0 text-xs">
+                <Text
+                  as="span"
+                  variant="caption"
+                  className="border-border bg-background min-w-0 rounded-md border px-1.5 py-0.5 break-all"
+                >
                   {file.mimeType}
-                </Badge>
+                </Text>
                 <Text as="span" variant="caption" className="shrink-0">
                   {formatBytes(file.fileSize)}
                 </Text>

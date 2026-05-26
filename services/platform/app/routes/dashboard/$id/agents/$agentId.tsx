@@ -85,6 +85,11 @@ function AgentDetailLayout() {
                     matchMode: 'exact',
                   },
                   {
+                    label: t('agents.navigation.skills'),
+                    href: `/dashboard/${organizationId}/agents/${agentId}/skills`,
+                    matchMode: 'exact',
+                  },
+                  {
                     label: t('agents.navigation.knowledge'),
                     href: `/dashboard/${organizationId}/agents/${agentId}/knowledge`,
                     matchMode: 'exact',

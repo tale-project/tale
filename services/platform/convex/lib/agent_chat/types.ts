@@ -5,7 +5,6 @@
  * enabling lib/ to be completely decoupled from agents/.
  */
 
-import type { SkillBindingResolvedEntry } from '../../../lib/shared/schemas/agents';
 import type { ToolName } from '../../agent_tools/tool_registry';
 import type { AgentType } from '../context_management/constants';
 
@@ -56,13 +55,13 @@ export interface SerializableAgentConfig {
   /** Agent slugs of delegate agents (file-based agent names) */
   delegateSlugs?: string[];
   /**
-   * Skill snapshot taken at bind time. Runtime uses THIS list (not the live
-   * SKILL.md frontmatter) to merge transitive dependencies, defeating the
-   * silent-privilege-escalation attack identified during plan review.
-   * Empty / omitted = no bound skills; the runtime emits no skill tools or
-   * "Available Skills" section in that case.
+   * Hard allowlist of skill slugs the agent may use. Empty / omitted = no
+   * skills available; the runtime emits no `expand_skill` tool and no
+   * "Available Skills" section in that case. `buildSkillContext` intersects
+   * this list with the org's actual skills at turn start — stale slugs are
+   * silently dropped.
    */
-  skillBindingsResolved?: SkillBindingResolvedEntry[];
+  skillBindings?: string[];
   /** Whether to inject structured response markers into the system prompt (default false) */
   structuredResponsesEnabled?: boolean;
   /** Per-agent timeout in milliseconds */

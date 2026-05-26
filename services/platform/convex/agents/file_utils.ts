@@ -49,20 +49,17 @@ export interface AgentJsonConfig {
   delegates?: string[];
   workflows?: string[];
   /**
-   * Slugs of skills bound to this agent. Each slug references a
-   * `${SKILLS_DIR}/<orgSlug>/<slug>/SKILL.md` bundle. Runtime resolution
-   * loads bound skills via {@link buildSkillContext} and merges their
-   * declared `toolNames` / `integrationBindings` / `workflowBindings` into
-   * the agent's effective tool set.
+   * Slugs of skills available to this agent — a hard allowlist. Each slug
+   * references a `${SKILLS_DIR}/<orgSlug>/<slug>/SKILL.md` bundle. Empty or
+   * absent means the agent has zero skills available; there is no implicit
+   * "all org skills" fallback. At chat-turn start, `buildSkillContext` loads
+   * only the intersection of this list with the org's actual skills; slugs
+   * pointing at non-existent skills are silently dropped.
    */
   skillBindings?: string[];
   /**
-   * Transitive-dependency snapshot taken at bind time. Runtime trusts
-   * THIS list, not the live frontmatter, so a subsequent skill edit
-   * cannot silently widen the agent's access (HIGH-severity finding from
-   * the Round 1 adversarial review). Drift between snapshot and live
-   * frontmatter surfaces as a runtime warn + UI banner; the user
-   * re-confirms by re-saving the agent.
+   * Legacy snapshot from the old transitive tool-grant model. No longer read
+   * at runtime — kept optional so historical agent JSON still validates.
    */
   skillBindingsResolved?: SkillBindingResolvedEntry[];
   supportedModels: string[];

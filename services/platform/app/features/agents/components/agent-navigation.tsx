@@ -71,6 +71,7 @@ const AGENT_TAB_DIRTY_KEYS = {
     'workflows',
     'maxIntegrationCallsPerRun',
   ],
+  skills: ['skillBindings'],
   knowledge: [
     'knowledgeMode',
     'webSearchMode',
@@ -167,6 +168,12 @@ export function AgentNavigation({
       href: `${basePath}/tools`,
       matchMode: 'exact',
       dirtyKeys: AGENT_TAB_DIRTY_KEYS.tools,
+    },
+    {
+      label: t('agents.navigation.skills'),
+      href: `${basePath}/skills`,
+      matchMode: 'exact',
+      dirtyKeys: AGENT_TAB_DIRTY_KEYS.skills,
     },
     {
       label: t('agents.navigation.knowledge'),

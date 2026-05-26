@@ -9,7 +9,8 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
-import { Copy, RotateCw, Trash2, X } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { ArrowUpRight, Copy, RotateCw, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -23,7 +24,6 @@ import {
 import { useDuplicateSkill } from '@/app/features/skills/hooks/mutations';
 import {
   useGetSkillAuditHistory,
-  useListSkillFiles,
   useReadSkill,
 } from '@/app/features/skills/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
@@ -35,12 +35,25 @@ import { SkillBundleTreePanel } from './skill-bundle-tree-panel';
 import { SkillDeleteDialog } from './skill-delete-dialog';
 import { SkillUploadDialog } from './skill-upload/skill-upload-dialog';
 
+interface ManageLink {
+  to: string;
+  params?: Record<string, string>;
+  search?: Record<string, string>;
+}
+
 interface SkillDetailPanelProps {
   organizationId: string;
   slug: string;
   onOpenChange: (open: boolean) => void;
   /** Re-point the panel at a different skill (used after duplicate). */
   onSwitchSlug: (slug: string) => void;
+  /**
+   * Hides the management actions (Replace / Duplicate / Delete) and routes
+   * users to the canonical Skills settings page via `manageLink` instead.
+   */
+  readOnly?: boolean;
+  /** Routing target for the "Manage in Skills settings" header link. */
+  manageLink?: ManageLink;
 }
 
 export function SkillDetailPanel({
@@ -48,6 +61,8 @@ export function SkillDetailPanel({
   slug,
   onOpenChange,
   onSwitchSlug,
+  readOnly,
+  manageLink,
 }: SkillDetailPanelProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -55,7 +70,6 @@ export function SkillDetailPanel({
   const { locale } = useLocale();
 
   const { data, isLoading } = useReadSkill(organizationId, slug);
-  const { data: filesData } = useListSkillFiles(organizationId, slug);
 
   const { data: auditRows } = useGetSkillAuditHistory(organizationId, slug);
   const { mutateAsync: duplicateSkill } = useDuplicateSkill();
@@ -149,7 +163,7 @@ export function SkillDetailPanel({
             {skillDisplayName}
           </Heading>
           <HStack gap={1} align="center" className="shrink-0">
-            {skill ? (
+            {skill && !readOnly ? (
               <>
                 <Button
                   variant="ghost"
@@ -183,6 +197,19 @@ export function SkillDetailPanel({
                 </Button>
               </>
             ) : null}
+            {readOnly && manageLink ? (
+              <Link
+                to={manageLink.to}
+                params={manageLink.params}
+                search={manageLink.search}
+                className="text-foreground hover:bg-muted inline-flex h-8 items-center gap-1 rounded-md px-3 text-sm font-medium"
+              >
+                <ArrowUpRight className="size-4" aria-hidden="true" />
+                {t('skills.manageInSettings', {
+                  defaultValue: 'Manage in Skills settings',
+                })}
+              </Link>
+            ) : null}
             <IconButton
               icon={X}
               aria-label={tCommon('aria.close')}
@@ -214,7 +241,7 @@ export function SkillDetailPanel({
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
             <div className="hidden md:contents">
               <SkillBundleTreePanel
-                assets={filesData?.assets ?? skill.assets ?? []}
+                assets={skill.assets ?? []}
                 slug={slug}
                 selectedPath={selectedFile}
                 onSelectPath={setSelectedFile}
@@ -240,9 +267,7 @@ export function SkillDetailPanel({
                           defaultValue: 'Bundle files',
                         })}
                       </Text>
-                      <Text variant="label">
-                        {filesData?.assets?.length ?? skill.assets?.length ?? 0}
-                      </Text>
+                      <Text variant="label">{skill.assets?.length ?? 0}</Text>
                     </Stack>
                     {skill.meta.license ? (
                       <Stack gap={0}>
@@ -322,9 +347,7 @@ export function SkillDetailPanel({
                       defaultValue: 'Bundle files',
                     })}
                   >
-                    <SkillBundleAssetsList
-                      assets={filesData?.assets ?? skill.assets ?? []}
-                    />
+                    <SkillBundleAssetsList assets={skill.assets ?? []} />
                   </FormSection>
 
                   <FormSection
@@ -408,29 +431,33 @@ export function SkillDetailPanel({
         )}
       </Sheet>
 
-      <SkillDeleteDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        organizationId={organizationId}
-        skillSlug={slug}
-        expectedHash={hash}
-        onDeleted={() => {
-          setDeleteDialogOpen(false);
-          onOpenChange(false);
-          void queryClient.invalidateQueries({
-            queryKey: ['config', 'skills'],
-          });
-        }}
-      />
+      {!readOnly && (
+        <>
+          <SkillDeleteDialog
+            open={deleteDialogOpen}
+            onOpenChange={setDeleteDialogOpen}
+            organizationId={organizationId}
+            skillSlug={slug}
+            expectedHash={hash}
+            onDeleted={() => {
+              setDeleteDialogOpen(false);
+              onOpenChange(false);
+              void queryClient.invalidateQueries({
+                queryKey: ['config', 'skills'],
+              });
+            }}
+          />
 
-      <SkillUploadDialog
-        open={replaceDialogOpen}
-        onOpenChange={setReplaceDialogOpen}
-        organizationId={organizationId}
-        onUploaded={() => {
-          setReplaceDialogOpen(false);
-        }}
-      />
+          <SkillUploadDialog
+            open={replaceDialogOpen}
+            onOpenChange={setReplaceDialogOpen}
+            organizationId={organizationId}
+            onUploaded={() => {
+              setReplaceDialogOpen(false);
+            }}
+          />
+        </>
+      )}
     </>
   );
 }

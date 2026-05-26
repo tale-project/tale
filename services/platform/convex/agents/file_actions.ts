@@ -245,10 +245,10 @@ export const saveAgent = action({
       throw err;
     }
 
-    // Capability-change gate — skills are no longer agent-bound, so the
-    // skillBindings array is ignored and we strip it on save. The
-    // remaining capability fields still need admin/developer auth to
-    // change.
+    // Capability-change gate — changing any field that widens (or rebinds)
+    // the agent's reachable surface requires admin/developer auth.
+    // `skillBindings` belongs here because each bound skill is reachable
+    // material the agent will read at chat time.
     const arrayEq = (
       a: readonly string[] | undefined,
       b: readonly string[] | undefined,
@@ -274,20 +274,20 @@ export const saveAgent = action({
         config.integrationBindings,
       ) ||
       !arrayEq(prevAgent.config.workflows, config.workflows) ||
-      !arrayEq(prevAgent.config.delegates, config.delegates);
+      !arrayEq(prevAgent.config.delegates, config.delegates) ||
+      !arrayEq(prevAgent.config.skillBindings, config.skillBindings);
 
     const writeAuth: OrgMembershipAuth = isCapabilityChange
       ? await requireOrgAdminOrDeveloper(ctx, args.organizationId)
       : memberAuth;
 
-    // Drop legacy skill-binding fields — the new model exposes all org
-    // skills to every agent, so per-agent binding has no effect.
+    // `skillBindingsResolved` is a legacy snapshot from the old transitive
+    // tool-grant model — never write it again. `skillBindings` itself is now
+    // a hard allowlist and is persisted as-is.
     config = {
       ...config,
-      skillBindings: undefined,
       skillBindingsResolved: undefined,
     };
-    const droppedSlugs: string[] = [];
 
     // Cross-validate supportedModels against provider model lists.
     // Qualified entries ("provider:model") must resolve strictly;
@@ -316,16 +316,6 @@ export const saveAgent = action({
     const requireImageGenerationTag =
       config.primaryBehavior === 'image-generation';
     const warnings: string[] = [];
-    if (droppedSlugs.length > 0) {
-      // Surface dangling-slug cleanup to the UI so the user understands
-      // why a skill they thought they were keeping is gone. Singular vs
-      // plural so the toast reads naturally.
-      warnings.push(
-        droppedSlugs.length === 1
-          ? `Skill "${droppedSlugs[0]}" could not be loaded and was removed from this agent.`
-          : `${droppedSlugs.length} skills could not be loaded and were removed from this agent: ${droppedSlugs.join(', ')}`,
-      );
-    }
     for (const ref of config.supportedModels) {
       const { providerName, modelId, quantization } = parseModelRef(ref);
       let resolvedProviderName = providerName;
@@ -485,9 +475,11 @@ export const duplicateAgent = action({
   handler: async (ctx, args): Promise<{ newAgentName: string }> => {
     // Duplicating an agent that has any capability-bearing field (skill
     // bindings, tools, integrations, workflows) creates a NEW agent with
-    // the same grants. Server-side rebuild of skillBindingsResolved happens
-    // below, but the duplicate-vs-save trust boundary must match saveAgent
-    // — both create reachable grants, both gate on developerSettings.
+    // the same grants. The legacy `skillBindingsResolved` snapshot is
+    // stripped on write (see `skillBindingsResolved: undefined` below);
+    // `skillBindings` itself carries forward as-is. The duplicate-vs-save
+    // trust boundary must match saveAgent — both create reachable grants,
+    // both gate on developerSettings.
     const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
     const { orgSlug } = auth;
     const source = await readAgentFile(orgSlug, args.agentName);
@@ -545,7 +537,9 @@ export const duplicateAgent = action({
       ? `${legacyDisplayName}${suffix}`
       : undefined;
 
-    // Skills are no longer agent-bound; strip any legacy bindings on copy.
+    // `skillBindings` carries over to the copy (the copy should have the
+    // same skill surface as the source). `skillBindingsResolved` is the
+    // legacy transitive-grant snapshot and is dropped.
     const draft: AgentJsonConfig = {
       ...source.config,
       ...(suffixedTopLevel !== undefined
@@ -553,7 +547,6 @@ export const duplicateAgent = action({
         : {}),
       ...(nextI18n ? { i18n: nextI18n } : {}),
       visibleInChat: false,
-      skillBindings: undefined,
       skillBindingsResolved: undefined,
     };
 

@@ -3477,6 +3477,10 @@
       "title": "Outils de l'agent",
       "description": "Sélectionne et configure les outils disponibles pour ton agent."
     },
+    "agentSkills": {
+      "title": "Skills de l'agent",
+      "description": "Lie les skills que l'agent peut lire à l'exécution."
+    },
     "agentWebhook": {
       "title": "Workers de l'agent",
       "description": "Gère les URL de workers pour ton agent."
@@ -4039,6 +4043,9 @@
       "providers": {
         "description": "Utilise tes propres clés API pour OpenAI, Anthropic et d'autres."
       },
+      "skills": {
+        "description": "Skills que tes agents peuvent charger pour gérer des types de fichiers ou des tâches spécifiques."
+      },
       "apiKeys": {
         "description": "Jetons d'accès programmatique à l'API Tale."
       },
@@ -4179,6 +4186,7 @@
         "general": "Général",
         "instructionsModel": "Instructions et modèle",
         "tools": "Outils",
+        "skills": "Skills",
         "knowledge": "Base de connaissances",
         "webhook": "Workers",
         "delegation": "Délégation",
@@ -4247,6 +4255,13 @@
         "sectionWorkflowBindings": "Flux de travail liés",
         "sectionWorkflowBindingsDescription": "Lie des flux de travail spécifiques en tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier l'ID du flux de travail.",
         "noWorkflowsAvailable": "Aucun flux de travail actif disponible.",
+        "sectionSkillBindings": "Skills liés",
+        "sectionSkillBindingsDescription": "Skills que l'agent peut lire à l'exécution. Laisser vide pour un agent sans skills — pas de repli implicite sur une visibilité à l'échelle de l'organisation.",
+        "skillBindingsCounter": "{count}/{max} liés",
+        "skillBindingsToggleAria": "Lier {slug}",
+        "skillBindingsAtCapReason": "Maximum {max} skills liés — délie-en un pour en ajouter un autre.",
+        "skillBindingsNoSkillsInOrgDescription": "Aucun skill n'existe encore dans cette organisation.",
+        "skillBindingsNoSkillsInOrgCta": "En créer un dans les paramètres Skills",
         "sectionKnowledge": "Base de connaissances",
         "sectionKnowledgeDescription": "Configure l'accès à la base de connaissances",
         "knowledgeHint": "La base de connaissances recherche dans les documents téléversés dans ton organisation.",
@@ -4396,7 +4411,8 @@
       "skillDeleteConflict": "Le skill a changé depuis l'ouverture de ce dialogue. Recharge et réessaie.",
       "skillDuplicated": "Skill dupliqué en {slug}",
       "skillDuplicateFailed": "Échec de la duplication du skill",
-      "deleteConfirmation": "Cela retire le bundle du skill du disque. Les agents qui y sont attachés conserveront leur référence et émettront un avertissement à l'exécution jusqu'à ce que tu les modifies à nouveau.",
+      "deleteConfirmation": "Cela supprime le bundle du skill du disque. Tout agent l'ayant attaché perdra l'accès.",
+      "manageInSettings": "Gérer dans les paramètres des skills",
       "actions": {
         "duplicate": "Dupliquer",
         "replaceBundle": "Remplacer le bundle"

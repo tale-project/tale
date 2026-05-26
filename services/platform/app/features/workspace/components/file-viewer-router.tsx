@@ -4,7 +4,7 @@ import { Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
-import { memo } from 'react';
+import { memo, useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import {
@@ -97,6 +97,45 @@ function FileViewerRouterComponent({
     path: isLive ? null : path,
   });
 
+  // Bridge the live → landed transition: when the stream ends, `liveContent`
+  // disappears but `useThreadFileContent` spends a few frames in `loading`
+  // before the storage fetch resolves. Without this, the viewer unmounts to
+  // the skeleton in between and the scroll position is lost on remount.
+  const [sticky, setSticky] = useState<{
+    path: string;
+    content: string;
+    encoding: 'utf-8' | 'base64';
+  } | null>(null);
+
+  useEffect(() => {
+    if (path && liveContent !== undefined) {
+      setSticky({ path, content: liveContent, encoding: liveEncoding });
+    }
+  }, [path, liveContent, liveEncoding]);
+
+  useEffect(() => {
+    if (!sticky) return;
+    if (sticky.path !== path) {
+      setSticky(null);
+      return;
+    }
+    if (liveContent === undefined && result.status !== 'loading') {
+      setSticky(null);
+    }
+  }, [sticky, path, liveContent, result.status]);
+
+  const stickyForPath =
+    !isLive && sticky?.path === path && result.status === 'loading'
+      ? sticky
+      : null;
+  const renderLive = isLive || stickyForPath !== null;
+  const renderContent = isLive
+    ? liveContent
+    : (stickyForPath?.content ?? undefined);
+  const renderEncoding = isLive
+    ? liveEncoding
+    : (stickyForPath?.encoding ?? liveEncoding);
+
   if (!path) {
     return (
       <Stack gap={2} className="h-full items-center justify-center p-8">
@@ -107,8 +146,8 @@ function FileViewerRouterComponent({
     );
   }
 
-  if (isLive) {
-    if (liveEncoding === 'base64') {
+  if (renderLive) {
+    if (renderEncoding === 'base64') {
       return (
         <Stack gap={3} className="h-full items-center justify-center p-8">
           <Spinner />
@@ -122,7 +161,7 @@ function FileViewerRouterComponent({
       );
     }
     const kind = resolveKind(undefined, path, undefined);
-    const text = liveContent ?? '';
+    const text = renderContent ?? '';
     if (
       kind === 'html' ||
       kind === 'svg' ||
@@ -134,7 +173,7 @@ function FileViewerRouterComponent({
           kind={kind}
           path={path}
           content={text}
-          isStreaming
+          isStreaming={isLive}
         />
       );
     }

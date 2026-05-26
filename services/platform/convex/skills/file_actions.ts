@@ -412,11 +412,63 @@ export const readSkill = action({
   },
 });
 
+/**
+ * Convex validator for one row of `listSkills` output. Rows are either a
+ * success entry (SKILL.md parsed cleanly) or an error entry (one of the
+ * `SkillReadResult.error` codes) — never anything else. Kept in sync
+ * with the handler below.
+ */
+const listSkillsRowValidator = v.union(
+  v.object({
+    slug: v.string(),
+    name: v.string(),
+    description: v.string(),
+    recommendedPackages: v.optional(
+      v.object({
+        python: v.optional(v.array(v.string())),
+        node: v.optional(v.array(v.string())),
+      }),
+    ),
+    license: v.optional(v.string()),
+    hash: v.string(),
+  }),
+  v.object({
+    slug: v.string(),
+    status: v.union(
+      v.literal('not_found'),
+      v.literal('corrupted'),
+      v.literal('symlink'),
+      v.literal('inaccessible'),
+    ),
+    message: v.string(),
+  }),
+);
+
+/**
+ * One entry surfaced by `listSkills`. Shared with the frontend so
+ * consumers (SkillsTable, SkillSelector, agent Skills tab) get the same
+ * union as the Convex validator and don't need defensive narrowing.
+ */
+export type SkillListEntry =
+  | {
+      slug: string;
+      name: string;
+      description: string;
+      recommendedPackages?: { python?: string[]; node?: string[] };
+      license?: string;
+      hash: string;
+    }
+  | {
+      slug: string;
+      status: 'not_found' | 'corrupted' | 'symlink' | 'inaccessible';
+      message: string;
+    };
+
 export const listSkills = action({
   args: {
     organizationId: v.string(),
   },
-  returns: v.any(),
+  returns: v.array(listSkillsRowValidator),
   handler: async (ctx, args) => {
     const { orgSlug } = await requireOrgAdminOrDeveloper(
       ctx,

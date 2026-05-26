@@ -25,11 +25,11 @@ function SkillsLayout() {
     return null;
   }
 
-  // Skills CRUD changes capability bindings that flow into agent runtime
-  // tool grants, so the route mirrors the backend gate at
-  // `requireOrgAdminOrDeveloper`. The outer `/settings` layout already
-  // provides the page chrome (PageLayout + tabs) — this file only owns
-  // the gate + the child outlet.
+  // Skills CRUD is gated to admin/developer because skill content becomes
+  // reachable material at chat time for any agent that binds the skill;
+  // this route mirrors the backend gate at `requireOrgAdminOrDeveloper`.
+  // The outer `/settings` layout already provides the page chrome
+  // (PageLayout + tabs) — this file only owns the gate + the child outlet.
   if (ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={tAccessDenied('skills')} />;
   }
