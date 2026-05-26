@@ -2,11 +2,18 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { buildSkillContext } from './skills_runtime';
 
-function makeOkRead(slug: string, description = `desc of ${slug}`) {
+function makeOkRead(
+  slug: string,
+  description = `desc of ${slug}`,
+  opts: { disableModelInvocation?: boolean } = {},
+) {
   return {
     ok: true as const,
     slug,
-    meta: { description, disableModelInvocation: false },
+    meta: {
+      description,
+      disableModelInvocation: opts.disableModelInvocation === true,
+    },
     body: `body of ${slug}`,
     versionHash: 'a'.repeat(64),
     files: [],
@@ -103,5 +110,58 @@ describe('buildSkillContext binding gate', () => {
       'Before reaching for a generic tool',
     );
     expect(snap.systemPromptAppend).toContain('expand_skill');
+  });
+
+  it('propagates the caller orgSlug to every internal action call', async () => {
+    // Cross-tenant isolation pin: the runtime must use the orgSlug it was
+    // handed and never default, cache, or substitute it. A regression that
+    // "optimizes" by sharing a global skill list would silently break
+    // org isolation; this test fails fast on that.
+    const ctx = makeCtx({
+      listResult: ['foo'],
+      reads: { foo: makeOkRead('foo') },
+    });
+    await buildSkillContext(ctx, 'org-a', ['foo']);
+    const runAction = (
+      ctx as unknown as { runAction: ReturnType<typeof vi.fn> }
+    ).runAction;
+    expect(runAction).toHaveBeenCalled();
+    for (const call of runAction.mock.calls) {
+      const args = call[1] as { orgSlug?: string };
+      expect(args.orgSlug).toBe('org-a');
+    }
+  });
+
+  it('collapses duplicate bound slugs to a single snapshot entry', async () => {
+    // Schema doesn't reject duplicates today; runtime de-dupes via Set so
+    // the snapshot, prompt list, and tool registry stay consistent.
+    const ctx = makeCtx({
+      listResult: ['foo'],
+      reads: { foo: makeOkRead('foo') },
+    });
+    const snap = await buildSkillContext(ctx, 'org', ['foo', 'foo']);
+    expect(snap.entries.map((e) => e.slug)).toEqual(['foo']);
+    expect(snap.bySlug.size).toBe(1);
+  });
+
+  it('excludes disableModelInvocation skills from the prompt list but keeps them resolvable', async () => {
+    // The "hidden but callable" contract: setting disableModelInvocation
+    // on a skill removes its entry from the Available Skills suffix so
+    // the model won't auto-discover it, but the runtime still loads it
+    // into bySlug so explicit `expand_skill` calls succeed.
+    const ctx = makeCtx({
+      listResult: ['hidden', 'shown'],
+      reads: {
+        hidden: makeOkRead('hidden', 'desc of hidden', {
+          disableModelInvocation: true,
+        }),
+        shown: makeOkRead('shown'),
+      },
+    });
+    const snap = await buildSkillContext(ctx, 'org', ['hidden', 'shown']);
+    expect(snap.bySlug.has('hidden')).toBe(true);
+    expect(snap.bySlug.has('shown')).toBe(true);
+    expect(snap.systemPromptAppend).toContain('**shown**');
+    expect(snap.systemPromptAppend).not.toContain('**hidden**');
   });
 });

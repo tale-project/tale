@@ -4258,6 +4258,9 @@
         "sectionSkillBindingsDescription": "Skills, die der Agent zur Laufzeit lesen kann. Leer lassen für einen Agent ohne Skills — es gibt keinen impliziten Fallback auf organisationsweite Sichtbarkeit.",
         "skillBindingsCounter": "{count}/{max} gebunden",
         "skillBindingsToggleAria": "{slug} binden",
+        "skillBindingsAtCapReason": "Maximal {max} Skills gebunden — löse eine Bindung, um eine andere hinzuzufügen.",
+        "skillBindingsNoSkillsInOrgDescription": "In dieser Organisation existieren noch keine Skills.",
+        "skillBindingsNoSkillsInOrgCta": "In den Skills-Einstellungen anlegen",
         "sectionKnowledge": "Wissen",
         "sectionKnowledgeDescription": "Zugriff auf die Wissensdatenbank konfigurieren",
         "knowledgeHint": "Die Wissensdatenbank durchsucht Dokumente, die in deine Organisation hochgeladen wurden.",
@@ -4407,7 +4410,7 @@
       "skillDeleteConflict": "Skill wurde geändert, seit du diesen Dialog geöffnet hast. Lade neu und versuche es noch einmal.",
       "skillDuplicated": "Skill als {slug} dupliziert",
       "skillDuplicateFailed": "Skill konnte nicht dupliziert werden",
-      "deleteConfirmation": "Damit wird das Skill-Bundle von der Festplatte entfernt. Jeder Agent, der es gebunden hat, verliert den Zugriff.",
+      "deleteConfirmation": "Skill-Bundle wirklich löschen? Jeder gebundene Agent verliert den Zugriff.",
       "manageInSettings": "In Skill-Einstellungen verwalten",
       "actions": {
         "duplicate": "Duplizieren",

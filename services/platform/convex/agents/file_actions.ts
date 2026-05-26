@@ -288,7 +288,6 @@ export const saveAgent = action({
       ...config,
       skillBindingsResolved: undefined,
     };
-    const droppedSlugs: string[] = [];
 
     // Cross-validate supportedModels against provider model lists.
     // Qualified entries ("provider:model") must resolve strictly;
@@ -317,16 +316,6 @@ export const saveAgent = action({
     const requireImageGenerationTag =
       config.primaryBehavior === 'image-generation';
     const warnings: string[] = [];
-    if (droppedSlugs.length > 0) {
-      // Surface dangling-slug cleanup to the UI so the user understands
-      // why a skill they thought they were keeping is gone. Singular vs
-      // plural so the toast reads naturally.
-      warnings.push(
-        droppedSlugs.length === 1
-          ? `Skill "${droppedSlugs[0]}" could not be loaded and was removed from this agent.`
-          : `${droppedSlugs.length} skills could not be loaded and were removed from this agent: ${droppedSlugs.join(', ')}`,
-      );
-    }
     for (const ref of config.supportedModels) {
       const { providerName, modelId, quantization } = parseModelRef(ref);
       let resolvedProviderName = providerName;
@@ -486,9 +475,11 @@ export const duplicateAgent = action({
   handler: async (ctx, args): Promise<{ newAgentName: string }> => {
     // Duplicating an agent that has any capability-bearing field (skill
     // bindings, tools, integrations, workflows) creates a NEW agent with
-    // the same grants. Server-side rebuild of skillBindingsResolved happens
-    // below, but the duplicate-vs-save trust boundary must match saveAgent
-    // — both create reachable grants, both gate on developerSettings.
+    // the same grants. The legacy `skillBindingsResolved` snapshot is
+    // stripped on write (see `skillBindingsResolved: undefined` below);
+    // `skillBindings` itself carries forward as-is. The duplicate-vs-save
+    // trust boundary must match saveAgent — both create reachable grants,
+    // both gate on developerSettings.
     const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
     const { orgSlug } = auth;
     const source = await readAgentFile(orgSlug, args.agentName);

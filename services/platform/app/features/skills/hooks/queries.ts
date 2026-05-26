@@ -22,14 +22,6 @@ export function useReadSkill(organizationId: string, slug: string) {
   );
 }
 
-export function useListSkillFiles(organizationId: string, slug: string) {
-  return useActionQuery(
-    ['config', 'skills', organizationId, slug, 'files'],
-    api.skills.file_actions.listSkillFiles,
-    { organizationId, slug },
-  );
-}
-
 export function useReadSkillAsset(
   organizationId: string,
   slug: string,

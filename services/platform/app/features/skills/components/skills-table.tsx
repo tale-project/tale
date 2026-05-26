@@ -5,7 +5,13 @@ import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Row } from '@tanstack/react-table';
 import { Sparkles } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
@@ -41,6 +47,12 @@ interface SkillsTableProps {
   hideActionMenu?: boolean;
   /** Pre-opens the detail panel for this slug on mount (used by ?slug= deep-link). */
   initialDetailSlug?: string | null;
+  /**
+   * Replaces the default empty-state description (and optionally the title)
+   * when the org has 0 skills. Used by the agent Skills tab to point users to
+   * the org Skills settings instead of the generic marketing copy.
+   */
+  emptyStateOverride?: { title?: string; description: ReactNode };
 }
 
 export function SkillsTable({
@@ -48,6 +60,7 @@ export function SkillsTable({
   bindingMode,
   hideActionMenu,
   initialDetailSlug,
+  emptyStateOverride,
 }: SkillsTableProps) {
   const { t } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
@@ -136,8 +149,25 @@ export function SkillsTable({
     </HStack>
   ) : null;
 
+  // Shared anchor for at-cap rows' aria-describedby; matches the id used in
+  // use-skills-table-config.tsx. Only rendered when bindings are active.
+  const atCapReason = bindingMode ? (
+    <Text
+      as="span"
+      id="skill-binding-at-cap-reason"
+      variant="caption"
+      className="sr-only"
+    >
+      {t('agents.form.skillBindingsAtCapReason', {
+        defaultValue: 'Maximum {max} skills bound — unbind one to add another.',
+        max: bindingMode.max,
+      })}
+    </Text>
+  ) : null;
+
   return (
     <Stack gap={2}>
+      {atCapReason}
       {bindingCaption}
       <DataTable
         {...list.tableProps}
@@ -156,11 +186,15 @@ export function SkillsTable({
         onRetry={() => void refetch()}
         emptyState={{
           icon: Sparkles,
-          title: tEmpty('skills.title', { defaultValue: 'No skills yet' }),
-          description: tEmpty('skills.description', {
-            defaultValue:
-              'Skills are reusable instruction bundles you can attach to agents — like a playbook plus optional scripts.',
-          }),
+          title:
+            emptyStateOverride?.title ??
+            tEmpty('skills.title', { defaultValue: 'No skills yet' }),
+          description:
+            emptyStateOverride?.description ??
+            tEmpty('skills.description', {
+              defaultValue:
+                'Skills are reusable instruction bundles you can attach to agents — like a playbook plus optional scripts.',
+            }),
         }}
       />
       {detailSlug != null && (

@@ -57,8 +57,19 @@ export function useSkillsTableConfig({
               cell: ({ row }) => {
                 const slug = row.original.slug;
                 const checked = selectedSet.has(slug);
-                const disabled =
-                  Boolean(row.original.status) || (!checked && atCap);
+                const hasError = Boolean(row.original.status);
+                const blockedByCap = !checked && atCap;
+                const disabled = hasError || blockedByCap;
+                // Anchor for AT: error rows describe themselves via the
+                // visible error text in the name cell; at-cap rows reach a
+                // shared sr-only line. Keeping the checkbox focusable via
+                // aria-disabled (not the native `disabled` attr) lets users
+                // tab to a blocked row and hear why.
+                const describedBy = hasError
+                  ? `skill-binding-error-${slug}`
+                  : blockedByCap
+                    ? 'skill-binding-at-cap-reason'
+                    : undefined;
                 return (
                   <HStack
                     onClick={(e) => e.stopPropagation()}
@@ -66,17 +77,19 @@ export function useSkillsTableConfig({
                   >
                     <Checkbox
                       checked={checked}
-                      disabled={disabled}
+                      aria-disabled={disabled || undefined}
+                      aria-describedby={describedBy}
                       aria-label={t('agents.form.skillBindingsToggleAria', {
                         defaultValue: 'Bind {slug}',
                         slug,
                       })}
                       onCheckedChange={() => {
+                        if (disabled) return;
                         if (checked) {
                           bindingMode.onChange(
                             bindingMode.selected.filter((s) => s !== slug),
                           );
-                        } else if (!atCap) {
+                        } else {
                           bindingMode.onChange([...bindingMode.selected, slug]);
                         }
                       }}
@@ -100,7 +113,16 @@ export function useSkillsTableConfig({
             {row.original.status ? (
               <HStack gap={1} align="center">
                 <AlertTriangle className="text-destructive size-3.5" />
-                <Text as="span" variant="caption" className="text-destructive">
+                <Text
+                  as="span"
+                  id={
+                    bindingMode
+                      ? `skill-binding-error-${row.original.slug}`
+                      : undefined
+                  }
+                  variant="caption"
+                  className="text-destructive"
+                >
                   {row.original.message ??
                     t('skills.columns.loadError', {
                       defaultValue: 'Failed to read SKILL.md',

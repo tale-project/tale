@@ -3479,7 +3479,7 @@
     },
     "agentSkills": {
       "title": "Skills de l'agent",
-      "description": "Attache les skills que l'agent peut lire à l'exécution."
+      "description": "Lie les skills que l'agent peut lire à l'exécution."
     },
     "agentWebhook": {
       "title": "Workers de l'agent",
@@ -4255,10 +4255,13 @@
         "sectionWorkflowBindings": "Flux de travail liés",
         "sectionWorkflowBindingsDescription": "Lie des flux de travail spécifiques en tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier l'ID du flux de travail.",
         "noWorkflowsAvailable": "Aucun flux de travail actif disponible.",
-        "sectionSkillBindings": "Skills attachés",
+        "sectionSkillBindings": "Skills liés",
         "sectionSkillBindingsDescription": "Skills que l'agent peut lire à l'exécution. Laisser vide pour un agent sans skills — pas de repli implicite sur une visibilité à l'échelle de l'organisation.",
-        "skillBindingsCounter": "{count}/{max} attachés",
-        "skillBindingsToggleAria": "Attacher {slug}",
+        "skillBindingsCounter": "{count}/{max} liés",
+        "skillBindingsToggleAria": "Lier {slug}",
+        "skillBindingsAtCapReason": "Maximum {max} skills liés — délie-en un pour en ajouter un autre.",
+        "skillBindingsNoSkillsInOrgDescription": "Aucun skill n'existe encore dans cette organisation.",
+        "skillBindingsNoSkillsInOrgCta": "En créer un dans les paramètres Skills",
         "sectionKnowledge": "Base de connaissances",
         "sectionKnowledgeDescription": "Configure l'accès à la base de connaissances",
         "knowledgeHint": "La base de connaissances recherche dans les documents téléversés dans ton organisation.",

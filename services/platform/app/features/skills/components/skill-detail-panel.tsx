@@ -24,7 +24,6 @@ import {
 import { useDuplicateSkill } from '@/app/features/skills/hooks/mutations';
 import {
   useGetSkillAuditHistory,
-  useListSkillFiles,
   useReadSkill,
 } from '@/app/features/skills/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
@@ -71,7 +70,6 @@ export function SkillDetailPanel({
   const { locale } = useLocale();
 
   const { data, isLoading } = useReadSkill(organizationId, slug);
-  const { data: filesData } = useListSkillFiles(organizationId, slug);
 
   const { data: auditRows } = useGetSkillAuditHistory(organizationId, slug);
   const { mutateAsync: duplicateSkill } = useDuplicateSkill();
@@ -243,7 +241,7 @@ export function SkillDetailPanel({
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
             <div className="hidden md:contents">
               <SkillBundleTreePanel
-                assets={filesData?.assets ?? skill.assets ?? []}
+                assets={skill.assets ?? []}
                 slug={slug}
                 selectedPath={selectedFile}
                 onSelectPath={setSelectedFile}
@@ -269,9 +267,7 @@ export function SkillDetailPanel({
                           defaultValue: 'Bundle files',
                         })}
                       </Text>
-                      <Text variant="label">
-                        {filesData?.assets?.length ?? skill.assets?.length ?? 0}
-                      </Text>
+                      <Text variant="label">{skill.assets?.length ?? 0}</Text>
                     </Stack>
                     {skill.meta.license ? (
                       <Stack gap={0}>
@@ -351,9 +347,7 @@ export function SkillDetailPanel({
                       defaultValue: 'Bundle files',
                     })}
                   >
-                    <SkillBundleAssetsList
-                      assets={filesData?.assets ?? skill.assets ?? []}
-                    />
+                    <SkillBundleAssetsList assets={skill.assets ?? []} />
                   </FormSection>
 
                   <FormSection
@@ -437,29 +431,33 @@ export function SkillDetailPanel({
         )}
       </Sheet>
 
-      <SkillDeleteDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        organizationId={organizationId}
-        skillSlug={slug}
-        expectedHash={hash}
-        onDeleted={() => {
-          setDeleteDialogOpen(false);
-          onOpenChange(false);
-          void queryClient.invalidateQueries({
-            queryKey: ['config', 'skills'],
-          });
-        }}
-      />
+      {!readOnly && (
+        <>
+          <SkillDeleteDialog
+            open={deleteDialogOpen}
+            onOpenChange={setDeleteDialogOpen}
+            organizationId={organizationId}
+            skillSlug={slug}
+            expectedHash={hash}
+            onDeleted={() => {
+              setDeleteDialogOpen(false);
+              onOpenChange(false);
+              void queryClient.invalidateQueries({
+                queryKey: ['config', 'skills'],
+              });
+            }}
+          />
 
-      <SkillUploadDialog
-        open={replaceDialogOpen}
-        onOpenChange={setReplaceDialogOpen}
-        organizationId={organizationId}
-        onUploaded={() => {
-          setReplaceDialogOpen(false);
-        }}
-      />
+          <SkillUploadDialog
+            open={replaceDialogOpen}
+            onOpenChange={setReplaceDialogOpen}
+            organizationId={organizationId}
+            onUploaded={() => {
+              setReplaceDialogOpen(false);
+            }}
+          />
+        </>
+      )}
     </>
   );
 }
