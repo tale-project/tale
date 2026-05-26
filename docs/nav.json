@@ -100,6 +100,10 @@
           "pages": ["platform/approvals/concepts"]
         },
         {
+          "label": "integrations",
+          "pages": ["platform/integrations/overview"]
+        },
+        {
           "label": "admin",
           "pages": ["platform/admin/members-and-roles"]
         }
