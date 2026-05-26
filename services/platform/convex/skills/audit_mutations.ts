@@ -13,11 +13,9 @@ import { internalMutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 
 const ALLOWED_ACTIONS = [
-  'create_skill',
-  'update_skill',
+  'upload_skill',
+  'duplicate_skill',
   'delete_skill',
-  'write_skill_asset',
-  'delete_skill_asset',
 ] as const;
 type AllowedAction = (typeof ALLOWED_ACTIONS)[number];
 

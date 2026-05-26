@@ -34,7 +34,7 @@
 import { ConvexError } from 'convex/values';
 
 import { components } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx, MutationCtx } from '../../_generated/server';
 import { authComponent } from '../../auth';
 
 interface BetterAuthMember {
@@ -58,7 +58,7 @@ export interface OrgMembershipAuth {
 }
 
 export async function requireOrgMembershipById(
-  ctx: ActionCtx,
+  ctx: ActionCtx | MutationCtx,
   organizationId: string,
 ): Promise<OrgMembershipAuth> {
   const authUser = await authComponent.getAuthUser(ctx);

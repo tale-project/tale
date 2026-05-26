@@ -3,7 +3,7 @@
 /**
  * Scaffold per-org filesystem config on organization creation.
  *
- * Copies /examples/{agents,providers,integrations,workflows}/ defaults
+ * Copies /examples/{agents,providers,integrations,workflows,skills}/ defaults
  * into the new org's subdir. Skips *.secrets.json (new org provides its
  * own secrets). Skips branding (intentionally global).
  *
@@ -22,9 +22,11 @@ import { resolveIntegrationsDir } from '../integrations/file_utils';
 import {
   atomicWrite,
   atomicWriteBuffer,
+  errnoCode,
   verifyPathWithinBase,
 } from '../lib/file_io';
 import { resolveProvidersDir } from '../providers/file_utils';
+import { resolveSkillsDir } from '../skills/file_utils';
 import { resolveWorkflowsDir } from '../workflows/file_utils';
 
 type DirResolver = (orgSlug: string) => string;
@@ -35,6 +37,7 @@ const DOMAINS: Array<{ name: string; resolve: DirResolver }> = [
   { name: 'providers', resolve: resolveProvidersDir },
   { name: 'integrations', resolve: resolveIntegrationsDir },
   { name: 'workflows', resolve: resolveWorkflowsDir },
+  { name: 'skills', resolve: resolveSkillsDir },
 ];
 
 const SKIP_FILE_SUFFIXES = ['.secrets.json'];
@@ -48,17 +51,16 @@ async function dirHasFiles(dir: string): Promise<boolean> {
   try {
     const entries = await readdir(dir);
     return entries.filter((n) => !n.startsWith('.')).length > 0;
-  } catch {
+  } catch (err) {
+    // ENOENT (dir doesn't exist yet) is the expected case — domain scaffold
+    // simply hasn't run. Anything else (EACCES, EIO) means we can't read
+    // it; treat as "empty" so scaffolding proceeds, but log so a
+    // permissions glitch isn't silently masked.
+    if (errnoCode(err) !== 'ENOENT') {
+      console.warn('[scaffold.dirHasFiles] readdir failed:', dir, err);
+    }
     return false;
   }
-}
-
-function errnoCode(err: unknown): string | undefined {
-  if (err && typeof err === 'object' && 'code' in err) {
-    const code = (err as { code?: unknown }).code;
-    if (typeof code === 'string') return code;
-  }
-  return undefined;
 }
 
 async function copyTree(sourceDir: string, targetDir: string): Promise<void> {
@@ -72,13 +74,26 @@ async function copyTree(sourceDir: string, targetDir: string): Promise<void> {
 
   for (const name of entries) {
     if (name.startsWith('.')) continue;
+    // Per-org marker prefix used by skills / integrations / workflows for
+    // tenant subdirs (`@<orgSlug>/...`). Without this skip, scaffolding a
+    // new org would recursively copy every existing org's tenant tree
+    // into the new org's namespace. Agents / providers use raw `<slug>`
+    // subdirs with no marker, so this guard only protects the
+    // `@`-prefixed domains — see the follow-up issue for the agents /
+    // providers leak which needs a domain-aware fix.
+    if (name.startsWith('@')) continue;
     if (SKIP_DIR_NAMES.has(name)) continue;
     if (shouldSkipFile(name)) continue;
 
     const src = path.join(sourceDir, name);
     const dst = path.join(targetDir, name);
 
-    const info = await stat(src).catch(() => null);
+    const info = await stat(src).catch((err) => {
+      if (errnoCode(err) !== 'ENOENT') {
+        console.warn('[scaffold.copyTree] stat failed:', src, err);
+      }
+      return null;
+    });
     if (!info) continue;
 
     if (info.isDirectory()) {

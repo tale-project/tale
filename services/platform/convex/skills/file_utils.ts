@@ -23,6 +23,9 @@ import { stringify as stringifyYaml } from 'yaml';
 import {
   parseSkillMd,
   frontmatterToRaw,
+  MAX_SKILL_BUNDLE_ENTRIES,
+  MAX_SKILL_BUNDLE_FILE_BYTES,
+  MAX_SKILL_BUNDLE_TOTAL_BYTES,
   RESERVED_SKILL_NAMES,
   SKILL_NAME_REGEX,
   type SkillFrontmatter,
@@ -61,6 +64,15 @@ export const SKILL_BUNDLE_SUBDIRS = [
   'references',
   'assets',
 ] as const;
+
+// Bundle-size constants live in `lib/shared/schemas/skills.ts` so both the
+// browser-side zip parser and the server-side action enforce identical caps
+// without the browser having to pull in any Node-only modules from here.
+export {
+  MAX_SKILL_BUNDLE_ENTRIES,
+  MAX_SKILL_BUNDLE_FILE_BYTES,
+  MAX_SKILL_BUNDLE_TOTAL_BYTES,
+};
 
 export type SkillReadResult =
   | {
@@ -236,7 +248,15 @@ export async function readSkillMd(
 
     // lstat (not stat) so a symlink at SKILL.md itself surfaces as a
     // symlink check rather than dereferencing through to the target's size.
-    const lst = await lstat(filePath).catch(() => null);
+    const lst = await lstat(filePath).catch((err) => {
+      if (
+        err instanceof Error &&
+        (err as NodeJS.ErrnoException).code !== 'ENOENT'
+      ) {
+        console.warn('[readSkillMd] lstat failed:', filePath, err);
+      }
+      return null;
+    });
     if (lst === null) {
       return { ok: false, error: 'not_found', message: `SKILL.md not found` };
     }

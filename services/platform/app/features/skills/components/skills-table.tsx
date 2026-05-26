@@ -109,7 +109,7 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
         actionMenu={
           <SkillsActionMenu
             organizationId={organizationId}
-            onCreated={setDetailSlug}
+            onUploaded={setDetailSlug}
           />
         }
         error={error ?? undefined}

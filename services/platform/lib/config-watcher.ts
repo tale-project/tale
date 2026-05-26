@@ -3,7 +3,13 @@ import { relative } from 'node:path';
 import chokidar from 'chokidar';
 
 interface ConfigChangeEvent {
-  type: 'agents' | 'workflows' | 'integrations' | 'providers' | 'branding';
+  type:
+    | 'agents'
+    | 'workflows'
+    | 'integrations'
+    | 'providers'
+    | 'branding'
+    | 'skills';
   orgSlug?: string;
   slug?: string;
 }
@@ -37,6 +43,7 @@ function parseConfigChange(relativePath: string): ConfigChangeEvent | null {
     workflows: 'workflows',
     integrations: 'integrations',
     providers: 'providers',
+    skills: 'skills',
   };
 
   const type = typeMap[topDir];
@@ -75,6 +82,14 @@ function parseConfigChange(relativePath: string): ConfigChangeEvent | null {
     // providers/[@org/]name.json
     const filename = rest[0];
     return { type, orgSlug, slug: filename.replace(/\.json$/, '') };
+  }
+
+  if (type === 'skills') {
+    // skills/[@org/]slug/SKILL.md (or any asset under the slug dir).
+    // Emit at slug granularity so a write to scripts/x.py invalidates the
+    // same query keys as a SKILL.md write.
+    const slug = rest[0];
+    return { type, orgSlug, slug };
   }
 
   return null;

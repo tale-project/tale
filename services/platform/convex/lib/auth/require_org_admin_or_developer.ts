@@ -20,14 +20,14 @@
 import { ConvexError } from 'convex/values';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx, MutationCtx } from '../../_generated/server';
 import {
   requireOrgMembershipById,
   type OrgMembershipAuth,
 } from './require_org_membership';
 
 export async function requireOrgAdminOrDeveloper(
-  ctx: ActionCtx,
+  ctx: ActionCtx | MutationCtx,
   organizationId: string,
 ): Promise<OrgMembershipAuth> {
   const auth = await requireOrgMembershipById(ctx, organizationId);

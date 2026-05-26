@@ -551,6 +551,7 @@ import type * as migrations_backfill_file_metadata_document_id from "../migratio
 import type * as migrations_backfill_folder_path from "../migrations/backfill_folder_path.js";
 import type * as migrations_backfill_folders from "../migrations/backfill_folders.js";
 import type * as migrations_backfill_ledger_granularity from "../migrations/backfill_ledger_granularity.js";
+import type * as migrations_backfill_skill_scaffolding from "../migrations/backfill_skill_scaffolding.js";
 import type * as migrations_backfill_thread_metadata from "../migrations/backfill_thread_metadata.js";
 import type * as migrations_backfill_wf_installations from "../migrations/backfill_wf_installations.js";
 import type * as migrations_backfill_workflow_schedules from "../migrations/backfill_workflow_schedules.js";
@@ -696,6 +697,7 @@ import type * as skills_audit_mutations from "../skills/audit_mutations.js";
 import type * as skills_file_actions from "../skills/file_actions.js";
 import type * as skills_file_utils from "../skills/file_utils.js";
 import type * as skills_get_skill_audit_history from "../skills/get_skill_audit_history.js";
+import type * as skills_upload_mutations from "../skills/upload_mutations.js";
 import type * as sso_providers_actions from "../sso_providers/actions.js";
 import type * as sso_providers_create_user_session from "../sso_providers/create_user_session.js";
 import type * as sso_providers_entra_id_adapter from "../sso_providers/entra_id/adapter.js";
@@ -1645,6 +1647,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/backfill_folder_path": typeof migrations_backfill_folder_path;
   "migrations/backfill_folders": typeof migrations_backfill_folders;
   "migrations/backfill_ledger_granularity": typeof migrations_backfill_ledger_granularity;
+  "migrations/backfill_skill_scaffolding": typeof migrations_backfill_skill_scaffolding;
   "migrations/backfill_thread_metadata": typeof migrations_backfill_thread_metadata;
   "migrations/backfill_wf_installations": typeof migrations_backfill_wf_installations;
   "migrations/backfill_workflow_schedules": typeof migrations_backfill_workflow_schedules;
@@ -1790,6 +1793,7 @@ declare const fullApi: ApiFromModules<{
   "skills/file_actions": typeof skills_file_actions;
   "skills/file_utils": typeof skills_file_utils;
   "skills/get_skill_audit_history": typeof skills_get_skill_audit_history;
+  "skills/upload_mutations": typeof skills_upload_mutations;
   "sso_providers/actions": typeof sso_providers_actions;
   "sso_providers/create_user_session": typeof sso_providers_create_user_session;
   "sso_providers/entra_id/adapter": typeof sso_providers_entra_id_adapter;

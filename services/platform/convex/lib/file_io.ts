@@ -43,7 +43,21 @@ export function sha256(content: string): string {
 }
 
 function isFileNotFound(err: unknown): boolean {
-  return err instanceof Error && 'code' in err && err.code === 'ENOENT';
+  return errnoCode(err) === 'ENOENT';
+}
+
+/**
+ * Extract the POSIX errno code (e.g. `'ENOENT'`, `'EACCES'`) from a
+ * `node:fs/promises` rejection. Returns `undefined` for non-fs errors.
+ * Centralized so callers can distinguish "missing file" (expected) from
+ * "permission denied" / "I/O error" (always worth logging) without
+ * duplicating the property-check ceremony.
+ */
+export function errnoCode(err: unknown): string | undefined {
+  if (err instanceof Error && 'code' in err && typeof err.code === 'string') {
+    return err.code;
+  }
+  return undefined;
 }
 
 export async function isSymlink(filePath: string): Promise<boolean> {
@@ -337,7 +351,34 @@ export async function readFileSafe(filePath: string): Promise<string | null> {
     } finally {
       await fd.close();
     }
-  } catch {
+  } catch (err) {
+    if (!isFileNotFound(err)) {
+      console.warn('[readFileSafe] failed:', filePath, err);
+    }
+    return null;
+  }
+}
+
+/**
+ * Byte-preserving sibling of `readFileSafe`. Returns the raw bytes of a
+ * file, or null if the file does not exist. Use this for binary assets
+ * (PNGs, PDFs, fonts) where the UTF-8 round-trip in `readFileSafe` would
+ * corrupt non-text bytes.
+ */
+export async function readFileBufferSafe(
+  filePath: string,
+): Promise<Buffer | null> {
+  try {
+    const fd = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      return await fd.readFile();
+    } finally {
+      await fd.close();
+    }
+  } catch (err) {
+    if (!isFileNotFound(err)) {
+      console.warn('[readFileBufferSafe] failed:', filePath, err);
+    }
     return null;
   }
 }

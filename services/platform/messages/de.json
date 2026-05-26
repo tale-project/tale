@@ -4385,52 +4385,29 @@
       }
     },
     "skills": {
-      "createSkill": "Skill erstellen",
+      "uploadSkill": "Skill hochladen",
       "searchPlaceholder": "Skills suchen…",
       "deleteSkill": "Skill löschen",
       "notFound": "Skill nicht gefunden",
       "backToList": "Zurück zu Skills",
-      "skillCreated": "Skill erstellt",
-      "skillCreateFailed": "Skill konnte nicht erstellt werden",
-      "skillSaved": "Skill gespeichert",
-      "skillSaveFailed": "Skill konnte nicht gespeichert werden",
       "skillDeleted": "Skill gelöscht",
       "skillDeleteFailed": "Skill konnte nicht gelöscht werden",
       "skillDeleteConflict": "Skill wurde geändert, seit du diesen Dialog geöffnet hast. Lade neu und versuche es noch einmal.",
-      "skillAlreadyExists": "Ein Skill mit diesem Slug existiert bereits",
       "skillDuplicated": "Skill als {slug} dupliziert",
       "skillDuplicateFailed": "Skill konnte nicht dupliziert werden",
-      "bodyTemplate": "# {slug}\n\nBeschreibe, wann dieser Skill verwendet wird und welche Schritte zu folgen sind.\n",
-      "unsavedChanges": {
-        "title": "Nicht gespeicherte Änderungen verwerfen?",
-        "description": "Du hast nicht gespeicherte Bearbeitungen an diesem Skill. Wenn du jetzt verlässt, gehen sie verloren.",
-        "leave": "Verwerfen und verlassen",
-        "stay": "Weiter bearbeiten"
-      },
-      "conflict": "Dieser Skill wurde anderswo geändert. Lade neu, um die aktuelle Version zu sehen.",
-      "validationError": "Ungültige Skill-Konfiguration",
       "deleteConfirmation": "Dadurch wird das Skill-Bundle von der Festplatte entfernt. Daran gebundene Agents behalten den Bindungseintrag und protokollieren zur Laufzeit eine Warnung, bis du sie erneut bearbeitest.",
       "actions": {
-        "duplicate": "Duplizieren"
+        "duplicate": "Duplizieren",
+        "replaceBundle": "Bundle ersetzen"
       },
       "columns": {
         "name": "Skill",
         "description": "Beschreibung",
         "loadError": "SKILL.md konnte nicht gelesen werden"
       },
-      "createDialog": {
-        "continue": "Erstellen",
-        "creating": "Wird erstellt…"
-      },
       "form": {
         "slug": "Slug",
-        "slugHelp": "Kleinbuchstaben/Ziffern, mit Bindestrich getrennt. Wird als Ordnername auf der Festplatte verwendet.",
-        "slugPatternError": "Kleinbuchstaben, Ziffern, mit Bindestrich getrennt. Keine Unterstriche, keine führenden/nachgestellten/aufeinanderfolgenden Bindestriche.",
-        "description": "Beschreibung",
-        "descriptionHelp": "Beginne mit \"Verwende, wenn…\". Der Agent liest dies, um zu entscheiden, ob er den Skill aufruft.",
-        "descriptionPlaceholder": "Wann dieser Skill verwendet werden soll — der Agent sieht dies in jedem System-Prompt.",
-        "body": "Body-Markdown",
-        "bodyHelp": "Wird in den Agent-Kontext geladen, wenn er `expand_skill` aufruft. Reines Markdown."
+        "description": "Beschreibung"
       },
       "section": {
         "overview": "Übersicht",
@@ -4443,58 +4420,61 @@
         "license": "Lizenz"
       },
       "body": {
-        "viewEdit": "Bearbeiten",
-        "viewPreview": "Vorschau",
-        "viewToggle": "Body-Ansichtsmodus",
         "previewEmpty": "(Body ist leer)"
       },
       "auditHistory": {
         "empty": "Noch keine Audit-Einträge für diesen Skill.",
         "action": {
-          "create": "Erstellt",
-          "update": "Aktualisiert",
-          "delete": "Gelöscht"
+          "upload_skill": "Hochgeladen",
+          "duplicate_skill": "Dupliziert",
+          "delete_skill": "Gelöscht"
         }
       },
       "viewer": {
         "toggleWrap": "Zeilenumbruch umschalten",
         "imageNotice": "Bildvorschau ist im Browser nicht verfügbar. Verwende die CLI, um dieses Asset zu prüfen.",
         "binaryNotice": "Dieser Dateityp ist im Browser nicht vorschaubar.",
-        "largeFile": "Große Datei — Syntax-Highlighting aus Leistungsgründen deaktiviert."
+        "largeFile": "Große Datei — Syntax-Highlighting aus Leistungsgründen deaktiviert.",
+        "notFound": "Diese Datei ist nicht mehr im Bundle. Wähle eine andere Datei aus dem Baum."
       },
       "bundle": {
-        "empty": "Noch keine Bundle-Dateien.",
-        "uiHelp": "Bundle-Dateien liegen auf der Festplatte unter skills/<slug>/. UI-Änderungen verwenden atomare Schreibvorgänge mit Konflikterkennung — gleichzeitige Plattenänderungen werden erkannt und als Konflikte gemeldet."
+        "empty": "Noch keine Bundle-Dateien."
       },
       "detail": {
+        "descriptionEmpty": "(keine Beschreibung)",
         "tree": {
           "heading": "Bundle",
-          "empty": "Nur SKILL.md — füge Dateien unter scripts/, references/ oder assets/ hinzu."
+          "empty": "Nur SKILL.md — Bundle-Assets liegen unter scripts/, references/ oder assets/."
         }
       },
-      "asset": {
-        "add": "Datei hinzufügen",
-        "path": "Pfad",
-        "pathHelp": "Relativer Pfad innerhalb des Skill-Bundles. Verwende scripts/ für ausführbare Skripte, references/ für Dokumente, assets/ für Templates.",
-        "pathRequired": "Pfad ist erforderlich",
-        "pathNoLeadingSlash": "Pfad muss relativ sein — kein führender Schrägstrich. Verwende scripts/ / references/ / assets/.",
-        "pathNoTraversal": "Pfad darf \"..\" nicht enthalten.",
-        "pathInvalidChars": "Pfad darf nur Buchstaben, Ziffern, Punkt, Bindestrich, Unterstrich und Schrägstrich enthalten.",
-        "alreadyExists": "Unter diesem Pfad existiert bereits eine Datei. Öffne sie aus der Liste, um sie zu bearbeiten, oder wähle einen neuen Pfad.",
-        "loadNotFound": "Diese Datei ist nicht mehr im Bundle. Schließe und erstelle sie stattdessen aus der Liste.",
-        "content": "Inhalt",
-        "createTitle": "Neue Bundle-Datei",
-        "editTitle": "{path} bearbeiten",
-        "editAria": "{path} bearbeiten",
-        "deleteAria": "{path} löschen",
-        "deleteTitle": "Datei löschen",
-        "deleteConfirmation": "Diese Datei dauerhaft aus dem Skill-Bundle entfernen. Dies kann nicht rückgängig gemacht werden.",
-        "saved": "Datei gespeichert",
-        "saveFailed": "Datei konnte nicht gespeichert werden",
-        "deleted": "Datei gelöscht",
-        "deleteFailed": "Datei konnte nicht gelöscht werden",
-        "conflict": "Diese Datei wurde anderswo geändert. Öffne sie erneut, um die aktuelle Version zu sehen.",
-        "notFound": "Skill nicht gefunden"
+      "upload": {
+        "dialogTitle": "Skill-Bundle hochladen",
+        "uploadDescription": "Lade eine .zip-Datei hoch, die SKILL.md im Stammverzeichnis enthält, plus optionale Skripte, Referenzen oder Assets.",
+        "dropZoneLabel": "Skill-Bundle hochladen",
+        "dropOrClick": "Lege ein .zip hier ab oder klicke zum Durchsuchen",
+        "dropHere": "Bundle hier ablegen",
+        "acceptedFormats": "Zip mit SKILL.md im Stammverzeichnis",
+        "parsing": "Lese Bundle…",
+        "zipRequired": "Bundle muss eine .zip-Datei sein.",
+        "folderUnsupported": "Ordner werden nicht unterstützt — bitte zippe den Ordner zuerst.",
+        "singleFileOnly": "Lege eine einzelne .zip-Datei ab, nicht mehrere Dateien.",
+        "unexpectedError": "Ein unerwarteter Fehler ist aufgetreten",
+        "bundleFiles": "Bundle-Dateien",
+        "fileCount": "{count, plural, one {# Datei} other {# Dateien}}",
+        "frontmatter": "Frontmatter",
+        "license": "Lizenz",
+        "recommendedPython": "Empfohlenes Python",
+        "recommendedNode": "Empfohlenes Node",
+        "disableModelInvocation": "Skill ist vor dem Modell verborgen — nur explizite Aufrufe.",
+        "unknownKeys": "{count, plural, one {# zusätzlicher Frontmatter-Eintrag bewahrt} other {# zusätzliche Frontmatter-Einträge bewahrt}}",
+        "submit": "Bundle hochladen",
+        "submitting": "Lade hoch…",
+        "uploadSuccess": "Skill-Bundle hochgeladen",
+        "uploadFailed": "Skill-Bundle konnte nicht hochgeladen werden",
+        "replaceTitle": "Vorhandenen Skill ersetzen?",
+        "replaceDescription": "Ein Skill mit dem Namen \"{slug}\" existiert bereits. Das Hochladen überschreibt seinen aktuellen Inhalt.",
+        "replaceConfirm": "Ersetzen",
+        "replaceSuccess": "Skill-Bundle ersetzt"
       }
     },
     "integrations": {

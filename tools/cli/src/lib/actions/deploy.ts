@@ -642,9 +642,12 @@ const SYNC_DIRS = [
   'branding',
   'providers',
   // Skill bundles: SKILL.md + arbitrary assets per slug under skills/<slug>/.
-  // Without this entry, host-side edits to a skill (CLI / IDE) never reach
-  // the running container — the runtime reads from `${TALE_CONFIG_DIR}/skills`
-  // baked into the image at boot, not the host workspace.
+  // Kept in SYNC_DIRS so a fresh `tale init` + `tale deploy` seeds the
+  // example skill bundles (`examples/skills/<slug>/`) into the new
+  // container. SYNC PRESERVES UI UPLOADS: see the `dir === 'skills'`
+  // branch below, which uses `listContainerSkills` +
+  // `stageSkillsWithoutConflictingBundles` to skip any slug already
+  // present in the container so the upload-only model isn't clobbered.
   'skills',
 ];
 
@@ -688,14 +691,22 @@ async function syncProjectFiles(
           `${prefix}  (any existing container *.secrets.json will be preserved)`,
         );
       }
+      if (dir === 'skills') {
+        logger.info(
+          `${prefix}  (any skill slug already present in the container will be preserved)`,
+        );
+      }
       continue;
     }
 
-    // INVARIANT: when dir === 'providers', `dockerSrcDir` must come from
-    // stageProvidersWithoutConflictingSecrets() so that *.secrets.json files
-    // written via the admin UI (SOPS-encrypted API keys, etc.) are not
-    // clobbered by host copies. Do not remove this branch without also
-    // moving the protection elsewhere.
+    // INVARIANTS:
+    //  - dir === 'providers': dockerSrcDir comes from
+    //    `stageProvidersWithoutConflictingSecrets()` so SOPS-encrypted
+    //    *.secrets.json files written via the admin UI are not clobbered.
+    //  - dir === 'skills': dockerSrcDir comes from
+    //    `stageSkillsWithoutConflictingBundles()` so UI-uploaded slugs
+    //    (the only legitimate write path post-skills-bundle-upload) are
+    //    not overwritten by host workspace copies.
     let dockerSrcDir = srcPath;
     let tempStageDir: string | null = null;
     let preserved: string[] = [];
@@ -712,39 +723,25 @@ async function syncProjectFiles(
         preserved = staged.skipped;
         dockerSrcDir = staged.stageDir;
       }
+    } else if (dir === 'skills') {
+      const containerSkills = await listContainerSkills(containerName);
+      if (containerSkills.size > 0) {
+        const staged = await stageSkillsWithoutConflictingBundles(
+          srcPath,
+          containerSkills,
+        );
+        tempStageDir = staged.stageDir;
+        tempStageDirs.add(staged.stageDir);
+        preserved = staged.skipped;
+        dockerSrcDir = staged.stageDir;
+      }
     }
 
     try {
-      // Skills can be UI-edited inside the container without a host
-      // counterpart, and unlike providers there is no `.secrets.json`
-      // staging dance — a `docker cp` of host `skills/` would overwrite
-      // any UI-only edits with no recovery. Snapshot the container's
-      // current state to a host-side `.tale-backup/skills-<ts>/` dir
-      // before the cp so the operator has a path back. Best-effort:
-      // never block the deploy on backup failure (e.g. container not
-      // running, /app/data/skills/ missing on a fresh install).
-      if (dir === 'skills') {
-        const backupRoot = join(projectDir, '.tale-backup');
-        const ts = new Date()
-          .toISOString()
-          .replaceAll(':', '-')
-          .replace(/\.\d{3}Z$/, 'Z');
-        const backupDir = join(backupRoot, `skills-${ts}`);
-        const backupResult = await exec('docker', [
-          'cp',
-          `${containerName}:/app/data/skills/.`,
-          backupDir,
-        ]);
-        if (backupResult.success) {
-          logger.info(
-            `${prefix}Backed up container skills/ to ${backupDir} before overwrite`,
-          );
-        } else {
-          logger.warn(
-            `${prefix}Could not back up container skills/ (continuing): ${backupResult.stderr.trim()}`,
-          );
-        }
-      }
+      // First-time seeding (empty container `/app/data/<dir>/`) flows
+      // through the same `docker cp` as subsequent syncs; for `skills`
+      // the preserve branch above strips any slug that already exists,
+      // so UI uploads survive.
       const dockerSrcPath = dockerSrcDir.replaceAll('\\', '/');
       const result = await exec('docker', [
         'cp',
@@ -769,15 +766,23 @@ async function syncProjectFiles(
         }
         logger.info(`Synced ${dir}/`);
         if (preserved.length > 0) {
+          const noun =
+            dir === 'providers' ? 'container secret(s)' : 'container skill(s)';
           logger.info(
-            `Preserved ${preserved.length} existing container secret(s) (host copy skipped to avoid overwriting UI edits):`,
+            `Preserved ${preserved.length} existing ${noun} (host copy skipped to avoid overwriting UI edits):`,
           );
           for (const p of preserved) {
-            logger.info(`  - providers/${p}`);
+            logger.info(`  - ${dir}/${p}`);
           }
-          logger.info(
-            `  To push host values instead: docker exec ${containerName} rm /app/data/providers/<file>, then redeploy.`,
-          );
+          if (dir === 'providers') {
+            logger.info(
+              `  To push host values instead: docker exec ${containerName} rm /app/data/providers/<file>, then redeploy.`,
+            );
+          } else {
+            logger.info(
+              `  To push host values instead: docker exec ${containerName} rm -rf /app/data/skills/<slug>, then redeploy.`,
+            );
+          }
         }
       } else {
         logger.warn(`Failed to sync ${dir}/: ${result.stderr}`);
@@ -852,6 +857,68 @@ async function stageProvidersWithoutConflictingSecrets(
     if (existsSync(candidate)) {
       await rm(candidate);
       skipped.push(rel);
+    }
+  }
+  return { stageDir, skipped };
+}
+
+// Enumerate per-org and default-org skill slugs already in the container so
+// the subsequent docker cp skips any host slug that would clobber a UI
+// upload. Returns top-level entries only — slugs are directories (e.g.
+// `pptx/`) and per-org subdirs are marked with `@` (e.g. `@acme/`). Both
+// shapes are forwarded verbatim; the staging step removes any host
+// directory whose top-level name matches.
+async function listContainerSkills(
+  containerName: string,
+): Promise<Set<string>> {
+  const result = await exec('docker', [
+    'exec',
+    containerName,
+    'find',
+    '/app/data/skills',
+    '-mindepth',
+    '1',
+    '-maxdepth',
+    '1',
+    '-type',
+    'd',
+    '-printf',
+    '%P\n',
+  ]);
+  if (result.success) {
+    return new Set(
+      result.stdout
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
+  }
+  if (/No such file or directory/.test(result.stderr)) {
+    // Skills directory not yet created — nothing to protect.
+    return new Set();
+  }
+  throw new Error(
+    `Failed to enumerate container skills on ${containerName}: ${result.stderr || 'unknown error'}`,
+  );
+}
+
+// Copy host `skills/` into a fresh tmp dir and delete any top-level slug
+// dir whose name also exists in the container. The resulting stage dir is
+// what `docker cp` will ship — so container-side UI uploads survive,
+// brand-new host slugs (e.g. the `pptx` example installed by `tale init`
+// on first deploy) flow through.
+async function stageSkillsWithoutConflictingBundles(
+  srcDir: string,
+  protectedSlugs: Set<string>,
+): Promise<{ stageDir: string; skipped: string[] }> {
+  const stageDir = await mkdtemp(join(tmpdir(), 'tale-sync-'));
+  await cp(srcDir, stageDir, { recursive: true });
+  const skipped: string[] = [];
+  for (const slug of protectedSlugs) {
+    const candidate = join(stageDir, slug);
+    if (existsSync(candidate)) {
+      await rm(candidate, { recursive: true, force: true });
+      skipped.push(slug);
     }
   }
   return { stageDir, skipped };

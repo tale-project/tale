@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
 function useInvalidateSkills() {
@@ -11,16 +12,28 @@ function useInvalidateSkills() {
     });
 }
 
-export function useCreateSkill() {
-  const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.createSkill, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
+/**
+ * Skill-specific presign mutation. Distinct from the generic
+ * `files.mutations.generateUploadUrl` because the skills surface requires
+ * the developer-settings capability check that the generic mutation
+ * doesn't enforce.
+ */
+export function useGenerateSkillUploadUrl() {
+  return useConvexMutation(api.skills.upload_mutations.generateSkillUploadUrl);
 }
 
-export function useUpdateSkill() {
+/**
+ * Bind the freshly-POSTed `_storage` blob to the org + caller. Required
+ * before `uploadSkillBundle` will trust the storageId — without an intent
+ * row the action rejects with `STORAGE_NOT_OWNED`.
+ */
+export function useRecordSkillUploadIntent() {
+  return useConvexMutation(api.skills.upload_mutations.recordSkillUploadIntent);
+}
+
+export function useUploadSkillBundle() {
   const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.updateSkill, {
+  return useConvexAction(api.skills.file_actions.uploadSkillBundle, {
     onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
@@ -35,20 +48,6 @@ export function useDeleteSkill() {
 export function useDuplicateSkill() {
   const invalidate = useInvalidateSkills();
   return useConvexAction(api.skills.file_actions.duplicateSkill, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useWriteSkillAsset() {
-  const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.writeSkillAsset, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useDeleteSkillAsset() {
-  const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.deleteSkillAsset, {
     onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }

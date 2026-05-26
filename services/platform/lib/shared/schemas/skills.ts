@@ -36,6 +36,27 @@ export const RESERVED_SKILL_NAMES: ReadonlySet<string> = new Set([
   'claude',
 ]);
 
+/**
+ * Per-file cap inside a skill bundle. Tuned so a typical reference PDF or
+ * script fits but a single file can't be used to push a multi-megabyte blob
+ * through the upload path. Enforced on both client (pre-flight) and server
+ * (authoritative).
+ */
+export const MAX_SKILL_BUNDLE_FILE_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Total decompressed bundle cap. Defends against zip-bombs and accidental
+ * mass uploads.
+ */
+export const MAX_SKILL_BUNDLE_TOTAL_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Maximum number of entries (files + dirs) we'll process from a single
+ * uploaded zip. Independent of byte caps — protects against pathological
+ * archives full of empty entries.
+ */
+export const MAX_SKILL_BUNDLE_ENTRIES = 200;
+
 const PACKAGE_SPEC_MAX = 120;
 const PACKAGE_BUCKET_MAX = 20;
 
@@ -196,7 +217,10 @@ export function parseSkillMd(content: string): {
   }
 
   const fmText = after.slice(0, closeMatch.index);
-  if (Buffer.byteLength(fmText, 'utf-8') > MAX_FRONTMATTER_BYTES) {
+  // TextEncoder is in lib.dom + lib.es2017 and exists on both Node (>=11)
+  // and every supported browser; `Buffer.byteLength` would throw
+  // `Buffer is not defined` in the client parser at parse-skill-bundle.ts.
+  if (new TextEncoder().encode(fmText).length > MAX_FRONTMATTER_BYTES) {
     throw new SkillFrontmatterError(
       `Frontmatter exceeds ${MAX_FRONTMATTER_BYTES} bytes`,
     );
