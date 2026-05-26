@@ -3477,6 +3477,10 @@
       "title": "Outils de l'agent",
       "description": "Sélectionne et configure les outils disponibles pour ton agent."
     },
+    "agentSkills": {
+      "title": "Skills de l'agent",
+      "description": "Attache les skills que l'agent peut lire à l'exécution."
+    },
     "agentWebhook": {
       "title": "Workers de l'agent",
       "description": "Gère les URL de workers pour ton agent."
@@ -4182,6 +4186,7 @@
         "general": "Général",
         "instructionsModel": "Instructions et modèle",
         "tools": "Outils",
+        "skills": "Skills",
         "knowledge": "Base de connaissances",
         "webhook": "Workers",
         "delegation": "Délégation",
@@ -4252,8 +4257,8 @@
         "noWorkflowsAvailable": "Aucun flux de travail actif disponible.",
         "sectionSkillBindings": "Skills attachés",
         "sectionSkillBindingsDescription": "Skills que l'agent peut lire à l'exécution. Laisser vide pour un agent sans skills — pas de repli implicite sur la visibilité organisationnelle.",
-        "noSkillsAvailable": "Aucun skill téléversé dans cette organisation pour l'instant.",
-        "noSkillsBoundHint": "Cet agent n'a aucun skill disponible. Sélectionne-en au moins un.",
+        "skillBindingsCounter": "{count}/{max} attachés",
+        "skillBindingsToggleAria": "Attacher {slug}",
         "sectionKnowledge": "Base de connaissances",
         "sectionKnowledgeDescription": "Configure l'accès à la base de connaissances",
         "knowledgeHint": "La base de connaissances recherche dans les documents téléversés dans ton organisation.",
@@ -4404,6 +4409,7 @@
       "skillDuplicated": "Skill dupliqué en {slug}",
       "skillDuplicateFailed": "Échec de la duplication du skill",
       "deleteConfirmation": "Cela retire le bundle du skill du disque. Les agents qui y sont attachés conserveront leur référence et émettront un avertissement à l'exécution jusqu'à ce que tu les modifies à nouveau.",
+      "manageInSettings": "Gérer dans les paramètres des skills",
       "actions": {
         "duplicate": "Dupliquer",
         "replaceBundle": "Remplacer le bundle"

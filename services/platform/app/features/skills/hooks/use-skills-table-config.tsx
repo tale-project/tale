@@ -6,6 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { AlertTriangle } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useT } from '@/lib/i18n/client';
 
 import { SkillRowActions } from '../components/skill-row-actions';
@@ -18,19 +19,75 @@ interface SkillsTableConfig {
   pageSize: number;
 }
 
+export interface SkillsTableBindingMode {
+  selected: string[];
+  onChange: (slugs: string[]) => void;
+  max: number;
+}
+
 interface SkillsTableConfigOptions {
   organizationId: string;
   onDeleted?: () => void;
+  bindingMode?: SkillsTableBindingMode;
 }
 
 export function useSkillsTableConfig({
   organizationId,
   onDeleted,
+  bindingMode,
 }: SkillsTableConfigOptions): SkillsTableConfig {
   const { t } = useT('settings');
 
+  const selectedSet = useMemo(
+    () => new Set(bindingMode?.selected ?? []),
+    [bindingMode?.selected],
+  );
+  const atCap = bindingMode
+    ? bindingMode.selected.length >= bindingMode.max
+    : false;
+
   const columns = useMemo<ColumnDef<SkillRow>[]>(
     () => [
+      ...(bindingMode
+        ? [
+            {
+              id: 'binding',
+              header: '',
+              meta: { isAction: true },
+              cell: ({ row }) => {
+                const slug = row.original.slug;
+                const checked = selectedSet.has(slug);
+                const disabled =
+                  Boolean(row.original.status) || (!checked && atCap);
+                return (
+                  <HStack
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <Checkbox
+                      checked={checked}
+                      disabled={disabled}
+                      aria-label={t('agents.form.skillBindingsToggleAria', {
+                        defaultValue: 'Bind {slug}',
+                        slug,
+                      })}
+                      onCheckedChange={() => {
+                        if (checked) {
+                          bindingMode.onChange(
+                            bindingMode.selected.filter((s) => s !== slug),
+                          );
+                        } else if (!atCap) {
+                          bindingMode.onChange([...bindingMode.selected, slug]);
+                        }
+                      }}
+                    />
+                  </HStack>
+                );
+              },
+              size: 48,
+            } satisfies ColumnDef<SkillRow>,
+          ]
+        : []),
       {
         id: 'name',
         header: t('skills.columns.name', { defaultValue: 'Skill' }),
@@ -67,29 +124,33 @@ export function useSkillsTableConfig({
         ),
         size: 400,
       },
-      {
-        id: 'actions',
-        header: '',
-        meta: { isAction: true },
-        cell: ({ row }) => (
-          <HStack
-            gap={1}
-            justify="end"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-          >
-            <SkillRowActions
-              skillSlug={row.original.slug}
-              organizationId={organizationId}
-              expectedHash={row.original.hash}
-              onDeleted={onDeleted}
-            />
-          </HStack>
-        ),
-        size: 60,
-      },
+      ...(bindingMode
+        ? []
+        : [
+            {
+              id: 'actions',
+              header: '',
+              meta: { isAction: true },
+              cell: ({ row }) => (
+                <HStack
+                  gap={1}
+                  justify="end"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <SkillRowActions
+                    skillSlug={row.original.slug}
+                    organizationId={organizationId}
+                    expectedHash={row.original.hash}
+                    onDeleted={onDeleted}
+                  />
+                </HStack>
+              ),
+              size: 60,
+            } satisfies ColumnDef<SkillRow>,
+          ]),
     ],
-    [t, organizationId, onDeleted],
+    [t, organizationId, onDeleted, bindingMode, selectedSet, atCap],
   );
 
   return {

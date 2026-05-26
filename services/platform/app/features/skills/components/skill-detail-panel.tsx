@@ -9,7 +9,8 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
-import { Copy, RotateCw, Trash2, X } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { ArrowUpRight, Copy, RotateCw, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -35,12 +36,25 @@ import { SkillBundleTreePanel } from './skill-bundle-tree-panel';
 import { SkillDeleteDialog } from './skill-delete-dialog';
 import { SkillUploadDialog } from './skill-upload/skill-upload-dialog';
 
+interface ManageLink {
+  to: string;
+  params?: Record<string, string>;
+  search?: Record<string, string>;
+}
+
 interface SkillDetailPanelProps {
   organizationId: string;
   slug: string;
   onOpenChange: (open: boolean) => void;
   /** Re-point the panel at a different skill (used after duplicate). */
   onSwitchSlug: (slug: string) => void;
+  /**
+   * Hides the management actions (Replace / Duplicate / Delete) and routes
+   * users to the canonical Skills settings page via `manageLink` instead.
+   */
+  readOnly?: boolean;
+  /** Routing target for the "Manage in Skills settings" header link. */
+  manageLink?: ManageLink;
 }
 
 export function SkillDetailPanel({
@@ -48,6 +62,8 @@ export function SkillDetailPanel({
   slug,
   onOpenChange,
   onSwitchSlug,
+  readOnly,
+  manageLink,
 }: SkillDetailPanelProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -149,7 +165,7 @@ export function SkillDetailPanel({
             {skillDisplayName}
           </Heading>
           <HStack gap={1} align="center" className="shrink-0">
-            {skill ? (
+            {skill && !readOnly ? (
               <>
                 <Button
                   variant="ghost"
@@ -182,6 +198,19 @@ export function SkillDetailPanel({
                   {tCommon('actions.delete')}
                 </Button>
               </>
+            ) : null}
+            {readOnly && manageLink ? (
+              <Link
+                to={manageLink.to}
+                params={manageLink.params}
+                search={manageLink.search}
+                className="text-foreground hover:bg-muted inline-flex h-8 items-center gap-1 rounded-md px-3 text-sm font-medium"
+              >
+                <ArrowUpRight className="size-4" aria-hidden="true" />
+                {t('skills.manageInSettings', {
+                  defaultValue: 'Manage in Skills settings',
+                })}
+              </Link>
             ) : null}
             <IconButton
               icon={X}

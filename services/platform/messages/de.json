@@ -3476,6 +3476,10 @@
       "title": "Agent-Tools",
       "description": "Tools für deinen Agent auswählen und konfigurieren."
     },
+    "agentSkills": {
+      "title": "Agent-Skills",
+      "description": "Skills binden, die der Agent zur Laufzeit lesen kann."
+    },
     "agentWebhook": {
       "title": "Agent-Workers",
       "description": "Worker-URLs für deinen Agent verwalten."
@@ -4181,6 +4185,7 @@
         "general": "Allgemein",
         "instructionsModel": "Anweisungen & Modell",
         "tools": "Tools",
+        "skills": "Skills",
         "knowledge": "Wissen",
         "webhook": "Worker",
         "delegation": "Delegation",
@@ -4251,8 +4256,8 @@
         "noWorkflowsAvailable": "Keine aktiven Workflows verfügbar.",
         "sectionSkillBindings": "Gebundene Skills",
         "sectionSkillBindingsDescription": "Skills, die der Agent zur Laufzeit lesen kann. Leer lassen für einen Agent ohne Skills — es gibt keinen impliziten Fallback auf organisationsweite Sichtbarkeit.",
-        "noSkillsAvailable": "In dieser Organisation sind noch keine Skills hochgeladen.",
-        "noSkillsBoundHint": "Dieser Agent hat keine Skills verfügbar. Wähle mindestens einen aus.",
+        "skillBindingsCounter": "{count}/{max} gebunden",
+        "skillBindingsToggleAria": "{slug} binden",
         "sectionKnowledge": "Wissen",
         "sectionKnowledgeDescription": "Zugriff auf die Wissensdatenbank konfigurieren",
         "knowledgeHint": "Die Wissensdatenbank durchsucht Dokumente, die in deine Organisation hochgeladen wurden.",
@@ -4403,6 +4408,7 @@
       "skillDuplicated": "Skill als {slug} dupliziert",
       "skillDuplicateFailed": "Skill konnte nicht dupliziert werden",
       "deleteConfirmation": "Dadurch wird das Skill-Bundle von der Festplatte entfernt. Daran gebundene Agents behalten den Bindungseintrag und protokollieren zur Laufzeit eine Warnung, bis du sie erneut bearbeitest.",
+      "manageInSettings": "In Skill-Einstellungen verwalten",
       "actions": {
         "duplicate": "Duplizieren",
         "replaceBundle": "Bundle ersetzen"

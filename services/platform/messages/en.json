@@ -3476,6 +3476,10 @@
       "title": "Agent tools",
       "description": "Select and configure tools available to your agent."
     },
+    "agentSkills": {
+      "title": "Agent skills",
+      "description": "Bind skills the agent can read at runtime."
+    },
     "agentWebhook": {
       "title": "Agent workers",
       "description": "Manage worker URLs for your agent."
@@ -4438,6 +4442,7 @@
         "general": "General",
         "instructionsModel": "Instructions & model",
         "tools": "Tools",
+        "skills": "Skills",
         "knowledge": "Knowledge",
         "webhook": "Workers",
         "delegation": "Delegation",
@@ -4508,8 +4513,8 @@
         "noWorkflowsAvailable": "No active workflows available.",
         "sectionSkillBindings": "Bound skills",
         "sectionSkillBindingsDescription": "Skills the agent can read at runtime. Leave empty for an agent with no skills — there is no implicit fallback to org-wide visibility.",
-        "noSkillsAvailable": "No skills uploaded to this organization yet.",
-        "noSkillsBoundHint": "This agent has no skills available. Select at least one to expose it.",
+        "skillBindingsCounter": "{count}/{max} bound",
+        "skillBindingsToggleAria": "Bind {slug}",
         "sectionKnowledge": "Knowledge",
         "sectionKnowledgeDescription": "Configure access to the knowledge base",
         "knowledgeHint": "The knowledge base searches documents uploaded to your organization.",
@@ -4660,6 +4665,7 @@
       "skillDuplicated": "Skill duplicated as {slug}",
       "skillDuplicateFailed": "Failed to duplicate skill",
       "deleteConfirmation": "This removes the skill bundle from disk. The skill will no longer be available to any agent in this organization.",
+      "manageInSettings": "Manage in Skills settings",
       "actions": {
         "duplicate": "Duplicate",
         "replaceBundle": "Replace bundle"

@@ -1,16 +1,21 @@
 'use client';
 
+import { HStack, Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Row } from '@tanstack/react-table';
 import { Sparkles } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
 import { useListSkills } from '../hooks/queries';
-import { useSkillsTableConfig } from '../hooks/use-skills-table-config';
+import {
+  useSkillsTableConfig,
+  type SkillsTableBindingMode,
+} from '../hooks/use-skills-table-config';
 import { SkillDetailPanel } from './skill-detail-panel';
 import { SkillsActionMenu } from './skills-action-menu';
 
@@ -26,12 +31,32 @@ export interface SkillRow {
 
 interface SkillsTableProps {
   organizationId: string;
+  /**
+   * Enables a leading checkbox column wired to the supplied selection state.
+   * Also flips the detail panel into read-only mode (no Replace/Duplicate/Delete)
+   * since the agent-binding context has no business managing the bundle.
+   */
+  bindingMode?: SkillsTableBindingMode;
+  /** Hides the trailing action menu (e.g. Upload skill). Settings keeps it; agent context drops it. */
+  hideActionMenu?: boolean;
+  /** Pre-opens the detail panel for this slug on mount (used by ?slug= deep-link). */
+  initialDetailSlug?: string | null;
 }
 
-export function SkillsTable({ organizationId }: SkillsTableProps) {
+export function SkillsTable({
+  organizationId,
+  bindingMode,
+  hideActionMenu,
+  initialDetailSlug,
+}: SkillsTableProps) {
+  const { t } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
   const queryClient = useQueryClient();
-  const [detailSlug, setDetailSlug] = useState<string | null>(null);
+  const [detailSlug, setDetailSlug] = useState(initialDetailSlug ?? null);
+  // Re-sync when the URL param changes (e.g. nav between two ?slug= URLs).
+  useEffect(() => {
+    if (initialDetailSlug != null) setDetailSlug(initialDetailSlug);
+  }, [initialDetailSlug]);
   const {
     skills: rawSkills,
     isLoading,
@@ -79,6 +104,7 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
     useSkillsTableConfig({
       organizationId,
       onDeleted: invalidateSkills,
+      bindingMode,
     });
 
   const handleRowClick = useCallback((row: Row<SkillRow>) => {
@@ -98,18 +124,33 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
     },
   });
 
+  const bindingCaption = bindingMode ? (
+    <HStack justify="end" align="center" className="px-1" aria-live="polite">
+      <Text variant="caption">
+        {t('agents.form.skillBindingsCounter', {
+          defaultValue: '{count}/{max} bound',
+          count: bindingMode.selected.length,
+          max: bindingMode.max,
+        })}
+      </Text>
+    </HStack>
+  ) : null;
+
   return (
-    <>
+    <Stack gap={2}>
+      {bindingCaption}
       <DataTable
         {...list.tableProps}
         columns={columns}
         stickyLayout={stickyLayout}
         onRowClick={handleRowClick}
         actionMenu={
-          <SkillsActionMenu
-            organizationId={organizationId}
-            onUploaded={setDetailSlug}
-          />
+          hideActionMenu ? undefined : (
+            <SkillsActionMenu
+              organizationId={organizationId}
+              onUploaded={setDetailSlug}
+            />
+          )
         }
         error={error ?? undefined}
         onRetry={() => void refetch()}
@@ -130,8 +171,18 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
             if (!open) setDetailSlug(null);
           }}
           onSwitchSlug={setDetailSlug}
+          readOnly={bindingMode != null}
+          manageLink={
+            bindingMode != null
+              ? {
+                  to: '/dashboard/$id/settings/skills',
+                  params: { id: organizationId },
+                  search: { slug: detailSlug },
+                }
+              : undefined
+          }
         />
       )}
-    </>
+    </Stack>
   );
 }
