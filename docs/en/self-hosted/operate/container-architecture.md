@@ -3,11 +3,11 @@ title: Container architecture
 description: Which container owns which job in a running Tale instance, the request path of a chat message, and what an outage in each container looks like.
 ---
 
-A Tale instance is seven containers wired by docker compose. The architecture page covered what each container is for; this page is the operator's version — which container owns which job, how a chat message flows through them, and what the failure mode looks like when one of them dies.
+A Tale instance is eight containers wired by docker compose. The architecture page covered what each container is for; this page is the operator's version — which container owns which job, how a chat message flows through them, and what the failure mode looks like when one of them dies.
 
 Read this when you are on call. Come back when you are deciding which container to roll first during an upgrade.
 
-## The seven containers, with their jobs
+## The eight containers, with their jobs
 
 | Container             | Job                                           | Crashes affect                                |
 | --------------------- | --------------------------------------------- | --------------------------------------------- |
@@ -20,7 +20,7 @@ Read this when you are on call. Come back when you are deciding which container 
 | `tale-sandbox-egress` | Network egress for sandboxed code             | `Run code` tool errors with "egress denied"   |
 | `tale-sandbox`        | Sandbox runtime                               | `Run code` tool errors; skill scripts fail    |
 
-Two containers exposed to the public network (`tale-proxy` for HTTPS, optionally `tale-sandbox-egress` outbound for the sandbox); five internal-only.
+Two containers exposed to the public network (`tale-proxy` for HTTPS, optionally `tale-sandbox-egress` outbound for the sandbox); six internal-only.
 
 ## The request path
 

@@ -3,11 +3,11 @@ title: Container-Architektur
 description: Welcher Container welchen Job in einer laufenden Tale-Instanz hat, der Request-Pfad einer Chat-Nachricht und wie ein Ausfall jedes Containers aussieht.
 ---
 
-Eine Tale-Instanz besteht aus sieben Containern, verdrahtet durch docker compose. Die Architektur-Seite hat behandelt, wofür jeder Container da ist; diese Seite ist die Operator-Version — welcher Container welchen Job besitzt, wie eine Chat-Nachricht durch sie fliesst und wie der Fehlermodus aussieht, wenn einer von ihnen stirbt.
+Eine Tale-Instanz besteht aus acht Containern, verdrahtet durch docker compose. Die Architektur-Seite hat behandelt, wofür jeder Container da ist; diese Seite ist die Operator-Version — welcher Container welchen Job besitzt, wie eine Chat-Nachricht durch sie fliesst und wie der Fehlermodus aussieht, wenn einer von ihnen stirbt.
 
 Lies das, wenn du Bereitschaft hast. Komm zurück, wenn du entscheidest, welchen Container du während eines Upgrades zuerst rollst.
 
-## Die sieben Container, mit ihren Jobs
+## Die acht Container, mit ihren Jobs
 
 | Container             | Job                                           | Ausfälle betreffen                               |
 | --------------------- | --------------------------------------------- | ------------------------------------------------ |
@@ -20,7 +20,7 @@ Lies das, wenn du Bereitschaft hast. Komm zurück, wenn du entscheidest, welchen
 | `tale-sandbox-egress` | Netzwerk-Egress für sandboxierten Code        | **Code-ausführen** scheitert mit „Egress denied" |
 | `tale-sandbox`        | Sandbox-Laufzeit                              | **Code-ausführen** scheitert; Fähigkeits-Skripte |
 
-Zwei Container sind dem öffentlichen Netz exponiert (`tale-proxy` für HTTPS, optional `tale-sandbox-egress` ausgehend für die Sandbox); fünf nur intern.
+Zwei Container sind dem öffentlichen Netz exponiert (`tale-proxy` für HTTPS, optional `tale-sandbox-egress` ausgehend für die Sandbox); sechs nur intern.
 
 ## Der Request-Pfad
 

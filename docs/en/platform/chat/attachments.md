@@ -13,7 +13,7 @@ Paste a PDF into the composer. The composer surfaces a chip with the filename an
 
 ## Supported types
 
-Three families: **images**, **structured documents** (PDF, DOCX, XLSX, PPTX), and **text-like files** (plain text, markdown, source code, CSV, JSON, YAML). Images go to the vision model the chat is using; the model picker must be on a vision-capable model or the image will silently drop. Structured documents are extracted to text — diagrams, scanned pages, and embedded objects are best-effort. Text-like files land verbatim.
+Three families: **images**, **structured documents** (PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX), and **text-like files** (plain text, markdown, source code, CSV, JSON, YAML). Images go to the vision model the chat is using; the model picker must be on a vision-capable model or the image will silently drop. Structured documents are extracted to text — diagrams, scanned pages, and embedded objects are best-effort. Text-like files land verbatim.
 
 ## Where uploads live
 

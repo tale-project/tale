@@ -38,7 +38,7 @@ Die linkeste Datei ist die Basis; jede nachfolgende Datei merged ihre Schlüssel
 
 ## Services und ihre Rollen
 
-Der Basis-Graph fährt sieben Container hoch:
+Der Basis-Graph fährt acht Container hoch:
 
 - `tale-proxy` — Caddy. TLS, Reverse-Proxy, 301s.
 - `tale-platform` — die TanStack-Start-App. Die User-zugewandte UI und API.

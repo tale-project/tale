@@ -38,7 +38,7 @@ The leftmost file is the base; each subsequent file merges its keys on top. Conf
 
 ## Services and their roles
 
-The base graph brings up seven containers:
+The base graph brings up eight containers:
 
 - `tale-proxy` — Caddy. TLS, reverse proxy, 301s.
 - `tale-platform` — the TanStack Start app. The user-facing UI and API.

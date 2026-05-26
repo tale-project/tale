@@ -3,7 +3,7 @@ title: Facturation
 description: Ce que Tale Cloud facture, comment les budgets coupent les coûts qui dérapent, et où la facture apparaît dans le produit.
 ---
 
-La facturation sur Cloud est mesurée, pas au siège. Tu paies pour les tokens consommés par les chats et les agents, les minutes vocales, les générations d'images et le stockage ; la plateforme elle-même vient avec l'organisation. Cette page parcourt une ligne de facture, liste les composants mesurés, et pointe vers les contrôles de budget qui évitent les surprises.
+La facturation sur Cloud est mesurée, pas par siège. Tu paies pour les tokens consommés par les chats et les agents, les minutes vocales, les générations d'images et le stockage ; la plateforme elle-même vient avec l'organisation. Cette page parcourt une ligne de facture, liste les composants mesurés, et pointe vers les contrôles de budget qui évitent les surprises.
 
 La facture arrive chaque mois par e-mail et est aussi visible dans le produit sous **Paramètres > Facturation**. Cloud facture dans la devise de facturation de ton organisation, qui par défaut est USD à l'inscription et peut être changée avant la première facture.
 

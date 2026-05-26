@@ -13,7 +13,7 @@ Ouvre l'agent et passe à **Workers**. La page montre une URL par agent et un `c
 
 ## Authentification
 
-Les endpoints Worker exigent une clé API. L'endpoint montre l'URL mais pas un `curl` fonctionnel tant qu'une clé n'est pas attachée ; l'en-tête **Authorization** porte la clé comme bearer token. Roter la clé invalide chaque appelant qui tourne — provisionne de nouvelles clés avant de retirer les anciennes. Les clés API se gèrent sous [Clés API](/fr/platform/admin/api-keys).
+Les endpoints Worker exigent une clé API. L'endpoint montre l'URL mais pas un `curl` fonctionnel tant qu'une clé n'est pas attachée ; l'en-tête **Authorization** porte la clé comme bearer token. Renouveler la clé invalide chaque appelant actif — provisionne de nouvelles clés avant de retirer les anciennes. Les clés API se gèrent sous [Clés API](/fr/platform/admin/api-keys).
 
 ## Forme de la charge
 

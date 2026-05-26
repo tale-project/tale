@@ -17,7 +17,7 @@ Ouvre un instantané passé et clique **Restore this version**. L'état courant 
 
 ## Ce qui est versionné
 
-La versioning couvre les instructions, les choix de modèle, les liaisons de connaissances, les bascules d'outils, les amorces de conversation et les métadonnées. Elle ne couvre pas les sources de connaissances sous-jacentes elles-mêmes — remplacer un document auquel l'agent est lié change ce que l'agent récupère sans incrémenter la version de l'agent. Pour auditer un changement de connaissances, voir [Journaux d'audit](/fr/platform/admin/governance/audit-logs).
+Le versionnage couvre les instructions, les choix de modèle, les liaisons de connaissances, les bascules d'outils, les amorces de conversation et les métadonnées. Il ne couvre pas les sources de connaissances sous-jacentes elles-mêmes — remplacer un document auquel l'agent est lié change ce que l'agent récupère sans incrémenter la version de l'agent. Pour auditer un changement de connaissances, voir [Journaux d'audit](/fr/platform/admin/governance/audit-logs).
 
 ## Où ça s'inscrit
 

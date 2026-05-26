@@ -54,7 +54,7 @@ tale config set host tale.example.com
 tale config set admin-key <key-aus-erster-admin>
 ```
 
-Die CLI speichert die Konfiguration unter `~/.config/tale/config.yml`. Der Admin-Key authentifiziert die Aufrufe der CLI an den Platform-Container; die Plattform zu rotieren restartet den Key, also frisch ihn dann auf.
+Die CLI speichert die Konfiguration unter `~/.config/tale/config.yml`. Der Admin-Key authentifiziert die Aufrufe der CLI an den Platform-Container; den Platform-Container neu zu starten rotiert den Key, also frisch ihn dann auf.
 
 ## Schritt 4 — tale deploy ausführen
 

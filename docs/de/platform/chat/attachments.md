@@ -13,7 +13,7 @@ Füg ein PDF in den Composer ein. Der Composer zeigt einen Chip mit dem Dateinam
 
 ## Unterstützte Typen
 
-Drei Familien: **Bilder**, **strukturierte Dokumente** (PDF, DOCX, XLSX, PPTX) und **textartige Dateien** (Plaintext, Markdown, Quellcode, CSV, JSON, YAML). Bilder gehen an das Vision-Modell, das der Chat nutzt; der Modell-Picker muss auf einem vision-fähigen Modell stehen, sonst fällt das Bild stillschweigend weg. Strukturierte Dokumente werden zu Text extrahiert — Diagramme, gescannte Seiten und eingebettete Objekte sind Best-Effort. Textartige Dateien landen wörtlich.
+Drei Familien: **Bilder**, **strukturierte Dokumente** (PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX) und **textartige Dateien** (Plaintext, Markdown, Quellcode, CSV, JSON, YAML). Bilder gehen an das Vision-Modell, das der Chat nutzt; der Modell-Picker muss auf einem vision-fähigen Modell stehen, sonst fällt das Bild stillschweigend weg. Strukturierte Dokumente werden zu Text extrahiert — Diagramme, gescannte Seiten und eingebettete Objekte sind Best-Effort. Textartige Dateien landen wörtlich.
 
 ## Wo Uploads leben
 

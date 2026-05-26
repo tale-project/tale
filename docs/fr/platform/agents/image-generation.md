@@ -3,7 +3,7 @@ title: Génération d'images
 description: La génération d'images comme capacité d'agent — choisir un modèle tagué image, coûts, et comment les images générées apparaissent dans la réponse.
 ---
 
-La génération d'images est une capacité qu'un agent obtient en choisissant un modèle tagué image. La réponse de l'agent peut inclure des images générées à côté du texte ; l'utilisateur voit l'image en ligne dans le chat comme s'affiche une pièce jointe. Cette page couvre le câblage.
+La génération d'images est une capacité qu'un agent obtient en choisissant un modèle tagué image. La réponse de l'agent peut inclure des images générées à côté du texte ; l'utilisateur voit l'image en ligne dans le chat, de la même manière qu'une pièce jointe. Cette page couvre le câblage.
 
 Le mécanisme dépend du fournisseur sous-jacent — qualité, coût et vitesse varient grandement. Le travail de Tale est d'exposer la capacité à l'agent et à l'utilisateur ; le travail du fournisseur est de fabriquer l'image.
 
@@ -21,4 +21,4 @@ Les modèles d'images coûtent plus par appel que les modèles texte — parfois
 
 ## Où ça s'inscrit
 
-La génération d'images est un tag de plus sur le sélecteur de modèles — le reste de la forme de l'agent reste le même. Le candidat à la dérive ici est le nom des fournisseurs et modèles ; couple cette page avec la liste des modèles en cours dans [Providers](/fr/platform/admin/providers) plutôt que de mémoriser des chaînes de modèles précises.
+La génération d'images est un tag de plus sur le sélecteur de modèles — le reste de la forme de l'agent reste le même. Le candidat à la dérive ici est le nom des fournisseurs et modèles ; consulte cette page avec la liste des modèles en cours dans [Providers](/fr/platform/admin/providers) plutôt que de mémoriser des chaînes de modèles précises.

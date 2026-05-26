@@ -28,7 +28,7 @@ La page de concept [Approbations dans les workflows](/fr/platform/automations/ap
 Une automatisation de rapport quotidien met les quatre pièces dans une chaîne :
 
 - Déclencheur : une planification qui tire en semaine à 08h00.
-- Étape 1 : un agent qui résume les conversations clients de la veille depuis le posteingang.
+- Étape 1 : un agent qui résume les conversations clients de la veille depuis la boîte de réception.
 - Étape 2 : un point d'approbation routé vers le responsable d'équipe — Approuver pour envoyer, Rejeter pour jeter.
 - Étape 3 : une étape mail qui envoie le résumé approuvé à la liste de diffusion de l'équipe.
 

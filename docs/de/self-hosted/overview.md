@@ -1,13 +1,13 @@
 ---
 title: Selbst gehostete Architektur
-description: Sieben Container, eine compose-Datei, eine Postgres-Datenbank. Diese Seite vermittelt das mentale Modell, was jeder Container tut, wo Daten auf dem Storage liegen und welche Secrets beim ersten Boot zählen.
+description: Acht Container, eine compose-Datei, eine Postgres-Datenbank. Diese Seite vermittelt das mentale Modell, was jeder Container tut, wo Daten auf dem Storage liegen und welche Secrets beim ersten Boot zählen.
 ---
 
-Eine Tale-Instanz besteht aus sieben Containern hinter einem Caddy-Proxy, die mit einer Postgres-Datenbank sprechen, plus zwei Sandbox-Containern an der Seite für Code-Ausführung. Die compose-Datei ist der Vertrag — was läuft, was exponiert ist, was gemountet ist. Diese Seite vermittelt das mentale Modell, sodass die Install-, Konfigurations- und Betriebsseiten es nicht erneut erklären müssen.
+Eine Tale-Instanz besteht aus acht Containern hinter einem Caddy-Proxy, die mit einer Postgres-Datenbank sprechen; zwei davon sind Sandbox-Container an der Seite für Code-Ausführung. Die compose-Datei ist der Vertrag — was läuft, was exponiert ist, was gemountet ist. Diese Seite vermittelt das mentale Modell, sodass die Install-, Konfigurations- und Betriebsseiten es nicht erneut erklären müssen.
 
 Lies das, bevor du `docker compose up` ausführst. Komm zurück, wenn du einen Ausfall debuggst und wissen musst, welches Container-Log du zuerst öffnen solltest.
 
-## Die sieben Container
+## Die acht Container
 
 **tale-proxy** ist Caddy am Rand. Er terminiert TLS, leitet alles unter `/` an den Plattform-Container und alles unter `/api/` und die Convex-Pfade an den Convex-Container weiter. Health-Checks leben hier.
 
@@ -47,7 +47,7 @@ Die [Authentifizierungs-Referenz](/de/self-hosted/configuration/authentication) 
 
 ## Wenn du Single-Host hinter dir lässt
 
-Die Standard-compose-Datei betreibt alle sieben Container auf einem Host. Die Architektur ist single-tenant: nichts im Design teilt Arbeit über Hosts hinweg. Wenn du das hinter dir lässt — typischerweise weil tale-rag oder tale-crawler eigene Ressourcen brauchen, oder du einen Hot-Standby willst — ist der Zug, diese Container auf einen zweiten Host zu extrahieren und die Plattform per Umgebungsvariablen auf sie zu zeigen. Die Convex-Schicht ist immer noch Single-Instance; horizontale Skalierung des Backends ist kein v1-Feature.
+Die Standard-compose-Datei betreibt alle acht Container auf einem Host. Die Architektur ist single-tenant: nichts im Design teilt Arbeit über Hosts hinweg. Wenn du das hinter dir lässt — typischerweise weil tale-rag oder tale-crawler eigene Ressourcen brauchen, oder du einen Hot-Standby willst — ist der Zug, diese Container auf einen zweiten Host zu extrahieren und die Plattform per Umgebungsvariablen auf sie zu zeigen. Die Convex-Schicht ist immer noch Single-Instance; horizontale Skalierung des Backends ist kein v1-Feature.
 
 ## Wo das hingehört
 

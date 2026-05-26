@@ -1,13 +1,13 @@
 ---
 title: Architecture auto-hébergée
-description: Sept conteneurs, un fichier compose, une base Postgres. Cette page donne le modèle mental pour savoir ce que fait chaque conteneur, où vivent les données sur le disque et quels secrets comptent au premier boot.
+description: Huit conteneurs, un fichier compose, une base Postgres. Cette page donne le modèle mental pour savoir ce que fait chaque conteneur, où vivent les données sur le disque et quels secrets comptent au premier boot.
 ---
 
-Une instance Tale, ce sont sept conteneurs derrière un proxy Caddy, parlant à une base Postgres, avec deux conteneurs sandbox sur le côté pour l'exécution de code. Le fichier compose est le contrat — ce qui tourne, ce qui est exposé, ce qui est monté. Cette page te donne le modèle mental pour que les pages installation, configuration et exploitation n'aient pas à le réexpliquer.
+Une instance Tale, ce sont huit conteneurs derrière un proxy Caddy, parlant à une base Postgres ; deux d'entre eux sont des conteneurs sandbox sur le côté pour l'exécution de code. Le fichier compose est le contrat — ce qui tourne, ce qui est exposé, ce qui est monté. Cette page te donne le modèle mental pour que les pages installation, configuration et exploitation n'aient pas à le réexpliquer.
 
 Lis ceci avant de `docker compose up`. Reviens-y quand tu débogues un incident et que tu dois savoir quel log de conteneur ouvrir en premier.
 
-## Les sept conteneurs
+## Les huit conteneurs
 
 **tale-proxy** est Caddy en bordure. Il termine TLS, route tout sous `/` vers le conteneur plateforme, et tout sous `/api/` et les chemins Convex vers le conteneur convex. Les healthchecks vivent ici.
 
@@ -47,7 +47,7 @@ La [référence d'authentification](/fr/self-hosted/configuration/authentication
 
 ## Quand tu sors du single-host
 
-Le fichier compose par défaut fait tourner les sept conteneurs sur un hôte. L'architecture est mono-tenant : rien dans le design ne répartit le travail entre hôtes. Quand tu sors de là — typiquement parce que tale-rag ou tale-crawler ont besoin de leurs propres ressources, ou parce que tu veux un standby chaud — le mouvement est d'extraire ces conteneurs sur un second hôte et de pointer la plateforme dessus via les variables d'environnement. La couche Convex reste mono-instance ; la scalabilité horizontale du backend n'est pas une fonctionnalité v1.
+Le fichier compose par défaut fait tourner les huit conteneurs sur un hôte. L'architecture est mono-tenant : rien dans le design ne répartit le travail entre hôtes. Quand tu sors de là — typiquement parce que tale-rag ou tale-crawler ont besoin de leurs propres ressources, ou parce que tu veux un standby chaud — le mouvement est d'extraire ces conteneurs sur un second hôte et de pointer la plateforme dessus via les variables d'environnement. La couche Convex reste mono-instance ; la scalabilité horizontale du backend n'est pas une fonctionnalité v1.
 
 ## Où cela s'inscrit
 

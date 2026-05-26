@@ -3,11 +3,11 @@ title: Architecture des conteneurs
 description: Quel conteneur possède quel travail dans une instance Tale en marche, le chemin de requête d'un message chat, et à quoi ressemble une panne de chaque conteneur.
 ---
 
-Une instance Tale, ce sont sept conteneurs câblés par docker compose. La page d'architecture a couvert à quoi sert chaque conteneur ; cette page-ci est la version de l'opérateur — quel conteneur possède quel travail, comment un message chat y circule et à quoi ressemble le mode de défaillance quand l'un d'eux meurt.
+Une instance Tale, ce sont huit conteneurs câblés par docker compose. La page d'architecture a couvert à quoi sert chaque conteneur ; cette page-ci est la version de l'opérateur — quel conteneur possède quel travail, comment un message chat y circule et à quoi ressemble le mode de défaillance quand l'un d'eux meurt.
 
 Lis ceci quand tu es d'astreinte. Reviens-y quand tu décides quel conteneur rouler en premier pendant une montée de version.
 
-## Les sept conteneurs, avec leurs tâches
+## Les huit conteneurs, avec leurs tâches
 
 | Conteneur             | Tâche                                              | Une panne affecte                                                        |
 | --------------------- | -------------------------------------------------- | ------------------------------------------------------------------------ |
@@ -20,7 +20,7 @@ Lis ceci quand tu es d'astreinte. Reviens-y quand tu décides quel conteneur rou
 | `tale-sandbox-egress` | Sortie réseau pour code sandbox                    | L'outil **Exécuter du code** échoue avec « egress denied »               |
 | `tale-sandbox`        | Runtime sandbox                                    | L'outil **Exécuter du code** échoue ; les scripts de compétence échouent |
 
-Deux conteneurs exposés au réseau public (`tale-proxy` pour HTTPS, optionnellement `tale-sandbox-egress` sortant pour la sandbox) ; cinq internes seulement.
+Deux conteneurs exposés au réseau public (`tale-proxy` pour HTTPS, optionnellement `tale-sandbox-egress` sortant pour la sandbox) ; six internes seulement.
 
 ## Le chemin de requête
 

@@ -38,7 +38,7 @@ Le fichier le plus à gauche est la base ; chaque fichier suivant fusionne ses c
 
 ## Services et leurs rôles
 
-Le graphe de base démarre sept conteneurs :
+Le graphe de base démarre huit conteneurs :
 
 - `tale-proxy` — Caddy. TLS, reverse-proxy, redirections 301.
 - `tale-platform` — l'app TanStack Start. L'UI et l'API côté utilisateur.

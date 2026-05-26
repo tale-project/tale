@@ -1,13 +1,13 @@
 ---
 title: Self-hosted architecture
-description: Seven containers, one compose file, one Postgres database. This page hands you the mental model for what each container does, where data lives on disk, and which secrets matter at first boot.
+description: Eight containers, one compose file, one Postgres database. This page hands you the mental model for what each container does, where data lives on disk, and which secrets matter at first boot.
 ---
 
-A Tale instance is seven containers behind a Caddy proxy, talking to one Postgres database, with two sandbox containers off to the side for code execution. The compose file is the contract — what runs, what is exposed, what is mounted. This page hands you the mental model so the install, configure, and operate pages do not have to re-explain it.
+A Tale instance is eight containers behind a Caddy proxy, talking to one Postgres database; two of them are sandbox containers off to the side for code execution. The compose file is the contract — what runs, what is exposed, what is mounted. This page hands you the mental model so the install, configure, and operate pages do not have to re-explain it.
 
 Read this before you `docker compose up`. Come back when you are debugging an outage and need to know which container's logs to open first.
 
-## The seven containers
+## The eight containers
 
 **tale-proxy** is Caddy at the edge. It terminates TLS, routes everything under `/` to the platform container, and forwards everything under `/api/` and the Convex paths to the convex container. Healthchecks live here.
 
@@ -47,7 +47,7 @@ The [authentication reference](/self-hosted/configuration/authentication) covers
 
 ## When you outgrow single-host
 
-The default compose file runs all seven containers on one host. The architecture is single-tenant: nothing in the design splits work across hosts. When you outgrow this — typically because tale-rag or tale-crawler need their own resources, or you want a hot standby — the move is to extract those containers into a second host and point the platform at them through the env vars. The Convex layer is still single-instance; horizontal scaling of the backend is not a v1 feature.
+The default compose file runs all eight containers on one host. The architecture is single-tenant: nothing in the design splits work across hosts. When you outgrow this — typically because tale-rag or tale-crawler need their own resources, or you want a hot standby — the move is to extract those containers into a second host and point the platform at them through the env vars. The Convex layer is still single-instance; horizontal scaling of the backend is not a v1 feature.
 
 ## Where this fits
 
