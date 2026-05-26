@@ -4038,6 +4038,9 @@
       "providers": {
         "description": "Eigene API-Schlüssel für OpenAI, Anthropic und andere mitbringen."
       },
+      "skills": {
+        "description": "Skills, die deine Agenten für bestimmte Dateitypen oder Aufgaben laden können."
+      },
       "apiKeys": {
         "description": "Programmatische Zugriffstoken für die Tale-API."
       },

@@ -4039,6 +4039,9 @@
       "providers": {
         "description": "Utilise tes propres clés API pour OpenAI, Anthropic et d'autres."
       },
+      "skills": {
+        "description": "Skills que tes agents peuvent charger pour gérer des types de fichiers ou des tâches spécifiques."
+      },
       "apiKeys": {
         "description": "Jetons d'accès programmatique à l'API Tale."
       },

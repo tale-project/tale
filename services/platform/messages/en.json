@@ -4295,6 +4295,9 @@
       "providers": {
         "description": "Bring your own API keys for OpenAI, Anthropic, and others."
       },
+      "skills": {
+        "description": "Skills your agents can load to handle specific file types or tasks."
+      },
       "apiKeys": {
         "description": "Programmatic access tokens for the Tale API."
       },
