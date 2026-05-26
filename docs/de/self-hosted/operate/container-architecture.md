@@ -1,168 +1,62 @@
 ---
 title: Container-Architektur
-description: Wie Tales Docker-Images strukturiert, gebaut und vernetzt sind.
+description: Welcher Container welchen Job in einer laufenden Tale-Instanz hat, der Request-Pfad einer Chat-Nachricht und wie ein Ausfall jedes Containers aussieht.
 ---
 
-Tale läuft als sechs Docker-Container, verwaltet von Docker Compose, jeder mit einer einzigen Zuständigkeit und einem einzigen Port auf dem internen Bridge-Netzwerk. Diese Seite ist das mentale Modell des Operators dafür, was wo läuft und wie die Dienste reden: welche Volumes geteilt sind, welche Ports exponiert sind, wo die Blue-Green-Topologie sich während eines Deploys auf sich selbst faltet. Greif zu ihr, wenn etwas nicht landet, wo du es erwartest — ein unerreichbarer Metrics-Endpunkt, ein versehentlich exponierter Port, ein Blue-Green-Wechsel, der nicht sauber ausgeblutet ist.
+Eine Tale-Instanz besteht aus sieben Containern, verdrahtet durch docker compose. Die Architektur-Seite hat behandelt, wofür jeder Container da ist; diese Seite ist die Operator-Version — welcher Container welchen Job besitzt, wie eine Chat-Nachricht durch sie fliesst und wie der Fehlermodus aussieht, wenn einer von ihnen stirbt.
 
-Die sechs Container sind stabil über jeden Installationspfad. Quickstart, Produktions-Deployment und CI ziehen alle dieselbe Menge hoch; nur Port-Mappings, TLS-Modus und Host-Bindungen unterscheiden sich.
+Lies das, wenn du Bereitschaft hast. Komm zurück, wenn du entscheidest, welchen Container du während eines Upgrades zuerst rollst.
 
-## Wie die Dienste reden
+## Die sieben Container, mit ihren Jobs
 
-```mermaid
-graph TB
-    subgraph External
-        Browser["Browser / API-Client"]
-    end
+| Container             | Job                                           | Ausfälle betreffen                               |
+| --------------------- | --------------------------------------------- | ------------------------------------------------ |
+| `tale-proxy`          | TLS-Terminierung + Edge-Routing               | Jeden Ingress — kein Client erreicht die UI      |
+| `tale-platform`       | UI-Server, statische Asset-Auslieferung       | Browser sieht 502; die API ist erreichbar        |
+| `tale-convex`         | Backend Actions/Queries/Mutations + WebSocket | UI lädt, aber ohne Daten; laufende Chats stocken |
+| `tale-db`             | Postgres für Convex                           | Convex fällt in Read-only; Writes blockieren     |
+| `tale-rag`            | Dokument-Indexierung + Vektor-Retrieval       | Uploads stauen; Agents verlieren RAG-Ergebnisse  |
+| `tale-crawler`        | Website-Entitäts-Abruf                        | Crawl-Plan pausiert; bestehender Inhalt bleibt   |
+| `tale-sandbox-egress` | Netzwerk-Egress für sandboxierten Code        | **Code-ausführen** scheitert mit „Egress denied" |
+| `tale-sandbox`        | Sandbox-Laufzeit                              | **Code-ausführen** scheitert; Fähigkeits-Skripte |
 
-    subgraph Docker["Docker-Netzwerk"]
-        Proxy["proxy (Caddy)"]
-        Platform["platform (TanStack Start)"]
-        Convex["convex (Backend + Dashboard)"]
-        RAG["rag (FastAPI)"]
-        Crawler["crawler (Crawl4AI + Playwright)"]
-        DB["db (ParadeDB / Postgres 16)"]
-    end
+Zwei Container sind dem öffentlichen Netz exponiert (`tale-proxy` für HTTPS, optional `tale-sandbox-egress` ausgehend für die Sandbox); fünf nur intern.
 
-    Browser -->|HTTPS :443| Proxy
-    Proxy -->|HTTP :3000| Platform
-    Proxy -->|WS/HTTP :3210/:3211| Convex
-    Proxy -->|HTTP :6791| Convex
-    Platform -->|"HTTP :3210<br/>(convex env set + deploy)"| Convex
-    Convex -->|TCP :5432| DB
-    Convex -->|HTTP :8001| RAG
-    Convex -->|HTTP :8002| Crawler
-    RAG -->|TCP :5432| DB
-    Crawler -->|TCP :5432| DB
-```
+## Der Request-Pfad
 
-Der Proxy ist der einzige Container, der auf einem öffentlichen Port lauscht. Alles andere bleibt auf der internen Docker-Bridge; die Platform berührt Postgres nie direkt, weil Convex jedes Lesen und Schreiben besitzt, das in der Datenbank landet. RAG und der Crawler reden mit der Datenbank für ihre eigenen Per-Service-Tabellen (`tale_knowledge`-Schemas), lesen oder schreiben aber nie die Convex-Tabellen.
+Eine Chat-Nachricht macht einen Durchlauf durch fünf der Container:
 
-## Image-Details
+1. Browser → `tale-proxy` (TLS terminiert).
+2. `tale-proxy` → `tale-platform` für HTML/JS, → `tale-convex` für API + WebSocket.
+3. `tale-convex` liest die Provider-Config der Organisation, wählt das Modell, öffnet einen Stream zum Upstream-Provider.
+4. Holt der Agent Wissen: `tale-convex` → `tale-rag` für Vektor-Suche.
+5. Führt der Agent Code aus: `tale-convex` → `tale-sandbox` → `tale-sandbox-egress` für ausgehende Netzwerk-Aufrufe.
+6. Der Provider-Stream gibt Tokens durch `tale-convex` zurück an den Browser über den WebSocket.
 
-| Dienst   | Basis-Image                                                           | Komprimierte Größe | Build-Strategie                                                       |
-| -------- | --------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------- |
-| Platform | `ghcr.io/get-convex/convex-backend` (für `generate_key`-glibc-Binary) | ~320 MB            | 5-Stufen: deps → builder → pruner → runner → squash                   |
-| Convex   | `ghcr.io/get-convex/convex-backend`                                   | ~485 MB            | 2-Stufen: dashboard → runner (Dashboard COPY-iert aus Upstream-Image) |
-| Crawler  | `python:3.11-slim`                                                    | ~650 MB            | 3-Stufen: builder → runtime → squash. Nur Chromium-headless_shell.    |
-| RAG      | `python:3.11-slim`                                                    | ~515 MB            | 3-Stufen: builder → runtime → squash. Nur libpq5.                     |
-| DB       | `paradedb/paradedb:0.22.5-pg16`                                       | ~1,06 GB           | 3-Stufen: cleanup → runtime → squash.                                 |
-| Proxy    | `caddy:2.11-alpine`                                                   | ~88 MB             | Eine Stufe.                                                           |
+Der heisse Pfad ist kurz. Fühlt sich die Chat-Latenz falsch an, ist der Container, der schuld ist, fast immer der Upstream-Provider, nicht Tale; die Metric-Endpoints auf `tale-convex` und `tale-rag` zeigen die Zeit in jedem Sprung.
 
-Das Aufspalten von Convex aus dem Platform-Image senkte die Platform-Schicht von rund 2,58 GB komprimiert auf rund 320 MB; der neue convex-Service ist rund 485 MB. Die Netto-Image-Disk ist ähnlich, aber die Platform-Schicht baut für reine App-Änderungen viel schneller — die meisten `Pull Requests` berühren nur die SPA oder den Bun-Server, und das Platform-Image ist das, das die CI bei jedem Merge neu baut.
+## Die Sandbox-Ebene
 
-## Port-Mapping
+Sandboxierte Code-Ausführung läuft in `tale-sandbox`, mit `tale-sandbox-egress` als der einzigen Netzwerk-Naht. Die Zwei-Container-Trennung ist Absicht: `tale-sandbox` selbst hat kein ausgehendes Netz; jeder Request, den der sandboxierte Code macht, geht durch `tale-sandbox-egress`, der die Allowlist der [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) anwendet, bevor er ihn durchlässt. Ist der Egress-Container down, scheitert sandboxierter Code, der das Netz braucht, geschlossen mit „Egress denied" — nicht stiller Timeout.
 
-### Entwicklungs-Ports (`compose.yml`)
+Die Sandbox ist der einzige Container, der nicht-vertrauenswürdigen Code läuft (User-gelieferte Fähigkeits-Skripte, Agent **Code-ausführen**-Aufrufe). Der Rest des Stacks läuft den eigenen Code der Plattform.
 
-| Dienst   | Host-Port | Container-Port   | Protokoll            |
-| -------- | --------- | ---------------- | -------------------- |
-| DB       | 5432      | 5432             | TCP (PostgreSQL)     |
-| Crawler  | 8002      | 8002             | HTTP                 |
-| RAG      | 8001      | 8001             | HTTP                 |
-| Convex   | —         | 3210, 3211, 6791 | WS/HTTP (über Proxy) |
-| Platform | —         | 3000             | HTTP (über Proxy)    |
-| Proxy    | 80, 443   | 80, 443          | HTTP/HTTPS           |
+## Fehler-Modi — wie der Ausfall jedes Containers aussieht
 
-### Test-Ports (`compose.test.yml`)
+**`tale-proxy` down.** TLS-Handshake scheitert; jeder Client sieht einen Verbindungsfehler. Im Host sind die Plattform- und Convex-Container weiter up — starte Proxy zuerst neu.
 
-| Dienst   | Host-Port           | Container-Port   |
-| -------- | ------------------- | ---------------- |
-| DB       | 15432               | 5432             |
-| Crawler  | 18002               | 8002             |
-| RAG      | 18001               | 8001             |
-| Convex   | 13210, 13211, 16791 | 3210, 3211, 6791 |
-| Platform | 13000               | 3000             |
-| Proxy    | 10080, 10443        | 80, 443          |
+**`tale-platform` down.** Browser bekommt 502 vom Proxy; die API arbeitet weiter. Bestehende Browser-Tabs mit gecachten Assets sprechen weiter mit Convex über den WebSocket und merken es vielleicht erst beim Reload.
 
-Die Entwicklungs-Compose-Datei exponiert die vier Backend-Ports auf dem Host (5432, 8001, 8002) für direkten Zugriff vom Entwickler-Laptop; die von `tale deploy` erzeugte Produktions-Compose tut das nicht — jeder Backend-Port bleibt auf der internen Bridge.
+**`tale-convex` down.** Browser lädt die UI-Shell, aber nichts wird befüllt. WebSocket-Reconnect schleift. Convex neu zu starten ist sicher — Sessions sind serverseitig; Clients reabonnieren beim Reconnect.
 
-## Volume-Mapping
+**`tale-db` down.** Convex tritt in seinen degradierten Modus: Reads aus dem Cache, Writes werden gepuffert. Lange Ausfälle zeigen sich irgendwann als „Speichern fehlgeschlagen"-Toasts.
 
-| Volume          | Gemountet in               | Pfad                                 | Zweck                                                                                                                                              |
-| --------------- | -------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `db-data`       | DB                         | `/var/lib/postgresql/data`           | PostgreSQL-Datenverzeichnis.                                                                                                                       |
-| `db-backup`     | DB                         | `/var/lib/postgresql/backup`         | Datenbank-Backups.                                                                                                                                 |
-| `rag-data`      | RAG                        | `/app/data`                          | Temp-Dateien, Dokumenten-Verarbeitung.                                                                                                             |
-| `crawler-data`  | Crawler                    | `/app/data`                          | Website-Register, URL-Datenbanken.                                                                                                                 |
-| `convex-data`   | Convex                     | `/app/data`                          | Convex-DB (SQLite/pg-local), Suchindizes, Dateien, geseedete JSON für Agents, Workflows, Integrationen und Anbieter.                               |
-| `convex-data`   | Platform                   | `/app/data` _(read-only)_            | Config-SSE-Watcher und Branding-Image-Auslieferung.                                                                                                |
-| `convex-data`   | Crawler, RAG               | `/app/platform-config` _(read-only)_ | Geteilte Anbieter-Konfiguration.                                                                                                                   |
-| `caddy-data`    | Proxy, Convex              | `/data`, `/caddy-data`               | TLS-Zertifikate.                                                                                                                                   |
-| `caddy-config`  | Proxy                      | `/config`                            | Caddy-Konfiguration.                                                                                                                               |
-| `platform-data` | — _(Altlast, ungemountet)_ | —                                    | Nach dem Convex-Split-Upgrade aus Rollback-Sicherheit erhalten. Manuell mit `docker volume rm ...` entfernen, nachdem der Split verifiziert wurde. |
+**`tale-rag` down.** Uploads bleiben im „Indexiert"-Zustand; Agents, die Wissen abrufen wollen, bekommen eine leere Ergebnismenge und eine Warnung im Ausführungs-Log. Rag neu zu starten entleert die Queue.
 
-Fahre `docker compose down -v` nie. Das `-v`-Flag löscht jedes benannte Volume, also die Datenbank, jede hochgeladene Datei, den Crawler-Zustand, die TLS-Zertifikate. Es gibt keine Wiederherstellung.
+**`tale-crawler` down.** Website-Entitäts-Aktualisierung stoppt. Bestehender gecrawlter Inhalt bleibt verfügbar. Keine nutzersichtbare Auswirkung für Stunden; der Plan des Crawlers absorbiert kurze Ausfälle.
 
-## Build-Argumente
+**Sandbox-Container down.** **Code-ausführen**-Tool-Aufrufe geben einen Fehler zurück; Fähigkeits-Skripte scheitern. Agents, die keines von beiden nutzen, arbeiten weiter.
 
-| Argument            | Voreinstellung | Genutzt von | Beschreibung                                      |
-| ------------------- | -------------- | ----------- | ------------------------------------------------- |
-| `VERSION`           | `dev`          | Alle        | Image-Versions-Tag, von CI aus dem git-Tag.       |
-| `INSTALL_CJK_FONTS` | `false`        | Crawler     | CJK-Schrift-Unterstützung installieren (~100 MB). |
+## Wo das hingehört
 
-## Multi-Stage-Build-Strategie
-
-Jeder Dienst endet mit einer `FROM scratch`-Squash-Stufe. Diese finale Stufe flacht Docker-Layer ab, damit Datei-Löschungen in früheren Cleanup-Stufen Festplattenplatz zurückgewinnen statt nur maskierende Layer hinzufügen; ohne den Squash würde ein `rm -rf` in Stufe vier die gelöschten Bytes im finalen Image trotzdem kosten.
-
-### Platform (5 Stufen, post-Split)
-
-1. `bun-bin` — extrahiert die Bun-Binärdatei.
-2. `workspace-deps` — installiert jede npm-Abhängigkeit einschließlich devDependencies.
-3. `builder` — fährt `vite build`, um das SPA-Bundle zu produzieren.
-4. `pruner` — installiert Production-only-Deps neu, entfernt Test- und Dev-Pakete.
-5. `runner` — finale Laufzeit auf dem `convex-backend`-Basis-Image (behalten für die `generate_key`-glibc-Binary zum Signieren von Convex-Admin-Tokens). Nur Vite-SPA plus Bun-Server — kein Convex-Backend-Prozess.
-
-Eine `squash`-Stufe auf `FROM scratch` dann `COPY --from=runner` produziert das ausgelieferte Image. Der Container läuft kurz als Root, fällt im Entrypoint über `gosu` auf den `app`-Nutzer ab.
-
-### Convex (2 Stufen, neu in Phase 2)
-
-1. `convex-dashboard` — `FROM ghcr.io/get-convex/convex-dashboard`, um den Next.js-Standalone-Build zu kopieren.
-2. `runner` — `FROM ghcr.io/get-convex/convex-backend`. Enthält den Local-Backend-Daemon, das Dashboard, die eingebauten Seed-Assets (Agents, Workflows, Integrationen, Anbieter, Branding) und den Entrypoint. Entfernt LLVM und Clang für rund 155 MB Einsparung.
-
-### Crawler (3 Stufen)
-
-1. `builder` — installiert Python-Abhängigkeiten über `uv`, lädt Chromium-`headless_shell` herunter, fährt tiefes Cleanup (entfernt die volle Chrome-Binary, FFmpeg, pip, `__pycache__`, `.so`-Debug-Symbole, Test-Verzeichnisse).
-2. `runtime` — sauberes `python:3.11-slim` mit nur den Laufzeit-System-Bibliotheken (Chromium-Deps, tini, curl). Entfernt LLVM und das Adwaita-Icon-Set.
-3. `squash` — `FROM scratch` plus `COPY --from=runtime`. Erzeugt vorab Volume-Mountpoints für `/app/data` und `/app/platform-config`.
-
-### RAG (3 Stufen)
-
-1. `builder` — installiert Python-Deps mit `build-essential` und `libpq-dev` zum Kompilieren nativer Pakete, entfernt dann pip und setuptools.
-2. `runtime` — sauberes `python:3.11-slim` mit nur `libpq5` und curl. Erzeugt vorab Volume-Mountpoints.
-3. `squash` — `FROM scratch` plus `COPY --from=runtime`.
-
-### DB (3 Stufen)
-
-1. `cleanup` — entfernt Debug-Symbole (rund 888 MB), LLVM-Shared-Bibliotheken (rund 127 MB), PostGIS-Erweiterungsdateien, Locales und Docs aus dem ParadeDB-Basis-Image.
-2. `runtime` — `FROM scratch` plus `COPY --from=cleanup`. Frische Schicht nur mit den bereinigten Dateien.
-3. `squash` — re-deklariert `PGDATA`, `PATH` und die anderen ENV-Variablen, die bei `FROM scratch` verlorengingen.
-
-## Health-Checks
-
-| Dienst   | Endpunkt                                              | Protokoll    | Startphase |
-| -------- | ----------------------------------------------------- | ------------ | ---------- |
-| DB       | `pg_isready -U tale -d tale`                          | CLI          | 60s        |
-| Crawler  | `GET /health` auf :8002                               | HTTP         | 40s        |
-| RAG      | `GET /health` auf :8001                               | HTTP         | 40s        |
-| Convex   | `GET :3210/version` + `[ -f /tmp/convex-ready ]`      | HTTP + Datei | 60s        |
-| Platform | `GET :3000/api/health` + `[ -f /tmp/platform-ready ]` | HTTP + Datei | 180s       |
-| Proxy    | `GET /health` auf :2020 (intern)                      | HTTP         | 10s        |
-
-Die `/tmp/<service>-ready`-Marker werden vom Entrypoint jedes Dienstes berührt, nachdem seine einmalige Initialisierungs-Arbeit fertig ist — Convex, nachdem das Backend hoch ist und der eingebaute Seed gelandet ist; die Platform, nachdem die Env-Synchronisation und `convex deploy` erfolgreich waren. Die Marker-Datei ist das, was den Proxy davon abhält, Traffic zu einem Container zu routen, der Verbindungen akzeptiert, aber tatsächlich noch nicht bereit ist, Anfragen zu bedienen.
-
-## Container-Tests
-
-Tale enthält drei Container-Testskripte, die in CI bei jedem `Pull Request` laufen und die du auf einem Entwicklungs-Host vor dem Push fahren kannst:
-
-| Skript                                  | Befehl                              | Was es testet                                                                         |
-| --------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------- |
-| `tests/container-smoke-test.sh`         | `bun run docker:test`               | Baut, startet, Health-Checks, HTTP-Endpunkte, Inter-Service-Konnektivität.            |
-| `tests/container-image-test.sh`         | `bun run docker:test:image`         | OCI-Labels, Nicht-Root-Nutzer, keine Secrets, HEALTHCHECK-Instruktion, Größenbudgets. |
-| `tests/container-vulnerability-scan.sh` | `bun run docker:test:vulnerability` | Trivy-Schwachstellenscan (HIGH + CRITICAL).                                           |
-
-Die [Contributing-Docker-Anleitung](/de/develop/contributing-docker) deckt jedes Skript im Detail ab.
-
-## Wo das einsetzt
-
-Die Container-Architektur ist das mentale Modell dafür, was wo läuft und wie die Dienste reden. Greif zu ihr, wenn etwas nicht landet, wo du es erwartest — ein unerreichbarer Metrics-Endpunkt, ein versehentlich exponierter Port, ein Blue-Green-Wechsel, der nicht sauber ausgeblutet ist. Für die Per-Service-Observability-Oberflächen ist [Betrieb](/de/self-hosted/operate/observability/operations) die nächste Seite; für Umgebungs-Variable-Knöpfe ist die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) erschöpfend.
+Diese Seite ist die Karte des Operators; die [Architektur-Übersicht](/de/self-hosted/overview) ist die Einführung ins selbe Bild, die [Troubleshooting-Seite](/de/self-hosted/operate/observability/troubleshooting) ist der symptomorientierte Index, wenn etwas schiefgegangen ist. Wenn du Alert-Schwellen setzt, benennt [Operations](/de/self-hosted/operate/observability/operations) die Signale, die sich zu verdrahten lohnen.

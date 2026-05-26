@@ -1,129 +1,68 @@
 ---
 title: Members and roles
-description: The canonical six-role permission matrix — who can see and do what in a Tale organisation, and how Admins invite, edit, and remove members.
+description: The six roles that ship with Tale and the resource-level matrix that says who can do what. Admins and Owners read this when they set up a team or when an audit asks who has access to what.
 ---
 
-Every person in a Tale organisation belongs to exactly one of six roles, and that role decides which screens they see, which buttons are enabled, and which API calls succeed. This page is for Admins and Owners running the organisation, and it doubles as the canonical reference the rest of the docs link into when a feature says "Editor or higher" or "Developer only". The same person can hold different roles in different organisations — roles are scoped per organisation, not per user.
+Members are the people in your organisation who can sign in to Tale. Roles control what each member can do — read, write, configure, govern. This page is the canonical reference for the six roles and the resource-level permissions each role carries.
 
-The role list is closed: `Owner`, `Admin`, `Developer`, `Editor`, `Member`, `Disabled`. There is no custom-role builder, and the matrix below is the source of truth — when a button is hidden for your role, this page is why.
+Six roles cover almost every team Tale ships to. Admins and Owners read this page when they are setting up a team for the first time, when an audit asks who has access to what, or when they need to know whether to give a new hire Editor or Developer.
 
-## Manage members
+## A worked invite
 
-Open **Settings > Members**. The table lists every user in the organisation with their email, display name, role, and join date, plus a row-level action menu for Admins.
-
-- **Add member** — opens a dialog asking for email, optional initial password, display name, and role. If the email already has a Tale account, that account is attached to the organisation instead of a duplicate being created. New password-authenticated accounts are flagged with **User must update the password on login** so the temporary password the Admin sets does not survive the first sign-in.
-- **Edit member** — change display name, role, or set a new password. Admins cannot change their own role from this dialog (use **Transfer ownership** below for that). Lowering an Admin to a lower role is blocked when it would leave fewer than two Admins in the organisation.
-- **Reset two-factor** — disables the member's TOTP enrolment, ends every active session of theirs, and forces them to re-enrol on next sign-in. Use it when someone loses their authenticator and has exhausted their backup codes. Each reset is recorded in the audit log.
-- **Remove member** — detaches the member from this organisation. The underlying account is not deleted; they keep access to any other organisation they belong to.
-- **Transfer ownership** — only available to the current Owner. Promotes the chosen member to Owner and demotes the current Owner to Admin. Every organisation has exactly one Owner.
-
-For sign-in mechanics (password, Microsoft Entra ID SSO, trusted reverse-proxy headers, password rotation), see [Authentication](/self-hosted/admin/authentication). For org-wide two-factor policy, see [Two-factor authentication](/platform/admin/two-factor-authentication).
+To add a person to your organisation, open **Settings > People** and click **Add member**. The new member receives an email link valid for 24 hours and lands in the default role you pick — change the role on the form before sending if they should not be a Member. The default applies the moment they accept the invite; promoting later is a one-click change in the same People view.
 
 ## The six roles
 
-| Role      | What this role is for                                                                                                                                                                                                                 |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Owner     | The person who created the organisation. Same permissions as Admin, plus the ability to transfer ownership and delete the organisation. Exactly one Owner per organisation.                                                           |
-| Admin     | Full control of the organisation. Manages members, providers, branding, governance, retention, audit log, and everything below.                                                                                                       |
-| Developer | The build-and-integrate seat. Creates and edits agents and automations, configures integrations and MCP servers, manages API keys. No access to org-wide admin surfaces.                                                              |
-| Editor    | The content-curation seat. Uploads and edits knowledge, manages products / customers / vendors / websites, replies in conversations, decides approvals, and edits agents. No access to automations, integrations, API keys, or admin. |
-| Member    | The read-only consumer. Chats with AI and agents, reads the knowledge base, reads conversations and approvals. Cannot write to any of those surfaces.                                                                                 |
-| Disabled  | Suspended account. Sign-in is rejected for this organisation. The underlying user record stays so the account can be reactivated by changing the role.                                                                                |
+**Owner** has every permission Admin has, plus the one Admin lacks: transferring ownership and deleting the organisation. Most teams have exactly one Owner; some keep two for continuity.
 
-`Owner` is a strict superset of `Admin` — every Admin permission below also belongs to Owner. The matrix from here on lists `Admin` to keep columns short.
+**Admin** governs the organisation: members, providers, branding, governance policies, integrations, the audit log. Admins do everything Editor does and everything Developer does, plus the configuration surface. They cannot transfer ownership.
 
-## Permission matrix
+**Developer** builds: agents, automations, integrations, API keys, MCP servers. Developers can read every resource and write to most of them, including governance policies (read-only). Reach for Developer when someone needs the API plane and the integration tooling.
 
-The matrix is grouped by product area. A `✓` means the role has the action; `—` means the action is hidden or rejected for the role.
+**Editor** curates and operates: agents, the knowledge base (documents, customers, products, vendors, websites), the conversation inbox, approvals, the prompt library. Editors can read workflows but not modify them; they can read integrations but not configure them. Reach for Editor when someone runs the day-to-day product work without touching the API or integration plane.
 
-### AI chat
+**Member** runs: chat, browse the knowledge base, read conversations and approvals others have assigned to them. Members write only to message feedback (thumbs up / down). Reach for Member as the default — most users in most organisations are Members.
 
-| Action                   | Member | Editor | Developer | Admin |
-| ------------------------ | ------ | ------ | --------- | ----- |
-| Create and send messages | ✓      | ✓      | ✓         | ✓     |
-| View own chat history    | ✓      | ✓      | ✓         | ✓     |
-| Pick an agent in chat    | ✓      | ✓      | ✓         | ✓     |
+**Disabled** has no permissions. Use it to revoke access without deleting the account; transcripts and audit history stay intact, and re-enabling restores the previous role.
 
-### Knowledge base
+## The permission matrix
 
-| Action                              | Member | Editor | Developer | Admin |
-| ----------------------------------- | ------ | ------ | --------- | ----- |
-| View all knowledge items            | ✓      | ✓      | ✓         | ✓     |
-| Upload, edit, or delete documents   | —      | ✓      | ✓         | ✓     |
-| Manage products, customers, vendors | —      | ✓      | ✓         | ✓     |
-| Add and configure website crawling  | —      | ✓      | ✓         | ✓     |
+| Resource              | Owner | Admin | Developer | Editor | Member | Disabled |
+| --------------------- | ----- | ----- | --------- | ------ | ------ | -------- |
+| Agents                | R / W | R / W | R / W     | R / W  | R      | —        |
+| Documents             | R / W | R / W | R / W     | R / W  | R      | —        |
+| Products              | R / W | R / W | R / W     | R / W  | R      | —        |
+| Customers             | R / W | R / W | R / W     | R / W  | R      | —        |
+| Vendors               | R / W | R / W | R / W     | R / W  | R      | —        |
+| Projects              | R / W | R / W | R / W     | R / W  | R      | —        |
+| Websites              | R / W | R / W | R / W     | R / W  | R      | —        |
+| Conversations         | R / W | R / W | R / W     | R / W  | R      | —        |
+| Conversation messages | R / W | R / W | R / W     | R / W  | R      | —        |
+| Approvals             | R / W | R / W | R / W     | R / W  | R      | —        |
+| Workflow executions   | R / W | R / W | R / W     | R      | R      | —        |
+| Workflow processing   | R / W | R / W | R / W     | R      | R      | —        |
+| Integrations          | R / W | R / W | R / W     | R      | R      | —        |
+| OneDrive sync configs | R / W | R / W | R / W     | R      | R      | —        |
+| Prompt templates      | R / W | R / W | R / W     | R / W  | R      | —        |
+| Audit logs            | R / W | R / W | R / W     | R / W  | R      | —        |
+| Governance policies   | R / W | R / W | R         | R      | R      | —        |
+| Message feedback      | R / W | R / W | R / W     | R / W  | R / W  | —        |
+| MCP servers           | R / W | R / W | R / W     | R      | R      | —        |
 
-### Conversations
+R = read, W = write, — = no access. The matrix is the authoritative description of what each role can do across the resources Tale tracks; the rows are the same set the in-product permission system uses at request time.
 
-| Action                                   | Member | Editor | Developer | Admin |
-| ---------------------------------------- | ------ | ------ | --------- | ----- |
-| View conversations                       | ✓      | ✓      | ✓         | ✓     |
-| Reply to customers                       | —      | ✓      | ✓         | ✓     |
-| Close, reopen, or archive a conversation | —      | ✓      | ✓         | ✓     |
-| Mark a conversation as spam              | —      | ✓      | ✓         | ✓     |
+## The Settings surface and the menu
 
-### Approvals
+Members, Editors, and Disabled users do not see Settings — the menu is hidden. Developers see Settings but not the governance sub-tree (except read views). Admins and Owners see the full menu. The three sidebar groups (`You`, `Workspace`, `Governance`) reflect this split: `You` is per-user, `Workspace` is configuration, `Governance` is the audit-and-policy surface that needs Admin access.
 
-| Action                      | Member | Editor | Developer | Admin |
-| --------------------------- | ------ | ------ | --------- | ----- |
-| View pending approvals      | ✓      | ✓      | ✓         | ✓     |
-| Approve or reject an action | —      | ✓      | ✓         | ✓     |
+## Edge cases
 
-### Agents
+**Transferring ownership** requires an existing Owner to nominate a current Admin or Owner; the new Owner role takes effect immediately. The previous Owner becomes Admin unless explicitly downgraded.
 
-| Action                  | Member | Editor | Developer | Admin |
-| ----------------------- | ------ | ------ | --------- | ----- |
-| View the agent list     | —      | ✓      | ✓         | ✓     |
-| Create or edit an agent | —      | ✓      | ✓         | ✓     |
-| Delete an agent         | —      | ✓      | ✓         | ✓     |
+**Last Admin warning.** The People view warns when removing or downgrading the last Admin or Owner. The action is allowed — Tale does not lock you out — but you should keep at least two Admin-or-Owner accounts for continuity.
 
-### Automations
-
-| Action                             | Member | Editor | Developer | Admin |
-| ---------------------------------- | ------ | ------ | --------- | ----- |
-| View the automation list           | —      | —      | ✓         | ✓     |
-| Create or edit an automation       | —      | —      | ✓         | ✓     |
-| Publish and activate an automation | —      | —      | ✓         | ✓     |
-| View execution logs                | —      | —      | ✓         | ✓     |
-
-### Integrations, MCP, API keys
-
-| Action                    | Member | Editor | Developer | Admin |
-| ------------------------- | ------ | ------ | --------- | ----- |
-| View integrations         | —      | —      | ✓         | ✓     |
-| Configure integrations    | —      | —      | ✓         | ✓     |
-| Configure MCP servers     | —      | —      | ✓         | ✓     |
-| Create or revoke API keys | —      | —      | ✓         | ✓     |
-
-### Organisation administration
-
-| Action                                                | Member | Editor | Developer | Admin |
-| ----------------------------------------------------- | ------ | ------ | --------- | ----- |
-| View organisation settings                            | —      | —      | —         | ✓     |
-| Edit organisation name and branding                   | —      | —      | —         | ✓     |
-| Configure AI providers                                | —      | —      | —         | ✓     |
-| Configure governance (budgets, retention, guardrails) | —      | —      | —         | ✓     |
-| Read and export the audit log                         | —      | —      | —         | ✓     |
-| Add or remove members                                 | —      | —      | —         | ✓     |
-| Change member roles                                   | —      | —      | —         | ✓     |
-| Manage teams                                          | —      | —      | —         | ✓     |
-| File data-subject requests                            | —      | —      | —         | ✓     |
-
-### Owner-only
-
-Only the Owner can do these:
-
-- **Transfer ownership** to another member (demotes the current Owner to Admin).
-- **Delete the organisation** — removes its agents, automations, providers, and integrations; every member loses access. This cannot be undone.
-
-## How role checks are enforced
-
-Roles are checked server-side on every read, write, and background action — the UI's hidden buttons are a convenience, not the gate. A page that "shouldn't show" is still rejected with an "insufficient role" error if you reach it by URL. The Disabled role bypasses the rest of the matrix: the access-denied screen is the only surface a Disabled user sees.
-
-The two-Admins-minimum rule is enforced when changing roles and when removing members, so an organisation cannot be left with zero or one Admin. The same rule does not bind the Owner: a single-Owner-one-Admin organisation is legal because Owner is itself an Admin.
+**Resetting 2FA** is on the member's row in People. Resetting clears the second factor; the next sign-in re-enrolls.
 
 ## Where this fits
 
-Members and roles is the page every other admin page assumes. [Authentication](/self-hosted/admin/authentication) decides _who can sign in at all_ and through which method; [AI providers](/platform/admin/providers) decides _which models the organisation can spend money on_; [Governance](/platform/admin/governance) decides _what rules apply to what they do_ — none of those questions has a useful answer until you have decided who can do what, and that lives here.
-
-The next move depends on what brought you. To wire up sign-in beyond email and password, [Authentication](/self-hosted/admin/authentication) covers SSO and trusted headers. To scope knowledge and conversations across the organisation, [Teams](/platform/admin/teams) does that. To audit who did what, the audit log lives under [Governance](/platform/admin/governance).
+Roles are the access surface every other admin page touches: SSO authenticates them, API keys belong to them, audit logs name them, governance policies scope behaviour by role. The next page worth reading depends on what you are doing next. If you are wiring sign-in to your identity provider, [authentication](/self-hosted/configuration/authentication) covers the four sign-in modes. If you are scoping access by team rather than by role alone, [Teams](/platform/admin/teams) covers the per-team scoping layer.

@@ -1,317 +1,83 @@
 ---
 title: API-Referenz
-description: REST-Endpoints für Platform, RAG und Crawler — OpenAI-kompatibles Chat, Dokument-Indizierung und Crawler-Steuerung.
+description: Wie du Tale von aussen aufrufst — Authentifizierung, Endpoints, Fehlermodell, Rate Limits und der OpenAI-kompatible Chat-Endpoint. Die einzige Quelle der Wahrheit für die Tale-API-Oberfläche.
+i18nLintExclude:
+  - terminology-loanword
 ---
 
-Die Tale-API ist die Oberfläche, die dein Code aufruft, wenn du die Konversation, die Indizierung oder das Crawling treibst, statt durch die UI zu klicken. Der Platform-Dienst spricht eine OpenAI-kompatible Chat-Completions-API unter `/api/v1/*`; RAG und Crawler exponieren je ihre eigene REST-Oberfläche am Dienst-Port. Diese Seite ist die einzige Quelle der Wahrheit für die Drahtform — jeder Endpunkt, jede Pflicht-Kopfzeile, jedes Anfrage- und Antwortfeld — und ergänzt das Tutorial unter [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script) für den durchgespielten Ablauf.
+Die Tale-API ist die Oberfläche, zu der Integratoren greifen, wenn sie ausserhalb des Produkts sind und es skripten wollen. Authentifizierung ist ein API-Key in einem Header; die Datenebene ist JSON über HTTPS; eine Teilmenge der Chat-Endpoints spricht das OpenAI-Chat-Completions-Format, sodass bestehende OpenAI-Client-Bibliotheken unverändert funktionieren.
 
-Die Webhook-Oberfläche — Tale empfängt Anfragen von externen Systemen — liegt in [Webhooks](/de/develop/webhooks).
+Diese Seite ist die kanonische Inventur der API-Oberfläche, des Auth-Modells und der Fehler-Form. Sie listet nicht jedes Payload-Feld auf — das lebt neben jeder Endpoint-Gruppe auf den verlinkten Unterseiten. Lies sie, bevor du die API aufrufst; komm zurück, wenn du nicht sicher bist, welcher Header den Key trägt oder was ein 429 bedeutet.
+
+## Ein durchgespielter Request
+
+Der kürzeste nützliche Request — liste die Agents, die dein Key sehen kann — ist ein curl:
+
+```bash
+curl -sS https://your-host.example.com/api/v1/agents \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "Accept: application/json"
+```
+
+Eine erfolgreiche Antwort ist JSON: `{ "agents": [ { "id": "...", "name": "...", "visibleInChat": true, ... }, ... ] }`. Jeder List-Endpoint gibt dieselbe Form zurück — ein Top-Level-Objekt mit einer Array-Eigenschaft, die nach der Ressource benannt ist.
 
 ## Authentifizierung
 
-Jede Platform-API-Anfrage trägt ein Bearer-Token, das in **Einstellungen > API-Schlüssel** erstellt wird:
+API-Keys werden in der UI unter **Einstellungen > API-Keys** von jedem mit der Rolle Entwickler oder höher erzeugt. Jeder Key hat einen Namen, einen Besitzer und einen Scope; der Scope folgt der Rolle des ausgebenden Benutzers zur Zeit der Erstellung. Keys werden bei der Erstellung einmal gezeigt; Tale zeigt den rohen Key nie wieder an.
 
-```text
-Authorization: Bearer tale_...
-```
+Übergib den Key als Bearer-Token: `Authorization: Bearer <key>`. Der Key authentifiziert den Request; der Organisations-Kontext wird aus dem Key abgeleitet. Ein Key kann nicht ausserhalb seiner ausstellenden Organisation genutzt werden.
 
-Tokens beginnen mit `tale_` und sind auf den erstellenden Nutzer begrenzt. Gehört dieser Nutzer zu mehr als einer Organisation, sende `X-Organization-Slug: <slug>`, um die Organisation zu wählen; Tale löst automatisch auf, wenn der Nutzer zu genau einer gehört. RAG und Crawler werden über das interne Docker-Netzwerk erreicht und brauchen für In-Cluster-Clients keine Auth — sie extern zu exponieren ist eine Operator-Entscheidung, dokumentiert in der Konfigurations-Referenz für selbst gehostete Instanzen.
+Cookies authentifizieren die Browser-Session; API-Aufrufe aus dem Browser innerhalb des Produkts nutzen Cookies. Server-seitige Skripte nutzen den API-Key.
 
-## Interaktive API-Dokumentation
+## Endpoint-Gruppen
 
-Die Python-Dienste liefern eine Swagger-UI zum Erkunden und Testen jedes Endpunkts:
+| Gruppe                                           | Methode      | Pfad                                | Auth nötig  | Hinweise                                                   |
+| ------------------------------------------------ | ------------ | ----------------------------------- | ----------- | ---------------------------------------------------------- |
+| Agents                                           | verschiedene | `/api/v1/agents/...`                | API-Key     | List, get, run.                                            |
+| Chat                                             | verschiedene | `/api/v1/chat/...`                  | API-Key     | Stream Chat-Completions gegen einen Agent oder ein Modell. |
+| OpenAI-kompatibel                                | POST         | `/api/v1/openai/chat/completions`   | API-Key     | OpenAI-Chat-Completions-Form; bestehende SDKs nutzen.      |
+| Automatisierungen                                | verschiedene | `/api/v1/automations/...`           | API-Key     | List, get, trigger, executions.                            |
+| Workflow-Trigger                                 | POST         | `/api/v1/workflows/triggers/<name>` | Trigger-Key | Webhook-getriggerte Workflow-Auslösungen.                  |
+| Wissen — Dokumente                               | verschiedene | `/api/v1/documents/...`             | API-Key     | Upload, list, get, delete.                                 |
+| Wissen — Kunden, Produkte, Lieferanten, Websites | verschiedene | `/api/v1/<entity>/...`              | API-Key     | List, get, create, update.                                 |
+| Konversationen                                   | verschiedene | `/api/v1/conversations/...`         | API-Key     | List nach Status, get, write messages.                     |
+| Dateien                                          | verschiedene | `/api/v1/files/...`                 | API-Key     | Upload, get, delete. Von Uploads genutzt.                  |
 
-| Dienst  | Swagger-UI                 | OpenAPI-JSON                       |
-| ------- | -------------------------- | ---------------------------------- |
-| RAG     | http://localhost:8001/docs | http://localhost:8001/openapi.json |
-| Crawler | http://localhost:8002/docs | http://localhost:8002/openapi.json |
+Exakte Feld-Formen für jeden Endpoint leben im OpenAPI-Dokument, das die Plattform zur Build-Zeit emittiert; lad es in einem Swagger- oder Stoplight-Viewer, um Request- und Response-Schemas mit Beispielen zu sehen. Die Endpoint-Gruppen in der Tabelle oben sind die High-Level-Inventur; das OpenAPI-Dokument ist die Feldebenen-Referenz.
 
-Die Platform-API hat keine Swagger-UI — sie folgt der OpenAI-Chat-Completions-Spec, also gilt jede OpenAI-Client-Dokumentation.
-
-## Platform-API — Chat-Completions
-
-Die Platform exponiert eine OpenAI-kompatible Chat-Completions-Oberfläche unter `/api/v1/*`. Jeder Client oder jedes SDK, das mit OpenAIs `chat/completions` spricht, spricht mit Tale, indem du zwei Werte änderst: die Basis-URL und den Schlüssel.
-
-### Durchgespieltes Beispiel — minimale lauffähige Anfrage
-
-Die kleinste Anfrage, die etwas tut, ist eine einzelne Nutzernachricht an irgendein Modell, das deine Anbieter exponieren. Das Beispiel unten zeigt cURL, Python und Node nebeneinander; die Modell-ID kommt aus `GET /api/v1/models`.
-
-<CodeGroup>
-
-```python Python
-from openai import OpenAI
-
-client = OpenAI(
-    base_url="https://your-tale-instance.com/api/v1",
-    api_key="tale_...",  # aus Einstellungen > API-Schlüssel
-    default_headers={"X-Organization-Slug": "default"},
-)
-
-response = client.chat.completions.create(
-    model="openai/gpt-4o",
-    messages=[{"role": "user", "content": "Hallo!"}],
-)
-print(response.choices[0].message.content)
-```
-
-```typescript Node.js
-import OpenAI from 'openai';
-
-const client = new OpenAI({
-  baseURL: 'https://your-tale-instance.com/api/v1',
-  apiKey: 'tale_...',
-  defaultHeaders: { 'X-Organization-Slug': 'default' },
-});
-
-const response = await client.chat.completions.create({
-  model: 'openai/gpt-4o',
-  messages: [{ role: 'user', content: 'Hallo!' }],
-});
-console.log(response.choices[0].message.content);
-```
-
-```bash curl
-curl https://your-tale-instance.com/api/v1/chat/completions \
-  -H "Authorization: Bearer tale_..." \
-  -H "X-Organization-Slug: default" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"openai/gpt-4o","messages":[{"role":"user","content":"Hallo!"}]}'
-```
-
-</CodeGroup>
-
-Die Antwort folgt der OpenAI-Form — `id`, `object: chat.completion`, `created`, `model`, `choices[].message.content`, `usage`. Streaming tauscht `chat.completion` gegen `chat.completion.chunk` und gibt einen Chunk pro Token aus.
-
-### POST /api/v1/chat/completions
-
-Sende eine Chat-Nachricht und empfange eine Antwort. Unterstützt Streaming, Tool-Calling und JSON-Modus.
-
-**Kopfzeilen.** `Authorization` ist Pflicht; `X-Organization-Slug` nur für Multi-Org-Nutzer.
-
-| Name                  | Typ    | Erforderlich         | Beschreibung                                                                    |
-| --------------------- | ------ | -------------------- | ------------------------------------------------------------------------------- |
-| `Authorization`       | string | Ja                   | `Bearer tale_...` — der API-Schlüssel aus **Einstellungen > API-Schlüssel**.    |
-| `X-Organization-Slug` | string | nur Multi-Org-Nutzer | Organisations-Slug. Wird automatisch aufgelöst, wenn der Nutzer genau eine hat. |
-| `Content-Type`        | string | Ja                   | `application/json` für den Anfrage-Body.                                        |
-
-**Anfrage-Body.**
-
-| Name                | Typ                | Erforderlich | Beschreibung                                                                                      |
-| ------------------- | ------------------ | ------------ | ------------------------------------------------------------------------------------------------- |
-| `model`             | string             | Ja           | Anbieter-Modell-ID, z. B. `openai/gpt-4o`. Auflisten mit `GET /api/v1/models`.                    |
-| `messages`          | array              | Ja           | Konversationshistorie. Jeder Eintrag hat `role` und `content`; Tool-Calls folgen der OpenAI-Spec. |
-| `stream`            | boolean            | Nein         | Antwort als Server-Sent Events streamen. Standard `false`.                                        |
-| `temperature`       | number             | Nein         | Sampling-Temperatur, 0–2.                                                                         |
-| `max_tokens`        | number             | Nein         | Maximale Tokens zur Generierung.                                                                  |
-| `top_p`             | number             | Nein         | Nucleus-Sampling-Parameter.                                                                       |
-| `frequency_penalty` | number             | Nein         | Wiederholte Tokens bestrafen.                                                                     |
-| `presence_penalty`  | number             | Nein         | Bereits vorhandene Tokens bestrafen.                                                              |
-| `stop`              | string oder array  | Nein         | Stoppsequenzen.                                                                                   |
-| `response_format`   | object             | Nein         | Setze `{"type":"json_object"}` für JSON-Modus.                                                    |
-| `tools`             | array              | Nein         | Tool-Definitionen für clientseitiges Tool-Calling.                                                |
-| `tool_choice`       | string oder object | Nein         | `"auto"`, `"required"`, `"none"` oder `{"type":"function","function":{"name":"..."}}`.            |
-| `stream_options`    | object             | Nein         | `{"include_usage": true}` fügt einer gestreamten Antwort einen finalen Usage-Chunk hinzu.         |
-| `seed`              | number             | Nein         | Best-Effort-Determinismus-Hinweis. Anbieter-Verhalten variiert.                                   |
-
-**Zwei Modi.** Ohne `tools` läuft die Anfrage im **Direct-Model-Modus** — Tale routet per Modell-ID und liefert die Completion des Modells unverändert zurück. Mit `tools` läuft die Anfrage im **Client-Tool-Modus** — das Modell liefert `tool_calls` statt einer finalen Antwort, der Client führt sie aus, und eine Folgeanfrage trägt die Ergebnisse als `role: "tool"`-Nachrichten zurück.
-
-**Tool-Calling-Beispiel.**
-
-```python
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Liefert das aktuelle Wetter für eine Stadt.",
-            "parameters": {
-                "type": "object",
-                "properties": {"city": {"type": "string"}},
-                "required": ["city"],
-            },
-        },
-    }
-]
-
-# Erster Aufruf: das Modell entscheidet, das Tool zu rufen.
-response = client.chat.completions.create(
-    model="openai/gpt-4o",
-    messages=[{"role": "user", "content": "Wie ist das Wetter in Zürich?"}],
-    tools=tools,
-    tool_choice="required",
-)
-tc = response.choices[0].message.tool_calls[0]
-
-# Zweiter Aufruf: das Tool-Ergebnis zurücksenden.
-final = client.chat.completions.create(
-    model="openai/gpt-4o",
-    messages=[
-        {"role": "user", "content": "Wie ist das Wetter in Zürich?"},
-        response.choices[0].message.model_dump(),
-        {"role": "tool", "tool_call_id": tc.id, "content": '{"temp": 18}'},
-    ],
-    tools=tools,
-)
-print(final.choices[0].message.content)
-```
-
-### GET /api/v1/models
-
-Listet jedes Modell, das die Anbieter der Organisation exponieren. Die Form passt zu OpenAIs `/v1/models`.
-
-```json
-{
-  "object": "list",
-  "data": [
-    {
-      "id": "openai/gpt-4o",
-      "object": "model",
-      "created": 1747325000,
-      "owned_by": "openai-main"
-    },
-    {
-      "id": "anthropic/claude-3-5-sonnet",
-      "object": "model",
-      "created": 1747325000,
-      "owned_by": "anthropic-main"
-    }
-  ]
-}
-```
+## OpenAI-kompatible Endpoints
 
-`owned_by` trägt den Anbieter-Slug — nützlich, um zwei Anbieter zu unterscheiden, die dieselbe Upstream-Modell-ID exponieren.
+`POST /api/v1/openai/chat/completions` akzeptiert einen Payload in OpenAI-Chat-Completions-Form und gibt eine streaming- oder nicht-streaming-Antwort in derselben Form zurück. Das Feld `model` wird als Agent-ID interpretiert — übergib eine Agent-ID, um durch die Anweisungen, das Wissen und die Tools dieses Agents zu routen. Übergib einen rohen Modellnamen (z. B. `gpt-4o`), um Agents zu überspringen und den Provider direkt aufzurufen.
 
-## RAG-API — Dokument-Indizierung und -Suche
+Bestehende OpenAI-SDKs funktionieren mit einer Änderung: zeig die Base-URL auf `https://your-host.example.com/api/v1/openai` und tausch den API-Key. Streaming nutzt Server-Sent Events.
 
-Der RAG-Dienst übernimmt Dokument-Indizierung und Vektorsuche. Er ist die Engine hinter der Wissensdatenbank; die Platform-UI delegiert jede Suche und jeden Upload an diese Oberfläche. Der Dienst lauscht standardmäßig auf Port `8001`.
+## Fehlermodell
 
-### Durchgespieltes Beispiel — indizieren und suchen
+Fehler landen als JSON: `{ "error": { "code": "<symbol>", "message": "<human>", "details"?: { ... } } }`. Der HTTP-Status ist einer von:
 
-Ein minimaler End-to-End-Ablauf lädt ein Dokument hoch, wartet auf das Ende der Indizierung und führt eine Suche begrenzt auf dieses Dokument:
+- **400** — fehlerhafter Request (fehlendes Feld, falscher Typ).
+- **401** — fehlender oder ungültiger API-Key.
+- **403** — der Key ist gültig, hat aber nicht die Rolle, die für die Aktion nötig ist.
+- **404** — die Ressource existiert nicht oder der Key kann sie nicht sehen.
+- **409** — Konflikt (z. B. doppelter Idempotency-Key mit anderem Body).
+- **422** — semantisch ungültig (z. B. ein Agent, auf den ein Workflow-Trigger zeigt, ist archiviert).
+- **429** — Rate-Limit getroffen. Siehe [Rate Limits](/de/develop/rate-limits).
+- **500** — interner Fehler. Das `details`-Feld des Bodys hat eine Request-ID, die du im Support zitieren kannst.
 
-```bash
-curl -X POST http://localhost:8001/api/v1/documents/upload \
-  -F "file=@policy.pdf" \
-  -F "file_id=policy-pdf-1" \
-  -F "sync=true"
+Der `code` ist ein Symbol (`unauthorized`, `forbidden`, `agent_not_found`, …); die `message` ist menschenlesbar. Clients sollen auf `code` verzweigen, nicht auf die menschliche Nachricht.
 
-curl -X POST http://localhost:8001/api/v1/search \
-  -H "Content-Type: application/json" \
-  -d '{"query":"Wie ist unsere Rückgaberichtlinie?","file_ids":["policy-pdf-1"],"top_k":5}'
-```
+## Idempotenz
 
-Der `sync=true`-Parameter lässt den Upload blockieren, bis die Indizierung abgeschlossen ist; ohne ihn kehrt die Antwort sofort zurück und das Dokument indiziert im Hintergrund.
+Jeder Write-Endpoint akzeptiert einen `Idempotency-Key`-Header. Der erste Request mit einem gegebenen Key gelingt; nachfolgende Requests mit demselben Key geben dieselbe Antwort zurück, ohne erneut auszuführen. Der Key ist 24 Stunden gültig.
 
-### POST /api/v1/documents/upload
+Idempotenz ist Pflicht für Webhook-Trigger-Aufrufe — das Quellsystem muss einen stabilen Key pro logischem Ereignis schicken, damit Retries den Workflow nicht doppelt feuern.
 
-Lade ein Dokument zur Indizierung hoch. Multipart-form-data.
+## Versionierung
 
-| Name       | Typ     | Erforderlich | Beschreibung                                             |
-| ---------- | ------- | ------------ | -------------------------------------------------------- |
-| `file`     | file    | Ja           | Die zu indizierende Binärdatei.                          |
-| `file_id`  | string  | Ja           | Stabiler Identifier, den der Aufrufer vergibt.           |
-| `sync`     | boolean | Nein         | Auf das Ende der Indizierung warten. Standard `false`.   |
-| `metadata` | string  | Nein         | JSON-kodierte Metadaten, neben dem Dokument gespeichert. |
+Die API ist nach URL-Präfix versioniert: heute `/api/v1/`. Breaking Changes erscheinen unter einem neuen Präfix; das alte Präfix bleibt mindestens eine Minor-Version verfügbar. Nicht-breaking Ergänzungen landen im aktuellen Präfix.
 
-### POST /api/v1/documents/statuses
+Die Release Notes nennen die API-Version, gegen die jede Release ausgeliefert wird; pinne deine Client-Bibliothek in Produktion auf die aktuelle Version.
 
-Prüfe den Indizierungs-Status für ein oder mehrere Dokumente.
+## Wo das hingehört
 
-```json
-{ "file_ids": ["policy-pdf-1", "manual-pdf-2"] }
-```
-
-Liefert jede `file_id` mit einem Status aus `queued`, `running`, `completed` oder `failed`.
-
-### POST /api/v1/search
-
-Führe eine Vektorsuche begrenzt auf bestimmte Dokumente aus.
-
-| Name                   | Typ     | Erforderlich | Beschreibung                                                                          |
-| ---------------------- | ------- | ------------ | ------------------------------------------------------------------------------------- |
-| `query`                | string  | Ja           | Klartext-Anfrage.                                                                     |
-| `file_ids`             | array   | Ja           | Dokumente, auf die die Suche begrenzt wird. Pflicht — es gibt kein implizites „alle". |
-| `top_k`                | number  | Nein         | Maximale Chunks im Ergebnis. Standard `5`.                                            |
-| `similarity_threshold` | number  | Nein         | Minimale Kosinus-Ähnlichkeit, 0–1.                                                    |
-| `include_metadata`     | boolean | Nein         | Pro-Chunk-Metadaten in die Antwort aufnehmen.                                         |
-
-### DELETE /api/v1/documents/{file_id}
-
-Entferne ein Dokument und seine Index-Einträge.
-
-### GET /api/v1/documents/{file_id}/content
-
-Liefert den vollen extrahierten Text eines indizierten Dokuments.
-
-### POST /api/v1/documents/compare
-
-Vergleiche zwei indizierte Dokumente.
-
-```json
-{ "file_id_a": "policy-2024", "file_id_b": "policy-2025" }
-```
-
-## Crawler-API — Websites und On-Demand-Fetch
-
-Der Crawler-Dienst registriert Websites für periodische Indizierung und exponiert einen On-Demand-URL-Fetch-Endpunkt. Er lauscht standardmäßig auf Port `8002`.
-
-### Durchgespieltes Beispiel — registrieren und fetchen
-
-```bash
-curl -X POST http://localhost:8002/api/v1/websites \
-  -H "Content-Type: application/json" \
-  -d '{"domain":"https://docs.example.com","scan_interval":21600}'
-
-curl -X POST http://localhost:8002/api/v1/urls/fetch \
-  -H "Content-Type: application/json" \
-  -d '{"urls":["https://docs.example.com/guide"],"word_count_threshold":100}'
-```
-
-`scan_interval` ist in Sekunden; Minimum 60. Der Fetch-Endpunkt liefert gecachten Inhalt, wenn vorhanden, und fetcht live, wenn nicht.
-
-### POST /api/v1/websites
-
-Registriere eine Website für periodisches Crawling.
-
-| Name            | Typ    | Erforderlich | Beschreibung                                                           |
-| --------------- | ------ | ------------ | ---------------------------------------------------------------------- |
-| `domain`        | string | Ja           | Voll qualifizierte URL der Site-Wurzel.                                |
-| `scan_interval` | number | Nein         | Sekunden zwischen Scans. Minimum 60. Standard ist dienst-konfiguriert. |
-
-### POST /api/v1/urls/fetch
-
-Fetche eine oder mehrere URLs synchron.
-
-| Name                   | Typ    | Erforderlich | Beschreibung                                                  |
-| ---------------------- | ------ | ------------ | ------------------------------------------------------------- |
-| `urls`                 | array  | Ja           | Zu fetchende URLs.                                            |
-| `word_count_threshold` | number | Nein         | Lehnt Ergebnisse unter dieser Länge ab (filtert Menü-Seiten). |
-
-### GET /api/v1/websites/{domain}
-
-Liefert den Registrierungsdatensatz einer Website.
-
-### DELETE /api/v1/websites/{domain}
-
-Deregistriert eine Website. Bestehende indizierte Seiten bleiben durchsuchbar, bis sie ablaufen.
-
-### GET /api/v1/websites/{domain}/urls
-
-Listet jede URL, die der Crawler für die Site indiziert hat.
-
-## Status-Endpoints
-
-Die Plattform exponiert zwei öffentliche, nicht-authentifizierte Endpoints, die den Gesamt-Up/Down-Zustand melden. Beide teilen denselben In-Memory-Probe mit Fünf-Sekunden-Cache; sie unterscheiden sich nur in der Darstellung.
-
-| Endpoint       | Verwendung                                                                                                                           |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `/status`      | Menschen-lesbare HTML-Seite. Sprache aus `Accept-Language` gewählt (Englisch, Deutsch, Französisch).                                 |
-| `/status.json` | Maschinen-lesbarer Feed für externe Monitore — BetterStack, UptimeRobot, Statuspage, Datadog, alles, was eine JSON-Oberfläche pollt. |
-
-Beide liefern `200 OK` und `Cache-Control: public, max-age=5`. Die Plattform ist die Quelle der Wahrheit — kann ein Monitor `/status.json` überhaupt nicht erreichen, ist der Prozess nicht erreichbar und der eigene Timeout des Monitors ist das Signal. Die JSON-Form ist im Detail unter [Status-Seite](/de/develop/status-page) abgedeckt.
-
-## Wo das einsetzt
-
-Die API ist Tales ausgehende Oberfläche — was dein Code ruft, wenn du die Konversation, die Indizierung oder das Crawling treibst. Ihr eingehendes Gegenstück ist [Webhooks](/de/develop/webhooks): dieselbe Protokoll-Familie, dasselbe Audit-Log, mit Tale auf der Empfänger- statt der Anruferseite. Jeder Client, der mit OpenAIs `/chat/completions` spricht, spricht mit Tale durch das Ändern zweier Werte (Basis-URL und Schlüssel); jedes System, das JSON per POST an eine eindeutige URL schicken kann, kann einen Workflow treiben.
-
-Für das Tutorial, das beide Richtungen end-to-end durchspielt, deckt [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script) die API-Seite und [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) die eingehende Webhook-Seite ab.
+Die API ist die Naht zwischen Tale und allem ausserhalb. Webhooks sind die andere Hälfte — für Events, die Tale zu dir pushen muss, oder für dich, an Tales Automatisierungen zu pushen, behandelt die [Webhooks-Referenz](/de/develop/webhooks) die Signier- und Idempotenz-Regeln. Wenn du innerhalb des Produkts als Entwickler-Rolle baust — Agents, Automatisierungen, eigene Tools — ist der [Plattform-Reiter](/de/platform) dein Alltag; diese Seite ist für aussen.

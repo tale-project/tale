@@ -1,61 +1,50 @@
 ---
-title: Concepts des agents
-description: Le modèle mental à quatre boutons derrière chaque agent Tale — instructions, connaissances, outils et modèle — et quand prendre un agent plutôt qu'une automatisation.
+title: Concepts d'agent
+description: Un agent est la combinaison à quatre boutons d'instructions, de connaissances, d'outils et d'un modèle. Cette page te donne le modèle mental que le reste de la section agents présuppose.
 ---
 
-Un agent est un paquet de quatre choses : des **instructions** qui régissent son comportement, des **connaissances** qui bornent ce qu'il peut lire, des **outils** qui décident ce qu'il peut faire, et un **modèle** qui détermine comment il pense. Tout le reste sur la surface des agents — versions, amorces de conversation, URLs de worker, délégation — c'est de la plomberie autour de ces quatre. Le public, c'est tout le monde qui construit ou raisonne sur les agents ; dès que tu sais énumérer les quatre pour l'agent que tu veux, la construction elle-même ne prend que quelques minutes.
+Un agent est l'unité vers laquelle Tale se tourne quand la même question revient sans cesse. Il est la combinaison à quatre boutons d'instructions, de connaissances, d'outils et d'un modèle — les quatre choses sur lesquelles tu agis pour faire varier son comportement. Les Éditeurs et les Développeurs les construisent ; les Membres et les autres rôles les exécutent.
 
-Cette page est le modèle mental. La construction de bout en bout parcourt les quatre mêmes onglets dans l'ordre à [Créer un agent](/fr/platform/agents/create).
+Cette page te donne le modèle mental que le reste de la section présuppose. Lis-la une fois avant de construire ton premier agent ; reviens-y quand tu ne sais plus si un comportement à changer se trouve dans les instructions, les connaissances, les outils ou le modèle.
 
-## Instructions
+## Les quatre boutons
 
-Les instructions sont le system prompt que le modèle voit avant chaque message dans la conversation. Elles répondent à « qui es-tu et quel est ton travail ? ». De bonnes instructions sont courtes, spécifiques et listent les règles à respecter — ce qu'est l'agent, ce qu'il peut répondre, ce qu'il doit refuser, et comment formater ses réponses.
+**Instructions** sont le system prompt — la prose qui encadre chaque réponse. Garde-les courtes, opiniâtres et concrètes ; de longues instructions se diluent dans de longues conversations. Précise la voix, les contraintes et les cas de refus.
 
-Un exemple concret :
+**Connaissances** est ce que l'agent peut consulter. Lie des documents, clients, produits, fournisseurs ou sites web depuis la base de connaissances ; l'agent va chercher des chunks à la réponse et les cite. Les connaissances non liées sont invisibles pour l'agent — il n'y a pas de tirage implicite sur toute la bibliothèque de l'organisation.
 
-> Tu es l'agent support d'Acme Corp. Réponds aux questions sur nos produits, la livraison et les retours. Ne donne pas de conseils médicaux ou juridiques. Réponds toujours dans la langue de l'utilisateur. Garde tes réponses sous 200 mots.
+**Outils** est ce que l'agent peut faire au-delà de répondre par du texte. Des familles d'outils intégrées couvrent web, fichiers, RAG sur les connaissances, exécution de code, délégation à des sous-agents, appel de workflow, serveurs MCP et entrée humaine. Active-les par agent — chaque outil que tu accordes élargit la frontière de confiance, donc garde la liste courte.
 
-Changer les instructions change la personnalité, le périmètre et le format de sortie de l'agent. Traite-les comme la pièce la plus porteuse — la plupart des gains de qualité viennent de la réécriture des instructions, pas du changement de modèle.
+**Modèle** est le LLM derrière chaque réponse. Choisis le primaire, fixe un fallback, et Tale résout à la requête. Changer le modèle ne ré-entraîne rien — les trois autres boutons sont la « mémoire » du modèle pour le travail.
 
-## Connaissances
+## Les compétences comme bundle
 
-Les connaissances sont le sous-ensemble de la [base de connaissances](/fr/platform/workspace/knowledge-base) que l'agent peut chercher. Par défaut, les agents peuvent chercher dans tout ce que l'organisation a téléversé ; tu resserres ce périmètre par dossier, par équipe ou par type d'entité (Documents, Produits, Clients, Fournisseurs).
+Une compétence empaquette des instructions et (optionnellement) un script sandbox dans un bundle réutilisable que tu attaches à un agent. Va vers une compétence quand le même motif apparaît sur plusieurs agents — une voix d'écriture, un calcul, une tâche en plusieurs étapes. Les compétences composent avec les quatre boutons : un agent avec trois compétences possède les instructions de chacune en plus des siennes.
 
-Des connaissances plus étroites veulent dire des résultats de recherche plus pertinents — un agent support qui ne fouille que le dossier côté client ne se laisse pas distraire par les documents internes d'ingénierie. Plus étroit veut aussi dire moins cher, parce que moins de documents atteignent le modèle à chaque recherche.
+La page de concept sur les compétences détaille l'arbitrage entre compétences et instructions inline : voir [Compétences](/fr/platform/agents/skills).
 
-## Outils
+## Mis bout à bout — un agent de tri de support
 
-Les outils sont les capacités que l'agent peut invoquer pendant une conversation. Les outils intégrés incluent la recherche dans les connaissances, la recherche web, le traitement de documents et l'analyse d'image. Chaque intégration que tu as configurée (API REST, SQL, courriel) apparaît comme outil, comme chaque [serveur MCP](/fr/platform/integrations/mcp-servers) actif.
+Un premier agent utile est l'agent de tri de support : il lit la conversation entrante, décide de répondre directement, d'escalader à un humain ou de passer la main à un spécialiste. Les quatre boutons :
 
-Tu actives ou désactives chaque outil par agent. Un agent de recherche en lecture seule peut avoir la recherche web activée et toutes les opérations d'écriture coupées. Un agent qui met à jour des tickets dans un système de support a l'outil d'intégration support activé et tout le reste coupé. La liste des outils sépare l'agent qui sait seulement parler de l'agent qui sait agir.
+- Instructions : un paragraphe de voix + trois cas de refus explicites.
+- Connaissances : la documentation produit et le dossier FAQ ; pas le code source.
+- Outils : RAG, recherche web, et l'outil sous-agent pour l'escalade. Pas d'exécution de code.
+- Modèle : un modèle capable en primaire, un plus petit en fallback quand le primaire est rate-limité.
 
-## Modèle
-
-Chaque agent est lié à un préréglage de modèle — **Rapide**, **Standard** ou **Avancé**. Chaque préréglage pointe vers un modèle IA précis configuré dans tes [Fournisseurs IA](/fr/platform/admin/providers). Rapide est le moins cher et le plus rapide ; Avancé est le plus capable. La plupart des agents finissent sur Standard ; prends Avancé quand la qualité de raisonnement compte plus que la latence, et Rapide pour les tâches de routine à fort volume où la vitesse l'emporte sur la nuance.
-
-## Tout mettre ensemble
-
-Les quatre boutons se combinent en de nombreux agents depuis la même plateforme. Trois formes concrètes :
-
-| Scénario               | Instructions                                        | Connaissances                          | Outils                                    | Modèle   |
-| ---------------------- | --------------------------------------------------- | -------------------------------------- | ----------------------------------------- | -------- |
-| Support amical         | Serviable, concis, refuse les questions hors sujet. | Docs du Centre d'aide uniquement.      | Recherche connaissances, lookup client.   | Standard |
-| Recherche commerciale  | Creuse profond, cite les sources.                   | Tous documents + sites web + Produits. | Recherche connaissances, recherche web.   | Avancé   |
-| Exploration de données | Prudent, explique les requêtes.                     | Toutes les connexions SQL.             | Intégration SQL, recherche connaissances. | Rapide   |
+La conversation se déroule alors : message utilisateur → instructions encadrent la réponse → la récupération de connaissances trouve trois chunks pertinents → les outils répondent ou délèguent → la réponse arrive avec ses citations.
 
 ## Quand y recourir
 
-Les agents sont le primitif conversationnel de Tale. Leur primitif frère est l'**automatisation** — un programme multi-étapes qui tourne sans humain dans la boucle. Les deux résolvent des problèmes différents, et la plupart des équipes finissent avec les deux.
+Un seul agent est la bonne forme quand la conversation reste dans un domaine et une voix. Va vers une [automatisation](/fr/platform/automations/concepts) quand le travail est multi-étapes et que tu veux des approbations ou de la planification entre les étapes ; va vers un chat brut (sans agent) quand tu explores une réponse toi-même et que les valeurs par défaut du modèle suffisent.
 
-| Utilise un agent quand …                                      | Utilise une automatisation quand …                                                        |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Un humain est dans la conversation et pose des questions.     | Un déclencheur planifié, un webhook externe ou un événement interne la déclenche.         |
-| Le flux est ouvert — l'étape suivante dépend de la réponse.   | Le flux est déterministe — mêmes étapes à chaque fois, dans le même ordre.                |
-| La sortie est du texte ou une petite charge utile structurée. | La sortie est un effet sur un autre système (enregistrement mis à jour, courriel envoyé). |
-| La latence compte parce que quelqu'un attend.                 | La latence de fond est acceptable ; la justesse compte plus.                              |
+| Utilise … quand                                       | Agent | Chat brut | Automatisation |
+| ----------------------------------------------------- | ----- | --------- | -------------- |
+| La même question revient                              | ✓     |           |                |
+| La voix ou les contraintes comptent                   | ✓     |           |                |
+| Tu as besoin d'approbations ou de planification entre |       |           | ✓              |
+| Tu explores une réponse une seule fois                |       | ✓         |                |
 
-Beaucoup de fonctionnalités mêlent les deux : un agent qui délègue un travail long à une automatisation, ou un workflow dont l'étape LLM utilise les instructions d'un agent. Choisis le primitif principal selon que l'utilisateur est dans la conversation au moment où le travail doit avoir lieu.
+## Construis-en un
 
-## En construire un
-
-Les concepts sont posés. La page suivante traverse le flux de création de bout en bout — nommer, choisir un modèle, écrire les instructions, brancher des connaissances, activer des outils, et publier la première version. Continue là : [Créer un agent](/fr/platform/agents/create).
+Les quatre boutons sont ce dont chaque agent Tale est fait : change-en un et tu as changé le comportement, change-en trois et tu as fait un nouveau produit. La lecture suivante naturelle est [Construis ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) — elle parcourt les quatre boutons sur une instance neuve.

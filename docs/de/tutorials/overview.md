@@ -1,28 +1,22 @@
 ---
 title: Tutorials
-description: Aufgabenorientierte End-to-End-Anleitungen für jede Tale-Rolle.
+description: Rollenbasierte Walkthroughs — Mitglied, Redakteur, Entwickler, Verwaltung. Jedes Tutorial bringt eine frische Instanz von „Ich möchte X tun" zum funktionierenden Ergebnis.
 ---
 
-Der Tutorials-Bereich ist die Schicht der durchgespielten Beispiele in der Tale-Dokumentation. Jede Seite nimmt ein einzelnes Ergebnis — einen Agent, der Produkt-Support-Fragen beantwortet, ein Skript, das Tale aus einem CI-Job aufruft, ein Office-Add-in, das durch deine Instanz läuft — und führt jeden Schritt durch, der nötig ist, um auf einer frischen Instanz dort anzukommen. Die Tutorials stehen neben der Referenz unter [Platform](/de/platform): die Referenz beschreibt, was jede Funktion isoliert tut, die Tutorials zeigen, wie man Funktionen zu einem konkreten Ergebnis kombiniert.
+Tutorials ist der Abschnitt, in dem du Walkthroughs zu gängigen Aufgaben von Anfang bis Ende liest. Jedes Tutorial bringt eine frische Instanz von „Ich möchte X tun" zum funktionierenden Ergebnis; vorausgesetzt wird, dass du die passende Rolle hast und entweder Cloud oder selbst gehostet einsatzbereit ist.
 
-Die Tutorials sind nach der Rolle gruppiert, der die Aufgabe gehört, damit du auf Inhalt landest, den du mit deinen Berechtigungen wirklich ausführen kannst. Berechtigungen folgen dem [Sechs-Rollen-Modell](/de/platform/admin/members-and-roles) — liegt ein Tutorial unter Admin, brauchst du einen Admin- oder Inhaber-Platz, um es abzuschliessen.
+Die Reiter unten sind nach Rolle indiziert: wähl die Rolle, in der du arbeitest, und dann die Aufgabe. Konzept-Seiten unter [Plattform](/de/platform) erklären das mentale Modell; die Tutorials hier zeigen den Mechanismus von vorne bis hinten.
 
-## Wie ein Tutorial aufgebaut ist
+## Seiten in diesem Abschnitt
 
-Jedes Tutorial folgt derselben Form: eine kurze Einleitung, die Ergebnis und Voraussetzungen benennt, ein **Bevor du beginnst**-Abschnitt mit den genauen Anforderungen, nummerierte Schritte mit jeweils einer Aktion und einer Verifikationszeile, ein **Fehlerbehebung**-Abschnitt für die drei oder vier Probleme, die wirklich auftreten, und ein Abschluss, der nennt, wo der Baustein als Nächstes greift. Integrationen-Tutorials (Office-Add-in, Meetily, lokaler Anbieter) tragen einen zusätzlichen **Datenschutz-Hinweise**- oder **Vertrauensgrenze**-Abschnitt, der benennt, was in jede Richtung über das Netz geht.
+**[Mitglieder-Tutorials](/de/tutorials/member/chat-effectively)** — effektiv chatten, Projekte nutzen, Sprach-Konversationen führen.
 
-Wenn ein Schritt aussieht, als täte er zwei Dinge gleichzeitig, lies ihn nochmal — jeder Schritt hat eine Aktion und eine Verifikation. Einen Abschnitt zu überspringen in der Annahme, die Voraussetzung sei schon erfüllt, ist die häufigste Art, wie ein Tutorial auf halber Strecke kippt; der nächste Schritt hängt meist an genau dem Feld, das der übersprungene konfiguriert.
+**[Redakteurs-Tutorials](/de/tutorials/editor/first-agent-end-to-end)** — einen ersten Agent von Anfang bis Ende bauen, Wissen anbinden, Workflows mit Genehmigungen aufsetzen, zwischen Agents delegieren.
 
-## Seiten in diesem Bereich
+**[Entwickler-Tutorials](/de/tutorials/developer/call-tale-from-a-script)** — Tale aus einem Skript aufrufen, Automatisierungen per Webhook triggern, eigene Tools bauen, einen MCP-Server aufsetzen.
 
-- **[Effektiv chatten](/de/tutorials/member/chat-effectively)** — Tutorial für die Mitglied-Rolle, das Agent-Auswahl, Anhänge, Diktat und Canvas zu einem täglichen Chat-Workflow verbindet.
-- **[Den ersten Agent end-to-end bauen](/de/tutorials/editor/first-agent-end-to-end)** — Tutorial für die Redakteur-Rolle, das dich von einer leeren Agent-Seite zu einem versionierten, wissensgescopten Agent führt, den dein Team im Chat auswählen kann.
-- **[Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script)** — Tutorial für die Entwickler-Rolle, das eine Chat-Anfrage aus cURL und Python gegen Tales OpenAI-kompatible API absetzt.
-- **[Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook)** — Tutorial für die Entwickler-Rolle, das ein externes System über die eindeutige Webhook-URL in einen Tale-Workflow einbindet.
-- **[Word- & Excel-Add-in](/de/tutorials/admin/office-add-in)** — Integrationen-Tutorial für die Admin-Rolle, das ein sideloaded KI-Panel in Microsoft 365 durch einen Tale-Agent routet.
-- **[Meeting-Transkription](/de/tutorials/admin/meeting-transcription)** — Integrationen-Tutorial für die Admin-Rolle, das Tale mit Meetily verbindet, sodass das rohe Audio auf dem Laptop bleibt und nur das Transkript deine Instanz erreicht.
-- **[Lokalen Anbieter verbinden](/de/tutorials/admin/connect-local-provider)** — Integrationen-Tutorial für die Admin-Rolle, das Ollama oder vLLM als Tale-KI-Anbieter hinzufügt, sodass die Modell-Inferenz in deinem Netzwerk bleibt.
+**[Verwaltungs-Tutorials](/de/tutorials/admin/office-add-in)** — das Office-Add-in installieren, Meeting-Transkription verdrahten, einen lokalen Anbieter verbinden, SSO mit OIDC, Modelle pro Team einschränken.
 
-## Wo das einsetzt
+## Wo das hingehört
 
-Die Tutorials decken die vier kanonischen Einstiege in Tale ab — Mitglied, Redakteur, Entwickler, Admin — plus drei Integrationen darauf. Für das konzeptionelle Modell hinter jedem Tutorial ist die entsprechende Seite unter [Platform](/de/platform) die Referenz; für die API- und SDK-Oberflächen, auf denen die Entwickler-Tutorials aufbauen, ist [Develop](/de/develop/api-reference) einen Tab weiter.
+Tutorials zitieren die Feature-Referenzen unter [Plattform](/de/platform) für das konzeptuelle Gerüst; sobald du eines durchgegangen bist, lohnt sich die zugehörige Konzept-Seite als zweite Lektüre. Falls du nicht weißt, mit welchem Tutorial du starten sollst, ist [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) das, was am ehesten einem „Hallo Welt" für das Produkt entspricht — die meisten Produktfähigkeiten, die du später berührst, tauchen dort schon auf.

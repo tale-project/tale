@@ -1,74 +1,54 @@
 ---
-title: Aperçu de la plateforme
-description: Architecture, services et capacités clés pour les opérateurs qui font tourner Tale.
+title: Architecture auto-hébergée
+description: Sept conteneurs, un fichier compose, une base Postgres. Cette page donne le modèle mental pour savoir ce que fait chaque conteneur, où vivent les données sur le disque et quels secrets comptent au premier boot.
 ---
 
-Tale auto-hébergé tourne comme une stack Docker Compose de six conteneurs sur une infrastructure que tu contrôles. Pas de frais par siège, pas de restriction de modèle au-delà de ce que ta clé API autorise, et aucune donnée ne quitte jamais ton réseau, sauf si tu pointes un fournisseur vers un endpoint externe. Cette page est l'instantané qu'un opérateur lit avant l'installation : quels sont les conteneurs, où atterrissent les ports, combien la stack coûte en RAM et en disque.
+Une instance Tale, ce sont sept conteneurs derrière un proxy Caddy, parlant à une base Postgres, avec deux conteneurs sandbox sur le côté pour l'exécution de code. Le fichier compose est le contrat — ce qui tourne, ce qui est exposé, ce qui est monté. Cette page te donne le modèle mental pour que les pages installation, configuration et exploitation n'aient pas à le réexpliquer.
 
-Si tu viens ici pour installer, le [Démarrage rapide](/fr/self-hosted/install/quickstart) et le [Déploiement en production](/fr/self-hosted/install/linux-server) sont la prochaine étape. L'aperçu ci-dessous s'adresse au lecteur qui décide encore si Tale auto-hébergé colle à son environnement.
+Lis ceci avant de `docker compose up`. Reviens-y quand tu débogues un incident et que tu dois savoir quel log de conteneur ouvrir en premier.
 
-## Six conteneurs, un réseau
+## Les sept conteneurs
 
-Tale tourne comme six conteneurs Docker derrière un seul proxy Caddy. Le proxy est le seul service qui écoute sur un port public ; chaque autre service parle à ses pairs sur un réseau Docker en bridge interne. Le bundle reste identique que tu fasses tourner sur un laptop de développeur ou sur un serveur de production — seuls le mode TLS et le nom d'hôte changent.
+**tale-proxy** est Caddy en bordure. Il termine TLS, route tout sous `/` vers le conteneur plateforme, et tout sous `/api/` et les chemins Convex vers le conteneur convex. Les healthchecks vivent ici.
 
-| Conteneur  | Image de base                        | Rôle                                                                                 | Port interne     |
-| ---------- | ------------------------------------ | ------------------------------------------------------------------------------------ | ---------------- |
-| `proxy`    | Caddy                                | Terminaison TLS, routage, ACME pour Let's Encrypt                                    | 80, 443          |
-| `platform` | Convex Backend (pour `generate_key`) | App TanStack Start, SPA Vite, serveur Bun                                            | 3000             |
-| `convex`   | Convex Backend                       | Backend local Convex, tableau de bord Convex, seed intégré                           | 3210, 3211, 6791 |
-| `rag`      | `python:3.11-slim`                   | Service FastAPI pour le chunking de documents, embeddings, recherche sémantique      | 8001             |
-| `crawler`  | `python:3.11-slim`                   | Crawl4AI + Playwright pour le crawling de sites et la conversion fichier → texte     | 8002             |
-| `db`       | `paradedb/paradedb:0.22.5-pg16`      | PostgreSQL 16 avec pgvector + pg_search pour la recherche vectorielle et plein texte | 5432             |
+**tale-platform** est le serveur React + TanStack Start. Il rend l'UI, sert les assets statiques et est le seul conteneur exposé au navigateur. Il ne porte pas d'état métier — tout ce qui doit persister parle à convex.
 
-Le conteneur `platform` est un runtime léger — la SPA plus le serveur Bun qui la fronte. Convex vit dans son propre conteneur parce qu'il possède le backend temps réel, l'ensemble des fonctions et le tableau de bord local ; l'éclatement a fait passer l'image platform d'environ 2,58 Go compressé à environ 320 Mo et a rendu les rebuilds purement applicatifs bien plus rapides. Le tableau complet des tailles d'image et des builds multi-étapes vit sur [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture).
+**tale-convex** est le backend : les actions, queries, mutations et la couche WebSocket à laquelle l'UI s'abonne. Clés de fournisseur, définitions d'agent, exécutions d'automatisation, journaux d'audit — tout cela vit ici et est écrit dans Postgres.
 
-## Comment les services se parlent
+**tale-db** est Postgres. Il porte les données Convex et est le seul conteneur stateful qui compte pour les sauvegardes.
 
-```mermaid
-graph TB
-    subgraph External
-        Browser["Navigateur / client API"]
-    end
+**tale-rag** est le service de récupération : il extrait le texte des documents téléversés, les chunke, embed les chunks et sert l'index vectoriel à l'agent en cours d'exécution.
 
-    subgraph Internal["Réseau Docker interne"]
-        Proxy["proxy (Caddy)"]
-        Platform["platform (TanStack Start)"]
-        Convex["convex (backend + tableau de bord)"]
-        RAG["rag (FastAPI)"]
-        Crawler["crawler (Playwright)"]
-        DB["db (ParadeDB / Postgres 16)"]
-    end
+**tale-crawler** est le crawler de connaissances web : il récupère et indexe les URL déclarées comme entités Site web.
 
-    Browser -->|HTTPS :443| Proxy
-    Proxy -->|HTTP :3000| Platform
-    Proxy -->|WS/HTTP :3210/:3211| Convex
-    Proxy -->|HTTP :6791| Convex
-    Platform -->|HTTP :3210| Convex
-    Convex -->|TCP :5432| DB
-    Convex -->|HTTP :8001| RAG
-    Convex -->|HTTP :8002| Crawler
-    RAG -->|TCP :5432| DB
-    Crawler -->|TCP :5432| DB
-```
+**tale-sandbox** et **tale-sandbox-egress** exécutent du code en sandbox pour l'outil **Exécuter du code** et les scripts de compétence. Le conteneur egress est le seul chemin que la sandbox a vers le réseau ; la politique d'allowlist vit dans la [politique run-code](/fr/platform/admin/governance/run-code-policy).
 
-Le proxy ventile le trafic entrant entre la SPA platform et les endpoints WebSocket de Convex. Convex est la source de vérité pour l'état applicatif — il pousse mutations, lectures et résultats de fonctions vers la platform par WebSocket — et il parle directement à la base de données et aux deux services Python. La platform ne touche jamais Postgres ; tout passe par Convex.
+## Données sur le disque
 
-## Ce qu'il faut pour la faire tourner
+Trois volumes survivent à un `docker compose down` :
 
-Pour une installation laptop, le seul prérequis est Docker Desktop 24 ou plus récent. Pour un serveur de production, la page [Déploiement en production](/fr/self-hosted/install/linux-server) couvre la liste complète des prérequis ; les chiffres-clés sont :
+- `db-data` — répertoire de données Postgres. Le seul volume que les sauvegardes doivent capturer.
+- `db-backup` — destination des dumps Postgres que le conteneur écrit selon une planification.
+- Le montage du magasin d'objets de la plateforme — fichiers téléversés, images générées, bundles exportés.
 
-- **RAM** — 8 Go pour tourner, 12 Go pour supporter un déploiement blue-green. Le blue-green fait tourner la nouvelle couleur à côté de l'ancienne jusqu'à ce que les health-checks passent, donc deux exemplaires de chaque service sans état existent brièvement.
-- **Disque** — environ 4,4 Go compressé pour le premier pull d'image, plus ce que ta base de connaissances et ton historique de chat font grossir.
-- **Réseau** — ports 80 et 443 publics, chaque autre port reste sur le bridge Docker. Le HTTPS sortant vers les fournisseurs IA (ou vers ton backend d'inférence interne) est le seul trafic externe.
+Tout le reste est éphémère. Les conteneurs peuvent être remplacés sans perte de données tant que les volumes survivent.
 
-La base de données bundled suffit à la plupart des installations. Si tu veux un Postgres managé ou que tu as besoin de résidence des données dans un cluster spécifique, l'architecture supporte de pointer chaque service vers une instance Postgres externe — les étapes vivent sur la page [Déploiement en production](/fr/self-hosted/install/linux-server#using-an-external-database).
+## Secrets de fournisseur et couche SOPS
 
-## Ce que le produit couvre
+Les clés de fournisseur (OpenAI, Anthropic, Azure, Ollama, etc.) vivent sur le disque dans un répertoire `providers/` monté dans le conteneur plateforme. Chaque fournisseur a un `<nom>.config.json` et un `<nom>.secrets.json` ; le fichier secrets est chiffré avec SOPS et la variable [`SOPS_AGE_KEY`](/fr/self-hosted/configuration/environment-reference).
 
-Tale livre chaque fonctionnalité documentée sous [Platform](/fr/platform) — chat avec conversations multi-tours et pièces jointes, agents personnalisés avec leurs propres instructions et outils, workflows d'automatisation avec étapes LLM et conditions, base de connaissances sémantique pour documents et sites, boîte de réception pour conversations clients, contrôle d'accès basé sur les rôles à travers six rôles, et SSO Microsoft Entra. Les pages indexées par rôle sous [Platform](/fr/platform) s'appliquent à l'identique en Cloud et auto-hébergé ; les seules différences vivent dans cette section — installation, fichiers de configuration, architecture des conteneurs, observabilité, le chemin d'authentification par en-tête HTTP de confiance.
+Cette séparation existe pour deux raisons. Faire tourner une clé de fournisseur, c'est éditer un fichier, pas redémarrer la plateforme ; sauvegarder le fichier chiffré est sûr à committer aux côtés de l'infrastructure. Le mode clair (pas de SOPS, secrets en clair) est supporté pour des environnements étroitement contrôlés où le disque lui-même est chiffré au repos.
 
-L'accessibilité fait partie du même bundle. Tale vise [WCAG 2.1 niveau AA](https://www.w3.org/TR/WCAG21/) — navigation clavier, landmarks pour lecteurs d'écran, indicateurs de focus visibles, contraste 4,5:1 sur le texte courant, support des mouvements réduits, et une cible tactile minimale de 24 × 24. Le pipeline CI le fait respecter via les règles jsx-a11y de oxlint, les assertions vitest-axe sur les composants rendus, et l'addon a11y de Storybook.
+## Auth et sessions
 
-## Où ça s'inscrit
+Le sign-in est Better Auth tournant dans le conteneur convex. Quatre modes de sign-in sont fournis : mot de passe local, Microsoft Entra (OAuth/OIDC), OIDC générique et trusted headers (le reverse proxy fournit l'identité). Le conteneur plateforme lit le cookie, le passe à convex, et convex décide de ce que la session peut faire sur la base du rôle de l'utilisateur et de la matrice de permissions par ressource documentée dans [Membres et rôles](/fr/platform/admin/members-and-roles).
 
-L'aperçu est l'image architecturale qu'un opérateur lit une fois. À partir d'ici, [Démarrage rapide](/fr/self-hosted/install/quickstart) et [Déploiement en production](/fr/self-hosted/install/linux-server) amènent une box fraîche jusqu'à une instance qui tourne ; [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) est la référence plus profonde pour les ports, volumes et la forme des health-checks esquissés ci-dessus ; et [Exploitation](/fr/self-hosted/operate/observability/operations) catalogue ce qu'il faut scraper, logguer et alerter une fois que le trafic commence à couler. Le produit lui-même — chat, agents, automatisations, connaissances — vit une seule fois sous [Platform](/fr/platform) et se lit à l'identique en Cloud.
+La [référence d'authentification](/fr/self-hosted/configuration/authentication) couvre les variables d'environnement et les arbitrages par mode.
+
+## Quand tu sors du single-host
+
+Le fichier compose par défaut fait tourner les sept conteneurs sur un hôte. L'architecture est mono-tenant : rien dans le design ne répartit le travail entre hôtes. Quand tu sors de là — typiquement parce que tale-rag ou tale-crawler ont besoin de leurs propres ressources, ou parce que tu veux un standby chaud — le mouvement est d'extraire ces conteneurs sur un second hôte et de pointer la plateforme dessus via les variables d'environnement. La couche Convex reste mono-instance ; la scalabilité horizontale du backend n'est pas une fonctionnalité v1.
+
+## Où cela s'inscrit
+
+Cette page d'architecture est la carte que présuppose chaque autre page auto-hébergée. La lecture suivante naturelle est [Quickstart](/fr/self-hosted/install/quickstart) si tu montes une instance neuve, ou [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) si tu en exploites une et que tu veux la même image superposée aux modes de défaillance.

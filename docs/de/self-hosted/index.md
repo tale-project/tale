@@ -1,47 +1,25 @@
 ---
-title: Selbst gehostetes Tale
-description: Tale auf eigener Infrastruktur betreiben — installieren mit der CLI, konfigurieren mit Umgebungsvariablen, upgraden mit `tale deploy`.
+title: Selbst gehostet
+description: Selbst gehostetes Tale läuft auf deiner Infrastruktur — on-premise, in deiner VPC oder air-gapped. Sieben Container, deine Daten auf deinem Storage, keine Pro-Sitz-Abrechnung.
 kind: index
 ---
 
-Selbst gehostetes Tale ist dasselbe Produkt wie die [Cloud](/de/cloud)-Edition, paketiert als sechs-Container-Docker-Compose-Stack, den du auf eigener Infrastruktur fährst. Die `tale`-CLI installiert es, Umgebungsvariablen und JSON-Konfigurationsdateien unter `TALE_CONFIG_DIR` konfigurieren es, und `tale deploy` upgradet es Blue-Green, so dass Nutzer nie ein Wartungsfenster sehen. Dieser Bereich ist für die Person, die die Instanz hochzieht und am Laufen hält; Endnutzer — Mitglieder, Redakteure, Entwickler, Admins — lesen [Platform](/de/platform), das in Cloud und Selbsthosting identisch ist.
+Selbst gehostetes Tale läuft auf deiner eigenen Infrastruktur — on-premise, in deiner VPC oder air-gapped. Sieben Container, deine Daten auf deinem Storage, keine Pro-Sitz-Abrechnung und kein Traffic, der zu Tales Servern fließt, außer du richtest einen Anbieter dort ein.
 
-Drei Stränge ziehen sich durch jede Seite unten. **Installieren** deckt den Weg von einer frischen Box zur laufenden Instanz ab, auf einem Laptop oder einem Produktions-Linux-Server. **Konfigurieren** katalogisiert die Knöpfe, die es gibt — Umgebungsvariablen, Anbieter-Dateien, Aufbewahrungsgrenzen — und wo jeder einzelne auf der Platte lebt. **Betreiben** ist der Dauerzustand — Observability, Fehlersuche, Sicherheitshinweise, Release-Notes, die Authentifizierungs-Oberflächen, die Tale an deinen Identitäts-Anbieter anbinden.
+Dieser Abschnitt ist für Operator: die Leute, die entscheiden, wo Tale läuft, es installieren, konfigurieren, gepatcht halten und den Pager übernehmen, wenn etwas schiefgeht. Endnutzer von selbst gehosteten Instanzen lesen meist den Reiter Plattform — die Produktoberfläche ist zwischen den Editionen identisch.
 
-## In diesem Bereich
+## Seiten in diesem Abschnitt
 
-Die Seiten unten sind in der Reihenfolge, in der ein Operator sie typischerweise erreicht: einen Installationspfad wählen, die Konfigurationsreferenz einmal lesen, dann auf den Betriebsseiten leben.
+**[Architektur-Überblick](/de/self-hosted/overview)** — was jeder Container tut, wo Daten auf dem Storage liegen, was mit was spricht.
 
-- **[Selbst-hosted-Übersicht](/de/self-hosted/overview)** — Operatoren, die die Plattform sondieren. Die sechs Container, wo jeder läuft, was jeder Port und jedes Volume tut.
-- **[Lokaler Quickstart](/de/self-hosted/install/quickstart)** — Erstinstallateure auf Linux, macOS oder Windows. Lokale Installation über die `tale`-CLI in rund zehn Minuten.
-- **[Produktions-Deployment](/de/self-hosted/install/linux-server)** — Operatoren, die auf einen Produktionsserver deployen. TLS, Reverse-Proxies, Subpath-Deployments, externer Postgres, Blue-Green-Upgrades.
-- **[Umgebungsreferenz](/de/self-hosted/configuration/environment-reference)** — jede Umgebungsvariable, die Tale liest, gruppiert nach Oberfläche, mit Voreinstellungen aus `.env.example` und den Env-Loadern.
-- **[Anbieter](/de/self-hosted/configuration/providers)** — Anbieter-JSON-Dateien, das Kostenschema, die Gateway-vs.-direkter-Anbieter-Passthrough-Regeln und wie man Tale auf einen lokalen Ollama, vLLM oder LocalAI ausrichtet.
-- **[Aufbewahrung](/de/self-hosted/configuration/retention)** — das Drei-Schichten-Modell aus Datei, Env und UI, die sechzehn Datenkategorien, der nächtliche Bereinigungsjob und der DSGVO-Löschpfad.
-- **[Authentifizierung](/de/self-hosted/admin/authentication)** — Passwort, Microsoft Entra ID SSO und Integration über vertrauenswürdige HTTP-Kopfzeilen mit einem vorgelagerten authentifizierenden Reverse-Proxy.
-- **[Container-Architektur](/de/self-hosted/operate/container-architecture)** — wie die sechs Dienste im internen Docker-Netzwerk verbunden sind, die Volume-Karte, die Health-Check-Form und die Blue-Green-Topologie.
-- **[Betrieb](/de/self-hosted/operate/observability/operations)** — Prometheus-Metriken, Log-Ströme, Health-Probes, Image-Budgets, Container-Smoke-Tests.
-- **[Fehlersuche](/de/self-hosted/operate/observability/troubleshooting)** — die paar Probleme, die Operatoren wirklich sehen, jedes in der Form Symptom-Ursache-Behebung.
-- **[Sicherheitshinweise](/de/self-hosted/operate/security/advisories)** — wie CVEs koordiniert werden, wie Operatoren sie abonnieren und wie sich die Patch-Verantwortung zwischen Ruler GmbH und dem Operator aufteilt.
-- **[Release-Notes-Format](/de/self-hosted/operate/release-notes/format)** — die kanonische Form von GitHub-Release-Notes, die Reihenfolge der Abschnitte, was jeder Operator vor `tale upgrade` überfliegen sollte.
+**[Installation](/de/self-hosted/install/quickstart)** — Quickstart auf dem Laptop, Produktions-Setup auf einem Linux-Host, die docker-compose-Referenz, erstes Admin-Setup, das CLI-Installationsskript.
 
-## Installiere deine Instanz
+**[Konfiguration](/de/self-hosted/configuration/environment-reference)** — jede Umgebungsvariable, Provider-Dateien, Authentifizierungsmodi, TLS, Speicher, Aufbewahrung, SOPS-verschlüsselte Secrets, Observability.
 
-Zwei Installationspfade, gewählt nach Umgebung.
+**[Betrieb](/de/self-hosted/operate/container-architecture)** — Upgrades, Backups und Restore, Observability und Troubleshooting, Security-Advisories, Härtung, Format der Release Notes.
 
-- **Laptop oder Workstation.** Lies den [Lokalen Quickstart](/de/self-hosted/install/quickstart). Ein `tale init`, ein `tale start`, im Browser zu `https://localhost` — genug, um das Produkt zu evaluieren, eine Demo zu fahren oder gegen die Plattform zu entwickeln. Selbstsigniertes TLS als Voreinstellung, also zeigt der erste Besuch eine Browser-Warnung, durch die du klickst.
-- **Produktiver Linux-Server.** Lies [Produktions-Deployment](/de/self-hosted/install/linux-server). Echte Domain, Let's Encrypt TLS, Blue-Green-Topologie, die Upgrades ohne Wartungsfenster übersteht, optionaler externer Postgres. Das ist der kanonische Weg, um Tale einem Team vorzulegen.
+**[Mitwirken](/de/self-hosted/contributing-docker)** — wie du eine lokale Container-Änderung baust und testest.
 
-Sobald die Instanz steht, liest jedes Mitglied, jeder Redakteur, jeder Entwickler und jeder Admin, den du einlädst, [Platform](/de/platform). Nichts an den rollenindizierten Bereichen dort ändert sich zwischen den Editionen — der Unterschied ist, aus welchem Bereich sie kamen.
+## Wo das hingehört
 
-## Konfigurieren und betreiben
-
-Nach der Installation zählen zwei Operator-Oberflächen täglich.
-
-Die **Konfigurations**-Oberfläche ist `.env` und `TALE_CONFIG_DIR`. Jeder Laufzeit-Knopf ist entweder eine Umgebungsvariable, die beim Container-Start gelesen wird, oder eine JSON-Datei, die auf der Platte beobachtet wird; die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) ist erschöpfend, und die Seiten [Anbieter](/de/self-hosted/configuration/providers) und [Aufbewahrung](/de/self-hosted/configuration/retention) sind die JSON-Datei-Gegenstücke.
-
-Die **Betriebs**-Oberfläche ist die langfristige Gestalt des Tale-Betriebs. Prometheus-Metriken leben auf jedem Dienst, strukturierte Logs gehen nach Docker-stdout, Health-Probes treiben die Blue-Green-Cutover-Entscheidungen. [Betrieb](/de/self-hosted/operate/observability/operations) ist der Index; [Fehlersuche](/de/self-hosted/operate/observability/troubleshooting) ist die Symptom-zur-Behebung-Karte, wenn auf einer lebenden Instanz etwas schiefläuft.
-
-## Wo das einsetzt
-
-Selbst gehostet ist der Operator-Bereich. Das Produkt selbst — Chat, Agents, Automatisierungen, Wissen, Integrationen, Admin — lebt einmal unter [Platform](/de/platform) und liest sich hier identisch. Quer-referenziere die Installationsseiten beim Hochziehen der Instanz, die Konfigurationsreferenz, wenn ein Wert geändert werden muss, die Betriebsseiten, wenn in der Produktion etwas schiefläuft. Für Quellbeiträge und die API ist [Develop](/de/develop/api-reference) einen Bereich weiter.
+Selbst gehostet ist die Edition, in der der Operator mehr vom Stack besitzt. Wenn dein Team klein ist und der Betriebsaufwand die Produktarbeit verdrängen würde, ist [Cloud](/de/cloud) die andere Form desselben Produkts. Wenn du gerade eine frische Instanz aufsetzt, ist [Quickstart](/de/self-hosted/install/quickstart) der richtige nächste Lesestoff.

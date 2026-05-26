@@ -28,7 +28,9 @@
       "developer": "Entwickler",
       "admin": "Verwaltung",
       "tutorials": "Tutorials",
-      "develop": "Entwicklung"
+      "develop": "Entwicklung",
+      "projects": "Projekte",
+      "approvals": "Genehmigungen"
     }
   },
   "search": {

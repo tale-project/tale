@@ -1,56 +1,50 @@
 ---
 title: Automation concepts
-description: How automations, steps, triggers, and variables fit together.
+description: An automation is a workflow definition plus a trigger plus a run history. This page names the four pieces and shows how a daily report flows through them.
 ---
 
-An automation is a deterministic background program that runs when something asks it to: a clock, an event inside Tale, a webhook from an outside system, or a person clicking **Run**. Where the chat is open-ended and follows the conversation, an automation does exactly what its steps say, in the order they say it, every time it is triggered. The audience for this page is anyone about to build, debug, or read an automation — Developer role or higher, on Cloud or self-hosted.
+An automation is the unit Tale reaches for when the work is multi-step and you want approvals, scheduling, or external triggers between the steps. It is a workflow definition plus a trigger plus a run history — three things you compose to turn a recurring task into a graph that executes itself.
 
-The vocabulary below — automation, step, trigger, variable, run — is the small set the rest of this section assumes. Read it once and the editor, the **Triggers** tab, and the **Executions** tab all become legible on their own.
+This page hands you the vocabulary the rest of the automations section assumes. Read it before you build a workflow, and come back when you cannot remember whether a behaviour belongs in a step, in the trigger, or in an approval gate.
 
-## The automation itself
+## The four pieces
 
-An automation is one named, runnable unit. It owns a list of steps, the triggers that start it, the variables every step can read, and a small set of configuration knobs (timeout, retry count, backoff delay). Publishing, restoring an older version from **History**, and watching a single line on the metrics dashboard are all single-automation moves — the rest of the model is built around the automation as the atom.
+**Workflows** are the definition — the ordered set of steps with their inputs and outputs. Steps can run sequentially, in parallel, or behind a conditional branch. A workflow is versioned; each save snapshots a new version you can roll back to.
 
-## Steps
+**Triggers** decide when a workflow runs. Four trigger types ship: manual (a button in the UI), schedule (cron-shaped), webhook (an external system POSTs to a URL), and event (something happens inside Tale — a document is uploaded, an agent finishes a reply).
 
-A step is one unit of work. The editor ships six step types, colour-coded so you can read an automation's shape at a glance.
+**Steps** are what runs. Built-in step types call agents, run sandbox code, hit external APIs, write to the knowledge base, send mail, or pause for human input. Steps that touch the outside world are wrapped in idempotency keys so a retry does not double-fire.
 
-| Step          | What it does                                                                                |
-| ------------- | ------------------------------------------------------------------------------------------- |
-| **Start**     | The entry point. Carries the input schema and binds the triggers that start the automation. |
-| **Action**    | Runs one operation — call an integration, write to a database, send an email.               |
-| **LLM**       | Sends a prompt to a model and passes the response to the next step.                         |
-| **Condition** | Branches the path based on a check.                                                         |
-| **Loop**      | Runs a sub-sequence once per item in a list.                                                |
-| **Output**    | Names the data the automation returns when it finishes.                                     |
+**Executions** are the run history. Every workflow invocation creates an execution record: who triggered it, what each step received and emitted, where the failures were, how long it took. The execution log is the audit trail and the debugging surface in one place.
 
-Steps are wired together with directional links. Execution walks the links from **Start** to **Output**; **Condition** picks one branch; **Loop** repeats its inner block per list item.
+## Approvals as gates
 
-## Triggers
+A workflow step can be an approval gate. The run pauses, an approval card surfaces in the configured approver pool, and the next step only fires when an approver clicks Approve. Reject ends the run; timeout escalates or fails based on the gate's configuration. Approvals are the seam between automation and human judgement.
 
-A trigger names the moment the automation starts and what input it starts with. Tale ships three flavours — **Schedules** for clock-driven runs, **Webhooks** for runs kicked off from outside the platform, and **Events** for runs reacting to something that happened inside Tale (a new customer, a closed conversation, another automation finishing). One automation can carry multiple triggers of any kind, so the same fan-out can run on a nightly schedule and on every inbound webhook. The details — cron syntax, the webhook URL, the supported event types — are at [Triggers](/platform/automations/triggers).
+The [Approvals in workflows](/platform/automations/approvals-in-workflows) concept page covers the gate's states and the routing rules in detail.
 
-## Variables
+## Putting it together — a daily-report automation
 
-Variables are the shared key-value bag every step can read. They are where you keep the API key three steps reference, the feature flag that flips behaviour between staging and production, or the constant you do not want pasted into five step configurations. They live on the **Configuration** tab and are read inside any step with the `{{ variables.name }}` syntax.
+A daily-report automation puts the four pieces in one chain:
 
-## Runs
+- Trigger: a schedule that fires every weekday at 08:00.
+- Step 1: an agent that summarises yesterday's customer conversations from the inbox.
+- Step 2: an approval gate routed to the team lead — Approve to send, Reject to discard.
+- Step 3: a mail step that sends the approved summary to the team's distribution list.
 
-Every time a trigger fires, the platform creates a run on the **Executions** tab. A run carries the trigger source, the start and end time, the final status, and a per-step record of the input it saw, the output it produced, and any error it threw. This is the artefact you open when a third-party API returned `400` and you want the literal request body that produced it — see [Execution logs](/platform/automations/execution-logs).
+Each run records the agent's draft, the approver's decision, and the mail step's recipient list. If a step fails — the agent times out, the approver does not respond, the mail server is unreachable — the execution captures the error and the failed step is retryable from the execution view.
 
 ## When to reach for it
 
-Automations and agents are the two ways Tale runs AI work; pick by where the human sits.
+| Use … when                                              | Automation | Agent | Cron job |
+| ------------------------------------------------------- | ---------- | ----- | -------- |
+| Work has multiple steps with dependencies               | ✓          |       |          |
+| You need a human approval between steps                 | ✓          |       |          |
+| The same prompt recurs but always one-shot              |            | ✓     |          |
+| You only need a recurring shell command on a Linux host |            |       | ✓        |
 
-| Reach for an automation when …                              | Reach for an agent when …                                             |
-| ----------------------------------------------------------- | --------------------------------------------------------------------- |
-| A schedule, a webhook, or a system event starts the work    | A person is asking a question and waiting for a written answer        |
-| The flow is the same every run — same steps, same order     | The flow branches on the reply; the next move depends on intent       |
-| The output is a write to another system, an email, a ticket | The output is text the person reads, or a small structured payload    |
-| You want a per-run trace of every input, output, and error  | You want a conversation transcript with the model's reasoning in-line |
-
-The two compose. An automation's **LLM** step can adopt an agent's instructions and tool list; an agent can hand a long-running job off to an automation through the integration tool. Pick the primary by whether a human is in the loop when the work starts.
+Agents are the right shape for one-shot conversations; automations are the right shape when the work has stages and you want each stage's input, output, and approver captured.
 
 ## Build one
 
-The five nouns on this page — automation, step, trigger, variable, run — are the entire model. The next page is the editor that turns them into something runnable: [Automations](/platform/automations/workflows).
+Workflows, triggers, steps, and executions are the four pieces every Tale automation is made of: the workflow is the recipe, the trigger is the kick-off, the steps are the moves, and the execution is the record. Reach for an automation when the work has stages; reach for an agent when the conversation stays in one voice. The natural next read is [Workflow with approvals](/tutorials/editor/workflow-with-approvals) — it walks the four pieces end to end on a fresh instance.

@@ -1,44 +1,52 @@
 ---
 title: Données structurées
-description: Gère Produits, Clients et Fournisseurs comme enregistrements structurés interrogeables par l'IA.
+description: La base de connaissances Tale ship quatre entités structurées intégrées — Clients, Produits, Fournisseurs, Sites web — aux côtés des Documents. Cette page donne le modèle mental pour choisir un enregistrement structuré plutôt qu'un document.
 ---
 
-Les données structurées sont la moitié lignes-et-colonnes de la base de connaissances — les trois sections (**Produits**, **Clients**, **Fournisseurs**) qui stockent des enregistrements métier avec des champs fixes que l'agent IA peut interroger à côté des documents et des sites web crawlés. Le public visé : Éditeur ou Développeur qui entretient ces enregistrements, un par un ou par import CSV. Cette page couvre ce que contient chaque section, le format CSV, et comment restreindre quelles entités voit un agent donné.
+La base de connaissances Tale ship deux formes côte à côte. Les documents sont des blobs de texte dont l'agent récupère des chunks ; les enregistrements structurés sont des lignes typées dont l'agent lit des champs. La forme que tu choisis est la décision la plus importante pour la manière dont un agent utilisera tes connaissances — un mauvais choix et l'agent dilue une réponse claire ou devine une valeur que tu as au dossier.
 
-## Produits
+Cette page te donne le modèle mental pour décider quand chaque forme est la bonne. Lis-la avant de charger un dossier de fichiers ; reviens-y quand tu es tenté de téléverser un tableur en PDF.
 
-La section Produits stocke ton catalogue produit. Chaque enregistrement contient nom, description, URL d’image, stock, prix, devise, catégorie et statut.
+## Documents vs enregistrements structurés
 
-Les produits peuvent être ajoutés un par un ou importés en masse via CSV. Le format CSV n’a pas d’en-tête ; les colonnes suivent cet ordre :
+Un document est libre : le pipeline d'indexation extrait le texte, le découpe en chunks, embed les chunks et les sert via RAG à la réponse. L'agent voit des passages et les cite par nom de fichier. C'est la bonne forme quand la source est de la prose — contrats, manuels, articles de base de connaissances, notes de réunion.
 
-```text
-name, description, imageUrl, stock, price, currency, category, status
-```
+Un enregistrement structuré est typé : l'entité a des champs connus (un client a `nom`, `email`, `secteur` ; un produit a `sku`, `prix`, `stock`). L'agent lit les champs directement, joint entre entités et répond avec la valeur. C'est la bonne forme quand la source est une ligne de base de données — comptes, commandes, pièces, fournisseurs.
 
-Valeurs de statut valides : `active`, `inactive`, `draft`, `archived`. Valeurs invalides retombent sur `draft`.
+## Les quatre modèles intégrés
 
-## Clients
+Quatre types d'entités structurées sont fournis dans chaque instance Tale :
 
-La section Clients stocke ta liste de clients. Chaque client a une adresse de courriel, une locale, un statut et des métadonnées personnalisées optionnelles. Les clients importés ont par défaut le statut `churned`.
+- **Clients** — les personnes et organisations avec qui tu fais affaire.
+- **Produits** — ce que tu vends.
+- **Fournisseurs** — ceux à qui tu achètes.
+- **Sites web** — pages qu'un crawler récupère selon une planification ; structurées comme URL + contenu crawlé + métadonnées.
 
-Import CSV :
+Plus **Documents** pour tout le reste.
 
-```text
-email, locale
-```
+## Modèles de contenu pour des formes personnalisées
 
-Valeurs de locale valides : `en`, `de`, `es`, `fr`, `it`, `nl`, `pt`, `zh`. Valeurs invalides retombent sur `en`.
+Quand les quatre intégrés ne suffisent pas, les modèles de contenu te laissent définir un type d'enregistrement structuré sur mesure. Un modèle de contenu est une définition au format JSON-schema sous [gouvernance modèles de contenu](/fr/platform/admin/governance/content-models) : nomme l'entité, déclare ses champs, fixe l'accès au niveau du champ, et le nouveau type apparaît aux côtés des Clients, Produits, Fournisseurs et Sites web.
 
-## Fournisseurs
+Les modèles de contenu coûtent de l'attention gouvernance — chaque politique d'accès et de rétention des champs est à toi de fixer — donc vas-y quand les données sont véritablement une nouvelle forme, pas une légère variation d'un des quatre intégrés.
 
-La section Fournisseurs stocke les enregistrements de fournisseurs et partenaires. Les données Fournisseur sont interrogeables par l’IA et utilisables dans les workflows automatisés. Le même import CSV que Clients fonctionne aussi ici.
+## Mis bout à bout — un agent CRM
 
-## Utiliser des données structurées dans les agents
+Un agent CRM qui répond « où en est-on avec Acme ? » utilise les deux formes. L'entité Clients a l'enregistrement canonique d'Acme — nom, contact principal, secteur, statut. Les documents tiennent les notes d'appel et les contrats. L'agent lit les champs du client directement, récupère des chunks dans les documents et répond avec les deux : le statut structuré depuis Clients, le contexte récent depuis la note d'appel la plus récente.
 
-Les enregistrements structurés sont indexés dans le même store que les documents. Les agents avec accès aux connaissances peuvent chercher sur tous les types. Pour limiter un agent à un sous-ensemble — par exemple un agent commercial qui ne voit que Produits et Clients — configure son onglet Base de connaissances. Voir [Créer un agent](/fr/platform/agents/create).
+Sans enregistrements structurés, l'agent doit trouver Acme par nom à travers des PDF et risque de confondre deux clients aux noms similaires. Sans documents, l'agent connaît le statut d'Acme mais ne peut pas te dire ce qui s'est passé à l'appel de mardi.
 
-## Où cela s'insère
+## Quand y recourir
 
-Les données structurées sont la moitié de la base de connaissances qui a des lignes et des colonnes, plutôt que des paragraphes et des titres. La moitié texte libre (documents, sites web crawlés) est pour le contenu en prose ; cette moitié-ci est pour les entités — les catalogues, listes de clients et enregistrements de fournisseurs que l'IA cite quand elle répond à des questions domaine-spécifiques. Les deux moitiés sont indexées dans le même store et joignables via la même recherche de connaissances ; un agent qui s'ancre dans les deux les mêle de façon fluide.
+| Utilise … quand                                             | Documents | Enregistrement structuré |
+| ----------------------------------------------------------- | --------- | ------------------------ |
+| La source est de la prose libre                             | ✓         |                          |
+| La source a des champs typés et tu veux les valeurs exactes |           | ✓                        |
+| Tu dois joindre sur de nombreux enregistrements             |           | ✓                        |
+| L'agent doit citer les passages par emplacement             | ✓         |                          |
 
-Pour la moitié texte libre, [Base de connaissances](/fr/platform/workspace/knowledge-base) couvre le téléversement de documents et le crawling de sites. Pour les contrôles côté agent qui décident quelles entités voient les agents, [Créer un agent → Connaissances](/fr/platform/agents/create) est la page suivante.
+Les documents libres et les enregistrements typés ne sont pas interchangeables ; la mauvaise forme rend l'agent moins bon au travail que tu voulais.
+
+## Où cela s'inscrit
+
+Les données structurées sont la couture entre tes données opérationnelles et la surface agent. Utilise les quatre intégrés pour ce qu'ils couvrent ; va vers les [modèles de contenu](/fr/platform/admin/governance/content-models) quand une cinquième forme apparaît. La lecture suivante à mettre en file est [Documents](/fr/platform/knowledge/documents) — elle couvre le pipeline d'indexation des documents et comment les agents vont chercher des chunks à la réponse.
