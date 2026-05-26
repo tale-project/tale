@@ -45,14 +45,27 @@
         },
         {
           "label": "projects",
-          "pages": ["platform/projects/concepts"]
+          "pages": [
+            "platform/projects/overview",
+            "platform/projects/concepts",
+            "platform/projects/manage-files",
+            "platform/projects/project-agents"
+          ]
         },
         {
           "label": "agents",
           "pages": [
             "platform/agents/concepts",
+            "platform/agents/create",
+            "platform/agents/tools",
             "platform/agents/skills",
-            "platform/agents/delegation"
+            "platform/agents/knowledge",
+            "platform/agents/conversation-starters",
+            "platform/agents/delegation",
+            "platform/agents/webhook-triggers",
+            "platform/agents/versions",
+            "platform/agents/image-generation",
+            "platform/agents/categories"
           ]
         },
         {
