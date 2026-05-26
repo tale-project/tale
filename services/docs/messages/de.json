@@ -30,7 +30,14 @@
       "tutorials": "Tutorials",
       "develop": "Entwicklung",
       "projects": "Projekte",
-      "approvals": "Genehmigungen"
+      "approvals": "Genehmigungen",
+      "governance": "Governance",
+      "conversations": "Konversationen",
+      "legal": "Rechtliches",
+      "tutorialsAdmin": "Verwaltung",
+      "tutorialsEditor": "Editor",
+      "tutorialsDeveloper": "Entwickler",
+      "tutorialsMember": "Mitglied"
     }
   },
   "search": {

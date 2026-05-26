@@ -30,7 +30,14 @@
       "tutorials": "Tutorials",
       "develop": "Development",
       "projects": "Projects",
-      "approvals": "Approvals"
+      "approvals": "Approvals",
+      "governance": "Governance",
+      "conversations": "Conversations",
+      "legal": "Legal",
+      "tutorialsAdmin": "Admin",
+      "tutorialsEditor": "Editor",
+      "tutorialsDeveloper": "Developer",
+      "tutorialsMember": "Member"
     }
   },
   "search": {

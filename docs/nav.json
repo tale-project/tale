@@ -34,12 +34,36 @@
         },
         {
           "label": "configuration",
-          "pages": ["self-hosted/configuration/environment-reference"]
+          "pages": [
+            "self-hosted/configuration/environment-reference",
+            "self-hosted/configuration/authentication",
+            "self-hosted/configuration/providers",
+            "self-hosted/configuration/secrets-with-sops",
+            "self-hosted/configuration/tls-and-domains",
+            "self-hosted/configuration/observability-config",
+            "self-hosted/configuration/retention"
+          ]
         },
         {
           "label": "operate",
-          "pages": ["self-hosted/operate/container-architecture"]
-        }
+          "pages": [
+            "self-hosted/operate/container-architecture",
+            "self-hosted/operate/upgrades",
+            "self-hosted/operate/backups-and-restore",
+            {
+              "label": "observability",
+              "pages": [
+                "self-hosted/operate/observability/operations",
+                "self-hosted/operate/observability/troubleshooting"
+              ]
+            },
+            {
+              "label": "security",
+              "pages": ["self-hosted/operate/security/hardening"]
+            }
+          ]
+        },
+        "self-hosted/contributing-docker"
       ]
     },
     {
@@ -47,6 +71,18 @@
       "pages": [
         "platform/index",
         "platform/models",
+        {
+          "label": "member",
+          "pages": ["platform/member/overview"]
+        },
+        {
+          "label": "editor",
+          "pages": ["platform/editor/overview"]
+        },
+        {
+          "label": "developer",
+          "pages": ["platform/developer/overview"]
+        },
         {
           "label": "chat",
           "pages": [
@@ -89,33 +125,117 @@
         },
         {
           "label": "automations",
-          "pages": ["platform/automations/concepts"]
+          "pages": [
+            "platform/automations/concepts",
+            "platform/automations/triggers",
+            "platform/automations/approvals-in-workflows"
+          ]
         },
         {
           "label": "knowledge",
-          "pages": ["platform/knowledge/structured-data"]
+          "pages": [
+            "platform/knowledge/overview",
+            "platform/knowledge/documents",
+            "platform/knowledge/structured-data"
+          ]
+        },
+        {
+          "label": "conversations",
+          "pages": ["platform/conversations/overview"]
+        },
+        {
+          "label": "workspace",
+          "pages": ["platform/workspace/prompt-library"]
         },
         {
           "label": "approvals",
-          "pages": ["platform/approvals/concepts"]
+          "pages": [
+            "platform/approvals/concepts",
+            "platform/approvals/configure"
+          ]
         },
         {
           "label": "integrations",
-          "pages": ["platform/integrations/overview"]
+          "pages": [
+            "platform/integrations/overview",
+            "platform/integrations/mcp-servers"
+          ]
         },
         {
           "label": "admin",
-          "pages": ["platform/admin/members-and-roles"]
+          "pages": [
+            "platform/admin/overview",
+            "platform/admin/members-and-roles",
+            "platform/admin/teams",
+            "platform/admin/agents",
+            "platform/admin/providers",
+            "platform/admin/integrations",
+            "platform/admin/api-keys",
+            {
+              "label": "governance",
+              "pages": [
+                "platform/admin/governance/audit-logs",
+                "platform/admin/governance/policies-and-limits",
+                "platform/admin/governance/run-code-policy",
+                "platform/admin/governance/guardrails",
+                "platform/admin/governance/content-models",
+                "platform/admin/governance/usage-analytics",
+                "platform/admin/governance/feedback-analytics",
+                "platform/admin/governance/data-subject-requests",
+                "platform/admin/governance/legal-hold",
+                "platform/admin/governance/trash"
+              ]
+            }
+          ]
         }
       ]
     },
     {
       "label": "tutorials",
-      "pages": ["tutorials/overview"]
+      "pages": [
+        "tutorials/overview",
+        {
+          "label": "tutorialsMember",
+          "pages": [
+            "tutorials/member/chat-effectively",
+            "tutorials/member/use-projects"
+          ]
+        },
+        {
+          "label": "tutorialsEditor",
+          "pages": [
+            "tutorials/editor/first-agent-end-to-end",
+            "tutorials/editor/agent-with-knowledge",
+            "tutorials/editor/delegate-between-agents",
+            "tutorials/editor/workflow-with-approvals"
+          ]
+        },
+        {
+          "label": "tutorialsDeveloper",
+          "pages": [
+            "tutorials/developer/call-tale-from-a-script",
+            "tutorials/developer/trigger-automation-via-webhook",
+            "tutorials/developer/build-a-custom-tool",
+            "tutorials/developer/mcp-server-from-scratch"
+          ]
+        },
+        {
+          "label": "tutorialsAdmin",
+          "pages": ["tutorials/admin/office-add-in"]
+        }
+      ]
     },
     {
       "label": "develop",
-      "pages": ["develop/overview", "develop/api-reference", "develop/webhooks"]
+      "pages": [
+        "develop/overview",
+        "develop/api-reference",
+        "develop/webhooks",
+        "develop/integrations",
+        "develop/rate-limits",
+        "develop/status-page",
+        "develop/ai-assisted-development"
+      ]
     }
   ]
 }
