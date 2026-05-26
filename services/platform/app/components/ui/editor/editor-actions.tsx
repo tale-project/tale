@@ -155,10 +155,12 @@ export function EditorActions({
         onClick={handleDiscard}
         variant="secondary"
         size="sm"
+        icon={Undo2}
+        iconClassName="size-3.5"
+        collapseLabel
         disabled={discardDisabled}
         aria-disabled={discardDisabled ? 'true' : undefined}
       >
-        <Undo2 className="mr-1.5 size-3.5" aria-hidden="true" />
         {t('actions.discard')}
       </Button>
       <Button
@@ -171,19 +173,24 @@ export function EditorActions({
       >
         {controller.isSaving ? (
           <Loader2
-            className="mr-1.5 size-3.5 animate-spin"
+            className="size-3.5 animate-spin sm:mr-1.5"
             aria-hidden="true"
           />
         ) : flashSaved ? (
-          <Check className="mr-1.5 size-3.5" aria-hidden="true" />
+          <Check className="size-3.5 sm:mr-1.5" aria-hidden="true" />
         ) : (
-          <Save className="mr-1.5 size-3.5" aria-hidden="true" />
+          <Save className="size-3.5 sm:mr-1.5" aria-hidden="true" />
         )}
-        {controller.isSaving
-          ? t('actions.saving')
-          : flashSaved
-            ? t('actions.saved')
-            : t('actions.save')}
+        {/* Collapse the label to an icon on mobile (still in the a11y tree)
+            to match `collapseLabel`; the icon here is dynamic, so the pattern
+            is applied inline rather than via the Button prop. */}
+        <span className="sr-only sm:not-sr-only">
+          {controller.isSaving
+            ? t('actions.saving')
+            : flashSaved
+              ? t('actions.saved')
+              : t('actions.save')}
+        </span>
       </Button>
     </div>
   );
