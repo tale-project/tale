@@ -1,0 +1,42 @@
+---
+title: Zwei-Faktor-Authentifizierung
+description: TOTP-Registrierung, Backup-Codes, die organisationsweite Erzwingungsrichtlinie und wie ein Admin ein Mitglied zurücksetzt, das seinen Authenticator verloren hat. Lies das, wenn du 2FA für die Org verdrahtest oder einen Account wiederherstellst.
+---
+
+Zwei-Faktor-Authentifizierung legt einen zweiten Identitätsbeweis über das Passwort — einen sechsstelligen Code aus einer Authenticator-App. Tale bringt TOTP (zeitbasierte Einmal-Passwörter) mit, kompatibel zu Google Authenticator, 1Password, Authy und jeder anderen App, die dem Standard folgt. Die Seite deckt die Pro-Benutzer-Registrierung ab, die Backup-Codes, die einen Account wiederherstellen, wenn das Telefon weg ist, die organisationsweite Erzwingungsrichtlinie und das Admin-Reset für ein ausgesperrtes Mitglied.
+
+Zwei-Faktor ist standardmäßig optional. Admins können sie für die ganze Organisation verpflichtend machen, mit einem Karenzfenster, damit Mitglieder Zeit zum Einrichten haben.
+
+## Pro-Benutzer-Registrierung
+
+Um 2FA für deinen eigenen Account einzuschalten, öffne **Account > Sicherheit**. Klick auf **Zwei-Faktor aktivieren**, bestätige dein Passwort und scanne den QR-Code mit einer Authenticator-App. Tippe den sechsstelligen Code ein, den die App zeigt, um zu prüfen, dass das Geheimnis aufgenommen wurde, und sichere dann die Backup-Codes, die der nächste Bildschirm zeigt. Die Codes erscheinen einmal — lade oder kopiere sie, bevor du auf **Fertig** klickst.
+
+Derselbe Bildschirm trägt **Deaktivieren** und **Backup-Codes neu erzeugen**. Deaktivieren entfernt den zweiten Faktor; Neu-Erzeugen entwertet jeden vorherigen Backup-Code. Beide Aktionen verlangen das Account-Passwort zur Bestätigung.
+
+## Backup-Codes
+
+Backup-Codes sind einmal verwendbare Strings, die die Plattform prägt, wenn 2FA aktiviert oder neu erzeugt wird. Jeder davon ersetzt den Authenticator-Code bei einem einzelnen Sign-in — nützlich, wenn das Telefon verloren ist, der Authenticator deinstalliert wurde oder du irgendwo ohne das Gerät feststeckst. Die Plattform beobachtet die verbleibende Anzahl und zeigt ein Niedrig-Banner, wenn nur noch wenige Codes übrig sind; das Banner verlinkt direkt auf den Neu-Erzeugen-Flow.
+
+Behandle Backup-Codes wie Passwörter. Lege sie in einen Passwort-Manager oder drucke sie und schliesse sie weg. Wer dein Passwort und einen Backup-Code hat, kann sich als du anmelden.
+
+## Die Erzwingen-für-Org-Richtlinie
+
+Admins können Zwei-Faktor für jedes passwortauthentifizierte Mitglied der Organisation verpflichtend machen. Öffne **Einstellungen > Governance > Authentifizierung** und schalte **Zwei-Faktor-Authentifizierung verlangen** ein. Die Richtlinie trägt eine Karenzzeit (in Tagen), die jedem Mitglied vom ersten Sign-in unter der Richtlinie an Zeit zur Registrierung gibt; setz sie auf null für sofortige Erzwingung.
+
+| Feld                                    | Typ      | Pflicht | Beschreibung                                                                                                                            |
+| --------------------------------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Zwei-Faktor-Authentifizierung verlangen | Schalter | ja      | Aus hält 2FA für jedes Mitglied optional; ein schaltet die Richtlinie an.                                                               |
+| Karenzzeit (Tage)                       | Ganzzahl | ja      | Tage ab dem ersten angemeldeten Moment eines Mitglieds unter der Richtlinie, bevor die Registrierung verlangt wird. Null heisst sofort. |
+| Nur-SSO-Benutzer ausnehmen              | Schalter | nein    | Wenn an, vertrauen Mitglieder, deren einziger Account eine föderierte Identität ist, dem vorgelagerten IdP für MFA.                     |
+
+Ein Mitglied innerhalb des Karenzfensters sieht ein Countdown-Banner in der App, das auf den Registrierungs-Flow zeigt. Sobald die Karenz abläuft, leitet der nächste Sign-in durch den Registrierungs-Bildschirm, und das Mitglied kann erst weiter, nachdem es registriert ist.
+
+## Admin-Reset für ein ausgesperrtes Mitglied
+
+Wenn ein Mitglied sein Telefon und seine Backup-Codes verliert, entfernt ein Admin den zweiten Faktor auf seinem Account. Öffne **Einstellungen > Mitglieder**, finde das Mitglied und klick auf **Zwei-Faktor zurücksetzen** in seiner Zeile. Tale deaktiviert 2FA für den Account und beendet jede aktive Sitzung, sodass sich das Mitglied beim nächsten Sign-in neu registriert.
+
+Das Zurücksetzen wird im Audit-Log unter `2fa_reset_by_admin` festgehalten. Greif dazu als Wiederherstellungs-Aktion — das Mitglied sollte sich sofort neu registrieren, wenn es wieder drin ist.
+
+## Wo das hingehört
+
+Zwei-Faktor sitzt eine Schicht über dem Passwort — gleicher Login-Bildschirm, zweiter Schritt. Paar es mit [Mitglieder und Rollen](/de/platform/admin/members-and-roles) (der Admin, der den zweiten Faktor zurücksetzt, ist derselbe Admin, der den Account verwaltet), mit [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) (die Erzwingungsrichtlinie lebt in der Governance-Oberfläche) und mit [Audit-Logs](/de/platform/admin/governance/audit-logs) (jede Registrierung, Deaktivierung und jedes Admin-Reset landet dort).

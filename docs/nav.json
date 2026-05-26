@@ -59,7 +59,14 @@
             },
             {
               "label": "security",
-              "pages": ["self-hosted/operate/security/hardening"]
+              "pages": [
+                "self-hosted/operate/security/hardening",
+                "self-hosted/operate/security/advisories"
+              ]
+            },
+            {
+              "label": "releaseNotes",
+              "pages": ["self-hosted/operate/release-notes/format"]
             }
           ]
         },
@@ -73,7 +80,11 @@
         "platform/models",
         {
           "label": "member",
-          "pages": ["platform/member/overview"]
+          "pages": [
+            "platform/member/overview",
+            "platform/member/preferences",
+            "platform/member/install-as-app"
+          ]
         },
         {
           "label": "editor",
@@ -127,7 +138,10 @@
           "label": "automations",
           "pages": [
             "platform/automations/concepts",
+            "platform/automations/workflows",
             "platform/automations/triggers",
+            "platform/automations/execution-logs",
+            "platform/automations/metrics",
             "platform/automations/approvals-in-workflows"
           ]
         },
@@ -136,6 +150,7 @@
           "pages": [
             "platform/knowledge/overview",
             "platform/knowledge/documents",
+            "platform/knowledge/crawling",
             "platform/knowledge/structured-data"
           ]
         },
@@ -145,7 +160,10 @@
         },
         {
           "label": "workspace",
-          "pages": ["platform/workspace/prompt-library"]
+          "pages": [
+            "platform/workspace/prompt-library",
+            "platform/workspace/document-comparison"
+          ]
         },
         {
           "label": "approvals",
@@ -171,6 +189,9 @@
             "platform/admin/providers",
             "platform/admin/integrations",
             "platform/admin/api-keys",
+            "platform/admin/branding",
+            "platform/admin/two-factor-authentication",
+            "platform/admin/changelog",
             {
               "label": "governance",
               "pages": [
@@ -221,7 +242,11 @@
         },
         {
           "label": "tutorialsAdmin",
-          "pages": ["tutorials/admin/office-add-in"]
+          "pages": [
+            "tutorials/admin/connect-local-provider",
+            "tutorials/admin/meeting-transcription",
+            "tutorials/admin/office-add-in"
+          ]
         }
       ]
     },

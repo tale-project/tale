@@ -1,0 +1,46 @@
+---
+title: Workflows
+description: The operating manual for the workflows feature — the list view, how to run a workflow, how to pause and disable, how to edit, and how the versioned history works. Read this when you are running automations day to day, not when you are learning the model.
+---
+
+Workflows is the operating manual for the feature. The mental model — what a workflow, trigger, step, and execution are — lives on [Automation concepts](/platform/automations/concepts). This page is the other half: how the list view is laid out, how you run a workflow from the UI, how you pause one without deleting it, how you edit and how the versioned history works. Editors and Developers read this when they are working with workflows day to day.
+
+The feature is reached from **Automations** in the sidebar. The list view is the entry point; every other surface (the editor, the executions tab, the metrics dashboard) hangs off a single workflow you opened from the list.
+
+## The list view
+
+The list shows every workflow in the org. The toolbar carries a search box, a **Create automation** button, and an **Upload from file** menu item for importing workflow JSON. The columns are the workflow name, the description, the trigger set, the last-run timestamp, and a row action menu (rename, duplicate, delete).
+
+The list lazily loads as you scroll. Search matches the name and the description. Click any row to open the workflow.
+
+## Running a workflow
+
+Three paths fire a workflow.
+
+The **Triggers** tab on the workflow attaches the running paths: a manual trigger surfaces a button under **Automations > Manual runs** that members can click, a schedule trigger fires on a cron, a webhook trigger accepts an external POST, an event trigger subscribes to internal events. The [triggers reference](/platform/automations/triggers) covers each in depth.
+
+The **Test automation** panel in the editor toolbar fires a one-off run from the editor. Paste the input JSON the run should receive, click **Execute**, and the run shows up in the Executions tab with its ID. Reach for the test panel when you are iterating on a workflow and want to see the full execution journal without wiring a trigger first.
+
+The **Dry run** button on the same panel simulates a run without side effects — the workflow validates against the input, walks the step graph, and reports errors and warnings without calling out to any agent, API, or mail server. Reach for dry run when the workflow is not yet safe to run end to end.
+
+## Pausing and disabling
+
+Pausing a workflow without deleting it lives on the triggers — every trigger has an **Enabled** toggle. Switch each trigger off and the workflow stops firing; switch them back on to resume. The workflow itself stays in the list and its history stays intact.
+
+Deleting a workflow is permanent and lives on the row action menu in the list view. Tale prompts for confirmation before the delete; the executions and the version history go with the workflow.
+
+## Editing
+
+Open the workflow and the editor surfaces the step graph on a canvas. Click a step to open its panel on the right; the panel carries the step's name, type, configuration, and the transitions to the next steps on success and failure. The toolbar at the top of the canvas carries **Focus** (zoom the graph), **AI assistant** (a chat that edits the workflow for you), **Test automation**, and **Add step**.
+
+A banner above the canvas warns when the workflow has active triggers — edits to a triggered workflow take effect immediately, so a save mid-iteration can change a live run's behaviour. Pause the triggers first when the edits are not yet ready.
+
+## Versioning and history
+
+Every save snapshots a new version of the workflow. The **History** tab in the editor's left rail lists the versions newest first, each with a timestamp and the member who saved it. Click a row to open a diff against the current definition; click **Restore** to roll back to that snapshot. Restoring creates a new version on top of the history — the rolled-back state is the new current, and the version you replaced still sits in the list.
+
+The history is per-workflow, not per-step. Restoring rolls the whole definition; partial restores live in the editor (copy the step config from the diff and paste it into the current version).
+
+## Where this fits
+
+Workflows is the operating manual; [Automation concepts](/platform/automations/concepts) is the mental model. The natural neighbours are [triggers](/platform/automations/triggers) (the kick-off), [execution logs](/platform/automations/execution-logs) (the per-run detail), [metrics](/platform/automations/metrics) (the org-wide roll-up), and [approvals in workflows](/platform/automations/approvals-in-workflows) (the human gate between steps). Reach for this page when you are working with a workflow that already exists; reach for concepts when you are building your first one.
