@@ -46,6 +46,7 @@
       "label": "platform",
       "pages": [
         "platform/index",
+        "platform/models",
         {
           "label": "chat",
           "pages": [
