@@ -16,6 +16,7 @@ import { grammarArticles } from './checks/grammar-articles';
 import { icuPlaceholderParity } from './checks/icu-placeholder-parity';
 import { icuPluralRules } from './checks/icu-plural-rules';
 import { markdownAnchorParity } from './checks/markdown-anchor-parity';
+import { markdownLinkTarget } from './checks/markdown-link-target';
 import { parity } from './checks/parity';
 import { placeholderDensity } from './checks/placeholder-density';
 import { pronounsFormal } from './checks/pronouns-formal';
@@ -65,5 +66,6 @@ export const CHECKS: ReadonlyArray<Check> = [
   statusChatter,
   proseExclamation,
   markdownAnchorParity,
+  markdownLinkTarget,
   placeholderDensity,
 ];

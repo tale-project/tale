@@ -42,6 +42,7 @@ export type CheckId =
   | 'status-chatter'
   | 'prose-exclamation'
   | 'markdown-anchor-parity'
+  | 'markdown-link-target'
   | 'placeholder-density';
 
 export type CheckMode = 'enforce' | 'report' | 'off';
