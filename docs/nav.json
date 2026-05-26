@@ -56,6 +56,7 @@
             "platform/chat/agents-in-chat",
             "platform/chat/arena-mode",
             "platform/chat/voice-mode",
+            "platform/chat/deep-research",
             "platform/chat/shared-threads",
             "platform/chat/starters-and-prompts",
             "platform/chat/canvas-pane"
