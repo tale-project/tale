@@ -10,6 +10,12 @@
     "google": "Google LLC",
     "atlassian": "Atlassian Corporation"
   },
+  "address": {
+    "company": "Ruler GmbH",
+    "street": "Seestrasse 4",
+    "city": "3700 Spiez",
+    "vatId": "CHE-186.532.610"
+  },
   "hardwarePricing": {
     "models": {
       "quality": "Kimi K2.6 (INT4)",

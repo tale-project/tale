@@ -62,14 +62,10 @@
     "githubAriaLabel": "GitHub",
     "llmsTxtLabel": "llms.txt",
     "llmsFullTxtLabel": "llms-full.txt",
-    "address": {
-      "company": "Ruler GmbH",
-      "street": "Seestraße 4",
-      "city": "3700 Spiez",
-      "country": "Schweiz",
-      "vatId": "CHE-186.532.610"
-    },
     "copyright": "© {year} Tale by Ruler GmbH — ISO-27001- und SOC-2-zertifiziert. MIT-lizenziert."
+  },
+  "address": {
+    "country": "Schweiz"
   },
   "home": {
     "hero": {

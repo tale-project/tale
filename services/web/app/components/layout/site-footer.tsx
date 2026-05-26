@@ -70,6 +70,7 @@ function LegalLink({
 
 export function SiteFooter() {
   const { t } = useT('footer');
+  const { t: tAddress } = useT('address');
 
   const columns: FooterColumn[] = [
     {
@@ -153,19 +154,19 @@ export function SiteFooter() {
           className="not-italic"
           style={{ lineHeight: 1.4286, letterSpacing: '-0.14px' }}
         >
-          {t('address.company')}
+          {tAddress('company')}
           <br />
-          {t('address.street')}
+          {tAddress('street')}
           <br />
-          {t('address.city')}
+          {tAddress('city')}
           <br />
-          {t('address.country')}
+          {tAddress('country')}
           <br />
           <ExternalLink
             href={EXTERNAL_LINKS.vatCheck}
             className="hover:text-fg-base underline transition-colors"
           >
-            {t('address.vatId')}
+            {tAddress('vatId')}
           </ExternalLink>
         </address>
       }
