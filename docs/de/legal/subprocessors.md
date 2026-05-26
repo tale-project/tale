@@ -6,27 +6,48 @@ noindex: true
 
 Ein Auftragsverarbeiter ist eine Drittpartei, die Tale beauftragt, personenbezogene Kundendaten in seinem Auftrag zu verarbeiten. Die Liste unten bezieht sich auf Tale Cloud; Self-hosted-Betreiber kontrollieren ihre eigene Infrastruktur, und die Auftragsverarbeiter-Liste solcher Deployments sind die Anbieter, die du wählst. Wesentliche Ergänzungen werden 30 Tage im Voraus angekündigt, und Org-Inhaber werden per E-Mail benachrichtigt.
 
-Lies das, wenn ein Auditor fragt, wer sonst noch deine Daten berührt. Komm zurück, wenn ein Beschaffungs-Review die aktuelle Anbieterliste und den Standort jedes einzelnen braucht.
+Lies das, wenn ein Auditor fragt, wer sonst noch deine Daten berührt. Komm zurück, wenn ein Beschaffungs-Review die aktuelle Anbieterliste und den Standort jedes einzelnen braucht. Diese Seite spiegelt **Anhang A** der [Auftragsverarbeitungsvereinbarung](/de/legal/data-processing-agreement) — beide werden in derselben Änderung aktualisiert. Die Endpunkte und Datenflüsse der Tale-Plattform selbst sind in der öffentlichen [API-Dokumentation](https://demo.tale.dev/docs) beschrieben.
+
+## Keine Nutzung von Kundendaten zum Modell-Training
+
+Tale nutzt Kundendaten — Prompts, Eingaben, Ausgaben, Embeddings, Audio, Bilder oder daraus abgeleitete Artefakte — nicht zum Training, Fine-Tuning oder zur Verbesserung von KI-Modellen. Jeder unten genannte KI-Auftragsverarbeiter ist über seine Enterprise- oder API-Bedingungen mit Tale vertraglich an dasselbe gebunden. Eine Abweichung ist nur durch eine gesonderte, beidseitig unterzeichnete Opt-in-Vereinbarung möglich; die fortgesetzte Nutzung der Leistungen, Einstellungs-Schalter im Produkt oder implizite Zustimmung gelten nicht. Die bindende Klausel steht in [Auftragsverarbeitungsvereinbarung § 5](/de/legal/data-processing-agreement#5-ki-verarbeitung--keine-nutzung-zum-training-oder-zur-verbesserung).
 
 ## Aktuelle Auftragsverarbeiter
 
-| Auftragsverarbeiter | Zweck                                            | Datenkategorien                                             | Standort           |
-| ------------------- | ------------------------------------------------ | ----------------------------------------------------------- | ------------------ |
-| Convex              | Anwendungs-Datenbank und Backend-Plattform.      | Konto-Daten, Produkt-Daten, Betriebs-Metadaten.             | Vereinigte Staaten |
-| Cloudflare          | DNS, Edge-TLS und DDoS-Schutz für Tale Cloud.    | Verbindungs-Metadaten, IP-Adressen, Request-Header.         | Globaler Edge      |
-| Anthropic           | Claude-Modell-API für Chat und Agent-Ausführung. | Prompt- und Response-Payload für gerouteter Claude-Aufrufe. | Vereinigte Staaten |
-| OpenAI              | GPT-Modell-API für Chat und Agent-Ausführung.    | Prompt- und Response-Payload für gerouteter OpenAI-Aufrufe. | Vereinigte Staaten |
-| OpenRouter          | Modell-Router für Drittanbieter-Modelle.         | Prompt- und Response-Payload für gerouteter Router-Aufrufe. | Vereinigte Staaten |
+Jeder Name verlinkt auf die öffentlich zugängliche AVV (oder gleichwertige Bedingungen) des jeweiligen Anbieters. Zertifizierungen und Trust-Seiten stehen im nächsten Abschnitt.
 
-Zwei Hinweise zu den Modell-Anbietern (Anthropic, OpenAI, OpenRouter): jeder wird nur beauftragt, wenn die Org-Konfiguration des Kunden einen Aufruf an diesen Anbieter routet. Eine Org, die nur Anthropic-Modelle nutzt, hat keinen Datenfluss zu OpenAI oder OpenRouter und umgekehrt. Die konfigurierten Anbieter pro Org sind für Org-Inhaber unter **Einstellungen > Anbieter** sichtbar.
+| Auftragsverarbeiter                                             | Zweck                                                                           | Datenkategorien                                                                                    | Standort           | Training auf Kundendaten                                    |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------- |
+| [Exoscale](https://www.exoscale.com/dpa/)                       | Cloud-Hosting für die Tale-Cloud-Middleware (VMs und Container-Runtime).        | Anwendungs-Daten in Transit durch die Middleware; keine dauerhafte Speicherung auf dieser Schicht. | Schweiz            | Nein (nur Infrastruktur; kein KI-Training).                 |
+| [Convex](https://www.convex.dev/legal/dpa)                      | Anwendungs-Datenbank und Backend-Plattform.                                     | Konto-Daten, Anwendungs-Daten, Betriebs-Metadaten.                                                 | Vereinigte Staaten | Nein (nur Speicherung; kein KI-Training).                   |
+| [Cloudflare](https://www.cloudflare.com/trust-hub/gdpr/)        | DNS, Edge-TLS-Terminierung, DDoS-Schutz.                                        | Verbindungs-Metadaten, IP-Adressen, Request-Header.                                                | Globaler Edge      | Nein.                                                       |
+| [OpenRouter](https://openrouter.ai/privacy)                     | LLM-Inferenz (Chat, Vision, Embeddings).                                        | Prompts und Antworten für den jeweiligen Inferenz-Aufruf.                                          | Vereinigte Staaten | Nein — vertraglich untersagt.                               |
+| [OpenAI](https://openai.com/policies/data-processing-addendum/) | Ausschließlich Audio-Verarbeitung: Speech-to-Text (Whisper) und Text-to-Speech. | Audio-Payloads und transkribierter oder synthetisierter Text des Aufrufs.                          | Vereinigte Staaten | Nein — vertraglich untersagt (Enterprise-/API-Bedingungen). |
+| [Vercel AI Gateway](https://vercel.com/legal/dpa)               | Bild-Verarbeitung und -Generierung.                                             | Bild-Prompts und generierte Bilder des jeweiligen Aufrufs.                                         | Vereinigte Staaten | Nein — vertraglich untersagt.                               |
+
+Zwei Hinweise zu den KI-Auftragsverarbeitern (OpenRouter, OpenAI, Vercel AI Gateway): jeder wird nur eingesetzt, wenn die jeweilige Funktion einen Aufruf an ihn routet. Eine Org, die keine Audio-Funktionen nutzt, sendet keine Daten an OpenAI; eine, die keine Bild-Generierung nutzt, sendet keine Daten an Vercel AI Gateway. Modell-Anbieter, die über OpenRouter erreichbar sind (Anthropic, Google, Meta, Mistral usw.), sind Upstream-Anbieter von OpenRouter und keine direkten Auftragsverarbeiter von Tale — sie unterliegen den eigenen Vertragsbedingungen von OpenRouter.
+
+## Zertifizierungen und Trust-Seiten
+
+Jeder Auftragsverarbeiter führt eigene Sicherheitszertifizierungen und veröffentlicht sie auf seiner Trust-Seite:
+
+- **Exoscale** — ISO/IEC 27001:2022, ISO/IEC 27017, ISO/IEC 27018, SOC 2 Type II, PCI DSS v4.0, HDS, BSI C5, TISAX. Trust-Seite: [exoscale.com/compliance](https://www.exoscale.com/compliance/).
+- **Convex** — SOC 2 Type II, HIPAA (mit BAA). Trust-Seite: [convex.dev/security](https://www.convex.dev/security).
+- **Cloudflare** — ISO/IEC 27001:2022, ISO 27701, ISO 27018, SOC 2 Type II, PCI DSS Level 1, BSI C5, EU Cloud CoC. Trust-Seite: [cloudflare.com/trust-hub](https://www.cloudflare.com/trust-hub/).
+- **OpenRouter** — keine gesondert veröffentlichten Zertifizierungen. Der Anbieter operiert unter seinen [Terms of Service](https://openrouter.ai/terms) und der [Privacy Policy](https://openrouter.ai/privacy); für grenzüberschreitende Übermittlungen gelten EU-Standardvertragsklauseln.
+- **OpenAI** — SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019, CSA STAR (API- und ChatGPT-Enterprise-Tarife). Trust-Seite: [trust.openai.com](https://trust.openai.com).
+- **Vercel AI Gateway** — abgedeckt durch die Enterprise-Zertifizierungen von Vercel: SOC 2 Type 2, ISO/IEC 27001, PCI DSS, HIPAA, TISAX L2, EU-US- / Swiss-US- / UK-Data-Privacy-Framework. Trust-Seite: [security.vercel.com](https://security.vercel.com/).
 
 ## Umfang der Verarbeitung
 
 Für jeden Auftragsverarbeiter:
 
-- **Convex** verarbeitet alles, was die Plattform speichert — die Datenbank ist das dauerhafte Substrat für Konto-, Produkt- und Betriebs-Daten. Verschlüsselung at rest stellt Convex bereit.
+- **Exoscale** betreibt die Tale-Cloud-Middleware auf VMs und Container-Infrastruktur in der Schweiz. Anwendungs-Daten passieren diese Schicht in Transit, werden hier aber nicht dauerhaft gespeichert — der persistente State liegt in Convex.
+- **Convex** verarbeitet alles, was die Plattform persistiert — die Datenbank ist das dauerhafte Substrat für Konto-, Anwendungs- und Betriebs-Daten. Verschlüsselung at rest stellt Convex bereit.
 - **Cloudflare** verarbeitet nur Daten der Verbindungs-Schicht. TLS terminiert am Edge und re-verschlüsselt zum Origin; Cloudflare sieht Anwendungs-Schicht-Payloads nur insoweit im Klartext, wie es zum Routen der Anfrage nötig ist.
-- **Anthropic, OpenAI, OpenRouter** verarbeitet je das Prompt- und Response-Payload für den spezifischen Inference-Aufruf, der zu ihnen geroutet wird. Die Daten gehen über die API des Anbieters, werden auf Tales Seite nicht als separate Kopie gespeichert, und die Aufbewahrungsrichtlinie des Anbieters gilt für diese Kopie. Tales vertragliche Bedingungen mit jedem Anbieter untersagen die Nutzung von Kunden-Payloads zum Modell-Training.
+- **OpenRouter** verarbeitet Prompts und Antworten des jeweiligen LLM-Aufrufs (Chat, Vision, Embeddings). Die Daten gehen über die OpenRouter-API und werden auf Tales Seite nicht als separate Kopie gespeichert.
+- **OpenAI** verarbeitet Audio-Payloads für Speech-to-Text (Whisper) und den Texteingang für Text-to-Speech. OpenAI wird nicht für Chat oder andere Nicht-Audio-Inferenz eingesetzt.
+- **Vercel AI Gateway** verarbeitet Bild-Prompts und die generierten Bilder des jeweiligen Aufrufs. Es wird nicht für Chat, Audio oder Embedding-Workloads eingesetzt.
 
 ## Unter-Auftragsverarbeiter
 
@@ -38,4 +59,4 @@ Wenn du Tale auf eigener Infrastruktur betreibst, sind die einzigen Daten, die T
 
 ## Wo das hingehört
 
-Auftragsverarbeiter sind das Anbieter-Inventar; die [Datenschutzerklärung](/de/legal/privacy) ist die Erklärung, unter der sie operieren; [Vertrauen und Compliance](/de/cloud/trust-and-compliance) ist der operative Beleg. Ein Auditor will die drei meist zusammen — die Anbieterliste, die Erklärung und die Kontrollen — daher sind die verlinkten Seiten wechselseitig konsistent und werden in derselben Änderung aktualisiert.
+Auftragsverarbeiter sind das Anbieter-Inventar; die [Auftragsverarbeitungsvereinbarung](/de/legal/data-processing-agreement) ist der Vertrag, unter dem sie operieren (Anhang A ist die kanonische Liste); die [Datenschutzerklärung](/de/legal/privacy) ist die nutzerseitige Erklärung; [Vertrauen und Compliance](/de/cloud/trust-and-compliance) ist der operative Beleg. Ein Auditor will die vier meist zusammen — die Anbieterliste, den Vertrag, die Erklärung und die Kontrollen — daher sind die verlinkten Seiten wechselseitig konsistent und werden in derselben Änderung aktualisiert.

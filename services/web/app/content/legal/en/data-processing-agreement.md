@@ -4,279 +4,314 @@ description: How Ruler GmbH processes personal data on behalf of customers using
 noindex: true
 ---
 
-**Last updated:** 01.04.2026
+**Last updated:** 01.05.2026
 
-This Data Processing Agreement ("DPA") is an addendum to the Service Agreement ("Agreement") between Ruler GmbH ("Tale", "we", "us", "our") and the entity or person agreeing to the Agreement ("Customer", "you", "your"). This DPA applies to the extent that Tale processes Personal Data on behalf of the Customer in the course of providing the services under the Agreement.
-
-By executing the Agreement, the Customer enters into this DPA on behalf of itself and, to the extent required under Applicable Data Protection Law, on behalf of its authorized users and affiliates. This DPA is effective as of the date of the Agreement.
+This Data Processing Agreement ("DPA") is an addendum to the Service Agreement ("Agreement") between Ruler GmbH ("Tale", "we", "us", "our") and the entity or person accepting the Agreement ("Customer", "you", "your"). It applies whenever Tale processes Personal Data on behalf of the Customer in providing the services. By executing the Agreement, the Customer enters into this DPA on its own behalf and, where Applicable Data Protection Law requires, on behalf of its authorized users and affiliates. This DPA takes effect on the date of the Agreement.
 
 ## 1. Definitions
 
-Capitalized terms not defined herein shall have the meanings set out in the Agreement.
+Capitalized terms not defined here have the meanings set out in the Agreement.
 
-**"Applicable Data Protection Law"** means the Swiss Federal Act on Data Protection (FADP/nDSG) and its ordinances, the EU General Data Protection Regulation (GDPR), and any other applicable data protection or privacy legislation, in each case as amended, repealed, or replaced from time to time.
+**"Applicable Data Protection Law"** — the Swiss Federal Act on Data Protection (FADP/nDSG) and its ordinances, the EU General Data Protection Regulation (GDPR), and any other data protection or privacy legislation that applies, as amended or replaced from time to time.
 
-**"Controller"** means the entity that determines the purposes and means of the processing of Personal Data. For the purposes of this DPA, the Customer is the Controller.
+**"Controller"** — the entity that determines the purposes and means of processing Personal Data. For this DPA, the Customer is the Controller.
 
-**"Data Breach"** means a breach of security leading to the accidental or unlawful destruction, loss, alteration, unauthorized disclosure of, or access to Personal Data processed by Tale on behalf of the Customer.
+**"Data Breach"** — a breach of security leading to the accidental or unlawful destruction, loss, alteration, unauthorized disclosure of, or access to Personal Data that Tale processes on behalf of the Customer.
 
-**"Data Subject"** means the identified or identifiable natural person to whom the Personal Data relates.
+**"Data Subject"** — an identified or identifiable natural person to whom the Personal Data relates.
 
-**"Personal Data"** means any information relating to an identified or identifiable natural person that is processed by Tale on behalf of the Customer in connection with the services under the Agreement.
+**"Personal Data"** — any information relating to an identified or identifiable natural person that Tale processes on behalf of the Customer in connection with the services.
 
-**"Processing"** means any operation or set of operations performed on Personal Data, whether or not by automated means, including collection, recording, organization, structuring, storage, adaptation, alteration, retrieval, consultation, use, disclosure by transmission, dissemination, alignment, combination, restriction, erasure, or destruction.
+**"Processing"** — any operation performed on Personal Data, whether or not by automated means.
 
-**"Processor"** means the entity that processes Personal Data on behalf of the Controller. For the purposes of this DPA, Tale is the Processor.
+**"Processor"** — the entity that processes Personal Data on behalf of the Controller. For this DPA, Tale is the Processor.
 
-**"Sub-processor"** means any third party engaged by Tale to process Personal Data on behalf of the Customer.
+**"Sub-processor"** — any third party Tale engages to process Personal Data on behalf of the Customer. The current list is in **Appendix A**.
 
-## 2. Scope and purpose of processing
+## 2. Scope and details of processing
 
 ### 2.1 Roles
 
-The Customer is the Controller and Tale is the Processor with respect to the Personal Data processed under this DPA. Tale processes Personal Data solely for the purpose of providing and maintaining the services under the Agreement and in accordance with the Customer's documented instructions.
+The Customer is the Controller. Tale is the Processor. Tale processes Personal Data only to provide and maintain the services under the Agreement, and only on the Customer's documented instructions.
 
-### 2.2 Details of processing
+### 2.2 Processing details
 
-| Element                         | Description                                                                                                                                                                                                                   |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Purpose of processing**       | Provision of the Tale platform and related services as described in the Agreement, including AI-powered workflow automation, conversation management, and related operational features                                        |
-| **Nature of processing**        | Storage, retrieval, organization, structuring, computation, transmission, and display of data as necessary to deliver the services                                                                                            |
-| **Categories of data subjects** | Determined by the Customer, and may include the Customer's employees, end users, clients, contractors, business contacts, and any other individuals whose data the Customer submits to the services                           |
-| **Categories of personal data** | Determined by the Customer, and may include names, email addresses, phone numbers, company information, message content, conversation data, workflow data, documents, and any other data the Customer submits to the services |
-| **Duration of processing**      | For the duration of the Agreement, plus any period required for the return or deletion of Personal Data as described in Section 12                                                                                            |
+| Element                         | Description                                                                                                                                                                                                                                                                         |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Purpose**                     | Provision of the Tale platform and related services under the Agreement, including AI-powered workflow automation, conversation management, and related operational features. Endpoints and data flows are described in the public [API documentation](https://demo.tale.dev/docs). |
+| **Nature**                      | Storage, retrieval, organization, structuring, computation, transmission, and display of data as needed to deliver the services.                                                                                                                                                    |
+| **Categories of Data Subjects** | Determined by the Customer; may include employees, end users, clients, contractors, business contacts, and any other individuals whose data the Customer submits to the services.                                                                                                   |
+| **Categories of Personal Data** | Determined by the Customer; may include names, email addresses, phone numbers, company information, message content, conversation data, workflow data, documents, and any other data the Customer submits.                                                                          |
+| **Duration**                    | The term of the Agreement, plus any period required for return or deletion under Section 13.                                                                                                                                                                                        |
 
 ### 2.3 Customer responsibilities
 
-The Customer shall ensure that:
+The Customer:
 
-a) it has a valid legal basis under Applicable Data Protection Law for the processing of Personal Data and for instructing Tale to process Personal Data on its behalf;
+a) has a valid legal basis under Applicable Data Protection Law for the processing of Personal Data and for instructing Tale;
 
-b) it has provided all necessary notices to, and obtained all necessary consents or authorizations from, Data Subjects as required under Applicable Data Protection Law;
+b) has provided all required notices to, and obtained all required consents or authorizations from, Data Subjects;
 
-c) its instructions to Tale comply with Applicable Data Protection Law;
+c) ensures its instructions to Tale comply with Applicable Data Protection Law;
 
-d) it is solely responsible for the accuracy, quality, and legality of the Personal Data submitted to the services.
+d) is solely responsible for the accuracy, quality, and legality of the Personal Data it submits.
 
-## 3. Tale's obligations as Processor
+## 3. Customer instructions
 
-Tale shall:
+The Customer instructs Tale to process Personal Data to the extent necessary to provide the services under the Agreement. Additional or alternative instructions must be agreed in writing. If Tale concludes that an instruction infringes Applicable Data Protection Law, Tale notifies the Customer promptly and may suspend the affected processing until a lawful instruction is given.
 
-a) process Personal Data only on the basis of documented instructions from the Customer, including as set out in this DPA and the Agreement, unless required to do so by applicable law, in which case Tale shall inform the Customer of such legal requirement before processing (unless prohibited by law);
+## 4. Tale's obligations as Processor
 
-b) ensure that persons authorized to process Personal Data have committed themselves to confidentiality or are under an appropriate statutory obligation of confidentiality;
+Tale:
 
-c) implement and maintain appropriate technical and organizational measures to protect Personal Data, as set out in Section 6;
+a) processes Personal Data only on the Customer's documented instructions, including this DPA and the Agreement, unless applicable law requires otherwise (in which case Tale informs the Customer before processing, unless prohibited from doing so);
 
-d) not engage any Sub-processor without complying with the requirements set out in Section 5;
+b) ensures that persons authorized to process Personal Data are bound by confidentiality;
 
-e) taking into account the nature of the processing, assist the Customer by appropriate technical and organizational measures in fulfilling the Customer's obligation to respond to Data Subject requests, as set out in Section 8;
+c) implements and maintains the technical and organizational measures set out in Section 7;
 
-f) assist the Customer in ensuring compliance with its obligations regarding data security, breach notification, data protection impact assessments, and prior consultations with supervisory authorities, taking into account the nature of the processing and the information available to Tale;
+d) does not engage any Sub-processor except in line with Section 6;
 
-g) at the Customer's choice, delete or return all Personal Data after the end of the provision of services, as set out in Section 12;
+e) assists the Customer — taking into account the nature of the processing and the information available to Tale — with Data Subject requests (Section 9), data security, breach notification, data protection impact assessments, and prior consultations with supervisory authorities;
 
-h) make available to the Customer all information reasonably necessary to demonstrate compliance with the obligations set out in this DPA, and allow for and contribute to audits and inspections, as set out in Section 9.
+f) at the Customer's choice, returns or deletes all Personal Data at the end of the services (Section 13);
 
-## 4. Customer instructions
+g) makes available all information reasonably necessary to demonstrate compliance with this DPA, and contributes to audits (Section 10).
 
-### 4.1 Documented instructions
+## 5. AI processing — no use for training or improvement
 
-The Customer instructs Tale to process Personal Data to the extent necessary to provide the services in accordance with the Agreement. Additional or alternative instructions must be agreed upon in writing.
+### 5.1 No training, fine-tuning, or model improvement
 
-### 4.2 Notification of conflicting instructions
+Tale does not use Personal Data — including prompts, inputs, outputs, embeddings, audio payloads, images, or any derived artifacts — to train, fine-tune, evaluate, benchmark, or otherwise improve any AI or machine-learning model, whether Tale's own or any third party's. Personal Data is processed only to deliver the requested output for the specific call.
 
-If Tale becomes aware that an instruction from the Customer infringes Applicable Data Protection Law, Tale shall promptly notify the Customer and may suspend the relevant processing until the Customer provides a lawful instruction.
+### 5.2 Sub-processor obligations regarding training
 
-## 5. Sub-processors
+Each AI Sub-processor listed in **Appendix A** is contractually bound — via the enterprise or API terms in effect between Tale and that provider — not to use Customer-submitted payloads to train, fine-tune, or improve its models or services. Tale provides evidence of these terms on reasonable written request under Section 10.
 
-### 5.1 General authorization
+### 5.3 Opt-in — separate written agreement required
 
-The Customer provides a general written authorization for Tale to engage Sub-processors for the processing of Personal Data. Tale shall maintain a current list of Sub-processors, which is available upon request.
+Sections 5.1 and 5.2 may only be varied by a separate written agreement signed by both Parties that identifies (a) the scope of Personal Data involved, (b) the permitted training or improvement purpose, (c) the duration, and (d) the safeguards that apply. Continued use of the services, acceptance of updated terms, in-product toggles, or any form of implicit consent do **not** constitute opt-in.
 
-### 5.2 Notification of changes
+## 6. Sub-processors
 
-Tale shall notify the Customer at least 30 days before engaging a new Sub-processor or replacing an existing Sub-processor, by updating the Sub-processor list and, where the Customer has subscribed to such notifications, by email.
+### 6.1 General authorization
 
-### 5.3 Right to object
+The Customer grants Tale a general written authorization to engage Sub-processors to process Personal Data. The current list of Sub-processors is set out in **Appendix A** and mirrored at [/legal/subprocessors](/legal/subprocessors).
 
-The Customer may object to a new or replacement Sub-processor by notifying Tale in writing within 30 days of receiving notice. The objection must be based on reasonable data protection grounds. If the Customer objects, Tale shall use commercially reasonable efforts to offer an alternative solution that avoids the use of the objected-to Sub-processor. If no resolution can be reached within 30 days, either Party may terminate the affected services under the Agreement.
+### 6.2 Notification of changes
 
-### 5.4 Sub-processor obligations
+Tale notifies the Customer at least 30 days before engaging a new Sub-processor or replacing an existing one, by updating Appendix A and the public list, and — where the Customer subscribes to such notifications — by email.
 
-Where Tale engages a Sub-processor, Tale shall:
+### 6.3 Right to object
 
-a) impose on the Sub-processor, by way of a written agreement, data protection obligations no less protective than those set out in this DPA;
+The Customer may object to a new or replacement Sub-processor in writing within 30 days of notification, on reasonable data protection grounds. Tale then uses commercially reasonable efforts to offer an alternative. If no resolution is reached within 30 days of the objection, either Party may terminate the affected services under the Agreement.
 
-b) remain fully liable to the Customer for the performance of the Sub-processor's obligations.
+### 6.4 Pass-through obligations and liability
 
-## 6. Technical and organizational measures
+Tale imposes on each Sub-processor, by written agreement, data protection obligations no less protective than those set out in this DPA — including the no-training commitment in Section 5. Tale remains fully liable to the Customer for the performance of each Sub-processor's obligations.
 
-### 6.1 Security measures
+## 7. Technical and organizational measures
 
-Tale shall implement and maintain appropriate technical and organizational measures to protect Personal Data against unauthorized or unlawful processing and against accidental loss, destruction, damage, or disclosure. These measures include, as appropriate:
+### 7.1 Security measures
+
+Tale implements and maintains appropriate technical and organizational measures to protect Personal Data against unauthorized or unlawful processing and against accidental loss, destruction, damage, or disclosure, including:
 
 a) encryption of Personal Data in transit and at rest;
 
 b) measures to ensure the ongoing confidentiality, integrity, availability, and resilience of processing systems and services;
 
-c) measures to restore the availability of and access to Personal Data in a timely manner in the event of a physical or technical incident;
+c) measures to restore the availability of and access to Personal Data in a timely manner after a physical or technical incident;
 
-d) access controls ensuring that Personal Data is accessible only to authorized personnel on a need-to-know basis;
+d) access controls that limit access to Personal Data to authorized personnel on a need-to-know basis;
 
-e) regular testing, assessment, and evaluation of the effectiveness of the technical and organizational measures;
+e) regular testing, assessment, and evaluation of the effectiveness of the measures;
 
 f) physical security measures for data centers and infrastructure;
 
-g) employee security awareness training.
+g) security awareness training for personnel.
 
-### 6.2 Certifications
+### 7.2 Certifications
 
-Tale maintains ISO 27001 and SOC 2 Type II certifications. Tale shall maintain such certifications (or equivalent standards) and provide evidence of current certification to the Customer upon reasonable request.
+Tale maintains ISO 27001 and SOC 2 Type II certifications (or equivalent standards) and provides evidence of current certification on reasonable request.
 
-### 6.3 Updates
+### 7.3 Updates
 
-Tale may update its security measures from time to time, provided that the updated measures do not materially decrease the overall level of protection afforded to Personal Data.
+Tale may update its security measures from time to time, provided the overall level of protection afforded to Personal Data does not materially decrease.
 
-## 7. Data breach notification
+## 8. Data breach notification
 
-### 7.1 Notification to the Customer
+### 8.1 Notification to the Customer
 
-Tale shall notify the Customer without undue delay, and in any event within 72 hours, after becoming aware of a Data Breach affecting Personal Data processed on behalf of the Customer.
+Tale notifies the Customer without undue delay, and in any event within 72 hours, after becoming aware of a Data Breach affecting Personal Data processed on behalf of the Customer.
 
-### 7.2 Content of notification
+### 8.2 Content of notification
 
-The notification shall include, to the extent reasonably available at the time:
+The notification includes, to the extent then reasonably available:
 
-a) a description of the nature of the Data Breach, including where possible the categories and approximate number of Data Subjects and Personal Data records concerned;
+a) the nature of the Data Breach, including — where possible — the categories and approximate number of Data Subjects and records concerned;
 
 b) the contact details of Tale's point of contact for further information;
 
-c) a description of the likely consequences of the Data Breach;
+c) the likely consequences of the Data Breach;
 
-d) a description of the measures taken or proposed to address the Data Breach, including measures to mitigate its possible adverse effects.
+d) the measures taken or proposed to address it, including measures to mitigate possible adverse effects.
 
-### 7.3 Cooperation
+### 8.3 Cooperation
 
-Tale shall cooperate with the Customer and take commercially reasonable steps to assist in the investigation, mitigation, and remediation of the Data Breach.
+Tale cooperates with the Customer and takes commercially reasonable steps to assist in investigating, mitigating, and remediating the Data Breach.
 
-### 7.4 Notification limitations
+### 8.4 No admission
 
-Tale's obligation to notify the Customer of a Data Breach is not an acknowledgment of fault or liability. The Customer is solely responsible for determining whether a Data Breach triggers any notification obligations under Applicable Data Protection Law and for fulfilling those obligations.
+A notification under this Section is not an admission of fault or liability. The Customer is solely responsible for determining whether the Data Breach triggers notification obligations under Applicable Data Protection Law and for fulfilling them.
 
-## 8. Data subject rights
+## 9. Data subject rights
 
-### 8.1 Assistance
+### 9.1 Assistance
 
-Tale shall, taking into account the nature of the processing, assist the Customer by appropriate technical and organizational measures in responding to requests from Data Subjects exercising their rights under Applicable Data Protection Law, including the right of access, rectification, erasure, restriction of processing, data portability, and objection.
+Tale assists the Customer — taking into account the nature of the processing — with appropriate technical and organizational measures to respond to Data Subject requests under Applicable Data Protection Law (access, rectification, erasure, restriction, portability, objection).
 
-### 8.2 Forwarding requests
+### 9.2 Forwarding requests
 
-If Tale receives a request directly from a Data Subject regarding Personal Data processed on behalf of the Customer, Tale shall promptly forward the request to the Customer and shall not respond to the Data Subject directly, unless instructed to do so by the Customer or required by applicable law.
+If Tale receives a request directly from a Data Subject regarding Personal Data processed on behalf of the Customer, Tale forwards the request to the Customer promptly and does not respond directly unless the Customer instructs Tale to do so or applicable law requires it.
 
-### 8.3 Costs
+### 9.3 Costs
 
-Where assistance with Data Subject requests requires significant effort beyond what is reasonably expected, Tale may charge the Customer a reasonable fee based on Tale's administrative costs.
+Where assistance with Data Subject requests requires significant effort beyond what is reasonably expected, Tale may charge the Customer a reasonable fee based on its administrative costs.
 
-## 9. Audits and inspections
+## 10. Audits and inspections
 
-### 9.1 Audit reports
+### 10.1 Audit reports
 
-Tale shall make available to the Customer, upon reasonable request and no more than once per year, copies of relevant third-party audit reports or certifications (such as SOC 2 Type II reports and ISO 27001 certificates) to demonstrate compliance with the obligations set out in this DPA.
+Tale makes available, on reasonable request and no more than once per year, copies of relevant third-party audit reports or certifications (such as SOC 2 Type II reports and ISO 27001 certificates) to demonstrate compliance with this DPA.
 
-### 9.2 Additional audits
+### 10.2 Additional audits
 
-If the Customer reasonably determines that the information provided under Section 9.1 is insufficient to verify compliance with this DPA, the Customer may request an additional audit. Such audits shall be:
+If the Customer reasonably determines that the information provided under Section 10.1 is insufficient to verify compliance, the Customer may request an additional audit. Such audits are:
 
-a) conducted at the Customer's expense (unless the audit reveals a material breach by Tale);
+a) at the Customer's expense, unless the audit reveals a material breach by Tale;
 
-b) subject to reasonable prior notice of at least 30 days;
+b) preceded by at least 30 days' written notice;
 
-c) conducted during normal business hours and in a manner that minimizes disruption to Tale's operations;
+c) carried out during normal business hours and in a way that minimizes disruption to Tale's operations;
 
-d) carried out by the Customer or an independent third-party auditor that is not a competitor of Tale and that is bound by appropriate confidentiality obligations;
+d) conducted by the Customer or by an independent third-party auditor that is not a competitor of Tale and that is bound by appropriate confidentiality obligations;
 
 e) limited in scope to the processing of the Customer's Personal Data.
 
-### 9.3 Confidentiality
+### 10.3 Confidentiality of findings
 
-Any audit reports, findings, and information obtained through audits shall be treated as confidential information of Tale and shall be subject to the confidentiality provisions of the Agreement.
+Audit reports, findings, and information obtained through audits are confidential information of Tale and subject to the confidentiality provisions of the Agreement.
 
-## 10. International data transfers
+## 11. International data transfers
 
-### 10.1 Processing locations
+### 11.1 Processing locations
 
-Tale processes Personal Data primarily in Switzerland. Where the Customer deploys Tale on its own infrastructure (on-premises or private cloud), the Customer determines the location of processing.
+Tale processes Personal Data primarily in Switzerland. Where the Customer deploys Tale on its own infrastructure (on-premises or private cloud), the Customer determines the processing locations.
 
-### 10.2 Transfers to adequate countries
+### 11.2 Adequate countries
 
-Tale may process Personal Data in countries recognized by the Swiss Federal Council as providing an adequate level of data protection under Art. 16 FADP, or by the European Commission under Art. 45 GDPR.
+Tale may process Personal Data in countries recognized by the Swiss Federal Council under Art. 16 FADP, or by the European Commission under Art. 45 GDPR, as providing an adequate level of data protection.
 
-### 10.3 Safeguards for other transfers
+### 11.3 Safeguards for other transfers
 
-Tale shall not transfer Personal Data to countries without an adequate level of data protection unless appropriate safeguards are in place, such as Standard Contractual Clauses approved by the European Commission or recognized by the Swiss Federal Data Protection and Information Commissioner (FDPIC), or other legally recognized transfer mechanisms.
+Tale does not transfer Personal Data to countries without an adequate level of data protection unless appropriate safeguards are in place — such as Standard Contractual Clauses approved by the European Commission or recognized by the Swiss Federal Data Protection and Information Commissioner (FDPIC), or another legally recognized transfer mechanism.
 
-### 10.4 Transparency
+### 11.4 Transparency
 
-The current locations of data processing and any relevant transfer mechanisms are described in the Sub-processor list referenced in Section 5.1.
+The current processing locations and any relevant transfer mechanisms are listed in **Appendix A**.
 
-## 11. Confidentiality
+## 12. Confidentiality
 
-Tale shall treat all Personal Data processed under this DPA as confidential information. This obligation shall survive the termination of this DPA and the Agreement. Tale shall ensure that all personnel who have access to Personal Data are subject to appropriate confidentiality obligations.
+Tale treats all Personal Data processed under this DPA as confidential. This obligation survives termination of this DPA and the Agreement. Tale ensures that all personnel with access to Personal Data are bound by appropriate confidentiality obligations.
 
-## 12. Data retention and deletion
+## 13. Data retention and deletion
 
-### 12.1 During the Agreement
+### 13.1 During the Agreement
 
-Tale shall retain Personal Data for the duration of the Agreement and in accordance with the Customer's documented instructions.
+Tale retains Personal Data for the term of the Agreement and in accordance with the Customer's documented instructions.
 
-### 12.2 Upon termination
+### 13.2 On termination
 
-Upon termination or expiration of the Agreement, Tale shall, at the Customer's written request:
+On termination or expiration of the Agreement, Tale — at the Customer's written request — either:
 
-a) return all Personal Data to the Customer in a commonly used, machine-readable format; or
+a) returns all Personal Data to the Customer in a commonly used, machine-readable format; or
 
-b) securely delete all Personal Data and provide written confirmation of deletion.
+b) securely deletes all Personal Data and provides written confirmation of deletion.
 
-If the Customer does not make a written request within 30 days of termination, Tale shall delete all Personal Data within 90 days of termination.
+If the Customer does not make a written request within 30 days of termination, Tale deletes all Personal Data within 90 days of termination.
 
-### 12.3 Legal retention
+### 13.3 Legal retention
 
-Where applicable law requires Tale to retain certain Personal Data beyond termination, Tale shall inform the Customer, limit further processing to the extent required by law, and continue to protect the data in accordance with this DPA.
+Where applicable law requires Tale to retain certain Personal Data beyond termination, Tale informs the Customer, limits further processing to what the law requires, and continues to protect the data in accordance with this DPA.
 
-## 13. Liability
+## 14. Liability
 
-Liability under this DPA shall be subject to the limitations and exclusions of liability set out in the Agreement, to the extent permitted by Applicable Data Protection Law. Nothing in this DPA or the Agreement shall limit or exclude either Party's liability for damages arising from a willful or grossly negligent breach of Applicable Data Protection Law.
+Liability under this DPA is subject to the limitations and exclusions of liability in the Agreement, to the extent permitted by Applicable Data Protection Law. Nothing in this DPA or the Agreement limits or excludes either Party's liability for damages arising from a willful or grossly negligent breach of Applicable Data Protection Law.
 
-## 14. Relationship with the Agreement
+## 15. Relationship with the Agreement
 
-### 14.1 Precedence
+### 15.1 Precedence
 
-In the event of any conflict between this DPA and the Agreement, the provisions of this DPA shall prevail with respect to the processing of Personal Data.
+In the event of any conflict between this DPA and the Agreement, this DPA prevails with respect to the processing of Personal Data.
 
-### 14.2 Incorporation
+### 15.2 Incorporation
 
-This DPA is incorporated into and forms part of the Agreement. All terms, conditions, and provisions of the Agreement that are not expressly modified by this DPA shall remain in full force and effect.
+This DPA is incorporated into and forms part of the Agreement. All other provisions of the Agreement remain in full force.
 
-### 14.3 Severability
+### 15.3 Severability
 
-If any provision of this DPA is found to be invalid or unenforceable, the remaining provisions shall remain in full force and effect.
+If any provision of this DPA is found invalid or unenforceable, the remaining provisions remain in full force.
 
-## 15. Governing law and jurisdiction
+### 15.4 Amendments
 
-This DPA shall be governed by and construed in accordance with the substantive laws of Switzerland, excluding its conflict of law provisions and the United Nations Convention on Contracts for the International Sale of Goods (CISG).
+Tale may update this DPA from time to time to reflect changes in its processing practices or in Applicable Data Protection Law. Material changes are communicated to the Customer in advance. The Customer's continued use of the services after the changes take effect constitutes acceptance of the updated DPA. Changes that vary Section 5 (AI processing — no use for training or improvement) require a separate written agreement under Section 5.3 and never take effect by continued use.
 
-Any disputes arising out of or in connection with this DPA shall be subject to the exclusive jurisdiction of the competent courts of the Canton of Bern, Switzerland, unless otherwise required by mandatory law.
+## 16. Governing law and jurisdiction
 
-## 16. Amendments
-
-Tale may update this DPA from time to time to reflect changes in its data processing practices or to comply with changes in Applicable Data Protection Law. Material changes will be communicated to the Customer in advance. The Customer's continued use of the services after such changes take effect constitutes acceptance of the updated DPA.
+This DPA is governed by the substantive laws of Switzerland, excluding its conflict-of-law provisions and the United Nations Convention on Contracts for the International Sale of Goods (CISG). Any disputes arising out of or in connection with this DPA are subject to the exclusive jurisdiction of the competent courts of the Canton of Bern, Switzerland, unless mandatory law requires otherwise.
 
 ## 17. Contact
 
-For any questions regarding this DPA or data processing activities, please contact us through our [contact form](https://tale.dev/contact).
+For any questions regarding this DPA or Tale's processing activities, contact us via our [contact form](https://tale.dev/contact).
 
 **Ruler GmbH**
 Seestrasse 4
 3700 Spiez
 Switzerland
+
+---
+
+## Appendix A — Sub-processors
+
+This appendix lists the third parties Tale engages to process Personal Data on behalf of the Customer for Tale Cloud, the data each one processes, the location of processing, and the contractual position on model training. Self-hosted deployments are operated by the Customer; for those, the Sub-processor list is whichever providers the Customer assembles.
+
+### Current Sub-processors
+
+Each Sub-processor name links to that provider's publicly available DPA (or equivalent terms). Certifications and trust pages are listed below the table.
+
+| Sub-processor                                                   | Purpose                                                              | Categories of data                                                                       | Location      | Training on Customer data                             |
+| --------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------- |
+| [Exoscale](https://www.exoscale.com/dpa/)                       | Cloud hosting for Tale Cloud middleware (VMs and container runtime). | Application data in transit through the middleware; no persistent storage on this layer. | Switzerland   | No (infrastructure only; no AI training).             |
+| [Convex](https://www.convex.dev/legal/dpa)                      | Application database and backend platform.                           | Account data, application data, operational metadata.                                    | United States | No (storage only; no AI training).                    |
+| [Cloudflare](https://www.cloudflare.com/trust-hub/gdpr/)        | DNS, edge TLS termination, DDoS protection.                          | Connection metadata, IP addresses, request headers.                                      | Global edge   | No.                                                   |
+| [OpenRouter](https://openrouter.ai/privacy)                     | LLM inference (chat, vision, embeddings).                            | Prompts and responses routed for the specific inference call.                            | United States | No — contractually prohibited.                        |
+| [OpenAI](https://openai.com/policies/data-processing-addendum/) | Audio processing only: Speech-to-Text (Whisper) and Text-to-Speech.  | Audio payloads and transcribed or synthesized text for the specific call.                | United States | No — contractually prohibited (enterprise/API terms). |
+| [Vercel AI Gateway](https://vercel.com/legal/dpa)               | Image processing and generation.                                     | Image prompts and generated images for the specific call.                                | United States | No — contractually prohibited.                        |
+
+### Certifications and trust pages
+
+Each Sub-processor maintains its own security certifications and publishes them on a trust page:
+
+- **Exoscale** — ISO/IEC 27001:2022, ISO/IEC 27017, ISO/IEC 27018, SOC 2 Type II, PCI DSS v4.0, HDS, BSI C5, TISAX. Trust page: [exoscale.com/compliance](https://www.exoscale.com/compliance/).
+- **Convex** — SOC 2 Type II, HIPAA (with BAA). Trust page: [convex.dev/security](https://www.convex.dev/security).
+- **Cloudflare** — ISO/IEC 27001:2022, ISO 27701, ISO 27018, SOC 2 Type II, PCI DSS Level 1, BSI C5, EU Cloud CoC. Trust page: [cloudflare.com/trust-hub](https://www.cloudflare.com/trust-hub/).
+- **OpenRouter** — no separately published certifications. The provider operates under its [Terms of Service](https://openrouter.ai/terms) and [Privacy Policy](https://openrouter.ai/privacy); EU Standard Contractual Clauses apply to cross-border transfers.
+- **OpenAI** — SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019, CSA STAR (API and ChatGPT Enterprise tiers). Trust page: [trust.openai.com](https://trust.openai.com).
+- **Vercel AI Gateway** — covered by Vercel's enterprise certifications: SOC 2 Type 2, ISO/IEC 27001, PCI DSS, HIPAA, TISAX L2, EU-US / Swiss-US / UK Data Privacy Framework. Trust page: [security.vercel.com](https://security.vercel.com/).
+
+### Notes
+
+- Each AI Sub-processor (OpenRouter, OpenAI, Vercel AI Gateway) is engaged only when the relevant feature routes a call to it. An organization that does not use audio features sends no data to OpenAI; one that does not use image generation sends no data to Vercel AI Gateway; and so on.
+- Model providers reachable through OpenRouter (such as Anthropic, Google, Meta, Mistral) are upstream providers of OpenRouter and are not Tale's direct Sub-processors. They operate under OpenRouter's own contractual terms, which forbid training on routed payloads.
+- Each Sub-processor engages its own sub-processors (cloud hosting, CDN, secret stores). Those lists are public on the providers' trust pages above; Tale tracks material changes through the same 30-day notice mechanism in Section 6.2.
+- Tale Cloud runs its middleware on Exoscale (Switzerland) and persists application state in Convex. Cloudflare terminates TLS at the edge and re-encrypts to the origin; it does not see application-layer payloads in the clear beyond what is needed to route the request.
