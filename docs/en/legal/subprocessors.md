@@ -14,16 +14,14 @@ Tale does not use customer data — prompts, inputs, outputs, embeddings, audio,
 
 ## Current subprocessors
 
-Each subprocessor name links to that provider's publicly available DPA (or equivalent terms). Certifications and trust pages are listed in the next section.
+Each subprocessor name links to that provider's publicly available DPA (or equivalent terms). Certifications and trust pages are listed in the next section. The processing location is selected per customer: Switzerland for Swiss customers, the European Union for all other customers. Tale routes each call to a region matching the customer's data-residency choice.
 
-| Subprocessor                                                    | Purpose                                                              | Data categories                                                                          | Location      | Training on customer data                             |
-| --------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------- |
-| [Exoscale](https://www.exoscale.com/dpa/)                       | Cloud hosting for Tale Cloud middleware (VMs and container runtime). | Application data in transit through the middleware; no persistent storage on this layer. | Switzerland   | No (infrastructure only; no AI training).             |
-| [Convex](https://www.convex.dev/legal/dpa)                      | Application database and backend platform.                           | Account data, application data, operational metadata.                                    | United States | No (storage only; no AI training).                    |
-| [Cloudflare](https://www.cloudflare.com/trust-hub/gdpr/)        | DNS, edge TLS termination, DDoS protection.                          | Connection metadata, IP addresses, request headers.                                      | Global edge   | No.                                                   |
-| [OpenRouter](https://openrouter.ai/privacy)                     | LLM inference (chat, vision, embeddings).                            | Prompts and responses routed for the specific inference call.                            | United States | No — contractually prohibited.                        |
-| [OpenAI](https://openai.com/policies/data-processing-addendum/) | Audio processing only: Speech-to-Text (Whisper) and Text-to-Speech.  | Audio payloads and transcribed or synthesized text for the specific call.                | United States | No — contractually prohibited (enterprise/API terms). |
-| [Vercel AI Gateway](https://vercel.com/legal/dpa)               | Image processing and generation.                                     | Image prompts and generated images for the specific call.                                | United States | No — contractually prohibited.                        |
+| Subprocessor                                                    | Purpose                                                              | Data categories                                                            | Location                                              | Training on customer data                             |
+| --------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------- |
+| [Exoscale](https://www.exoscale.com/dpa/)                       | Cloud hosting for Tale Cloud middleware (VMs and container runtime). | Application data in transit and at rest on the hosted runtime and storage. | Switzerland (Swiss customers) / EU (other customers). | No (infrastructure only; no AI training).             |
+| [OpenRouter](https://openrouter.ai/privacy)                     | LLM inference (chat, vision, embeddings).                            | Prompts and responses routed for the specific inference call.              | Switzerland (Swiss customers) / EU (other customers). | No — contractually prohibited.                        |
+| [OpenAI](https://openai.com/policies/data-processing-addendum/) | Audio processing only: Speech-to-Text (Whisper) and Text-to-Speech.  | Audio payloads and transcribed or synthesized text for the specific call.  | Switzerland (Swiss customers) / EU (other customers). | No — contractually prohibited (enterprise/API terms). |
+| [Vercel AI Gateway](https://vercel.com/legal/dpa)               | Image processing and generation.                                     | Image prompts and generated images for the specific call.                  | Switzerland (Swiss customers) / EU (other customers). | No — contractually prohibited.                        |
 
 Two notes on the AI subprocessors (OpenRouter, OpenAI, Vercel AI Gateway): each is engaged only when the relevant feature routes a call to it. An org that uses no audio features sends no data to OpenAI; one that uses no image generation sends no data to Vercel AI Gateway. Model providers reachable through OpenRouter (Anthropic, Google, Meta, Mistral, etc.) are upstream providers of OpenRouter, not Tale's direct subprocessors — they operate under OpenRouter's own contractual terms.
 
@@ -32,8 +30,6 @@ Two notes on the AI subprocessors (OpenRouter, OpenAI, Vercel AI Gateway): each 
 Each subprocessor maintains its own security certifications and publishes them on a trust page:
 
 - **Exoscale** — ISO/IEC 27001:2022, ISO/IEC 27017, ISO/IEC 27018, SOC 2 Type II, PCI DSS v4.0, HDS, BSI C5, TISAX. Trust page: [exoscale.com/compliance](https://www.exoscale.com/compliance/).
-- **Convex** — SOC 2 Type II, HIPAA (with BAA). Trust page: [convex.dev/security](https://www.convex.dev/security).
-- **Cloudflare** — ISO/IEC 27001:2022, ISO 27701, ISO 27018, SOC 2 Type II, PCI DSS Level 1, BSI C5, EU Cloud CoC. Trust page: [cloudflare.com/trust-hub](https://www.cloudflare.com/trust-hub/).
 - **OpenRouter** — no separately published certifications. The provider operates under its [Terms of Service](https://openrouter.ai/terms) and [Privacy Policy](https://openrouter.ai/privacy); EU Standard Contractual Clauses apply to cross-border transfers.
 - **OpenAI** — SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019, CSA STAR (API and ChatGPT Enterprise tiers). Trust page: [trust.openai.com](https://trust.openai.com).
 - **Vercel AI Gateway** — covered by Vercel's enterprise certifications: SOC 2 Type 2, ISO/IEC 27001, PCI DSS, HIPAA, TISAX L2, EU-US / Swiss-US / UK Data Privacy Framework. Trust page: [security.vercel.com](https://security.vercel.com/).
@@ -42,9 +38,7 @@ Each subprocessor maintains its own security certifications and publishes them o
 
 For each subprocessor:
 
-- **Exoscale** runs the Tale Cloud middleware on VMs and container infrastructure in Switzerland. Application data passes through this layer in transit but is not persistently stored here — durable state lives in Convex.
-- **Convex** processes everything the platform persists — the database is the durable substrate for account, application, and operational data. Encryption at rest is provided by Convex.
-- **Cloudflare** processes connection-layer data only. TLS terminates at the edge and re-encrypts to the origin; Cloudflare does not see application-layer payloads in the clear beyond what is needed to route the request.
+- **Exoscale** runs the Tale Cloud middleware, application state, and supporting infrastructure on VMs and container infrastructure in the customer's selected region (Switzerland for Swiss customers, EU for others). Encryption at rest is provided by Exoscale's storage layer.
 - **OpenRouter** processes prompts and responses for the specific LLM call routed to it (chat, vision, embeddings). The data is sent over OpenRouter's API and is not retained by Tale as a separate copy.
 - **OpenAI** processes audio payloads for Speech-to-Text (Whisper) and the text input for Text-to-Speech. OpenAI is not used for chat or any non-audio inference.
 - **Vercel AI Gateway** processes image prompts and the generated images for the specific call. It is not used for chat, audio, or embedding workloads.
@@ -55,7 +49,7 @@ Each subprocessor above engages its own subprocessors (cloud hosting, CDN, secre
 
 ## Self-hosted: what changes
 
-If you run Tale on your own infrastructure, the only data Tale processes on your behalf is the support and update traffic you opt into (image pulls from the registry, optional telemetry, support tickets). The model providers, database, and edge in the table above are operated by you, not by Tale; the subprocessor list for your deployment is whatever stack you assemble.
+If you run Tale on your own infrastructure, the only data Tale processes on your behalf is the support and update traffic you opt into (image pulls from the registry, optional telemetry, support tickets). The hosting and model providers in the table above are operated by you, not by Tale; the subprocessor list for your deployment is whatever stack you assemble.
 
 ## Where this fits
 

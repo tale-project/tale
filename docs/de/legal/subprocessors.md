@@ -14,16 +14,14 @@ Tale nutzt Kundendaten — Prompts, Eingaben, Ausgaben, Embeddings, Audio, Bilde
 
 ## Aktuelle Auftragsverarbeiter
 
-Jeder Name verlinkt auf die öffentlich zugängliche AVV (oder gleichwertige Bedingungen) des jeweiligen Anbieters. Zertifizierungen und Trust-Seiten stehen im nächsten Abschnitt.
+Jeder Name verlinkt auf die öffentlich zugängliche AVV (oder gleichwertige Bedingungen) des jeweiligen Anbieters. Zertifizierungen und Trust-Seiten stehen im nächsten Abschnitt. Der Verarbeitungsort wird pro Kunde gewählt: Schweiz für Schweizer Kunden, Europäische Union für alle übrigen Kunden. Tale routet jeden Aufruf an eine Region, die der Datenresidenz-Wahl des Kunden entspricht.
 
-| Auftragsverarbeiter                                             | Zweck                                                                           | Datenkategorien                                                                                    | Standort           | Training auf Kundendaten                                    |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------- |
-| [Exoscale](https://www.exoscale.com/dpa/)                       | Cloud-Hosting für die Tale-Cloud-Middleware (VMs und Container-Runtime).        | Anwendungs-Daten in Transit durch die Middleware; keine dauerhafte Speicherung auf dieser Schicht. | Schweiz            | Nein (nur Infrastruktur; kein KI-Training).                 |
-| [Convex](https://www.convex.dev/legal/dpa)                      | Anwendungs-Datenbank und Backend-Plattform.                                     | Konto-Daten, Anwendungs-Daten, Betriebs-Metadaten.                                                 | Vereinigte Staaten | Nein (nur Speicherung; kein KI-Training).                   |
-| [Cloudflare](https://www.cloudflare.com/trust-hub/gdpr/)        | DNS, Edge-TLS-Terminierung, DDoS-Schutz.                                        | Verbindungs-Metadaten, IP-Adressen, Request-Header.                                                | Globaler Edge      | Nein.                                                       |
-| [OpenRouter](https://openrouter.ai/privacy)                     | LLM-Inferenz (Chat, Vision, Embeddings).                                        | Prompts und Antworten für den jeweiligen Inferenz-Aufruf.                                          | Vereinigte Staaten | Nein — vertraglich untersagt.                               |
-| [OpenAI](https://openai.com/policies/data-processing-addendum/) | Ausschließlich Audio-Verarbeitung: Speech-to-Text (Whisper) und Text-to-Speech. | Audio-Payloads und transkribierter oder synthetisierter Text des Aufrufs.                          | Vereinigte Staaten | Nein — vertraglich untersagt (Enterprise-/API-Bedingungen). |
-| [Vercel AI Gateway](https://vercel.com/legal/dpa)               | Bild-Verarbeitung und -Generierung.                                             | Bild-Prompts und generierte Bilder des jeweiligen Aufrufs.                                         | Vereinigte Staaten | Nein — vertraglich untersagt.                               |
+| Auftragsverarbeiter                                             | Zweck                                                                           | Datenkategorien                                                                 | Standort                                         | Training auf Kundendaten                                    |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------- |
+| [Exoscale](https://www.exoscale.com/dpa/)                       | Cloud-Hosting für die Tale-Cloud-Middleware (VMs und Container-Runtime).        | Anwendungs-Daten in Transit und at rest auf der gehosteten Runtime und Storage. | Schweiz (Schweizer Kunden) / EU (übrige Kunden). | Nein (nur Infrastruktur; kein KI-Training).                 |
+| [OpenRouter](https://openrouter.ai/privacy)                     | LLM-Inferenz (Chat, Vision, Embeddings).                                        | Prompts und Antworten für den jeweiligen Inferenz-Aufruf.                       | Schweiz (Schweizer Kunden) / EU (übrige Kunden). | Nein — vertraglich untersagt.                               |
+| [OpenAI](https://openai.com/policies/data-processing-addendum/) | Ausschließlich Audio-Verarbeitung: Speech-to-Text (Whisper) und Text-to-Speech. | Audio-Payloads und transkribierter oder synthetisierter Text des Aufrufs.       | Schweiz (Schweizer Kunden) / EU (übrige Kunden). | Nein — vertraglich untersagt (Enterprise-/API-Bedingungen). |
+| [Vercel AI Gateway](https://vercel.com/legal/dpa)               | Bild-Verarbeitung und -Generierung.                                             | Bild-Prompts und generierte Bilder des jeweiligen Aufrufs.                      | Schweiz (Schweizer Kunden) / EU (übrige Kunden). | Nein — vertraglich untersagt.                               |
 
 Zwei Hinweise zu den KI-Auftragsverarbeitern (OpenRouter, OpenAI, Vercel AI Gateway): jeder wird nur eingesetzt, wenn die jeweilige Funktion einen Aufruf an ihn routet. Eine Org, die keine Audio-Funktionen nutzt, sendet keine Daten an OpenAI; eine, die keine Bild-Generierung nutzt, sendet keine Daten an Vercel AI Gateway. Modell-Anbieter, die über OpenRouter erreichbar sind (Anthropic, Google, Meta, Mistral usw.), sind Upstream-Anbieter von OpenRouter und keine direkten Auftragsverarbeiter von Tale — sie unterliegen den eigenen Vertragsbedingungen von OpenRouter.
 
@@ -32,8 +30,6 @@ Zwei Hinweise zu den KI-Auftragsverarbeitern (OpenRouter, OpenAI, Vercel AI Gate
 Jeder Auftragsverarbeiter führt eigene Sicherheitszertifizierungen und veröffentlicht sie auf seiner Trust-Seite:
 
 - **Exoscale** — ISO/IEC 27001:2022, ISO/IEC 27017, ISO/IEC 27018, SOC 2 Type II, PCI DSS v4.0, HDS, BSI C5, TISAX. Trust-Seite: [exoscale.com/compliance](https://www.exoscale.com/compliance/).
-- **Convex** — SOC 2 Type II, HIPAA (mit BAA). Trust-Seite: [convex.dev/security](https://www.convex.dev/security).
-- **Cloudflare** — ISO/IEC 27001:2022, ISO 27701, ISO 27018, SOC 2 Type II, PCI DSS Level 1, BSI C5, EU Cloud CoC. Trust-Seite: [cloudflare.com/trust-hub](https://www.cloudflare.com/trust-hub/).
 - **OpenRouter** — keine gesondert veröffentlichten Zertifizierungen. Der Anbieter operiert unter seinen [Terms of Service](https://openrouter.ai/terms) und der [Privacy Policy](https://openrouter.ai/privacy); für grenzüberschreitende Übermittlungen gelten EU-Standardvertragsklauseln.
 - **OpenAI** — SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019, CSA STAR (API- und ChatGPT-Enterprise-Tarife). Trust-Seite: [trust.openai.com](https://trust.openai.com).
 - **Vercel AI Gateway** — abgedeckt durch die Enterprise-Zertifizierungen von Vercel: SOC 2 Type 2, ISO/IEC 27001, PCI DSS, HIPAA, TISAX L2, EU-US- / Swiss-US- / UK-Data-Privacy-Framework. Trust-Seite: [security.vercel.com](https://security.vercel.com/).
@@ -42,9 +38,7 @@ Jeder Auftragsverarbeiter führt eigene Sicherheitszertifizierungen und veröffe
 
 Für jeden Auftragsverarbeiter:
 
-- **Exoscale** betreibt die Tale-Cloud-Middleware auf VMs und Container-Infrastruktur in der Schweiz. Anwendungs-Daten passieren diese Schicht in Transit, werden hier aber nicht dauerhaft gespeichert — der persistente State liegt in Convex.
-- **Convex** verarbeitet alles, was die Plattform persistiert — die Datenbank ist das dauerhafte Substrat für Konto-, Anwendungs- und Betriebs-Daten. Verschlüsselung at rest stellt Convex bereit.
-- **Cloudflare** verarbeitet nur Daten der Verbindungs-Schicht. TLS terminiert am Edge und re-verschlüsselt zum Origin; Cloudflare sieht Anwendungs-Schicht-Payloads nur insoweit im Klartext, wie es zum Routen der Anfrage nötig ist.
+- **Exoscale** betreibt die Tale-Cloud-Middleware, den Anwendungs-State und die unterstützende Infrastruktur auf VMs und Container-Infrastruktur in der vom Kunden gewählten Region (Schweiz für Schweizer Kunden, EU für übrige). Verschlüsselung at rest stellt Exoscales Storage-Schicht bereit.
 - **OpenRouter** verarbeitet Prompts und Antworten des jeweiligen LLM-Aufrufs (Chat, Vision, Embeddings). Die Daten gehen über die OpenRouter-API und werden auf Tales Seite nicht als separate Kopie gespeichert.
 - **OpenAI** verarbeitet Audio-Payloads für Speech-to-Text (Whisper) und den Texteingang für Text-to-Speech. OpenAI wird nicht für Chat oder andere Nicht-Audio-Inferenz eingesetzt.
 - **Vercel AI Gateway** verarbeitet Bild-Prompts und die generierten Bilder des jeweiligen Aufrufs. Es wird nicht für Chat, Audio oder Embedding-Workloads eingesetzt.
@@ -55,7 +49,7 @@ Jeder Auftragsverarbeiter oben beauftragt eigene Auftragsverarbeiter (Cloud-Host
 
 ## Self-hosted: was sich ändert
 
-Wenn du Tale auf eigener Infrastruktur betreibst, sind die einzigen Daten, die Tale in deinem Auftrag verarbeitet, der Support- und Update-Verkehr, dem du zustimmst (Image-Pulls aus der Registry, optionale Telemetrie, Support-Tickets). Die Modell-Anbieter, die Datenbank und der Edge in der Tabelle oben werden von dir betrieben, nicht von Tale; die Auftragsverarbeiter-Liste deines Deployments ist der Stack, den du zusammenstellst.
+Wenn du Tale auf eigener Infrastruktur betreibst, sind die einzigen Daten, die Tale in deinem Auftrag verarbeitet, der Support- und Update-Verkehr, dem du zustimmst (Image-Pulls aus der Registry, optionale Telemetrie, Support-Tickets). Die Hosting- und Modell-Anbieter in der Tabelle oben werden von dir betrieben, nicht von Tale; die Auftragsverarbeiter-Liste deines Deployments ist der Stack, den du zusammenstellst.
 
 ## Wo das hingehört
 

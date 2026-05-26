@@ -206,7 +206,7 @@ Audit reports, findings, and information obtained through audits are confidentia
 
 ### 11.1 Processing locations
 
-Tale processes Personal Data primarily in Switzerland. Where the Customer deploys Tale on its own infrastructure (on-premises or private cloud), the Customer determines the processing locations.
+Tale processes Personal Data in Switzerland for Swiss customers and in the European Union for all other customers. The same regional choice applies to every Sub-processor in **Appendix A** — calls are routed to a region matching the Customer's data-residency selection. Where the Customer deploys Tale on its own infrastructure (on-premises or private cloud), the Customer determines the processing locations.
 
 ### 11.2 Adequate countries
 
@@ -287,24 +287,20 @@ This appendix lists the third parties Tale engages to process Personal Data on b
 
 ### Current Sub-processors
 
-Each Sub-processor name links to that provider's publicly available DPA (or equivalent terms). Certifications and trust pages are listed below the table.
+Each Sub-processor name links to that provider's publicly available DPA (or equivalent terms). Certifications and trust pages are listed below the table. The processing location is selected per Customer: Switzerland for Swiss customers, the European Union for all other customers. Tale routes each call to a region matching the Customer's data-residency choice.
 
-| Sub-processor                                                   | Purpose                                                              | Categories of data                                                                       | Location      | Training on Customer data                             |
-| --------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------- |
-| [Exoscale](https://www.exoscale.com/dpa/)                       | Cloud hosting for Tale Cloud middleware (VMs and container runtime). | Application data in transit through the middleware; no persistent storage on this layer. | Switzerland   | No (infrastructure only; no AI training).             |
-| [Convex](https://www.convex.dev/legal/dpa)                      | Application database and backend platform.                           | Account data, application data, operational metadata.                                    | United States | No (storage only; no AI training).                    |
-| [Cloudflare](https://www.cloudflare.com/trust-hub/gdpr/)        | DNS, edge TLS termination, DDoS protection.                          | Connection metadata, IP addresses, request headers.                                      | Global edge   | No.                                                   |
-| [OpenRouter](https://openrouter.ai/privacy)                     | LLM inference (chat, vision, embeddings).                            | Prompts and responses routed for the specific inference call.                            | United States | No — contractually prohibited.                        |
-| [OpenAI](https://openai.com/policies/data-processing-addendum/) | Audio processing only: Speech-to-Text (Whisper) and Text-to-Speech.  | Audio payloads and transcribed or synthesized text for the specific call.                | United States | No — contractually prohibited (enterprise/API terms). |
-| [Vercel AI Gateway](https://vercel.com/legal/dpa)               | Image processing and generation.                                     | Image prompts and generated images for the specific call.                                | United States | No — contractually prohibited.                        |
+| Sub-processor                                                   | Purpose                                                              | Categories of data                                                         | Location                                              | Training on Customer data                             |
+| --------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------- |
+| [Exoscale](https://www.exoscale.com/dpa/)                       | Cloud hosting for Tale Cloud middleware (VMs and container runtime). | Application data in transit and at rest on the hosted runtime and storage. | Switzerland (Swiss customers) / EU (other customers). | No (infrastructure only; no AI training).             |
+| [OpenRouter](https://openrouter.ai/privacy)                     | LLM inference (chat, vision, embeddings).                            | Prompts and responses routed for the specific inference call.              | Switzerland (Swiss customers) / EU (other customers). | No — contractually prohibited.                        |
+| [OpenAI](https://openai.com/policies/data-processing-addendum/) | Audio processing only: Speech-to-Text (Whisper) and Text-to-Speech.  | Audio payloads and transcribed or synthesized text for the specific call.  | Switzerland (Swiss customers) / EU (other customers). | No — contractually prohibited (enterprise/API terms). |
+| [Vercel AI Gateway](https://vercel.com/legal/dpa)               | Image processing and generation.                                     | Image prompts and generated images for the specific call.                  | Switzerland (Swiss customers) / EU (other customers). | No — contractually prohibited.                        |
 
 ### Certifications and trust pages
 
 Each Sub-processor maintains its own security certifications and publishes them on a trust page:
 
 - **Exoscale** — ISO/IEC 27001:2022, ISO/IEC 27017, ISO/IEC 27018, SOC 2 Type II, PCI DSS v4.0, HDS, BSI C5, TISAX. Trust page: [exoscale.com/compliance](https://www.exoscale.com/compliance/).
-- **Convex** — SOC 2 Type II, HIPAA (with BAA). Trust page: [convex.dev/security](https://www.convex.dev/security).
-- **Cloudflare** — ISO/IEC 27001:2022, ISO 27701, ISO 27018, SOC 2 Type II, PCI DSS Level 1, BSI C5, EU Cloud CoC. Trust page: [cloudflare.com/trust-hub](https://www.cloudflare.com/trust-hub/).
 - **OpenRouter** — no separately published certifications. The provider operates under its [Terms of Service](https://openrouter.ai/terms) and [Privacy Policy](https://openrouter.ai/privacy); EU Standard Contractual Clauses apply to cross-border transfers.
 - **OpenAI** — SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019, CSA STAR (API and ChatGPT Enterprise tiers). Trust page: [trust.openai.com](https://trust.openai.com).
 - **Vercel AI Gateway** — covered by Vercel's enterprise certifications: SOC 2 Type 2, ISO/IEC 27001, PCI DSS, HIPAA, TISAX L2, EU-US / Swiss-US / UK Data Privacy Framework. Trust page: [security.vercel.com](https://security.vercel.com/).
@@ -314,4 +310,4 @@ Each Sub-processor maintains its own security certifications and publishes them 
 - Each AI Sub-processor (OpenRouter, OpenAI, Vercel AI Gateway) is engaged only when the relevant feature routes a call to it. An organization that does not use audio features sends no data to OpenAI; one that does not use image generation sends no data to Vercel AI Gateway; and so on.
 - Model providers reachable through OpenRouter (such as Anthropic, Google, Meta, Mistral) are upstream providers of OpenRouter and are not Tale's direct Sub-processors. They operate under OpenRouter's own contractual terms, which forbid training on routed payloads.
 - Each Sub-processor engages its own sub-processors (cloud hosting, CDN, secret stores). Those lists are public on the providers' trust pages above; Tale tracks material changes through the same 30-day notice mechanism in Section 6.2.
-- Tale Cloud runs its middleware on Exoscale (Switzerland) and persists application state in Convex. Cloudflare terminates TLS at the edge and re-encrypts to the origin; it does not see application-layer payloads in the clear beyond what is needed to route the request.
+- Tale Cloud's middleware, application state, and supporting infrastructure run on Exoscale in the Customer's selected region. Each AI Sub-processor call is routed to the matching region.

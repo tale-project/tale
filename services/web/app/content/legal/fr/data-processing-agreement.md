@@ -206,7 +206,7 @@ Les rapports d’audit, conclusions et informations obtenus dans le cadre des au
 
 ### 11.1 Lieux de traitement
 
-Tale traite les données personnelles principalement en Suisse. Lorsque le Client déploie Tale sur sa propre infrastructure (on-premises ou cloud privé), le Client détermine les lieux de traitement.
+Tale traite les données personnelles en Suisse pour les clients suisses et dans l’Union européenne pour tous les autres clients. Le même choix régional s’applique à chaque Sous-traitant ultérieur listé à l’**Annexe A** — les appels sont routés vers une région correspondant à la résidence de données choisie par le Client. Lorsque le Client déploie Tale sur sa propre infrastructure (on-premises ou cloud privé), le Client détermine les lieux de traitement.
 
 ### 11.2 Pays adéquats
 
@@ -287,24 +287,20 @@ La présente annexe liste les tiers que Tale engage pour traiter des données pe
 
 ### Sous-traitants ultérieurs actuels
 
-Chaque nom renvoie au DPA public du fournisseur (ou aux conditions équivalentes). Les certifications et pages de confiance figurent sous le tableau.
+Chaque nom renvoie au DPA public du fournisseur (ou aux conditions équivalentes). Les certifications et pages de confiance figurent sous le tableau. Le lieu de traitement est choisi par Client : Suisse pour les clients suisses, Union européenne pour tous les autres clients. Tale route chaque appel vers une région correspondant à la résidence de données choisie par le Client.
 
-| Sous-traitant ultérieur                                         | Finalité                                                                    | Catégories de données                                                                                  | Localisation | Entraînement sur les données du Client                        |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------ | ------------------------------------------------------------- |
-| [Exoscale](https://www.exoscale.com/dpa/)                       | Hébergement cloud pour la middleware Tale Cloud (VM et runtime conteneurs). | Données applicatives en transit à travers la middleware ; pas de stockage persistant sur cette couche. | Suisse       | Non (infrastructure uniquement ; aucun entraînement IA).      |
-| [Convex](https://www.convex.dev/legal/dpa)                      | Base de données applicative et plateforme backend.                          | Données de compte, données applicatives, métadonnées opérationnelles.                                  | États-Unis   | Non (stockage uniquement ; aucun entraînement IA).            |
-| [Cloudflare](https://www.cloudflare.com/trust-hub/gdpr/)        | DNS, terminaison TLS de bord, protection DDoS.                              | Métadonnées de connexion, adresses IP, en-têtes de requête.                                            | Edge global  | Non.                                                          |
-| [OpenRouter](https://openrouter.ai/privacy)                     | Inférence LLM (chat, vision, embeddings).                                   | Prompts et réponses pour l’appel d’inférence concerné.                                                 | États-Unis   | Non — contractuellement interdit.                             |
-| [OpenAI](https://openai.com/policies/data-processing-addendum/) | Traitement audio uniquement : Speech-to-Text (Whisper) et Text-to-Speech.   | Payloads audio et texte transcrit ou synthétisé pour l’appel concerné.                                 | États-Unis   | Non — contractuellement interdit (conditions Enterprise/API). |
-| [Vercel AI Gateway](https://vercel.com/legal/dpa)               | Traitement et génération d’images.                                          | Prompts d’images et images générées pour l’appel concerné.                                             | États-Unis   | Non — contractuellement interdit.                             |
+| Sous-traitant ultérieur                                         | Finalité                                                                    | Catégories de données                                                               | Localisation                                    | Entraînement sur les données du Client                        |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------- |
+| [Exoscale](https://www.exoscale.com/dpa/)                       | Hébergement cloud pour la middleware Tale Cloud (VM et runtime conteneurs). | Données applicatives en transit et au repos sur le runtime et le stockage hébergés. | Suisse (clients suisses) / UE (autres clients). | Non (infrastructure uniquement ; aucun entraînement IA).      |
+| [OpenRouter](https://openrouter.ai/privacy)                     | Inférence LLM (chat, vision, embeddings).                                   | Prompts et réponses pour l’appel d’inférence concerné.                              | Suisse (clients suisses) / UE (autres clients). | Non — contractuellement interdit.                             |
+| [OpenAI](https://openai.com/policies/data-processing-addendum/) | Traitement audio uniquement : Speech-to-Text (Whisper) et Text-to-Speech.   | Payloads audio et texte transcrit ou synthétisé pour l’appel concerné.              | Suisse (clients suisses) / UE (autres clients). | Non — contractuellement interdit (conditions Enterprise/API). |
+| [Vercel AI Gateway](https://vercel.com/legal/dpa)               | Traitement et génération d’images.                                          | Prompts d’images et images générées pour l’appel concerné.                          | Suisse (clients suisses) / UE (autres clients). | Non — contractuellement interdit.                             |
 
 ### Certifications et pages de confiance
 
 Chaque Sous-traitant ultérieur détient ses propres certifications de sécurité et les publie sur sa page de confiance :
 
 - **Exoscale** — ISO/IEC 27001:2022, ISO/IEC 27017, ISO/IEC 27018, SOC 2 Type II, PCI DSS v4.0, HDS, BSI C5, TISAX. Page de confiance : [exoscale.com/compliance](https://www.exoscale.com/compliance/).
-- **Convex** — SOC 2 Type II, HIPAA (avec BAA). Page de confiance : [convex.dev/security](https://www.convex.dev/security).
-- **Cloudflare** — ISO/IEC 27001:2022, ISO 27701, ISO 27018, SOC 2 Type II, PCI DSS Level 1, BSI C5, EU Cloud CoC. Page de confiance : [cloudflare.com/trust-hub](https://www.cloudflare.com/trust-hub/).
 - **OpenRouter** — aucune certification séparément publiée. Le fournisseur opère sous ses [Terms of Service](https://openrouter.ai/terms) et sa [Privacy Policy](https://openrouter.ai/privacy) ; les clauses contractuelles types de l’UE s’appliquent aux transferts transfrontaliers.
 - **OpenAI** — SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019, CSA STAR (offres API et ChatGPT Enterprise). Page de confiance : [trust.openai.com](https://trust.openai.com).
 - **Vercel AI Gateway** — couvert par les certifications enterprise de Vercel : SOC 2 Type 2, ISO/IEC 27001, PCI DSS, HIPAA, TISAX L2, Data Privacy Framework UE-US / Suisse-US / UK. Page de confiance : [security.vercel.com](https://security.vercel.com/).
@@ -314,4 +310,4 @@ Chaque Sous-traitant ultérieur détient ses propres certifications de sécurit�
 - Chaque Sous-traitant ultérieur d’IA (OpenRouter, OpenAI, Vercel AI Gateway) n’est engagé que lorsque la fonctionnalité concernée route un appel vers lui. Une org qui n’utilise pas les fonctionnalités audio n’envoie aucune donnée à OpenAI ; une org qui n’utilise pas la génération d’images n’envoie aucune donnée à Vercel AI Gateway ; et ainsi de suite.
 - Les fournisseurs de modèles accessibles via OpenRouter (Anthropic, Google, Meta, Mistral, etc.) sont des fournisseurs amont d’OpenRouter et ne sont pas des Sous-traitants ultérieurs directs de Tale. Ils opèrent sous les conditions contractuelles propres à OpenRouter, qui interdisent l’entraînement sur les payloads routés.
 - Chaque Sous-traitant ultérieur engage ses propres sous-traitants (hébergement cloud, CDN, magasins de secrets). Ces listes sont publiques sur les pages de confiance ci-dessus ; Tale suit les changements substantiels via le même mécanisme de préavis de 30 jours prévu à la section 6.2.
-- Tale Cloud exécute sa middleware sur Exoscale (Suisse) et persiste l’état applicatif dans Convex. Cloudflare termine TLS au bord et rechiffre vers l’origine ; il ne voit pas les payloads de la couche application en clair au-delà de ce qui est nécessaire pour router la requête.
+- La middleware, l’état applicatif et l’infrastructure de support de Tale Cloud s’exécutent sur Exoscale dans la région choisie par le Client. Chaque appel d’un Sous-traitant ultérieur d’IA est routé vers la région correspondante.
