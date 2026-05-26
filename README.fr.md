@@ -205,7 +205,7 @@ Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`,
 
 ## Contribuer
 
-Lis [`AGENTS.md`](AGENTS.md) avant ton premier PR — c'est le contrat unique pour le style de code, la sécurité, les tests, l'i18n et la documentation à travers tous les workspaces. Le skill [`docs`](.agents/docs/AGENTS.md) couvre le site de doc ; le skill [`terminology`](.agents/terminology/AGENTS.md) les règles de traduction inter-langues. Lance `bun run check` (format, lint, typecheck, tests) avant d'ouvrir un PR ; le [pull request template](.github/pull_request_template.md) liste le reste de la checklist pre-merge.
+Lis [`AGENTS.md`](AGENTS.md) avant ton premier PR — c'est le contrat unique pour le style de code, la sécurité, les tests, l'i18n et la documentation à travers tous les workspaces. Le skill [`docs`](.agents/docs/AGENTS.md) couvre le site de doc ; le skill [`translation`](.agents/translation/AGENTS.md) les règles de traduction inter-langues. Lance `bun run check` (format, lint, typecheck, tests) avant d'ouvrir un PR ; le [pull request template](.github/pull_request_template.md) liste le reste de la checklist pre-merge.
 
 ---
 

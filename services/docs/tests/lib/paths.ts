@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
  *       platform/
  *         messages/                ← shipped UI strings (MESSAGES_ROOT)
  *           en.json, de.json, fr.json
- *     .agents/terminology/
+ *     .agents/translation/
  *       GLOSSARY.json              ← term contract (GLOSSARY_PATH)
  *
  * Resolved once at module-load time. No filesystem checks here — that lives in
@@ -46,11 +46,16 @@ export const MESSAGES_ROOT = path.join(
   'messages',
 );
 
-/** `.agents/terminology/GLOSSARY.json` — the term contract consumed by the
- *  terminology, loanword, and compound tests. */
+/** Glossary path — moved into the framework data folder in Phase 1.
+ *  The full migration of services/docs/tests/ to defineDocsTests happens in
+ *  Phase 2; until then the existing tests read the file from its new home. */
 export const GLOSSARY_PATH = path.join(
   REPO_ROOT,
-  '.agents',
-  'terminology',
-  'GLOSSARY.json',
+  'packages',
+  'ui',
+  'src',
+  'i18n',
+  'tests',
+  'glossary',
+  'glossary.json',
 );

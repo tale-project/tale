@@ -120,7 +120,7 @@ These checks fail when the repo is structurally inconsistent — they're the gua
 
 ## The terminology layer (per-locale)
 
-These checks fail when a translated page contradicts the shipped UI or uses the wrong pronoun. They read [`.agents/terminology/GLOSSARY.json`](../terminology/GLOSSARY.json) (the flat `terms[]` array) and the test-data modules under [`services/docs/tests/data/`](../../services/docs/tests/data/).
+These checks fail when a translated page contradicts the shipped UI or uses the wrong pronoun. They read [`packages/ui/src/i18n/tests/glossary/glossary.json`](../../packages/ui/src/i18n/tests/glossary/glossary.json) (the flat `terms[]` array) and the test-data modules under [`services/docs/tests/data/`](../../services/docs/tests/data/).
 
 ### `terminology-pronouns.test.ts`
 
@@ -128,11 +128,11 @@ These checks fail when a translated page contradicts the shipped UI or uses the 
 
 **What it catches.** Pronoun slips in DE and FR prose.
 
-**How to fix.** Rewrite to the informal form (`du` / `tu`). Read [`TERMINOLOGY_DE.md`](../terminology/TERMINOLOGY_DE.md) §1 or [`TERMINOLOGY_FR.md`](../terminology/TERMINOLOGY_FR.md) §1 for the voice rule.
+**How to fix.** Rewrite to the informal form (`du` / `tu`). Read [`locales/de/AGENTS.md`](../translation/locales/de/AGENTS.md) §1 or [`locales/fr/AGENTS.md`](../translation/locales/fr/AGENTS.md) §1 for the voice rule.
 
 ### `terminology-ui.test.ts`
 
-**What it checks.** Iterates the `terms[]` array in [`GLOSSARY.json`](../terminology/GLOSSARY.json) and rejects the English form when (a) the entry's `category` is in the enforced set (`feature`, `role`, `knowledgeEntity`, `translateBucket`), (b) the resolved locale form differs from `en`, and (c) the entry doesn't carry `_lintExclude` for this locale. Example: `Customers` in a `docs/de/**` page is rejected (the shipped UI says `Kunden`); `Workflow` is not flagged (`category: "loanword"`, same form in all locales).
+**What it checks.** Iterates the `terms[]` array in [`glossary.json`](../../packages/ui/src/i18n/tests/glossary/glossary.json) and rejects the English form when (a) the entry's `category` is in the enforced set (`feature`, `role`, `knowledgeEntity`, `translateBucket`), (b) the resolved locale form differs from `en`, and (c) the entry doesn't carry `_lintExclude` for this locale. Example: `Customers` in a `docs/de/**` page is rejected (the shipped UI says `Kunden`); `Workflow` is not flagged (`category: "loanword"`, same form in all locales).
 
 **What it catches.** UI-label drift between docs and the shipped product. Half-translated sentences (`Öffne **Settings > Members**`).
 
@@ -140,7 +140,7 @@ These checks fail when a translated page contradicts the shipped UI or uses the 
 
 ### `terminology-loanword.test.ts`
 
-**What it checks.** Narrower variant of `terminology-ui.test.ts`, scoped to `category === "translateBucket"` in [`GLOSSARY.json`](../terminology/GLOSSARY.json). For each Bucket-3 entry, the test rejects the English form appearing in DE/FR/de-CH page bodies (outside code fences, inline-code spans, and link URLs). Useful for the sharper, narrower error message.
+**What it checks.** Narrower variant of `terminology-ui.test.ts`, scoped to `category === "translateBucket"` in [`glossary.json`](../../packages/ui/src/i18n/tests/glossary/glossary.json). For each Bucket-3 entry, the test rejects the English form appearing in DE/FR/de-CH page bodies (outside code fences, inline-code spans, and link URLs). Useful for the sharper, narrower error message.
 
 **What it catches.** The most common translation failure mode — leaving an English noun in DE/FR prose when a clean native equivalent exists. `Schicke deinen Request an die API.` → bug; should be `Anfrage`. `Configure ton Email Provider.` → bug; should be `fournisseur de courriel`.
 
@@ -259,7 +259,7 @@ Pitfalls the suite cannot catch — review them by hand:
 - **Anchor with stripped umlaut or accent.** Slug generation preserves unicode, so a link `#schema-kompatibilitat-und-rollback` will not match a heading `## Schema-Kompatibilität und Rollback` — the correct anchor is `#schema-kompatibilität-und-rollback`. Fix the link, not the heading.
 - **Heading with parentheses or dots.** Slug generation for `## Foo (bar)` or `## Step 1.2 — bootstrap` is not obvious. Read the heading anchor from the rendered page once, then reference that slug.
 - **Link in a non-English file missing its locale prefix.** A link in `docs/de/**` to `/self-hosted/foo` 404s — it has to be `/de/self-hosted/foo`.
-- **Tone drift inside passing prose.** The loanword test catches untranslated nouns; it does not catch a translation that is structurally German but reads bureaucratic (`Wird gespeichert…` passes lint but fails review). Read the [`docs`](../docs/AGENTS.md) and [`terminology`](../terminology/AGENTS.md) skills for the voice rules and review your prose against them.
+- **Tone drift inside passing prose.** The loanword test catches untranslated nouns; it does not catch a translation that is structurally German but reads bureaucratic (`Wird gespeichert…` passes lint but fails review). Read the [`docs`](../docs/AGENTS.md) and [`translation`](../translation/AGENTS.md) skills for the voice rules and review your prose against them.
 - **Calqued idioms.** The loanword test catches `Header` → `Kopfzeile`, but not `Vertrauenshaltung` for `Trust posture`. Read it aloud — if it sounds like a translation, restructure.
 - **Half-translated compounds beyond known UI terms.** The tests catch `Pull Anfrage` only when both halves are tracked terms; outside that, reviewers spot the language-switch-mid-word.
 - **Definite-article gender slips in DE.** The grammar test covers indefinite articles only. `dem Anfrage` is caught (the new test's edge case); `der Warnung` in a sentence where dative case doesn't apply is not.
@@ -281,9 +281,9 @@ The test infrastructure lives at [`services/docs/tests/`](../../services/docs/te
 - `discoverLocales()` — every top-level locale subdirectory under `docs/` (regex `^[a-z]{2}(?:-[A-Z]{2})?$`).
 - `localeOf(relPath)` — the locale of a content-relative path.
 
-Adding a new check is two files: a new `*.test.ts` under `services/docs/tests/`, plus structured input. For term-shaped input (English → locale-form mapping), add an entry to `terms[]` in [`GLOSSARY.json`](../terminology/GLOSSARY.json). For input that isn't term-shaped (a closed wordlist, a regex set, a gender map), add a TypeScript module under [`services/docs/tests/data/`](../../services/docs/tests/data/) and import it directly — type-checked, no JSON round-trip. Use the `StrikeEntry` / `DriftRule` shapes in `lib/rules.ts` for term-list and regex-rule patterns; follow the structure of `voice-en.test.ts` / `grammar-de.test.ts`.
+Adding a new check is two files: a new `*.test.ts` under `services/docs/tests/`, plus structured input. For term-shaped input (English → locale-form mapping), add an entry to `terms[]` in [`glossary.json`](../../packages/ui/src/i18n/tests/glossary/glossary.json). For input that isn't term-shaped (a closed wordlist, a regex set, a gender map), add a TypeScript module under [`services/docs/tests/data/`](../../services/docs/tests/data/) and import it directly — type-checked, no JSON round-trip. Use the `StrikeEntry` / `DriftRule` shapes in `lib/rules.ts` for term-list and regex-rule patterns; follow the structure of `voice-en.test.ts` / `grammar-de.test.ts`.
 
-To extend the Bucket-3 translate-must set: add a new entry to `terms[]` in [`GLOSSARY.json`](../terminology/GLOSSARY.json) with `category: "translateBucket"` and the `de` / `fr` / `de_ch` overrides. Document the rationale in the entry's `_note`.
+To extend the Bucket-3 translate-must set: add a new entry to `terms[]` in [`glossary.json`](../../packages/ui/src/i18n/tests/glossary/glossary.json) with `category: "translateBucket"` and the `de` / `fr` / `de_ch` overrides. Document the rationale in the entry's `_note`.
 
 ---
 
