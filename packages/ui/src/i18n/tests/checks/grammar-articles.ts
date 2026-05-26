@@ -11,6 +11,7 @@
  * (dat-m/n) is the most common confusion.
  */
 
+import { escapeRegex } from '../internals/regex';
 import type { Finding } from './types';
 import { createCheck } from './types';
 
@@ -44,9 +45,7 @@ export const grammarArticles = createCheck({
       const nounMap = new Map(nouns.map((n) => [n.noun, n.gender]));
       // Build a single regex matching `<article> <noun>` pairs.
       const articleAlts = ARTICLE_RULES.map((r) => r.article).join('|');
-      const nounAlts = nouns
-        .map((n) => n.noun.replace(/[-]/g, '\\-'))
-        .join('|');
+      const nounAlts = nouns.map((n) => escapeRegex(n.noun)).join('|');
       const pairRe = new RegExp(`\\b(${articleAlts})\\s+(${nounAlts})\\b`, 'g');
 
       for (const fragment of ctx.scanner.fragments({ locale: locale.id })) {

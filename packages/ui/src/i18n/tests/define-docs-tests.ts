@@ -24,7 +24,7 @@ export function defineDocsTests(config: DocsTestsConfig): void {
   const sources = walkDocsRoot(config.docsRoot, requestedLocales);
   const presentLocales = new Set(sources.map((s) => s.locale));
   const activeLocales = LOCALE_REGISTRY.filter((l) => presentLocales.has(l.id));
-  const repoRoot = config.docsRoot.replace(/\/docs$/, '');
+  const repoRoot = config.docsRoot.replace(/\/$/, '').replace(/\/docs$/, '');
   const scanner = createScanner(sources, repoRoot);
 
   let glossaryHandle: ReturnType<typeof loadGlossary> | null = null;

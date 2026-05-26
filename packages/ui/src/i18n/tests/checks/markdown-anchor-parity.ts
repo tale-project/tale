@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { escapeRegex } from '../internals/regex';
 import { extractHeadingSlugs } from '../scanner/slug';
 import type { Finding } from './types';
 import { createCheck } from './types';
@@ -97,7 +98,7 @@ function resolveTargetFile(
   // Strip leading slash and the locale prefix if present.
   const cleaned = targetPath
     .replace(/^\//, '')
-    .replace(new RegExp(`^${locale}/`), '');
+    .replace(new RegExp(`^${escapeRegex(locale)}/`), '');
   const candidate = path.join(docsRoot, locale, `${cleaned}.md`);
   return candidate;
 }

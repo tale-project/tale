@@ -3,9 +3,8 @@
  *
  * Consumers (every service's `messages.test.ts`, the docs corpus test, and
  * the plop templates) import from `@tale/ui/i18n/tests`. The framework
- * extends the existing `parity` + `usage` modules — both are re-exported
- * for backward compatibility during the migration window; new consumers
- * call `defineI18nTests` / `defineDocsTests`.
+ * supersedes the standalone `parity` and `usage` modules; consumers call
+ * `defineI18nTests` / `defineDocsTests`.
  */
 
 // New unified entry points.

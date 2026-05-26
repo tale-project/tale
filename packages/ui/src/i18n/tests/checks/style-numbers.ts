@@ -28,10 +28,7 @@ export const styleNumbers = createCheck({
         while ((m = NUM.exec(fragment.text)) !== null) {
           const thousands = m[1];
           const decimal = m[2];
-          if (
-            decimal !== wantDecimal ||
-            (wantThousands !== '' && thousands !== wantThousands)
-          ) {
+          if (decimal !== wantDecimal || thousands !== wantThousands) {
             findings.push({
               file: fragment.pos.file,
               line: fragment.pos.line,

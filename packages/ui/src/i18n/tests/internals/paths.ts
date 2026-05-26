@@ -5,9 +5,9 @@
 
 import path from 'node:path';
 
-/** Resolve repo root from a service root by walking up until we find
- *  the workspace `package.json` with `"workspaces"` or `bun.lockb` /
- *  `.git/`. Falls back to two-levels-up. */
+/** Resolve repo root from a service root. Assumes the service sits exactly
+ *  two levels below the repo root (e.g., `<repo>/services/<name>` or
+ *  `<repo>/packages/<name>`), matching the npm workspaces layout. */
 export function resolveRepoRoot(serviceRoot: string): string {
   return path.resolve(serviceRoot, '..', '..');
 }

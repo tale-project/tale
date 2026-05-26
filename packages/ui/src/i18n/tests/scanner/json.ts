@@ -92,11 +92,26 @@ function buildLineLookup(raw: string): (key: string) => number | undefined {
         depthChange = 1;
       }
     }
-    // Track closing braces.
+    // Track closing braces, ignoring any that appear inside string literals.
     if (depthChange === 0) {
-      const closes = (line.match(/}/g) || []).length;
-      for (let c = 0; c < closes; c++) {
-        if (stack.length > 0) stack.pop();
+      let inString = false;
+      let escapeNext = false;
+      for (const ch of line) {
+        if (escapeNext) {
+          escapeNext = false;
+          continue;
+        }
+        if (ch === '\\') {
+          escapeNext = true;
+          continue;
+        }
+        if (ch === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (!inString && ch === '}' && stack.length > 0) {
+          stack.pop();
+        }
       }
     }
     depthChange = 0;

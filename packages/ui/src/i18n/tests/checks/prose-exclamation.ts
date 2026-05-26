@@ -34,8 +34,8 @@ export const proseExclamation = createCheck({
             line: fragment.pos.line,
             column: fragment.pos.column + idx,
             locale: fragment.locale,
-            rule: 'en-prose-exclamation',
-            detail: 'exclamation mark in EN prose',
+            rule: `${locale.id}-prose-exclamation`,
+            detail: 'exclamation mark in prose',
             suggest:
               'delete; the page demonstrates the point, the prose does not exclaim it',
             doctrine: locale.doctrine,

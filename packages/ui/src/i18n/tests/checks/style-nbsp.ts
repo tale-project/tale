@@ -30,8 +30,8 @@ export const styleNbsp = createCheck({
             key: fragment.key ?? undefined,
             locale: fragment.locale,
             rule: 'nbsp-missing',
-            detail: 'regular space before French punctuation',
-            suggest: 'use NBSP (\\u00A0) before "; : ! ? %"',
+            detail: 'regular space before punctuation requiring NBSP',
+            suggest: 'use NBSP (\\u00A0) before the punctuation',
             doctrine: locale.doctrine,
           });
           if (!re.global) break;
