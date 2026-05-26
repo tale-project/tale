@@ -9,24 +9,18 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
-import { Code, Copy, FileText, Trash2, X } from 'lucide-react';
+import { Copy, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Input } from '@/app/components/ui/forms/input';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import {
   markdownComponents,
   markdownWrapperStyles,
 } from '@/app/features/chat/components/message-bubble/markdown-renderer';
-import {
-  useDuplicateSkill,
-  useUpdateSkill,
-} from '@/app/features/skills/hooks/mutations';
+import { useDuplicateSkill } from '@/app/features/skills/hooks/mutations';
 import {
   useGetSkillAuditHistory,
   useListSkillFiles,
@@ -34,11 +28,9 @@ import {
 } from '@/app/features/skills/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { isRecord } from '@/lib/utils/type-guards';
+import { formatBytes } from '@/lib/utils/format-bytes';
 
-import { SkillAssetEditorDialog } from './skill-asset-editor-dialog';
 import { SkillAssetViewer } from './skill-asset-viewer';
-import { SkillAssetsSection } from './skill-assets-section';
 import { SkillBundleTreePanel } from './skill-bundle-tree-panel';
 import { SkillDeleteDialog } from './skill-delete-dialog';
 
@@ -61,17 +53,8 @@ export function SkillDetailPanel({
   const queryClient = useQueryClient();
   const { locale } = useLocale();
 
-  const { data, isLoading, refetch } = useReadSkill(organizationId, slug);
+  const { data, isLoading } = useReadSkill(organizationId, slug);
   const { data: filesData } = useListSkillFiles(organizationId, slug);
-  const { mutateAsync: updateSkill } = useUpdateSkill();
-
-  const [loadedDescription, setLoadedDescription] = useState('');
-  const [loadedBody, setLoadedBody] = useState('');
-  const [description, setDescription] = useState('');
-  const [body, setBody] = useState('');
-  const [hash, setHash] = useState<string | undefined>(undefined);
-  const [isSaving, setIsSaving] = useState(false);
-  const [bodyView, setBodyView] = useState<'edit' | 'preview'>('edit');
 
   const { data: auditRows } = useGetSkillAuditHistory(organizationId, slug);
   const { mutateAsync: duplicateSkill } = useDuplicateSkill();
@@ -81,23 +64,15 @@ export function SkillDetailPanel({
   // File selection in the bundle tree. Lives in component state — no URL
   // mirror, since the panel itself has no route.
   const [selectedFile, setSelectedFile] = useState('SKILL.md');
-  const [editDialogPath, setEditDialogPath] = useState<string | null>(null);
-  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
 
   const skill = data?.ok ? data : null;
-  const isDirty = description !== loadedDescription || body !== loadedBody;
+  const hash = skill?.hash;
 
-  // Reset selected file (and any in-flight load state) whenever the panel
-  // is re-pointed at a different skill — otherwise switching from
-  // skill-A?file=scripts/x.py to skill-B would render skill-B through the
-  // asset viewer with skill-A's path.
+  // Reset selected file whenever the panel is re-pointed at a different
+  // skill — otherwise switching from skill-A?file=scripts/x.py to skill-B
+  // would render skill-B through the asset viewer with skill-A's path.
   useEffect(() => {
     setSelectedFile('SKILL.md');
-    setHash(undefined);
-    setLoadedDescription('');
-    setLoadedBody('');
-    setDescription('');
-    setBody('');
   }, [slug]);
 
   const handleDuplicate = useCallback(async () => {
@@ -137,133 +112,20 @@ export function SkillDetailPanel({
     t,
   ]);
 
-  // Sync local form state with the loaded skill ONLY on first load or after
-  // an explicit reload — never while the user has dirty edits, otherwise
-  // a background refetch would clobber active typing.
-  useEffect(() => {
-    if (!skill) return;
-    if (skill.hash === hash) return;
-    if (isDirty) return;
-    setDescription(skill.meta.description);
-    setBody(skill.body);
-    setLoadedDescription(skill.meta.description);
-    setLoadedBody(skill.body);
-    setHash(skill.hash);
-  }, [skill, hash, isDirty]);
-
-  const handleDiscard = useCallback(() => {
-    if (!skill) return;
-    setDescription(loadedDescription);
-    setBody(loadedBody);
-  }, [skill, loadedDescription, loadedBody]);
-
-  const handleSave = useCallback(async () => {
-    if (!skill || isSaving || !isDirty) return;
-    setIsSaving(true);
-    try {
-      const result = await updateSkill({
-        organizationId,
-        slug,
-        meta: {
-          ...skill.meta,
-          description,
-        },
-        body,
-        expectedHash: hash,
-      });
-      setHash(result.hash);
-      setLoadedDescription(description);
-      setLoadedBody(body);
-      toast({
-        title: t('skills.skillSaved', { defaultValue: 'Skill saved' }),
-        variant: 'success',
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ['config', 'skills', organizationId, slug],
-      });
-    } catch (error) {
-      // Shape-based ConvexError narrowing — `instanceof ConvexError` is
-      // unreliable across HMR / route code-split boundaries, so we read
-      // the structured `data.code` directly via `isRecord`.
-      let errData: Record<string, unknown> | undefined;
-      if (error && typeof error === 'object' && 'data' in error) {
-        const rawData = (error as { data?: unknown }).data;
-        if (isRecord(rawData)) errData = rawData;
-      }
-      const code = typeof errData?.code === 'string' ? errData.code : undefined;
-      const message =
-        typeof errData?.message === 'string' ? errData.message : undefined;
-      if (code === 'CONFLICT') {
-        toast({
-          title: t('skills.conflict', {
-            defaultValue:
-              'This skill was edited elsewhere. Reload to see the latest version.',
-          }),
-          variant: 'destructive',
-        });
-        setHash(undefined);
-        void refetch();
-        return;
-      }
-      if (code === 'INVALID_FRONTMATTER') {
-        toast({
-          title:
-            message ??
-            t('skills.validationError', {
-              defaultValue: 'Invalid skill configuration',
-            }),
-          variant: 'destructive',
-        });
-        return;
-      }
-      console.error(error);
-      toast({
-        title: t('skills.skillSaveFailed', {
-          defaultValue: 'Failed to save skill',
-        }),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  }, [
-    skill,
-    isSaving,
-    isDirty,
-    updateSkill,
-    organizationId,
-    slug,
-    description,
-    body,
-    hash,
-    t,
-    refetch,
-    queryClient,
-  ]);
-
-  // Intercept close attempts when the form is dirty — the equivalent of
-  // useBlocker on the standalone page. The Sheet's overlay click and the
-  // close button both funnel through here.
-  const requestClose = useCallback(() => {
-    if (isDirty && !isSaving) {
-      setDiscardConfirmOpen(true);
-      return;
-    }
-    onOpenChange(false);
-  }, [isDirty, isSaving, onOpenChange]);
-
   const skillDisplayName = skill?.meta.name ?? slug;
   const errorMessage = data && !data.ok ? data.message : undefined;
+  const description = skill?.meta.description ?? '';
+  const body = skill?.body ?? '';
 
   return (
     <>
       <Sheet
         open
         onOpenChange={(next) => {
-          if (!next) requestClose();
+          if (!next) onOpenChange(false);
         }}
         resize={{
-          defaultWidthPx: 768, // 48rem — fits bundle tree + form comfortably
+          defaultWidthPx: 768,
           minWidthPx: 480,
           maxWidthPx: 1400,
           storageKey: 'skill-detail-panel-width',
@@ -293,7 +155,7 @@ export function SkillDetailPanel({
                   icon={Copy}
                   onClick={() => void handleDuplicate()}
                   isLoading={isDuplicating}
-                  disabled={isSaving || isDuplicating}
+                  disabled={isDuplicating}
                 >
                   {t('skills.actions.duplicate', { defaultValue: 'Duplicate' })}
                 </Button>
@@ -302,7 +164,7 @@ export function SkillDetailPanel({
                   size="sm"
                   icon={Trash2}
                   onClick={() => setDeleteDialogOpen(true)}
-                  disabled={isSaving || isDuplicating}
+                  disabled={isDuplicating}
                 >
                   {tCommon('actions.delete')}
                 </Button>
@@ -312,7 +174,7 @@ export function SkillDetailPanel({
               icon={X}
               aria-label={tCommon('aria.close')}
               variant="ghost"
-              onClick={requestClose}
+              onClick={() => onOpenChange(false)}
             />
           </HStack>
         </HStack>
@@ -351,7 +213,6 @@ export function SkillDetailPanel({
                   organizationId={organizationId}
                   skillSlug={slug}
                   assetPath={selectedFile}
-                  onEdit={() => setEditDialogPath(selectedFile)}
                 />
               ) : (
                 <Stack gap={6} className="p-4">
@@ -387,28 +248,31 @@ export function SkillDetailPanel({
                       defaultValue: 'Overview',
                     })}
                   >
-                    <Stack gap={4}>
-                      <Input
-                        id="slug"
-                        label={t('skills.form.slug', { defaultValue: 'Slug' })}
-                        value={skill.meta.name}
-                        readOnly
-                      />
-                      <Textarea
-                        id="description"
-                        label={t('skills.form.description', {
-                          defaultValue: 'Description',
-                        })}
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        rows={4}
-                      />
-                      <Text variant="caption">
-                        {t('skills.form.descriptionHelp', {
-                          defaultValue:
-                            'Lead with "Use when…". The agent reads this to decide whether to expand the skill.',
-                        })}
-                      </Text>
+                    <Stack gap={3}>
+                      <Stack gap={1}>
+                        <Text variant="caption">
+                          {t('skills.form.slug', { defaultValue: 'Slug' })}
+                        </Text>
+                        <Text as="span" variant="code">
+                          {skill.meta.name}
+                        </Text>
+                      </Stack>
+                      <Stack gap={1}>
+                        <Text variant="caption">
+                          {t('skills.form.description', {
+                            defaultValue: 'Description',
+                          })}
+                        </Text>
+                        <Text variant="body" className="whitespace-pre-wrap">
+                          {description || (
+                            <Text as="span" variant="muted">
+                              {t('skills.detail.descriptionEmpty', {
+                                defaultValue: '(no description)',
+                              })}
+                            </Text>
+                          )}
+                        </Text>
+                      </Stack>
                     </Stack>
                   </FormSection>
 
@@ -417,80 +281,27 @@ export function SkillDetailPanel({
                       defaultValue: 'Instructions (body)',
                     })}
                   >
-                    <Stack gap={2}>
-                      <div
-                        role="group"
-                        aria-label={t('skills.body.viewToggle', {
-                          defaultValue: 'Body view mode',
-                        })}
-                        className="flex justify-end gap-1"
-                      >
-                        <Button
-                          size="sm"
-                          variant={bodyView === 'edit' ? 'secondary' : 'ghost'}
-                          icon={Code}
-                          onClick={() => setBodyView('edit')}
-                          aria-pressed={bodyView === 'edit'}
-                        >
-                          {t('skills.body.viewEdit', {
-                            defaultValue: 'Edit',
+                    <div
+                      className={
+                        markdownWrapperStyles +
+                        ' border-border bg-background rounded-md border p-4'
+                      }
+                    >
+                      {body.trim().length === 0 ? (
+                        <Text variant="muted">
+                          {t('skills.body.previewEmpty', {
+                            defaultValue: '(Body is empty)',
                           })}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={
-                            bodyView === 'preview' ? 'secondary' : 'ghost'
-                          }
-                          icon={FileText}
-                          onClick={() => setBodyView('preview')}
-                          aria-pressed={bodyView === 'preview'}
-                        >
-                          {t('skills.body.viewPreview', {
-                            defaultValue: 'Preview',
-                          })}
-                        </Button>
-                      </div>
-                      {bodyView === 'edit' ? (
-                        <Textarea
-                          id="body"
-                          label={t('skills.form.body', {
-                            defaultValue: 'Body markdown',
-                          })}
-                          value={body}
-                          onChange={(e) => setBody(e.target.value)}
-                          rows={18}
-                          className="font-mono text-sm"
-                        />
+                        </Text>
                       ) : (
-                        <div
-                          className={
-                            markdownWrapperStyles +
-                            ' border-border bg-background rounded-md border p-4'
-                          }
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={markdownComponents}
                         >
-                          {body.trim().length === 0 ? (
-                            <Text variant="muted">
-                              {t('skills.body.previewEmpty', {
-                                defaultValue: '(Body is empty)',
-                              })}
-                            </Text>
-                          ) : (
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm]}
-                              components={markdownComponents}
-                            >
-                              {body}
-                            </ReactMarkdown>
-                          )}
-                        </div>
+                          {body}
+                        </ReactMarkdown>
                       )}
-                      <Text variant="caption">
-                        {t('skills.form.bodyHelp', {
-                          defaultValue:
-                            'Loaded into the agent context when it calls expand_skill. Plain markdown.',
-                        })}
-                      </Text>
-                    </Stack>
+                    </div>
                   </FormSection>
 
                   <FormSection
@@ -498,9 +309,7 @@ export function SkillDetailPanel({
                       defaultValue: 'Bundle files',
                     })}
                   >
-                    <SkillAssetsSection
-                      organizationId={organizationId}
-                      skillSlug={slug}
+                    <SkillBundleAssetsList
                       assets={filesData?.assets ?? skill.assets ?? []}
                     />
                   </FormSection>
@@ -579,24 +388,6 @@ export function SkillDetailPanel({
                       )}
                     </Stack>
                   </FormSection>
-
-                  <HStack gap={2} justify="end">
-                    <Button
-                      variant="ghost"
-                      onClick={handleDiscard}
-                      disabled={!isDirty || isSaving}
-                    >
-                      {tCommon('actions.discard')}
-                    </Button>
-                    <Button
-                      variant="primary"
-                      onClick={() => void handleSave()}
-                      isLoading={isSaving}
-                      disabled={!isDirty || isSaving}
-                    >
-                      {tCommon('actions.save')}
-                    </Button>
-                  </HStack>
                 </Stack>
               )}
             </div>
@@ -604,37 +395,6 @@ export function SkillDetailPanel({
         )}
       </Sheet>
 
-      <SkillAssetEditorDialog
-        open={editDialogPath !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditDialogPath(null);
-        }}
-        organizationId={organizationId}
-        skillSlug={slug}
-        assetPath={editDialogPath}
-      />
-      <ConfirmDialog
-        open={discardConfirmOpen}
-        onOpenChange={setDiscardConfirmOpen}
-        title={t('skills.unsavedChanges.title', {
-          defaultValue: 'Discard unsaved changes?',
-        })}
-        description={t('skills.unsavedChanges.description', {
-          defaultValue:
-            'You have unsaved edits on this skill. Leaving now will discard them.',
-        })}
-        confirmText={t('skills.unsavedChanges.leave', {
-          defaultValue: 'Discard and leave',
-        })}
-        cancelText={t('skills.unsavedChanges.stay', {
-          defaultValue: 'Keep editing',
-        })}
-        variant="destructive"
-        onConfirm={() => {
-          setDiscardConfirmOpen(false);
-          onOpenChange(false);
-        }}
-      />
       <SkillDeleteDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
@@ -650,6 +410,42 @@ export function SkillDetailPanel({
         }}
       />
     </>
+  );
+}
+
+function SkillBundleAssetsList({
+  assets,
+}: {
+  assets: Array<{ path: string; size: number }>;
+}) {
+  const { t } = useT('settings');
+  const { locale } = useLocale();
+  if (assets.length === 0) {
+    return (
+      <Text variant="muted">
+        {t('skills.bundle.empty', { defaultValue: 'No bundle files yet.' })}
+      </Text>
+    );
+  }
+  return (
+    <Stack gap={1} className="border-border rounded-md border p-2">
+      {assets.map((f) => (
+        <HStack
+          key={f.path}
+          gap={2}
+          align="center"
+          justify="between"
+          className="px-2 py-1.5"
+        >
+          <Text as="span" variant="body" className="font-mono text-sm">
+            {f.path}
+          </Text>
+          <Text as="span" variant="caption">
+            {formatBytes(f.size, locale)}
+          </Text>
+        </HStack>
+      ))}
+    </Stack>
   );
 }
 
@@ -683,10 +479,6 @@ function PanelLoadingSkeleton() {
               />
             </Stack>
           ))}
-          <HStack gap={2} justify="end">
-            <Skeleton className="h-9 w-20" />
-            <Skeleton className="h-9 w-20" />
-          </HStack>
         </Stack>
       </div>
     </div>

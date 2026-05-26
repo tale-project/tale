@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
 function useInvalidateSkills() {
@@ -11,16 +12,13 @@ function useInvalidateSkills() {
     });
 }
 
-export function useCreateSkill() {
-  const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.createSkill, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
+export function useGenerateUploadUrl() {
+  return useConvexMutation(api.files.mutations.generateUploadUrl);
 }
 
-export function useUpdateSkill() {
+export function useUploadSkillBundle() {
   const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.updateSkill, {
+  return useConvexAction(api.skills.file_actions.uploadSkillBundle, {
     onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
@@ -35,20 +33,6 @@ export function useDeleteSkill() {
 export function useDuplicateSkill() {
   const invalidate = useInvalidateSkills();
   return useConvexAction(api.skills.file_actions.duplicateSkill, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useWriteSkillAsset() {
-  const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.writeSkillAsset, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useDeleteSkillAsset() {
-  const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.deleteSkillAsset, {
     onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }

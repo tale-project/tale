@@ -3,7 +3,7 @@
 /**
  * Scaffold per-org filesystem config on organization creation.
  *
- * Copies /examples/{agents,providers,integrations,workflows}/ defaults
+ * Copies /examples/{agents,providers,integrations,workflows,skills}/ defaults
  * into the new org's subdir. Skips *.secrets.json (new org provides its
  * own secrets). Skips branding (intentionally global).
  *
@@ -25,6 +25,7 @@ import {
   verifyPathWithinBase,
 } from '../lib/file_io';
 import { resolveProvidersDir } from '../providers/file_utils';
+import { resolveSkillsDir } from '../skills/file_utils';
 import { resolveWorkflowsDir } from '../workflows/file_utils';
 
 type DirResolver = (orgSlug: string) => string;
@@ -35,6 +36,7 @@ const DOMAINS: Array<{ name: string; resolve: DirResolver }> = [
   { name: 'providers', resolve: resolveProvidersDir },
   { name: 'integrations', resolve: resolveIntegrationsDir },
   { name: 'workflows', resolve: resolveWorkflowsDir },
+  { name: 'skills', resolve: resolveSkillsDir },
 ];
 
 const SKIP_FILE_SUFFIXES = ['.secrets.json'];

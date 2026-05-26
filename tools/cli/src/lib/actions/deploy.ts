@@ -715,36 +715,10 @@ async function syncProjectFiles(
     }
 
     try {
-      // Skills can be UI-edited inside the container without a host
-      // counterpart, and unlike providers there is no `.secrets.json`
-      // staging dance — a `docker cp` of host `skills/` would overwrite
-      // any UI-only edits with no recovery. Snapshot the container's
-      // current state to a host-side `.tale-backup/skills-<ts>/` dir
-      // before the cp so the operator has a path back. Best-effort:
-      // never block the deploy on backup failure (e.g. container not
-      // running, /app/data/skills/ missing on a fresh install).
-      if (dir === 'skills') {
-        const backupRoot = join(projectDir, '.tale-backup');
-        const ts = new Date()
-          .toISOString()
-          .replaceAll(':', '-')
-          .replace(/\.\d{3}Z$/, 'Z');
-        const backupDir = join(backupRoot, `skills-${ts}`);
-        const backupResult = await exec('docker', [
-          'cp',
-          `${containerName}:/app/data/skills/.`,
-          backupDir,
-        ]);
-        if (backupResult.success) {
-          logger.info(
-            `${prefix}Backed up container skills/ to ${backupDir} before overwrite`,
-          );
-        } else {
-          logger.warn(
-            `${prefix}Could not back up container skills/ (continuing): ${backupResult.stderr.trim()}`,
-          );
-        }
-      }
+      // No pre-sync snapshot needed: skills are bundle-replaced (whole-zip
+      // upload via the UI), not edited in place, so a host->container `cp`
+      // can't destroy partial UI-only state. Other domains (agents,
+      // workflows, ...) follow the same model.
       const dockerSrcPath = dockerSrcDir.replaceAll('\\', '/');
       const result = await exec('docker', [
         'cp',

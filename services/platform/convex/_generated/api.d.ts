@@ -551,6 +551,7 @@ import type * as migrations_backfill_file_metadata_document_id from "../migratio
 import type * as migrations_backfill_folder_path from "../migrations/backfill_folder_path.js";
 import type * as migrations_backfill_folders from "../migrations/backfill_folders.js";
 import type * as migrations_backfill_ledger_granularity from "../migrations/backfill_ledger_granularity.js";
+import type * as migrations_backfill_skill_scaffolding from "../migrations/backfill_skill_scaffolding.js";
 import type * as migrations_backfill_thread_metadata from "../migrations/backfill_thread_metadata.js";
 import type * as migrations_backfill_wf_installations from "../migrations/backfill_wf_installations.js";
 import type * as migrations_backfill_workflow_schedules from "../migrations/backfill_workflow_schedules.js";
@@ -1645,6 +1646,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/backfill_folder_path": typeof migrations_backfill_folder_path;
   "migrations/backfill_folders": typeof migrations_backfill_folders;
   "migrations/backfill_ledger_granularity": typeof migrations_backfill_ledger_granularity;
+  "migrations/backfill_skill_scaffolding": typeof migrations_backfill_skill_scaffolding;
   "migrations/backfill_thread_metadata": typeof migrations_backfill_thread_metadata;
   "migrations/backfill_wf_installations": typeof migrations_backfill_wf_installations;
   "migrations/backfill_workflow_schedules": typeof migrations_backfill_workflow_schedules;

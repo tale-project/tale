@@ -6,7 +6,7 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
-import { Check, Copy, Pencil, WrapText } from 'lucide-react';
+import { Check, Copy, WrapText } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -29,7 +29,6 @@ interface SkillAssetViewerProps {
   organizationId: string;
   skillSlug: string;
   assetPath: string;
-  onEdit: () => void;
 }
 
 const IMAGE_EXTS = new Set([
@@ -73,7 +72,6 @@ export function SkillAssetViewer({
   organizationId,
   skillSlug,
   assetPath,
-  onEdit,
 }: SkillAssetViewerProps) {
   const { t } = useT('settings');
   const { locale } = useLocale();
@@ -189,17 +187,6 @@ export function SkillAssetViewer({
           disabled={!canCopy}
         >
           {copied ? tCommon('actions.copied') : tCommon('actions.copy')}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={Pencil}
-          onClick={onEdit}
-          disabled={
-            isLoading || (loadError !== null && loadError !== 'not_found')
-          }
-        >
-          {tCommon('actions.edit')}
         </Button>
       </HStack>
       <div className="min-h-0 flex-1 overflow-auto">

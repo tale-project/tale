@@ -12,13 +12,7 @@ import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 
-const ALLOWED_ACTIONS = [
-  'create_skill',
-  'update_skill',
-  'delete_skill',
-  'write_skill_asset',
-  'delete_skill_asset',
-] as const;
+const ALLOWED_ACTIONS = ['upload_skill', 'delete_skill'] as const;
 type AllowedAction = (typeof ALLOWED_ACTIONS)[number];
 
 export const logSkillAuditEvent = internalMutation({

@@ -18,21 +18,30 @@
  * the SKILL.md content hash so the runtime snapshot can detect drift.
  */
 
-import { readdir, rm, stat, unlink } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { ConvexError, v } from 'convex/values';
+import JSZip from 'jszip';
 
-import {
-  parseSkillMd,
-  SkillFrontmatterError,
-} from '../../lib/shared/schemas/skills';
+import { parseSkillMd } from '../../lib/shared/schemas/skills';
 import { internal } from '../_generated/api';
 import { internalAction, action, type ActionCtx } from '../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { type OrgMembershipAuth } from '../lib/auth/require_org_membership';
-import { atomicWrite, readFileSafe, readdirSafe, sha256 } from '../lib/file_io';
 import {
+  atomicWrite,
+  atomicWriteBuffer,
+  readFileSafe,
+  readdirSafe,
+  sha256,
+  verifyPathWithinBase,
+} from '../lib/file_io';
+import {
+  MAX_SKILL_BUNDLE_ENTRIES,
+  MAX_SKILL_BUNDLE_FILE_BYTES,
+  MAX_SKILL_BUNDLE_TOTAL_BYTES,
   readSkillMd,
   resolveSkillAssetPathChecked,
   resolveSkillDir,
@@ -40,19 +49,13 @@ import {
   resolveSkillsDir,
   serializeSkillMd,
   validateSkillSlug,
-  type SkillFrontmatter,
 } from './file_utils';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-type SkillAuditAction =
-  | 'create_skill'
-  | 'update_skill'
-  | 'delete_skill'
-  | 'write_skill_asset'
-  | 'delete_skill_asset';
+type SkillAuditAction = 'upload_skill' | 'delete_skill';
 
 async function logSkillAudit(
   ctx: ActionCtx,
@@ -130,6 +133,188 @@ async function walkSkillBundle(
   await walk(skillDir, '');
   assets.sort((a, b) => a.path.localeCompare(b.path));
   return { assets, totalBytes };
+}
+
+interface ParsedBundleFile {
+  /** Path relative to the bundle root (no leading slash, POSIX separators). */
+  relPath: string;
+  content: Buffer;
+}
+
+interface ParsedBundle {
+  slug: string;
+  meta: {
+    name: string;
+    description: string;
+    recommendedPackages?: { python?: string[]; node?: string[] };
+  };
+  /** Includes SKILL.md as the first entry. */
+  files: ParsedBundleFile[];
+  /** sha256 of the SKILL.md content as written. */
+  skillMdHash: string;
+}
+
+/**
+ * Decode an uploaded zip into the in-memory shape we'll write to disk.
+ * Re-validates every constraint the client checked: SKILL.md must exist,
+ * frontmatter must parse, slug must validate, no zip-slip paths, per-file
+ * and total caps. The client validation is for UX only — this is the
+ * authoritative check.
+ *
+ * Accepts the common "one wrapper folder" shape that browsers produce when
+ * a user zips a directory: if every entry shares a single top-level folder,
+ * that folder is stripped before further processing.
+ */
+async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(buf);
+  } catch (err) {
+    throw new ConvexError({
+      code: 'INVALID_BUNDLE',
+      message: `Not a valid zip archive: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
+  const rawEntries = Object.entries(zip.files);
+  if (rawEntries.length === 0) {
+    throw new ConvexError({
+      code: 'INVALID_BUNDLE',
+      message: 'Zip is empty',
+    });
+  }
+  if (rawEntries.length > MAX_SKILL_BUNDLE_ENTRIES) {
+    throw new ConvexError({
+      code: 'INVALID_BUNDLE',
+      message: `Bundle contains ${rawEntries.length} entries (max ${MAX_SKILL_BUNDLE_ENTRIES})`,
+    });
+  }
+
+  const stripPrefix = detectSingleTopLevelFolder(rawEntries);
+
+  let skillMdEntry: JSZip.JSZipObject | undefined;
+  const assetEntries: { relPath: string; entry: JSZip.JSZipObject }[] = [];
+
+  for (const [name, entry] of rawEntries) {
+    if (entry.dir) continue;
+    const rel = stripPrefix ? name.slice(stripPrefix.length) : name;
+    if (rel === '') continue;
+    if (rel.includes('\0')) {
+      throw new ConvexError({
+        code: 'INVALID_BUNDLE',
+        message: `Bundle entry path contains NUL byte`,
+      });
+    }
+    if (rel.startsWith('/') || /^[A-Za-z]:/.test(rel)) {
+      throw new ConvexError({
+        code: 'INVALID_BUNDLE',
+        message: `Bundle entry uses absolute path: ${rel}`,
+      });
+    }
+    const segments = rel.split('/');
+    for (const seg of segments) {
+      if (seg === '' || seg === '..' || seg === '.') {
+        throw new ConvexError({
+          code: 'INVALID_BUNDLE',
+          message: `Bundle entry path is unsafe: ${rel}`,
+        });
+      }
+    }
+    if (rel === 'SKILL.md') {
+      skillMdEntry = entry;
+      continue;
+    }
+    // Skip dotfiles silently (matches walkSkillBundle's listing behavior).
+    if (segments.some((s) => s.startsWith('.'))) continue;
+    assetEntries.push({ relPath: rel, entry });
+  }
+
+  if (!skillMdEntry) {
+    throw new ConvexError({
+      code: 'MISSING_SKILL_MD',
+      message: 'Bundle is missing SKILL.md at the root',
+    });
+  }
+
+  const skillMdContent = await skillMdEntry.async('string');
+  let meta;
+  try {
+    ({ meta } = parseSkillMd(skillMdContent));
+  } catch (err) {
+    throw new ConvexError({
+      code: 'INVALID_SKILL_MD',
+      message: `SKILL.md frontmatter rejected: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
+  const slug = meta.name;
+  if (!validateSkillSlug(slug)) {
+    throw new ConvexError({
+      code: 'INVALID_SLUG',
+      message: `Frontmatter name "${slug}" is not a valid skill slug`,
+    });
+  }
+
+  const files: ParsedBundleFile[] = [];
+  let totalBytes = 0;
+  const skillMdBuf = Buffer.from(skillMdContent, 'utf-8');
+  if (skillMdBuf.length > MAX_SKILL_BUNDLE_FILE_BYTES) {
+    throw new ConvexError({
+      code: 'FILE_TOO_LARGE',
+      message: `SKILL.md exceeds per-file cap of ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
+    });
+  }
+  totalBytes += skillMdBuf.length;
+  files.push({ relPath: 'SKILL.md', content: skillMdBuf });
+
+  for (const { relPath, entry } of assetEntries) {
+    const assetBuf = Buffer.from(await entry.async('uint8array'));
+    if (assetBuf.length > MAX_SKILL_BUNDLE_FILE_BYTES) {
+      throw new ConvexError({
+        code: 'FILE_TOO_LARGE',
+        message: `Asset "${relPath}" exceeds per-file cap of ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
+      });
+    }
+    totalBytes += assetBuf.length;
+    if (totalBytes > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
+      throw new ConvexError({
+        code: 'BUNDLE_TOO_LARGE',
+        message: `Decompressed bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes`,
+      });
+    }
+    files.push({ relPath, content: assetBuf });
+  }
+
+  return {
+    slug,
+    meta: {
+      name: meta.name,
+      description: meta.description,
+      ...(meta.recommendedPackages && {
+        recommendedPackages: meta.recommendedPackages,
+      }),
+    },
+    files,
+    skillMdHash: sha256(skillMdContent),
+  };
+}
+
+function detectSingleTopLevelFolder(
+  entries: [string, JSZip.JSZipObject][],
+): string | null {
+  let prefix: string | null = null;
+  for (const [name] of entries) {
+    if (name === '') continue;
+    const slash = name.indexOf('/');
+    if (slash === -1) return null; // a root-level file disqualifies stripping
+    const top = name.slice(0, slash + 1);
+    if (prefix === null) {
+      prefix = top;
+    } else if (prefix !== top) {
+      return null;
+    }
+  }
+  return prefix;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,251 +455,206 @@ export const readSkillAsset = action({
   },
 });
 
-export const createSkill = action({
+/**
+ * Upload an entire skill bundle as a zip. The bundle is the single write
+ * surface for skills — there is no in-place SKILL.md editor or asset
+ * editor. A successful upload replaces any existing bundle for the same
+ * slug atomically.
+ *
+ * Flow:
+ *   1. Client uploads the zip to `_storage` via `generateUploadUrl`.
+ *   2. Client calls this action with `{ organizationId, storageId, force? }`.
+ *   3. Server reads + parses the zip, validates structure / SKILL.md /
+ *      sizes / zip-slip, and either:
+ *        - returns `{ ok: false, status: 'needs_confirm', slug }` when the
+ *          slug already exists and `force !== true` (no disk mutation), OR
+ *        - stages the bundle to `<skillDir>.staging-<uuid>/`, swaps it into
+ *          place (rename old → `.replacing-<uuid>`, rename staging → final,
+ *          rm replaced), and returns `{ ok: true, slug, hash }`.
+ *   4. Server deletes the staged `_storage` blob.
+ *
+ * All validation re-runs on the server even though the client has its own
+ * parse step — the client validation is for UX only; the server is
+ * authoritative.
+ */
+export const uploadSkillBundle = action({
   args: {
     organizationId: v.string(),
-    slug: v.string(),
-    meta: v.any(),
-    body: v.string(),
+    storageId: v.id('_storage'),
+    force: v.optional(v.boolean()),
   },
-  returns: v.object({ hash: v.string() }),
-  handler: async (ctx, args): Promise<{ hash: string }> => {
-    if (!validateSkillSlug(args.slug)) {
+  returns: v.union(
+    v.object({
+      ok: v.literal(true),
+      slug: v.string(),
+      hash: v.string(),
+    }),
+    v.object({
+      ok: v.literal(false),
+      status: v.literal('needs_confirm'),
+      slug: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+
+    const blob = await ctx.storage.get(args.storageId);
+    if (!blob) {
       throw new ConvexError({
-        code: 'INVALID_SLUG',
-        message: `Invalid skill slug: ${args.slug}`,
+        code: 'STORAGE_NOT_FOUND',
+        message: 'Uploaded bundle is missing from storage',
       });
     }
-    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-    const filePath = resolveSkillMdPath(auth.orgSlug, args.slug);
+    if (blob.size > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
+      await ctx.storage.delete(args.storageId).catch((err) => {
+        console.warn('[uploadSkillBundle] storage.delete failed:', err);
+      });
+      throw new ConvexError({
+        code: 'BUNDLE_TOO_LARGE',
+        message: `Bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes`,
+      });
+    }
 
-    const existing = await readFileSafe(filePath);
+    let parsed: ParsedBundle;
+    try {
+      const buf = Buffer.from(await blob.arrayBuffer());
+      parsed = await parseSkillBundleZip(buf);
+    } catch (err) {
+      await ctx.storage.delete(args.storageId).catch((e) => {
+        console.warn('[uploadSkillBundle] storage.delete failed:', e);
+      });
+      if (err instanceof ConvexError) throw err;
+      throw new ConvexError({
+        code: 'INVALID_BUNDLE',
+        message:
+          err instanceof Error ? err.message : 'Failed to read uploaded zip',
+      });
+    }
+
+    const bundleDir = resolveSkillDir(auth.orgSlug, parsed.slug);
+    const skillsRoot = resolveSkillsDir(auth.orgSlug);
+    const existing = await readFileSafe(
+      resolveSkillMdPath(auth.orgSlug, parsed.slug),
+    );
+
+    if (existing !== null && !args.force) {
+      // Caller hasn't confirmed replace; do not touch disk, do not delete
+      // the staged blob — they can resubmit with force:true reusing the
+      // same storageId within the standard upload-URL TTL.
+      return {
+        ok: false as const,
+        status: 'needs_confirm' as const,
+        slug: parsed.slug,
+      };
+    }
+
+    let previousCapability: Record<string, unknown> | undefined;
     if (existing !== null) {
-      throw new ConvexError({
-        code: 'ALREADY_EXISTS',
-        message: `Skill "${args.slug}" already exists`,
-      });
-    }
-
-    const meta = validateMetaPayload(args.meta);
-    if (meta.name !== args.slug) {
-      throw new ConvexError({
-        code: 'NAME_MISMATCH',
-        message: `Frontmatter name "${meta.name}" must match slug "${args.slug}"`,
-      });
-    }
-    const newContent = serializeSkillMd(meta, args.body);
-    await atomicWrite(filePath, newContent);
-    await logSkillAudit(ctx, auth, 'create_skill', args.slug, {
-      resourceName: meta.name,
-      newState: {
-        name: meta.name,
-        description: meta.description,
-        ...(meta.recommendedPackages && {
-          recommendedPackages: meta.recommendedPackages,
-        }),
-      },
-    });
-    return { hash: sha256(newContent) };
-  },
-});
-
-export const updateSkill = action({
-  args: {
-    organizationId: v.string(),
-    slug: v.string(),
-    meta: v.any(),
-    body: v.string(),
-    expectedHash: v.optional(v.string()),
-  },
-  returns: v.object({ hash: v.string() }),
-  handler: async (ctx, args): Promise<{ hash: string }> => {
-    if (!validateSkillSlug(args.slug)) {
-      throw new ConvexError({
-        code: 'INVALID_SLUG',
-        message: `Invalid skill slug: ${args.slug}`,
-      });
-    }
-    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-    const filePath = resolveSkillMdPath(auth.orgSlug, args.slug);
-
-    const existing = await readFileSafe(filePath);
-    if (existing === null) {
-      throw new ConvexError({
-        code: 'NOT_FOUND',
-        message: `Skill "${args.slug}" does not exist`,
-      });
-    }
-    if (args.expectedHash !== undefined) {
-      const currentHash = sha256(existing);
-      if (currentHash !== args.expectedHash) {
-        throw new ConvexError({
-          code: 'CONFLICT',
-          message:
-            'Skill was modified externally since it was loaded. Reload and reapply your changes.',
-        });
+      try {
+        const prev = parseSkillMd(existing);
+        previousCapability = {
+          description: prev.meta.description,
+          ...(prev.meta.recommendedPackages && {
+            recommendedPackages: prev.meta.recommendedPackages,
+          }),
+        };
+      } catch (err) {
+        console.warn(
+          `[skills.uploadSkillBundle] parseSkillMd failed on previous SKILL.md for slug=${parsed.slug}:`,
+          err,
+        );
       }
     }
 
-    // Capture pre-state capability fields (description + all transitive
-    // grants — tool names, integration bindings, workflow bindings) so a
-    // reviewer can see exactly what changed. Skill files are org-authored
-    // prose; no secrets to redact. Best-effort: skip on parse error since
-    // we want the audit row to land regardless.
-    let previousCapability:
-      | {
-          description?: string;
-          recommendedPackages?: { python?: string[]; node?: string[] };
-        }
-      | undefined;
-    try {
-      const prev = parseSkillMd(existing);
-      previousCapability = {
-        description: prev.meta.description,
-        ...(prev.meta.recommendedPackages && {
-          recommendedPackages: prev.meta.recommendedPackages,
-        }),
-      };
-    } catch (err) {
-      console.warn(
-        `[skills.updateSkill] parseSkillMd failed for previous-state capture on slug=${args.slug}:`,
-        err,
-      );
-    }
+    const stagingDir = `${bundleDir}.staging-${randomUUID().slice(0, 8)}`;
+    const replacingDir = `${bundleDir}.replacing-${randomUUID().slice(0, 8)}`;
+    await mkdir(skillsRoot, { recursive: true });
 
-    const meta = validateMetaPayload(args.meta);
-    if (meta.name !== args.slug) {
+    try {
+      // Write the new bundle to the staging dir.
+      for (const file of parsed.files) {
+        const dest = path.join(stagingDir, file.relPath);
+        await verifyPathWithinBase(dest, stagingDir);
+        await atomicWriteBuffer(dest, file.content);
+      }
+
+      // Atomic swap. Once `bundleDir → replacingDir` succeeds, the old
+      // bundle is preserved; the next rename is the commit point.
+      const hadExisting = existing !== null;
+      if (hadExisting) {
+        await rename(bundleDir, replacingDir);
+      }
+      try {
+        await rename(stagingDir, bundleDir);
+      } catch (err) {
+        // Roll back the rename of the previous bundle so the user still
+        // has the old content. Best-effort: log and rethrow.
+        if (hadExisting) {
+          await rename(replacingDir, bundleDir).catch((rollbackErr) => {
+            console.error(
+              '[uploadSkillBundle] failed to roll back previous bundle:',
+              rollbackErr,
+            );
+          });
+        }
+        throw err;
+      }
+      if (hadExisting) {
+        await rm(replacingDir, { recursive: true, force: true }).catch(
+          (err) => {
+            // Data is safe at this point; orphaned `.replacing-*` is a leak
+            // for ops to clean up, not a correctness issue.
+            console.warn(
+              '[uploadSkillBundle] failed to remove replaced bundle dir; leaving for manual cleanup:',
+              err,
+            );
+          },
+        );
+      }
+    } catch (err) {
+      // Pre-commit failure path: clean up staging, surface error.
+      await rm(stagingDir, { recursive: true, force: true }).catch(
+        (cleanupErr) => {
+          console.warn(
+            '[uploadSkillBundle] staging cleanup failed:',
+            cleanupErr,
+          );
+        },
+      );
+      if (err instanceof ConvexError) throw err;
       throw new ConvexError({
-        code: 'NAME_MISMATCH',
-        message: `Frontmatter name "${meta.name}" must match slug "${args.slug}"`,
+        code: 'WRITE_FAILED',
+        message:
+          err instanceof Error ? err.message : 'Failed to write skill bundle',
+      });
+    } finally {
+      await ctx.storage.delete(args.storageId).catch((err) => {
+        console.warn('[uploadSkillBundle] storage.delete failed:', err);
       });
     }
-    const newContent = serializeSkillMd(meta, args.body);
-    await atomicWrite(filePath, newContent);
-    await logSkillAudit(ctx, auth, 'update_skill', args.slug, {
-      resourceName: meta.name,
+
+    const newState: Record<string, unknown> = {
+      name: parsed.meta.name,
+      description: parsed.meta.description,
+      assetCount: parsed.files.length - 1, // SKILL.md doesn't count as an asset
+    };
+    if (parsed.meta.recommendedPackages) {
+      newState.recommendedPackages = parsed.meta.recommendedPackages;
+    }
+
+    await logSkillAudit(ctx, auth, 'upload_skill', parsed.slug, {
+      resourceName: parsed.meta.name,
       ...(previousCapability !== undefined && {
         previousState: previousCapability,
       }),
-      newState: {
-        description: meta.description,
-        ...(meta.recommendedPackages && {
-          recommendedPackages: meta.recommendedPackages,
-        }),
-      },
+      newState,
     });
-    return { hash: sha256(newContent) };
-  },
-});
 
-export const writeSkillAsset = action({
-  args: {
-    organizationId: v.string(),
-    slug: v.string(),
-    assetPath: v.string(),
-    content: v.string(),
-    expectedHash: v.optional(v.string()),
-  },
-  returns: v.object({ hash: v.string() }),
-  handler: async (ctx, args): Promise<{ hash: string }> => {
-    if (!validateSkillSlug(args.slug)) {
-      throw new ConvexError({
-        code: 'INVALID_SLUG',
-        message: `Invalid skill slug: ${args.slug}`,
-      });
-    }
-    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-
-    // SKILL.md must exist before assets land — keep bundle layout coherent.
-    const skillMdContent = await readFileSafe(
-      resolveSkillMdPath(auth.orgSlug, args.slug),
-    );
-    if (skillMdContent === null) {
-      throw new ConvexError({
-        code: 'NOT_FOUND',
-        message: `Skill "${args.slug}" does not exist`,
-      });
-    }
-
-    const filePath = await resolveSkillAssetPathChecked(
-      auth.orgSlug,
-      args.slug,
-      args.assetPath,
-    );
-    const incomingBytes = Buffer.byteLength(args.content, 'utf-8');
-    const current = await readFileSafe(filePath);
-    if (args.expectedHash === undefined) {
-      // Create mode (no expectedHash supplied). Mirror createSkill's
-      // refuse-if-exists guard — otherwise typing an existing asset path
-      // in the create dialog silently overwrites it.
-      if (current !== null) {
-        throw new ConvexError({
-          code: 'ALREADY_EXISTS',
-          message: `Asset "${args.assetPath}" already exists. Open it from the list to edit, or choose a new path.`,
-        });
-      }
-    } else if (current !== null && sha256(current) !== args.expectedHash) {
-      throw new ConvexError({
-        code: 'CONFLICT',
-        message:
-          'Asset was modified externally since it was loaded. Reload and reapply your changes.',
-      });
-    }
-    await atomicWrite(filePath, args.content);
-    await logSkillAudit(ctx, auth, 'write_skill_asset', args.slug, {
-      resourceName: args.assetPath,
-      newState: { assetPath: args.assetPath, bytes: incomingBytes },
-    });
-    return { hash: sha256(args.content) };
-  },
-});
-
-export const deleteSkillAsset = action({
-  args: {
-    organizationId: v.string(),
-    slug: v.string(),
-    assetPath: v.string(),
-    expectedHash: v.optional(v.string()),
-  },
-  returns: v.object({ deleted: v.boolean() }),
-  handler: async (ctx, args): Promise<{ deleted: boolean }> => {
-    if (!validateSkillSlug(args.slug)) {
-      throw new ConvexError({
-        code: 'INVALID_SLUG',
-        message: `Invalid skill slug: ${args.slug}`,
-      });
-    }
-    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-    const filePath = await resolveSkillAssetPathChecked(
-      auth.orgSlug,
-      args.slug,
-      args.assetPath,
-    );
-    // CAS on delete: if the caller passes expectedHash, the on-disk content
-    // must match. Defends against deleting an asset that changed between
-    // load and confirm. Symmetric with writeSkillAsset.
-    if (args.expectedHash !== undefined) {
-      const current = await readFileSafe(filePath);
-      if (current !== null && sha256(current) !== args.expectedHash) {
-        throw new ConvexError({
-          code: 'CONFLICT',
-          message:
-            'Asset was modified externally since it was loaded. Reload and reconfirm the delete.',
-        });
-      }
-    }
-    try {
-      await unlink(filePath);
-      await logSkillAudit(ctx, auth, 'delete_skill_asset', args.slug, {
-        resourceName: args.assetPath,
-        previousState: { assetPath: args.assetPath },
-      });
-      return { deleted: true };
-    } catch (err) {
-      const code = err instanceof Error && 'code' in err ? err.code : undefined;
-      if (code === 'ENOENT') return { deleted: false };
-      throw err;
-    }
+    return {
+      ok: true as const,
+      slug: parsed.slug,
+      hash: parsed.skillMdHash,
+    };
   },
 });
 
@@ -571,9 +711,9 @@ export const duplicateSkill = action({
       });
     }
 
-    // Update the frontmatter `name` to match the new slug — `createSkill`
-    // enforces name == slug, and a skill whose name disagrees with its
-    // on-disk directory would silently misbehave anyway.
+    // Update the frontmatter `name` to match the new slug — the upload
+    // path enforces name == slug, and a skill whose name disagrees with
+    // its on-disk directory would silently misbehave anyway.
     const newMeta = { ...meta, name: newSlug };
     const newContent = serializeSkillMd(newMeta, body);
     const newSkillMdPath = resolveSkillMdPath(auth.orgSlug, newSlug);
@@ -598,7 +738,7 @@ export const duplicateSkill = action({
       await atomicWrite(targetPath, content);
     }
 
-    await logSkillAudit(ctx, auth, 'create_skill', newSlug, {
+    await logSkillAudit(ctx, auth, 'upload_skill', newSlug, {
       resourceName: newSlug,
       newState: {
         sourceSlug: args.slug,
@@ -723,69 +863,3 @@ export const readSkillForExecution = internalAction({
     };
   },
 });
-
-// ---------------------------------------------------------------------------
-// Frontmatter validation for incoming UI payloads. The UI sends a
-// camelCase normalized shape; we re-serialize through `serializeSkillMd`
-// which writes the kebab-case wire format back to disk.
-// ---------------------------------------------------------------------------
-
-function validateMetaPayload(rawMeta: unknown): SkillFrontmatter {
-  if (
-    rawMeta === null ||
-    typeof rawMeta !== 'object' ||
-    Array.isArray(rawMeta)
-  ) {
-    throw new ConvexError({
-      code: 'INVALID_FRONTMATTER',
-      message: 'meta must be an object',
-    });
-  }
-  // Round-trip through parseSkillMd so the UI payload follows the exact
-  // same validation path as on-disk content. We embed it in a temporary
-  // SKILL.md and let parseSkillMd do the work.
-  const meta: Record<string, unknown> = { ...rawMeta };
-  const wireMeta: Record<string, unknown> = {};
-  if (typeof meta.name === 'string') wireMeta.name = meta.name;
-  if (typeof meta.description === 'string') {
-    wireMeta.description = meta.description;
-  }
-  if (meta.recommendedPackages !== undefined) {
-    wireMeta['recommended-packages'] = meta.recommendedPackages;
-  }
-  if (typeof meta.license === 'string') wireMeta.license = meta.license;
-  if (meta.metadata !== undefined) wireMeta.metadata = meta.metadata;
-  const unknownContainer = meta.unknown;
-  if (
-    unknownContainer !== null &&
-    typeof unknownContainer === 'object' &&
-    !Array.isArray(unknownContainer)
-  ) {
-    for (const unknownKey of Object.keys(unknownContainer)) {
-      if (!(unknownKey in wireMeta)) {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- typeof===object check above narrows but TS lint wants the explicit record type
-        const dict = unknownContainer as Record<string, unknown>;
-        wireMeta[unknownKey] = dict[unknownKey];
-      }
-    }
-  }
-
-  const yamlText = formatYamlForValidation(wireMeta);
-  const synthetic = `---\n${yamlText}---\n`;
-  try {
-    return parseSkillMd(synthetic).meta;
-  } catch (err) {
-    if (err instanceof SkillFrontmatterError) {
-      throw new ConvexError({
-        code: 'INVALID_FRONTMATTER',
-        message: err.message,
-      });
-    }
-    throw err;
-  }
-}
-
-function formatYamlForValidation(obj: Record<string, unknown>): string {
-  // Conservative literal dump: parseSkillMd does the strict validation.
-  return JSON.stringify(obj) + '\n';
-}

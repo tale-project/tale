@@ -4642,30 +4642,16 @@
       }
     },
     "skills": {
-      "createSkill": "Create skill",
+      "uploadSkill": "Upload skill",
       "searchPlaceholder": "Search skills…",
       "deleteSkill": "Delete skill",
       "notFound": "Skill not found",
       "backToList": "Back to skills",
-      "skillCreated": "Skill created",
-      "skillCreateFailed": "Failed to create skill",
-      "skillSaved": "Skill saved",
-      "skillSaveFailed": "Failed to save skill",
       "skillDeleted": "Skill deleted",
       "skillDeleteFailed": "Failed to delete skill",
       "skillDeleteConflict": "Skill changed since you opened this dialog. Reload and retry.",
-      "skillAlreadyExists": "A skill with this slug already exists",
       "skillDuplicated": "Skill duplicated as {slug}",
       "skillDuplicateFailed": "Failed to duplicate skill",
-      "bodyTemplate": "## When to use\n\n## References\n\n## How the agent should approach this\n",
-      "unsavedChanges": {
-        "title": "Discard unsaved changes?",
-        "description": "You have unsaved edits on this skill. Leaving now will discard them.",
-        "leave": "Discard and leave",
-        "stay": "Keep editing"
-      },
-      "conflict": "This skill was edited elsewhere. Reload to see the latest version.",
-      "validationError": "Invalid skill configuration",
       "deleteConfirmation": "This removes the skill bundle from disk. The skill will no longer be available to any agent in this organization.",
       "actions": {
         "duplicate": "Duplicate"
@@ -4675,19 +4661,9 @@
         "description": "Description",
         "loadError": "Failed to read SKILL.md"
       },
-      "createDialog": {
-        "continue": "Create",
-        "creating": "Creating…"
-      },
       "form": {
         "slug": "Slug",
-        "slugHelp": "Lowercase letters/digits, hyphen-separated. Used as the on-disk folder name.",
-        "slugPatternError": "Lowercase letters, digits, hyphen-separated. No underscores, no leading/trailing/consecutive hyphens.",
-        "description": "Description",
-        "descriptionHelp": "Lead with \"Use when…\". The agent reads this to decide whether to expand the skill.",
-        "descriptionPlaceholder": "When this skill should be used — the agent sees this in every system prompt.",
-        "body": "Body markdown",
-        "bodyHelp": "Loaded into the agent context when it calls expand_skill. Plain markdown."
+        "description": "Description"
       },
       "section": {
         "overview": "Overview",
@@ -4700,17 +4676,13 @@
         "license": "License"
       },
       "body": {
-        "viewEdit": "Edit",
-        "viewPreview": "Preview",
-        "viewToggle": "Body view mode",
         "previewEmpty": "(Body is empty)"
       },
       "auditHistory": {
         "empty": "No audit entries yet for this skill.",
         "action": {
-          "create": "Created",
-          "update": "Updated",
-          "delete": "Deleted"
+          "upload_skill": "Uploaded",
+          "delete_skill": "Deleted"
         }
       },
       "viewer": {
@@ -4720,38 +4692,35 @@
         "largeFile": "Large file — syntax highlighting disabled for performance."
       },
       "bundle": {
-        "empty": "No bundle files yet.",
-        "uiHelp": "Bundle files live on disk under skills/<slug>/. UI edits use atomic writes with CAS — concurrent disk edits are detected and surfaced as conflicts."
+        "empty": "No bundle files yet."
       },
       "detail": {
+        "descriptionEmpty": "(no description)",
         "tree": {
           "heading": "Bundle",
-          "empty": "Only SKILL.md — add files under scripts/, references/, or assets/."
+          "empty": "Only SKILL.md — bundle assets live under scripts/, references/, or assets/."
         }
       },
-      "asset": {
-        "add": "Add file",
-        "path": "Path",
-        "pathHelp": "Relative path within the skill bundle. Use scripts/ for executables, references/ for docs, assets/ for templates.",
-        "pathRequired": "Path is required",
-        "pathNoLeadingSlash": "Path must be relative — no leading slash. Use scripts/ / references/ / assets/.",
-        "pathNoTraversal": "Path may not contain \"..\".",
-        "pathInvalidChars": "Path may only contain letters, digits, dot, hyphen, underscore, and slash.",
-        "alreadyExists": "A file already exists at this path. Open it from the list to edit, or pick a new path.",
-        "loadNotFound": "This file is no longer in the bundle. Close and create it from the list instead.",
-        "content": "Content",
-        "createTitle": "New bundle file",
-        "editTitle": "Edit {path}",
-        "editAria": "Edit {path}",
-        "deleteAria": "Delete {path}",
-        "deleteTitle": "Delete file",
-        "deleteConfirmation": "Permanently remove this file from the skill bundle. This cannot be undone.",
-        "saved": "File saved",
-        "saveFailed": "Failed to save file",
-        "deleted": "File deleted",
-        "deleteFailed": "Failed to delete file",
-        "conflict": "This file was edited elsewhere. Reopen to see the latest version.",
-        "notFound": "Skill not found"
+      "upload": {
+        "dialogTitle": "Upload skill bundle",
+        "uploadDescription": "Upload a zip containing SKILL.md at the root, plus any optional scripts, references, or assets.",
+        "dropZoneLabel": "Upload skill bundle",
+        "dropOrClick": "Drop a .zip here or click to browse",
+        "dropHere": "Drop the bundle here",
+        "acceptedFormats": "Zip containing SKILL.md at the root",
+        "parsing": "Reading bundle…",
+        "zipRequired": "Bundle must be a .zip file.",
+        "unexpectedError": "An unexpected error occurred",
+        "bundleFiles": "Bundle files",
+        "fileCount": "files",
+        "submit": "Upload bundle",
+        "submitting": "Uploading…",
+        "uploadSuccess": "Skill bundle uploaded",
+        "uploadFailed": "Failed to upload skill bundle",
+        "replaceTitle": "Replace existing skill?",
+        "replaceDescription": "A skill named \"{slug}\" already exists. Uploading will overwrite its current contents.",
+        "replaceConfirm": "Replace",
+        "replaceSuccess": "Skill bundle replaced"
       }
     },
     "integrations": {
