@@ -23,6 +23,16 @@
         "self-hosted/index",
         "self-hosted/overview",
         {
+          "label": "install",
+          "pages": [
+            "self-hosted/install/quickstart",
+            "self-hosted/install/linux-server",
+            "self-hosted/install/docker-compose-reference",
+            "self-hosted/install/first-admin",
+            "self-hosted/install/cli-install"
+          ]
+        },
+        {
           "label": "configuration",
           "pages": ["self-hosted/configuration/environment-reference"]
         },
