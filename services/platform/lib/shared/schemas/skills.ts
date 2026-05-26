@@ -217,7 +217,10 @@ export function parseSkillMd(content: string): {
   }
 
   const fmText = after.slice(0, closeMatch.index);
-  if (Buffer.byteLength(fmText, 'utf-8') > MAX_FRONTMATTER_BYTES) {
+  // TextEncoder is in lib.dom + lib.es2017 and exists on both Node (>=11)
+  // and every supported browser; `Buffer.byteLength` would throw
+  // `Buffer is not defined` in the client parser at parse-skill-bundle.ts.
+  if (new TextEncoder().encode(fmText).length > MAX_FRONTMATTER_BYTES) {
     throw new SkillFrontmatterError(
       `Frontmatter exceeds ${MAX_FRONTMATTER_BYTES} bytes`,
     );
