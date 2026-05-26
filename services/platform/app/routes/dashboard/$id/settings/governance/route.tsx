@@ -95,7 +95,12 @@ const LAYOUT_ROOT_CLASSNAME =
 const SIDEBAR_CLASSNAME =
   'border-border hidden w-60 shrink-0 flex-col gap-1 border-r px-3 py-4 md:flex lg:w-72';
 
-const CONTENT_CLASSNAME = 'min-w-0 flex-1 overflow-y-auto md:px-6 md:py-6';
+// `flex flex-col` lets pages opt into bounded-height layouts (via
+// `SettingsPage fitToContainer`) for sticky-header data tables; pages that
+// don't opt in render at content height and the surrounding `overflow-y-auto`
+// scrolls the whole pane.
+const CONTENT_CLASSNAME =
+  'flex min-w-0 flex-1 flex-col overflow-y-auto md:px-6 md:py-6';
 
 function GovernanceLayout() {
   const { id: organizationId } = Route.useParams();

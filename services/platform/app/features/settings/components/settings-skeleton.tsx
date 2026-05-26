@@ -169,6 +169,12 @@ interface SettingsPageSkeletonProps extends BaseSkeletonProps {
   hideHeader?: boolean;
   /** Right-aligned action placeholder (mirrors `<SettingsPage headerAction>`). */
   headerAction?: React.ReactNode;
+  /**
+   * Mirror `<SettingsPage fitToContainer>` so skeletons used by pages with
+   * sticky-layout tables (audit logs) bound their own height to the parent —
+   * keeps the layout from shifting when real content swaps in.
+   */
+  fitToContainer?: boolean;
 }
 
 /**
@@ -181,11 +187,18 @@ export function SettingsPageSkeleton({
   sections = 2,
   hideHeader = false,
   headerAction,
+  fitToContainer = false,
   children,
   className,
 }: SettingsPageSkeletonProps) {
   return (
-    <div className={cn('flex w-full flex-col gap-8', className)}>
+    <div
+      className={cn(
+        'flex w-full flex-col gap-8',
+        fitToContainer && 'min-h-0 flex-1',
+        className,
+      )}
+    >
       {!hideHeader && (
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
           <div className="flex min-w-0 flex-col gap-1">
@@ -199,7 +212,12 @@ export function SettingsPageSkeleton({
           )}
         </header>
       )}
-      <div className="flex flex-col gap-8">
+      <div
+        className={cn(
+          'flex flex-col gap-8',
+          fitToContainer && 'min-h-0 flex-1',
+        )}
+      >
         {children ??
           Array.from({ length: sections }).map((_, i) => (
             <SettingsSectionSkeleton key={i} />

@@ -21,6 +21,7 @@ export function AuditLogsPageSkeleton() {
 
   return (
     <SettingsPageSkeleton
+      fitToContainer
       headerAction={
         <HStack gap={2}>
           <Skeleton className="h-9 w-24 rounded-md" />

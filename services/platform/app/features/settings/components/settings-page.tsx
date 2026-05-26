@@ -32,6 +32,16 @@ interface SettingsPageProps extends Omit<
    * leave this `false` (default) and let their own layout dictate width.
    */
   narrow?: boolean;
+  /**
+   * Makes the page participate in its parent's flex height so a single
+   * child can claim the remaining viewport — required when the child uses
+   * `DataTable stickyLayout`, an internally-scrolling tab strip, or any
+   * other component that needs a bounded height to drive its own scroll
+   * container. The parent route must itself be a `flex flex-col` ancestor
+   * with `min-h-0` for this to engage. Default `false` keeps the page in
+   * normal document flow so long forms scroll the outer container.
+   */
+  fitToContainer?: boolean;
   /** Section content — `<SettingsSection>` children separated by 32px gap. */
   children?: ReactNode;
 }
@@ -47,6 +57,7 @@ export function SettingsPage({
   headerAction,
   stickyActions,
   narrow,
+  fitToContainer,
   children,
   className,
   ...props
@@ -57,6 +68,7 @@ export function SettingsPage({
       className={cn(
         'flex w-full flex-col gap-8',
         narrow && 'mx-auto max-w-[544px] self-center',
+        fitToContainer && 'min-h-0 flex-1',
         className,
       )}
       {...props}
@@ -84,7 +96,16 @@ export function SettingsPage({
           </div>
         )}
       </header>
-      {children && <div className="flex flex-col gap-8">{children}</div>}
+      {children && (
+        <div
+          className={cn(
+            'flex flex-col gap-8',
+            fitToContainer && 'min-h-0 flex-1',
+          )}
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 }

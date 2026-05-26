@@ -139,6 +139,7 @@ export function AuditLogsPage({
     <SettingsPage
       title={t('logs.heading')}
       description={t('logs.subheading')}
+      fitToContainer
       headerAction={
         isAdminUser && (
           <div className="flex items-center gap-2">

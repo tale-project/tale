@@ -85,20 +85,16 @@ export function SettingsNavigation({
       matchMode: 'startsWith',
     },
     {
-      labelKey: 'providers',
-      label: t('providers'),
-      href: `/dashboard/${organizationId}/settings/providers`,
+      labelKey: 'skills',
+      label: t('skills'),
+      href: `/dashboard/${organizationId}/settings/skills`,
       can: ['read', 'developerSettings'],
       matchMode: 'startsWith',
     },
     {
-      // Sits with the developer-capability group (providers,
-      // integrations, MCP servers). Skills are agent-capability
-      // bundles — configuration, not daily operations — so they
-      // belong here rather than in the primary sidebar.
-      labelKey: 'skills',
-      label: t('skills'),
-      href: `/dashboard/${organizationId}/settings/skills`,
+      labelKey: 'providers',
+      label: t('providers'),
+      href: `/dashboard/${organizationId}/settings/providers`,
       can: ['read', 'developerSettings'],
       matchMode: 'startsWith',
     },
