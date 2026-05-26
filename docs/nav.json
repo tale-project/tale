@@ -8,7 +8,14 @@
     },
     {
       "label": "cloud",
-      "pages": ["cloud/index"]
+      "pages": [
+        "cloud/index",
+        "cloud/onboarding",
+        "cloud/data-residency",
+        "cloud/billing",
+        "cloud/trust-and-compliance",
+        "cloud/migrate-to-self-hosted"
+      ]
     },
     {
       "label": "selfHosted",
