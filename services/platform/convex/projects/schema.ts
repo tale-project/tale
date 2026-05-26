@@ -74,8 +74,4 @@ export const projectsTable = defineTable({
 })
   .index('by_organization', ['organizationId'])
   .index('by_organization_archived', ['organizationId', 'archivedAt'])
-  .index('by_organization_updatedAt', ['organizationId', 'updatedAt'])
-  .searchIndex('search_projects', {
-    searchField: 'name',
-    filterFields: ['organizationId', 'archivedAt'],
-  });
+  .index('by_organization_updatedAt', ['organizationId', 'updatedAt']);

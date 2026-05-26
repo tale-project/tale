@@ -48,8 +48,4 @@ export const productsTable = defineTable({
     'status',
     'lastUpdated',
   ])
-  .index('by_org_lastUpdated', ['organizationId', 'lastUpdated'])
-  .searchIndex('search_products', {
-    searchField: 'name',
-    filterFields: ['organizationId', 'status', 'category'],
-  });
+  .index('by_org_lastUpdated', ['organizationId', 'lastUpdated']);
