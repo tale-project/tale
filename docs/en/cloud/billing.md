@@ -13,7 +13,7 @@ A line on the invoice reads `Models — Anthropic Claude Sonnet — 1.2M tokens 
 
 ## Plan tiers
 
-Cloud ships three tiers — **Starter**, **Team**, and **Enterprise** — that differ in support SLA, audit-log retention, and access to enterprise features (SSO, DPA, region beyond the default). All tiers share the same metered pricing for tokens, voice, and storage; the tier affects fixed monthly fees and feature gates, not per-call costs.
+Tale ships two tiers — **Community** and **Enterprise**. Community is the self-hosted open-source edition; you run it on your own infrastructure and the billing concept on this page does not apply. **Enterprise** is the managed tier (Cloud or self-hosted) with a support SLA, audit-log retention controls, SSO, the DPA, and access to regions beyond the default. The tier affects fixed monthly fees and feature gates, not per-call costs; the metered pricing for tokens, voice, and storage below applies to Enterprise on Cloud.
 
 ## Metered components
 

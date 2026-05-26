@@ -13,7 +13,7 @@ Une ligne sur la facture lit `Models — Anthropic Claude Sonnet — 1.2M tokens
 
 ## Plans
 
-Cloud propose trois plans — **Starter**, **Team** et **Enterprise** — qui diffèrent par le SLA de support, la rétention des journaux d'audit, et l'accès aux fonctionnalités entreprise (SSO, DPA, région au-delà du défaut). Tous les plans partagent le même tarif mesuré pour les tokens, la voix et le stockage ; le plan affecte les frais fixes mensuels et les barrières fonctionnelles, pas le coût par appel.
+Tale propose deux plans — **Community** et **Enterprise**. Community est l'édition open source auto-hébergée ; tu la fais tourner sur ta propre infrastructure et le concept de facturation décrit sur cette page ne s'applique pas. **Enterprise** est le plan géré (Cloud ou auto-hébergé) avec un SLA de support, des contrôles de rétention des journaux d'audit, SSO, le DPA et l'accès à des régions au-delà du défaut. Le plan affecte les frais fixes mensuels et les barrières fonctionnelles, pas le coût par appel ; le tarif mesuré pour les tokens, la voix et le stockage ci-dessous s'applique à Enterprise sur Cloud.
 
 ## Composants mesurés
 

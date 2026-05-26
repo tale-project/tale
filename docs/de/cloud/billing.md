@@ -13,7 +13,7 @@ Eine Zeile auf der Rechnung lautet `Models — Anthropic Claude Sonnet — 1.2M 
 
 ## Plan-Tiers
 
-Cloud bietet drei Tiers — **Starter**, **Team** und **Enterprise** —, die sich in Support-SLA, Audit-Log-Aufbewahrung und Zugriff auf Enterprise-Features (SSO, DPA, Region jenseits des Defaults) unterscheiden. Alle Tiers teilen sich dasselbe gemessene Pricing für Tokens, Sprache und Speicher; der Tier beeinflusst feste Monatsgebühren und Feature-Gates, nicht Pro-Aufruf-Kosten.
+Tale bietet zwei Tiers — **Community** und **Enterprise**. Community ist die selbstgehostete Open-Source-Edition; du betreibst sie auf deiner eigenen Infrastruktur, und das Abrechnungskonzept dieser Seite gilt dafür nicht. **Enterprise** ist der gemanagte Tier (Cloud oder Self-hosted) mit Support-SLA, Audit-Log-Aufbewahrungs-Kontrollen, SSO, AVV und Zugriff auf Regionen jenseits des Defaults. Der Tier beeinflusst feste Monatsgebühren und Feature-Gates, nicht Pro-Aufruf-Kosten; das gemessene Pricing für Tokens, Sprache und Speicher unten gilt für Enterprise auf Cloud.
 
 ## Gemessene Komponenten
 
