@@ -48,6 +48,14 @@ export interface ButtonProps
   iconClassName?: string;
   /** Make button full width */
   fullWidth?: boolean;
+  /**
+   * Collapse the text label to an icon-only button below the `sm` breakpoint.
+   * The label stays in the accessibility tree (visually hidden), so the button
+   * keeps its accessible name on mobile, then becomes visible from `sm` up.
+   * Pair with an `icon` so there's something to show. Use in crowded toolbars
+   * and action rows where labels would otherwise overlap on mobile.
+   */
+  collapseLabel?: boolean;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -61,13 +69,27 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       icon: Icon,
       iconClassName,
       fullWidth = false,
+      collapseLabel = false,
       children,
       ...props
     },
     ref,
   ) => {
     const Comp = asChild ? Slot : 'button';
-    const iconClass = cn('size-4', children && 'mr-2', iconClassName);
+    const iconClass = cn(
+      'size-4',
+      children && (collapseLabel ? 'sm:mr-2' : 'mr-2'),
+      iconClassName,
+    );
+
+    // When collapsed, keep the label in the a11y tree (sr-only) so the button
+    // still has an accessible name on mobile, revealing it from `sm` up.
+    const label =
+      collapseLabel && children ? (
+        <span className="sr-only sm:not-sr-only">{children}</span>
+      ) : (
+        children
+      );
 
     const content =
       asChild && !isLoading && !Icon ? (
@@ -78,12 +100,12 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             className={cn(iconClass, 'animate-spin motion-reduce:animate-none')}
             aria-hidden="true"
           />
-          {children}
+          {label}
         </>
       ) : (
         <>
           {Icon ? <Icon className={iconClass} aria-hidden="true" /> : null}
-          {children}
+          {label}
         </>
       );
 
@@ -121,6 +143,12 @@ export interface LinkButtonProps extends VariantProps<typeof buttonVariants> {
   children?: React.ReactNode;
   /** Prefetch the route */
   prefetch?: boolean;
+  /**
+   * Collapse the text label to an icon-only link below the `sm` breakpoint.
+   * The label stays in the accessibility tree (visually hidden) so the link
+   * keeps its accessible name on mobile, then becomes visible from `sm` up.
+   */
+  collapseLabel?: boolean;
 }
 
 /**
@@ -135,6 +163,7 @@ export const LinkButton = React.forwardRef<HTMLAnchorElement, LinkButtonProps>(
       size,
       icon: Icon,
       iconClassName,
+      collapseLabel = false,
       children,
       href,
       params,
@@ -142,7 +171,11 @@ export const LinkButton = React.forwardRef<HTMLAnchorElement, LinkButtonProps>(
     },
     ref,
   ) => {
-    const iconClass = cn('size-4', children && 'mr-2', iconClassName);
+    const iconClass = cn(
+      'size-4',
+      children && (collapseLabel ? 'sm:mr-2' : 'mr-2'),
+      iconClassName,
+    );
 
     return (
       <Link
@@ -153,7 +186,11 @@ export const LinkButton = React.forwardRef<HTMLAnchorElement, LinkButtonProps>(
         preload={prefetch ? 'intent' : false}
       >
         {Icon && <Icon className={iconClass} aria-hidden="true" />}
-        {children}
+        {collapseLabel && children ? (
+          <span className="sr-only sm:not-sr-only">{children}</span>
+        ) : (
+          children
+        )}
       </Link>
     );
   },

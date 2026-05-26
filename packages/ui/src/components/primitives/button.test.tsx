@@ -131,6 +131,37 @@ describe('Button', () => {
     });
   });
 
+  describe('collapseLabel', () => {
+    it('keeps an accessible name when the label is collapsed', () => {
+      render(
+        <Button icon={Mail} collapseLabel>
+          Send
+        </Button>,
+      );
+      // Label is visually hidden on mobile (sr-only) but stays the a11y name.
+      expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument();
+    });
+
+    it('wraps the label so it is hidden below sm and shown from sm', () => {
+      render(
+        <Button icon={Mail} collapseLabel>
+          Send
+        </Button>,
+      );
+      const label = screen.getByText('Send');
+      expect(label).toHaveClass('sr-only', 'sm:not-sr-only');
+    });
+
+    it('passes axe audit when collapsed', async () => {
+      const { container } = render(
+        <Button icon={Mail} collapseLabel>
+          Send
+        </Button>,
+      );
+      await checkAccessibility(container);
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(<Button>Accessible Button</Button>);
