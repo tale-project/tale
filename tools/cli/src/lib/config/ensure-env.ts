@@ -2,7 +2,7 @@ import { execSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
@@ -124,13 +124,13 @@ export async function ensureEnv(
     const missingUser = requiredUserVars.filter((v) => !existing[v]);
     const missingAuto = requiredAutoVars.filter((v) => !existing[v]);
 
+    let result: EnvSetupResult;
+
     if (missingUser.length === 0 && missingAuto.length === 0) {
       // All required vars present — derive public key for caller
       const agePublicKey = deriveAgePublicKey(existing.SOPS_AGE_KEY);
-      return { success: true, agePublicKey };
-    }
-
-    if (!isTTY) {
+      result = { success: true, agePublicKey };
+    } else if (!isTTY) {
       // Headless: refuse only when user-supplied vars are missing (we
       // can't synthesize a domain or TLS choice). Otherwise auto-generate
       // the missing secrets and continue so CI/CD upgrades stay green.
@@ -141,14 +141,23 @@ export async function ensureEnv(
         logger.info('Run the CLI interactively to complete environment setup.');
         return { success: false };
       }
-      return await runHeadlessAutoSecretFill(envPath, existing, missingAuto);
+      result = await runHeadlessAutoSecretFill(envPath, existing, missingAuto);
+    } else {
+      // Fill in only the missing variables
+      result = await runPartialEnvSetup(envPath, existing, [
+        ...missingUser,
+        ...missingAuto,
+      ]);
     }
 
-    // Fill in only the missing variables
-    return await runPartialEnvSetup(envPath, existing, [
-      ...missingUser,
-      ...missingAuto,
-    ]);
+    // .env-already-exists path → onboarding for OpenRouter happens elsewhere
+    // (`tale init` or the platform's Settings → AI providers UI). Avoid
+    // hijacking deploy/upgrade with an interactive prompt that was only
+    // supposed to fire on first install.
+    if (result.success) {
+      warnIfOpenrouterSecretMissing(options.deployDir);
+    }
+    return result;
   }
 
   if (!isTTY) {
@@ -242,7 +251,7 @@ async function runPartialEnvSetup(
   existing: Record<string, string>,
   missing: string[],
 ): Promise<EnvSetupResult> {
-  const { input, password, select } = await import('@inquirer/prompts');
+  const { input, select } = await import('@inquirer/prompts');
 
   logger.blank();
   logger.header('Environment Setup (partial)');
@@ -250,7 +259,6 @@ async function runPartialEnvSetup(
   logger.blank();
 
   const updates: Record<string, string> = {};
-  let openrouterKey: string | undefined;
 
   // Domain configuration
   if (missing.includes('HOST')) {
@@ -333,30 +341,6 @@ async function runPartialEnvSetup(
     logger.info('Generated age encryption keypair for provider secrets.');
   }
 
-  // OpenRouter API key (prompt if no secrets file exists)
-  const secretsPath = join(
-    dirname(envPath),
-    'providers',
-    'openrouter.secrets.json',
-  );
-  if (!existsSync(secretsPath)) {
-    logger.blank();
-    logger.header('API Configuration');
-    openrouterKey = await password({
-      message: 'Enter your OpenRouter API key (from https://openrouter.ai):',
-      mask: '*',
-      validate: (v) => {
-        if (!v.trim()) return 'OpenRouter API key is required';
-        return true;
-      },
-    });
-    const shouldContinue = await warnIfInvalidKeyFormat(openrouterKey);
-    if (!shouldContinue) {
-      logger.info('Aborted. Please re-run with a valid API key.');
-      return { success: false };
-    }
-  }
-
   // Surgically append missing variables to the existing .env (preserves all original content)
   const existingContent = await readFile(envPath, 'utf-8');
   const appendLines: string[] = [];
@@ -377,7 +361,26 @@ async function runPartialEnvSetup(
   logger.blank();
 
   const agePublicKey = deriveAgePublicKey(sopsAgeKey);
-  return { success: true, agePublicKey, openrouterKey };
+  return { success: true, agePublicKey };
+}
+
+/**
+ * Emit a one-line warning when the local OpenRouter secrets file is missing
+ * on the `.env`-already-exists path. Intentionally non-fatal: the operator
+ * may have configured OpenRouter through Settings → AI providers (which
+ * writes to the platform DB, not this file), or be using a different
+ * provider altogether. Re-prompting on every deploy/upgrade for users who
+ * legitimately have no local file is the bug we're avoiding.
+ */
+function warnIfOpenrouterSecretMissing(deployDir: string): void {
+  const secretsPath = join(deployDir, 'providers', 'openrouter.secrets.json');
+  if (existsSync(secretsPath)) return;
+  logger.warn(
+    'providers/openrouter.secrets.json not found. ' +
+      'If OpenRouter is already configured via Settings → AI providers or ' +
+      'another provider is in use, ignore this. ' +
+      "Otherwise run 'tale init' to provision a key.",
+  );
 }
 
 async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
