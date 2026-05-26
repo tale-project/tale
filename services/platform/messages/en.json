@@ -4664,7 +4664,7 @@
       "skillDeleteConflict": "Skill changed since you opened this dialog. Reload and retry.",
       "skillDuplicated": "Skill duplicated as {slug}",
       "skillDuplicateFailed": "Failed to duplicate skill",
-      "deleteConfirmation": "This removes the skill bundle from disk. The skill will no longer be available to any agent in this organization.",
+      "deleteConfirmation": "This removes the skill bundle from disk. Any agent currently bound to it will lose access.",
       "manageInSettings": "Manage in Skills settings",
       "actions": {
         "duplicate": "Duplicate",

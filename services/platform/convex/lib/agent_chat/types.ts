@@ -5,7 +5,6 @@
  * enabling lib/ to be completely decoupled from agents/.
  */
 
-import type { SkillBindingResolvedEntry } from '../../../lib/shared/schemas/agents';
 import type { ToolName } from '../../agent_tools/tool_registry';
 import type { AgentType } from '../context_management/constants';
 
@@ -63,12 +62,6 @@ export interface SerializableAgentConfig {
    * silently dropped.
    */
   skillBindings?: string[];
-  /**
-   * Legacy snapshot from the old transitive tool-grant model. No longer read
-   * at runtime; preserved on the type for back-compat reading of historical
-   * configs.
-   */
-  skillBindingsResolved?: SkillBindingResolvedEntry[];
   /** Whether to inject structured response markers into the system prompt (default false) */
   structuredResponsesEnabled?: boolean;
   /** Per-agent timeout in milliseconds */

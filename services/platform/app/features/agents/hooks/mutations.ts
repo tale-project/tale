@@ -10,12 +10,6 @@ function useInvalidateAgents() {
     void queryClient.invalidateQueries({
       queryKey: ['config', 'agents', organizationId],
     });
-    // Refresh skill-scoped cache entries that depend on agent state.
-    // Skills themselves are org-wide and no longer agent-bound, but
-    // skill listings may surface agent-derived metadata.
-    void queryClient.invalidateQueries({
-      queryKey: ['config', 'skills', organizationId],
-    });
   };
 }
 

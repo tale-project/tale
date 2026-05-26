@@ -4256,7 +4256,7 @@
         "sectionWorkflowBindingsDescription": "Lie des flux de travail spécifiques en tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier l'ID du flux de travail.",
         "noWorkflowsAvailable": "Aucun flux de travail actif disponible.",
         "sectionSkillBindings": "Skills attachés",
-        "sectionSkillBindingsDescription": "Skills que l'agent peut lire à l'exécution. Laisser vide pour un agent sans skills — pas de repli implicite sur la visibilité organisationnelle.",
+        "sectionSkillBindingsDescription": "Skills que l'agent peut lire à l'exécution. Laisser vide pour un agent sans skills — pas de repli implicite sur une visibilité à l'échelle de l'organisation.",
         "skillBindingsCounter": "{count}/{max} attachés",
         "skillBindingsToggleAria": "Attacher {slug}",
         "sectionKnowledge": "Base de connaissances",
@@ -4408,7 +4408,7 @@
       "skillDeleteConflict": "Le skill a changé depuis l'ouverture de ce dialogue. Recharge et réessaie.",
       "skillDuplicated": "Skill dupliqué en {slug}",
       "skillDuplicateFailed": "Échec de la duplication du skill",
-      "deleteConfirmation": "Cela retire le bundle du skill du disque. Les agents qui y sont attachés conserveront leur référence et émettront un avertissement à l'exécution jusqu'à ce que tu les modifies à nouveau.",
+      "deleteConfirmation": "Cela supprime le bundle du skill du disque. Tout agent l'ayant attaché perdra l'accès.",
       "manageInSettings": "Gérer dans les paramètres des skills",
       "actions": {
         "duplicate": "Dupliquer",

@@ -70,6 +70,16 @@ const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
 
 const serializableAgentConfigValidator = v.object({
   name: v.string(),
+  /**
+   * Root behavior the agent runs. Chat is the default; image-generation
+   * is forked out before `runAgentGeneration` so this field is informational
+   * here, but the mapper emits it and the validator is strict — keep it
+   * declared so historical configs and image agents do not crash arg
+   * validation.
+   */
+  primaryBehavior: v.optional(
+    v.union(v.literal('chat'), v.literal('image-generation')),
+  ),
   instructions: v.string(),
   convexToolNames: v.optional(v.array(v.string())),
   integrationBindings: v.optional(v.array(v.string())),

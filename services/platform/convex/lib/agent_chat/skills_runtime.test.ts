@@ -79,12 +79,29 @@ describe('buildSkillContext binding gate', () => {
     expect(Object.keys(snap.builtInTools)).toEqual([]);
   });
 
-  it('returns empty snapshot when the list call throws', async () => {
+  it('propagates the rejection when the list call throws', async () => {
+    // Silent fall-through to an empty snapshot hides real failures from
+    // the operator and contradicts the hard-allowlist promise — match
+    // the behavior of sibling builders (integrations / workflows / mcp)
+    // and let the turn fail loudly.
     const ctx = makeCtx({ listResult: new Error('boom') });
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(buildSkillContext(ctx, 'org', ['foo'])).rejects.toThrow(
+      'boom',
+    );
+  });
+
+  it('injects "before reaching for a generic tool" guidance into systemPromptAppend', async () => {
+    // Rule 7 in the seed chat-agent prompt used to hardcode this guidance;
+    // it now lives in the runtime template so every agent that binds at
+    // least one skill gets the directive uniformly.
+    const ctx = makeCtx({
+      listResult: ['foo'],
+      reads: { foo: makeOkRead('foo') },
+    });
     const snap = await buildSkillContext(ctx, 'org', ['foo']);
-    expect(snap.entries).toEqual([]);
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
+    expect(snap.systemPromptAppend).toContain(
+      'Before reaching for a generic tool',
+    );
+    expect(snap.systemPromptAppend).toContain('expand_skill');
   });
 });

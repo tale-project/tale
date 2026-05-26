@@ -92,17 +92,16 @@ export async function buildSkillContext(
   if (!boundSlugs || boundSlugs.length === 0) return EMPTY_SNAPSHOT;
   const boundSet = new Set(boundSlugs);
 
-  let orgSlugs: string[];
-  try {
-    const listed = await ctx.runAction(
-      internal.skills.file_actions.listSkillsForExecution,
-      { orgSlug },
-    );
-    orgSlugs = Array.isArray(listed) ? listed : [];
-  } catch (err) {
-    console.warn('[skills_runtime] listSkillsForExecution failed:', err);
-    return EMPTY_SNAPSHOT;
-  }
+  // Let `listSkillsForExecution` failures propagate. Sibling builders
+  // (`buildIntegrationTools` / `buildWorkflowTools` / `buildMcpTools`)
+  // all let listing errors abort the turn — silently degrading here
+  // would hide a real fault from the operator and contradict the
+  // promise of a hard `skillBindings` allowlist.
+  const listed = await ctx.runAction(
+    internal.skills.file_actions.listSkillsForExecution,
+    { orgSlug },
+  );
+  const orgSlugs = Array.isArray(listed) ? listed : [];
   const slugs = orgSlugs.filter((s) => boundSet.has(s));
   if (slugs.length === 0) return EMPTY_SNAPSHOT;
 
@@ -185,7 +184,7 @@ function buildAvailableSkillsSection(entries: SkillRuntimeEntry[]): string {
     '',
     '## Available Skills',
     '',
-    'You have these skills available in this organization. The full instructions for each are loaded on demand — call `expand_skill({ skillSlug: "<slug>" })` when one is relevant to the user request.',
+    'You have these skills available. Before reaching for a generic tool or `run_code`, scan this list and call `expand_skill({ skillSlug: "<slug>" })` for any skill whose description matches the user request — follow its instructions first.',
     '',
     'Skills are **knowledge packs** — they teach you how to approach a task. They are not executable. To do work, read the skill (`expand_skill` + `read_skill_file`), then write your own code into the thread workspace with `file_write` and execute it via `run_code`.',
     '',

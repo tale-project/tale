@@ -77,13 +77,11 @@ export function toSerializableConfig(
       .map((f) => String(f.fileId)),
     delegateSlugs: config.delegates,
     skillBindings: config.skillBindings,
-    skillBindingsResolved: config.skillBindingsResolved?.map((s) => ({
-      slug: s.slug,
-      versionHash: s.versionHash,
-      toolNames: s.toolNames,
-      integrationBindings: s.integrationBindings,
-      workflowBindings: s.workflowBindings,
-    })),
+    // `skillBindingsResolved` is a legacy snapshot from the old transitive
+    // tool-grant model and is no longer read at runtime — drop it here so
+    // the strict `serializableAgentConfigValidator` doesn't see an extra
+    // field. The on-disk JSON still tolerates the legacy field for
+    // historical agents (see `agentJsonSchema`).
     structuredResponsesEnabled: config.structuredResponsesEnabled ?? false,
     timeoutMs: config.timeoutMs,
     outputReserve: config.outputReserve,

@@ -4407,7 +4407,7 @@
       "skillDeleteConflict": "Skill wurde geändert, seit du diesen Dialog geöffnet hast. Lade neu und versuche es noch einmal.",
       "skillDuplicated": "Skill als {slug} dupliziert",
       "skillDuplicateFailed": "Skill konnte nicht dupliziert werden",
-      "deleteConfirmation": "Dadurch wird das Skill-Bundle von der Festplatte entfernt. Daran gebundene Agents behalten den Bindungseintrag und protokollieren zur Laufzeit eine Warnung, bis du sie erneut bearbeitest.",
+      "deleteConfirmation": "Damit wird das Skill-Bundle von der Festplatte entfernt. Jeder Agent, der es gebunden hat, verliert den Zugriff.",
       "manageInSettings": "In Skill-Einstellungen verwalten",
       "actions": {
         "duplicate": "Duplizieren",
