@@ -101,7 +101,6 @@ export function SkillsTable({ organizationId }: SkillsTableProps) {
   return (
     <>
       <DataTable
-        className="p-4"
         {...list.tableProps}
         columns={columns}
         stickyLayout={stickyLayout}
