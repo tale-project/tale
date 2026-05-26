@@ -199,7 +199,7 @@ export function SkillDetailPanel({
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-            <div className="hidden md:block">
+            <div className="hidden md:contents">
               <SkillBundleTreePanel
                 assets={filesData?.assets ?? skill.assets ?? []}
                 slug={slug}
