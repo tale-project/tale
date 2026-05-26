@@ -27,16 +27,16 @@ interface Sink {
   entries: SinkEntry[];
 }
 
-const KEY = '__TALE_I18N_REPORT_SINK__';
+declare global {
+  // eslint-disable-next-line no-var
+  var __TALE_I18N_REPORT_SINK__: Sink | undefined;
+}
 
 function getSink(): Sink {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  const g = globalThis as unknown as Record<string, unknown>;
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  let s = g[KEY] as Sink | undefined;
+  let s = globalThis.__TALE_I18N_REPORT_SINK__;
   if (!s) {
     s = { entries: [] };
-    g[KEY] = s;
+    globalThis.__TALE_I18N_REPORT_SINK__ = s;
   }
   return s;
 }

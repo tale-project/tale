@@ -59,6 +59,6 @@ const HEADING_STUBS_FALLBACK: Record<string, string> = {
 /** Resolve the stub set for any locale, applying fallbacks. */
 export function stubsForLocale(locale: string): ReadonlySet<string> {
   const fallback = HEADING_STUBS_FALLBACK[locale];
-  if (fallback) return HEADING_STUBS[fallback] ?? new Set<string>();
+  if (fallback) return HEADING_STUBS[fallback] ?? HEADING_STUBS.en;
   return HEADING_STUBS[locale] ?? HEADING_STUBS.en;
 }

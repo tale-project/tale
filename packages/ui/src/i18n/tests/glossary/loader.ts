@@ -21,15 +21,27 @@ const DEFAULT_PATH = path.join(
 
 let cache: { path: string; handle: GlossaryHandle } | null = null;
 
+function isGlossary(value: unknown): value is Glossary {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'terms' in value &&
+    Array.isArray(value.terms)
+  );
+}
+
 /** Load a glossary from disk and return its handle. Cached per path. */
 export function loadGlossary(
   glossaryPath: string = DEFAULT_PATH,
 ): GlossaryHandle {
   if (cache && cache.path === glossaryPath) return cache.handle;
   const raw: unknown = JSON.parse(fs.readFileSync(glossaryPath, 'utf8'));
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  const glossary = raw as Glossary;
-  const handle = buildHandle(glossary);
+  if (!isGlossary(raw)) {
+    throw new Error(
+      `Invalid glossary file at ${glossaryPath}: expected an object with a "terms" array.`,
+    );
+  }
+  const handle = buildHandle(raw);
   cache = { path: glossaryPath, handle };
   return handle;
 }
@@ -51,8 +63,12 @@ function buildHandle(glossary: Glossary): GlossaryHandle {
       return byCat.get(category) ?? [];
     },
     resolveForm(term, locale) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      const lookup = term as unknown as Record<string, unknown>;
+      const lookup: Record<string, string | undefined> = {
+        en: term.en,
+        de: term.de,
+        fr: term.fr,
+        de_CH: term.de_CH,
+      };
       const direct = lookup[localeKey(locale)];
       if (typeof direct === 'string') return direct;
       // Fallback chain: de-CH → de → en (handled by the de_CH key normalization).
@@ -69,5 +85,5 @@ function buildHandle(glossary: Glossary): GlossaryHandle {
 
 /** Locale id → object-key normalisation (`de-CH` → `de_CH`). */
 function localeKey(locale: string): string {
-  return locale.replace('-', '_');
+  return locale.replaceAll('-', '_');
 }

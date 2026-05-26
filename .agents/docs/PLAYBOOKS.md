@@ -1,6 +1,6 @@
 # Page-type playbooks
 
-Six page types cover everything in `docs/`. Each has a shape contract on top of the universal opening/body/closing rules from [AGENTS.md](AGENTS.md).
+Seven page types cover everything in `docs/`. Each has a shape contract on top of the universal opening/body/closing rules from [AGENTS.md](AGENTS.md).
 
 ## 1. Concept page
 

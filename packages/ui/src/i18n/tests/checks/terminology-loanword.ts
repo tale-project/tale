@@ -4,7 +4,7 @@
  * glossary; the EN form must not appear in the locale text.
  */
 
-import { wordBoundary, escapeRegex } from '../internals/regex';
+import { wordBoundary } from '../internals/regex';
 import type { Finding } from './types';
 import { createCheck } from './types';
 
@@ -46,6 +46,5 @@ export const terminologyLoanword = createCheck({
       }
     }
     return findings;
-    void escapeRegex; // keep import warm for future use
   },
 });

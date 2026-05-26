@@ -81,7 +81,7 @@ function flatten(
   }
   if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
     for (const [k, v] of Object.entries(obj)) {
-      flatten(v as unknown, prefix ? `${prefix}.${k}` : k, out);
+      flatten(v, prefix ? `${prefix}.${k}` : k, out);
     }
   }
   return out;

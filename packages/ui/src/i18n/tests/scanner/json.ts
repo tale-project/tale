@@ -32,7 +32,7 @@ function flatten(
   }
   if (node && typeof node === 'object' && !Array.isArray(node)) {
     for (const [k, v] of Object.entries(node)) {
-      flatten(v as unknown, prefix ? `${prefix}.${k}` : k, out);
+      flatten(v, prefix ? `${prefix}.${k}` : k, out);
     }
   }
   return out;
@@ -41,6 +41,8 @@ function flatten(
 /** Read + parse + flatten a JSON source; emit one Fragment per leaf. */
 export function scanJson(source: JsonSource, repoRoot: string): Fragment[] {
   const raw = fs.readFileSync(source.path, 'utf8');
+  // JSON.parse returns `any` by default; `flatten` runtime-guards every value
+  // (string vs object vs other) so the unknown annotation is the safe default.
   const parsed: unknown = JSON.parse(raw);
   const entries = flatten(parsed);
   const lineLookup = buildLineLookup(raw);

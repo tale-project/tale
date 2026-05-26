@@ -6,8 +6,10 @@
 import type { Finding } from './types';
 import { createCheck } from './types';
 
-// Regular space (or no space) + percent, after a digit.
-const PERCENT = /(\d)(\s| )?%/g;
+// Match `<digit>%`, `<digit><regular-space>%`, or `<digit><nbsp>%`. The
+// captured separator distinguishes the two valid forms (NBSP) from the two
+// flagged forms (no space, regular space).
+const PERCENT = /(\d)([  ])?%/g;
 
 const LOCALES_REQUIRING_NBSP_PERCENT = new Set(['de', 'de-CH', 'fr']);
 

@@ -1,6 +1,6 @@
 # `.agents/translation/`
 
-The cross-locale translation skill for Tale. The five files in this directory plus the four per-locale folders cover every concern around writing or editing a non-English string anywhere in the monorepo.
+The cross-locale translation skill for Tale. The files and per-locale folders in this directory cover every concern around writing or editing a non-English string anywhere in the monorepo.
 
 | File                                   | What it owns                                                                                                                                                              |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
