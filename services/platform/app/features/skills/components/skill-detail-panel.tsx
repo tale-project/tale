@@ -9,7 +9,7 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
-import { Copy, Trash2, X } from 'lucide-react';
+import { Copy, RotateCw, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -33,6 +33,7 @@ import { formatBytes } from '@/lib/utils/format-bytes';
 import { SkillAssetViewer } from './skill-asset-viewer';
 import { SkillBundleTreePanel } from './skill-bundle-tree-panel';
 import { SkillDeleteDialog } from './skill-delete-dialog';
+import { SkillUploadDialog } from './skill-upload/skill-upload-dialog';
 
 interface SkillDetailPanelProps {
   organizationId: string;
@@ -59,6 +60,7 @@ export function SkillDetailPanel({
   const { data: auditRows } = useGetSkillAuditHistory(organizationId, slug);
   const { mutateAsync: duplicateSkill } = useDuplicateSkill();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
 
   // File selection in the bundle tree. Lives in component state — no URL
@@ -149,6 +151,17 @@ export function SkillDetailPanel({
           <HStack gap={1} align="center" className="shrink-0">
             {skill ? (
               <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={RotateCw}
+                  onClick={() => setReplaceDialogOpen(true)}
+                  disabled={isDuplicating}
+                >
+                  {t('skills.actions.replaceBundle', {
+                    defaultValue: 'Replace bundle',
+                  })}
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -407,6 +420,15 @@ export function SkillDetailPanel({
           void queryClient.invalidateQueries({
             queryKey: ['config', 'skills'],
           });
+        }}
+      />
+
+      <SkillUploadDialog
+        open={replaceDialogOpen}
+        onOpenChange={setReplaceDialogOpen}
+        organizationId={organizationId}
+        onUploaded={() => {
+          setReplaceDialogOpen(false);
         }}
       />
     </>

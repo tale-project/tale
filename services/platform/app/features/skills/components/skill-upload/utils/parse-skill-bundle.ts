@@ -7,6 +7,7 @@ import {
   parseSkillMd,
   SKILL_NAME_REGEX,
   RESERVED_SKILL_NAMES,
+  type SkillFrontmatter,
 } from '@/lib/shared/schemas/skills';
 
 export interface ParsedSkillBundleFile {
@@ -20,11 +21,9 @@ export interface ParsedSkillBundle {
   zipFile: File;
   /** Derived from the SKILL.md frontmatter `name` field. */
   slug: string;
-  /** Display name + description from the parsed SKILL.md. */
-  meta: {
-    name: string;
-    description: string;
-  };
+  /** Full parsed SKILL.md frontmatter — preview surface needs license,
+   * recommendedPackages, disableModelInvocation, etc. */
+  meta: SkillFrontmatter;
   /** Asset entries (excludes SKILL.md). */
   assets: ParsedSkillBundleFile[];
   /** Total decompressed bundle size in bytes (SKILL.md + every asset). */
@@ -65,7 +64,16 @@ export async function parseSkillBundle(file: File): Promise<ParseResult> {
     };
   }
 
-  const rawEntries = Object.entries(zip.files);
+  // Drop OS-injected metadata (macOS `__MACOSX/`, `.DS_Store`, Windows
+  // `Thumbs.db`) before any wrapper-folder detection. Without this, a
+  // macOS Finder "Compress" zip leaves `__MACOSX/` as a sibling of the
+  // user's folder; `detectSingleTopLevelFolder` then sees two roots and
+  // refuses to strip, the user's SKILL.md ends up nested, and parsing
+  // fails with a misleading "missing SKILL.md" error. Mirrored on the
+  // server in `convex/skills/file_actions.ts:isOsMetadataEntry`.
+  const rawEntries = Object.entries(zip.files).filter(
+    ([name]) => !isOsMetadataEntry(name),
+  );
   if (rawEntries.length === 0) {
     return { success: false, error: 'Zip is empty.' };
   }
@@ -174,11 +182,17 @@ export async function parseSkillBundle(file: File): Promise<ParseResult> {
     data: {
       zipFile: file,
       slug,
-      meta: { name: meta.name, description: meta.description },
+      meta,
       assets: assetMeta,
       totalBytes,
     },
   };
+}
+
+function isOsMetadataEntry(name: string): boolean {
+  if (name.startsWith('__MACOSX/') || name === '__MACOSX') return true;
+  const basename = name.split('/').pop() ?? '';
+  return basename === '.DS_Store' || basename === 'Thumbs.db';
 }
 
 function detectSingleTopLevelFolder(

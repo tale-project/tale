@@ -4397,7 +4397,8 @@
       "skillDuplicateFailed": "Skill konnte nicht dupliziert werden",
       "deleteConfirmation": "Dadurch wird das Skill-Bundle von der Festplatte entfernt. Daran gebundene Agents behalten den Bindungseintrag und protokollieren zur Laufzeit eine Warnung, bis du sie erneut bearbeitest.",
       "actions": {
-        "duplicate": "Duplizieren"
+        "duplicate": "Duplizieren",
+        "replaceBundle": "Bundle ersetzen"
       },
       "columns": {
         "name": "Skill",
@@ -4425,6 +4426,7 @@
         "empty": "Noch keine Audit-Einträge für diesen Skill.",
         "action": {
           "upload_skill": "Hochgeladen",
+          "duplicate_skill": "Dupliziert",
           "delete_skill": "Gelöscht"
         }
       },
@@ -4432,7 +4434,8 @@
         "toggleWrap": "Zeilenumbruch umschalten",
         "imageNotice": "Bildvorschau ist im Browser nicht verfügbar. Verwende die CLI, um dieses Asset zu prüfen.",
         "binaryNotice": "Dieser Dateityp ist im Browser nicht vorschaubar.",
-        "largeFile": "Große Datei — Syntax-Highlighting aus Leistungsgründen deaktiviert."
+        "largeFile": "Große Datei — Syntax-Highlighting aus Leistungsgründen deaktiviert.",
+        "notFound": "Diese Datei ist nicht mehr im Bundle. Wähle eine andere Datei aus dem Baum."
       },
       "bundle": {
         "empty": "Noch keine Bundle-Dateien."
@@ -4446,18 +4449,26 @@
       },
       "upload": {
         "dialogTitle": "Skill-Bundle hochladen",
-        "uploadDescription": "Lade ein Zip hoch, das SKILL.md im Stammverzeichnis enthält, plus optionale Skripte, Referenzen oder Assets.",
+        "uploadDescription": "Lade eine .zip-Datei hoch, die SKILL.md im Stammverzeichnis enthält, plus optionale Skripte, Referenzen oder Assets.",
         "dropZoneLabel": "Skill-Bundle hochladen",
-        "dropOrClick": "Lege ein .zip hier ab oder klicke zum Auswählen",
+        "dropOrClick": "Lege ein .zip hier ab oder klicke zum Durchsuchen",
         "dropHere": "Bundle hier ablegen",
         "acceptedFormats": "Zip mit SKILL.md im Stammverzeichnis",
-        "parsing": "Bundle wird gelesen…",
+        "parsing": "Lese Bundle…",
         "zipRequired": "Bundle muss eine .zip-Datei sein.",
+        "folderUnsupported": "Ordner werden nicht unterstützt — bitte zippe den Ordner zuerst.",
+        "singleFileOnly": "Lege eine einzelne .zip-Datei ab, nicht mehrere Dateien.",
         "unexpectedError": "Ein unerwarteter Fehler ist aufgetreten",
         "bundleFiles": "Bundle-Dateien",
-        "fileCount": "Dateien",
+        "fileCount": "{count, plural, one {# Datei} other {# Dateien}}",
+        "frontmatter": "Frontmatter",
+        "license": "Lizenz",
+        "recommendedPython": "Empfohlenes Python",
+        "recommendedNode": "Empfohlenes Node",
+        "disableModelInvocation": "Skill ist vor dem Modell verborgen — nur explizite Aufrufe.",
+        "unknownKeys": "{count, plural, one {# zusätzlicher Frontmatter-Eintrag bewahrt} other {# zusätzliche Frontmatter-Einträge bewahrt}}",
         "submit": "Bundle hochladen",
-        "submitting": "Wird hochgeladen…",
+        "submitting": "Lade hoch…",
         "uploadSuccess": "Skill-Bundle hochgeladen",
         "uploadFailed": "Skill-Bundle konnte nicht hochgeladen werden",
         "replaceTitle": "Vorhandenen Skill ersetzen?",

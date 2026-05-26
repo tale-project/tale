@@ -1,18 +1,20 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { useAction } from 'convex/react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { fetchJson } from '@/lib/utils/type-cast-helpers';
 
-import { useGenerateUploadUrl } from '../../hooks/mutations';
+import {
+  useGenerateSkillUploadUrl,
+  useRecordSkillUploadIntent,
+  useUploadSkillBundle,
+} from '../../hooks/mutations';
 import { useUploadSkill } from './hooks/use-upload-skill';
 import { PreviewStep } from './steps/preview-step';
 import { UploadStep } from './steps/upload-step';
@@ -34,17 +36,35 @@ export function SkillUploadDialog({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
 
-  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
-  const uploadFn = useAction(api.skills.file_actions.uploadSkillBundle);
+  const { mutateAsync: generateUploadUrl } = useGenerateSkillUploadUrl();
+  const { mutateAsync: recordIntent } = useRecordSkillUploadIntent();
+  const { mutateAsync: uploadFn } = useUploadSkillBundle();
 
   const state = useUploadSkill();
   const [confirmReplaceSlug, setConfirmReplaceSlug] = useState<string | null>(
     null,
   );
 
+  // Abort the in-flight blob POST when the dialog closes or unmounts so we
+  // don't strand `_storage` writes the user explicitly cancelled. Refs
+  // also let `runUpload`'s closure see the latest controller without
+  // recreating the callback on every render.
+  const abortRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, []);
+
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen) {
+        abortRef.current?.abort();
+        abortRef.current = null;
         state.reset();
         setConfirmReplaceSlug(null);
       }
@@ -53,37 +73,57 @@ export function SkillUploadDialog({
     [onOpenChange, state],
   );
 
-  // Run the actual upload (presign → POST → action). Returns true when the
-  // bundle landed, false when the server needs explicit replace confirmation.
+  // Run the actual upload (presign → POST → record intent → action).
+  // Returns true when the bundle landed, false when the server needs
+  // explicit replace confirmation.
   const runUpload = useCallback(
     async (force: boolean): Promise<boolean> => {
       const bundle = state.parsedBundle;
       if (!bundle) return false;
 
-      const uploadUrl = await generateUploadUrl({});
+      const controller = new AbortController();
+      abortRef.current?.abort();
+      abortRef.current = controller;
+
+      const uploadUrl = await generateUploadUrl({ organizationId });
       const resp = await fetch(uploadUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/zip' },
         body: bundle.zipFile,
+        signal: controller.signal,
       });
       if (!resp.ok) {
         throw new Error(`Upload failed (HTTP ${resp.status})`);
       }
-      const { storageId } = await fetchJson<{ storageId: string }>(resp);
+      const { storageId: rawStorageId } = await fetchJson<{
+        storageId: string;
+      }>(resp);
+      const storageId = toId<'_storage'>(rawStorageId);
+
+      // Bind the blob to (org, user) BEFORE invoking the action. The
+      // action refuses any storageId that lacks an intent row, so this is
+      // load-bearing — skipping it surfaces as `STORAGE_NOT_OWNED`.
+      await recordIntent({ organizationId, storageId });
 
       const result = await uploadFn({
         organizationId,
-        storageId: toId<'_storage'>(storageId),
+        storageId,
         ...(force ? { force: true } : {}),
       });
 
       if (!result.ok) {
-        setConfirmReplaceSlug(result.slug);
+        if (isMountedRef.current) setConfirmReplaceSlug(result.slug);
         return false;
       }
       return true;
     },
-    [state.parsedBundle, generateUploadUrl, uploadFn, organizationId],
+    [
+      state.parsedBundle,
+      generateUploadUrl,
+      recordIntent,
+      uploadFn,
+      organizationId,
+    ],
   );
 
   const handleSubmit = useCallback(async () => {
@@ -104,15 +144,16 @@ export function SkillUploadDialog({
       }
       // landed=false → confirm dialog will pick it up; keep dialog open.
     } catch (err) {
+      if (isAbortError(err)) return;
       toast({
         title: t('skills.upload.uploadFailed', {
           defaultValue: 'Failed to upload skill bundle',
         }),
-        description: err instanceof Error ? err.message : undefined,
+        description: extractErrorMessage(err),
         variant: 'destructive',
       });
     } finally {
-      state.setIsSubmitting(false);
+      if (isMountedRef.current) state.setIsSubmitting(false);
     }
   }, [state, runUpload, t, handleOpenChange, onUploaded]);
 
@@ -121,7 +162,7 @@ export function SkillUploadDialog({
     state.setIsSubmitting(true);
     try {
       const landed = await runUpload(true);
-      setConfirmReplaceSlug(null);
+      if (isMountedRef.current) setConfirmReplaceSlug(null);
       if (landed) {
         const slug = state.parsedBundle.slug;
         toast({
@@ -134,15 +175,16 @@ export function SkillUploadDialog({
         onUploaded?.(slug);
       }
     } catch (err) {
+      if (isAbortError(err)) return;
       toast({
         title: t('skills.upload.uploadFailed', {
           defaultValue: 'Failed to upload skill bundle',
         }),
-        description: err instanceof Error ? err.message : undefined,
+        description: extractErrorMessage(err),
         variant: 'destructive',
       });
     } finally {
-      state.setIsSubmitting(false);
+      if (isMountedRef.current) state.setIsSubmitting(false);
     }
   }, [state, runUpload, t, handleOpenChange, onUploaded]);
 
@@ -169,7 +211,7 @@ export function SkillUploadDialog({
           <Button
             type="button"
             onClick={() => void handleSubmit()}
-            disabled={state.isSubmitting}
+            disabled={!state.parsedBundle || state.isSubmitting}
           >
             {state.isSubmitting
               ? t('skills.upload.submitting', {
@@ -231,4 +273,18 @@ export function SkillUploadDialog({
       />
     </>
   );
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === 'AbortError';
+}
+
+function extractErrorMessage(err: unknown): string | undefined {
+  if (err && typeof err === 'object') {
+    const data = (err as { data?: { message?: string } }).data;
+    if (data?.message) return data.message;
+  }
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return undefined;
 }

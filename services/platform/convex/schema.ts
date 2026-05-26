@@ -56,6 +56,7 @@ import { productsTable } from './products/schema';
 import { projectsTable } from './projects/schema';
 import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
 import { sandboxExecutionsTable } from './sandbox/schema';
+import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
 import { threadFilesTable } from './thread_files/schema';
@@ -157,6 +158,8 @@ export default defineSchema({
   ssoProviders: ssoProvidersTable,
   vendors: vendorsTable,
   sandboxExecutions: sandboxExecutionsTable,
+  skillUploadClaims: skillUploadClaimTable,
+  skillUploadIntents: skillUploadIntentTable,
   videoLinkJobs: videoLinkJobsTable,
   websites: websitesTable,
   wfApiKeys: wfApiKeysTable,

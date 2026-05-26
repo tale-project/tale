@@ -25,14 +25,19 @@ import path from 'node:path';
 import { ConvexError, v } from 'convex/values';
 import JSZip from 'jszip';
 
-import { parseSkillMd } from '../../lib/shared/schemas/skills';
+import {
+  parseSkillMd,
+  type SkillFrontmatter,
+} from '../../lib/shared/schemas/skills';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { internalAction, action, type ActionCtx } from '../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { type OrgMembershipAuth } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
   atomicWriteBuffer,
+  readFileBufferSafe,
   readFileSafe,
   readdirSafe,
   sha256,
@@ -55,7 +60,7 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-type SkillAuditAction = 'upload_skill' | 'delete_skill';
+type SkillAuditAction = 'upload_skill' | 'duplicate_skill' | 'delete_skill';
 
 async function logSkillAudit(
   ctx: ActionCtx,
@@ -92,6 +97,29 @@ async function logSkillAudit(
   }
 }
 
+/**
+ * Tear down both the staged `_storage` blob and its `skillUploadIntents`
+ * row in one place so every exit path of `uploadSkillBundle` (early
+ * reject, needs_confirm, parse failure, write failure, success-finally)
+ * leaves no orphan resources. Failures here only log — the user-visible
+ * operation has already succeeded or failed independently.
+ */
+async function cleanupUploadResources(
+  ctx: ActionCtx,
+  storageId: Id<'_storage'>,
+): Promise<void> {
+  await ctx.storage.delete(storageId).catch((err) => {
+    console.warn('[uploadSkillBundle] storage.delete failed:', err);
+  });
+  await ctx
+    .runMutation(internal.skills.upload_mutations.deleteSkillUploadIntent, {
+      storageId,
+    })
+    .catch((err) => {
+      console.warn('[uploadSkillBundle] deleteSkillUploadIntent failed:', err);
+    });
+}
+
 interface AssetEntry {
   path: string;
   size: number;
@@ -110,7 +138,18 @@ async function walkSkillBundle(
 
   async function walk(currentDir: string, relPrefix: string): Promise<void> {
     const entries = await readdir(currentDir, { withFileTypes: true }).catch(
-      () => [] as never[],
+      (err) => {
+        // Log non-ENOENT (EACCES / EIO) so a permissions glitch in one
+        // subdir doesn't silently shrink the asset list. Treat as empty
+        // for ENOENT (caller may be enumerating a not-yet-created dir).
+        if (
+          err instanceof Error &&
+          (err as NodeJS.ErrnoException).code !== 'ENOENT'
+        ) {
+          console.warn('[walkSkillBundle] readdir failed:', currentDir, err);
+        }
+        return [] as never[];
+      },
     );
     for (const e of entries) {
       if (e.name.startsWith('.')) continue;
@@ -123,7 +162,15 @@ async function walkSkillBundle(
       }
       if (!e.isFile()) continue;
       if (rel === 'SKILL.md') continue;
-      const st = await stat(abs).catch(() => null);
+      const st = await stat(abs).catch((err) => {
+        if (
+          err instanceof Error &&
+          (err as NodeJS.ErrnoException).code !== 'ENOENT'
+        ) {
+          console.warn('[walkSkillBundle] stat failed:', abs, err);
+        }
+        return null;
+      });
       if (!st) continue;
       assets.push({ path: rel, size: st.size });
       totalBytes += st.size;
@@ -143,15 +190,13 @@ interface ParsedBundleFile {
 
 interface ParsedBundle {
   slug: string;
-  meta: {
-    name: string;
-    description: string;
-    recommendedPackages?: { python?: string[]; node?: string[] };
-  };
+  meta: SkillFrontmatter;
   /** Includes SKILL.md as the first entry. */
   files: ParsedBundleFile[];
   /** sha256 of the SKILL.md content as written. */
   skillMdHash: string;
+  /** Total bytes of the bundle (SKILL.md + all assets). */
+  totalBytes: number;
 }
 
 /**
@@ -176,7 +221,15 @@ async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
     });
   }
 
-  const rawEntries = Object.entries(zip.files);
+  // Drop OS-injected junk before any other processing. macOS Finder's
+  // "Compress" produces a sibling `__MACOSX/` tree alongside the user's
+  // folder; if it survives to `detectSingleTopLevelFolder` it defeats the
+  // wrapper-strip and the user's `myskill/SKILL.md` looks nested → bundle
+  // fails with a misleading "missing SKILL.md" error. `__MACOSX` starts
+  // with `_` not `.`, so the per-segment dotfile filter doesn't catch it.
+  const rawEntries = Object.entries(zip.files).filter(
+    ([name]) => !isOsMetadataEntry(name),
+  );
   if (rawEntries.length === 0) {
     throw new ConvexError({
       code: 'INVALID_BUNDLE',
@@ -287,16 +340,21 @@ async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
 
   return {
     slug,
-    meta: {
-      name: meta.name,
-      description: meta.description,
-      ...(meta.recommendedPackages && {
-        recommendedPackages: meta.recommendedPackages,
-      }),
-    },
+    meta,
     files,
     skillMdHash: sha256(skillMdContent),
+    totalBytes,
   };
+}
+
+/**
+ * Drop OS-injected metadata entries that would otherwise pollute the
+ * bundle. Mirrored on the client in `parse-skill-bundle.ts`.
+ */
+function isOsMetadataEntry(name: string): boolean {
+  if (name.startsWith('__MACOSX/') || name === '__MACOSX') return true;
+  const basename = name.split('/').pop() ?? '';
+  return basename === '.DS_Store' || basename === 'Thumbs.db';
 }
 
 function detectSingleTopLevelFolder(
@@ -498,17 +556,36 @@ export const uploadSkillBundle = action({
   handler: async (ctx, args) => {
     const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
 
+    // Ownership gate: refuse before reading the blob if the storageId
+    // isn't bound to this org via `recordSkillUploadIntent`. Without this
+    // an authenticated caller could point the server at any other org's
+    // pending storageId. The intent row is deleted in `finally` along with
+    // the blob.
+    const intentMatch = await ctx.runMutation(
+      internal.skills.upload_mutations.verifySkillUploadIntent,
+      { organizationId: args.organizationId, storageId: args.storageId },
+    );
+    if (!intentMatch) {
+      throw new ConvexError({
+        code: 'STORAGE_NOT_OWNED',
+        message:
+          'Upload session is missing or belongs to a different organization. Re-open the upload dialog and try again.',
+      });
+    }
+
     const blob = await ctx.storage.get(args.storageId);
     if (!blob) {
+      await ctx.runMutation(
+        internal.skills.upload_mutations.deleteSkillUploadIntent,
+        { storageId: args.storageId },
+      );
       throw new ConvexError({
         code: 'STORAGE_NOT_FOUND',
         message: 'Uploaded bundle is missing from storage',
       });
     }
     if (blob.size > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
-      await ctx.storage.delete(args.storageId).catch((err) => {
-        console.warn('[uploadSkillBundle] storage.delete failed:', err);
-      });
+      await cleanupUploadResources(ctx, args.storageId);
       throw new ConvexError({
         code: 'BUNDLE_TOO_LARGE',
         message: `Bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes`,
@@ -520,9 +597,7 @@ export const uploadSkillBundle = action({
       const buf = Buffer.from(await blob.arrayBuffer());
       parsed = await parseSkillBundleZip(buf);
     } catch (err) {
-      await ctx.storage.delete(args.storageId).catch((e) => {
-        console.warn('[uploadSkillBundle] storage.delete failed:', e);
-      });
+      await cleanupUploadResources(ctx, args.storageId);
       if (err instanceof ConvexError) throw err;
       throw new ConvexError({
         code: 'INVALID_BUNDLE',
@@ -538,9 +613,10 @@ export const uploadSkillBundle = action({
     );
 
     if (existing !== null && !args.force) {
-      // Caller hasn't confirmed replace; do not touch disk, do not delete
-      // the staged blob — they can resubmit with force:true reusing the
-      // same storageId within the standard upload-URL TTL.
+      // Caller hasn't confirmed replace; clean up the staged blob + intent
+      // so we don't leak storage. Client re-uploads with force:true,
+      // generating a fresh storageId and intent.
+      await cleanupUploadResources(ctx, args.storageId);
       return {
         ok: false as const,
         status: 'needs_confirm' as const,
@@ -565,6 +641,15 @@ export const uploadSkillBundle = action({
         );
       }
     }
+
+    // Per-(orgId, slug) exclusion lock. Acquired AFTER parse + existence
+    // check (so we don't block on unparseable bundles) and BEFORE the
+    // rename-swap pair. Released in `finally`. A second concurrent upload
+    // to the same slug sees `LOCK_HELD` and fails fast.
+    await ctx.runMutation(
+      internal.skills.upload_mutations.claimSkillUploadSlot,
+      { organizationId: args.organizationId, slug: parsed.slug },
+    );
 
     const stagingDir = `${bundleDir}.staging-${randomUUID().slice(0, 8)}`;
     const replacingDir = `${bundleDir}.replacing-${randomUUID().slice(0, 8)}`;
@@ -628,18 +713,32 @@ export const uploadSkillBundle = action({
           err instanceof Error ? err.message : 'Failed to write skill bundle',
       });
     } finally {
-      await ctx.storage.delete(args.storageId).catch((err) => {
-        console.warn('[uploadSkillBundle] storage.delete failed:', err);
-      });
+      await cleanupUploadResources(ctx, args.storageId);
+      await ctx
+        .runMutation(internal.skills.upload_mutations.releaseSkillUploadSlot, {
+          organizationId: args.organizationId,
+          slug: parsed.slug,
+        })
+        .catch((err) => {
+          console.warn('[uploadSkillBundle] release slot failed:', err);
+        });
     }
 
     const newState: Record<string, unknown> = {
       name: parsed.meta.name,
       description: parsed.meta.description,
       assetCount: parsed.files.length - 1, // SKILL.md doesn't count as an asset
+      totalBytes: parsed.totalBytes,
+      skillMdHash: parsed.skillMdHash,
     };
     if (parsed.meta.recommendedPackages) {
       newState.recommendedPackages = parsed.meta.recommendedPackages;
+    }
+    if (parsed.meta.license !== undefined) {
+      newState.license = parsed.meta.license;
+    }
+    if (parsed.meta.disableModelInvocation !== undefined) {
+      newState.disableModelInvocation = parsed.meta.disableModelInvocation;
     }
 
     await logSkillAudit(ctx, auth, 'upload_skill', parsed.slug, {
@@ -694,7 +793,15 @@ export const duplicateSkill = action({
     let entries: string[];
     try {
       entries = await readdirSafe(baseDir);
-    } catch {
+    } catch (err) {
+      // readdirSafe already swallows ENOENT and returns []. Anything that
+      // reaches here is a real I/O fault (EACCES / EIO); log so the slug
+      // dedup doesn't silently collide on inaccessible state.
+      console.warn(
+        '[duplicateSkill] readdir failed; treating skills dir as empty:',
+        baseDir,
+        err,
+      );
       entries = [];
     }
     const existing = new Set(entries);
@@ -719,34 +826,50 @@ export const duplicateSkill = action({
     const newSkillMdPath = resolveSkillMdPath(auth.orgSlug, newSlug);
     await atomicWrite(newSkillMdPath, newContent);
 
-    // Copy bundle assets too. Best-effort: a partial copy is still a
+    // Copy bundle assets too. Use byte-preserving read+write — readFileSafe
+    // / atomicWrite go through a UTF-8 round-trip that corrupts binary
+    // assets (PNGs, PDFs, fonts). Best-effort: a partial copy is still a
     // valid skill (assets are optional), and the user can re-upload
     // anything that didn't make it through; aborting on first asset
-    // failure would leave behind a half-populated duplicate that's
-    // harder to recover from.
+    // failure would leave behind a half-populated duplicate that's harder
+    // to recover from.
     const sourceDir = resolveSkillDir(auth.orgSlug, args.slug);
     const { assets } = await walkSkillBundle(sourceDir);
+    const skipped: string[] = [];
     for (const asset of assets) {
       const sourceAssetPath = path.join(sourceDir, asset.path);
-      const content = await readFileSafe(sourceAssetPath);
-      if (content === null) continue;
+      const content = await readFileBufferSafe(sourceAssetPath);
+      if (content === null) {
+        skipped.push(asset.path);
+        continue;
+      }
       const targetPath = await resolveSkillAssetPathChecked(
         auth.orgSlug,
         newSlug,
         asset.path,
       );
-      await atomicWrite(targetPath, content);
+      await atomicWriteBuffer(targetPath, content);
+    }
+    if (skipped.length > 0) {
+      console.warn(
+        `[duplicateSkill] dropped ${skipped.length} unreadable asset(s) from "${args.slug}" → "${newSlug}":`,
+        skipped,
+      );
     }
 
-    await logSkillAudit(ctx, auth, 'upload_skill', newSlug, {
+    await logSkillAudit(ctx, auth, 'duplicate_skill', newSlug, {
       resourceName: newSlug,
+      previousState: { sourceSlug: args.slug },
       newState: {
-        sourceSlug: args.slug,
         name: newMeta.name,
         description: newMeta.description,
+        assetCount: assets.length - skipped.length,
+        skillMdHash: sha256(newContent),
+        ...(skipped.length > 0 && { droppedAssets: skipped }),
         ...(newMeta.recommendedPackages && {
           recommendedPackages: newMeta.recommendedPackages,
         }),
+        ...(newMeta.license !== undefined && { license: newMeta.license }),
       },
     });
 

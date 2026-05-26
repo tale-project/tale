@@ -248,7 +248,15 @@ export async function readSkillMd(
 
     // lstat (not stat) so a symlink at SKILL.md itself surfaces as a
     // symlink check rather than dereferencing through to the target's size.
-    const lst = await lstat(filePath).catch(() => null);
+    const lst = await lstat(filePath).catch((err) => {
+      if (
+        err instanceof Error &&
+        (err as NodeJS.ErrnoException).code !== 'ENOENT'
+      ) {
+        console.warn('[readSkillMd] lstat failed:', filePath, err);
+      }
+      return null;
+    });
     if (lst === null) {
       return { ok: false, error: 'not_found', message: `SKILL.md not found` };
     }

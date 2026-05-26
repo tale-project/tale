@@ -4398,7 +4398,8 @@
       "skillDuplicateFailed": "Échec de la duplication du skill",
       "deleteConfirmation": "Cela retire le bundle du skill du disque. Les agents qui y sont attachés conserveront leur référence et émettront un avertissement à l'exécution jusqu'à ce que tu les modifies à nouveau.",
       "actions": {
-        "duplicate": "Dupliquer"
+        "duplicate": "Dupliquer",
+        "replaceBundle": "Remplacer le bundle"
       },
       "columns": {
         "name": "Skill",
@@ -4426,6 +4427,7 @@
         "empty": "Aucune entrée d'audit pour l'instant pour ce skill.",
         "action": {
           "upload_skill": "Téléversé",
+          "duplicate_skill": "Dupliqué",
           "delete_skill": "Supprimé"
         }
       },
@@ -4433,7 +4435,8 @@
         "toggleWrap": "Basculer le retour à la ligne",
         "imageNotice": "L'aperçu d'image n'est pas disponible dans le navigateur. Utilise la CLI pour inspecter cet asset.",
         "binaryNotice": "Ce type de fichier n'est pas prévisualisable dans le navigateur.",
-        "largeFile": "Fichier volumineux — coloration syntaxique désactivée pour les performances."
+        "largeFile": "Fichier volumineux — coloration syntaxique désactivée pour les performances.",
+        "notFound": "Ce fichier n'est plus dans le bundle. Choisis un autre fichier dans l'arborescence."
       },
       "bundle": {
         "empty": "Aucun fichier de bundle pour l'instant."
@@ -4454,9 +4457,17 @@
         "acceptedFormats": "Zip contenant SKILL.md à la racine",
         "parsing": "Lecture du bundle…",
         "zipRequired": "Le bundle doit être un fichier .zip.",
+        "folderUnsupported": "Les dossiers ne sont pas pris en charge — zippe d'abord le dossier.",
+        "singleFileOnly": "Dépose un seul fichier .zip, pas plusieurs fichiers.",
         "unexpectedError": "Une erreur inattendue s'est produite",
         "bundleFiles": "Fichiers du bundle",
-        "fileCount": "fichiers",
+        "fileCount": "{count, plural, one {# fichier} other {# fichiers}}",
+        "frontmatter": "Frontmatter",
+        "license": "Licence",
+        "recommendedPython": "Python recommandé",
+        "recommendedNode": "Node recommandé",
+        "disableModelInvocation": "Skill masqué au modèle — invocation explicite uniquement.",
+        "unknownKeys": "{count, plural, one {# entrée frontmatter supplémentaire conservée} other {# entrées frontmatter supplémentaires conservées}}",
         "submit": "Téléverser le bundle",
         "submitting": "Téléversement…",
         "uploadSuccess": "Bundle de skill téléversé",

@@ -12,8 +12,23 @@ function useInvalidateSkills() {
     });
 }
 
-export function useGenerateUploadUrl() {
-  return useConvexMutation(api.files.mutations.generateUploadUrl);
+/**
+ * Skill-specific presign mutation. Distinct from the generic
+ * `files.mutations.generateUploadUrl` because the skills surface requires
+ * the developer-settings capability check that the generic mutation
+ * doesn't enforce.
+ */
+export function useGenerateSkillUploadUrl() {
+  return useConvexMutation(api.skills.upload_mutations.generateSkillUploadUrl);
+}
+
+/**
+ * Bind the freshly-POSTed `_storage` blob to the org + caller. Required
+ * before `uploadSkillBundle` will trust the storageId — without an intent
+ * row the action rejects with `STORAGE_NOT_OWNED`.
+ */
+export function useRecordSkillUploadIntent() {
+  return useConvexMutation(api.skills.upload_mutations.recordSkillUploadIntent);
 }
 
 export function useUploadSkillBundle() {

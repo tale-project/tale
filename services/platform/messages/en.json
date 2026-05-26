@@ -4654,7 +4654,8 @@
       "skillDuplicateFailed": "Failed to duplicate skill",
       "deleteConfirmation": "This removes the skill bundle from disk. The skill will no longer be available to any agent in this organization.",
       "actions": {
-        "duplicate": "Duplicate"
+        "duplicate": "Duplicate",
+        "replaceBundle": "Replace bundle"
       },
       "columns": {
         "name": "Skill",
@@ -4682,6 +4683,7 @@
         "empty": "No audit entries yet for this skill.",
         "action": {
           "upload_skill": "Uploaded",
+          "duplicate_skill": "Duplicated",
           "delete_skill": "Deleted"
         }
       },
@@ -4689,7 +4691,8 @@
         "toggleWrap": "Toggle line wrap",
         "imageNotice": "Image preview is not available in the browser. Use the CLI to inspect this asset.",
         "binaryNotice": "This file type is not previewable in the browser.",
-        "largeFile": "Large file — syntax highlighting disabled for performance."
+        "largeFile": "Large file — syntax highlighting disabled for performance.",
+        "notFound": "This file is no longer in the bundle. Pick another file from the tree."
       },
       "bundle": {
         "empty": "No bundle files yet."
@@ -4710,9 +4713,17 @@
         "acceptedFormats": "Zip containing SKILL.md at the root",
         "parsing": "Reading bundle…",
         "zipRequired": "Bundle must be a .zip file.",
+        "folderUnsupported": "Folders aren't supported — please zip the folder first.",
+        "singleFileOnly": "Drop a single .zip bundle, not multiple files.",
         "unexpectedError": "An unexpected error occurred",
         "bundleFiles": "Bundle files",
-        "fileCount": "files",
+        "fileCount": "{count, plural, one {# file} other {# files}}",
+        "frontmatter": "Frontmatter",
+        "license": "License",
+        "recommendedPython": "Recommended Python",
+        "recommendedNode": "Recommended Node",
+        "disableModelInvocation": "Skill is hidden from the model — explicit invocation only.",
+        "unknownKeys": "{count, plural, one {# additional frontmatter key preserved} other {# additional frontmatter keys preserved}}",
         "submit": "Upload bundle",
         "submitting": "Uploading…",
         "uploadSuccess": "Skill bundle uploaded",

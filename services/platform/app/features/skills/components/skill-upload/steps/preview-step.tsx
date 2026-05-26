@@ -18,6 +18,10 @@ export function PreviewStep({ parsedBundle }: PreviewStepProps) {
   const { t } = useT('settings');
   const { locale } = useLocale();
   const { slug, meta, assets, totalBytes } = parsedBundle;
+  const fileCount = assets.length + 1;
+  const unknownKeyCount = Object.keys(meta.unknown).length;
+  const recommendedPython = meta.recommendedPackages?.python ?? [];
+  const recommendedNode = meta.recommendedPackages?.node ?? [];
 
   return (
     <Stack gap={4} className="min-w-0 overflow-hidden">
@@ -28,6 +32,77 @@ export function PreviewStep({ parsedBundle }: PreviewStepProps) {
         <Text variant="muted">{meta.description}</Text>
       </Stack>
 
+      {(meta.license !== undefined ||
+        recommendedPython.length > 0 ||
+        recommendedNode.length > 0 ||
+        meta.disableModelInvocation ||
+        unknownKeyCount > 0) && (
+        <Stack gap={2}>
+          <Text variant="label">
+            {t('skills.upload.frontmatter', {
+              defaultValue: 'Frontmatter',
+            })}
+          </Text>
+          <Stack gap={1} className="text-sm">
+            {meta.license !== undefined && (
+              <HStack gap={2} align="center">
+                <Text as="span" variant="caption" className="shrink-0">
+                  {t('skills.upload.license', { defaultValue: 'License' })}
+                </Text>
+                <Text as="span" variant="code">
+                  {meta.license}
+                </Text>
+              </HStack>
+            )}
+            {recommendedPython.length > 0 && (
+              <HStack gap={2} align="center" className="flex-wrap">
+                <Text as="span" variant="caption" className="shrink-0">
+                  {t('skills.upload.recommendedPython', {
+                    defaultValue: 'Recommended Python',
+                  })}
+                </Text>
+                {recommendedPython.map((spec) => (
+                  <Text as="span" key={`py:${spec}`} variant="code">
+                    {spec}
+                  </Text>
+                ))}
+              </HStack>
+            )}
+            {recommendedNode.length > 0 && (
+              <HStack gap={2} align="center" className="flex-wrap">
+                <Text as="span" variant="caption" className="shrink-0">
+                  {t('skills.upload.recommendedNode', {
+                    defaultValue: 'Recommended Node',
+                  })}
+                </Text>
+                {recommendedNode.map((spec) => (
+                  <Text as="span" key={`node:${spec}`} variant="code">
+                    {spec}
+                  </Text>
+                ))}
+              </HStack>
+            )}
+            {meta.disableModelInvocation && (
+              <Text as="span" variant="caption">
+                {t('skills.upload.disableModelInvocation', {
+                  defaultValue:
+                    'Skill is hidden from the model — explicit invocation only.',
+                })}
+              </Text>
+            )}
+            {unknownKeyCount > 0 && (
+              <Text as="span" variant="caption">
+                {t('skills.upload.unknownKeys', {
+                  defaultValue:
+                    '{count} additional frontmatter key(s) preserved',
+                  count: unknownKeyCount,
+                })}
+              </Text>
+            )}
+          </Stack>
+        </Stack>
+      )}
+
       <Stack gap={2}>
         <HStack gap={2} align="center" justify="between">
           <Text variant="label">
@@ -36,9 +111,9 @@ export function PreviewStep({ parsedBundle }: PreviewStepProps) {
             })}
           </Text>
           <Text variant="caption">
-            {assets.length + 1}{' '}
             {t('skills.upload.fileCount', {
-              defaultValue: 'files',
+              defaultValue: '{count, plural, one {# file} other {# files}}',
+              count: fileCount,
             })}
             {' · '}
             {formatBytes(totalBytes, locale)}
@@ -58,7 +133,7 @@ export function PreviewStep({ parsedBundle }: PreviewStepProps) {
               key={a.relPath}
               className="flex items-center justify-between gap-2"
             >
-              <Text as="span" variant="code" truncate>
+              <Text as="span" variant="code" truncate title={a.relPath}>
                 {a.relPath}
               </Text>
               <Text as="span" variant="caption" className="shrink-0">

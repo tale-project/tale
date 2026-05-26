@@ -226,7 +226,7 @@ export function SkillAssetViewer({
           </Stack>
         ) : loadError === 'not_found' ? (
           <Text variant="muted" className="text-destructive p-4">
-            {t('skills.asset.loadNotFound', {
+            {t('skills.viewer.notFound', {
               defaultValue:
                 'This file is no longer in the bundle. Pick another file from the tree.',
             })}
