@@ -33,16 +33,12 @@ const scaffoldHandler = (scaffoldNewOrganization as unknown as ActionConfig)
 // state, then restore in afterEach so we don't poison other test files.
 const ENV_KEYS = [
   'TALE_CONFIG_DIR',
+  'TALE_CONFIG_BUILTIN_DIR',
   'AGENTS_DIR',
   'WORKFLOWS_DIR',
   'PROVIDERS_DIR',
   'INTEGRATIONS_DIR',
   'SKILLS_DIR',
-  'AGENTS_BUILTIN_DIR',
-  'WORKFLOWS_BUILTIN_DIR',
-  'PROVIDERS_BUILTIN_DIR',
-  'INTEGRATIONS_BUILTIN_DIR',
-  'SKILLS_BUILTIN_DIR',
 ] as const;
 
 let configRoot: string;
@@ -79,7 +75,7 @@ async function writeText(filePath: string, content: string): Promise<void> {
 describe('scaffoldNewOrganization', () => {
   it('seeds workflows from the catalog and ignores the default org workspace', async () => {
     // Catalog: a shipped template under workflows/shopify/sync.json.
-    process.env.WORKFLOWS_BUILTIN_DIR = path.join(catalogRoot, 'workflows');
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     await writeText(
       path.join(catalogRoot, 'workflows', 'shopify', 'sync.json'),
       '{"name":"sync"}',
@@ -100,7 +96,7 @@ describe('scaffoldNewOrganization', () => {
 
   it('closes the agents cross-tenant leak: raw-slug subdirs in the source are not copied', async () => {
     // Agents catalog contains only the shipped template.
-    process.env.AGENTS_BUILTIN_DIR = path.join(catalogRoot, 'agents');
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     await writeText(
       path.join(catalogRoot, 'agents', 'shipped.json'),
       '{"displayName":"shipped"}',
@@ -127,7 +123,7 @@ describe('scaffoldNewOrganization', () => {
   });
 
   it('skips symlinks rather than following them', async () => {
-    process.env.WORKFLOWS_BUILTIN_DIR = path.join(catalogRoot, 'workflows');
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     const targetPayload = await mkdtemp(path.join(tmpdir(), 'scaffold-evil-'));
     const targetFile = path.join(targetPayload, 'payload.json');
     await writeFile(targetFile, '{"name":"escaped"}', 'utf-8');
@@ -152,8 +148,8 @@ describe('scaffoldNewOrganization', () => {
   });
 
   it('falls back to domain.resolve(default) when the catalog env is unset (dev)', async () => {
-    // No *_BUILTIN_DIR set. Default-org workspace becomes the catalog —
-    // historical behavior, preserved for local dev.
+    // No TALE_CONFIG_BUILTIN_DIR set. Default-org workspace becomes the
+    // catalog — historical behavior, preserved for local dev.
     await writeText(
       path.join(configRoot, 'workflows', 'shopify', 'sync.json'),
       '{"name":"sync"}',
@@ -166,7 +162,7 @@ describe('scaffoldNewOrganization', () => {
   });
 
   it('still applies the @-prefix, .history, and *.secrets.json skips when copying', async () => {
-    process.env.PROVIDERS_BUILTIN_DIR = path.join(catalogRoot, 'providers');
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     await writeText(
       path.join(catalogRoot, 'providers', 'openai.json'),
       '{"name":"openai"}',
@@ -194,7 +190,7 @@ describe('scaffoldNewOrganization', () => {
   });
 
   it('is per-domain idempotent: a domain dir that already has files is skipped', async () => {
-    process.env.WORKFLOWS_BUILTIN_DIR = path.join(catalogRoot, 'workflows');
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     await writeText(
       path.join(catalogRoot, 'workflows', 'shipped.json'),
       '{"name":"shipped"}',
@@ -211,8 +207,76 @@ describe('scaffoldNewOrganization', () => {
     expect(existsSync(path.join(acmeDir, 'shipped.json'))).toBe(false);
   });
 
+  it('treats a target containing only .history/ as occupied (no re-seed on top of user edit trail)', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(
+      path.join(catalogRoot, 'workflows', 'shipped.json'),
+      '{"name":"shipped"}',
+    );
+    // Realistic state: user created the org, edited a workflow (writing
+    // `.history/<slug>/<rev>.json`), then deleted the visible workflow.
+    // Re-scaffolding (e.g., via the backfill migration) must NOT silently
+    // re-seed the catalog on top of the surviving edit trail.
+    const acmeDir = path.join(configRoot, 'workflows', '@acme');
+    await writeText(
+      path.join(acmeDir, '.history', 'old.json'),
+      '{"snapshot":1}',
+    );
+
+    await scaffoldHandler({} as never, { orgSlug: 'acme' });
+
+    expect(existsSync(path.join(acmeDir, 'shipped.json'))).toBe(false);
+    expect(existsSync(path.join(acmeDir, '.history', 'old.json'))).toBe(true);
+  });
+
+  it('ignores atomicWrite tmp orphans so a crashed scaffold can retry', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(
+      path.join(catalogRoot, 'workflows', 'shipped.json'),
+      '{"name":"shipped"}',
+    );
+    // Simulate the residue a prior crashed scaffold would leave behind:
+    // atomicWrite uses `.<basename>.<ts>.<uuid>.tmp` and cleans up on
+    // success, but a crash mid-write leaves the tmp orphan in place.
+    const acmeDir = path.join(configRoot, 'workflows', '@acme');
+    await writeText(
+      path.join(acmeDir, '.shipped.json.1700000000000.deadbeef.tmp'),
+      'partial',
+    );
+
+    await scaffoldHandler({} as never, { orgSlug: 'acme' });
+
+    expect(existsSync(path.join(acmeDir, 'shipped.json'))).toBe(true);
+  });
+
+  it('logs error when TALE_CONFIG_BUILTIN_DIR points at a missing path (deploy misconfig)', async () => {
+    // Builtin root configured but the directory doesn't exist on disk —
+    // simulates platform/convex image version skew or a missing volume mount.
+    process.env.TALE_CONFIG_BUILTIN_DIR = path.join(catalogRoot, 'missing');
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await scaffoldHandler({} as never, { orgSlug: 'acme' });
+
+      const calls = errSpy.mock.calls.map((c) => c.join(' '));
+      expect(
+        calls.some(
+          (m) =>
+            m.includes('TALE_CONFIG_BUILTIN_DIR') &&
+            m.includes('does not exist'),
+        ),
+      ).toBe(true);
+      // Target should remain empty — no silent fallback to default-org dir.
+      expect(existsSync(path.join(configRoot, 'workflows', '@acme'))).toBe(
+        false,
+      );
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
   it('returns null without scaffolding the default org', async () => {
-    process.env.WORKFLOWS_BUILTIN_DIR = path.join(catalogRoot, 'workflows');
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     await writeText(path.join(catalogRoot, 'workflows', 'shipped.json'), '{}');
 
     const result = await scaffoldHandler({} as never, { orgSlug: 'default' });

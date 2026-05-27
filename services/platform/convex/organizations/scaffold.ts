@@ -3,28 +3,23 @@
 /**
  * Scaffold per-org filesystem config on organization creation.
  *
- * Seeds new orgs from the immutable builtin catalog (`/app/{domain}-builtin/`
- * baked into the convex image), addressed per-domain via `*_BUILTIN_DIR` env
- * vars pushed from the platform Dockerfile. Falls back to the default org's
- * dir when the env is unset (dev / local convex), preserving the historical
- * behavior for that environment.
+ * Seeds new orgs from the immutable builtin catalog baked into the convex
+ * image at `$TALE_CONFIG_BUILTIN_DIR/<domain>/` (mirrors the writable
+ * `$TALE_CONFIG_DIR/<domain>/` pattern). The env is pushed by the platform
+ * Dockerfile via the entrypoint's `convex env set` loop. Falls back to the
+ * default org's writable dir when the env is unset, so local `bun dev`
+ * (where no catalog is built) still works. The rationale for sourcing from
+ * the read-only catalog instead of the default workspace lives at the
+ * `@`-prefix-skip comment in copyTree below — that's the load-bearing site.
  *
- * Why the catalog and not `domain.resolve('default')`: the default org's dir
- * is a writable workspace, so anything created there (test workflows, scratch
- * agents) used to propagate into every newly-scaffolded org permanently.
- * Sourcing from the read-only catalog severs that channel. For agents and
- * providers — which use raw `<slug>/` per-org subdirs (no `@` marker) — this
- * also closes a genuine cross-tenant leak, since the old source could
- * recurse into other tenants' subdirs.
+ * Skips per-org secrets (`*.secrets.json`) and local edit-history dirs
+ * (`.history/`). Skips branding entirely — read-side hardcodes 'default'.
  *
- * Skips `*.secrets.json` (new org provides its own secrets) and `.history/`.
- * Skips branding (intentionally global; read-side hardcodes 'default').
- *
- * Idempotent: if the target dir already contains files, skip that domain
- * with a warning rather than overwriting.
+ * Idempotent: if the target dir already contains user-visible files, skip
+ * that domain with a warning rather than overwriting.
  */
 
-import { readdir, rm, lstat, readFile } from 'node:fs/promises';
+import { lstat, readdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { v } from 'convex/values';
@@ -47,41 +42,19 @@ type DirResolver = (orgSlug: string) => string;
 type Domain = {
   name: string;
   resolve: DirResolver;
-  // Env var holding the absolute path to this domain's read-only catalog
-  // (baked into the convex image as `/app/{name}-builtin/`). Set by the
-  // platform Dockerfile so the entrypoint pushes it to Convex's deployment
-  // env. Unset in local dev — see scaffoldNewOrganization for the fallback.
-  builtinEnv: string;
 };
 
 // Each domain's per-org dir convention differs — use the domain's own resolver.
+// The catalog subdir name matches `name` (e.g., `$TALE_CONFIG_BUILTIN_DIR/agents/`).
 const DOMAINS: Domain[] = [
-  {
-    name: 'agents',
-    resolve: resolveAgentsDir,
-    builtinEnv: 'AGENTS_BUILTIN_DIR',
-  },
-  {
-    name: 'providers',
-    resolve: resolveProvidersDir,
-    builtinEnv: 'PROVIDERS_BUILTIN_DIR',
-  },
-  {
-    name: 'integrations',
-    resolve: resolveIntegrationsDir,
-    builtinEnv: 'INTEGRATIONS_BUILTIN_DIR',
-  },
-  {
-    name: 'workflows',
-    resolve: resolveWorkflowsDir,
-    builtinEnv: 'WORKFLOWS_BUILTIN_DIR',
-  },
-  {
-    name: 'skills',
-    resolve: resolveSkillsDir,
-    builtinEnv: 'SKILLS_BUILTIN_DIR',
-  },
+  { name: 'agents', resolve: resolveAgentsDir },
+  { name: 'providers', resolve: resolveProvidersDir },
+  { name: 'integrations', resolve: resolveIntegrationsDir },
+  { name: 'workflows', resolve: resolveWorkflowsDir },
+  { name: 'skills', resolve: resolveSkillsDir },
 ];
+
+const BUILTIN_ENV = 'TALE_CONFIG_BUILTIN_DIR';
 
 const SKIP_FILE_SUFFIXES = ['.secrets.json'];
 const SKIP_DIR_NAMES = new Set(['.history']);
@@ -90,10 +63,18 @@ function shouldSkipFile(name: string): boolean {
   return SKIP_FILE_SUFFIXES.some((s) => name.endsWith(s));
 }
 
+// atomicWrite leaves `.<basename>.<ts>.<uuid>.tmp` orphans on crash. Those
+// shouldn't lock out a retry, but every other entry (including dotfiles
+// like `.history/` that agents/workflows write on every edit) means a user
+// has been here and we must not overwrite.
+function isAtomicWriteTmp(name: string): boolean {
+  return name.startsWith('.') && name.endsWith('.tmp');
+}
+
 async function dirHasFiles(dir: string): Promise<boolean> {
   try {
     const entries = await readdir(dir);
-    return entries.filter((n) => !n.startsWith('.')).length > 0;
+    return entries.some((n) => !isAtomicWriteTmp(n));
   } catch (err) {
     // ENOENT (dir doesn't exist yet) is the expected case — domain scaffold
     // simply hasn't run. Anything else (EACCES, EIO) means we can't read
@@ -249,17 +230,43 @@ export const scaffoldNewOrganization = internalAction({
       return null;
     }
 
+    const builtinRoot = process.env[BUILTIN_ENV];
+
     for (const domain of DOMAINS) {
-      // Prefer the immutable builtin catalog (`*_BUILTIN_DIR`, set by the
-      // platform Dockerfile and pushed into Convex's deployment env). Falls
-      // back to the default org's writable dir when the env is unset — that
-      // path is what local `bun dev` uses, where `examples/{domain}` *is*
-      // the catalog. In prod the fallback also kicks in on rollback to a
-      // pre-fix platform image (intentional graceful degradation back to
-      // the prior behavior).
-      const sourceDir =
-        process.env[domain.builtinEnv] ?? domain.resolve('default');
+      // Prefer `$TALE_CONFIG_BUILTIN_DIR/<domain>/` (set by platform
+      // Dockerfile, pushed into Convex's deployment env). Falls back to
+      // the default org's dir when the env is unset — covers local
+      // `bun dev` (no catalog built) and a rollback to a platform image
+      // that doesn't declare the env.
+      const sourceDir = builtinRoot
+        ? path.join(builtinRoot, domain.name)
+        : domain.resolve('default');
       const targetDir = domain.resolve(args.orgSlug);
+
+      // copyTree's ENOENT-silent contract is correct for the fallback case
+      // (default-org dir may legitimately not be seeded yet). But when an
+      // operator-configured catalog path doesn't exist, that's a deploy
+      // misconfig (e.g., platform/convex image version skew) and the
+      // resulting zero-seed should NOT look like a successful copy. Probe
+      // explicitly so the failure surfaces in logs.
+      if (builtinRoot) {
+        const sourceExists = await stat(sourceDir)
+          .then(() => true)
+          .catch((err) => {
+            if (errnoCode(err) === 'ENOENT') return false;
+            console.error(
+              `[scaffoldNewOrganization] ${domain.name}: stat ${sourceDir} failed:`,
+              err instanceof Error ? err.message : err,
+            );
+            return false;
+          });
+        if (!sourceExists) {
+          console.error(
+            `[scaffoldNewOrganization] ${domain.name}: ${BUILTIN_ENV}=${builtinRoot} is set but ${sourceDir} does not exist; new org "${args.orgSlug}" will receive zero seed data for this domain`,
+          );
+          continue;
+        }
+      }
 
       const alreadyScaffolded = await dirHasFiles(targetDir);
       if (alreadyScaffolded) {
