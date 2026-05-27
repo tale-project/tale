@@ -229,7 +229,24 @@ ENV NODE_ENV=production \
     # container. Platform forces this at push time in docker-entrypoint.sh
     # (to tombstone any stale host-side `.env` value). Convex derives the
     # sub-dirs (agents/workflows/integrations/providers) from it.
-    TALE_CONFIG_DIR=/app/data
+    TALE_CONFIG_DIR=/app/data \
+    # Read-only builtin catalogs baked into the convex image
+    # (`COPY examples/{domain}/ /app/{domain}-builtin/` in
+    # services/convex/Dockerfile). Convex Node actions only see env vars
+    # that this platform container pushes to Convex's deployment env via
+    # the entrypoint's `convex env set` loop — so even though these paths
+    # live in the *convex* container, the values must originate here.
+    # Read by scaffoldNewOrganization to seed new orgs from the catalog
+    # instead of the default org's writable workspace (which conflated
+    # shipped templates with anything created while using the default org
+    # and propagated that mix into every new org). On rollback to an
+    # image without these ENV lines, scaffold falls back to the old
+    # default-org source — intentional graceful degradation.
+    AGENTS_BUILTIN_DIR=/app/agents-builtin \
+    PROVIDERS_BUILTIN_DIR=/app/providers-builtin \
+    INTEGRATIONS_BUILTIN_DIR=/app/integrations-builtin \
+    WORKFLOWS_BUILTIN_DIR=/app/workflows-builtin \
+    SKILLS_BUILTIN_DIR=/app/skills-builtin
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
 COPY --from=pruner --chown=app:app /app/services/platform/dist-seo ./dist-seo
@@ -280,7 +297,12 @@ ENV NODE_ENV=production \
     SANDBOX_STORAGE_INTERNAL_BASE_URL=http://convex:3210 \
     INSTANCE_NAME=tale_platform \
     DO_NOT_TRACK=1 \
-    TALE_CONFIG_DIR=/app/data
+    TALE_CONFIG_DIR=/app/data \
+    AGENTS_BUILTIN_DIR=/app/agents-builtin \
+    PROVIDERS_BUILTIN_DIR=/app/providers-builtin \
+    INTEGRATIONS_BUILTIN_DIR=/app/integrations-builtin \
+    WORKFLOWS_BUILTIN_DIR=/app/workflows-builtin \
+    SKILLS_BUILTIN_DIR=/app/skills-builtin
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1

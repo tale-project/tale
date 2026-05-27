@@ -3,15 +3,28 @@
 /**
  * Scaffold per-org filesystem config on organization creation.
  *
- * Copies /examples/{agents,providers,integrations,workflows,skills}/ defaults
- * into the new org's subdir. Skips *.secrets.json (new org provides its
- * own secrets). Skips branding (intentionally global).
+ * Seeds new orgs from the immutable builtin catalog (`/app/{domain}-builtin/`
+ * baked into the convex image), addressed per-domain via `*_BUILTIN_DIR` env
+ * vars pushed from the platform Dockerfile. Falls back to the default org's
+ * dir when the env is unset (dev / local convex), preserving the historical
+ * behavior for that environment.
+ *
+ * Why the catalog and not `domain.resolve('default')`: the default org's dir
+ * is a writable workspace, so anything created there (test workflows, scratch
+ * agents) used to propagate into every newly-scaffolded org permanently.
+ * Sourcing from the read-only catalog severs that channel. For agents and
+ * providers — which use raw `<slug>/` per-org subdirs (no `@` marker) — this
+ * also closes a genuine cross-tenant leak, since the old source could
+ * recurse into other tenants' subdirs.
+ *
+ * Skips `*.secrets.json` (new org provides its own secrets) and `.history/`.
+ * Skips branding (intentionally global; read-side hardcodes 'default').
  *
  * Idempotent: if the target dir already contains files, skip that domain
  * with a warning rather than overwriting.
  */
 
-import { readdir, rm, stat, readFile } from 'node:fs/promises';
+import { readdir, rm, lstat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { v } from 'convex/values';
@@ -31,13 +44,43 @@ import { resolveWorkflowsDir } from '../workflows/file_utils';
 
 type DirResolver = (orgSlug: string) => string;
 
+type Domain = {
+  name: string;
+  resolve: DirResolver;
+  // Env var holding the absolute path to this domain's read-only catalog
+  // (baked into the convex image as `/app/{name}-builtin/`). Set by the
+  // platform Dockerfile so the entrypoint pushes it to Convex's deployment
+  // env. Unset in local dev — see scaffoldNewOrganization for the fallback.
+  builtinEnv: string;
+};
+
 // Each domain's per-org dir convention differs — use the domain's own resolver.
-const DOMAINS: Array<{ name: string; resolve: DirResolver }> = [
-  { name: 'agents', resolve: resolveAgentsDir },
-  { name: 'providers', resolve: resolveProvidersDir },
-  { name: 'integrations', resolve: resolveIntegrationsDir },
-  { name: 'workflows', resolve: resolveWorkflowsDir },
-  { name: 'skills', resolve: resolveSkillsDir },
+const DOMAINS: Domain[] = [
+  {
+    name: 'agents',
+    resolve: resolveAgentsDir,
+    builtinEnv: 'AGENTS_BUILTIN_DIR',
+  },
+  {
+    name: 'providers',
+    resolve: resolveProvidersDir,
+    builtinEnv: 'PROVIDERS_BUILTIN_DIR',
+  },
+  {
+    name: 'integrations',
+    resolve: resolveIntegrationsDir,
+    builtinEnv: 'INTEGRATIONS_BUILTIN_DIR',
+  },
+  {
+    name: 'workflows',
+    resolve: resolveWorkflowsDir,
+    builtinEnv: 'WORKFLOWS_BUILTIN_DIR',
+  },
+  {
+    name: 'skills',
+    resolve: resolveSkillsDir,
+    builtinEnv: 'SKILLS_BUILTIN_DIR',
+  },
 ];
 
 const SKIP_FILE_SUFFIXES = ['.secrets.json'];
@@ -75,12 +118,12 @@ async function copyTree(sourceDir: string, targetDir: string): Promise<void> {
   for (const name of entries) {
     if (name.startsWith('.')) continue;
     // Per-org marker prefix used by skills / integrations / workflows for
-    // tenant subdirs (`@<orgSlug>/...`). Without this skip, scaffolding a
-    // new org would recursively copy every existing org's tenant tree
-    // into the new org's namespace. Agents / providers use raw `<slug>`
-    // subdirs with no marker, so this guard only protects the
-    // `@`-prefixed domains — see the follow-up issue for the agents /
-    // providers leak which needs a domain-aware fix.
+    // tenant subdirs (`@<orgSlug>/...`). Defence-in-depth: the builtin
+    // catalog has no `@` subdirs, but if the source ever falls back to a
+    // mutable workspace this guard prevents recursing into other orgs'
+    // trees. Agents / providers use raw `<slug>` subdirs with no marker,
+    // so this guard alone doesn't cover them — that gap is the reason
+    // scaffoldNewOrganization sources from the catalog now.
     if (name.startsWith('@')) continue;
     if (SKIP_DIR_NAMES.has(name)) continue;
     if (shouldSkipFile(name)) continue;
@@ -88,13 +131,21 @@ async function copyTree(sourceDir: string, targetDir: string): Promise<void> {
     const src = path.join(sourceDir, name);
     const dst = path.join(targetDir, name);
 
-    const info = await stat(src).catch((err) => {
+    // lstat (not stat) so a symlink in the source is detected and skipped
+    // rather than followed. The catalog is built from `examples/` which
+    // tracks no symlinks today, but this keeps the scaffold from
+    // dereferencing through to arbitrary paths if one is ever introduced.
+    const info = await lstat(src).catch((err) => {
       if (errnoCode(err) !== 'ENOENT') {
-        console.warn('[scaffold.copyTree] stat failed:', src, err);
+        console.warn('[scaffold.copyTree] lstat failed:', src, err);
       }
       return null;
     });
     if (!info) continue;
+    if (info.isSymbolicLink()) {
+      console.warn('[scaffold.copyTree] skipping symlink:', src);
+      continue;
+    }
 
     if (info.isDirectory()) {
       await copyTree(src, dst);
@@ -199,7 +250,15 @@ export const scaffoldNewOrganization = internalAction({
     }
 
     for (const domain of DOMAINS) {
-      const sourceDir = domain.resolve('default');
+      // Prefer the immutable builtin catalog (`*_BUILTIN_DIR`, set by the
+      // platform Dockerfile and pushed into Convex's deployment env). Falls
+      // back to the default org's writable dir when the env is unset — that
+      // path is what local `bun dev` uses, where `examples/{domain}` *is*
+      // the catalog. In prod the fallback also kicks in on rollback to a
+      // pre-fix platform image (intentional graceful degradation back to
+      // the prior behavior).
+      const sourceDir =
+        process.env[domain.builtinEnv] ?? domain.resolve('default');
       const targetDir = domain.resolve(args.orgSlug);
 
       const alreadyScaffolded = await dirHasFiles(targetDir);
