@@ -66,6 +66,11 @@ import { Button } from '@/app/components/ui/primitives';
       control: 'boolean',
       description: 'Disables the button',
     },
+    collapseLabel: {
+      control: 'boolean',
+      description:
+        'Collapse the label to an icon below the sm breakpoint (label stays in the a11y tree)',
+    },
   },
   args: {
     onClick: fn(),
@@ -159,6 +164,27 @@ export const AsLink: Story = {
     docs: {
       description: {
         story: 'Use `LinkButton` for navigation that looks like a button.',
+      },
+    },
+  },
+};
+
+export const CollapseLabel: Story = {
+  render: () => (
+    <div className="flex gap-4">
+      <Button icon={Check} variant="secondary" collapseLabel>
+        Save
+      </Button>
+      <Button icon={Trash2} variant="destructive" collapseLabel>
+        Delete
+      </Button>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'With `collapseLabel`, the text hides below the `sm` breakpoint (icon-only) and reappears from `sm` up — useful in crowded toolbars. The label stays in the accessibility tree, so the button keeps its name on mobile. Resize the preview to see it switch.',
       },
     },
   },

@@ -402,8 +402,14 @@ export function AgentNavigation({
           history={
             <DropdownMenu
               trigger={
-                <Button variant="secondary" size="sm" className="h-8 text-sm">
-                  <History className="mr-1.5 size-3.5" aria-hidden="true" />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-8 text-sm"
+                  icon={History}
+                  iconClassName="size-3.5"
+                  collapseLabel
+                >
                   {t('agents.navigation.history')}
                 </Button>
               }
