@@ -18,24 +18,52 @@ import pytest
 
 pytestmark = pytest.mark.asyncio
 
+TEST_ORG = "test-org"
+
 
 def _make_service():
     """Create a RagService with all internal dependencies pre-mocked.
 
-    Bypasses initialize() by directly setting the internal state.
+    Bypasses initialize() by directly setting the internal state, and
+    pre-seeds the per-org client cache for `TEST_ORG` so tests don't
+    have to drive the lazy-init path.
     """
-    from app.services.rag_service import RagService
+    from app.services.rag_service import RagService, _OrgClients
 
     service = RagService()
     service.initialized = True
     service._pool = MagicMock()
-    service._embedding_service = AsyncMock()
-    service._vision_client = MagicMock()
-    service._search_service = AsyncMock()
-    service._openai_client = AsyncMock()
-    service._llm_config = {}
-    service._vision_config = None
-    service._last_config_check = time.monotonic()
+    service._pinned_dims = 1536
+
+    embedding = AsyncMock()
+    embedding.dimensions = 1536
+    openai_client = AsyncMock()
+    vision_client = MagicMock()
+    search_service = AsyncMock()
+
+    service._org_clients[TEST_ORG] = _OrgClients(
+        llm_config={
+            "model": "gpt-test",
+            "embedding_model": "embed-test",
+            "api_key": "k",
+            "base_url": "http://test",
+            "embedding_api_key": "k",
+            "embedding_base_url": "http://test",
+        },
+        vision_config=None,
+        embedding_service=embedding,
+        openai_client=openai_client,
+        vision_client=vision_client,
+        search_service=search_service,
+        last_check=time.monotonic(),
+    )
+    # Back-compat aliases for tests that grab the mocks directly off the
+    # service. Both names point at the SAME mock instance the per-org
+    # cache uses, so setup-then-assert via either attribute works.
+    service._search_service = search_service
+    service._openai_client = openai_client
+    service._embedding_service = embedding
+    service._vision_client = vision_client
     return service
 
 
@@ -77,6 +105,7 @@ class TestAddDocument:
             "app.services.rag_service.index_document", new_callable=AsyncMock, return_value=index_result
         ) as mock_idx:
             result = await service.add_document(
+                TEST_ORG,
                 b"content bytes",
                 "doc-1",
                 "report.pdf",
@@ -99,6 +128,7 @@ class TestAddDocument:
 
         with patch("app.services.rag_service.index_document", new_callable=AsyncMock, return_value=index_result):
             result = await service.add_document(
+                TEST_ORG,
                 b"content",
                 "doc-skip",
                 "file.txt",
@@ -108,7 +138,12 @@ class TestAddDocument:
         assert result["skip_reason"] == "content_unchanged"
 
     async def test_initializes_if_not_initialized(self):
-        from app.services.rag_service import RagService
+        """`add_document` triggers `initialize()` (sets up the DB pool)
+        on the first call. Under the multi-org refactor, per-org client
+        construction is deferred even further (lazy on first call for
+        that org), so we pre-seed the cache to bypass _ensure_org_clients
+        and only verify the DB-pool initialize gate fires."""
+        from app.services.rag_service import RagService, _OrgClients
 
         service = RagService()
         assert service.initialized is False
@@ -117,13 +152,31 @@ class TestAddDocument:
 
             def _fake_init():
                 service.initialized = True
-                service._last_config_check = time.monotonic()
-                service._llm_config = {}
-                service._vision_config = None
+                # Pre-seed per-org cache so the inner _ensure_org_clients
+                # call inside add_document doesn't try to read a real
+                # provider catalog from disk.
+                embedding = AsyncMock()
+                embedding.dimensions = 1536
+                service._pinned_dims = 1536
+                service._org_clients[TEST_ORG] = _OrgClients(
+                    llm_config={
+                        "model": "gpt",
+                        "embedding_model": "embed",
+                        "api_key": "k",
+                        "base_url": "u",
+                        "embedding_api_key": "k",
+                        "embedding_base_url": "u",
+                    },
+                    vision_config=None,
+                    embedding_service=embedding,
+                    openai_client=AsyncMock(),
+                    vision_client=MagicMock(),
+                    search_service=AsyncMock(),
+                    last_check=time.monotonic(),
+                )
 
             mock_init.side_effect = _fake_init
             service._pool = MagicMock()
-            service._embedding_service = AsyncMock()
 
             with patch(
                 "app.services.rag_service.index_document",
@@ -136,7 +189,7 @@ class TestAddDocument:
                     "skip_reason": "x",
                 },
             ):
-                await service.add_document(b"x", "d", "f.txt")
+                await service.add_document(TEST_ORG, b"x", "d", "f.txt")
 
         mock_init.assert_awaited_once()
 
@@ -156,7 +209,7 @@ class TestSearch:
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.0
-            results = await service.search("test query", file_ids=["doc-1"])
+            results = await service.search(TEST_ORG, "test query", file_ids=["doc-1"])
 
         assert len(results) == 2
         service._search_service.search.assert_awaited_once_with(
@@ -173,7 +226,7 @@ class TestSearch:
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.7
-            await service.search("query")
+            await service.search(TEST_ORG, "query")
 
         # Threshold is now passed to search_service for vector pre-filtering
         service._search_service.search.assert_awaited_once_with(
@@ -190,7 +243,7 @@ class TestSearch:
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 5
             mock_settings.similarity_threshold = 0.0
-            await service.search("query", top_k=20)
+            await service.search(TEST_ORG, "query", top_k=20)
 
         service._search_service.search.assert_awaited_once_with(
             "query",
@@ -210,7 +263,7 @@ class TestSearch:
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.9
-            results = await service.search("query", similarity_threshold=0.3)
+            results = await service.search(TEST_ORG, "query", similarity_threshold=0.3)
 
         assert len(results) == 1
 
@@ -225,7 +278,7 @@ class TestSearch:
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.0
-            results = await service.search("query")
+            results = await service.search(TEST_ORG, "query")
 
         assert len(results) == 1
 
@@ -237,7 +290,7 @@ class TestSearch:
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.0
-            await service.search("q", file_ids=["doc-1", "doc-2"])
+            await service.search(TEST_ORG, "q", file_ids=["doc-1", "doc-2"])
 
         service._search_service.search.assert_awaited_once_with(
             "q",
@@ -272,7 +325,7 @@ class TestGenerate:
             patch("app.services.rag_service.settings") as mock_settings,
         ):
             mock_settings.get_llm_config.return_value = {"model": "gpt-4o-mini"}
-            result = await service.generate("What is X?", file_ids=["doc-1"])
+            result = await service.generate(TEST_ORG, "What is X?", file_ids=["doc-1"])
 
         assert result["success"] is True
         assert result["response"] == "Generated answer based on context."
@@ -288,7 +341,7 @@ class TestGenerate:
             new_callable=AsyncMock,
             return_value=[],
         ):
-            result = await service.generate("Unknown topic?")
+            result = await service.generate(TEST_ORG, "Unknown topic?")
 
         assert result["success"] is False
         assert "No relevant information" in result["response"]
@@ -316,7 +369,7 @@ class TestGenerate:
             patch("app.services.rag_service.settings") as mock_settings,
         ):
             mock_settings.get_llm_config.return_value = {"model": "test-model"}
-            await service.generate("What?")
+            await service.generate(TEST_ORG, "What?")
 
         create_call = service._openai_client.chat.completions.create
         messages = create_call.call_args[1]["messages"]
@@ -344,7 +397,7 @@ class TestGenerate:
         ):
             mock_settings.get_llm_config.return_value = {"model": "m"}
             with pytest.raises(ValueError, match="empty choices"):
-                await service.generate("question")
+                await service.generate(TEST_ORG, "question")
 
     async def test_context_truncated_at_max_chars(self):
         from app.services.rag_service import RAG_MAX_CONTEXT_CHARS
@@ -364,7 +417,7 @@ class TestGenerate:
             patch("app.services.rag_service.settings") as mock_settings,
         ):
             mock_settings.get_llm_config.return_value = {"model": "m"}
-            result = await service.generate("query")
+            result = await service.generate(TEST_ORG, "query")
 
         create_call = service._openai_client.chat.completions.create
         user_msg = create_call.call_args[1]["messages"][1]["content"]
@@ -374,7 +427,7 @@ class TestGenerate:
         service = _make_service()
 
         with patch.object(service, "search", new_callable=AsyncMock, return_value=[]) as mock_search:
-            await service.generate("q", file_ids=["doc-1"])
+            await service.generate(TEST_ORG, "q", file_ids=["doc-1"])
 
         mock_search.assert_awaited_once()
         call_kwargs = mock_search.call_args[1]
@@ -399,7 +452,7 @@ class TestGenerate:
             patch("app.services.rag_service.settings") as mock_settings,
         ):
             mock_settings.get_llm_config.return_value = {"model": "m"}
-            result = await service.generate("q")
+            result = await service.generate(TEST_ORG, "q")
 
         assert result["response"] == ""
         assert result["success"] is True

@@ -19,6 +19,7 @@ from loguru import logger
 from openai import AsyncOpenAI
 
 from ...config import settings
+from ...org_context import get_active_org
 from .cache import compute_text_hash, llm_cache
 
 
@@ -103,7 +104,7 @@ class VisionClient:
 
         self._last_config_check = now
         try:
-            config = settings.get_vision_config()  # (base_url, api_key, model)
+            config = settings.get_vision_config(get_active_org())  # (base_url, api_key, model)
         except (ValueError, OSError):
             if self._client is not None:
                 logger.opt(exception=True).warning("Config read failed, keeping current vision client")
@@ -150,7 +151,7 @@ class VisionClient:
             return cached_result
 
         client = self._get_client()
-        vision_model = settings.get_vision_model()
+        vision_model = settings.get_vision_model(get_active_org())
         extraction_prompt = prompt or OCR_PROMPT
 
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -229,7 +230,7 @@ class VisionClient:
             return cached_result
 
         client = self._get_client()
-        vision_model = settings.get_vision_model()
+        vision_model = settings.get_vision_model(get_active_org())
         description_prompt = prompt or DESCRIBE_PROMPT
 
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -369,7 +370,7 @@ async def process_pages_with_llm(
 
     logger.info(f"LLM processing: {total_chars} chars total, chunking at {max_chars_per_chunk} chars")
 
-    base_url, api_key, chat_model = settings.get_chat_config()
+    base_url, api_key, chat_model = settings.get_chat_config(get_active_org())
     client = AsyncOpenAI(
         api_key=api_key,
         base_url=base_url,

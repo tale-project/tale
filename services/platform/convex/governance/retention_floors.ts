@@ -4,8 +4,9 @@
  * importable from V8 mutations / queries / actions.
  *
  * Resolution order:
- *   1. **Per-org file** at `$TALE_CONFIG_DIR/retention/{orgSlug}.json`
- *      provides the baseline `{ min, max, default }` per category. The
+ *   1. **Per-org file** at `$TALE_CONFIG_DIR/<orgSlug>/retention.json`
+ *      (org-first layout) provides the baseline `{ min, max, default }`
+ *      per category. The
  *      file is the canonical source of truth (no in-code fallback).
  *      Loading the file is the caller's responsibility — Node-side
  *      callers (cleanup action) import the store directly; V8-side

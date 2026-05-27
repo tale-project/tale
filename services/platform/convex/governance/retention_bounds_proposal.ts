@@ -1,8 +1,9 @@
 /**
  * Public V8 actions for the operator-side retention bounds proposal
- * gate. The JSON file under `$TALE_CONFIG_DIR/retention/{orgSlug}.json`
- * (and `TALE_RETENTION_*` env tightening) are no longer directives —
- * they're proposals. Cleanup uses `retentionAppliedBounds.appliedBounds`,
+ * gate. The JSON file under `$TALE_CONFIG_DIR/<orgSlug>/retention.json`
+ * (org-first layout) and `TALE_RETENTION_*` env tightening are no
+ * longer directives — they're proposals. Cleanup uses
+ * `retentionAppliedBounds.appliedBounds`,
  * which only changes when an admin clicks Apply here.
  *
  * Three actions:

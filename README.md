@@ -88,7 +88,7 @@ tale cleanup                       # Remove inactive containers
 tale reset --force                 # Remove all containers
 ```
 
-See the [CLI reference](tools/cli/README.md) for all options and flags. Pending data migrations are detected and applied automatically on the next `tale start` or `tale deploy`.
+See the [CLI reference](tools/cli/README.md) for all options and flags. Upgrading an existing deployment requires a one-time manual migration: run `tale migrate config-layout` then `tale deploy --override-all -y`. See [Self-hosted upgrades](docs/en/self-hosted/operate/upgrades.md) for the full runbook.
 
 ## Deploy to production
 

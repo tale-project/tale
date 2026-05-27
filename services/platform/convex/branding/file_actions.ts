@@ -29,6 +29,7 @@ import {
   atomicWrite,
   atomicWriteBuffer,
   generateHistoryTimestamp,
+  errnoCode,
   pruneHistory,
   readFileSafe,
   readJsonFile,
@@ -293,12 +294,21 @@ export const resetBranding = action({
     try {
       const entries = await readdir(imagesDir);
       await Promise.all(
-        entries.map((entry) =>
-          unlink(path.join(imagesDir, entry)).catch(() => {}),
-        ),
+        entries.map((entry) => {
+          const file = path.join(imagesDir, entry);
+          return unlink(file).catch((err) => {
+            // Tolerate ENOENT (race with another deleter) and log
+            // everything else — silent unlink failures hide permission
+            // bugs that leak stale branding images.
+            if (errnoCode(err) === 'ENOENT') return;
+            console.warn(`[resetBranding] unlink ${file} failed:`, err);
+          });
+        }),
       );
-    } catch {
-      // Directory may not exist
+    } catch (err) {
+      if (errnoCode(err) !== 'ENOENT') {
+        console.warn(`[resetBranding] readdir ${imagesDir} failed:`, err);
+      }
     }
 
     return null;

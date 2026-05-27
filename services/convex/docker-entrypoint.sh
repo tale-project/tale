@@ -290,11 +290,15 @@ fi
 seed_marker="/app/data/.seeded-${TALE_VERSION:-dev}-orgfirst"
 data_dir="/app/data"
 
-# Atomic file copy: write to a sibling tmp file then rename. A SIGKILL
-# between open(dest, O_TRUNC) and the final write would otherwise leave a
-# truncated file at $dest, which the next-run skip-if-exists check treats
-# as "already seeded" — silent corruption. With atomic_cp the next run
-# either sees the original (rename never happened) or the complete file.
+# Crash-safe file copy: write to a sibling tmp file then rename to dest.
+# `cp` itself is non-atomic; the value is that an interrupted run leaves
+# either (a) no tmp / dest intact, or (b) a partial `.tale-seed.<pid>.tmp`
+# orphan + dest intact. The next-run skip-if-exists check on dest is
+# therefore never observing a half-written file. Orphan tmps don't gate
+# anything (they're not matched by the dest-existence probe) and survive
+# until the next reseed of that file. There is no fsync — power-loss
+# durability isn't asserted, but the seed data is re-derivable from the
+# immutable builtin catalog, so a lost write is recoverable on retry.
 atomic_cp() {
   local src="$1" dest="$2"
   local tmp="${dest}.tale-seed.$$.tmp"
@@ -466,6 +470,39 @@ if [ "$FORCE_SEED" = "true" ] || [ ! -f "$seed_marker" ]; then
   run_seed
 else
   log_info "Builtin seed already applied for version ${TALE_VERSION:-dev} (marker: $seed_marker)"
+fi
+
+# ----------------------------------------------------------------------------
+# Legacy flat-layout detector
+# ----------------------------------------------------------------------------
+# The pre-orgfirst layout placed config at the data-root level
+# (`/app/data/agents/`, `/app/data/workflows/`, …). Under org-first that
+# tree is now at `/app/data/<org>/<domain>/`. If an upgrading operator's
+# volume still contains the legacy flat trees, the new runtime ignores
+# them — `seed_marker` already promoted seed data to `default/`, but the
+# operator's edits at the old root are unreachable. Warn loudly so they
+# know to run `tale migrate config-layout` on the host.
+legacy_flat_dirs=()
+for d in agents workflows integrations branding providers skills; do
+  if [ -d "${data_dir}/${d}" ]; then
+    legacy_flat_dirs+=("${d}")
+  fi
+done
+if [ ${#legacy_flat_dirs[@]} -gt 0 ]; then
+  echo
+  echo "⚠ WARNING: legacy flat-layout config detected at:"
+  for d in "${legacy_flat_dirs[@]}"; do
+    echo "    ${data_dir}/${d}/"
+  done
+  echo
+  echo "  The org-first runtime reads only from '<root>/<org>/<domain>/'."
+  echo "  Edits at the paths above are NOT loaded by the platform or any"
+  echo "  per-org config resolver. To migrate them into the new layout,"
+  echo "  run on the operator host:"
+  echo "    tale migrate config-layout"
+  echo "  then:"
+  echo "    tale deploy --override-all -y"
+  echo
 fi
 
 # ============================================================================

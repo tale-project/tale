@@ -80,3 +80,41 @@ Sauter des versions mineures (passer de 0.9 à 0.11) est supporté tant que les 
 ## Où cela s'inscrit
 
 Le flow de montée de version noue chaque autre page d'exploitation — les backups sont ce qui rend une montée de version échouée récupérable, l'observabilité est ce qui te dit que la nouvelle couleur est saine, le durcissement est ce que tu re-walks après une version majeure. Si tu mets en place la CLI pour la première fois, [Installer la CLI tale](/fr/self-hosted/install/cli-install) couvre le setup côté workstation ; si tu prends le pager en plein rollout, [Dépannage](/fr/self-hosted/operate/observability/troubleshooting) nomme les symptômes.
+
+## Migration vers la disposition de config org-first
+
+Les anciennes versions de Tale stockaient la config dans une arborescence plate à la racine du workspace (`agents/`, `workflows/`, `integrations/`, `branding/`, `providers/`, `skills/`). La version actuelle utilise une disposition **org-first** où chaque org — y compris la canonique `default` — possède son propre sous-arbre : `<root>/<org>/<domain>/...`. La migration est opt-in et tourne une seule fois par workspace. La nouvelle plateforme refuse de lire les anciens chemins ; tant que tu n'as pas migré, tes secrets de provider et personnalisations vivent dans des répertoires que le runtime ne regarde plus.
+
+La migration tient en trois commandes :
+
+```bash
+# 1. Copier les secrets de provider (et autres configs) depuis la
+#    disposition plate vers `default/<domain>/...`. cp et non mv, donc
+#    les anciens chemins restent intacts au cas où un rollback serait
+#    nécessaire.
+tale migrate config-layout
+
+# 2. Recréer le conteneur Convex contre la disposition de volume org-first
+#    et lancer le reseed côté serveur sur chaque org enregistrée. Implique
+#    `--all` ; `-y` saute le prompt destructif pour les runs CI / scripts.
+tale deploy --override-all -y
+
+# 3. Une fois la nouvelle disposition vérifiée intacte, supprimer les
+#    anciens chemins. Vérifie via sha que le nouveau fichier correspond
+#    à l'ancien avant unlink ; refuse de supprimer en cas de mismatch.
+tale migrate config-layout --cleanup-old
+```
+
+L'étape 1 est sûre et réversible — la rejouer est un no-op une fois les chemins existants. L'étape 2 est destructive : chaque config d'org au nom canonique (`*.json` sous `agents/`, `workflows/`, `integrations/`, `skills/`, `branding/branding.json`, `retention.json`) est écrasée par le catalogue builtin. Les fichiers `*.secrets.json`, les traces `.history/` et les `branding/images/*` uploadés sont préservés côté serveur. Après l'étape 2, la plateforme lit exclusivement depuis la disposition org-first.
+
+L'étape 3 est le point de non-retour pour les downgrades — voir ci-dessous.
+
+### Annuler la migration org-first
+
+Entre les étapes 1 et 3, tu peux downgrader proprement. L'entrypoint Convex marque chaque run de seed avec un token qui inclut la version de disposition (`.seeded-<version>-orgfirst`) ; un binaire plus ancien qui ne reconnaît pas ce token re-seede idempotemment dans ses propres chemins (plats), et le `cp` de l'étape 1 a laissé les anciens chemins intacts. Le downgrade est un `tale rollback` normal.
+
+Après l'étape 3 (`--cleanup-old`), les anciens chemins sont partis. Le downgrade continue à re-seeder la disposition correctement via le mécanisme du token-marker, mais l'app démarre avec des secrets de provider vides — restaure-les depuis le backup (voir [Backups et restauration](/fr/self-hosted/operate/backups-and-restore)) avant de reprendre le trafic.
+
+### Et si je saute l'étape 1 ?
+
+Le conteneur Convex détectera au démarrage les répertoires restants de la disposition plate et écrira un warning dans ses logs en nommant les répertoires et pointant vers ce runbook. Le déploiement démarre, mais les reads sur ces répertoires reviennent vides et les writes vont vers les nouveaux chemins (vides) org-first. La correction reste étapes 1 + 2 — les lancer après le warning fonctionne exactement comme les lancer en amont.

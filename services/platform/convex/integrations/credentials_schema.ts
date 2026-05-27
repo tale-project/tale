@@ -7,8 +7,9 @@ import { jsonRecordValidator } from '../lib/validators/json';
  * Slim credentials table for installed integrations.
  *
  * Integration definitions (operations, connector code, config) live in filesystem
- * files under INTEGRATIONS_DIR. This table stores only per-installation runtime
- * data: encrypted credentials, status, health metrics, and icon storage.
+ * files under `$TALE_CONFIG_DIR/<orgSlug>/integrations/<slug>/`. This table
+ * stores only per-installation runtime data: encrypted credentials, status,
+ * health metrics, and icon storage.
  *
  * The `slug` field matches the integration directory name (the canonical identifier).
  */

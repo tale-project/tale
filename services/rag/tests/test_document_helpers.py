@@ -4,8 +4,8 @@ Covers:
 - _validate_file_extension: supported, unsupported, no extension
 - _parse_metadata: valid JSON, invalid JSON, non-dict JSON, None
 - SUPPORTED_EXTENSIONS: excludes legacy Office formats (.doc, .ppt, .xls)
-- Settings.get_embedding_dimensions(): via provider files
-- Settings.get_llm_config(): via provider files
+- Settings.get_embedding_dimensions("default"): via provider files
+- Settings.get_llm_config("default"): via provider files
 """
 
 import os
@@ -204,13 +204,13 @@ def _mock_embedding_model():
 
 
 class TestGetEmbeddingDimensions:
-    """Settings.get_embedding_dimensions() from provider files."""
+    """Settings.get_embedding_dimensions("default") from provider files."""
 
     @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
     def test_valid_dimensions(self, mock_provider):
         with patch.dict(os.environ, {}, clear=True):
             s = Settings()
-            assert s.get_embedding_dimensions() == 1536
+            assert s.get_embedding_dimensions("default") == 1536
 
     @patch(
         "tale_shared.config.base._provider_embedding_model",
@@ -219,7 +219,7 @@ class TestGetEmbeddingDimensions:
     def test_large_dimensions(self, mock_provider):
         with patch.dict(os.environ, {}, clear=True):
             s = Settings()
-            assert s.get_embedding_dimensions() == 3072
+            assert s.get_embedding_dimensions("default") == 3072
 
     @patch(
         "tale_shared.config.base._provider_embedding_model",
@@ -229,18 +229,18 @@ class TestGetEmbeddingDimensions:
         with patch.dict(os.environ, {}, clear=True):
             s = Settings()
             with pytest.raises(ValueError, match="No embedding model"):
-                s.get_embedding_dimensions()
+                s.get_embedding_dimensions("default")
 
 
 class TestGetLlmConfig:
-    """Settings.get_llm_config() from provider files."""
+    """Settings.get_llm_config("default") from provider files."""
 
     @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
     @patch("tale_shared.config.base._provider_chat_model", return_value=_mock_chat_model())
     def test_all_present_returns_valid_config(self, mock_chat, mock_embed):
         with patch.dict(os.environ, {}, clear=True):
             s = Settings()
-            config = s.get_llm_config()
+            config = s.get_llm_config("default")
         assert config["provider"] == "openai"
         assert config["api_key"] == "sk-test"
         assert config["base_url"] == "https://openrouter.ai/api/v1"
@@ -256,7 +256,7 @@ class TestGetLlmConfig:
         with patch.dict(os.environ, {}, clear=True):
             s = Settings()
             with pytest.raises(ValueError, match="No chat model"):
-                s.get_llm_config()
+                s.get_llm_config("default")
 
     @patch(
         "tale_shared.config.base._provider_embedding_model",
@@ -267,14 +267,14 @@ class TestGetLlmConfig:
         with patch.dict(os.environ, {}, clear=True):
             s = Settings()
             with pytest.raises(ValueError, match="No embedding model"):
-                s.get_llm_config()
+                s.get_llm_config("default")
 
     @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
     @patch("tale_shared.config.base._provider_chat_model", return_value=_mock_chat_model())
     def test_optional_max_tokens_included_when_set(self, mock_chat, mock_embed):
         with patch.dict(os.environ, {"RAG_OPENAI_MAX_TOKENS": "4096"}, clear=True):
             s = Settings()
-            config = s.get_llm_config()
+            config = s.get_llm_config("default")
         assert config["max_tokens"] == 4096
 
     @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
@@ -282,7 +282,7 @@ class TestGetLlmConfig:
     def test_optional_temperature_included_when_set(self, mock_chat, mock_embed):
         with patch.dict(os.environ, {"RAG_OPENAI_TEMPERATURE": "0.7"}, clear=True):
             s = Settings()
-            config = s.get_llm_config()
+            config = s.get_llm_config("default")
         assert config["temperature"] == pytest.approx(0.7)
 
     @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
@@ -290,7 +290,7 @@ class TestGetLlmConfig:
     def test_max_tokens_omitted_when_not_set(self, mock_chat, mock_embed):
         with patch.dict(os.environ, {}, clear=True):
             s = Settings()
-            config = s.get_llm_config()
+            config = s.get_llm_config("default")
         assert "max_tokens" not in config
 
     @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
@@ -298,5 +298,5 @@ class TestGetLlmConfig:
     def test_temperature_omitted_when_not_set(self, mock_chat, mock_embed):
         with patch.dict(os.environ, {}, clear=True):
             s = Settings()
-            config = s.get_llm_config()
+            config = s.get_llm_config("default")
         assert "temperature" not in config

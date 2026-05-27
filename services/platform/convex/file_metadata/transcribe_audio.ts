@@ -8,6 +8,7 @@ import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
 import { classifyError } from '../lib/error_classification';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import type { ResolvedModelData } from '../providers/resolve_model';
 import { resolveTranscriptionModel } from '../providers/resolve_model';
 import { uploadFile } from '../workflow_engine/action_defs/rag/helpers/upload_file_direct';
@@ -162,6 +163,7 @@ async function indexTranscriptToRag(
     transcript: string;
     chunkCount: number;
     requestId: string;
+    orgSlug: string;
   },
 ): Promise<void> {
   if (args.transcript.length === 0) return;
@@ -201,6 +203,7 @@ async function indexTranscriptToRag(
         originalAudioContentType: args.audioContentType,
         chunkCount: args.chunkCount,
       },
+      orgSlug: args.orgSlug,
     });
     await ctx.runMutation(
       internal.file_metadata.internal_mutations.updateFileTranscription,
@@ -371,6 +374,7 @@ export const transcribeAudio = internalAction({
           // transcript was cached from). Duplicates content in RAG but
           // keeps per-upload citation identity correct; embeddings cost
           // is tiny compared to the Whisper call we just skipped.
+          const cachedOrgSlug = await orgSlugFromId(ctx, args.organizationId);
           await indexTranscriptToRag(ctx, {
             storageId: args.storageId,
             fileName: args.fileName,
@@ -378,6 +382,7 @@ export const transcribeAudio = internalAction({
             transcript: cached.transcript ?? '',
             chunkCount: 0,
             requestId,
+            orgSlug: cachedOrgSlug,
           });
           return null;
         }
@@ -535,6 +540,7 @@ export const transcribeAudio = internalAction({
         );
       }
 
+      const indexOrgSlug = await orgSlugFromId(ctx, args.organizationId);
       await indexTranscriptToRag(ctx, {
         storageId: args.storageId,
         fileName: args.fileName,
@@ -542,6 +548,7 @@ export const transcribeAudio = internalAction({
         transcript: fullTranscript,
         chunkCount: chunks.length,
         requestId,
+        orgSlug: indexOrgSlug,
       });
 
       return null;

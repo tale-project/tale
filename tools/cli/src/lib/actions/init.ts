@@ -292,7 +292,9 @@ export async function init(options: InitOptions): Promise<void> {
         { apiKey: envResult.openrouterKey },
         envResult.agePublicKey,
       );
-      await writeFile(secretsPath, encrypted);
+      // 0600: SOPS-encrypted, but least-privilege convention for any
+      // `*.secrets.*` file. Limits readability to the owner.
+      await writeFile(secretsPath, encrypted, { mode: 0o600 });
       logger.success(
         'Encrypted provider API key into default/providers/openrouter.secrets.json',
       );
@@ -353,7 +355,21 @@ async function detectTaleProjectFiles(dir: string): Promise<string[]> {
   try {
     const entries = await readdir(dir);
     return entries.filter((entry) => TALE_PROJECT_MARKERS.has(entry));
-  } catch {
+  } catch (err: unknown) {
+    // Most common case: target dir does not exist yet (`tale init` in a
+    // fresh empty dir, or a path the operator just typed). Treat as
+    // empty — non-ENOENT errors are worth a warning so a perms issue
+    // doesn't masquerade as a clean slate.
+    const code =
+      err !== null &&
+      typeof err === 'object' &&
+      'code' in err &&
+      typeof err.code === 'string'
+        ? err.code
+        : undefined;
+    if (code !== 'ENOENT') {
+      console.warn(`[init.detectTaleProjectFiles] readdir ${dir} failed:`, err);
+    }
     return [];
   }
 }

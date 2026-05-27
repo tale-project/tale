@@ -62,39 +62,20 @@ async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
         )
         logger.info(f"PostgreSQL connection pool initialized (min={min(2, max_size)}, max={max_size})")
 
-        # Guard against embedding dimension mismatch: if existing data uses a
-        # different dimension than the current config, refuse to start.
-        configured_dims = settings.get_embedding_dimensions()
-        async with acquire_with_retry(_pool) as conn:
-            stored_dims = await conn.fetchval(
-                f"SELECT vector_dims(embedding) FROM {SCHEMA}.chunks WHERE embedding IS NOT NULL LIMIT 1"
-            )
-        if stored_dims is not None and stored_dims != configured_dims:
-            await _pool.close()
-            _pool = None
-            raise RuntimeError(
-                f"Embedding dimension mismatch: database has {stored_dims}d vectors "
-                f"but CRAWLER_EMBEDDING_DIMENSIONS={configured_dims}. "
-                f"Re-index existing data or update the config to match."
-            )
+        # Note: the previous boot-time embedding-dimension guard was
+        # removed when crawler became multi-org. Dim is now an attribute
+        # of the org's provider catalog, not a global setting, and there
+        # is no org context at lifespan start. `get_embedding_service()`
+        # refuses dim changes per-org at request time; pgvector enforces
+        # column dim on insert.
+        #
+        # The column type and HNSW index are pinned lazily on the first
+        # insert (pgvector errors loudly on dim mismatch). All orgs
+        # sharing this crawler instance must agree on embedding dims.
 
-        # Pin the embedding column to explicit dimensions so HNSW indexes work.
-        expected_type = f"vector({int(configured_dims)})"
-        async with acquire_with_retry(_pool) as conn:
-            col_type = await conn.fetchval(
-                "SELECT format_type(atttypid, atttypmod) "
-                "FROM pg_attribute "
-                "WHERE attrelid = $1::regclass AND attname = 'embedding'",
-                f"{SCHEMA}.chunks",
-            )
-            if col_type != expected_type:
-                await conn.execute(f"DROP INDEX IF EXISTS {SCHEMA}.idx_pw_chunks_embedding_hnsw")
-                await conn.execute(
-                    f"ALTER TABLE {SCHEMA}.chunks ALTER COLUMN embedding TYPE vector({int(configured_dims)})"
-                )
-                logger.info(f"Pinned embedding column to vector({configured_dims}) (was {col_type})")
-
-        # Create HNSW index if it doesn't exist yet.
+        # Create HNSW index if it doesn't exist yet. The index targets
+        # whatever the column type is set to; if no rows have been
+        # inserted, the call is cheap.
         try:
             async with acquire_with_retry(_pool) as conn:
                 await conn.execute(f"SELECT {SCHEMA}.create_chunks_hnsw_index()")

@@ -16,7 +16,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from tale_shared.logging import suppress_health_check_logs
@@ -204,17 +204,25 @@ app.add_middleware(
 init_telemetry(app)
 
 
+# X-Tale-Org is required on every endpoint that touches per-org provider
+# state (vision, embedding, chat model). Apply as a router-level
+# dependency so individual handlers don't need to remember to declare it.
+# `/health` is mounted at the app level below — exempt.
+from app.org_context import require_org_slug  # noqa: E402
+
+_org_dep = [Depends(require_org_slug)]
+
 # Register routers
-app.include_router(crawler_router)
-app.include_router(websites_router)
-app.include_router(search_router)
-app.include_router(pages_router)
-app.include_router(index_router)
-app.include_router(pdf_router)
-app.include_router(image_router)
-app.include_router(docx_router)
-app.include_router(pptx_router)
-app.include_router(web_router)
+app.include_router(crawler_router, dependencies=_org_dep)
+app.include_router(websites_router, dependencies=_org_dep)
+app.include_router(search_router, dependencies=_org_dep)
+app.include_router(pages_router, dependencies=_org_dep)
+app.include_router(index_router, dependencies=_org_dep)
+app.include_router(pdf_router, dependencies=_org_dep)
+app.include_router(image_router, dependencies=_org_dep)
+app.include_router(docx_router, dependencies=_org_dep)
+app.include_router(pptx_router, dependencies=_org_dep)
+app.include_router(web_router, dependencies=_org_dep)
 
 
 @app.get("/health", response_model=HealthResponse)

@@ -18,7 +18,7 @@
 # image, old code paths still active). cp leaves old paths in place so
 # old code keeps reading providers correctly until the operator runs
 # `tale deploy --override-all -y` to recreate convex with the new code.
-set -eo pipefail
+set -euo pipefail
 
 DRY_RUN=0
 CLEANUP_OLD=0
@@ -30,7 +30,13 @@ for arg in "$@"; do
   esac
 done
 
+# Defense in depth: `set -u` already aborts on unset $DATA, but ${VAR:?…}
+# gives a clearer error message and won't be defeated by a future `set
+# +u` somewhere downstream. Critical because some branches below build
+# absolute paths from $DATA and rm them — a silent empty would operate
+# from the container's filesystem root.
 DATA="${TALE_CONFIG_DIR:-/app/data}"
+: "${DATA:?DATA must be a non-empty absolute path}"
 APP_UID=1001
 APP_GID=1001
 

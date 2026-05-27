@@ -73,43 +73,84 @@ export async function update(options: UpdateOptions): Promise<void> {
     await fetchReference(projectDir);
   }
 
-  // Regenerate AI rules files
-  logger.step(`${prefix}Updating AI rules files...`);
-  if (!options.dryRun) {
-    const rulesFiles = generateAllRules();
-    for (const { relativePath, content } of rulesFiles) {
-      const destPath = join(projectDir, relativePath);
-      await mkdir(dirname(destPath), { recursive: true });
-      await writeFile(destPath, content);
-    }
-  }
-
-  // Read existing checksums
+  // Read existing checksums BEFORE rewriting rules so we can apply the
+  // same modified/unmodified policy as example files.
   const oldChecksums = await readChecksums(projectDir);
   const oldFiles = oldChecksums?.files ?? {};
 
-  // Get new example files from embedded data
+  // Regenerate AI rules files. Same protection policy as examples:
+  // - new file → write
+  // - deleted by user → skip
+  // - unmodified-since-last-update → overwrite
+  // - locally modified + no --force → keep, warn
+  // - locally modified + --force → overwrite
+  logger.step(`${prefix}Updating AI rules files...`);
+  const rulesFiles = generateAllRules();
+  const rulesUpdates: Record<string, string> = {};
+  for (const { relativePath, content } of rulesFiles) {
+    const destPath = join(projectDir, relativePath);
+    const newHash = computeContentHash(content);
+    const oldHash = oldFiles[relativePath];
+
+    if (!oldHash) {
+      logger.info(`${prefix}+ ${relativePath} (new)`);
+      if (!options.dryRun) {
+        await mkdir(dirname(destPath), { recursive: true });
+        await writeFile(destPath, content);
+      }
+      rulesUpdates[relativePath] = newHash;
+    } else if (!existsSync(destPath)) {
+      logger.info(`${prefix}- ${relativePath} (deleted by user, skipping)`);
+    } else {
+      const currentHash = await computeFileHash(destPath);
+      if (currentHash === oldHash) {
+        logger.info(`${prefix}~ ${relativePath} (updated)`);
+        if (!options.dryRun) {
+          await writeFile(destPath, content);
+        }
+        rulesUpdates[relativePath] = newHash;
+      } else if (options.force) {
+        logger.warn(
+          `${prefix}~ ${relativePath} (overwritten, was locally modified)`,
+        );
+        if (!options.dryRun) {
+          await writeFile(destPath, content);
+        }
+        rulesUpdates[relativePath] = newHash;
+      } else {
+        logger.warn(
+          `${prefix}⚠ Skipped ${relativePath} (locally modified). Re-run with --force to overwrite.`,
+        );
+        rulesUpdates[relativePath] = oldHash;
+      }
+    }
+  }
+
+  // Get new example files from embedded data. Paths land under
+  // `default/<domain>/...` to match the org-first layout that
+  // `tale init` scaffolds.
   const newExampleFiles = new Map<string, string>();
+  const DEFAULT_ORG = 'default';
 
   for (const [relPath, content] of getEmbeddedExamples('agents')) {
-    newExampleFiles.set(join('agents', relPath), content);
+    newExampleFiles.set(join(DEFAULT_ORG, 'agents', relPath), content);
   }
   for (const [relPath, content] of getEmbeddedExamples('workflows')) {
-    newExampleFiles.set(join('workflows', relPath), content);
+    newExampleFiles.set(join(DEFAULT_ORG, 'workflows', relPath), content);
   }
   for (const [relPath, content] of getEmbeddedExamples('integrations')) {
-    newExampleFiles.set(join('integrations', relPath), content);
+    newExampleFiles.set(join(DEFAULT_ORG, 'integrations', relPath), content);
   }
   for (const [relPath, content] of getEmbeddedExamples('branding')) {
-    newExampleFiles.set(join('branding', relPath), content);
+    newExampleFiles.set(join(DEFAULT_ORG, 'branding', relPath), content);
   }
   for (const [relPath, content] of getEmbeddedExamples('providers')) {
     if (!relPath.endsWith('.secrets.json')) {
-      newExampleFiles.set(join('providers', relPath), content);
+      newExampleFiles.set(join(DEFAULT_ORG, 'providers', relPath), content);
     }
   }
   for (const [relPath, content] of getEmbeddedExamples('skills')) {
-    newExampleFiles.set(join('skills', relPath), content);
+    newExampleFiles.set(join(DEFAULT_ORG, 'skills', relPath), content);
   }
 
   // Classify and apply changes
@@ -120,7 +161,9 @@ export async function update(options: UpdateOptions): Promise<void> {
     removed: [],
   };
 
-  const newChecksumFiles: Record<string, string> = {};
+  // Seed checksum map with the rules-file decisions so the final write
+  // includes their hashes (so future updates can detect local edits).
+  const newChecksumFiles: Record<string, string> = { ...rulesUpdates };
 
   for (const [relPath, content] of newExampleFiles) {
     const destPath = join(projectDir, relPath);

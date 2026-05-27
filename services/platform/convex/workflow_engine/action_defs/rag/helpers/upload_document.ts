@@ -4,6 +4,7 @@ import {
 } from '../../../../../lib/shared/file-types';
 import { internal } from '../../../../_generated/api';
 import type { ActionCtx } from '../../../../_generated/server';
+import { orgSlugFromId } from '../../../../lib/helpers/org_slug';
 import { toId } from '../../../../lib/type_cast_helpers';
 import type { RagUploadResult } from './types';
 import { uploadFile } from './upload_file_direct';
@@ -67,6 +68,8 @@ export async function uploadDocument(
     contentType,
   );
 
+  const orgSlug = await orgSlugFromId(ctx, metadata.organizationId);
+
   return uploadFile({
     file,
     filename: fileName,
@@ -74,5 +77,6 @@ export async function uploadDocument(
     fileId,
     metadata: options?.metadata,
     sync: options?.sync ?? false,
+    orgSlug,
   });
 }

@@ -5,7 +5,7 @@
  * for the runtime engine's snapshot read).
  *
  * Storage model mirrors agents/integrations: SKILL.md + bundle assets on
- * disk under `${SKILLS_DIR}/<orgSlug-prefix>/<slug>/`. There is NO Convex
+ * disk under `${TALE_CONFIG_DIR}/<orgSlug>/skills/<slug>/`. There is NO Convex
  * DB table for skills — the file is the source of truth, team scoping and
  * role restriction live in YAML frontmatter, author/timestamps come from
  * audit_logs (see Phase 5c follow-up).

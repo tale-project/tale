@@ -37,6 +37,11 @@ def _fake_pool(stored_dims: int | None, col_type: str = "vector(1536)"):
     return pool, _acq
 
 
+@pytest.mark.skip(
+    reason="Boot-time embedding-dimension guard was removed when crawler "
+    "became multi-org. Dim is now per-org provider catalog; pgvector enforces "
+    "column dim on insert + get_embedding_service refuses dim changes per-org."
+)
 class TestDimensionMismatchGuard:
     @pytest.mark.asyncio
     async def test_raises_on_dimension_mismatch(self):
@@ -88,6 +93,11 @@ class TestDimensionMismatchGuard:
         assert pool is fake_pool
 
 
+@pytest.mark.skip(
+    reason="Boot-time embedding-column ALTER was removed when crawler became "
+    "multi-org. Column type is now driven by the first INSERT under pgvector; "
+    "operators reconcile per-org provider catalogs manually if dims diverge."
+)
 class TestEmbeddingColumnPinning:
     @pytest.mark.asyncio
     async def test_alters_untyped_vector_column(self):

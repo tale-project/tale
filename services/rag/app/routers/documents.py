@@ -6,11 +6,21 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.background import BackgroundTasks
 from loguru import logger
 from tale_shared.db import acquire_with_retry
 
+from ..auth import require_org_slug
 from ..config import settings
 from ..models import (
     DocumentAddResponse,
@@ -195,6 +205,7 @@ def _sanitize_error(exc: Exception, max_length: int = 500) -> str:
 
 
 async def _background_ingest(
+    org_slug: str,
     content: bytes,
     file_id: str,
     filename: str,
@@ -204,6 +215,7 @@ async def _background_ingest(
     """Run document ingestion in the background, recording status in documents table."""
     try:
         result = await rag_service.add_document(
+            org_slug,
             content=content,
             file_id=file_id,
             filename=filename,
@@ -325,6 +337,7 @@ def _ms_timestamp_to_datetime(value: Any) -> dt.datetime | None:
 @router.post("/documents/upload", response_model=DocumentAddResponse)
 async def upload_document(
     background_tasks: BackgroundTasks,
+    org_slug: str = Depends(require_org_slug),
     file: UploadFile = _FILE_UPLOAD,
     metadata: str | None = Form(None, description="Optional metadata as JSON string"),
     file_id: str | None = Form(None, description="Optional custom file ID"),
@@ -370,6 +383,7 @@ async def upload_document(
         if sync:
             try:
                 result = await rag_service.add_document(
+                    org_slug,
                     content=file_bytes,
                     file_id=doc_id,
                     filename=file.filename,
@@ -397,6 +411,7 @@ async def upload_document(
 
         background_tasks.add_task(
             _background_ingest,
+            org_slug,
             file_bytes,
             doc_id,
             file.filename,
@@ -530,6 +545,7 @@ async def compare_documents(request: DocumentCompareRequest):
 
 @router.post("/documents/compare-files", response_model=DocumentCompareResponse)
 async def compare_files(
+    org_slug: str = Depends(require_org_slug),
     base_file: UploadFile = _BASE_FILE,
     comparison_file: UploadFile = _COMPARISON_FILE,
     max_changes: int = _MAX_CHANGES_FORM,
@@ -551,6 +567,7 @@ async def compare_files(
 
     try:
         result = await rag_service.compare_files(
+            org_slug,
             base_bytes,
             base_file.filename,
             comparison_bytes,

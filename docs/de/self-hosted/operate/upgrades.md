@@ -80,3 +80,41 @@ Minor-Versionen zu überspringen (von 0.9 auf 0.11 zu gehen) ist unterstützt, s
 ## Wo das hingehört
 
 Der Upgrade-Flow knüpft jede andere Operate-Seite an — Backups sind das, was ein gescheitertes Upgrade wiederherstellbar macht, Observability ist das, was dir sagt, dass die neue Farbe healthy ist, Hardening ist das, was du nach einer Major-Version neu walkst. Setzt du das CLI zum ersten Mal auf, deckt [Tale-CLI installieren](/de/self-hosted/install/cli-install) das workstationseitige Setup ab; nimmst du den Pager mitten im Rollout auf, nennt [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting) die Symptome.
+
+## Migration auf das Org-first-Config-Layout
+
+Ältere Tale-Releases haben Config in einem flachen Baum im Workspace-Root abgelegt (`agents/`, `workflows/`, `integrations/`, `branding/`, `providers/`, `skills/`). Aktuelles Tale nutzt ein **Org-first**-Layout, in dem jede Org — auch die kanonische `default` — ihren eigenen Unterbaum besitzt: `<root>/<org>/<domain>/...`. Die Migration ist opt-in und läuft einmal pro Workspace. Die neue Plattform liest die alten Pfade nicht mehr; bis du migrierst, liegen Provider-Secrets und Anpassungen in Verzeichnissen, die das Runtime nicht mehr anschaut.
+
+Die Migration sind drei Kommandos:
+
+```bash
+# 1. Provider-Secrets (und andere Config) aus dem flachen Layout nach
+#    `default/<domain>/...` kopieren. cp statt mv, damit die alten Pfade
+#    für einen möglichen Rollback intakt bleiben.
+tale migrate config-layout
+
+# 2. Convex-Container gegen das Org-first-Volume-Layout neu erstellen
+#    und den server-seitigen Reseed über jede registrierte Org laufen
+#    lassen. Impliziert `--all`; `-y` überspringt den destruktiven
+#    Bestätigungs-Prompt für CI / Skript-Läufe.
+tale deploy --override-all -y
+
+# 3. Wenn du das neue Layout verifiziert hast, alte Pfade entfernen.
+#    sha-verifiziert, dass die neue Datei der alten entspricht, bevor
+#    unlink; bei Mismatch wird das Löschen verweigert.
+tale migrate config-layout --cleanup-old
+```
+
+Schritt 1 ist safe und reversibel — ein Re-Run ist no-op, sobald Pfade existieren. Schritt 2 ist destruktiv: jede Org-Config mit Katalog-Name (`*.json` unter `agents/`, `workflows/`, `integrations/`, `skills/`, `branding/branding.json`, `retention.json`) wird mit dem Builtin-Katalog überschrieben. `*.secrets.json`-Dateien, `.history/`-Trails und hochgeladene `branding/images/*` bleiben server-seitig erhalten. Nach Schritt 2 liest die Plattform ausschließlich aus dem Org-first-Layout.
+
+Schritt 3 ist der Point-of-no-Return für Downgrades — siehe unten.
+
+### Org-first-Migration zurückrollen
+
+Zwischen Schritt 1 und 3 kannst du sauber downgraden. Der Convex-Entrypoint markiert jeden Seed-Lauf mit einem Token, das die Layout-Version enthält (`.seeded-<version>-orgfirst`); ein älteres Binary, das diesen Token nicht erkennt, re-seedet idempotent in seine eigenen (flachen) Pfade, und Schritt 1's `cp` hat die alten Pfade intakt gelassen. Downgrade ist ein normales `tale rollback`.
+
+Nach Schritt 3 (`--cleanup-old`) sind die alten Pfade weg. Downgrade re-seedet das Layout zwar weiterhin korrekt via Marker-Token-Mechanismus, aber die App startet mit leeren Provider-Secrets — stelle sie aus dem Backup wieder her (siehe [Backups und Restore](/de/self-hosted/operate/backups-and-restore)), bevor du Traffic wieder aufnimmst.
+
+### Was, wenn ich Schritt 1 überspringe?
+
+Der Convex-Container erkennt beim Start die übrig gebliebenen flachen Layout-Dirs und schreibt eine Warnung in seine Logs, die die Verzeichnisse benennt und auf dieses Runbook zeigt. Das Deployment startet, aber Reads aus diesen Verzeichnissen liefern leer, und Writes gehen in die neuen (leeren) Org-first-Pfade. Die Korrektur sind weiterhin Schritt 1 + 2 — sie nach der Warnung laufen zu lassen funktioniert genauso wie sie im Voraus laufen zu lassen.

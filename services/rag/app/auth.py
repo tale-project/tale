@@ -12,11 +12,17 @@ a single loud SECURITY warning so operators see the state in `docker logs`.
 """
 
 import hmac
+import re
 
 from fastapi import Header, HTTPException, status
 from loguru import logger
 
 from .config import settings
+
+# Org-slug regex aligned with services/platform/convex/lib/file_io.ts:25
+# plus the literal "default". Capped at 64 chars to match the platform's
+# migrate-script regex (script.sh:134). Keep these in sync.
+_ORG_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
 
 def _extract_bearer(header_value: str | None) -> str | None:
@@ -51,6 +57,29 @@ async def verify_auth_token(
             detail="invalid or missing auth token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+async def require_org_slug(
+    x_tale_org: str | None = Header(default=None),
+) -> str:
+    """FastAPI dependency: extract + validate the `X-Tale-Org` header.
+
+    Every protected RAG endpoint requires this header. Caller-supplied;
+    the platform sets it from the authenticated user's selected org.
+    No fallback to `default` — a missing header is a caller bug that we
+    surface as 400 rather than silently serve another org's providers.
+    """
+    if not x_tale_org:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="missing X-Tale-Org header",
+        )
+    if not _ORG_SLUG_RE.match(x_tale_org):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid X-Tale-Org header",
+        )
+    return x_tale_org
 
 
 def warn_if_auth_disabled() -> None:

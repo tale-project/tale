@@ -80,3 +80,41 @@ Skipping minor versions (going from 0.9 to 0.11) is supported as long as the int
 ## Where this fits
 
 The upgrade flow ties together every other operate page — backups are what makes a failed upgrade recoverable, observability is what tells you the new colour is healthy, hardening is what you re-walk after a major version. If you are setting up the CLI for the first time, [Install the tale CLI](/self-hosted/install/cli-install) covers the workstation-side setup; if you are picking up the pager mid-rollout, [Troubleshooting](/self-hosted/operate/observability/troubleshooting) names the symptoms.
+
+## Migrating to the org-first config layout
+
+Older Tale releases stored config in a flat tree at the workspace root (`agents/`, `workflows/`, `integrations/`, `branding/`, `providers/`, `skills/`). Current Tale uses an **org-first** layout where every org — including the canonical `default` — owns its own subtree: `<root>/<org>/<domain>/...`. The migration is opt-in and runs once per workspace. The new platform refuses to read the legacy paths; until you migrate, your provider secrets and customizations live in directories the runtime no longer looks at.
+
+The migration is three commands:
+
+```bash
+# 1. Copy provider secrets (and other config) from the flat layout into
+#    `default/<domain>/...`. cp not mv, so the old paths stay intact in
+#    case you need to roll back.
+tale migrate config-layout
+
+# 2. Recreate the Convex container against the org-first volume layout
+#    and run the server-side reseed across every registered org. Implies
+#    `--all`; `-y` skips the destructive-write confirmation prompt for
+#    CI / scripted runs.
+tale deploy --override-all -y
+
+# 3. Once you have verified the new layout is intact, remove the legacy
+#    paths. sha-verifies that the new file matches the old before
+#    unlinking; refuses to delete on any mismatch.
+tale migrate config-layout --cleanup-old
+```
+
+Step 1 alone is safe and reversible — re-running it is a no-op once paths exist. Step 2 is destructive: every org's catalog-named config (`*.json` under `agents/`, `workflows/`, `integrations/`, `skills/`, `branding/branding.json`, `retention.json`) is overwritten with the builtin catalog. `*.secrets.json` files, `.history/` trails, and uploaded `branding/images/*` are preserved server-side. After step 2, the platform reads exclusively from the org-first layout.
+
+Step 3 is the point of no return for downgrades — see below.
+
+### Rolling back the org-first migration
+
+Between steps 1 and 3 you can downgrade cleanly. The Convex entrypoint marks each seed run with a token that includes the layout version (`.seeded-<version>-orgfirst`); an older binary that does not recognize the token re-seeds idempotently into its own (flat) paths, and step 1's `cp` left the legacy paths intact. Downgrade is a normal `tale rollback`.
+
+After step 3 (`--cleanup-old`), the legacy paths are gone. Downgrade still re-seeds layout correctly via the marker token mechanism, but the app boots with empty provider secrets — restore them from backup (see [Backups and restore](/self-hosted/operate/backups-and-restore)) before resuming traffic.
+
+### What if I skip step 1?
+
+The Convex container will detect leftover flat-layout dirs on boot and print a warning to its logs naming the directories and pointing at this runbook. The deployment will start up, but reads from those directories return empty and writes go to the new (empty) org-first paths. The fix is still steps 1 + 2 — running them after the warning works exactly the same as running them up front.

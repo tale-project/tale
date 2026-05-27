@@ -147,6 +147,38 @@ export async function start(options: StartOptions): Promise<void> {
     }
   }
 
+  // Detect legacy flat-layout dirs at the project root (`agents/`,
+  // `workflows/`, …). Under the org-first layout these belong under
+  // `default/<domain>/` instead — the platform's resolvers won't read
+  // anything at the old paths. Surface the runbook so the operator
+  // doesn't boot into a "nothing's working" state.
+  const LEGACY_FLAT_DOMAINS = [
+    'agents',
+    'workflows',
+    'integrations',
+    'branding',
+    'providers',
+    'skills',
+  ];
+  const legacyDirsFound = LEGACY_FLAT_DOMAINS.filter((d) =>
+    existsSync(join(projectDir, d)),
+  );
+  if (legacyDirsFound.length > 0) {
+    logger.warn(
+      `Legacy flat layout detected at project root: ${legacyDirsFound.map((d) => `${d}/`).join(', ')}`,
+    );
+    logger.info(
+      '  The org-first layout expects these under `default/<domain>/` (or another org subtree).',
+    );
+    logger.info(
+      '  Migrate with: `tale migrate config-layout` then `tale deploy --override-all -y`.',
+    );
+    logger.info(
+      '  See docs/<locale>/self-hosted/operate/upgrades.md for the full runbook.',
+    );
+    logger.blank();
+  }
+
   await assertDockerAvailable();
 
   // Resolve project ID from tale.json before any Docker-resource naming.
@@ -242,10 +274,10 @@ export async function start(options: StartOptions): Promise<void> {
     }
     logger.blank();
     logger.info(
-      'Agents, workflows, integrations, and branding are bind-mounted from your project.',
+      'Per-org config (`<org>/agents/`, `<org>/workflows/`, `<org>/integrations/`, `<org>/branding/`, `<org>/providers/`, `<org>/skills/`)',
     );
     logger.info(
-      'Edits to agents/, workflows/, integrations/, and branding/ will auto-refresh the browser.',
+      'is bind-mounted from your project. Edits to those paths auto-refresh the browser.',
     );
     logger.blank();
     logger.info(`Stop with: docker compose -p ${getProjectId()}-dev down`);

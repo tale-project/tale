@@ -17,6 +17,7 @@ import { fetchDocumentComparisonByUrls } from '../../../agent_tools/documents/he
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
 import { getDocumentEffectiveDate } from '../../../documents/transform_to_document_item';
 import type { DocumentMetadata } from '../../../documents/types';
+import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { wrapUntrusted } from '../../../lib/untrusted_content';
 import { jsonRecordValidator } from '../../../lib/validators/json';
@@ -384,11 +385,13 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
                 resolveFileName(ctx, params.comparisonFileId),
               ]);
 
+        const compareOrgSlug = await orgSlugFromId(ctx, organizationId);
         return await fetchDocumentComparisonByUrls(
           baseFileUrl,
           baseFileName,
           compFileUrl,
           compFileName,
+          compareOrgSlug,
           params.maxChanges,
         );
       }

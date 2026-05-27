@@ -16,17 +16,26 @@ const uploadFileMock = vi.mocked(uploadFile);
 const DEFAULT_METADATA = {
   fileName: 'document.pdf',
   contentType: 'application/pdf',
+  organizationId: 'org-1',
 };
+
+const DEFAULT_ORG_ROW = { _id: 'org-1', slug: 'default' };
 
 function createCtx(
   getUrlResult: string | null = 'https://storage.example.com/file',
   metadataResult: Record<string, unknown> | null = DEFAULT_METADATA,
 ) {
+  // uploadDocument issues two runQuery calls in order:
+  //   1. internal.file_metadata.internal_queries.getByStorageId
+  //   2. components.betterAuth.adapter.findOne (via orgSlugFromId)
   return {
     storage: {
       getUrl: vi.fn().mockResolvedValue(getUrlResult),
     },
-    runQuery: vi.fn().mockResolvedValue(metadataResult),
+    runQuery: vi
+      .fn()
+      .mockResolvedValueOnce(metadataResult)
+      .mockResolvedValueOnce(DEFAULT_ORG_ROW),
   };
 }
 

@@ -195,7 +195,7 @@ export const upsertPolicy = mutation({
       throw new ConvexError({
         code: 'use_action',
         message:
-          'Use governance/retention_actions.upsertRetentionPolicyAction for retention_policy. The bounds file at $TALE_CONFIG_DIR/retention/{orgSlug}.json must be read before validation.',
+          'Use governance/retention_actions.upsertRetentionPolicyAction for retention_policy. The per-org bounds file at $TALE_CONFIG_DIR/<orgSlug>/retention.json must be read before validation.',
       });
     }
 

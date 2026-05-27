@@ -4,7 +4,7 @@
  * Unified integration loader.
  *
  * Loads integration data from two sources:
- * 1. File system (INTEGRATIONS_DIR): config.json + connector.ts
+ * 1. File system (`$TALE_CONFIG_DIR/<orgSlug>/integrations/<slug>/`): config.json + connector.ts
  * 2. Database (integrationCredentials table): encrypted credentials, status, health
  *
  * Merges them into a `LoadedIntegration` object that matches the shape consumers

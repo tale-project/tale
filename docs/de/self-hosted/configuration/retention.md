@@ -24,7 +24,7 @@ Die mitgelieferten Defaults sind locker; zieh sie an, je nach deiner Compliance-
 
 ## Wo du Grenzen setzt
 
-Die Grenzen leben in der Operator-Config-Datei, nicht in Env-Vars. Editiere `governance/retention-bounds.json` unter `TALE_CONFIG_DIR` (default `/app/data/platform-config/` im Plattform-Container):
+Unter dem Org-first-Layout sind Retention-Grenzen **pro Org**: editiere `retention.json` direkt im Unterbaum einer Org unter `TALE_CONFIG_DIR` (default `/app/data/` im Plattform-Container, also liegt die Datei unter `/app/data/<org>/retention.json`, z. B. `/app/data/default/retention.json`). Jede Org hat ihre eigene Datei; die `default`-Datei ist die Vorlage, die eine neue Installation beim ersten Start aufgreift.
 
 ```json
 {

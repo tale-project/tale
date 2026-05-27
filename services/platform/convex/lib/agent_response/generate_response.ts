@@ -54,6 +54,7 @@ import {
   RECOVERY_TIMEOUT_MS,
   estimateTokens,
 } from '../context_management';
+import { orgSlugFromId } from '../helpers/org_slug';
 // Artifacts module removed — workspace context is discoverable via the
 // `file_list` tool. We keep the call sites but route them through this
 // no-op shim so the prompt-builder API surface stays intact.
@@ -703,13 +704,14 @@ export async function generateAgentResponse(
       if (accessibleFileIds.length === 0) {
         debugLog('No accessible RAG documents, skipping knowledge context');
       } else {
+        const orgSlug = await orgSlugFromId(ctx, organizationId);
         knowledgeContextPromise = queryRagContext(
           promptMessage,
           undefined,
           undefined,
           undefined,
           undefined,
-          { fileIds: accessibleFileIds },
+          { fileIds: accessibleFileIds, orgSlug },
         );
         debugLog('Knowledge context query started', {
           threadId,

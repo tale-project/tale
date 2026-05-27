@@ -200,6 +200,7 @@ export async function fetchDocumentComparisonByUrls(
   baseFileName: string,
   comparisonFileUrl: string,
   comparisonFileName: string,
+  orgSlug: string,
   maxChanges?: number,
 ): Promise<DocumentComparisonResult> {
   const [baseResponse, compResponse] = await Promise.all([
@@ -232,6 +233,7 @@ export async function fetchDocumentComparisonByUrls(
       method: 'POST',
       body: formData,
       timeoutMs: FETCH_TIMEOUT_MS,
+      orgSlug,
     });
 
     if (!response.ok) {

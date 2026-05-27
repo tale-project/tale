@@ -88,7 +88,7 @@ tale cleanup                       # Supprimer les conteneurs inactifs
 tale reset --force                 # Supprimer tous les conteneurs
 ```
 
-Voir la [référence du CLI](tools/cli/README.md) pour toutes les options et flags. Les migrations de données en attente sont détectées et appliquées automatiquement au prochain `tale start` ou `tale deploy`.
+Voir la [référence du CLI](tools/cli/README.md) pour toutes les options et flags. Mettre à jour un déploiement existant nécessite une migration manuelle unique : exécutez `tale migrate config-layout` puis `tale deploy --override-all -y`. Le runbook complet se trouve dans [Mises à niveau auto-hébergées](docs/fr/self-hosted/operate/upgrades.md).
 
 ## Déployer en production
 

@@ -31,7 +31,7 @@ Die Referenz ist das Dateiformat auf Platte und die Reihenfolge der Operationen,
 }
 ```
 
-Die vollständige Menge der Felder lebt in [`examples/default/providers/`](https://github.com/tale-project/tale/tree/main/examples/providers) — `openai.json`, `openrouter.json` und `vercel-gateway.json` decken die drei Formen ab, die du wahrscheinlich brauchst.
+Die vollständige Menge der Felder lebt in [`examples/default/providers/`](https://github.com/tale-project/tale/tree/main/examples/default/providers) — `openai.json`, `openrouter.json` und `vercel-gateway.json` decken die drei Formen ab, die du wahrscheinlich brauchst.
 
 ## Die Secrets-Datei
 

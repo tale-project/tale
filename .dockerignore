@@ -55,7 +55,7 @@ services/platform/.env*.local
 # ============================================================================
 # NOTE: keep tools/, examples/, and patches/ — Dockerfiles reference them:
 #   - platform image copies tools/cli/package.json and patches/
-#   - convex image copies examples/{agents,workflows,integrations,providers,branding}
+#   - convex image copies examples/default/{agents,workflows,integrations,providers,branding,skills}
 tests/
 designs/
 scripts/
@@ -69,6 +69,10 @@ knip-results.json
 docs/
 !docs/package.json
 README.md
+# Skill bundles ship their SKILL.md alongside the scripts; without
+# this carve-out the convex image's COPY of examples/default/ would
+# drop every skill's README and break runtime skill discovery.
+!examples/**/*.md
 
 # ============================================================================
 # IDE and Editor Files

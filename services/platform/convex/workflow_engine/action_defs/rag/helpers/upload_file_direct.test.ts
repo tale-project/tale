@@ -26,6 +26,7 @@ function defaultArgs() {
     filename: 'test.txt',
     contentType: 'text/plain',
     fileId: FILE_ID,
+    orgSlug: 'default',
   };
 }
 

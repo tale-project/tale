@@ -6,10 +6,13 @@ interface RulesFile {
 }
 
 function buildCursorMdc(content: string): string {
+  // Globs match the org-first layout: any direct subdir of the project
+  // root that contains the canonical domain dirs. Covers `default/` and
+  // any additional org subtree (`acme/`, etc.) without listing each.
   const frontmatter = [
     '---',
     'description: Tale project configuration rules',
-    'globs: agents/**,workflows/**,integrations/**,branding/**',
+    'globs: */agents/**,*/workflows/**,*/integrations/**,*/branding/**,*/providers/**,*/skills/**,*/retention.json',
     '---',
     '',
   ].join('\n');

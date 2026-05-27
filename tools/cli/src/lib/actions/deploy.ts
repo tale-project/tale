@@ -757,9 +757,15 @@ async function syncProjectFiles(
       `${containerName}:/app/data/`,
     ]);
 
+    // docker cp is non-atomic across the multi-org staging dir: a failure
+    // here means a partial push may have landed in the container. Throw
+    // so the outer `deployToContainer` flow exits non-zero instead of
+    // printing `success('Deployment complete!')` over a half-pushed state.
     if (!result.success) {
-      logger.error(`Failed to override config: ${result.stderr}`);
-      return;
+      throw new Error(
+        `--override docker cp into ${containerName} failed: ${result.stderr?.trim() ?? '(no stderr)'}. ` +
+          `Partial push possible; re-run --override after addressing the cause.`,
+      );
     }
 
     // docker cp copies files as root — fix ownership so the app user can write
@@ -772,6 +778,9 @@ async function syncProjectFiles(
       `/app/data/`,
     ]);
     if (!chownResult.success) {
+      // Ownership fix failure isn't necessarily a push failure (files
+      // landed, just wrong owner), but warn loudly — the app user won't
+      // be able to write to its own data tree.
       logger.warn(
         `Failed to fix ownership on /app/data: ${chownResult.stderr}`,
       );
@@ -799,23 +808,59 @@ async function syncProjectFiles(
 //
 // All directory exclusions prune the entire subtree; `fs.cp` recurses past
 // the filter for any directory the filter returned `true` for. Root-level
-// non-org junk (`.tale/`, `.git/`, `.env`, IDE configs, dotfiles, etc.) is
-// excluded one level up — only org-shaped dirs from `findOrgDirs` reach
-// this function — so the filter here only handles depth-1+ skips.
+// non-org junk is excluded one level up, BUT the same kinds of junk can
+// also appear INSIDE an org dir (e.g. operator commits their workspace as
+// a git repo → `default/.git/`; macOS sprinkles `default/.DS_Store`;
+// someone runs `npm i` in their providers folder → `default/node_modules/`).
+// Filter them here so they never reach `/app/data/<org>/`.
+const STAGED_DOTFILE_DENYLIST = new Set<string>([
+  // Belt-and-suspenders for things we already filter via startsWith('.'),
+  // but listing them makes intent explicit.
+  '.git',
+  '.tale',
+  '.vscode',
+  '.idea',
+  '.DS_Store',
+]);
+const STAGED_NAME_DENYLIST = new Set<string>(['node_modules', '__pycache__']);
 async function stageOrgIntoDir(srcDir: string, destDir: string): Promise<void> {
   await cp(srcDir, destDir, {
     recursive: true,
     filter: (src) => {
       const base = src.split(/[\\/]/).pop() ?? '';
+      // `.history` and `*.secrets.json` are content-preserving filters by
+      // design — survive overwrites on the server side, so we never push
+      // them. Dotfiles (including `.git/`, `.DS_Store`, editor swap files,
+      // etc.) are operator-host junk that should never reach the data
+      // tree. node_modules / __pycache__ catch any non-dotfile package-mgr
+      // litter inside an org dir.
       if (base === '.history') return false;
       if (base.endsWith('.secrets.json')) return false;
+      if (base.startsWith('.')) return false;
+      if (STAGED_DOTFILE_DENYLIST.has(base)) return false;
+      if (STAGED_NAME_DENYLIST.has(base)) return false;
       // lstat is sync here because fs.cp's filter is sync. Symlinks at
       // any depth are skipped; missing entries (ENOENT) also skip rather
       // than throw — fs.cp re-races stat() so any race is benign.
       try {
         const info = lstatSync(src);
         if (info.isSymbolicLink()) return false;
-      } catch {
+      } catch (err: unknown) {
+        // ENOENT on a sibling stat is benign; anything else is worth a
+        // warning so a real permission/IO problem doesn't silently drop
+        // a file.
+        const code =
+          err !== null &&
+          typeof err === 'object' &&
+          'code' in err &&
+          typeof err.code === 'string'
+            ? err.code
+            : undefined;
+        if (code !== 'ENOENT') {
+          console.warn(
+            `[deploy.stageOrgIntoDir] lstat ${src} failed (${code ?? 'unknown'}); skipping`,
+          );
+        }
         return false;
       }
       return true;

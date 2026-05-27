@@ -9,6 +9,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { formatWebResults } from './format_web_results';
 import { formatWebsiteSummaries } from './format_website_summaries';
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
@@ -42,6 +43,7 @@ export function isValidDomain(domain: string): boolean {
 
 async function fetchSearch(
   crawlerUrl: string,
+  orgSlug: string,
   query: string,
   domain?: string,
 ): Promise<SearchApiResponse> {
@@ -51,7 +53,10 @@ async function fetchSearch(
 
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-tale-org': orgSlug,
+    },
     body: JSON.stringify({
       query,
       limit: DEFAULT_LIMIT,
@@ -114,7 +119,11 @@ export async function searchPages(
   }
 
   const crawlerUrl = getCrawlerServiceUrl();
-  let data = await fetchSearch(crawlerUrl, args.query, validDomain);
+  if (!ctx.organizationId) {
+    throw new Error('search_pages requires organizationId in ToolCtx.');
+  }
+  const orgSlug = await orgSlugFromId(ctx, ctx.organizationId);
+  let data = await fetchSearch(crawlerUrl, orgSlug, args.query, validDomain);
   let results = data.results;
 
   // Fallback to global search if domain-scoped search returns no results
@@ -124,7 +133,7 @@ export async function searchPages(
       query: args.query,
       domain: validDomain,
     });
-    data = await fetchSearch(crawlerUrl, args.query);
+    data = await fetchSearch(crawlerUrl, orgSlug, args.query);
     results = data.results;
     domainFallback = true;
   }

@@ -243,9 +243,15 @@ deploy_convex_functions() {
   )
   for legacy in "${LEGACY_DOMAIN_VARS[@]}"; do
     if [ "${CONVEX_ENV_MAP[$legacy]+_}" ]; then
-      if bunx convex env remove "$legacy" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
+      # Match the surrounding env-sync loop's aggregation pattern: track
+      # failures in `failed_vars` later, never swallow with `>/dev/null`
+      # so a real CLI error doesn't leave the legacy var lingering in
+      # Convex without an operator-visible signal.
+      if bunx convex env remove "$legacy" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null; then
         echo "   ✓ $legacy removed (no longer honored under org-first layout)"
         unset 'CONVEX_ENV_MAP[$legacy]'
+      else
+        log_warn "Failed to remove legacy env var $legacy from Convex; will retry on next boot"
       fi
     fi
   done
@@ -299,7 +305,7 @@ deploy_convex_functions() {
 
   # 5b. Remove vars from Convex that are no longer set on the platform.
   # Without this, env vars unset on the platform side linger in Convex.
-  # Skip orphans we already removed above (in the ORPHAN_DERIVED block).
+  # Skip orphans we already removed above (in the LEGACY_DOMAIN_VARS block).
   for convex_var in "${!CONVEX_ENV_MAP[@]}"; do
     local found=false
     local sv

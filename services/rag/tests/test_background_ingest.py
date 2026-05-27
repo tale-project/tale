@@ -17,6 +17,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+TEST_ORG = "test-org"
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -198,6 +200,7 @@ class TestBackgroundIngest:
         ):
             mock_rag.add_document = AsyncMock(return_value=add_result)
             await _background_ingest(
+                TEST_ORG,
                 b"content",
                 "doc-1",
                 "test.txt",
@@ -223,6 +226,7 @@ class TestBackgroundIngest:
         ):
             mock_rag.add_document = AsyncMock(return_value=add_result)
             await _background_ingest(
+                TEST_ORG,
                 b"content",
                 "doc-1",
                 "test.txt",
@@ -247,6 +251,7 @@ class TestBackgroundIngest:
         ):
             mock_rag.add_document = AsyncMock(return_value=add_result)
             await _background_ingest(
+                TEST_ORG,
                 b"content",
                 "doc-1",
                 "test.txt",
@@ -264,6 +269,7 @@ class TestBackgroundIngest:
         ):
             mock_rag.add_document = AsyncMock(side_effect=RuntimeError("x" * 1000))
             await _background_ingest(
+                TEST_ORG,
                 b"content",
                 "doc-1",
                 "test.txt",
@@ -287,6 +293,7 @@ class TestBackgroundIngest:
         ):
             mock_rag.add_document = AsyncMock(side_effect=ValueError("ingestion failed"))
             await _background_ingest(
+                TEST_ORG,
                 b"content",
                 "doc-1",
                 "test.txt",
@@ -313,6 +320,7 @@ class TestBackgroundIngest:
         ):
             mock_rag.add_document = AsyncMock(return_value=add_result)
             await _background_ingest(
+                TEST_ORG,
                 b"content",
                 "doc-1",
                 "test.txt",
@@ -321,6 +329,7 @@ class TestBackgroundIngest:
             )
 
         mock_rag.add_document.assert_awaited_once_with(
+            TEST_ORG,
             content=b"content",
             file_id="doc-1",
             filename="test.txt",
@@ -338,6 +347,7 @@ class TestBackgroundIngest:
         ):
             mock_rag.add_document = AsyncMock(side_effect=RuntimeError("boom"))
             await _background_ingest(
+                TEST_ORG,
                 b"content",
                 "doc-1",
                 "test.txt",

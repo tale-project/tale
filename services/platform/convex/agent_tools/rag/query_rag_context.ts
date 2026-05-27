@@ -130,6 +130,12 @@ export interface RagContextResult {
 export interface RagContextOptions {
   /** File storage IDs to scope the search to */
   fileIds?: string[];
+  /**
+   * Org slug for the X-Tale-Org header. Required by the RAG service's
+   * `/api/v1/search` endpoint (it picks the org's provider catalog to
+   * embed the query). Omitting will yield HTTP 400.
+   */
+  orgSlug: string;
 }
 
 /**
@@ -197,6 +203,7 @@ export async function queryRagContext(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestPayload),
+        orgSlug: options?.orgSlug,
         signal: fetchSignal,
       });
 

@@ -2,6 +2,12 @@
 
 Provides a common base for pydantic-settings-based configuration with
 shared patterns across crawler and RAG services.
+
+Provider lookups require an org slug under the org-first config layout —
+each org owns its own provider catalog at
+`<TALE_CONFIG_DIR>/<org_slug>/providers/`. The base-class shims accept an
+explicit `org_slug` and surface a clear error if the caller forgot to
+thread one through, rather than silently pinning every org to `default`.
 """
 
 import logging
@@ -38,36 +44,36 @@ class BaseServiceSettings(BaseSettings):
     vision_request_timeout: int = 180
     vision_max_concurrent_pages: int = 1
 
-    def get_fast_model(self) -> str:
-        """Get fast LLM model from provider files."""
-        _base_url, _api_key, model_id = _provider_chat_model()
+    def get_fast_model(self, org_slug: str) -> str:
+        """Get fast LLM model for an org from provider files."""
+        _base_url, _api_key, model_id = _provider_chat_model(org_slug)
         return model_id
 
-    def get_embedding_model(self) -> str:
-        """Get embedding model from provider files."""
-        _base_url, _api_key, model_id, _dims = _provider_embedding_model()
+    def get_embedding_model(self, org_slug: str) -> str:
+        """Get embedding model for an org from provider files."""
+        _base_url, _api_key, model_id, _dims = _provider_embedding_model(org_slug)
         return model_id
 
-    def get_vision_model(self) -> str:
-        """Get vision model from provider files."""
-        _base_url, _api_key, model_id = _provider_vision_model()
+    def get_vision_model(self, org_slug: str) -> str:
+        """Get vision model for an org from provider files."""
+        _base_url, _api_key, model_id = _provider_vision_model(org_slug)
         return model_id
 
-    def get_chat_config(self) -> tuple[str, str, str]:
-        """Return (base_url, api_key, model_id) for chat model from provider files."""
-        return _provider_chat_model()
+    def get_chat_config(self, org_slug: str) -> tuple[str, str, str]:
+        """Return (base_url, api_key, model_id) for an org's chat model."""
+        return _provider_chat_model(org_slug)
 
-    def get_embedding_config(self) -> tuple[str, str, str, int]:
-        """Return (base_url, api_key, model_id, dimensions) for embedding model."""
-        return _provider_embedding_model()
+    def get_embedding_config(self, org_slug: str) -> tuple[str, str, str, int]:
+        """Return (base_url, api_key, model_id, dimensions) for an org's embedding model."""
+        return _provider_embedding_model(org_slug)
 
-    def get_vision_config(self) -> tuple[str, str, str]:
-        """Return (base_url, api_key, model_id) for vision model."""
-        return _provider_vision_model()
+    def get_vision_config(self, org_slug: str) -> tuple[str, str, str]:
+        """Return (base_url, api_key, model_id) for an org's vision model."""
+        return _provider_vision_model(org_slug)
 
-    def get_embedding_dimensions(self) -> int:
-        """Get embedding dimensions from provider files."""
-        _base_url, _api_key, _model_id, dims = _provider_embedding_model()
+    def get_embedding_dimensions(self, org_slug: str) -> int:
+        """Get embedding dimensions for an org from provider files."""
+        _base_url, _api_key, _model_id, dims = _provider_embedding_model(org_slug)
         return dims
 
     def get_allowed_origins_list(self) -> list[str]:

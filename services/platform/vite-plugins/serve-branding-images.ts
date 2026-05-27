@@ -52,7 +52,24 @@ export function serveBrandingImages(): Plugin {
             res.setHeader('Cache-Control', 'no-cache, must-revalidate');
             res.end(data);
           })
-          .catch(() => {
+          .catch((err: unknown) => {
+            // ENOENT is the expected miss — fall through to the next
+            // middleware so Vite's static handler / 404 page kicks in.
+            // Other errors (EACCES, EISDIR) are worth a warning so a
+            // misconfigured branding dir doesn't silently 404 forever.
+            const code =
+              err !== null &&
+              typeof err === 'object' &&
+              'code' in err &&
+              typeof err.code === 'string'
+                ? err.code
+                : undefined;
+            if (code !== 'ENOENT') {
+              console.warn(
+                `[serve-branding-images] readFile ${filePath} failed:`,
+                err,
+              );
+            }
             next();
           });
       });

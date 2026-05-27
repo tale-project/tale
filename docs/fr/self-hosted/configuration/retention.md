@@ -24,7 +24,7 @@ Les défauts livrés sont lâches ; resserre selon ta posture de compliance.
 
 ## Où tu fixes les bornes
 
-Les bornes vivent dans le fichier de config opérateur, pas dans les variables d'env. Édite `governance/retention-bounds.json` sous `TALE_CONFIG_DIR` (défaut `/app/data/platform-config/` dans le conteneur plateforme) :
+Sous la disposition org-first, les bornes de rétention sont **par org** : édite `retention.json` directement dans le sous-arbre d'une org sous `TALE_CONFIG_DIR` (par défaut `/app/data/` dans le conteneur plateforme, le fichier se trouve donc à `/app/data/<org>/retention.json`, p. ex. `/app/data/default/retention.json`). Chaque org a son propre fichier ; celui de l'org `default` est le modèle qu'un nouveau déploiement reprend au premier démarrage.
 
 ```json
 {

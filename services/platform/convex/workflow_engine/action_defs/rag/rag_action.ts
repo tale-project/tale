@@ -5,6 +5,7 @@ import { internal } from '../../../_generated/api';
 import type { ActionCtx } from '../../../_generated/server';
 import type { SearchResponse } from '../../../agent_tools/rag/format_search_results';
 import { fetchDocumentChunks } from '../../../agent_tools/rag/helpers/fetch_document_chunks';
+import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { ragFetch } from '../../../lib/helpers/rag_config';
 import { toId } from '../../../lib/type_cast_helpers';
 import { wrapUntrusted } from '../../../lib/untrusted_content';
@@ -100,7 +101,12 @@ export const ragAction: ActionDefinition<RagActionParams> = {
         // fileIds must be verified against the workflow's organizationId
         // before reaching the RAG service, which would otherwise serve
         // any file by id regardless of tenant.
-        await assertStorageIdsInOrg(ctx, _variables, migratedParams.fileIds);
+        const orgId = await assertStorageIdsInOrg(
+          ctx,
+          _variables,
+          migratedParams.fileIds,
+        );
+        const orgSlug = await orgSlugFromId(ctx, orgId);
         try {
           const response = await ragFetch('/api/v1/search', {
             method: 'POST',
@@ -113,6 +119,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
               include_metadata: true,
             }),
             timeoutMs: SEARCH_TIMEOUT_MS,
+            orgSlug,
           });
 
           if (!response.ok) {
@@ -195,7 +202,7 @@ async function assertStorageIdsInOrg(
   ctx: ActionCtx,
   variables: Record<string, unknown>,
   storageIds: string[],
-): Promise<void> {
+): Promise<string> {
   const organizationId =
     typeof variables.organizationId === 'string'
       ? variables.organizationId
@@ -205,7 +212,7 @@ async function assertStorageIdsInOrg(
       'organizationId is required in workflow variables for RAG operations',
     );
   }
-  if (storageIds.length === 0) return;
+  if (storageIds.length === 0) return organizationId;
   const ownsStorage = await ctx.runQuery(
     internal.documents.internal_queries.verifyStorageIdsBelongToOrg,
     { organizationId, storageIds },
@@ -213,6 +220,7 @@ async function assertStorageIdsInOrg(
   if (!ownsStorage) {
     throw new Error('One or more file ids do not belong to this organization');
   }
+  return organizationId;
 }
 
 /**

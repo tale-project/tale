@@ -5,9 +5,10 @@
  * delegated to `internal.lib.config_store.actions` via `ctx.runAction`.
  *
  * Why actions and not a query:
- *   - Bounds live in `$TALE_CONFIG_DIR/retention/{orgSlug}.json`. V8
- *     queries/mutations cannot read fs and cannot await a Node action
- *     inline. Only V8 actions can `ctx.runAction(internal nodeAction)`.
+ *   - Bounds live in `$TALE_CONFIG_DIR/<orgSlug>/retention.json` under
+ *     the org-first layout. V8 queries/mutations cannot read fs and
+ *     cannot await a Node action inline. Only V8 actions can
+ *     `ctx.runAction(internal nodeAction)`.
  *   - Bounds change rarely (operator edits the file or env), so losing
  *     query reactivity is acceptable. The frontend uses TanStack Query
  *     to one-shot fetch on editor open.

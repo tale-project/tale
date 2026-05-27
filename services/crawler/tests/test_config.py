@@ -31,7 +31,7 @@ class TestGetFastModel:
     def test_returns_model_from_provider(self, mock_provider):
         with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
-            assert s.get_fast_model() == "gpt-4o-mini"
+            assert s.get_fast_model("default") == "gpt-4o-mini"
 
     @patch(
         "tale_shared.config.base._provider_chat_model",
@@ -41,7 +41,7 @@ class TestGetFastModel:
         with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
             with pytest.raises(ValueError, match="No chat model"):
-                s.get_fast_model()
+                s.get_fast_model("default")
 
 
 class TestGetVisionModel:
@@ -49,7 +49,7 @@ class TestGetVisionModel:
     def test_returns_model_from_provider(self, mock_provider):
         with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
-            assert s.get_vision_model() == "gpt-4o"
+            assert s.get_vision_model("default") == "gpt-4o"
 
     @patch(
         "tale_shared.config.base._provider_vision_model",
@@ -59,7 +59,7 @@ class TestGetVisionModel:
         with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
             with pytest.raises(ValueError, match="No vision model"):
-                s.get_vision_model()
+                s.get_vision_model("default")
 
 
 class TestGetEmbeddingDimensions:
@@ -67,7 +67,7 @@ class TestGetEmbeddingDimensions:
     def test_returns_dimensions_from_provider(self, mock_provider):
         with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
-            assert s.get_embedding_dimensions() == 1536
+            assert s.get_embedding_dimensions("default") == 1536
 
     @patch(
         "tale_shared.config.base._provider_embedding_model",
@@ -76,7 +76,7 @@ class TestGetEmbeddingDimensions:
     def test_large_dimensions(self, mock_provider):
         with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
-            assert s.get_embedding_dimensions() == 3072
+            assert s.get_embedding_dimensions("default") == 3072
 
     @patch(
         "tale_shared.config.base._provider_embedding_model",
@@ -86,7 +86,7 @@ class TestGetEmbeddingDimensions:
         with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
             with pytest.raises(ValueError, match="No embedding model"):
-                s.get_embedding_dimensions()
+                s.get_embedding_dimensions("default")
 
 
 class TestFrequencyDefaults:

@@ -66,11 +66,29 @@ async def run_scheduler(
     global _scan_trigger
     _scan_trigger = asyncio.Event()
 
+    # Background scheduler has no per-request X-Tale-Org context. Until
+    # the websites table carries the owning org slug, fall back to
+    # `default` for any provider lookups triggered by scheduled scans.
+    # Log once so operators see the assumption.
+    from app.org_context import set_active_org
+
+    set_active_org("default")
+    logger.warning(
+        "Scheduler background task using org slug 'default' for provider "
+        "lookups. Per-website org binding is a follow-up."
+    )
+
     sem = asyncio.Semaphore(max_concurrent_scans)
 
     async def bounded_scan(domain: str):
         async with sem:
-            await _scan_website(domain, store_manager, crawler_service, indexing_service, crawl_batch_size)
+            await _scan_website(
+                domain,
+                store_manager,
+                crawler_service,
+                indexing_service,
+                crawl_batch_size,
+            )
 
     while True:
         try:

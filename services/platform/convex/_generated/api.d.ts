@@ -461,6 +461,7 @@ import type * as lib_helpers_audit_hash from "../lib/helpers/audit_hash.js";
 import type * as lib_helpers_build_audit_context from "../lib/helpers/build_audit_context.js";
 import type * as lib_helpers_count_items_in_org from "../lib/helpers/count_items_in_org.js";
 import type * as lib_helpers_has_records_in_org from "../lib/helpers/has_records_in_org.js";
+import type * as lib_helpers_org_slug from "../lib/helpers/org_slug.js";
 import type * as lib_helpers_pii_hash from "../lib/helpers/pii_hash.js";
 import type * as lib_helpers_public_storage_url from "../lib/helpers/public_storage_url.js";
 import type * as lib_helpers_rag_config from "../lib/helpers/rag_config.js";
@@ -558,7 +559,6 @@ import type * as migrations_backfill_workflow_schedules from "../migrations/back
 import type * as migrations_merge_audit_retention from "../migrations/merge_audit_retention.js";
 import type * as migrations_migrate_org_creators from "../migrations/migrate_org_creators.js";
 import type * as migrations_remove_deprecated_llm_fields from "../migrations/remove_deprecated_llm_fields.js";
-import type * as migrations_rename_org_slug from "../migrations/rename_org_slug.js";
 import type * as migrations_seed_applied_bounds from "../migrations/seed_applied_bounds.js";
 import type * as migrations_split_personalization_toggle from "../migrations/split_personalization_toggle.js";
 import type * as migrations_trigger_steps_to_start from "../migrations/trigger_steps_to_start.js";
@@ -1558,6 +1558,7 @@ declare const fullApi: ApiFromModules<{
   "lib/helpers/build_audit_context": typeof lib_helpers_build_audit_context;
   "lib/helpers/count_items_in_org": typeof lib_helpers_count_items_in_org;
   "lib/helpers/has_records_in_org": typeof lib_helpers_has_records_in_org;
+  "lib/helpers/org_slug": typeof lib_helpers_org_slug;
   "lib/helpers/pii_hash": typeof lib_helpers_pii_hash;
   "lib/helpers/public_storage_url": typeof lib_helpers_public_storage_url;
   "lib/helpers/rag_config": typeof lib_helpers_rag_config;
@@ -1655,7 +1656,6 @@ declare const fullApi: ApiFromModules<{
   "migrations/merge_audit_retention": typeof migrations_merge_audit_retention;
   "migrations/migrate_org_creators": typeof migrations_migrate_org_creators;
   "migrations/remove_deprecated_llm_fields": typeof migrations_remove_deprecated_llm_fields;
-  "migrations/rename_org_slug": typeof migrations_rename_org_slug;
   "migrations/seed_applied_bounds": typeof migrations_seed_applied_bounds;
   "migrations/split_personalization_toggle": typeof migrations_split_personalization_toggle;
   "migrations/trigger_steps_to_start": typeof migrations_trigger_steps_to_start;

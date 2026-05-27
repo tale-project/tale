@@ -50,7 +50,7 @@ export interface AgentJsonConfig {
   workflows?: string[];
   /**
    * Slugs of skills available to this agent — a hard allowlist. Each slug
-   * references a `${SKILLS_DIR}/<orgSlug>/<slug>/SKILL.md` bundle. Empty or
+   * references a `${TALE_CONFIG_DIR}/<orgSlug>/skills/<slug>/SKILL.md` bundle. Empty or
    * absent means the agent has zero skills available; there is no implicit
    * "all org skills" fallback. At chat-turn start, `buildSkillContext` loads
    * only the intersection of this list with the org's actual skills; slugs

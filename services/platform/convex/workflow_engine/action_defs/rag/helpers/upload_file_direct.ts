@@ -9,6 +9,8 @@ export interface UploadFileArgs {
   metadata?: Record<string, unknown>;
   timeoutMs?: number;
   sync?: boolean;
+  /** Required: RAG resolves the org's provider catalog from this slug. */
+  orgSlug: string;
 }
 
 interface RagApiUploadResponse {
@@ -32,6 +34,7 @@ export async function uploadFile({
   metadata,
   timeoutMs,
   sync = false,
+  orgSlug,
 }: UploadFileArgs): Promise<RagUploadResult> {
   const effectiveTimeout =
     timeoutMs ?? (sync ? SYNC_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
@@ -53,6 +56,7 @@ export async function uploadFile({
     method: 'POST',
     body: formData,
     timeoutMs: effectiveTimeout,
+    orgSlug,
   });
 
   if (!response.ok) {

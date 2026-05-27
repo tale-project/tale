@@ -59,8 +59,14 @@ class TestProcessPagesWithLlmCache:
     @patch("app.services.vision.openai_client.settings")
     @patch("app.services.vision.openai_client.AsyncOpenAI")
     async def test_second_call_hits_cache(self, mock_openai_cls, mock_settings):
+        from app.org_context import set_active_org
         from app.services.vision.cache import llm_cache
         from app.services.vision.openai_client import process_pages_with_llm
+
+        # The internal `get_active_org()` call requires a ContextVar bound
+        # by `require_org_slug` in production; in unit tests we set it
+        # directly so the per-org provider lookup has a slug to resolve.
+        set_active_org("test-org")
 
         llm_cache.clear()
 

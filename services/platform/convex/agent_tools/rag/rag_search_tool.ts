@@ -21,6 +21,7 @@ import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { internal } from '../../_generated/api';
 import { stripReservedPromptTags } from '../../lib/agent_response/sanitize_prompt';
 import { createDebugLog } from '../../lib/debug_log';
+import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import { ragFetch } from '../../lib/helpers/rag_config';
 import { toId } from '../../lib/type_cast_helpers';
 import { wrapUntrusted } from '../../lib/untrusted_content';
@@ -275,8 +276,10 @@ RESPONSE (list_indexed):
           chunkEnd: end,
         });
 
+        const retrieveOrgSlug = await orgSlugFromId(ctx, orgIdRetrieve);
         const response = await ragFetch(
           `/api/v1/documents/${encodeURIComponent(args.fileId)}/content?return_chunks=true&chunk_start=${start}&chunk_end=${end}`,
+          { orgSlug: retrieveOrgSlug },
         );
 
         if (!response.ok) {
@@ -434,11 +437,17 @@ RESPONSE (list_indexed):
       });
 
       try {
+        const orgIdForSearch = ctx.organizationId;
+        if (!orgIdForSearch) {
+          throw new Error('rag_search requires organizationId in ToolCtx.');
+        }
+        const searchOrgSlug = await orgSlugFromId(ctx, orgIdForSearch);
         const response = await ragFetch('/api/v1/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
           timeoutMs: SEARCH_TIMEOUT_MS,
+          orgSlug: searchOrgSlug,
         });
 
         if (!response.ok) {

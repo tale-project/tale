@@ -24,7 +24,6 @@ import { createFileConfigStore } from './store';
 const retentionStore = createFileConfigStore<RetentionDefaultsConfig>(
   'retention',
   retentionDefaultsConfigSchema,
-  { orgFirst: true },
 );
 
 export const readRetentionConfig = internalAction({

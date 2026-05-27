@@ -28,6 +28,7 @@
  * fail with ENOENT rather than racing the recursive delete.
  */
 
+import { randomUUID } from 'node:crypto';
 import {
   lstat,
   readdir,
@@ -57,6 +58,12 @@ import { resolveSkillsDir } from '../skills/file_utils';
 import { resolveWorkflowsDir } from '../workflows/file_utils';
 
 type DirResolver = (orgSlug: string) => string;
+
+export type DomainResult = {
+  domain: string;
+  ok: boolean;
+  error?: string;
+};
 
 type Domain = {
   name: string;
@@ -129,7 +136,10 @@ async function pathsOverlap(a: string, b: string): Promise<boolean> {
   const resolveReal = async (p: string): Promise<string> => {
     try {
       return await realpath(p);
-    } catch {
+    } catch (err) {
+      if (errnoCode(err) !== 'ENOENT') {
+        console.warn('[scaffold.pathsOverlap] realpath failed:', p, err);
+      }
       return path.resolve(p);
     }
   };
@@ -222,15 +232,19 @@ async function copyTree(
 /**
  * Seed a single domain for an org. Source is `<catalogRoot>/default/<domain>`
  * (canonical template) when `TALE_CONFIG_BUILTIN_DIR` is set, falling back
- * to `resolve('default')` for local dev. Returns true on success, false on
- * skip/failure.
+ * to `resolve('default')` for local dev.
+ *
+ * Returns `{ok:true}` on success (including the legitimate
+ * "already scaffolded, skipped" case) and `{ok:false, error}` on
+ * real failure so the handler can surface or aggregate. Per-domain
+ * errors are also logged here for operator visibility.
  */
 async function seedDomain(
   domain: Domain,
   catalogRoot: string | undefined,
   orgSlug: string,
   override: boolean,
-): Promise<void> {
+): Promise<DomainResult> {
   const sourceDir = catalogRoot
     ? path.join(catalogRoot, 'default', domain.name)
     : domain.resolve('default');
@@ -238,24 +252,23 @@ async function seedDomain(
 
   if (catalogRoot) {
     // Operator-set catalog path must exist; missing = deploy misconfig
-    // (platform/convex image version skew). Surface in logs instead of
-    // silent zero-seed.
+    // (platform/convex image version skew). Surface in logs AND return
+    // an error so reseed-all-orgs can fail loudly.
+    let statErr: unknown;
     const sourceExists = await stat(sourceDir)
       .then(() => true)
       .catch((err) => {
-        if (errnoCode(err) === 'ENOENT') {
-          console.error(
-            `[scaffold] ${domain.name}: ${BUILTIN_ENV}=${catalogRoot} is set but ${sourceDir} does not exist; org "${orgSlug}" will receive zero seed data for this domain`,
-          );
-        } else {
-          console.error(
-            `[scaffold] ${domain.name}: stat ${sourceDir} failed:`,
-            err instanceof Error ? err.message : err,
-          );
-        }
+        statErr = err;
         return false;
       });
-    if (!sourceExists) return;
+    if (!sourceExists) {
+      const msg =
+        errnoCode(statErr) === 'ENOENT'
+          ? `${BUILTIN_ENV}=${catalogRoot} is set but ${sourceDir} does not exist`
+          : `stat ${sourceDir} failed: ${statErr instanceof Error ? statErr.message : String(statErr)}`;
+      console.error(`[scaffold] ${domain.name}: ${msg}`);
+      return { domain: domain.name, ok: false, error: msg };
+    }
   }
 
   // copy-onto-self guard: realpath-aware. Fires for default-org reseed
@@ -265,7 +278,7 @@ async function seedDomain(
     console.warn(
       `[scaffold] ${domain.name}: source and target overlap (${sourceDir} ↔ ${targetDir}); skipping`,
     );
-    return;
+    return { domain: domain.name, ok: true };
   }
 
   if (!override) {
@@ -274,7 +287,7 @@ async function seedDomain(
       console.warn(
         `[scaffold] ${domain.name}: target ${targetDir} already has files, skipping (use override:true to reseed)`,
       );
-      return;
+      return { domain: domain.name, ok: true };
     }
   }
 
@@ -294,7 +307,8 @@ async function seedDomain(
       try {
         bundles = await readdir(sourceDir);
       } catch (err) {
-        if (errnoCode(err) === 'ENOENT') return;
+        if (errnoCode(err) === 'ENOENT')
+          return { domain: domain.name, ok: true };
         throw err;
       }
       for (const bundleName of bundles) {
@@ -302,12 +316,47 @@ async function seedDomain(
         if (SKIP_DIR_NAMES.has(bundleName)) continue;
         const bundleSrc = path.join(sourceDir, bundleName);
         const bundleDst = path.join(targetDir, bundleName);
-        const info = await lstat(bundleSrc).catch(() => null);
+        const info = await lstat(bundleSrc).catch((err) => {
+          if (errnoCode(err) !== 'ENOENT') {
+            console.warn(
+              `[scaffold] ${domain.name}: lstat ${bundleSrc} failed:`,
+              err,
+            );
+          }
+          return null;
+        });
         if (!info || info.isSymbolicLink() || !info.isDirectory()) continue;
         if (override) {
-          await rm(bundleDst, { recursive: true, force: true });
+          // Write into a sibling staging dir then atomic-rename onto the
+          // target. Eliminates the "rm before copy" window where an
+          // interrupt would leave an empty bundle on disk. `force` dropped
+          // so EACCES / EBUSY surface as real errors. The cleanup-on-exit
+          // path below also drops the staging dir to avoid leakage.
+          const staging = `${bundleDst}.staging-${randomUUID().slice(0, 8)}`;
+          try {
+            await copyTree(bundleSrc, staging, /* allowSubdirs */ true);
+            // Best-effort old-dir removal before rename. If the old dir
+            // exists and is non-empty, `rename` will fail on most platforms
+            // — surface that.
+            await rm(bundleDst, { recursive: true }).catch((err) => {
+              if (errnoCode(err) !== 'ENOENT') throw err;
+            });
+            await rename(staging, bundleDst);
+          } catch (err) {
+            // If anything went wrong, scrub the staging dir.
+            await rm(staging, { recursive: true }).catch((scrubErr) => {
+              if (errnoCode(scrubErr) !== 'ENOENT') {
+                console.warn(
+                  `[scaffold] ${domain.name}: failed to scrub staging ${staging}:`,
+                  scrubErr,
+                );
+              }
+            });
+            throw err;
+          }
+        } else {
+          await copyTree(bundleSrc, bundleDst, /* allowSubdirs */ true);
         }
-        await copyTree(bundleSrc, bundleDst, /* allowSubdirs */ true);
       }
     } else {
       // 'tree' — workflows + branding. Per-file overwrite, no rm. User-only
@@ -316,65 +365,120 @@ async function seedDomain(
       await copyTree(sourceDir, targetDir, /* allowSubdirs */ true);
     }
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error(
       `[scaffold] ${domain.name}: copy failed for org "${orgSlug}":`,
-      err instanceof Error ? err.message : err,
+      message,
     );
-    // Continue with other domains; partial scaffolding is better than none.
+    return { domain: domain.name, ok: false, error: message };
   }
+
+  return { domain: domain.name, ok: true };
 }
 
 /**
  * Retention is one JSON object per org (`<orgSlug>/retention.json`), not a
- * subtree. Special-cased outside the DOMAINS loop.
+ * subtree. Special-cased outside the DOMAINS loop. Returns a `DomainResult`
+ * shaped like seedDomain's so the handler can aggregate uniformly.
+ *
+ * Assumes `TALE_CONFIG_DIR` is set + absolute (validated by the handler).
  */
 async function seedRetention(
   catalogRoot: string | undefined,
+  configRoot: string,
   orgSlug: string,
   override: boolean,
-): Promise<void> {
+): Promise<DomainResult> {
   const sourceFile = catalogRoot
     ? path.join(catalogRoot, 'default', 'retention.json')
-    : path.join(process.env.TALE_CONFIG_DIR ?? '', 'default', 'retention.json');
-  const targetFile = path.join(
-    process.env.TALE_CONFIG_DIR ?? '',
-    orgSlug,
-    'retention.json',
-  );
+    : path.join(configRoot, 'default', 'retention.json');
+  const targetFile = path.join(configRoot, orgSlug, 'retention.json');
 
+  let statErr: unknown;
   const sourceExists = await stat(sourceFile)
     .then(() => true)
     .catch((err) => {
-      if (errnoCode(err) !== 'ENOENT') {
-        console.warn('[scaffold] retention: stat failed:', sourceFile, err);
-      }
+      statErr = err;
       return false;
     });
-  if (!sourceExists) return;
+  if (!sourceExists) {
+    if (errnoCode(statErr) === 'ENOENT') {
+      // Missing catalog retention is expected in some test fixtures; treat
+      // as no-op (no error to propagate).
+      return { domain: 'retention', ok: true };
+    }
+    const msg = `stat ${sourceFile} failed: ${statErr instanceof Error ? statErr.message : String(statErr)}`;
+    console.warn('[scaffold] retention:', msg);
+    return { domain: 'retention', ok: false, error: msg };
+  }
 
   if (await pathsOverlap(sourceFile, targetFile)) {
     console.warn(`[scaffold] retention: source and target overlap; skipping`);
-    return;
+    return { domain: 'retention', ok: true };
   }
 
+  let targetStatErr: unknown;
   const targetExists = await stat(targetFile)
     .then(() => true)
-    .catch(() => false);
+    .catch((err) => {
+      targetStatErr = err;
+      return false;
+    });
+  if (!targetExists && errnoCode(targetStatErr) !== 'ENOENT' && targetStatErr) {
+    console.warn(
+      `[scaffold] retention: stat ${targetFile} failed:`,
+      targetStatErr,
+    );
+  }
   if (targetExists && !override) {
     console.warn(
       `[scaffold] retention: target ${targetFile} exists, skipping (use override:true to reseed)`,
     );
-    return;
+    return { domain: 'retention', ok: true };
   }
 
   try {
     const buf = await readFile(sourceFile);
     await atomicWrite(targetFile, buf.toString('utf-8'));
+    return { domain: 'retention', ok: true };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error(
       `[scaffold] retention: copy failed for org "${orgSlug}":`,
-      err instanceof Error ? err.message : err,
+      message,
     );
+    return { domain: 'retention', ok: false, error: message };
+  }
+}
+
+/**
+ * Best-effort opportunistic sweep of `.deleted-*` siblings older than
+ * 24h that survived a prior failed `rm`. Called at the top of
+ * `cleanupOrgFilesystem`. Errors are swallowed (the main op shouldn't
+ * fail because of a leftover dir we couldn't clean).
+ */
+const CONDEMNED_TTL_MS = 24 * 60 * 60 * 1000;
+async function sweepStaleCondemnedDirs(root: string): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await readdir(root);
+  } catch (err) {
+    if (errnoCode(err) === 'ENOENT') return;
+    throw err;
+  }
+  const now = Date.now();
+  for (const name of entries) {
+    if (!name.startsWith('.deleted-')) continue;
+    const p = path.join(root, name);
+    const info = await lstat(p).catch(() => null);
+    if (!info || info.isSymbolicLink()) continue;
+    if (now - info.mtimeMs < CONDEMNED_TTL_MS) continue;
+    await rm(p, { recursive: true }).catch((err) => {
+      console.warn(
+        `[cleanupOrgFilesystem] janitor: rm ${p} failed:`,
+        err instanceof Error ? err.message : err,
+      );
+    });
   }
 }
 
@@ -411,6 +515,12 @@ export const cleanupOrgFilesystem = internalAction({
       );
       return null;
     }
+
+    // Opportunistic janitor: sweep stale `.deleted-*` siblings older than
+    // 24h that survived a prior failed rm. Best-effort; failures only log.
+    await sweepStaleCondemnedDirs(root).catch((err) => {
+      console.warn('[cleanupOrgFilesystem] janitor sweep failed:', err);
+    });
 
     if (args.orgSlug === 'default') {
       console.warn(
@@ -466,8 +576,12 @@ export const cleanupOrgFilesystem = internalAction({
 
     // Two-phase rename-then-delete. The rename is atomic within a
     // filesystem; any concurrent writer of the original path fails with
-    // ENOENT instead of racing the recursive delete.
-    const condemned = path.join(root, `.deleted-${args.orgSlug}-${Date.now()}`);
+    // ENOENT instead of racing the recursive delete. UUID suffix avoids
+    // collisions if two cleanups land in the same millisecond.
+    const condemned = path.join(
+      root,
+      `.deleted-${args.orgSlug}-${Date.now()}-${randomUUID().slice(0, 8)}`,
+    );
     try {
       await rename(orgDir, condemned);
     } catch (err) {
@@ -502,24 +616,78 @@ export const scaffoldNewOrganization = internalAction({
      * files (idempotent org-create path).
      */
     override: v.optional(v.boolean()),
+    /**
+     * When true, throw an aggregated error if any domain or retention
+     * copy failed. Used by `reseedAllOrgsFromBuiltin` so partial failures
+     * surface as non-zero CLI exit.
+     *
+     * When false (default), continue past per-domain failures and return
+     * the per-domain result map. Used by `auth.afterCreateOrganization`
+     * where partial-scaffold-on-org-create is preferable to blocking the
+     * UX.
+     */
+    strict: v.optional(v.boolean()),
   },
-  returns: v.null(),
+  returns: v.object({
+    ok: v.boolean(),
+    skipped: v.boolean(),
+    results: v.array(
+      v.object({
+        domain: v.string(),
+        ok: v.boolean(),
+        error: v.optional(v.string()),
+      }),
+    ),
+  }),
   handler: async (_ctx, args) => {
     if (!validateOrgSlug(args.orgSlug)) {
       console.warn(
         `[scaffoldNewOrganization] refusing invalid slug "${args.orgSlug}"`,
       );
-      return null;
+      return { ok: false, skipped: true, results: [] };
+    }
+
+    // Symmetric guard to cleanupOrgFilesystem: refuse to operate on a
+    // non-absolute or unset config root rather than writing relative
+    // paths into the action's CWD.
+    const configRoot = process.env.TALE_CONFIG_DIR;
+    if (!configRoot || !path.isAbsolute(configRoot)) {
+      const msg =
+        '[scaffoldNewOrganization] TALE_CONFIG_DIR is unset or not absolute; refusing to proceed';
+      console.error(msg);
+      if (args.strict) {
+        throw new Error(msg);
+      }
+      return { ok: false, skipped: true, results: [] };
     }
 
     const catalogRoot = process.env[BUILTIN_ENV];
     const override = args.override ?? false;
 
+    const results: DomainResult[] = [];
     for (const domain of DOMAINS) {
-      await seedDomain(domain, catalogRoot, args.orgSlug, override);
+      results.push(
+        await seedDomain(domain, catalogRoot, args.orgSlug, override),
+      );
     }
-    await seedRetention(catalogRoot, args.orgSlug, override);
+    results.push(
+      await seedRetention(catalogRoot, configRoot, args.orgSlug, override),
+    );
 
-    return null;
+    const failed = results.filter((r) => !r.ok);
+    if (failed.length > 0 && args.strict) {
+      const detail = failed
+        .map((r) => `${r.domain}: ${r.error ?? 'unknown error'}`)
+        .join('; ');
+      throw new Error(
+        `scaffold "${args.orgSlug}": ${failed.length}/${results.length} domains failed — ${detail}`,
+      );
+    }
+
+    return {
+      ok: failed.length === 0,
+      skipped: false,
+      results,
+    };
   },
 });
