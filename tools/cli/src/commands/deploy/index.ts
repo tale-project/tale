@@ -29,8 +29,8 @@ export function createDeployCommand(): Command {
     .option('--dry-run', 'Preview deployment without making changes', false)
     .option('--host <hostname>', 'Host alias for proxy')
     .option(
-      '--fresh',
-      'force re-seed builtin agent/workflow/integration configs',
+      '--override',
+      'overwrite container state from the host workspace, including config files the operator has UI-edited (default: preserve UI-edited files; encrypted provider secrets and UI-uploaded skill bundles are always preserved)',
     )
     .option('-q, --quiet', 'Suppress container logs during deployment')
     .option(
@@ -97,7 +97,7 @@ export function createDeployCommand(): Command {
           hostAlias,
           dryRun: options.dryRun,
           services,
-          fresh: options.fresh,
+          override: options.override,
           quiet: options.quiet,
           assumeYes: options.yes || options.migrateVolumes,
           forceRecreate,
