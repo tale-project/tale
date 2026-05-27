@@ -35,10 +35,12 @@ export interface BottomTabBarProps extends Omit<
 }
 
 /**
- * Fixed bottom tab bar primitive. Renders 2-5 items as a row of equally-sized
- * touch targets (44×44 min). Honors `env(safe-area-inset-bottom)` so the bar
- * sits above the iOS home indicator. Hidden on `md+` viewports — desktop uses
- * a sidebar.
+ * In-flow bottom tab bar primitive. Renders 2-5 items as a row of equally-sized
+ * touch targets (44×44 min). Honors `env(safe-area-inset-bottom)` (via the
+ * `--safe-bottom` token) so the bar clears the iOS home indicator. Designed to
+ * be the last child of a `h-dvh` flex-column app shell so the content area
+ * shrinks to exactly the space above it — no JS height measurement. Hidden on
+ * `md+` viewports — desktop uses a sidebar.
  *
  * The bar has no router knowledge: callers pass `onSelect` per item and wire
  * navigation themselves (e.g. via `useNavigate()`).
@@ -49,7 +51,7 @@ export const BottomTabBar = forwardRef<HTMLElement, BottomTabBarProps>(
       ref={ref}
       aria-label={ariaLabel}
       className={cn(
-        'bg-background/95 border-border fixed inset-x-0 bottom-0 z-50 flex border-t shadow-[0_-1px_2px_rgba(0,0,0,0.04)] backdrop-blur-md md:hidden',
+        'bg-background/95 border-border flex border-t shadow-[0_-1px_2px_rgba(0,0,0,0.04)] backdrop-blur-md md:hidden',
         'pb-(--safe-bottom) pl-(--safe-left) pr-(--safe-right)',
         className,
       )}
@@ -81,7 +83,7 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
       onClick={item.onSelect}
       aria-current={item.active ? 'page' : undefined}
       className={cn(
-        'group relative flex min-h-12 min-w-0 flex-1 basis-0 flex-col items-center justify-start gap-0.5 px-1 pt-2 pb-1.5 text-[11px] font-medium transition-colors',
+        'group relative flex min-h-12 min-w-0 flex-1 basis-0 touch-manipulation flex-col items-center justify-start gap-0.5 px-1 pt-2 pb-1.5 text-[11px] font-medium transition-colors select-none [-webkit-tap-highlight-color:transparent]',
         'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-none',
         item.active
           ? item.accentColor

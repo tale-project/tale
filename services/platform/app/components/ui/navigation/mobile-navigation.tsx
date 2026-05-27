@@ -120,7 +120,7 @@ export function MobileNavigation({ organizationId }: MobileNavigationProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="md:hidden"
+        className="touch-manipulation [-webkit-tap-highlight-color:transparent] md:hidden"
         onClick={() => setIsOpen(true)}
         aria-label={t('actions.openMenu')}
       >
