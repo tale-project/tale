@@ -122,6 +122,47 @@ describe('scaffoldNewOrganization', () => {
     );
   });
 
+  it('flat domains (agents/providers) never recurse into catalog subdirs', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(
+      path.join(catalogRoot, 'agents', 'shipped.json'),
+      '{"displayName":"shipped"}',
+    );
+    // A subdir inside the agents catalog is unexpected (agents is file-only).
+    // The flat-domain guard must skip it rather than recurse.
+    await writeText(
+      path.join(catalogRoot, 'agents', 'stray', 'nested.json'),
+      '{"displayName":"nested"}',
+    );
+
+    await scaffoldHandler({} as never, { orgSlug: 'acme' });
+
+    const acmeDir = path.join(configRoot, 'agents', 'acme');
+    expect(existsSync(path.join(acmeDir, 'shipped.json'))).toBe(true);
+    expect(existsSync(path.join(acmeDir, 'stray'))).toBe(false);
+  });
+
+  it('flat-domain guard closes the agents leak on the dev fallback path (env unset)', async () => {
+    // No catalog env → source is the default-org workspace. A previously
+    // created org left a raw-slug subdir there; scaffolding a new org must
+    // not recurse into it. Here the flat-domain guard — not the source
+    // choice — is what prevents the cross-tenant copy.
+    await writeText(
+      path.join(configRoot, 'agents', 'shipped.json'),
+      '{"displayName":"shipped"}',
+    );
+    await writeText(
+      path.join(configRoot, 'agents', 'competitor', 'secret.json'),
+      '{"displayName":"leak"}',
+    );
+
+    await scaffoldHandler({} as never, { orgSlug: 'acme' });
+
+    const acmeDir = path.join(configRoot, 'agents', 'acme');
+    expect(existsSync(path.join(acmeDir, 'shipped.json'))).toBe(true);
+    expect(existsSync(path.join(acmeDir, 'competitor'))).toBe(false);
+  });
+
   it('skips symlinks rather than following them', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     const targetPayload = await mkdtemp(path.join(tmpdir(), 'scaffold-evil-'));

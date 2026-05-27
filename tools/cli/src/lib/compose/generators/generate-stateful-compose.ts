@@ -8,24 +8,12 @@ import { createSandboxEgressService } from '../services/create-sandbox-egress-se
 import { createSandboxService } from '../services/create-sandbox-service';
 import type { ComposeConfig, ServiceConfig } from '../types';
 
-interface StatefulComposeOptions {
-  // Mirrors `tale deploy --override`: force the entrypoint to re-seed
-  // builtin defaults on top of any user edits. Plumbed as FORCE_SEED into
-  // the convex container, which the entrypoint reads to bypass its own
-  // skip-if-exists / .history guards.
-  override?: boolean;
-}
-
 export function generateStatefulCompose(
   config: ServiceConfig,
   hostAlias: string,
-  options: StatefulComposeOptions = {},
 ): string {
   const prefix = `${getProjectId()}_`;
   const convex = createConvexService(config);
-  if (options.override) {
-    convex.environment = { ...convex.environment, FORCE_SEED: 'true' };
-  }
 
   const compose: ComposeConfig = {
     services: {

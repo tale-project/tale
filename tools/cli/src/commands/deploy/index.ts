@@ -30,7 +30,7 @@ export function createDeployCommand(): Command {
     .option('--host <hostname>', 'Host alias for proxy')
     .option(
       '--override',
-      'overwrite container state from the host workspace, including config files the operator has UI-edited (default: preserve UI-edited files; encrypted provider secrets and UI-uploaded skill bundles are always preserved)',
+      'overwrite container config from the host workspace. Without --override, host config files are NOT pushed (the container keeps its current config). With --override, the host workspace overwrites container config, except encrypted *.secrets.json files and .history/ directories, which are always preserved',
     )
     .option('-q, --quiet', 'Suppress container logs during deployment')
     .option(

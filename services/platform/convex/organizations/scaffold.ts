@@ -42,13 +42,17 @@ type DirResolver = (orgSlug: string) => string;
 type Domain = {
   name: string;
   resolve: DirResolver;
+  // Flat domains store one file per item with no subdirectories in the
+  // catalog (agents/providers: `<slug>.json`). copyTree must not recurse into
+  // subdirs for these — see the `allowSubdirs` guard in copyTree.
+  flat?: boolean;
 };
 
 // Each domain's per-org dir convention differs — use the domain's own resolver.
 // The catalog subdir name matches `name` (e.g., `$TALE_CONFIG_BUILTIN_DIR/agents/`).
 const DOMAINS: Domain[] = [
-  { name: 'agents', resolve: resolveAgentsDir },
-  { name: 'providers', resolve: resolveProvidersDir },
+  { name: 'agents', resolve: resolveAgentsDir, flat: true },
+  { name: 'providers', resolve: resolveProvidersDir, flat: true },
   { name: 'integrations', resolve: resolveIntegrationsDir },
   { name: 'workflows', resolve: resolveWorkflowsDir },
   { name: 'skills', resolve: resolveSkillsDir },
@@ -87,7 +91,11 @@ async function dirHasFiles(dir: string): Promise<boolean> {
   }
 }
 
-async function copyTree(sourceDir: string, targetDir: string): Promise<void> {
+async function copyTree(
+  sourceDir: string,
+  targetDir: string,
+  allowSubdirs = true,
+): Promise<void> {
   let entries: string[];
   try {
     entries = await readdir(sourceDir);
@@ -102,9 +110,10 @@ async function copyTree(sourceDir: string, targetDir: string): Promise<void> {
     // tenant subdirs (`@<orgSlug>/...`). Defence-in-depth: the builtin
     // catalog has no `@` subdirs, but if the source ever falls back to a
     // mutable workspace this guard prevents recursing into other orgs'
-    // trees. Agents / providers use raw `<slug>` subdirs with no marker,
-    // so this guard alone doesn't cover them — that gap is the reason
-    // scaffoldNewOrganization sources from the catalog now.
+    // trees. Agents / providers use raw `<slug>` subdirs (no `@` marker) and
+    // are flat-copied (`allowSubdirs=false` below), so a stray raw-slug subdir
+    // in a fallback workspace is never recursed into either — the cross-tenant
+    // leak is structurally impossible on any source path.
     if (name.startsWith('@')) continue;
     if (SKIP_DIR_NAMES.has(name)) continue;
     if (shouldSkipFile(name)) continue;
@@ -129,7 +138,17 @@ async function copyTree(sourceDir: string, targetDir: string): Promise<void> {
     }
 
     if (info.isDirectory()) {
-      await copyTree(src, dst);
+      if (!allowSubdirs) {
+        // Flat domain (agents / providers): the catalog has no subdirs here,
+        // so any subdir is unexpected (e.g. a raw-slug org dir leaked into a
+        // mutable fallback workspace). Skip rather than recurse.
+        console.warn(
+          '[scaffold.copyTree] skipping unexpected subdir in flat domain:',
+          src,
+        );
+        continue;
+      }
+      await copyTree(src, dst, allowSubdirs);
       continue;
     }
 
@@ -253,19 +272,23 @@ export const scaffoldNewOrganization = internalAction({
         const sourceExists = await stat(sourceDir)
           .then(() => true)
           .catch((err) => {
-            if (errnoCode(err) === 'ENOENT') return false;
-            console.error(
-              `[scaffoldNewOrganization] ${domain.name}: stat ${sourceDir} failed:`,
-              err instanceof Error ? err.message : err,
-            );
+            // ENOENT: catalog domain dir missing — a deploy misconfig
+            // (platform/convex image skew). Other errors (EACCES, EIO) are a
+            // distinct failure; log each accurately rather than mislabelling
+            // a permission error as "does not exist".
+            if (errnoCode(err) === 'ENOENT') {
+              console.error(
+                `[scaffoldNewOrganization] ${domain.name}: ${BUILTIN_ENV}=${builtinRoot} is set but ${sourceDir} does not exist; new org "${args.orgSlug}" will receive zero seed data for this domain`,
+              );
+            } else {
+              console.error(
+                `[scaffoldNewOrganization] ${domain.name}: stat ${sourceDir} failed:`,
+                err instanceof Error ? err.message : err,
+              );
+            }
             return false;
           });
-        if (!sourceExists) {
-          console.error(
-            `[scaffoldNewOrganization] ${domain.name}: ${BUILTIN_ENV}=${builtinRoot} is set but ${sourceDir} does not exist; new org "${args.orgSlug}" will receive zero seed data for this domain`,
-          );
-          continue;
-        }
+        if (!sourceExists) continue;
       }
 
       const alreadyScaffolded = await dirHasFiles(targetDir);
@@ -277,7 +300,7 @@ export const scaffoldNewOrganization = internalAction({
       }
 
       try {
-        await copyTree(sourceDir, targetDir);
+        await copyTree(sourceDir, targetDir, !domain.flat);
       } catch (err) {
         console.error(
           `[scaffoldNewOrganization] ${domain.name}: copy failed for org "${args.orgSlug}":`,
