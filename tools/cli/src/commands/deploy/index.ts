@@ -29,8 +29,8 @@ export function createDeployCommand(): Command {
     .option('--dry-run', 'Preview deployment without making changes', false)
     .option('--host <hostname>', 'Host alias for proxy')
     .option(
-      '--fresh',
-      'force re-seed builtin agent/workflow/integration configs',
+      '--override',
+      'overwrite container config from the host workspace. Without --override, host config files are NOT pushed (the container keeps its current config). With --override, the host workspace overwrites container config, except encrypted *.secrets.json files and .history/ directories, which are always preserved',
     )
     .option('-q, --quiet', 'Suppress container logs during deployment')
     .option(
@@ -97,7 +97,7 @@ export function createDeployCommand(): Command {
           hostAlias,
           dryRun: options.dryRun,
           services,
-          fresh: options.fresh,
+          override: options.override,
           quiet: options.quiet,
           assumeYes: options.yes || options.migrateVolumes,
           forceRecreate,

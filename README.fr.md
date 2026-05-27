@@ -71,7 +71,6 @@ tale init [directory]              # Créer un nouveau projet avec des configs d
 tale start                         # Démarrer tous les services localement
 tale start --detach                # Démarrer en arrière-plan
 tale start --port 8443             # Utiliser un port HTTPS personnalisé
-tale start --fresh                 # Re-seeder les configs intégrées
 tale upgrade                       # Mettre à jour le CLI et synchroniser les fichiers du projet
 tale convex admin                  # Générer une clé admin du Convex Dashboard
 tale config                        # Gérer la configuration du CLI

@@ -229,7 +229,16 @@ ENV NODE_ENV=production \
     # container. Platform forces this at push time in docker-entrypoint.sh
     # (to tombstone any stale host-side `.env` value). Convex derives the
     # sub-dirs (agents/workflows/integrations/providers) from it.
-    TALE_CONFIG_DIR=/app/data
+    TALE_CONFIG_DIR=/app/data \
+    # Read-only builtin catalog baked into the convex image (see
+    # services/convex/Dockerfile). Declared here because Convex Node
+    # actions only see env vars that this container pushes to Convex's
+    # deployment env via the entrypoint's `convex env set` loop — even
+    # though the path points at files inside the *convex* container.
+    # Per-domain catalogs are derived as $TALE_CONFIG_BUILTIN_DIR/<domain>/
+    # by services/platform/convex/organizations/scaffold.ts (mirrors the
+    # $TALE_CONFIG_DIR/<domain>/ pattern used for the writable side).
+    TALE_CONFIG_BUILTIN_DIR=/app/builtin
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
 COPY --from=pruner --chown=app:app /app/services/platform/dist-seo ./dist-seo
@@ -280,7 +289,8 @@ ENV NODE_ENV=production \
     SANDBOX_STORAGE_INTERNAL_BASE_URL=http://convex:3210 \
     INSTANCE_NAME=tale_platform \
     DO_NOT_TRACK=1 \
-    TALE_CONFIG_DIR=/app/data
+    TALE_CONFIG_DIR=/app/data \
+    TALE_CONFIG_BUILTIN_DIR=/app/builtin
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1

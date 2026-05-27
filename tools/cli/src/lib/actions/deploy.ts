@@ -72,7 +72,7 @@ interface DeployOptions {
   hostAlias: string;
   dryRun: boolean;
   services?: ServiceName[];
-  fresh?: boolean;
+  override?: boolean;
   quiet?: boolean;
   /** Non-interactive acceptance of any pending migrations. */
   assumeYes?: boolean;
@@ -354,7 +354,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
         const statefulCompose = generateStatefulCompose(
           serviceConfig,
           hostAlias,
-          { fresh: options.fresh },
         );
 
         if (dryRun) {
@@ -627,6 +626,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
         dryRun,
         prefix,
         tempStageDirs,
+        options.override ?? false,
       );
     });
   } finally {
@@ -635,19 +635,18 @@ export async function deploy(options: DeployOptions): Promise<void> {
   }
 }
 
+// Host workspace dirs that `tale deploy --override` pushes into the convex
+// container. `*.secrets.json` files and `.history/` directories are always
+// excluded from the push (see `stageForOverride`): encrypted secrets cannot be
+// re-derived from the host, and the container's UI edit-history trail must
+// survive. `docker cp` is additive, so anything not staged is left untouched
+// on the container side.
 const SYNC_DIRS = [
   'agents',
   'workflows',
   'integrations',
   'branding',
   'providers',
-  // Skill bundles: SKILL.md + arbitrary assets per slug under skills/<slug>/.
-  // Kept in SYNC_DIRS so a fresh `tale init` + `tale deploy` seeds the
-  // example skill bundles (`examples/skills/<slug>/`) into the new
-  // container. SYNC PRESERVES UI UPLOADS: see the `dir === 'skills'`
-  // branch below, which uses `listContainerSkills` +
-  // `stageSkillsWithoutConflictingBundles` to skip any slug already
-  // present in the container so the upload-only model isn't clobbered.
   'skills',
 ];
 
@@ -657,7 +656,22 @@ async function syncProjectFiles(
   dryRun: boolean,
   prefix: string,
   tempStageDirs: Set<string>,
+  override: boolean,
 ): Promise<void> {
+  // Default deploy never pushes host config: the container self-seeds builtin
+  // defaults on first start and UI edits stay authoritative. Host config is
+  // pushed only when the operator explicitly asks via `--override`.
+  if (!override) {
+    logger.blank();
+    logger.info(
+      `${prefix}Config files not pushed (container keeps its current config).`,
+    );
+    logger.info(
+      `${prefix}  Re-run with --override to overwrite container config from the host workspace.`,
+    );
+    return;
+  }
+
   const dirsToSync = SYNC_DIRS.filter((dir) =>
     existsSync(join(projectDir, dir)),
   );
@@ -677,72 +691,25 @@ async function syncProjectFiles(
   }
 
   logger.blank();
-  logger.step(`${prefix}Syncing project files to ${containerName}...`);
+  logger.step(`${prefix}Overriding container config from host workspace...`);
+  logger.info(
+    `${prefix}  (encrypted *.secrets.json and .history/ are always preserved)`,
+  );
 
   for (const dir of dirsToSync) {
     const srcPath = join(projectDir, dir);
 
     if (dryRun) {
       logger.info(
-        `${prefix}Would sync ${dir}/ → ${containerName}:/app/data/${dir}/`,
+        `${prefix}Would override ${dir}/ → ${containerName}:/app/data/${dir}/ (excluding *.secrets.json and .history/)`,
       );
-      if (dir === 'providers') {
-        logger.info(
-          `${prefix}  (any existing container *.secrets.json will be preserved)`,
-        );
-      }
-      if (dir === 'skills') {
-        logger.info(
-          `${prefix}  (any skill slug already present in the container will be preserved)`,
-        );
-      }
       continue;
     }
 
-    // INVARIANTS:
-    //  - dir === 'providers': dockerSrcDir comes from
-    //    `stageProvidersWithoutConflictingSecrets()` so SOPS-encrypted
-    //    *.secrets.json files written via the admin UI are not clobbered.
-    //  - dir === 'skills': dockerSrcDir comes from
-    //    `stageSkillsWithoutConflictingBundles()` so UI-uploaded slugs
-    //    (the only legitimate write path post-skills-bundle-upload) are
-    //    not overwritten by host workspace copies.
-    let dockerSrcDir = srcPath;
-    let tempStageDir: string | null = null;
-    let preserved: string[] = [];
-
-    if (dir === 'providers') {
-      const containerSecrets = await listContainerSecrets(containerName);
-      if (containerSecrets.size > 0) {
-        const staged = await stageProvidersWithoutConflictingSecrets(
-          srcPath,
-          containerSecrets,
-        );
-        tempStageDir = staged.stageDir;
-        tempStageDirs.add(staged.stageDir);
-        preserved = staged.skipped;
-        dockerSrcDir = staged.stageDir;
-      }
-    } else if (dir === 'skills') {
-      const containerSkills = await listContainerSkills(containerName);
-      if (containerSkills.size > 0) {
-        const staged = await stageSkillsWithoutConflictingBundles(
-          srcPath,
-          containerSkills,
-        );
-        tempStageDir = staged.stageDir;
-        tempStageDirs.add(staged.stageDir);
-        preserved = staged.skipped;
-        dockerSrcDir = staged.stageDir;
-      }
-    }
+    const stageDir = await stageForOverride(srcPath, tempStageDirs);
 
     try {
-      // First-time seeding (empty container `/app/data/<dir>/`) flows
-      // through the same `docker cp` as subsequent syncs; for `skills`
-      // the preserve branch above strips any slug that already exists,
-      // so UI uploads survive.
-      const dockerSrcPath = dockerSrcDir.replaceAll('\\', '/');
+      const dockerSrcPath = stageDir.replaceAll('\\', '/');
       const result = await exec('docker', [
         'cp',
         `${dockerSrcPath}/.`,
@@ -764,162 +731,46 @@ async function syncProjectFiles(
             `Failed to fix ownership for ${dir}/: ${chownResult.stderr}`,
           );
         }
-        logger.info(`Synced ${dir}/`);
-        if (preserved.length > 0) {
-          const noun =
-            dir === 'providers' ? 'container secret(s)' : 'container skill(s)';
-          logger.info(
-            `Preserved ${preserved.length} existing ${noun} (host copy skipped to avoid overwriting UI edits):`,
-          );
-          for (const p of preserved) {
-            logger.info(`  - ${dir}/${p}`);
-          }
-          if (dir === 'providers') {
-            logger.info(
-              `  To push host values instead: docker exec ${containerName} rm /app/data/providers/<file>, then redeploy.`,
-            );
-          } else {
-            logger.info(
-              `  To push host values instead: docker exec ${containerName} rm -rf /app/data/skills/<slug>, then redeploy.`,
-            );
-          }
-        }
+        logger.info(`Overrode ${dir}/`);
       } else {
-        logger.warn(`Failed to sync ${dir}/: ${result.stderr}`);
+        logger.warn(`Failed to override ${dir}/: ${result.stderr}`);
       }
     } finally {
-      if (tempStageDir) {
-        tempStageDirs.delete(tempStageDir);
-        await rm(tempStageDir, { recursive: true, force: true });
-      }
+      tempStageDirs.delete(stageDir);
+      await rm(stageDir, { recursive: true, force: true });
     }
   }
 
   if (!dryRun) {
-    logger.success('Project files synced');
+    logger.success('Config override complete');
   }
 }
 
-// Enumerate *.secrets.json files already in the convex container so the
-// subsequent docker cp can skip host copies that would overwrite them.
-// Distinguishes benign "directory missing" (first deploy, empty volume) from
-// hard failures (container unreachable, permission denied, etc.) — the latter
-// aborts the deploy rather than silently reverting to the old overwrite
-// behavior.
-async function listContainerSecrets(
-  containerName: string,
-): Promise<Set<string>> {
-  const result = await exec('docker', [
-    'exec',
-    containerName,
-    'find',
-    '/app/data/providers',
-    '-type',
-    'f',
-    '-name',
-    '*.secrets.json',
-    '-printf',
-    '%P\n',
-  ]);
-  if (result.success) {
-    return new Set(
-      result.stdout
-        .split('\n')
-        .map((s) => s.trim())
-        .filter(Boolean),
-    );
-  }
-  if (/No such file or directory/.test(result.stderr)) {
-    // Providers directory not yet created — nothing to protect.
-    return new Set();
-  }
-  throw new Error(
-    `Failed to enumerate container provider secrets on ${containerName}: ${result.stderr || 'unknown error'}`,
-  );
-}
-
-// Copy host `providers/` into a fresh tmp dir and delete any *.secrets.json
-// whose relative path also exists in the container. The resulting stage dir
-// is what `docker cp` will ship — so conflicting secrets are preserved on the
-// container side, non-conflicting files sync as before. fs.cp defaults to
-// dereference=false, which keeps symlinks intact.
-async function stageProvidersWithoutConflictingSecrets(
+// Copy host `<dir>/` into a fresh tmp dir, excluding `*.secrets.json` files
+// and any `.history/` directory during the copy. The staging dir is what
+// `docker cp` ships; since `docker cp` is additive (never deletes container
+// files absent from the source), excluded paths simply never reach the
+// container and its existing secrets / edit-history survive. fs.cp defaults to
+// dereference=false, which keeps symlinks intact. The `*.secrets.json` match
+// mirrors the entrypoint's seed-skip check (services/convex/docker-entrypoint.sh).
+//
+// Registers `stageDir` in `tempStageDirs` before any I/O so an interrupt or a
+// throw mid-copy still gets cleaned up by the caller / SIGINT handler.
+async function stageForOverride(
   srcDir: string,
-  protectedRelPaths: Set<string>,
-): Promise<{ stageDir: string; skipped: string[] }> {
+  tempStageDirs: Set<string>,
+): Promise<string> {
   const stageDir = await mkdtemp(join(tmpdir(), 'tale-sync-'));
-  await cp(srcDir, stageDir, { recursive: true });
-  const skipped: string[] = [];
-  for (const rel of protectedRelPaths) {
-    // `rel` comes from the Linux container's find, so it uses '/'. Split
-    // and re-join so Windows host paths resolve correctly against stageDir.
-    const candidate = join(stageDir, ...rel.split('/'));
-    if (existsSync(candidate)) {
-      await rm(candidate);
-      skipped.push(rel);
-    }
-  }
-  return { stageDir, skipped };
-}
-
-// Enumerate per-org and default-org skill slugs already in the container so
-// the subsequent docker cp skips any host slug that would clobber a UI
-// upload. Returns top-level entries only — slugs are directories (e.g.
-// `pptx/`) and per-org subdirs are marked with `@` (e.g. `@acme/`). Both
-// shapes are forwarded verbatim; the staging step removes any host
-// directory whose top-level name matches.
-async function listContainerSkills(
-  containerName: string,
-): Promise<Set<string>> {
-  const result = await exec('docker', [
-    'exec',
-    containerName,
-    'find',
-    '/app/data/skills',
-    '-mindepth',
-    '1',
-    '-maxdepth',
-    '1',
-    '-type',
-    'd',
-    '-printf',
-    '%P\n',
-  ]);
-  if (result.success) {
-    return new Set(
-      result.stdout
-        .split('\n')
-        .map((s) => s.trim())
-        .filter(Boolean),
-    );
-  }
-  if (/No such file or directory/.test(result.stderr)) {
-    // Skills directory not yet created — nothing to protect.
-    return new Set();
-  }
-  throw new Error(
-    `Failed to enumerate container skills on ${containerName}: ${result.stderr || 'unknown error'}`,
-  );
-}
-
-// Copy host `skills/` into a fresh tmp dir and delete any top-level slug
-// dir whose name also exists in the container. The resulting stage dir is
-// what `docker cp` will ship — so container-side UI uploads survive,
-// brand-new host slugs (e.g. the `pptx` example installed by `tale init`
-// on first deploy) flow through.
-async function stageSkillsWithoutConflictingBundles(
-  srcDir: string,
-  protectedSlugs: Set<string>,
-): Promise<{ stageDir: string; skipped: string[] }> {
-  const stageDir = await mkdtemp(join(tmpdir(), 'tale-sync-'));
-  await cp(srcDir, stageDir, { recursive: true });
-  const skipped: string[] = [];
-  for (const slug of protectedSlugs) {
-    const candidate = join(stageDir, slug);
-    if (existsSync(candidate)) {
-      await rm(candidate, { recursive: true, force: true });
-      skipped.push(slug);
-    }
-  }
-  return { stageDir, skipped };
+  tempStageDirs.add(stageDir);
+  await cp(srcDir, stageDir, {
+    recursive: true,
+    filter: (src) => {
+      const base = src.split(/[\\/]/).pop() ?? '';
+      // Returning false for a directory prunes its entire subtree.
+      if (base === '.history') return false;
+      if (base.endsWith('.secrets.json')) return false;
+      return true;
+    },
+  });
+  return stageDir;
 }

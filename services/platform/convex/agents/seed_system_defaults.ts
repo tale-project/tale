@@ -2,7 +2,7 @@
  * System Default Agent Seeding (legacy stubs)
  *
  * System default agents are now JSON files baked into the Docker image
- * at /app/agents-builtin/ and seeded to AGENTS_DIR by the entrypoint.
+ * at /app/builtin/agents/ and seeded to AGENTS_DIR by the entrypoint.
  * These mutations are kept as no-ops since they're called from
  * organization creation flow.
  */

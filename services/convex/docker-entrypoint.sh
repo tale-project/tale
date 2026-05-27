@@ -283,7 +283,7 @@ run_seed() {
 
   # --- Agents ---
   local agents_dir="${data_dir}/agents"
-  local agents_builtin="/app/agents-builtin"
+  local agents_builtin="/app/builtin/agents"
   mkdir -p "$agents_dir"
   if [ -d "$agents_builtin" ] && [ "$(ls -A "$agents_builtin" 2>/dev/null)" ]; then
     for src in "$agents_builtin"/*.json; do
@@ -306,7 +306,7 @@ run_seed() {
 
   # --- Workflows (nested paths allowed) ---
   local workflows_dir="${data_dir}/workflows"
-  local workflows_builtin="/app/workflows-builtin"
+  local workflows_builtin="/app/builtin/workflows"
   mkdir -p "$workflows_dir"
   if [ -d "$workflows_builtin" ] && [ "$(ls -A "$workflows_builtin" 2>/dev/null)" ]; then
     find "$workflows_builtin" -name '*.json' -type f | while read -r src; do
@@ -330,7 +330,7 @@ run_seed() {
 
   # --- Integrations (directory-based) ---
   local integrations_dir="${data_dir}/integrations"
-  local integrations_builtin="/app/integrations-builtin"
+  local integrations_builtin="/app/builtin/integrations"
   mkdir -p "$integrations_dir"
   if [ -d "$integrations_builtin" ] && [ "$(ls -A "$integrations_builtin" 2>/dev/null)" ]; then
     for src_dir in "$integrations_builtin"/*/; do
@@ -351,7 +351,7 @@ run_seed() {
 
   # --- Skills (directory bundles: SKILL.md + scripts/ + references/ + assets/) ---
   local skills_dir="${data_dir}/skills"
-  local skills_builtin="/app/skills-builtin"
+  local skills_builtin="/app/builtin/skills"
   mkdir -p "$skills_dir"
   if [ -d "$skills_builtin" ] && [ "$(ls -A "$skills_builtin" 2>/dev/null)" ]; then
     for src_dir in "$skills_builtin"/*/; do
@@ -371,7 +371,7 @@ run_seed() {
 
   # --- Providers (skip encrypted .secrets.json) ---
   local providers_dir="${data_dir}/providers"
-  local providers_builtin="/app/providers-builtin"
+  local providers_builtin="/app/builtin/providers"
   mkdir -p "$providers_dir"
   if [ -d "$providers_builtin" ] && [ "$(ls -A "$providers_builtin" 2>/dev/null)" ]; then
     for src in "$providers_builtin"/*.json; do
@@ -398,7 +398,7 @@ run_seed() {
   # the {orgSlug}.json convention. Retention has no secrets to skip
   # (compare with providers' .secrets.json branch above).
   local retention_dir="${data_dir}/retention"
-  local retention_builtin="/app/retention-builtin"
+  local retention_builtin="/app/builtin/retention"
   mkdir -p "$retention_dir"
   if [ -d "$retention_builtin" ] && [ "$(ls -A "$retention_builtin" 2>/dev/null)" ]; then
     for src in "$retention_builtin"/*.json; do

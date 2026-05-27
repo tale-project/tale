@@ -107,8 +107,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && mkdir -p /home/app && chown app:app /home/app && chmod 755 /home/app \
     && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /app/data/providers /app/data/branding /app/data/retention /app/data/skills \
                 /dashboard \
-                /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin /app/branding-builtin /app/retention-builtin /app/skills-builtin \
-    && chown -R app:app /app/data /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin /app/branding-builtin /app/retention-builtin /app/skills-builtin \
+                /app/builtin/agents /app/builtin/workflows /app/builtin/integrations /app/builtin/providers /app/builtin/branding /app/builtin/retention /app/builtin/skills \
+    && chown -R app:app /app/data /dashboard /app/builtin \
     # Strip system bloat from Convex backend base (~155 MB)
     && ARCH_LIB="/usr/lib/$(dpkg --print-architecture | sed 's/amd64/x86_64-linux-gnu/;s/arm64/aarch64-linux-gnu/')" \
     && rm -rf "${ARCH_LIB}"/libLLVM* "${ARCH_LIB}"/libclang* \
@@ -173,13 +173,13 @@ COPY --from=convex-dashboard --chown=app:app /app /dashboard
 # Builtin seed assets (one-time copy on fresh volume; .history/ preserves user edits).
 # Sources come from repo-root examples/ (same as platform Dockerfile).
 # ----------------------------------------------------------------------------
-COPY --chown=app:app examples/agents/       /app/agents-builtin/
-COPY --chown=app:app examples/workflows/    /app/workflows-builtin/
-COPY --chown=app:app examples/integrations/ /app/integrations-builtin/
-COPY --chown=app:app examples/providers/    /app/providers-builtin/
-COPY --chown=app:app examples/branding/     /app/branding-builtin/
-COPY --chown=app:app examples/retention/    /app/retention-builtin/
-COPY --chown=app:app examples/skills/       /app/skills-builtin/
+COPY --chown=app:app examples/agents/       /app/builtin/agents/
+COPY --chown=app:app examples/workflows/    /app/builtin/workflows/
+COPY --chown=app:app examples/integrations/ /app/builtin/integrations/
+COPY --chown=app:app examples/providers/    /app/builtin/providers/
+COPY --chown=app:app examples/branding/     /app/builtin/branding/
+COPY --chown=app:app examples/retention/    /app/builtin/retention/
+COPY --chown=app:app examples/skills/       /app/builtin/skills/
 
 # ----------------------------------------------------------------------------
 # Entrypoint scripts
