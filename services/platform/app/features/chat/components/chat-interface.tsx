@@ -239,6 +239,7 @@ export function ChatInterface({
     uploadingFiles,
     uploadFiles,
     removeAttachment,
+    retryAttachmentTranscription,
     clearAttachments,
   } = useConvexFileUpload({ organizationId, threadId });
 
@@ -249,6 +250,7 @@ export function ChatInterface({
     isTranscribing,
     isQueryLoading: isTranscriptionQueryLoading,
     statusMap: transcriptionStatuses,
+    hasFailedAudioJobs,
   } = useFileTranscriptionStatus(attachments);
 
   const {
@@ -1166,6 +1168,8 @@ export function ChatInterface({
               indexingStatuses={indexingStatuses}
               isTranscribing={isTranscribing || isTranscriptionQueryLoading}
               transcriptionStatuses={transcriptionStatuses}
+              hasFailedAudioJobs={hasFailedAudioJobs}
+              retryAudioTranscription={retryAttachmentTranscription}
               videoLinkJobs={videoLinkJobs}
               isProcessingVideo={isProcessingVideo}
               hasFailedVideoJobs={hasFailedVideoJobs}

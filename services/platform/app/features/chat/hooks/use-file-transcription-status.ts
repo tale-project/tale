@@ -89,5 +89,15 @@ export function useFileTranscriptionStatus(attachments: FileAttachment[]) {
     );
   }, [metadata, audioFileIds.length]);
 
-  return { statusMap, isTranscribing, isQueryLoading };
+  // True when any audio attachment's transcription terminally `failed`. The
+  // send-gate uses this to force the user to retry or remove before sending,
+  // mirroring `hasFailedVideoJobs`. `skipped` is intentionally excluded — it
+  // is a deliberate user action (remove → skipTranscription), so re-offering
+  // a retry there would fight the user's own intent.
+  const hasFailedAudioJobs = useMemo(() => {
+    if (!metadata) return false;
+    return metadata.some((m) => m.transcriptionStatus === 'failed');
+  }, [metadata]);
+
+  return { statusMap, isTranscribing, isQueryLoading, hasFailedAudioJobs };
 }

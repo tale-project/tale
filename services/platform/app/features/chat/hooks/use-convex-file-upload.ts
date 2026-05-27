@@ -69,6 +69,9 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
   const { mutateAsync: skipTranscription } = useConvexMutation(
     api.file_metadata.mutations.skipTranscription,
   );
+  const { mutateAsync: retryTranscription } = useConvexMutation(
+    api.file_metadata.mutations.retryTranscription,
+  );
 
   const policyLimits = useUploadPolicy(config.organizationId);
 
@@ -390,6 +393,22 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
     [skipTranscription, config.organizationId],
   );
 
+  const retryAttachmentTranscription = useCallback(
+    (fileId: Id<'_storage'>) => {
+      // Reuse the existing backend retry: resets status to `queued`, clears
+      // the error, and reschedules the transcribe action. The reactive
+      // transcription-status query flips the chip back to queued/running on
+      // its own, so no optimistic local state is needed here.
+      retryTranscription({
+        storageId: fileId,
+        organizationId: config.organizationId,
+      }).catch((err) => {
+        console.warn('[retryAttachmentTranscription] failed:', err);
+      });
+    },
+    [retryTranscription, config.organizationId],
+  );
+
   const clearAttachments = useCallback(() => {
     const clearedAttachments = attachmentsRef.current;
     for (const att of clearedAttachments) {
@@ -418,6 +437,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
     isUploading: uploadingFiles.length > 0,
     uploadFiles,
     removeAttachment,
+    retryAttachmentTranscription,
     clearAttachments,
   };
 }

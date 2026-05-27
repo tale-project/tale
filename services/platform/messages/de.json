@@ -914,7 +914,9 @@
       "indexingFailed": "Indizierung fehlgeschlagen",
       "couldNotTranscribe": "Konnte nicht transkribiert werden",
       "viewTranscript": "Transkript anzeigen",
-      "previewSubtitle": "{seconds}s transkribiert"
+      "previewSubtitle": "{seconds}s transkribiert",
+      "retry": "Erneut versuchen",
+      "failedSendBlockedTooltip": "Transkription fehlgeschlagen — versuch es erneut oder entferne den Anhang vor dem Senden"
     },
     "videoLink": {
       "statuses": {
@@ -1063,7 +1065,9 @@
       "level": "Mikrofonpegel",
       "notSupported": "Spracherkennung wird in diesem Browser nicht unterstützt",
       "permissionDenied": "Mikrofonzugriff wurde verweigert. Bitte erlaube den Mikrofonzugriff in den Browsereinstellungen.",
-      "transcriptionFailed": "Dein Diktat konnte nicht transkribiert werden. Versuch es nochmal."
+      "transcriptionFailedShort": "Transkription fehlgeschlagen",
+      "retry": "Erneut versuchen",
+      "discard": "Aufnahme verwerfen"
     },
     "citations": {
       "source": "Quelle {number}",

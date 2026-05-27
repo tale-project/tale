@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Loader2, Mic } from 'lucide-react';
+import { AlertCircle, Loader2, Mic, RotateCcw, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, memo } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
@@ -65,6 +65,10 @@ function DictationButtonComponent({
     ? recorder.stopListening
     : speech.stopListening;
 
+  // Failed-recording recovery only exists on the MediaRecorder fallback
+  // (the Web Speech path has no server round-trip to fail or retry).
+  const hasFailedRecording = useFallback && recorder.hasFailedRecording;
+
   const level = useMicrophoneLevel({ enabled: isListening });
 
   const prevErrorRef = useRef<string | null>(null);
@@ -79,7 +83,10 @@ function DictationButtonComponent({
       if (error === 'not-allowed' || error === 'audio-capture') {
         message = t('dictation.permissionDenied');
       } else if (error === 'transcription-failed') {
-        message = t('dictation.transcriptionFailed');
+        // Surfaced by the persistent failed-dictation pill (with retry /
+        // discard) instead of a transient toast — mirrors the video-link
+        // "chip not toast" pattern. No toast here.
+        message = null;
       } else if (
         error === 'not-supported' ||
         error === 'language-not-supported'
@@ -136,45 +143,74 @@ function DictationButtonComponent({
   const levelPercent = Math.round(Math.min(1, Math.max(0, level)) * 100);
 
   return (
-    <Tooltip content={tooltipContent} side="top">
-      <Button
-        variant={isListening ? 'destructive' : 'ghost'}
-        size={isListening ? 'sm' : 'icon'}
-        onClick={handleClick}
-        disabled={disabled || isTranscribing}
-        aria-label={ariaLabel}
-        aria-busy={isTranscribing}
-        aria-pressed={isListening}
-        className={cn('relative rounded-full', isListening && 'gap-2 px-3')}
-      >
-        {isTranscribing ? (
-          <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
-        ) : (
-          <Mic
-            className={cn(
-              'size-4',
-              isListening && 'animate-pulse motion-reduce:animate-none',
-            )}
-          />
-        )}
-        {isListening && (
-          <span
-            className="bg-destructive-foreground/30 relative h-1.5 w-12 overflow-hidden rounded-full"
-            role="progressbar"
-            aria-label={t('dictation.level')}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={levelPercent}
-          >
-            <span
-              className="bg-destructive-foreground absolute inset-y-0 left-0 rounded-full transition-[width] duration-75 ease-out"
-              style={{ width: `${levelPercent}%` }}
-              aria-hidden="true"
+    <span className="flex items-center gap-1">
+      <Tooltip content={tooltipContent} side="top">
+        <Button
+          variant={isListening ? 'destructive' : 'ghost'}
+          size={isListening ? 'sm' : 'icon'}
+          onClick={handleClick}
+          disabled={disabled || isTranscribing}
+          aria-label={ariaLabel}
+          aria-busy={isTranscribing}
+          aria-pressed={isListening}
+          className={cn('relative rounded-full', isListening && 'gap-2 px-3')}
+        >
+          {isTranscribing ? (
+            <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
+          ) : (
+            <Mic
+              className={cn(
+                'size-4',
+                isListening && 'animate-pulse motion-reduce:animate-none',
+              )}
             />
-          </span>
-        )}
-      </Button>
-    </Tooltip>
+          )}
+          {isListening && (
+            <span
+              className="bg-destructive-foreground/30 relative h-1.5 w-12 overflow-hidden rounded-full"
+              role="progressbar"
+              aria-label={t('dictation.level')}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={levelPercent}
+            >
+              <span
+                className="bg-destructive-foreground absolute inset-y-0 left-0 rounded-full transition-[width] duration-75 ease-out"
+                style={{ width: `${levelPercent}%` }}
+                aria-hidden="true"
+              />
+            </span>
+          )}
+        </Button>
+      </Tooltip>
+      {hasFailedRecording && !isTranscribing && (
+        // Persistent recovery affordance: the failed recording is held in
+        // memory so the user can fix their provider and retry without
+        // re-recording. Discard drops the retained audio.
+        <span className="border-destructive/40 bg-destructive/5 text-destructive flex items-center gap-1 rounded-full border px-2 py-1 text-xs">
+          <AlertCircle className="size-3 shrink-0" aria-hidden="true" />
+          <span>{t('dictation.transcriptionFailedShort')}</span>
+          <button
+            type="button"
+            aria-label={t('dictation.retry')}
+            title={t('dictation.retry')}
+            onClick={recorder.retryTranscription}
+            className="hover:bg-destructive/10 flex size-5 items-center justify-center rounded-full transition-colors"
+          >
+            <RotateCcw className="size-3" />
+          </button>
+          <button
+            type="button"
+            aria-label={t('dictation.discard')}
+            title={t('dictation.discard')}
+            onClick={recorder.discardFailedRecording}
+            className="hover:bg-destructive/10 flex size-5 items-center justify-center rounded-full transition-colors"
+          >
+            <X className="size-3" />
+          </button>
+        </span>
+      )}
+    </span>
   );
 }
 
