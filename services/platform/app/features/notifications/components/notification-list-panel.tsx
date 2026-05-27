@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Tabs } from '@tale/ui/tabs';
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCheck, ChevronLeft, Inbox } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -33,12 +33,6 @@ interface NotificationListPanelProps {
   onBack?: () => void;
 }
 
-const SEVERITY_DOT: Record<string, string> = {
-  info: 'bg-sky-500',
-  warning: 'bg-amber-500',
-  critical: 'bg-red-500',
-};
-
 const LOAD_MORE_NUM_ITEMS = 25;
 
 // Strip a leading `notifications.` namespace prefix that was accidentally
@@ -61,9 +55,6 @@ export function NotificationListPanel({
   className,
   onBack,
 }: NotificationListPanelProps) {
-  const [expandedId, setExpandedId] = useState<Id<'notifications'> | null>(
-    null,
-  );
   const [filter, setFilter] = useState<NotificationsFilter>('unread');
   const [hiddenIds, setHiddenIds] = useState(new Set<string>());
   const { t } = useT('notifications');
@@ -77,15 +68,6 @@ export function NotificationListPanel({
   const { data: unread } = useNotificationsUnreadCount(organizationId);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
-
-  const handleToggleExpand = useCallback(
-    (notificationId: Id<'notifications'>) => {
-      setExpandedId((current) =>
-        current === notificationId ? null : notificationId,
-      );
-    },
-    [],
-  );
 
   const handleMarkRead = useCallback(
     (notificationId: Id<'notifications'>) => {
@@ -114,7 +96,6 @@ export function NotificationListPanel({
 
   const handleFilterChange = useCallback((next: NotificationsFilter) => {
     setFilter(next);
-    setExpandedId(null);
     setHiddenIds(new Set());
   }, []);
 
@@ -184,94 +165,87 @@ export function NotificationListPanel({
       </div>
       <div className="flex-1 overflow-y-auto">
         {items.length === 0 ? (
-          <div className="text-muted-foreground px-4 py-8 text-center text-sm">
-            {status === 'LoadingFirstPage' ? t('loading') : t('empty')}
-          </div>
+          status === 'LoadingFirstPage' ? (
+            <div className="text-muted-foreground px-4 py-8 text-center text-sm">
+              {t('loading')}
+            </div>
+          ) : (
+            <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+              {filter === 'unread' ? (
+                <CheckCheck className="size-8" aria-hidden="true" />
+              ) : (
+                <Inbox className="size-8" aria-hidden="true" />
+              )}
+              <p className="text-foreground text-sm font-medium">
+                {filter === 'unread'
+                  ? t('emptyCaughtUpTitle')
+                  : t('emptyAllTitle')}
+              </p>
+              <p className="text-xs">
+                {filter === 'unread'
+                  ? t('emptyCaughtUpDescription')
+                  : t('emptyAllDescription')}
+              </p>
+            </div>
+          )
         ) : (
           <ul role="list" className="divide-border divide-y">
             {items.map((n) => {
               const params = isRecord(n.params) ? n.params : undefined;
               const title = t(stripNsPrefix(n.titleKey), params);
               const body = t(stripNsPrefix(n.bodyKey), params);
-              const isExpanded = expandedId === n._id;
-              const Chevron = isExpanded ? ChevronDown : ChevronRight;
+              const absoluteDate = formatDate(new Date(n.createdAt), 'long');
+
+              const rowClasses = cn(
+                'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
+                !n.read && 'bg-accent/10 hover:bg-muted/60 cursor-pointer',
+                n.read && 'opacity-70 cursor-default',
+              );
+              const rowBody = (
+                <>
+                  {!n.read && (
+                    <span className="sr-only">{t('ariaUnread')}</span>
+                  )}
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'mt-1.5 size-2 shrink-0 rounded-full',
+                      n.read ? 'bg-transparent' : 'bg-sky-500',
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-foreground text-sm font-medium">
+                        {title}
+                      </div>
+                      <span
+                        className="text-muted-foreground shrink-0 text-[10px]"
+                        title={absoluteDate}
+                      >
+                        {formatRelative(new Date(n.createdAt))}
+                      </span>
+                    </div>
+                    <div className="text-muted-foreground mt-0.5 text-xs whitespace-pre-wrap">
+                      {body}
+                    </div>
+                  </div>
+                </>
+              );
 
               return (
-                <li
-                  key={n._id}
-                  className={cn(
-                    'transition-colors',
-                    !n.read && 'bg-accent/10',
-                    n.read && 'opacity-70',
-                  )}
-                >
-                  <button
-                    type="button"
-                    aria-expanded={isExpanded}
-                    onClick={() => handleToggleExpand(n._id)}
-                    className="hover:bg-muted/60 flex w-full items-start gap-3 px-4 py-3 text-left transition-colors"
-                  >
-                    <span
-                      className={cn(
-                        'mt-1.5 size-2 shrink-0 rounded-full',
-                        SEVERITY_DOT[n.severity] ?? 'bg-muted-foreground',
-                      )}
-                      aria-hidden
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <div
-                          className={cn(
-                            'text-foreground text-sm font-medium',
-                            !isExpanded && 'truncate',
-                          )}
-                        >
-                          {title}
-                        </div>
-                        <span className="text-muted-foreground shrink-0 text-[10px]">
-                          {formatRelative(new Date(n.createdAt))}
-                        </span>
-                      </div>
-                      <div
-                        className={cn(
-                          'text-muted-foreground mt-0.5 text-xs whitespace-pre-wrap',
-                          !isExpanded && 'line-clamp-2',
-                        )}
-                      >
-                        {body}
-                      </div>
-                    </div>
-                    <Chevron
-                      className="text-muted-foreground mt-1 size-4 shrink-0"
-                      aria-hidden
-                    />
-                    {!n.read && !isExpanded && (
-                      <>
-                        <span className="sr-only">{t('ariaUnread')}</span>
-                        <span
-                          aria-hidden="true"
-                          className="mt-1.5 size-2 shrink-0 rounded-full bg-sky-500"
-                        />
-                      </>
-                    )}
-                  </button>
-
-                  {isExpanded && (
-                    <div className="flex items-center justify-between gap-3 px-4 pt-0 pb-3 pl-9">
-                      <span className="text-muted-foreground text-[11px]">
-                        {formatDate(new Date(n.createdAt), 'long')}
-                      </span>
-                      {!n.read && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={markRead.isPending}
-                          onClick={() => handleMarkRead(n._id)}
-                        >
-                          {t('markAsRead')}
-                        </Button>
-                      )}
-                    </div>
+                <li key={n._id}>
+                  {n.read ? (
+                    <div className={rowClasses}>{rowBody}</div>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label={t('markAsRead')}
+                      disabled={markRead.isPending}
+                      onClick={() => handleMarkRead(n._id)}
+                      className={rowClasses}
+                    >
+                      {rowBody}
+                    </button>
                   )}
                 </li>
               );

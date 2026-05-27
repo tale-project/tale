@@ -10,6 +10,7 @@ import { useBrandingContext } from '@/app/components/branding/branding-provider'
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { UserButton } from '@/app/components/user-button';
+import { NotificationBell } from '@/app/features/notifications/components/notification-bell';
 import { useAbility } from '@/app/hooks/use-ability';
 import {
   useNavigationItems,
@@ -162,6 +163,10 @@ export function MobileNavigation({ organizationId }: MobileNavigationProps) {
             </NavigationMenuList>
           </div>
           <div className="border-border flex shrink-0 flex-col gap-1 border-t px-4 py-3">
+            <NotificationBell
+              organizationId={organizationId}
+              label={tNav('notifications')}
+            />
             <UserButton
               label={tNav('account')}
               onNavigate={() => setIsOpen(false)}

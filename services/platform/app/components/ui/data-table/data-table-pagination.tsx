@@ -33,6 +33,8 @@ export interface DataTablePaginationProps {
   pageSizeOptions?: number[];
   /** Callback when page size changes */
   onPageSizeChange?: (pageSize: number) => void;
+  /** Lowercase plural entity label (e.g., "agents"). Enables noun-rich copy like "Showing 1-25 of 100 agents". */
+  entityLabel?: string;
 }
 
 /**
@@ -54,6 +56,7 @@ export function DataTablePagination({
   showPageSizeSelector = false,
   pageSizeOptions = [10, 20, 50, 100],
   onPageSizeChange,
+  entityLabel,
 }: DataTablePaginationProps) {
   const { t } = useT('common');
 
@@ -161,7 +164,18 @@ export function DataTablePagination({
           variant="caption"
           className="hidden font-semibold whitespace-nowrap sm:inline"
         >
-          {t('pagination.showing', { start: startIdx, end: endIdx, total })}
+          {entityLabel
+            ? t('pagination.showingRange', {
+                start: startIdx,
+                end: endIdx,
+                total,
+                entity: entityLabel,
+              })
+            : t('pagination.showing', {
+                start: startIdx,
+                end: endIdx,
+                total,
+              })}
         </Text>
       )}
     </div>

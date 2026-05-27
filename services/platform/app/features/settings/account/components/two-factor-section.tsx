@@ -114,11 +114,11 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
 
   return (
     <Stack gap={3}>
-      <Text variant="muted" className="text-sm">
-        {enforced
-          ? t('enrollment.requiredByOrg')
-          : t('enrollment.notEnabledHint')}
-      </Text>
+      {enforced && (
+        <Text variant="muted" className="text-sm">
+          {t('enrollment.requiredByOrg')}
+        </Text>
+      )}
       <div>
         <Button onClick={() => setState({ step: 'password' })}>
           {t('enrollment.enableButton')}

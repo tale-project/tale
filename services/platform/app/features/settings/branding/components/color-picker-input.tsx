@@ -62,7 +62,7 @@ export function ColorPickerInput({
       </label>
       <div
         className={cn(
-          'border-input flex items-center overflow-clip rounded-md border shadow-sm',
+          'border-border flex items-center overflow-clip rounded-md border shadow-xs',
         )}
       >
         <button

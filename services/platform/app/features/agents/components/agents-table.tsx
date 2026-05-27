@@ -35,6 +35,7 @@ interface AgentsTableProps {
 
 export function AgentsTable({ organizationId }: AgentsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
+  const { t: tSettings } = useT('settings');
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -109,6 +110,7 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
       fields: ['displayName', 'name'],
       placeholder: searchPlaceholder,
     },
+    entityLabel: tSettings('agents.entityLabel'),
   });
 
   return (

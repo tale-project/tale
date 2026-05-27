@@ -1,6 +1,7 @@
 'use client';
 
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
+import { Check } from 'lucide-react';
 import { type ComponentType, Fragment, type ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
@@ -15,6 +16,8 @@ export interface DropdownMenuActionItem {
   className?: string;
   href?: string;
   external?: boolean;
+  /** Keep the menu open after click. Use for items that swap the menu's content in place. */
+  keepOpen?: boolean;
 }
 
 export interface DropdownMenuLabelItem {
@@ -90,51 +93,9 @@ interface DropdownMenuProps {
 
 function RadioIndicator() {
   return (
-    <span className="absolute left-2 flex size-3.5 items-center justify-center">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="14"
-        height="14"
-        viewBox="0 0 14 14"
-        fill="none"
-        className="size-3.5"
-      >
-        <circle
-          cx="7"
-          cy="7"
-          r="6"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          className="text-border"
-        />
-      </svg>
-      <DropdownMenuPrimitive.ItemIndicator className="absolute inset-0 flex items-center justify-center">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="none"
-          className="size-3.5"
-        >
-          <circle
-            cx="7"
-            cy="7"
-            r="6"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            className="text-blue-600"
-          />
-          <circle
-            cx="7"
-            cy="7"
-            r="3.5"
-            fill="currentColor"
-            className="text-blue-600"
-          />
-        </svg>
-      </DropdownMenuPrimitive.ItemIndicator>
-    </span>
+    <DropdownMenuPrimitive.ItemIndicator className="absolute right-2 flex size-3.5 items-center justify-center">
+      <Check className="size-3.5" />
+    </DropdownMenuPrimitive.ItemIndicator>
   );
 }
 
@@ -239,7 +200,7 @@ function renderItem(item: DropdownMenuItem, key: number) {
           </DropdownMenuPrimitive.SubTrigger>
           <DropdownMenuPrimitive.SubContent
             className={cn(
-              'bg-muted text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none z-50 min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-lg',
+              'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none z-50 min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-lg',
               item.contentClassName,
             )}
           >
@@ -260,7 +221,7 @@ function renderItem(item: DropdownMenuItem, key: number) {
             <DropdownMenuPrimitive.RadioItem
               key={option.value}
               value={option.value}
-              className="focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-md py-1.5 pr-2 pl-8 text-sm transition-colors outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
+              className="focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-md py-1.5 pr-8 pl-2 text-sm transition-colors outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
             >
               <RadioIndicator />
               {option.label}
@@ -279,6 +240,7 @@ function renderItem(item: DropdownMenuItem, key: number) {
             item.className,
           )}
           onClick={item.onClick}
+          onSelect={item.keepOpen ? (e) => e.preventDefault() : undefined}
           disabled={item.disabled}
         >
           {Icon && <Icon />}

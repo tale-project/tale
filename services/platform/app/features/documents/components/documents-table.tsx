@@ -337,6 +337,7 @@ export function DocumentsTable({
     },
     getRowId: (row) => row.id,
     approxRowCount: docCount,
+    entityLabel: tDocuments('entityLabel'),
   });
 
   return (
