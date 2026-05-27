@@ -20,7 +20,7 @@ const meta: Meta<typeof BottomTabBar> = {
     docs: {
       description: {
         component:
-          'Fixed bottom navigation for mobile. Tap a tab to make it active — the pill background and label color update accordingly. Honors `env(safe-area-inset-bottom)`. Hidden on `md+` viewports.',
+          'In-flow bottom navigation for mobile, sized as the last child of a flex-column app shell. Tap a tab to make it active — the pill background and label color update accordingly. Honors `env(safe-area-inset-bottom)`. Hidden on `md+` viewports.',
       },
     },
   },
@@ -62,13 +62,13 @@ function InteractiveShell({
     onSelect: () => setActiveKey(tab.key),
   }));
   return (
-    <div className="bg-background relative min-h-[420px] w-full">
-      <div className="text-muted-foreground px-4 py-6 text-sm">
+    <div className="bg-background flex min-h-105 w-full flex-col">
+      <div className="text-muted-foreground flex-1 px-4 py-6 text-sm">
         Active tab:{' '}
         <span className="text-foreground font-semibold">{activeKey}</span>. Tap
         any tab below to switch.
       </div>
-      <BottomTabBar items={items} ariaLabel="Primary" className="relative" />
+      <BottomTabBar items={items} ariaLabel="Primary" />
     </div>
   );
 }

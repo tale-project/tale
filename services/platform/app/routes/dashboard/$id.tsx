@@ -181,8 +181,8 @@ function DashboardLayout() {
         <TeamFilterProvider organizationId={organizationId}>
           <DirtyBlockerProvider>
             <AdaptiveHeaderProvider>
-              <div className="flex size-full flex-col overflow-hidden md:flex-row">
-                <div className="bg-background flex items-center gap-2 p-2 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] md:hidden">
+              <div className="flex h-dvh w-full flex-col overflow-hidden md:flex-row">
+                <div className="bg-background border-border flex items-center gap-2 border-b p-2 pt-[calc(var(--safe-top)+0.75rem)] md:hidden">
                   <MobileNavigation organizationId={organizationId} />
                   <AdaptiveHeaderSlot />
                 </div>
@@ -193,7 +193,7 @@ function DashboardLayout() {
 
                 <main
                   id="main-content"
-                  className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-(--mobile-nav-height,calc(3.5rem+var(--safe-bottom))) md:border-l md:pb-0"
+                  className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l"
                 >
                   {hasRole && (
                     <TwoFactorGraceBanner organizationId={organizationId} />
@@ -220,8 +220,8 @@ function DashboardLayout() {
                     <Outlet />
                   )}
                 </main>
+                {hasRole && <MobileBottomNav organizationId={organizationId} />}
               </div>
-              {hasRole && <MobileBottomNav organizationId={organizationId} />}
             </AdaptiveHeaderProvider>
           </DirtyBlockerProvider>
         </TeamFilterProvider>
