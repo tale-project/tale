@@ -195,7 +195,7 @@ function DictationButtonComponent({
             aria-label={t('dictation.retry')}
             title={t('dictation.retry')}
             onClick={recorder.retryTranscription}
-            className="hover:bg-destructive/10 flex size-5 items-center justify-center rounded-full transition-colors"
+            className="hover:bg-destructive/10 flex size-6 items-center justify-center rounded-full transition-colors"
           >
             <RotateCcw className="size-3" />
           </button>
@@ -204,7 +204,7 @@ function DictationButtonComponent({
             aria-label={t('dictation.discard')}
             title={t('dictation.discard')}
             onClick={recorder.discardFailedRecording}
-            className="hover:bg-destructive/10 flex size-5 items-center justify-center rounded-full transition-colors"
+            className="hover:bg-destructive/10 flex size-6 items-center justify-center rounded-full transition-colors"
           >
             <X className="size-3" />
           </button>

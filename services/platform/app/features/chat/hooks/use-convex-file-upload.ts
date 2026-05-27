@@ -393,18 +393,31 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
     [skipTranscription, config.organizationId],
   );
 
+  const retryInFlightRef = useRef<Set<Id<'_storage'>>>(new Set());
+
   const retryAttachmentTranscription = useCallback(
     (fileId: Id<'_storage'>) => {
       // Reuse the existing backend retry: resets status to `queued`, clears
       // the error, and reschedules the transcribe action. The reactive
       // transcription-status query flips the chip back to queued/running on
       // its own, so no optimistic local state is needed here.
+      //
+      // Guard against rapid double-taps: the chip stays clickable until the
+      // reactive status flips out of `failed`, so without this an impatient
+      // user could schedule several transcribe jobs for the same file. The
+      // in-flight set drops the duplicates until the first call settles.
+      if (retryInFlightRef.current.has(fileId)) return;
+      retryInFlightRef.current.add(fileId);
       retryTranscription({
         storageId: fileId,
         organizationId: config.organizationId,
-      }).catch((err) => {
-        console.warn('[retryAttachmentTranscription] failed:', err);
-      });
+      })
+        .catch((err) => {
+          console.warn('[retryAttachmentTranscription] failed:', err);
+        })
+        .finally(() => {
+          retryInFlightRef.current.delete(fileId);
+        });
     },
     [retryTranscription, config.organizationId],
   );
