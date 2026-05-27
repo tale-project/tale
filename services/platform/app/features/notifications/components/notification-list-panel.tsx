@@ -171,9 +171,6 @@ export function NotificationListPanel({
       <div className="flex-1 overflow-y-auto">
         {items.length === 0 ? (
           status === 'LoadingFirstPage' ? (
-            // Skeleton list mirroring the real row layout for the genuine first
-            // load only. The Unread/All filter is client-side, so toggling it no
-            // longer resets the query — the skeleton won't reappear on switch.
             <Skeletonize loading label={t('loading')}>
               <ul role="list" className="divide-border divide-y" aria-hidden>
                 {Array.from({ length: 3 }).map((_, i) => (

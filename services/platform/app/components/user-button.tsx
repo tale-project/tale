@@ -21,6 +21,7 @@ import {
   UsersRound,
   Languages,
   Building2,
+  Settings as SettingsIcon,
   Download,
   ChevronRight,
   Check,
@@ -250,9 +251,6 @@ export function UserButton({
             side="top"
           >
             <div className="flex min-w-0 flex-1 cursor-default flex-col gap-1">
-              {/* One real label tree, masked while auth/member context loads.
-                  Name + email are the dynamic leaves; the version row only
-                  exists once loaded (it has no placeholder counterpart). */}
               <Skeletonize
                 loading={loading || !user}
                 label={t('userButton.defaultName')}

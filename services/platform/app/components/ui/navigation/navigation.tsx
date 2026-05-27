@@ -150,11 +150,6 @@ export function Navigation({ organizationId }: NavigationProps) {
       </div>
       <div className="flex flex-shrink-0 flex-col items-center gap-2 py-3">
         <NotificationBell organizationId={organizationId} />
-        <NavigationMenuList className="block space-y-2 space-x-0">
-          {pinned.map((item) => (
-            <NavigationItem key={item.href} item={item} />
-          ))}
-        </NavigationMenuList>
         <UserButton />
       </div>
     </NavigationMenu>
