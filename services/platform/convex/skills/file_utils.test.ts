@@ -13,29 +13,40 @@ import {
   validateSkillSlug,
 } from './file_utils';
 
-let skillsRoot: string;
-let prevSkillsDir: string | undefined;
+// Under the uniform org-first layout, every org's skills live at
+// `${TALE_CONFIG_DIR}/<orgSlug>/skills/` — including the default org
+// (which is no longer special-cased). All resolvers compose on top of
+// `${TALE_CONFIG_DIR}`; the per-domain SKILLS_DIR override has been dropped.
+let configRoot: string;
 let prevTaleConfigDir: string | undefined;
+let prevSkillsDir: string | undefined;
 
 beforeEach(async () => {
-  skillsRoot = await mkdtemp(path.join(tmpdir(), 'skills-test-'));
-  prevSkillsDir = process.env.SKILLS_DIR;
+  configRoot = await mkdtemp(path.join(tmpdir(), 'skills-test-'));
   prevTaleConfigDir = process.env.TALE_CONFIG_DIR;
-  process.env.SKILLS_DIR = skillsRoot;
-  delete process.env.TALE_CONFIG_DIR;
+  prevSkillsDir = process.env.SKILLS_DIR;
+  process.env.TALE_CONFIG_DIR = configRoot;
+  // Explicitly clear the legacy per-domain override so its presence in the
+  // shell env can't accidentally satisfy any leftover fallback.
+  delete process.env.SKILLS_DIR;
 });
 
 afterEach(async () => {
-  if (prevSkillsDir === undefined) {
-    delete process.env.SKILLS_DIR;
+  if (prevTaleConfigDir === undefined) {
+    delete process.env.TALE_CONFIG_DIR;
   } else {
-    process.env.SKILLS_DIR = prevSkillsDir;
-  }
-  if (prevTaleConfigDir !== undefined) {
     process.env.TALE_CONFIG_DIR = prevTaleConfigDir;
   }
-  await rm(skillsRoot, { recursive: true, force: true });
+  if (prevSkillsDir !== undefined) {
+    process.env.SKILLS_DIR = prevSkillsDir;
+  }
+  await rm(configRoot, { recursive: true, force: true });
 });
+
+// Helper: where this test's "default org skills dir" lives under org-first.
+function defaultSkillsDir(): string {
+  return path.join(configRoot, 'default', 'skills');
+}
 
 describe('validateSkillSlug', () => {
   it('accepts hyphen-separated lowercase slugs', () => {
@@ -67,14 +78,14 @@ describe('validateSkillSlug', () => {
   });
 });
 
-describe('resolveSkillsDir (org isolation)', () => {
-  it('default org uses base dir directly', () => {
-    expect(resolveSkillsDir('default')).toBe(skillsRoot);
+describe('resolveSkillsDir (org isolation, org-first)', () => {
+  it('default org lives at <root>/default/skills/', () => {
+    expect(resolveSkillsDir('default')).toBe(defaultSkillsDir());
   });
 
-  it('other orgs live under @<orgSlug>/', () => {
+  it('other orgs live at <root>/<orgSlug>/skills/ (no @-prefix)', () => {
     expect(resolveSkillsDir('acme-corp')).toBe(
-      path.join(skillsRoot, '@acme-corp'),
+      path.join(configRoot, 'acme-corp', 'skills'),
     );
   });
 
@@ -85,9 +96,9 @@ describe('resolveSkillsDir (org isolation)', () => {
 });
 
 describe('resolveSkillDir', () => {
-  it('returns path under skills root', () => {
+  it('returns path under <org>/skills/<slug>', () => {
     const p = resolveSkillDir('default', 'code-reviewer');
-    expect(p).toBe(path.join(skillsRoot, 'code-reviewer'));
+    expect(p).toBe(path.join(defaultSkillsDir(), 'code-reviewer'));
   });
 
   it('rejects invalid slugs upstream', () => {
@@ -99,7 +110,7 @@ describe('resolveSkillDir', () => {
 describe('resolveSkillMdPath', () => {
   it('appends SKILL.md', () => {
     expect(resolveSkillMdPath('default', 'code-reviewer')).toBe(
-      path.join(skillsRoot, 'code-reviewer', 'SKILL.md'),
+      path.join(defaultSkillsDir(), 'code-reviewer', 'SKILL.md'),
     );
   });
 });
@@ -112,7 +123,7 @@ describe('resolveSkillAssetPath (traversal hardening)', () => {
       'scripts/extract.py',
     );
     expect(p).toBe(
-      path.join(skillsRoot, 'pdf-extractor', 'scripts', 'extract.py'),
+      path.join(defaultSkillsDir(), 'pdf-extractor', 'scripts', 'extract.py'),
     );
   });
 
@@ -161,11 +172,11 @@ describe('resolveSkillAssetPath (traversal hardening)', () => {
 
 describe('resolveSkillAssetPathChecked (realpath / symlink defense)', () => {
   it('catches a symlink planted as an intermediate directory', async () => {
-    // skills/<slug>/escape → ../../outside
+    // <root>/default/skills/<slug>/escape → ../../../outside
     const slug = 'symlink-test';
-    const skillDir = path.join(skillsRoot, slug);
+    const skillDir = path.join(defaultSkillsDir(), slug);
     await mkdir(skillDir, { recursive: true });
-    const outside = path.join(skillsRoot, '..', 'outside');
+    const outside = path.join(configRoot, 'outside');
     await mkdir(outside, { recursive: true });
     await symlink(outside, path.join(skillDir, 'escape'));
 
@@ -178,7 +189,7 @@ describe('resolveSkillAssetPathChecked (realpath / symlink defense)', () => {
 
   it('allows asset reads through a real subdirectory', async () => {
     const slug = 'normal-test';
-    const dir = path.join(skillsRoot, slug, 'scripts');
+    const dir = path.join(defaultSkillsDir(), slug, 'scripts');
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'run.py'), 'print("ok")');
 
@@ -187,6 +198,8 @@ describe('resolveSkillAssetPathChecked (realpath / symlink defense)', () => {
       slug,
       'scripts/run.py',
     );
-    expect(resolved).toBe(path.join(skillsRoot, slug, 'scripts', 'run.py'));
+    expect(resolved).toBe(
+      path.join(defaultSkillsDir(), slug, 'scripts', 'run.py'),
+    );
   });
 });

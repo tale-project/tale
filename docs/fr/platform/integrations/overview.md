@@ -5,7 +5,7 @@ description: Systèmes tiers que Tale lit et écrit — communication, stockage,
 
 Les intégrations sont les ponts entre Tale et le reste de ta pile. Les agents les appellent comme outils, les workflows les déclenchent à des étapes, et la pipeline de documents en tire des fichiers. Chaque intégration est une seule configuration JSON plus un identifiant que l'organisation enregistre une fois ; une fois connectée, n'importe quoi dans Tale peut l'utiliser sans nouvelle authentification. Cet aperçu nomme les intégrations livrées, groupées par ce qu'elles font.
 
-La forme d'une intégration est la même pour chaque entrée ci-dessous — une surface REST compatible OpenAI ou une danse OAuth2, avec des opérations déclarées dans une configuration JSON sous `examples/integrations/`. Les intégrations personnalisées suivent la même forme ; tu n'as pas besoin de modifier le code pour en ajouter une.
+La forme d'une intégration est la même pour chaque entrée ci-dessous — une surface REST compatible OpenAI ou une danse OAuth2, avec des opérations déclarées dans une configuration JSON sous `examples/default/integrations/`. Les intégrations personnalisées suivent la même forme ; tu n'as pas besoin de modifier le code pour en ajouter une.
 
 ## En quoi les intégrations diffèrent de MCP
 
@@ -65,7 +65,7 @@ Microsoft 365 couvre aussi l'identité. La connecter sous **Paramètres > Intég
 
 ## Ajouter une intégration personnalisée
 
-Les intégrations personnalisées suivent la même forme JSON que celles ci-dessus. Dépose une configuration dans `TALE_CONFIG_DIR/integrations/<slug>/config.json` déclarant les opérations, la méthode d'auth et les hôtes autorisés ; l'intégration apparaît sous **Paramètres > Intégrations** pour que les utilisateurs la connectent. La forme et les règles de validation vivent à côté des configurations livrées dans `examples/integrations/`.
+Les intégrations personnalisées suivent la même forme JSON que celles ci-dessus. Dépose une configuration dans `TALE_CONFIG_DIR/integrations/<slug>/config.json` déclarant les opérations, la méthode d'auth et les hôtes autorisés ; l'intégration apparaît sous **Paramètres > Intégrations** pour que les utilisateurs la connectent. La forme et les règles de validation vivent à côté des configurations livrées dans `examples/default/integrations/`.
 
 Pour des ponts plus riches ou auto-hébergés, les [serveurs MCP](/fr/platform/integrations/mcp-servers) sont la surface alternative — chaque serveur MCP que tu enregistres ajoute ses outils à la ceinture d'outils de l'agent avec approbation par outil.
 

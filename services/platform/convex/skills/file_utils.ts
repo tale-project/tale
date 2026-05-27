@@ -8,11 +8,11 @@
  * agents/file_utils.ts and integrations/file_utils.ts but uses Markdown +
  * YAML frontmatter as the wire format (per agentskills.io spec).
  *
- * Org isolation: default org sits at `${SKILLS_DIR}/`; other orgs live
- * under `${SKILLS_DIR}/@<orgSlug>/` — same `@` prefix convention used by
- * integrations. Every resolver applies a path-traversal guard plus a
- * `verifyPathWithinBase` realpath check so symlinks planted in the bundle
- * cannot escape the skill's directory.
+ * Org isolation: every org's skills live under
+ * `${TALE_CONFIG_DIR}/<orgSlug>/skills/` — uniform org-first layout. Every
+ * resolver applies a path-traversal guard plus a `verifyPathWithinBase`
+ * realpath check so symlinks planted in the bundle cannot escape the
+ * skill's directory.
  */
 
 import { constants, lstat, open } from 'node:fs/promises';
@@ -94,30 +94,25 @@ export function validateSkillSlug(slug: string): boolean {
   return true;
 }
 
-function getBaseDir(): string {
-  const dir = process.env.SKILLS_DIR;
-  if (dir) return dir;
+function getConfigRoot(): string {
   const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return path.join(configDir, 'skills');
+  if (configDir) return configDir;
   throw new Error(
-    'Neither TALE_CONFIG_DIR nor SKILLS_DIR environment variable is set. ' +
-      'Set TALE_CONFIG_DIR in .env to the root config directory ' +
+    'TALE_CONFIG_DIR environment variable is not set. ' +
+      'Set it to the root config directory ' +
       '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
   );
 }
 
 /**
- * Resolve the skills directory for an organization. Default org uses the
- * base directly; every other org lives under a `@<orgSlug>/` prefix —
- * matches the convention enforced by integrations and agents.
+ * Resolve the skills directory for an organization. Org-first:
+ * `${TALE_CONFIG_DIR}/<orgSlug>/skills/`.
  */
 export function resolveSkillsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  const baseDir = getBaseDir();
-  if (orgSlug === 'default') return baseDir;
-  return path.join(baseDir, `@${orgSlug}`);
+  return path.join(getConfigRoot(), orgSlug, 'skills');
 }
 
 export function resolveSkillDir(orgSlug: string, slug: string): string {

@@ -75,32 +75,26 @@ export function urlParamToSlug(param: string): string {
   return param.replace(new RegExp(SLUG_SEPARATOR, 'g'), '/');
 }
 
-function getBaseDir(): string {
-  const dir = process.env.WORKFLOWS_DIR;
-  if (dir) return dir;
+function getConfigRoot(): string {
   const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return path.join(configDir, 'workflows');
+  if (configDir) return configDir;
   throw new Error(
-    'Neither TALE_CONFIG_DIR nor WORKFLOWS_DIR environment variable is set. ' +
-      'Set TALE_CONFIG_DIR in .env to the root config directory ' +
+    'TALE_CONFIG_DIR environment variable is not set. ' +
+      'Set it to the root config directory ' +
       '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
   );
 }
 
 /**
- * Resolve the workflows directory for an organization.
- * Default org uses the base dir directly.
- * Other orgs use `{baseDir}/@{orgSlug}/` to prevent collision with workflow folders.
+ * Resolve the workflows directory for an organization. Org-first:
+ * `${TALE_CONFIG_DIR}/<orgSlug>/workflows/`. No `@`-prefix collision concern
+ * here since workflow folders live inside the per-org subtree.
  */
 export function resolveWorkflowsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  const baseDir = getBaseDir();
-  if (orgSlug === 'default') {
-    return baseDir;
-  }
-  return path.join(baseDir, `@${orgSlug}`);
+  return path.join(getConfigRoot(), orgSlug, 'workflows');
 }
 
 /**

@@ -7,19 +7,23 @@ import type { AgentJsonConfig } from '../../../convex/agents/file_utils';
 import { isNormalized, normalizeAgentConfig } from './normalize-agent-config';
 
 /**
- * Every agent JSON in `examples/agents/` is treated as part of the shipped
- * product — new orgs scaffold their agent directory by copying these files
- * via `scaffoldNewOrganization`, which goes around the `normalizeAgentConfig`
- * write boundary. If an example ever drifts into a non-normalized shape
- * (legacy top-level co-existing with i18n[defaultLocale], empty-string
- * placeholders, etc.), new orgs will inherit the pollution on creation.
+ * Every agent JSON in `examples/default/agents/` is treated as part of the
+ * shipped product — new orgs scaffold their agent directory by copying these
+ * files via `scaffoldNewOrganization`, which goes around the
+ * `normalizeAgentConfig` write boundary. If an example ever drifts into a
+ * non-normalized shape (legacy top-level co-existing with i18n[defaultLocale],
+ * empty-string placeholders, etc.), new orgs will inherit the pollution on
+ * creation.
  *
  * This test pins the invariant at build time so any drift fails CI.
  */
 
-const EXAMPLES_DIR = path.resolve(__dirname, '../../../../../examples/agents');
+const EXAMPLES_DIR = path.resolve(
+  __dirname,
+  '../../../../../examples/default/agents',
+);
 
-describe('examples/agents/*.json invariants', () => {
+describe('examples/default/agents/*.json invariants', () => {
   const files = readdirSync(EXAMPLES_DIR).filter((f) => f.endsWith('.json'));
 
   it('discovered at least one example agent', () => {

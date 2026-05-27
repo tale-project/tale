@@ -125,14 +125,12 @@ export function parseAgentJson(content: string): AgentJsonConfig {
   return result.data;
 }
 
-function getBaseDir(): string {
-  const dir = process.env.AGENTS_DIR;
-  if (dir) return dir;
+function getConfigRoot(): string {
   const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return path.join(configDir, 'agents');
+  if (configDir) return configDir;
   throw new Error(
-    'Neither TALE_CONFIG_DIR nor AGENTS_DIR environment variable is set. ' +
-      'Set TALE_CONFIG_DIR in .env to the root config directory ' +
+    'TALE_CONFIG_DIR environment variable is not set. ' +
+      'Set it to the root config directory ' +
       '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
   );
 }
@@ -141,11 +139,7 @@ export function resolveAgentsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  const baseDir = getBaseDir();
-  if (orgSlug === 'default') {
-    return baseDir;
-  }
-  return path.join(baseDir, orgSlug);
+  return path.join(getConfigRoot(), orgSlug, 'agents');
 }
 
 export function resolveAgentFilePath(

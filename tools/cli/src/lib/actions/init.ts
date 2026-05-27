@@ -19,8 +19,6 @@ import {
 } from '../project/types';
 import { writeProject } from '../project/write-project';
 import { generateAllRules } from '../rules/generators';
-import { MIGRATIONS } from '../upgrade/registry';
-import { writeMigrationsState } from '../upgrade/state';
 
 interface InitOptions {
   directory?: string;
@@ -31,7 +29,9 @@ interface InitOptions {
 const GITIGNORE_ENTRIES = [
   '.tale/',
   '.env',
-  '.history/',
+  // History dirs sit at any depth under the org-first tree
+  // (e.g. `default/agents/.history/<slug>/`); use a recursive glob.
+  '**/.history/',
   'compose.override.yml',
   'compose.override.yaml',
   // Provider API keys — SOPS-encrypted when SOPS_AGE_KEY is set, plaintext
@@ -133,26 +133,35 @@ export async function init(options: InitOptions): Promise<void> {
   await mkdir(join(target, '.tale'), { recursive: true });
   await fetchReference(target);
 
+  // Host workspace mirrors the uniform org-first layout: scaffold under
+  // `default/<domain>/...`. The default org is the canonical template;
+  // operators can add `<otherOrg>/<domain>/...` subtrees alongside and
+  // `tale deploy --override` will push each `<org>` it finds at root.
+  const defaultOrgDir = join(target, 'default');
+
   // Copy agents from embedded examples
   logger.step('Copying agent configurations...');
   const agentFiles = getEmbeddedExamples('agents');
-  await writeEmbeddedFiles(agentFiles, join(target, 'agents'));
+  await writeEmbeddedFiles(agentFiles, join(defaultOrgDir, 'agents'));
 
   // Copy workflows from embedded examples
   logger.step('Copying workflow configurations...');
   const workflowFiles = getEmbeddedExamples('workflows');
-  await writeEmbeddedFiles(workflowFiles, join(target, 'workflows'));
+  await writeEmbeddedFiles(workflowFiles, join(defaultOrgDir, 'workflows'));
 
   // Copy integrations from embedded examples
   logger.step('Copying integration configurations...');
   const integrationFiles = getEmbeddedExamples('integrations');
-  await writeEmbeddedFiles(integrationFiles, join(target, 'integrations'));
+  await writeEmbeddedFiles(
+    integrationFiles,
+    join(defaultOrgDir, 'integrations'),
+  );
 
   // Create branding directory with empty config
   logger.step('Creating branding configuration...');
-  await mkdir(join(target, 'branding', 'images'), { recursive: true });
-  await writeFile(join(target, 'branding', 'branding.json'), '{}\n');
-  await writeFile(join(target, 'branding', 'images', '.gitkeep'), '');
+  await mkdir(join(defaultOrgDir, 'branding', 'images'), { recursive: true });
+  await writeFile(join(defaultOrgDir, 'branding', 'branding.json'), '{}\n');
+  await writeFile(join(defaultOrgDir, 'branding', 'images', '.gitkeep'), '');
 
   // Copy provider configs (public JSON only, not encrypted secrets)
   logger.step('Copying provider configurations...');
@@ -163,33 +172,55 @@ export async function init(options: InitOptions): Promise<void> {
       providerConfigFiles.set(relPath, content);
     }
   }
-  await writeEmbeddedFiles(providerConfigFiles, join(target, 'providers'));
+  await writeEmbeddedFiles(
+    providerConfigFiles,
+    join(defaultOrgDir, 'providers'),
+  );
 
   // Copy skills from embedded examples
   logger.step('Copying skill bundles...');
   const skillFiles = getEmbeddedExamples('skills');
-  await writeEmbeddedFiles(skillFiles, join(target, 'skills'));
+  await writeEmbeddedFiles(skillFiles, join(defaultOrgDir, 'skills'));
 
-  // Compute checksums
+  // Compute checksums. Paths are recorded relative to the project root,
+  // matching where the files actually live (default/<domain>/...).
   logger.step('Computing file checksums...');
   const allFiles = new Map<string, string>();
 
   for (const [relPath, content] of agentFiles) {
-    allFiles.set(join('agents', relPath), computeContentHash(content));
+    allFiles.set(
+      join('default', 'agents', relPath),
+      computeContentHash(content),
+    );
   }
   for (const [relPath, content] of workflowFiles) {
-    allFiles.set(join('workflows', relPath), computeContentHash(content));
+    allFiles.set(
+      join('default', 'workflows', relPath),
+      computeContentHash(content),
+    );
   }
   for (const [relPath, content] of integrationFiles) {
-    allFiles.set(join('integrations', relPath), computeContentHash(content));
+    allFiles.set(
+      join('default', 'integrations', relPath),
+      computeContentHash(content),
+    );
   }
   for (const [relPath, content] of providerConfigFiles) {
-    allFiles.set(join('providers', relPath), computeContentHash(content));
+    allFiles.set(
+      join('default', 'providers', relPath),
+      computeContentHash(content),
+    );
   }
   for (const [relPath, content] of skillFiles) {
-    allFiles.set(join('skills', relPath), computeContentHash(content));
+    allFiles.set(
+      join('default', 'skills', relPath),
+      computeContentHash(content),
+    );
   }
-  allFiles.set(join('branding', 'branding.json'), computeContentHash('{}\n'));
+  allFiles.set(
+    join('default', 'branding', 'branding.json'),
+    computeContentHash('{}\n'),
+  );
 
   const checksums: Checksums = {
     cliVersion: pkg.version,
@@ -220,25 +251,9 @@ export async function init(options: InitOptions): Promise<void> {
   // Make the ID available to subsequent steps (ensureEnv uses getProjectId()).
   setProjectId(projectId);
 
-  // Seed `.tale/migrations.json` for fresh projects so historical migrations
-  // never apply to data that was born in the current CLI's schema. Without
-  // this, a `tale init` in a directory where the host still has legacy
-  // `tale_*` volumes from some older project would trigger namespace-volumes
-  // to copy that unrelated data into the new project's namespace.
-  //
-  // Only seed when there was no existing tale.json AND no migrations.json
-  // already present — reinit must not clobber prior state.
-  const migrationsJsonPath = join(target, '.tale', 'migrations.json');
-  if (existingProject === null && !existsSync(migrationsJsonPath)) {
-    const now = new Date().toISOString();
-    await writeMigrationsState(target, {
-      applied: MIGRATIONS.map((m) => ({
-        id: m.id,
-        at: now,
-        cliVersion: pkg.version,
-      })),
-    });
-  }
+  // (`.tale/migrations.json` seeding removed alongside the auto-migration
+  // framework. Existing projects' stale files are harmless and can be
+  // deleted manually.)
 
   // Write AI rules files
   logger.step('Writing AI rules files...');
@@ -266,7 +281,12 @@ export async function init(options: InitOptions): Promise<void> {
     // encrypted-vs-plaintext mode is a runtime save-path decision, not an
     // init-time choice.
     if (envResult.openrouterKey && envResult.agePublicKey) {
-      const secretsPath = join(target, 'providers', 'openrouter.secrets.json');
+      const secretsPath = join(
+        target,
+        'default',
+        'providers',
+        'openrouter.secrets.json',
+      );
       const { sopsEncryptJson } = await import('../crypto/sops-encrypt');
       const encrypted = await sopsEncryptJson(
         { apiKey: envResult.openrouterKey },
@@ -274,7 +294,7 @@ export async function init(options: InitOptions): Promise<void> {
       );
       await writeFile(secretsPath, encrypted);
       logger.success(
-        'Encrypted provider API key into providers/openrouter.secrets.json',
+        'Encrypted provider API key into default/providers/openrouter.secrets.json',
       );
     }
   }
@@ -301,7 +321,7 @@ export async function init(options: InitOptions): Promise<void> {
     logger.info(`  ${step++}. Run "cd ${target}" to enter your project`);
   }
   logger.info(
-    `  ${step++}. Edit agents/, workflows/, integrations/, skills/, and branding/ to customize your setup`,
+    `  ${step++}. Edit default/agents/, default/workflows/, default/integrations/, default/skills/, and default/branding/ to customize your setup`,
   );
   logger.info(
     `  ${step++}. Open the project in an AI-powered editor (Claude Code, Cursor, Copilot, or Windsurf) for guided config creation`,
@@ -309,15 +329,23 @@ export async function init(options: InitOptions): Promise<void> {
   logger.info(`  ${step++}. Run "tale start" to launch the platform locally`);
 }
 
+// Top-level markers indicating a Tale project. Under the uniform org-first
+// layout, `default/` is the canonical org dir (and any other org dir is
+// also a marker, but we don't try to enumerate slugs — `default/` is enough
+// to detect a project). Legacy per-domain dirs (`agents/`, `workflows/`,
+// etc.) at the root are kept as markers so `tale init` re-detects old
+// projects from a prior CLI version.
 const TALE_PROJECT_MARKERS = new Set([
   '.env',
   'tale.json',
+  '.tale',
+  'default',
+  // Legacy / pre-org-first markers (detected during reinit only):
   'providers',
   'agents',
   'workflows',
   'integrations',
   'skills',
-  '.tale',
   'branding',
 ]);
 

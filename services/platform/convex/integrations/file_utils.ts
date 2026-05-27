@@ -19,7 +19,7 @@ export { sha256 };
 
 /**
  * Integration slug: lowercase alphanumeric + hyphens/underscores, flat (no nesting).
- * Must match the directory name under INTEGRATIONS_DIR.
+ * Must match the directory name under `${TALE_CONFIG_DIR}/<orgSlug>/integrations/`.
  */
 const INTEGRATION_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
 
@@ -44,32 +44,25 @@ export function validateIntegrationSlug(slug: string): boolean {
   return INTEGRATION_SLUG_REGEX.test(slug);
 }
 
-function getBaseDir(): string {
-  const dir = process.env.INTEGRATIONS_DIR;
-  if (dir) return dir;
+function getConfigRoot(): string {
   const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return path.join(configDir, 'integrations');
+  if (configDir) return configDir;
   throw new Error(
-    'Neither TALE_CONFIG_DIR nor INTEGRATIONS_DIR environment variable is set. ' +
-      'Set TALE_CONFIG_DIR in .env to the root config directory ' +
+    'TALE_CONFIG_DIR environment variable is not set. ' +
+      'Set it to the root config directory ' +
       '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
   );
 }
 
 /**
- * Resolve the integrations directory for an organization.
- * Default org uses the base dir directly.
- * Other orgs use `{baseDir}/@{orgSlug}/`.
+ * Resolve the integrations directory for an organization. Org-first:
+ * `${TALE_CONFIG_DIR}/<orgSlug>/integrations/`.
  */
 export function resolveIntegrationsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  const baseDir = getBaseDir();
-  if (orgSlug === 'default') {
-    return baseDir;
-  }
-  return path.join(baseDir, `@${orgSlug}`);
+  return path.join(getConfigRoot(), orgSlug, 'integrations');
 }
 
 /**

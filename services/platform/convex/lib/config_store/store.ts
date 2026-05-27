@@ -1,15 +1,18 @@
 'use node';
 
 /**
- * Generic typed read/write helper for area-specific JSON config files
- * under `$TALE_CONFIG_DIR/{area}/{orgSlug}.json`.
+ * Generic typed read/write helper for area-specific JSON config files.
  *
- * The area-agnostic substrate behind retention's per-org files. Wrapping
- * `readJsonFile` + `atomicWrite` so callers don't reinvent path
+ * Two layout shapes are supported, selected via `orgFirst`:
+ *
+ * - `orgFirst: false` (default): `$TALE_CONFIG_DIR/{area}/{orgSlug}.json`.
+ *   The legacy per-area-dir shape; org slugs live in the filename.
+ * - `orgFirst: true`: `$TALE_CONFIG_DIR/{orgSlug}/{area}.json`.
+ *   Used by retention under the uniform org-first layout — each org has
+ *   one file per area, alongside its `agents/`, `providers/`, etc.
+ *
+ * Wraps `readJsonFile` + `atomicWrite` so callers don't reinvent path
  * resolution, symlink/size guards, or atomic-rename semantics.
- *
- * Initially used only by retention; provider/integration migrations are
- * the obvious next consumers. Keep the API minimal.
  *
  * Known limitations (round-2 / M7):
  *   - **Last-writer-wins.** No file-level locking — two concurrent
@@ -27,7 +30,7 @@
  *     wired into a UI flow.
  */
 
-import { readdir } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { z } from 'zod/v4';
@@ -46,29 +49,45 @@ export interface ConfigStore<T> {
   read(orgSlug: string): Promise<T | null>;
   /** Atomic write of the parsed/serialized config to the per-org path. */
   write(orgSlug: string, value: T): Promise<void>;
-  /** Enumerate `*.json` files in the area dir, returning each org slug. */
+  /** Enumerate orgs that have a file for this area. */
   list(): Promise<Array<{ orgSlug: string }>>;
 }
 
-function getAreaDir(area: string): string {
+export interface CreateFileConfigStoreOptions {
+  /**
+   * When true, paths follow the org-first layout:
+   * `$TALE_CONFIG_DIR/<orgSlug>/<area>.json`. List enumerates per-org
+   * directories that contain `<area>.json`. When false (default), paths
+   * follow `$TALE_CONFIG_DIR/<area>/<orgSlug>.json`.
+   */
+  orgFirst?: boolean;
+}
+
+function getConfigRoot(area: string): string {
   const configDir = process.env.TALE_CONFIG_DIR;
   if (!configDir) {
     throw new Error(
       `TALE_CONFIG_DIR environment variable is not set. ` +
         `Set TALE_CONFIG_DIR in .env to the root config directory ` +
-        `(e.g., TALE_CONFIG_DIR=/path/to/tale/examples) so ${area}/ ` +
+        `(e.g., TALE_CONFIG_DIR=/path/to/tale/examples) so ${area} ` +
         `can be resolved.`,
     );
   }
-  return path.join(configDir, area);
+  return configDir;
 }
 
-function resolveFilePath(area: string, orgSlug: string): string {
+function resolveFilePath(
+  area: string,
+  orgSlug: string,
+  orgFirst: boolean,
+): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  const dir = getAreaDir(area);
-  const resolved = path.resolve(dir, `${orgSlug}.json`);
+  const root = getConfigRoot(area);
+  const dir = orgFirst ? path.join(root, orgSlug) : path.join(root, area);
+  const fileName = orgFirst ? `${area}.json` : `${orgSlug}.json`;
+  const resolved = path.resolve(dir, fileName);
   const expectedPrefix = path.resolve(dir);
   if (
     !resolved.startsWith(expectedPrefix + path.sep) &&
@@ -87,7 +106,10 @@ function resolveFilePath(area: string, orgSlug: string): string {
 export function createFileConfigStore<T>(
   area: string,
   schema: z.ZodType<T>,
+  options: CreateFileConfigStoreOptions = {},
 ): ConfigStore<T> {
+  const orgFirst = options.orgFirst ?? false;
+
   const parse = (content: string): T => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON before Zod validation
     const parsed = JSON.parse(content) as unknown;
@@ -100,16 +122,17 @@ export function createFileConfigStore<T>(
 
   return {
     async read(orgSlug) {
-      const filePath = resolveFilePath(area, orgSlug);
+      const filePath = resolveFilePath(area, orgSlug, orgFirst);
       const result = await readJsonFile(filePath, MAX_FILE_SIZE_BYTES, parse);
       if (result.ok) return result.data;
       if (result.error === 'not_found') return null;
-      throw new Error(
-        `Failed to read ${area}/${orgSlug}.json: ${result.message}`,
-      );
+      const display = orgFirst
+        ? `${orgSlug}/${area}.json`
+        : `${area}/${orgSlug}.json`;
+      throw new Error(`Failed to read ${display}: ${result.message}`);
     },
     async write(orgSlug, value) {
-      const filePath = resolveFilePath(area, orgSlug);
+      const filePath = resolveFilePath(area, orgSlug, orgFirst);
       // Re-parse before write to surface schema errors to the caller
       // rather than silently corrupting the file. Cheap relative to fs.
       const parsed = schema.safeParse(value);
@@ -122,12 +145,37 @@ export function createFileConfigStore<T>(
       await atomicWrite(filePath, content);
     },
     async list() {
-      const dir = getAreaDir(area);
+      const root = getConfigRoot(area);
+      if (orgFirst) {
+        // Each org's file lives at `<root>/<orgSlug>/<area>.json`.
+        // Enumerate org subdirs (validated by slug regex) and probe each
+        // for the area file. Missing root → return empty rather than
+        // throwing — operator hasn't seeded anything yet.
+        let entries: string[];
+        try {
+          entries = await readdir(root);
+        } catch (err) {
+          if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+            return [];
+          }
+          throw err;
+        }
+        const results: Array<{ orgSlug: string }> = [];
+        for (const name of entries) {
+          if (!validateOrgSlug(name)) continue;
+          const filePath = path.join(root, name, `${area}.json`);
+          const info = await stat(filePath).catch(() => null);
+          if (info?.isFile()) results.push({ orgSlug: name });
+        }
+        return results;
+      }
+
+      // Legacy per-area-dir layout: list `*.json` files under `<root>/<area>/`.
+      const dir = path.join(root, area);
       let entries: string[];
       try {
         entries = await readdir(dir);
       } catch (err) {
-        // Missing dir is fine — operator hasn't seeded anything yet.
         if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
           return [];
         }

@@ -39,9 +39,11 @@ log_section() { echo; echo "═════════════════�
 # ----------------------------------------------------------------------------
 if [ "$(id -u)" = '0' ]; then
   data_dir="${TALE_CONFIG_DIR:-/app/data}"
-  mkdir -p "$data_dir/convex" "$data_dir/agents" "$data_dir/workflows" \
-           "$data_dir/integrations" "$data_dir/providers" "$data_dir/branding" \
-           "$data_dir/skills"
+  # Org-first layout: per-org subtrees live under `<data_dir>/<orgSlug>/`.
+  # Only create `convex/` (backend storage) and `default/` (the canonical
+  # org seed target) up front; per-domain dirs are created on-demand by
+  # `run_seed` and `scaffoldNewOrganization`.
+  mkdir -p "$data_dir/convex" "$data_dir/default"
   chown -R app:app "$data_dir"
 
   # ----------------------------------------------------------------------------
@@ -268,22 +270,43 @@ if [ -f /etc/yt-dlp-version ]; then
 fi
 
 # ============================================================================
-# Builtin seed (version-marker gated)
+# Builtin seed (version + layout-marker gated) — org-first layout
 # ----------------------------------------------------------------------------
-# Marker: /app/data/.seeded-${TALE_VERSION}
-# - Fresh volume or new version → run 4 seed loops
+# Layout: `<data_dir>/default/<domain>/...` (the canonical default org's
+# subtree); source: `/app/builtin/default/<domain>/...` (org-agnostic
+# template baked into the convex image).
+#
+# Marker: /app/data/.seeded-${TALE_VERSION}-orgfirst
+# - Fresh volume or new version (or pre-orgfirst marker) → run seed loops
 # - Same version restart → skip (already seeded)
-# - FORCE_SEED=true → re-run regardless
+# - FORCE_SEED=true → re-run regardless (overwrites builtin-named files
+#   in place; user-added files at the same dir and `.history/` siblings
+#   survive; encrypted *.secrets.json files are never written)
+#
+# The `-orgfirst` token in the marker name signals the layout transition:
+# an older binary that doesn't recognize this marker re-seeds (idempotently)
+# into its expected old paths on a hypothetical downgrade.
 # ----------------------------------------------------------------------------
-seed_marker="/app/data/.seeded-${TALE_VERSION:-dev}"
+seed_marker="/app/data/.seeded-${TALE_VERSION:-dev}-orgfirst"
 data_dir="/app/data"
 
-run_seed() {
-  log_section "Seeding builtin configs (TALE_VERSION=${TALE_VERSION:-dev})"
+# Atomic file copy: write to a sibling tmp file then rename. A SIGKILL
+# between open(dest, O_TRUNC) and the final write would otherwise leave a
+# truncated file at $dest, which the next-run skip-if-exists check treats
+# as "already seeded" — silent corruption. With atomic_cp the next run
+# either sees the original (rename never happened) or the complete file.
+atomic_cp() {
+  local src="$1" dest="$2"
+  local tmp="${dest}.tale-seed.$$.tmp"
+  cp "$src" "$tmp" && mv -f "$tmp" "$dest"
+}
 
-  # --- Agents ---
-  local agents_dir="${data_dir}/agents"
-  local agents_builtin="/app/builtin/agents"
+run_seed() {
+  log_section "Seeding builtin configs into default org (TALE_VERSION=${TALE_VERSION:-dev})"
+
+  # --- Agents (flat) ---
+  local agents_dir="${data_dir}/default/agents"
+  local agents_builtin="/app/builtin/default/agents"
   mkdir -p "$agents_dir"
   if [ -d "$agents_builtin" ] && [ "$(ls -A "$agents_builtin" 2>/dev/null)" ]; then
     for src in "$agents_builtin"/*.json; do
@@ -293,20 +316,20 @@ run_seed() {
       local dest="$agents_dir/$name"
       local history_dir="$agents_dir/.history/$slug"
       if [ "$FORCE_SEED" = "true" ]; then
-        cp "$src" "$dest"; echo "   ✓ Seeded $name (forced)"
+        atomic_cp "$src" "$dest"; echo "   ✓ Seeded $name (forced)"
       elif [ -f "$dest" ]; then
         echo "   ⏭ Skipping $name (already exists)"
       elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
         echo "   ⏭ Skipping $name (user has modifications in .history)"
       else
-        cp "$src" "$dest"; echo "   ✓ Seeded agent $name"
+        atomic_cp "$src" "$dest"; echo "   ✓ Seeded agent $name"
       fi
     done
   fi
 
-  # --- Workflows (nested paths allowed) ---
-  local workflows_dir="${data_dir}/workflows"
-  local workflows_builtin="/app/builtin/workflows"
+  # --- Workflows (nested folder/name.json) ---
+  local workflows_dir="${data_dir}/default/workflows"
+  local workflows_builtin="/app/builtin/default/workflows"
   mkdir -p "$workflows_dir"
   if [ -d "$workflows_builtin" ] && [ "$(ls -A "$workflows_builtin" 2>/dev/null)" ]; then
     find "$workflows_builtin" -name '*.json' -type f | while read -r src; do
@@ -318,19 +341,19 @@ run_seed() {
       local history_dir="$workflows_dir/.history/$flat_slug"
 
       if [ "$FORCE_SEED" = "true" ]; then
-        mkdir -p "$dest_dir"; cp "$src" "$dest"; echo "   ✓ Seeded workflow $rel_path (forced)"; continue
+        mkdir -p "$dest_dir"; atomic_cp "$src" "$dest"; echo "   ✓ Seeded workflow $rel_path (forced)"; continue
       fi
       if [ -f "$dest" ]; then echo "   ⏭ Skipping workflow $rel_path (already exists)"; continue; fi
       if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
         echo "   ⏭ Skipping workflow $rel_path (user has modifications in .history)"; continue
       fi
-      mkdir -p "$dest_dir"; cp "$src" "$dest"; echo "   ✓ Seeded workflow $rel_path"
+      mkdir -p "$dest_dir"; atomic_cp "$src" "$dest"; echo "   ✓ Seeded workflow $rel_path"
     done
   fi
 
-  # --- Integrations (directory-based) ---
-  local integrations_dir="${data_dir}/integrations"
-  local integrations_builtin="/app/builtin/integrations"
+  # --- Integrations (directory bundles) ---
+  local integrations_dir="${data_dir}/default/integrations"
+  local integrations_builtin="/app/builtin/default/integrations"
   mkdir -p "$integrations_dir"
   if [ -d "$integrations_builtin" ] && [ "$(ls -A "$integrations_builtin" 2>/dev/null)" ]; then
     for src_dir in "$integrations_builtin"/*/; do
@@ -350,8 +373,8 @@ run_seed() {
   fi
 
   # --- Skills (directory bundles: SKILL.md + scripts/ + references/ + assets/) ---
-  local skills_dir="${data_dir}/skills"
-  local skills_builtin="/app/builtin/skills"
+  local skills_dir="${data_dir}/default/skills"
+  local skills_builtin="/app/builtin/default/skills"
   mkdir -p "$skills_dir"
   if [ -d "$skills_builtin" ] && [ "$(ls -A "$skills_builtin" 2>/dev/null)" ]; then
     for src_dir in "$skills_builtin"/*/; do
@@ -370,8 +393,8 @@ run_seed() {
   fi
 
   # --- Providers (skip encrypted .secrets.json) ---
-  local providers_dir="${data_dir}/providers"
-  local providers_builtin="/app/builtin/providers"
+  local providers_dir="${data_dir}/default/providers"
+  local providers_builtin="/app/builtin/default/providers"
   mkdir -p "$providers_dir"
   if [ -d "$providers_builtin" ] && [ "$(ls -A "$providers_builtin" 2>/dev/null)" ]; then
     for src in "$providers_builtin"/*.json; do
@@ -382,41 +405,57 @@ run_seed() {
       local dest="$providers_dir/$name"
       local history_dir="$providers_dir/.history/$slug"
       if [ "$FORCE_SEED" = "true" ]; then
-        cp "$src" "$dest"; echo "   ✓ Seeded provider $name (forced)"
+        atomic_cp "$src" "$dest"; echo "   ✓ Seeded provider $name (forced)"
       elif [ -f "$dest" ]; then
         echo "   ⏭ Skipping provider $name (already exists)"
       elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
         echo "   ⏭ Skipping provider $name (user has modifications in .history)"
       else
-        cp "$src" "$dest"; echo "   ✓ Seeded provider $name"
+        atomic_cp "$src" "$dest"; echo "   ✓ Seeded provider $name"
       fi
     done
   fi
 
-  # --- Retention (per-org JSON files: $TALE_CONFIG_DIR/retention/{slug}.json) ---
-  # Default org's slug is hardcoded to `default`, so default.json fits
-  # the {orgSlug}.json convention. Retention has no secrets to skip
-  # (compare with providers' .secrets.json branch above).
-  local retention_dir="${data_dir}/retention"
-  local retention_builtin="/app/builtin/retention"
-  mkdir -p "$retention_dir"
-  if [ -d "$retention_builtin" ] && [ "$(ls -A "$retention_builtin" 2>/dev/null)" ]; then
-    for src in "$retention_builtin"/*.json; do
-      [ -f "$src" ] || continue
-      local name="$(basename "$src")"
-      local slug="$(basename "$src" .json)"
-      local dest="$retention_dir/$name"
-      local history_dir="$retention_dir/.history/$slug"
-      if [ "$FORCE_SEED" = "true" ]; then
-        cp "$src" "$dest"; echo "   ✓ Seeded retention $name (forced)"
-      elif [ -f "$dest" ]; then
-        echo "   ⏭ Skipping retention $name (already exists)"
-      elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-        echo "   ⏭ Skipping retention $name (user has modifications in .history)"
-      else
-        cp "$src" "$dest"; echo "   ✓ Seeded retention $name"
-      fi
-    done
+  # --- Branding (single file at default/branding/branding.json) ---
+  # Closes a long-standing gap: previously branding was only seeded by the
+  # Convex scaffold action for new orgs, never on the default-org bootstrap
+  # path. With org-first the default org needs the same treatment as any
+  # other org for consistency (uniform model).
+  local branding_dir="${data_dir}/default/branding"
+  local branding_src="/app/builtin/default/branding/branding.json"
+  mkdir -p "$branding_dir"
+  if [ -f "$branding_src" ]; then
+    local dest="$branding_dir/branding.json"
+    local history_dir="$branding_dir/.history/branding"
+    if [ "$FORCE_SEED" = "true" ]; then
+      atomic_cp "$branding_src" "$dest"; echo "   ✓ Seeded branding (forced)"
+    elif [ -f "$dest" ]; then
+      echo "   ⏭ Skipping branding (already exists)"
+    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping branding (user has modifications in .history)"
+    else
+      atomic_cp "$branding_src" "$dest"; echo "   ✓ Seeded branding"
+    fi
+  fi
+
+  # --- Retention (single file at default/retention.json) ---
+  # Retention is one JSON object per org under the uniform org-first layout
+  # (`$TALE_CONFIG_DIR/<orgSlug>/retention.json`). The catalog ships only
+  # the default org's retention config; non-default orgs are seeded by the
+  # Convex scaffold action.
+  local retention_src="/app/builtin/default/retention.json"
+  if [ -f "$retention_src" ]; then
+    local dest="${data_dir}/default/retention.json"
+    local history_dir="${data_dir}/default/.history/retention"
+    if [ "$FORCE_SEED" = "true" ]; then
+      atomic_cp "$retention_src" "$dest"; echo "   ✓ Seeded retention (forced)"
+    elif [ -f "$dest" ]; then
+      echo "   ⏭ Skipping retention (already exists)"
+    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping retention (user has modifications in .history)"
+    else
+      atomic_cp "$retention_src" "$dest"; echo "   ✓ Seeded retention"
+    fi
   fi
 
   touch "$seed_marker"

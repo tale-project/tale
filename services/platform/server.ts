@@ -83,8 +83,11 @@ const port = process.env.PORT || 3000;
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const distDir = join(moduleDir, 'dist');
 const distSeoDir = join(moduleDir, 'dist-seo');
+// Branding is default-only on the read side (see branding/file_actions.ts —
+// every reader passes the literal 'default'). On-disk location follows the
+// uniform org-first layout: `${TALE_CONFIG_DIR}/default/branding/images/`.
 const brandingImagesDir = process.env.TALE_CONFIG_DIR
-  ? join(process.env.TALE_CONFIG_DIR, 'branding', 'images')
+  ? join(process.env.TALE_CONFIG_DIR, 'default', 'branding', 'images')
   : null;
 
 // Lazily loaded once per process. The manifest is read on the first

@@ -3,9 +3,13 @@
 /**
  * Branding file I/O actions.
  *
- * Branding is global (not org-scoped). A single branding.json file
- * at {TALE_CONFIG_DIR}/branding/branding.json applies to the entire platform.
- * Images (logo, favicons) are stored on disk at {TALE_CONFIG_DIR}/branding/images/.
+ * Branding is global (not org-scoped). A single branding.json file at
+ * {TALE_CONFIG_DIR}/default/branding/branding.json applies to the entire
+ * platform. Images (logo, favicons) are stored on disk at
+ * {TALE_CONFIG_DIR}/default/branding/images/. Although on-disk files live
+ * under the `default` org subtree like every other domain, the read-side
+ * here hardcodes `'default'` — non-default orgs do not have separate
+ * branding today.
  *
  * Uses atomic writes (temp → fsync → rename) for data safety.
  * History snapshots use epoch-ms filenames with 10-entry retention.

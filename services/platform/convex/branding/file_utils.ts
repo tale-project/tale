@@ -36,25 +36,27 @@ export type BrandingReadResult =
       message: string;
     };
 
-function getBaseDir(): string {
+function getConfigRoot(): string {
   const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return path.join(configDir, 'branding');
+  if (configDir) return configDir;
   throw new Error(
     'TALE_CONFIG_DIR environment variable is not set. ' +
-      'Set TALE_CONFIG_DIR in .env to the root config directory ' +
+      'Set it to the root config directory ' +
       '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
   );
 }
 
+/**
+ * Resolve the branding directory for an organization. Org-first:
+ * `${TALE_CONFIG_DIR}/<orgSlug>/branding/`. Read-side currently hardcodes
+ * `'default'` (see branding/file_actions.ts call sites), so non-default
+ * org branding dirs are scaffolded but unread.
+ */
 export function resolveBrandingDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  const baseDir = getBaseDir();
-  if (orgSlug === 'default') {
-    return baseDir;
-  }
-  return path.join(baseDir, orgSlug);
+  return path.join(getConfigRoot(), orgSlug, 'branding');
 }
 
 export function resolveBrandingFilePath(orgSlug: string): string {

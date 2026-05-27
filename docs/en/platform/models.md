@@ -3,9 +3,9 @@ title: Models out of the box
 description: Which providers and models a fresh Tale instance ships with — OpenRouter for chat and vision, OpenAI for voice, Vercel AI Gateway for image generation.
 ---
 
-A fresh Tale instance ships with three providers configured: OpenRouter for chat, vision, and embeddings; OpenAI for speech-to-text and text-to-speech; Vercel AI Gateway for image generation. The default agents in `examples/agents/` reach for models in one of those three buckets, and most teams stay on the defaults for weeks before swapping anything. This page lists what is shipped and links to each provider's full catalogue.
+A fresh Tale instance ships with three providers configured: OpenRouter for chat, vision, and embeddings; OpenAI for speech-to-text and text-to-speech; Vercel AI Gateway for image generation. The default agents in `examples/default/agents/` reach for models in one of those three buckets, and most teams stay on the defaults for weeks before swapping anything. This page lists what is shipped and links to each provider's full catalogue.
 
-Models drift faster than docs. The lists below are correct at the time `examples/providers/*.json` was written; the canonical truth is the JSON files, and the canonical "what is reachable today" is what the **Settings > Providers** page shows on your instance.
+Models drift faster than docs. The lists below are correct at the time `examples/default/providers/*.json` was written; the canonical truth is the JSON files, and the canonical "what is reachable today" is what the **Settings > Providers** page shows on your instance.
 
 ## The three providers
 

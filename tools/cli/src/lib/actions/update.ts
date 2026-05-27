@@ -21,8 +21,6 @@ import { readProject } from '../project/read-project';
 import type { Checksums } from '../project/types';
 import { writeProject } from '../project/write-project';
 import { generateAllRules } from '../rules/generators';
-import { MIGRATIONS } from '../upgrade/registry';
-import { planPendingMigrations } from '../upgrade/runner';
 
 interface UpdateOptions {
   force?: boolean;
@@ -206,21 +204,6 @@ export async function update(options: UpdateOptions): Promise<void> {
     );
   }
 
-  // Plan (but do NOT apply) any pending migrations so operators know what
-  // `tale start` / `tale deploy` will prompt them about next. Never stops
-  // containers or modifies Docker state from within `tale upgrade` itself —
-  // production deployments remain untouched.
-  if (!options.dryRun) {
-    const projectId = assignedId ?? project.id;
-    if (projectId) {
-      logger.blank();
-      const pending = await planPendingMigrations(MIGRATIONS, {
-        projectId,
-        projectDir,
-      });
-      if (pending.length === 0) {
-        logger.debug('No pending migrations.');
-      }
-    }
-  }
+  // (Auto-migration planning removed — `tale migrate config-layout` is the
+  // only opt-in, manually-run migration now; operators invoke it directly.)
 }

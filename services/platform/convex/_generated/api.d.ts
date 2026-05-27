@@ -636,6 +636,7 @@ import type * as organizations_helpers from "../organizations/helpers.js";
 import type * as organizations_internal_queries from "../organizations/internal_queries.js";
 import type * as organizations_queries from "../organizations/queries.js";
 import type * as organizations_record_org_switch from "../organizations/record_org_switch.js";
+import type * as organizations_reseed_all_orgs from "../organizations/reseed_all_orgs.js";
 import type * as organizations_resolve_org_slug from "../organizations/resolve_org_slug.js";
 import type * as organizations_scaffold from "../organizations/scaffold.js";
 import type * as organizations_update_organization from "../organizations/update_organization.js";
@@ -1732,6 +1733,7 @@ declare const fullApi: ApiFromModules<{
   "organizations/internal_queries": typeof organizations_internal_queries;
   "organizations/queries": typeof organizations_queries;
   "organizations/record_org_switch": typeof organizations_record_org_switch;
+  "organizations/reseed_all_orgs": typeof organizations_reseed_all_orgs;
   "organizations/resolve_org_slug": typeof organizations_resolve_org_slug;
   "organizations/scaffold": typeof organizations_scaffold;
   "organizations/update_organization": typeof organizations_update_organization;

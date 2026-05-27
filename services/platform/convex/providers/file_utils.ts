@@ -92,22 +92,16 @@ export function parseProviderSecrets(
   return result.data;
 }
 
-function getBaseDir(): string {
-  const dir = process.env.PROVIDERS_DIR;
-  if (dir) return dir;
+function getConfigRoot(): string {
   const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return path.join(configDir, 'providers');
-  throw new Error(
-    'Neither TALE_CONFIG_DIR nor PROVIDERS_DIR environment variable is set.',
-  );
+  if (configDir) return configDir;
+  throw new Error('TALE_CONFIG_DIR environment variable is not set.');
 }
 
 export function resolveProvidersDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug))
     throw new Error(`Invalid org slug: ${orgSlug}`);
-  const baseDir = getBaseDir();
-  if (orgSlug === 'default') return baseDir;
-  return path.join(baseDir, orgSlug);
+  return path.join(getConfigRoot(), orgSlug, 'providers');
 }
 
 export function resolveProviderFilePath(

@@ -3,9 +3,9 @@ title: Modelle out of the box
 description: Welche Provider und Modelle eine frische Tale-Instanz mitbringt — OpenRouter für Chat und Vision, OpenAI für Sprache, Vercel AI Gateway für Bildgenerierung.
 ---
 
-Eine frische Tale-Instanz bringt drei konfigurierte Provider mit: OpenRouter für Chat, Vision und Embeddings; OpenAI für Speech-to-Text und Text-to-Speech; Vercel AI Gateway für Bildgenerierung. Die Default-Agents in `examples/agents/` greifen auf Modelle in einem dieser drei Buckets zu, und die meisten Teams bleiben wochenlang bei den Defaults, bevor sie etwas tauschen. Diese Seite listet, was ausgeliefert wird, und verlinkt auf den vollen Katalog jedes Providers.
+Eine frische Tale-Instanz bringt drei konfigurierte Provider mit: OpenRouter für Chat, Vision und Embeddings; OpenAI für Speech-to-Text und Text-to-Speech; Vercel AI Gateway für Bildgenerierung. Die Default-Agents in `examples/default/agents/` greifen auf Modelle in einem dieser drei Buckets zu, und die meisten Teams bleiben wochenlang bei den Defaults, bevor sie etwas tauschen. Diese Seite listet, was ausgeliefert wird, und verlinkt auf den vollen Katalog jedes Providers.
 
-Modelle driften schneller als Docs. Die Listen unten stimmen zum Zeitpunkt, an dem `examples/providers/*.json` geschrieben wurde; die kanonische Wahrheit sind die JSON-Dateien, und das kanonische „was heute erreichbar ist" zeigt die Seite **Einstellungen > Provider** auf deiner Instanz.
+Modelle driften schneller als Docs. Die Listen unten stimmen zum Zeitpunkt, an dem `examples/default/providers/*.json` geschrieben wurde; die kanonische Wahrheit sind die JSON-Dateien, und das kanonische „was heute erreichbar ist" zeigt die Seite **Einstellungen > Provider** auf deiner Instanz.
 
 ## Die drei Provider
 

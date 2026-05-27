@@ -477,7 +477,7 @@ export const listSkills = action({
     const dir = resolveSkillsDir(orgSlug);
     const entries = await readdirSafe(dir);
     const slugs = entries.filter(
-      (e) => !e.startsWith('.') && !e.startsWith('@') && validateSkillSlug(e),
+      (e) => !e.startsWith('.') && validateSkillSlug(e),
     );
 
     const results = await Promise.all(
@@ -992,9 +992,7 @@ export const listSkillsForExecution = internalAction({
   handler: async (_ctx, args) => {
     const dir = resolveSkillsDir(args.orgSlug);
     const entries = await readdirSafe(dir);
-    return entries.filter(
-      (e) => !e.startsWith('.') && !e.startsWith('@') && validateSkillSlug(e),
-    );
+    return entries.filter((e) => !e.startsWith('.') && validateSkillSlug(e));
   },
 });
 

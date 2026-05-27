@@ -49,7 +49,7 @@ L'operation apparaît sur les agents comme une famille de tools dès que l'org b
 | Serveur MCP    | Le pont doit être un processus de longue durée — fichiers locaux, une CLI à toi, un système inatteignable depuis le réseau de Tale.  |
 | Connecteur TS  | Le manifeste REST couvre 80 % de l'API mais une operation a besoin d'une mise en forme que le manifeste ne sait pas déclarer.        |
 
-Les intégrations livrées sous [Platform > Intégrations](/fr/platform/integrations/overview) sont le catalogue des manifestes REST que Tale livre — lis leurs configs dans `examples/integrations/` pour les motifs que tu copieras.
+Les intégrations livrées sous [Platform > Intégrations](/fr/platform/integrations/overview) sont le catalogue des manifestes REST que Tale livre — lis leurs configs dans `examples/default/integrations/` pour les motifs que tu copieras.
 
 ## Adaptateurs SQL
 

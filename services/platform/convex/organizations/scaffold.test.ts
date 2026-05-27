@@ -20,17 +20,24 @@ vi.mock('../_generated/server', () => ({
   internalAction: vi.fn((config) => config),
 }));
 
-const { scaffoldNewOrganization } = await import('./scaffold');
+const { scaffoldNewOrganization, cleanupOrgFilesystem } =
+  await import('./scaffold');
 
 type ActionConfig = {
-  handler: (ctx: never, args: { orgSlug: string }) => Promise<unknown>;
+  handler: (
+    ctx: never,
+    args: { orgSlug: string; override?: boolean },
+  ) => Promise<unknown>;
 };
 const scaffoldHandler = (scaffoldNewOrganization as unknown as ActionConfig)
   .handler;
+const cleanupHandler = (cleanupOrgFilesystem as unknown as ActionConfig)
+  .handler;
 
-// All env vars the scaffold code path or the per-domain resolvers consult.
-// Save + clear them in beforeEach so each test starts from a known-empty
-// state, then restore in afterEach so we don't poison other test files.
+// Under org-first only TALE_CONFIG_DIR + TALE_CONFIG_BUILTIN_DIR remain;
+// per-domain env overrides (AGENTS_DIR / WORKFLOWS_DIR / PROVIDERS_DIR /
+// INTEGRATIONS_DIR / SKILLS_DIR) were dropped. Still save/restore the
+// legacy keys defensively so a stale shell-env value can't leak across.
 const ENV_KEYS = [
   'TALE_CONFIG_DIR',
   'TALE_CONFIG_BUILTIN_DIR',
@@ -72,227 +79,144 @@ async function writeText(filePath: string, content: string): Promise<void> {
   await writeFile(filePath, content, 'utf-8');
 }
 
-describe('scaffoldNewOrganization', () => {
-  it('seeds workflows from the catalog and ignores the default org workspace', async () => {
-    // Catalog: a shipped template under workflows/shopify/sync.json.
+// Catalog source path for a given domain — mirrors the org-first builtin
+// layout (`<catalogRoot>/default/<domain>/...`) the scaffold reads from.
+function catSrc(...parts: string[]): string {
+  return path.join(catalogRoot, 'default', ...parts);
+}
+
+// Per-org target path — `<configRoot>/<orgSlug>/<domain>/...`.
+function orgDst(orgSlug: string, ...parts: string[]): string {
+  return path.join(configRoot, orgSlug, ...parts);
+}
+
+describe('scaffoldNewOrganization (org-first)', () => {
+  it('seeds workflows from the catalog into the org-first target', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
     await writeText(
-      path.join(catalogRoot, 'workflows', 'shopify', 'sync.json'),
+      catSrc('workflows', 'shopify', 'sync.json'),
       '{"name":"sync"}',
     );
 
-    // Default-org workspace: a junk workflow that must NOT propagate.
-    await writeText(
-      path.join(configRoot, 'workflows', 'junk.json'),
-      '{"name":"junk"}',
-    );
+    await scaffoldHandler({} as never, { orgSlug: 'acme' });
+
+    expect(
+      existsSync(orgDst('acme', 'workflows', 'shopify', 'sync.json')),
+    ).toBe(true);
+  });
+
+  it('seeds flat domains (agents) per-file from the catalog', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(catSrc('agents', 'shipped.json'), '{"displayName":"x"}');
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    const acmeDir = path.join(configRoot, 'workflows', '@acme');
-    expect(existsSync(path.join(acmeDir, 'shopify', 'sync.json'))).toBe(true);
-    expect(existsSync(path.join(acmeDir, 'junk.json'))).toBe(false);
+    expect(existsSync(orgDst('acme', 'agents', 'shipped.json'))).toBe(true);
   });
 
-  it('closes the agents cross-tenant leak: raw-slug subdirs in the source are not copied', async () => {
-    // Agents catalog contains only the shipped template.
+  it('flat domains never recurse into catalog subdirs (defense if the catalog ever ships one)', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(
-      path.join(catalogRoot, 'agents', 'shipped.json'),
-      '{"displayName":"shipped"}',
-    );
-
-    // Default-org workspace contains another tenant's raw-slug subdir.
-    // Pre-fix scaffolding (which sourced from this dir) would recursively
-    // copy `competitor/` into the new org because the @-skip in copyTree
-    // doesn't catch raw slugs. Sourcing from the catalog instead must
-    // not see this at all.
-    await writeText(
-      path.join(configRoot, 'agents', 'competitor', 'secret.json'),
-      '{"displayName":"leak"}',
-    );
-
-    await scaffoldHandler({} as never, { orgSlug: 'acme' });
-
-    const acmeDir = path.join(configRoot, 'agents', 'acme');
-    expect(existsSync(path.join(acmeDir, 'shipped.json'))).toBe(true);
-    expect(existsSync(path.join(acmeDir, 'competitor'))).toBe(false);
-    expect(existsSync(path.join(acmeDir, 'competitor', 'secret.json'))).toBe(
-      false,
-    );
-  });
-
-  it('flat domains (agents/providers) never recurse into catalog subdirs', async () => {
-    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(
-      path.join(catalogRoot, 'agents', 'shipped.json'),
-      '{"displayName":"shipped"}',
-    );
+    await writeText(catSrc('agents', 'shipped.json'), '{"displayName":"x"}');
     // A subdir inside the agents catalog is unexpected (agents is file-only).
-    // The flat-domain guard must skip it rather than recurse.
     await writeText(
-      path.join(catalogRoot, 'agents', 'stray', 'nested.json'),
+      catSrc('agents', 'stray', 'nested.json'),
       '{"displayName":"nested"}',
     );
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    const acmeDir = path.join(configRoot, 'agents', 'acme');
-    expect(existsSync(path.join(acmeDir, 'shipped.json'))).toBe(true);
-    expect(existsSync(path.join(acmeDir, 'stray'))).toBe(false);
+    expect(existsSync(orgDst('acme', 'agents', 'shipped.json'))).toBe(true);
+    expect(existsSync(orgDst('acme', 'agents', 'stray'))).toBe(false);
   });
 
-  it('flat-domain guard closes the agents leak on the dev fallback path (env unset)', async () => {
-    // No catalog env → source is the default-org workspace. A previously
-    // created org left a raw-slug subdir there; scaffolding a new org must
-    // not recurse into it. Here the flat-domain guard — not the source
-    // choice — is what prevents the cross-tenant copy.
-    await writeText(
-      path.join(configRoot, 'agents', 'shipped.json'),
-      '{"displayName":"shipped"}',
-    );
-    await writeText(
-      path.join(configRoot, 'agents', 'competitor', 'secret.json'),
-      '{"displayName":"leak"}',
-    );
-
-    await scaffoldHandler({} as never, { orgSlug: 'acme' });
-
-    const acmeDir = path.join(configRoot, 'agents', 'acme');
-    expect(existsSync(path.join(acmeDir, 'shipped.json'))).toBe(true);
-    expect(existsSync(path.join(acmeDir, 'competitor'))).toBe(false);
-  });
-
-  it('skips symlinks rather than following them', async () => {
+  it('skips symlinks in the catalog rather than following them', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    const targetPayload = await mkdtemp(path.join(tmpdir(), 'scaffold-evil-'));
-    const targetFile = path.join(targetPayload, 'payload.json');
-    await writeFile(targetFile, '{"name":"escaped"}', 'utf-8');
+    const evilPayloadDir = await mkdtemp(path.join(tmpdir(), 'scaffold-evil-'));
+    const evilFile = path.join(evilPayloadDir, 'payload.json');
+    await writeFile(evilFile, '{"name":"escaped"}', 'utf-8');
 
-    await mkdir(path.join(catalogRoot, 'workflows'), { recursive: true });
-    await symlink(targetFile, path.join(catalogRoot, 'workflows', 'evil.json'));
-    // Also drop a real file beside it so we know the copy loop kept running.
-    await writeText(
-      path.join(catalogRoot, 'workflows', 'legit.json'),
-      '{"name":"legit"}',
-    );
+    await mkdir(catSrc('workflows'), { recursive: true });
+    await symlink(evilFile, path.join(catSrc('workflows'), 'evil.json'));
+    await writeText(catSrc('workflows', 'legit.json'), '{"name":"legit"}');
 
     try {
       await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-      const acmeDir = path.join(configRoot, 'workflows', '@acme');
-      expect(existsSync(path.join(acmeDir, 'evil.json'))).toBe(false);
-      expect(existsSync(path.join(acmeDir, 'legit.json'))).toBe(true);
+      expect(existsSync(orgDst('acme', 'workflows', 'evil.json'))).toBe(false);
+      expect(existsSync(orgDst('acme', 'workflows', 'legit.json'))).toBe(true);
     } finally {
-      await rm(targetPayload, { recursive: true, force: true });
+      await rm(evilPayloadDir, { recursive: true, force: true });
     }
   });
 
-  it('falls back to domain.resolve(default) when the catalog env is unset (dev)', async () => {
-    // No TALE_CONFIG_BUILTIN_DIR set. Default-org workspace becomes the
-    // catalog — historical behavior, preserved for local dev.
-    await writeText(
-      path.join(configRoot, 'workflows', 'shopify', 'sync.json'),
-      '{"name":"sync"}',
-    );
-
-    await scaffoldHandler({} as never, { orgSlug: 'acme' });
-
-    const acmeDir = path.join(configRoot, 'workflows', '@acme');
-    expect(existsSync(path.join(acmeDir, 'shopify', 'sync.json'))).toBe(true);
-  });
-
-  it('still applies the @-prefix, .history, and *.secrets.json skips when copying', async () => {
+  it('always skips *.secrets.json and .history/ at the catalog source', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(catSrc('providers', 'openai.json'), '{"name":"openai"}');
     await writeText(
-      path.join(catalogRoot, 'providers', 'openai.json'),
-      '{"name":"openai"}',
-    );
-    await writeText(
-      path.join(catalogRoot, 'providers', 'openai.secrets.json'),
+      catSrc('providers', 'openai.secrets.json'),
       '{"key":"redacted"}',
     );
-    await writeText(
-      path.join(catalogRoot, 'providers', '.history', 'snapshot.json'),
-      '{}',
-    );
-    await writeText(
-      path.join(catalogRoot, 'providers', '@stale-tenant', 'leak.json'),
-      '{}',
-    );
+    await writeText(catSrc('providers', '.history', 'snapshot.json'), '{}');
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    const acmeDir = path.join(configRoot, 'providers', 'acme');
-    expect(existsSync(path.join(acmeDir, 'openai.json'))).toBe(true);
-    expect(existsSync(path.join(acmeDir, 'openai.secrets.json'))).toBe(false);
-    expect(existsSync(path.join(acmeDir, '.history'))).toBe(false);
-    expect(existsSync(path.join(acmeDir, '@stale-tenant'))).toBe(false);
+    expect(existsSync(orgDst('acme', 'providers', 'openai.json'))).toBe(true);
+    expect(existsSync(orgDst('acme', 'providers', 'openai.secrets.json'))).toBe(
+      false,
+    );
+    expect(existsSync(orgDst('acme', 'providers', '.history'))).toBe(false);
   });
 
-  it('is per-domain idempotent: a domain dir that already has files is skipped', async () => {
+  it('is per-domain idempotent: a domain dir that already has files is skipped (override:false)', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(catSrc('workflows', 'shipped.json'), '{"name":"shipped"}');
+    // Pre-existing org content — scaffold must not overwrite without override.
     await writeText(
-      path.join(catalogRoot, 'workflows', 'shipped.json'),
-      '{"name":"shipped"}',
+      orgDst('acme', 'workflows', 'existing.json'),
+      '{"name":"existing"}',
     );
-    // Pre-existing org content — scaffold must not overwrite.
-    const acmeDir = path.join(configRoot, 'workflows', '@acme');
-    await writeText(path.join(acmeDir, 'existing.json'), '{"name":"existing"}');
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    expect(await readFile(path.join(acmeDir, 'existing.json'), 'utf-8')).toBe(
-      '{"name":"existing"}',
-    );
-    expect(existsSync(path.join(acmeDir, 'shipped.json'))).toBe(false);
+    expect(
+      await readFile(orgDst('acme', 'workflows', 'existing.json'), 'utf-8'),
+    ).toBe('{"name":"existing"}');
+    expect(existsSync(orgDst('acme', 'workflows', 'shipped.json'))).toBe(false);
   });
 
   it('treats a target containing only .history/ as occupied (no re-seed on top of user edit trail)', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(catSrc('workflows', 'shipped.json'), '{"name":"shipped"}');
     await writeText(
-      path.join(catalogRoot, 'workflows', 'shipped.json'),
-      '{"name":"shipped"}',
-    );
-    // Realistic state: user created the org, edited a workflow (writing
-    // `.history/<slug>/<rev>.json`), then deleted the visible workflow.
-    // Re-scaffolding (e.g., via the backfill migration) must NOT silently
-    // re-seed the catalog on top of the surviving edit trail.
-    const acmeDir = path.join(configRoot, 'workflows', '@acme');
-    await writeText(
-      path.join(acmeDir, '.history', 'old.json'),
+      orgDst('acme', 'workflows', '.history', 'old.json'),
       '{"snapshot":1}',
     );
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    expect(existsSync(path.join(acmeDir, 'shipped.json'))).toBe(false);
-    expect(existsSync(path.join(acmeDir, '.history', 'old.json'))).toBe(true);
+    expect(existsSync(orgDst('acme', 'workflows', 'shipped.json'))).toBe(false);
+    expect(
+      existsSync(orgDst('acme', 'workflows', '.history', 'old.json')),
+    ).toBe(true);
   });
 
   it('ignores atomicWrite tmp orphans so a crashed scaffold can retry', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(
-      path.join(catalogRoot, 'workflows', 'shipped.json'),
-      '{"name":"shipped"}',
-    );
+    await writeText(catSrc('workflows', 'shipped.json'), '{"name":"shipped"}');
     // Simulate the residue a prior crashed scaffold would leave behind:
     // atomicWrite uses `.<basename>.<ts>.<uuid>.tmp` and cleans up on
     // success, but a crash mid-write leaves the tmp orphan in place.
-    const acmeDir = path.join(configRoot, 'workflows', '@acme');
     await writeText(
-      path.join(acmeDir, '.shipped.json.1700000000000.deadbeef.tmp'),
+      orgDst('acme', 'workflows', '.shipped.json.1700000000000.deadbeef.tmp'),
       'partial',
     );
 
     await scaffoldHandler({} as never, { orgSlug: 'acme' });
 
-    expect(existsSync(path.join(acmeDir, 'shipped.json'))).toBe(true);
+    expect(existsSync(orgDst('acme', 'workflows', 'shipped.json'))).toBe(true);
   });
 
   it('logs error when TALE_CONFIG_BUILTIN_DIR points at a missing path (deploy misconfig)', async () => {
-    // Builtin root configured but the directory doesn't exist on disk —
-    // simulates platform/convex image version skew or a missing volume mount.
     process.env.TALE_CONFIG_BUILTIN_DIR = path.join(catalogRoot, 'missing');
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -307,25 +231,212 @@ describe('scaffoldNewOrganization', () => {
             m.includes('does not exist'),
         ),
       ).toBe(true);
-      // Target should remain empty — no silent fallback to default-org dir.
-      expect(existsSync(path.join(configRoot, 'workflows', '@acme'))).toBe(
-        false,
-      );
+      expect(existsSync(orgDst('acme', 'workflows'))).toBe(false);
     } finally {
       errSpy.mockRestore();
     }
   });
 
-  it('returns null without scaffolding the default org', async () => {
+  it('default org IS scaffold-able under org-first (no longer early-returned)', async () => {
     process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
-    await writeText(path.join(catalogRoot, 'workflows', 'shipped.json'), '{}');
+    await writeText(catSrc('agents', 'shipped.json'), '{"displayName":"x"}');
 
-    const result = await scaffoldHandler({} as never, { orgSlug: 'default' });
+    await scaffoldHandler({} as never, { orgSlug: 'default' });
 
-    expect(result).toBeNull();
-    // Default org's workspace must not have been touched by scaffold.
-    expect(existsSync(path.join(configRoot, 'workflows', 'shipped.json'))).toBe(
-      false,
+    expect(existsSync(orgDst('default', 'agents', 'shipped.json'))).toBe(true);
+  });
+
+  it('override:true overwrites flat-domain files while preserving secrets and .history', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(catSrc('agents', 'shipped.json'), '{"displayName":"new"}');
+
+    // Pre-existing org state: user-edited shipped, user-added file, secret, history.
+    await writeText(
+      orgDst('acme', 'agents', 'shipped.json'),
+      '{"displayName":"user-edited"}',
     );
+    await writeText(
+      orgDst('acme', 'agents', 'user-added.json'),
+      '{"displayName":"keep me"}',
+    );
+    await writeText(
+      orgDst('acme', 'agents', 'openai.secrets.json'),
+      '{"key":"keep-me-too"}',
+    );
+    await writeText(
+      orgDst('acme', 'agents', '.history', 'shipped', '1.json'),
+      '{"rev":1}',
+    );
+
+    await scaffoldHandler({} as never, { orgSlug: 'acme', override: true });
+
+    // Catalog file overwritten.
+    expect(
+      await readFile(orgDst('acme', 'agents', 'shipped.json'), 'utf-8'),
+    ).toBe('{"displayName":"new"}');
+    // User-added file survived.
+    expect(existsSync(orgDst('acme', 'agents', 'user-added.json'))).toBe(true);
+    // Secret + history survived.
+    expect(
+      await readFile(orgDst('acme', 'agents', 'openai.secrets.json'), 'utf-8'),
+    ).toBe('{"key":"keep-me-too"}');
+    expect(
+      existsSync(orgDst('acme', 'agents', '.history', 'shipped', '1.json')),
+    ).toBe(true);
+  });
+
+  it('override:true for dir-bundle domains (skills) rm-replaces the bundle but preserves dir-level secrets/.history', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(catSrc('skills', 'code-reviewer', 'SKILL.md'), 'new');
+
+    // Pre-existing bundle: user-edited SKILL.md + a user-added file inside
+    // the bundle (gets wiped); domain-level .history + secrets survive.
+    await writeText(
+      orgDst('acme', 'skills', 'code-reviewer', 'SKILL.md'),
+      'user-edited',
+    );
+    await writeText(
+      orgDst('acme', 'skills', 'code-reviewer', 'user-extra.txt'),
+      'gone after override',
+    );
+    await writeText(
+      orgDst('acme', 'skills', '.history', 'code-reviewer', '1.md'),
+      'old rev',
+    );
+
+    await scaffoldHandler({} as never, { orgSlug: 'acme', override: true });
+
+    expect(
+      await readFile(
+        orgDst('acme', 'skills', 'code-reviewer', 'SKILL.md'),
+        'utf-8',
+      ),
+    ).toBe('new');
+    expect(
+      existsSync(orgDst('acme', 'skills', 'code-reviewer', 'user-extra.txt')),
+    ).toBe(false);
+    expect(
+      existsSync(orgDst('acme', 'skills', '.history', 'code-reviewer', '1.md')),
+    ).toBe(true);
+  });
+
+  it('override:true for workflows preserves user-only folders', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(
+      catSrc('workflows', 'shopify', 'sync.json'),
+      '{"name":"new"}',
+    );
+
+    await writeText(
+      orgDst('acme', 'workflows', 'shopify', 'sync.json'),
+      '{"name":"old"}',
+    );
+    await writeText(
+      orgDst('acme', 'workflows', 'my-folder', 'custom.json'),
+      '{"name":"custom"}',
+    );
+
+    await scaffoldHandler({} as never, { orgSlug: 'acme', override: true });
+
+    expect(
+      await readFile(
+        orgDst('acme', 'workflows', 'shopify', 'sync.json'),
+        'utf-8',
+      ),
+    ).toBe('{"name":"new"}');
+    expect(
+      existsSync(orgDst('acme', 'workflows', 'my-folder', 'custom.json')),
+    ).toBe(true);
+  });
+
+  it('seeds retention as a single file at <org>/retention.json', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(
+      catSrc('retention.json'),
+      '{"version":"v1","categories":{}}',
+    );
+
+    await scaffoldHandler({} as never, { orgSlug: 'acme' });
+
+    expect(existsSync(orgDst('acme', 'retention.json'))).toBe(true);
+    expect(await readFile(orgDst('acme', 'retention.json'), 'utf-8')).toBe(
+      '{"version":"v1","categories":{}}',
+    );
+  });
+
+  it('copy-onto-self guard fires for default-org reseed in dev fallback (catalog env unset)', async () => {
+    // No TALE_CONFIG_BUILTIN_DIR → fallback source = domain.resolve('default')
+    // = `<root>/default/<domain>`, which is the same dir as the reseed
+    // target. realpath-based guard must catch this even though path strings
+    // are syntactically identical.
+    await writeText(
+      orgDst('default', 'workflows', 'shopify', 'sync.json'),
+      '{"name":"existing"}',
+    );
+
+    // Should be a no-op (skip with warn), not a destructive copy-onto-self.
+    await scaffoldHandler({} as never, {
+      orgSlug: 'default',
+      override: true,
+    });
+
+    expect(
+      await readFile(
+        orgDst('default', 'workflows', 'shopify', 'sync.json'),
+        'utf-8',
+      ),
+    ).toBe('{"name":"existing"}');
+  });
+});
+
+describe('cleanupOrgFilesystem (symlink + traversal defense)', () => {
+  it('refuses the literal `default` slug', async () => {
+    await writeText(orgDst('default', 'agents', 'x.json'), '{}');
+    await cleanupHandler({} as never, { orgSlug: 'default' });
+    expect(existsSync(orgDst('default', 'agents', 'x.json'))).toBe(true);
+  });
+
+  it('removes the entire <org>/ subtree for a valid non-default slug', async () => {
+    await writeText(orgDst('acme', 'agents', 'x.json'), '{}');
+    await writeText(orgDst('acme', 'providers', 'p.json'), '{}');
+    await writeText(orgDst('other', 'agents', 'keep.json'), '{}');
+
+    await cleanupHandler({} as never, { orgSlug: 'acme' });
+
+    expect(existsSync(orgDst('acme'))).toBe(false);
+    expect(existsSync(orgDst('other', 'agents', 'keep.json'))).toBe(true);
+  });
+
+  it('ENOENT on the org dir is idempotent (no throw)', async () => {
+    // Org dir doesn't exist; cleanup should silently succeed.
+    await expect(
+      cleanupHandler({} as never, { orgSlug: 'never-existed' }),
+    ).resolves.toBeNull();
+  });
+
+  it('refuses invalid org slugs (would have already failed at validateOrgSlug too)', async () => {
+    // Slugs that don't match ORG_SLUG_REGEX. cleanup must warn-and-skip.
+    await cleanupHandler({} as never, { orgSlug: '../escape' });
+    await cleanupHandler({} as never, { orgSlug: 'UPPER' });
+    // No assertion needed on filesystem — we're verifying no throw.
+  });
+
+  it('refuses a symlinked org dir (would otherwise rm the symlink target)', async () => {
+    // Create a directory outside configRoot, then place a symlink at
+    // configRoot/acme pointing to it. cleanup must lstat → detect symlink → refuse.
+    const outside = await mkdtemp(path.join(tmpdir(), 'cleanup-outside-'));
+    const outsideFile = path.join(outside, 'precious.json');
+    await writeFile(outsideFile, '{"keep":"me"}', 'utf-8');
+
+    await symlink(outside, orgDst('acme'));
+
+    try {
+      await cleanupHandler({} as never, { orgSlug: 'acme' });
+      // The symlink target's file MUST survive.
+      expect(existsSync(outsideFile)).toBe(true);
+    } finally {
+      await rm(orgDst('acme'), { force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
   });
 });

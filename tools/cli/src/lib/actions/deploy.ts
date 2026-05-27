@@ -1,5 +1,5 @@
-import { existsSync } from 'node:fs';
-import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { lstatSync } from 'node:fs';
+import { cp, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -34,8 +34,7 @@ import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
-import { MIGRATIONS } from '../upgrade/registry';
-import { runPendingMigrations } from '../upgrade/runner';
+import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 
 async function ensureInfrastructure(
   prefix: string,
@@ -73,11 +72,16 @@ interface DeployOptions {
   dryRun: boolean;
   services?: ServiceName[];
   override?: boolean;
+  /**
+   * Factory-reseed builtin → all orgs after deploy completes. Triggers a
+   * server-side reseed action; preserves *.secrets.json, .history/, and
+   * uploaded branding/images/. Combined with `override`, host-push runs
+   * first, then the all-orgs reseed.
+   */
+  overrideAll?: boolean;
   quiet?: boolean;
-  /** Non-interactive acceptance of any pending migrations. */
+  /** Non-interactive: accept destructive confirmation prompts (e.g. --override-all). */
   assumeYes?: boolean;
-  /** @deprecated use assumeYes. Kept for one release of CLI back-compat. */
-  migrateVolumes?: boolean;
   /**
    * Set by the caller when `ensureEnv` filled in auto-gen secrets headlessly
    * (e.g. an upgrade silently materialized `SANDBOX_TOKEN`). All subsequent
@@ -141,56 +145,8 @@ export async function deploy(options: DeployOptions): Promise<void> {
       const prefix = dryRun ? '[DRY-RUN] ' : '';
       logger.header(`${prefix}Deploying Tale ${version}`);
 
-      // Detect and apply any pending migrations before deploying. The runner
-      // prints the plan and prompts the user (default No) when anything is
-      // pending; non-interactive callers must pass --yes (aliased from the
-      // deprecated --migrate-volumes). Declining aborts deploy cleanly.
-      {
-        const migrationResult = await runPendingMigrations(
-          MIGRATIONS,
-          { projectId: getProjectId(), projectDir: env.DEPLOY_DIR },
-          {
-            context: 'deploy',
-            assumeYes: options.assumeYes ?? options.migrateVolumes,
-            dryRun,
-            async performStops(stops) {
-              // `stops` may contain compose project names (e.g. 'tale',
-              // 'tale-blue') and/or individual container names (e.g.
-              // '${projectId}-platform-blue'). Try each as a compose project
-              // first, fall back to plain `docker stop`. Failures MUST
-              // surface — a silently-swallowed stop can let the migration
-              // copy a live volume, corrupting data.
-              for (const name of stops) {
-                const composeDown = await exec(
-                  'docker',
-                  ['compose', '-p', name, 'down', '--remove-orphans'],
-                  { silent: true },
-                );
-                if (composeDown.success) continue;
-                const stopResult = await exec(
-                  'docker',
-                  ['stop', '-t', '30', name],
-                  { silent: true },
-                );
-                if (stopResult.success) continue;
-                const stderr = `${stopResult.stderr ?? ''}`.toLowerCase();
-                const looksMissing =
-                  stderr.includes('no such container') ||
-                  stderr.includes('not found');
-                if (!looksMissing) {
-                  throw new Error(
-                    `Failed to stop '${name}' before migration: ${stopResult.stderr?.trim() || 'unknown error'}`,
-                  );
-                }
-              }
-            },
-          },
-        );
-        if (!migrationResult.proceed) {
-          logger.info('Aborting deploy until migrations are approved.');
-          return;
-        }
-      }
+      // (Auto-migration framework removed — `tale migrate config-layout` is
+      // the only opt-in, manually-run migration now.)
 
       // Check if this is a first-time deployment
       const currentColor = await getCurrentColor(env.DEPLOY_DIR);
@@ -628,6 +584,16 @@ export async function deploy(options: DeployOptions): Promise<void> {
         tempStageDirs,
         options.override ?? false,
       );
+
+      // After deploy + optional host-push, trigger server-side reseed of
+      // builtin catalog into every org. Runs against the platform container
+      // (which holds the convex function source + admin key derivation).
+      if (options.overrideAll) {
+        await reseedAllOrgsFromBuiltin({
+          dryRun,
+          assumeYes: options.assumeYes ?? false,
+        });
+      }
     });
   } finally {
     process.removeListener('SIGINT', onInterrupt);
@@ -635,20 +601,60 @@ export async function deploy(options: DeployOptions): Promise<void> {
   }
 }
 
-// Host workspace dirs that `tale deploy --override` pushes into the convex
-// container. `*.secrets.json` files and `.history/` directories are always
-// excluded from the push (see `stageForOverride`): encrypted secrets cannot be
-// re-derived from the host, and the container's UI edit-history trail must
-// survive. `docker cp` is additive, so anything not staged is left untouched
-// on the container side.
-const SYNC_DIRS = [
+// Org slug shape — must match validateOrgSlug at services/platform/convex/lib/file_io.ts.
+// Duplicated here because the CLI ships in a single compiled binary that does
+// not import convex sources at runtime.
+const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
+const MAX_ORG_SLUG_LENGTH = 64;
+
+// Top-level names under the project root that are legitimate per-domain
+// dirs from the OLD flat layout (`agents/`, `workflows/`, …). Under
+// org-first these don't belong at the root anymore — if any are present
+// it's a legacy project that hasn't been re-init'd. Refuse to push (would
+// silently land in `/app/data/agents/` etc., which the new resolvers don't
+// read) and point the operator at `tale init --force`.
+const LEGACY_DOMAIN_DIR_NAMES = new Set([
   'agents',
   'workflows',
   'integrations',
   'branding',
   'providers',
   'skills',
-];
+  'retention',
+]);
+
+function isValidOrgSlug(name: string): boolean {
+  return (
+    name.length > 0 &&
+    name.length <= MAX_ORG_SLUG_LENGTH &&
+    ORG_SLUG_REGEX.test(name)
+  );
+}
+
+async function findOrgDirs(
+  projectDir: string,
+): Promise<{ orgDirs: string[]; legacyDirs: string[] }> {
+  const orgDirs: string[] = [];
+  const legacyDirs: string[] = [];
+  let entries: import('node:fs').Dirent[];
+  try {
+    entries = await readdir(projectDir, { withFileTypes: true });
+  } catch {
+    return { orgDirs, legacyDirs };
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const name = entry.name;
+    if (name.startsWith('.')) continue; // skips .tale, .git, .vscode, .DS_Store etc.
+    if (LEGACY_DOMAIN_DIR_NAMES.has(name)) {
+      legacyDirs.push(name);
+      continue;
+    }
+    if (!isValidOrgSlug(name)) continue;
+    orgDirs.push(name);
+  }
+  return { orgDirs, legacyDirs };
+}
 
 async function syncProjectFiles(
   containerName: string,
@@ -672,11 +678,24 @@ async function syncProjectFiles(
     return;
   }
 
-  const dirsToSync = SYNC_DIRS.filter((dir) =>
-    existsSync(join(projectDir, dir)),
-  );
+  const { orgDirs, legacyDirs } = await findOrgDirs(projectDir);
 
-  if (dirsToSync.length === 0) {
+  if (legacyDirs.length > 0) {
+    logger.error(
+      `${prefix}Legacy flat layout detected at project root (${legacyDirs.join(', ')}/).`,
+    );
+    logger.info(
+      `${prefix}  Move config under 'default/<domain>/' (or run 'tale init --force' to rescaffold).`,
+    );
+    logger.info(`${prefix}  Aborting --override push.`);
+    return;
+  }
+
+  if (orgDirs.length === 0) {
+    logger.blank();
+    logger.info(
+      `${prefix}Nothing to push: no org directories found at host root (expected e.g. 'default/').`,
+    );
     return;
   }
 
@@ -691,86 +710,115 @@ async function syncProjectFiles(
   }
 
   logger.blank();
-  logger.step(`${prefix}Overriding container config from host workspace...`);
+  logger.step(
+    `${prefix}Overriding container config from host workspace (1:1 push)...`,
+  );
   logger.info(
     `${prefix}  (encrypted *.secrets.json and .history/ are always preserved)`,
   );
+  logger.info(
+    `${prefix}  (--override is an additive overlay; files deleted locally remain in the container — use --override-all to factory-reseed from builtin)`,
+  );
 
-  for (const dir of dirsToSync) {
-    const srcPath = join(projectDir, dir);
+  // Stage the full set of org subtrees into a single tmp dir whose top-level
+  // mirrors the in-container `/app/data/` shape: `<stage>/<org>/<domain>/...`.
+  // Then a single `docker cp <stage>/. <container>:/app/data/` does the push.
+  // Root-level junk (`tale.json`, `.tale/`, `.env`, `.git/`, IDE configs, etc.)
+  // is excluded by allowlist — never staged, never shipped.
+  const stageDir = await mkdtemp(join(tmpdir(), 'tale-sync-'));
+  tempStageDirs.add(stageDir);
+
+  try {
+    for (const orgName of orgDirs) {
+      const orgSrc = join(projectDir, orgName);
+      const orgDst = join(stageDir, orgName);
+
+      if (dryRun) {
+        logger.info(
+          `${prefix}Would push ${orgName}/ → ${containerName}:/app/data/${orgName}/ (excluding *.secrets.json, .history/, symlinks)`,
+        );
+        continue;
+      }
+
+      await stageOrgIntoDir(orgSrc, orgDst);
+    }
 
     if (dryRun) {
       logger.info(
-        `${prefix}Would override ${dir}/ → ${containerName}:/app/data/${dir}/ (excluding *.secrets.json and .history/)`,
+        `${prefix}Skipped at root: tale.json, .tale/, .env, .git/, dotfiles, ${legacyDirs.length ? `legacy ${legacyDirs.join(', ')}/, ` : ''}any other non-org-shaped entries`,
       );
-      continue;
+      return;
     }
 
-    const stageDir = await stageForOverride(srcPath, tempStageDirs);
+    const dockerSrcPath = stageDir.replaceAll('\\', '/');
+    const result = await exec('docker', [
+      'cp',
+      `${dockerSrcPath}/.`,
+      `${containerName}:/app/data/`,
+    ]);
 
-    try {
-      const dockerSrcPath = stageDir.replaceAll('\\', '/');
-      const result = await exec('docker', [
-        'cp',
-        `${dockerSrcPath}/.`,
-        `${containerName}:/app/data/${dir}/`,
-      ]);
-
-      if (result.success) {
-        // docker cp copies files as root — fix ownership so the app user can write
-        const chownResult = await exec('docker', [
-          'exec',
-          containerName,
-          'chown',
-          '-R',
-          'app:app',
-          `/app/data/${dir}/`,
-        ]);
-        if (!chownResult.success) {
-          logger.warn(
-            `Failed to fix ownership for ${dir}/: ${chownResult.stderr}`,
-          );
-        }
-        logger.info(`Overrode ${dir}/`);
-      } else {
-        logger.warn(`Failed to override ${dir}/: ${result.stderr}`);
-      }
-    } finally {
-      tempStageDirs.delete(stageDir);
-      await rm(stageDir, { recursive: true, force: true });
+    if (!result.success) {
+      logger.error(`Failed to override config: ${result.stderr}`);
+      return;
     }
-  }
 
-  if (!dryRun) {
-    logger.success('Config override complete');
+    // docker cp copies files as root — fix ownership so the app user can write
+    const chownResult = await exec('docker', [
+      'exec',
+      containerName,
+      'chown',
+      '-R',
+      'app:app',
+      `/app/data/`,
+    ]);
+    if (!chownResult.success) {
+      logger.warn(
+        `Failed to fix ownership on /app/data: ${chownResult.stderr}`,
+      );
+    }
+
+    logger.success(
+      `Overrode ${orgDirs.length} org${orgDirs.length === 1 ? '' : 's'}: ${orgDirs.join(', ')}`,
+    );
+  } finally {
+    tempStageDirs.delete(stageDir);
+    await rm(stageDir, { recursive: true, force: true });
   }
 }
 
-// Copy host `<dir>/` into a fresh tmp dir, excluding `*.secrets.json` files
-// and any `.history/` directory during the copy. The staging dir is what
-// `docker cp` ships; since `docker cp` is additive (never deletes container
-// files absent from the source), excluded paths simply never reach the
-// container and its existing secrets / edit-history survive. fs.cp defaults to
-// dereference=false, which keeps symlinks intact. The `*.secrets.json` match
-// mirrors the entrypoint's seed-skip check (services/convex/docker-entrypoint.sh).
+// Copy a host org subtree (`<projectDir>/<orgName>/`) into a fresh
+// `<stageDir>/<orgName>/` while:
+//   - skipping `.history/` directories at any depth (UI edit-history trail
+//     must survive in the container; `docker cp` is additive so absent =
+//     preserved on the container side),
+//   - skipping `*.secrets.json` files at any depth (encrypted secrets
+//     cannot be re-derived from the host),
+//   - skipping symlinks (defense against operator's host workspace
+//     containing a symlink to /etc/passwd or similar; cp's filter receives
+//     the source path so we lstat it).
 //
-// Registers `stageDir` in `tempStageDirs` before any I/O so an interrupt or a
-// throw mid-copy still gets cleaned up by the caller / SIGINT handler.
-async function stageForOverride(
-  srcDir: string,
-  tempStageDirs: Set<string>,
-): Promise<string> {
-  const stageDir = await mkdtemp(join(tmpdir(), 'tale-sync-'));
-  tempStageDirs.add(stageDir);
-  await cp(srcDir, stageDir, {
+// All directory exclusions prune the entire subtree; `fs.cp` recurses past
+// the filter for any directory the filter returned `true` for. Root-level
+// non-org junk (`.tale/`, `.git/`, `.env`, IDE configs, dotfiles, etc.) is
+// excluded one level up — only org-shaped dirs from `findOrgDirs` reach
+// this function — so the filter here only handles depth-1+ skips.
+async function stageOrgIntoDir(srcDir: string, destDir: string): Promise<void> {
+  await cp(srcDir, destDir, {
     recursive: true,
     filter: (src) => {
       const base = src.split(/[\\/]/).pop() ?? '';
-      // Returning false for a directory prunes its entire subtree.
       if (base === '.history') return false;
       if (base.endsWith('.secrets.json')) return false;
+      // lstat is sync here because fs.cp's filter is sync. Symlinks at
+      // any depth are skipped; missing entries (ENOENT) also skip rather
+      // than throw — fs.cp re-races stat() so any race is benign.
+      try {
+        const info = lstatSync(src);
+        if (info.isSymbolicLink()) return false;
+      } catch {
+        return false;
+      }
       return true;
     },
   });
-  return stageDir;
 }

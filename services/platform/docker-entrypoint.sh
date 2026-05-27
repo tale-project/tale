@@ -227,30 +227,25 @@ deploy_convex_functions() {
     CONVEX_ENV_MAP["$key"]="${line#*=}"
   done <<< "$CONVEX_ENV_OUTPUT"
 
-  # One-shot cleanup: remove env vars that earlier Tale versions auto-pushed
-  # but the current architecture derives from TALE_CONFIG_DIR.
-  #
-  # Safety: only remove the var if its current value matches the auto-derived
-  # path (i.e. it's a stale auto-push, not an operator's custom override).
-  # An override like AGENTS_DIR=/data/custom-agents is preserved untouched.
-  local config_dir="${TALE_CONFIG_DIR:-/app/data}"
-  local -A ORPHAN_DERIVED=(
-    [AGENTS_DIR]="${config_dir}/agents"
-    [WORKFLOWS_DIR]="${config_dir}/workflows"
-    [INTEGRATIONS_DIR]="${config_dir}/integrations"
-    [PROVIDERS_DIR]="${config_dir}/providers"
+  # Unconditional purge: the per-domain env overrides (AGENTS_DIR /
+  # WORKFLOWS_DIR / INTEGRATIONS_DIR / PROVIDERS_DIR / SKILLS_DIR) are no
+  # longer honored by the resolvers under the uniform org-first layout.
+  # Remove them from the Convex deployment env on every boot, regardless
+  # of whether they look auto-derived or operator-customized. Operators
+  # who previously relied on a custom value must now point TALE_CONFIG_DIR
+  # at the root and use the `<orgSlug>/<domain>/` subtree.
+  local -a LEGACY_DOMAIN_VARS=(
+    AGENTS_DIR
+    WORKFLOWS_DIR
+    INTEGRATIONS_DIR
+    PROVIDERS_DIR
+    SKILLS_DIR
   )
-  for orphan in "${!ORPHAN_DERIVED[@]}"; do
-    if [ "${CONVEX_ENV_MAP[$orphan]+_}" ]; then
-      local current="${CONVEX_ENV_MAP[$orphan]}"
-      local derived="${ORPHAN_DERIVED[$orphan]}"
-      if [ "$current" = "$derived" ]; then
-        if bunx convex env remove "$orphan" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
-          echo "   ✓ $orphan (orphan removed — derived from TALE_CONFIG_DIR)"
-          unset 'CONVEX_ENV_MAP[$orphan]'
-        fi
-      else
-        log_info "$orphan=$current preserved (custom override; not the derived $derived)"
+  for legacy in "${LEGACY_DOMAIN_VARS[@]}"; do
+    if [ "${CONVEX_ENV_MAP[$legacy]+_}" ]; then
+      if bunx convex env remove "$legacy" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
+        echo "   ✓ $legacy removed (no longer honored under org-first layout)"
+        unset 'CONVEX_ENV_MAP[$legacy]'
       fi
     fi
   done

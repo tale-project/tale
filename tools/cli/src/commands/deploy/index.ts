@@ -34,13 +34,15 @@ export function createDeployCommand(): Command {
     )
     .option('-q, --quiet', 'Suppress container logs during deployment')
     .option(
-      '-y, --yes',
-      'Non-interactive: automatically accept any pending migrations',
+      '--override-all',
+      'After deploy, factory-reseed the builtin catalog into ALL orgs server-side ' +
+        '(preserves *.secrets.json, .history/, and uploaded branding/images/). ' +
+        'Implies --all (recreates stateful services so the new entrypoint runs).',
       false,
     )
     .option(
-      '--migrate-volumes',
-      '[deprecated] alias for --yes; will be removed in a future release',
+      '-y, --yes',
+      'Non-interactive: auto-accept destructive confirmation prompts (e.g. --override-all)',
       false,
     )
     .action(async (options) => {
@@ -84,22 +86,20 @@ export function createDeployCommand(): Command {
           services = serviceList as ServiceName[];
         }
 
-        if (options.migrateVolumes && !options.yes) {
-          logger.warn(
-            '--migrate-volumes is deprecated; use --yes for non-interactive migration acceptance.',
-          );
-        }
         const hostAlias = options.host ?? process.env.HOST ?? 'tale.local';
         await deploy({
           version,
-          updateStateful: options.all,
+          // --override-all implies --all so the convex container restarts
+          // with the new entrypoint + new code before the reseed action runs.
+          updateStateful: options.all || options.overrideAll,
           env,
           hostAlias,
           dryRun: options.dryRun,
           services,
           override: options.override,
+          overrideAll: options.overrideAll,
           quiet: options.quiet,
-          assumeYes: options.yes || options.migrateVolumes,
+          assumeYes: options.yes,
           forceRecreate,
         });
       } catch (err) {

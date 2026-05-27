@@ -19,9 +19,12 @@ import { retentionDefaultsConfigSchema } from '../../../lib/shared/schemas/reten
 import { internalAction } from '../../_generated/server';
 import { createFileConfigStore } from './store';
 
+// Retention is one JSON object per org under the uniform org-first layout:
+// `$TALE_CONFIG_DIR/<orgSlug>/retention.json`.
 const retentionStore = createFileConfigStore<RetentionDefaultsConfig>(
   'retention',
   retentionDefaultsConfigSchema,
+  { orgFirst: true },
 );
 
 export const readRetentionConfig = internalAction({

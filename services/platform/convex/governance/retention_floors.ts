@@ -316,7 +316,7 @@ export class RetentionConfigMissingError extends Error {
   readonly hint: string;
   constructor(category: RetentionCategory) {
     const hint =
-      'Copy examples/retention/default.json to $TALE_CONFIG_DIR/retention/default.json';
+      'Copy examples/default/retention.json to $TALE_CONFIG_DIR/default/retention.json';
     super(`Retention config missing for category=${category}. ${hint}`);
     this.category = category;
     this.hint = hint;

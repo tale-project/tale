@@ -14,8 +14,12 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 export function serveBrandingImages(): Plugin {
+  // Branding is default-only on the read side (see branding/file_actions.ts).
+  // On-disk location: `${TALE_CONFIG_DIR}/default/branding/images/`.
   const configDir = process.env.TALE_CONFIG_DIR;
-  const imagesDir = configDir ? join(configDir, 'branding', 'images') : null;
+  const imagesDir = configDir
+    ? join(configDir, 'default', 'branding', 'images')
+    : null;
 
   return {
     name: 'serve-branding-images',

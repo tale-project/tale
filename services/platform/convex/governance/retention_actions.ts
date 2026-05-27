@@ -119,7 +119,7 @@ export const getRetentionBoundsAction = action({
       throw new ConvexError({
         code: 'RETENTION_CONFIG_MISSING',
         message:
-          'Retention config not yet installed. Copy examples/retention/default.json to $TALE_CONFIG_DIR/retention/default.json then reload.',
+          'Retention config not yet installed. Copy examples/default/retention.json to $TALE_CONFIG_DIR/default/retention.json then reload.',
       });
     }
 
@@ -189,7 +189,7 @@ export const upsertRetentionPolicyAction = action({
       throw new ConvexError({
         code: 'RETENTION_CONFIG_MISSING',
         message:
-          'Retention config not yet installed. Copy examples/retention/default.json to $TALE_CONFIG_DIR/retention/default.json.',
+          'Retention config not yet installed. Copy examples/default/retention.json to $TALE_CONFIG_DIR/default/retention.json.',
       });
     }
     const boundsByCategory = buildBoundsByCategory(orgConfig);

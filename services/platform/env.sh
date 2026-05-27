@@ -55,9 +55,12 @@ env_normalize_common() {
 	  export INSTANCE_NAME="tale_platform"
 	  export INSTANCE_SECRET="${INSTANCE_SECRET}"
 
-  # Root config directory. Sub-dirs (agents/workflows/integrations/providers)
-  # are derived inside Convex via `convex/*/file_utils.ts` — no need to set
-  # AGENTS_DIR / WORKFLOWS_DIR / INTEGRATIONS_DIR / PROVIDERS_DIR explicitly.
+  # Root config directory. Per-org subtrees live at $TALE_CONFIG_DIR/<orgSlug>/
+  # with one subdir per domain (agents/, workflows/, providers/, etc.).
+  # Per-domain env overrides (AGENTS_DIR / WORKFLOWS_DIR / INTEGRATIONS_DIR /
+  # PROVIDERS_DIR / SKILLS_DIR) are no longer honored — set TALE_CONFIG_DIR
+  # only. The entrypoint purges those legacy vars from the Convex deployment
+  # env on every boot.
   export TALE_CONFIG_DIR="${TALE_CONFIG_DIR:-/app/data}"
 
   # Site URL - the canonical base URL for the platform (required)
