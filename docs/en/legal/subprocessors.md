@@ -6,11 +6,11 @@ noindex: true
 
 A subprocessor is a third party Tale engages to process customer personal data on its behalf. The list below covers Tale Cloud; self-hosted operators control their own infrastructure and the subprocessor list for those deployments is whichever providers you choose. Material additions are announced 30 days in advance and org Owners are notified by email.
 
-Read this when an auditor asks who else touches your data. Come back when a procurement review needs the current vendor list and the location of each. This page mirrors **Appendix A** of the [Data Processing Agreement](/legal/data-processing-agreement) — both are updated in the same change. The endpoints and data flows of the Tale platform itself are described in the public [API documentation](https://demo.tale.dev/docs).
+Read this when an auditor asks who else touches your data. Come back when a procurement review needs the current vendor list and the location of each. This page mirrors **Appendix A** of the [Data Processing Agreement](https://tale.dev/legal/data-processing-agreement) — both are updated in the same change. The endpoints and data flows of the Tale platform itself are described in the public [API documentation](https://demo.tale.dev/docs).
 
 ## No use of customer data for model training
 
-Tale does not use customer data — prompts, inputs, outputs, embeddings, audio, images, or any derived artifacts — to train, fine-tune, or improve any AI model. Each AI subprocessor below is contractually bound, via its enterprise or API terms with Tale, to the same. This may only be varied by a separate written opt-in agreement signed by both parties; continued use of the services, in-product toggles, or implicit consent do not count. The binding clause lives at [Data Processing Agreement § 5](/legal/data-processing-agreement#5-ai-processing--no-use-for-training-or-improvement).
+Tale does not use customer data — prompts, inputs, outputs, embeddings, audio, images, or any derived artifacts — to train, fine-tune, or improve any AI model. Each AI subprocessor below is contractually bound, via its enterprise or API terms with Tale, to the same. This may only be varied by a separate written opt-in agreement signed by both parties; continued use of the services, in-product toggles, or implicit consent do not count. The binding clause lives at [Data Processing Agreement § 5](https://tale.dev/legal/data-processing-agreement#5-ai-processing--no-use-for-training-or-improvement).
 
 ## Current subprocessors
 
@@ -53,4 +53,4 @@ If you run Tale on your own infrastructure, the only data Tale processes on your
 
 ## Where this fits
 
-Subprocessors are the vendor inventory; the [Data Processing Agreement](/legal/data-processing-agreement) is the contract under which they operate (Appendix A is the canonical list); the [Privacy policy](/legal/privacy) is the user-facing policy; [Trust and compliance](/cloud/trust-and-compliance) is the operational evidence. An auditor usually wants the four together — the vendor list, the contract, the policy, and the controls — so the linked pages are mutually consistent and updated in the same change.
+Subprocessors are the vendor inventory; the [Data Processing Agreement](https://tale.dev/legal/data-processing-agreement) is the contract under which they operate (Appendix A is the canonical list); the [Privacy policy](/legal/privacy) is the user-facing policy; [Trust and compliance](/cloud/trust-and-compliance) is the operational evidence. An auditor usually wants the four together — the vendor list, the contract, the policy, and the controls — so the linked pages are mutually consistent and updated in the same change.
