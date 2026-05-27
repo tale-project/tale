@@ -393,7 +393,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
     [skipTranscription, config.organizationId],
   );
 
-  const retryInFlightRef = useRef<Set<Id<'_storage'>>>(new Set());
+  const retryInFlightRef = useRef(new Set<Id<'_storage'>>());
 
   const retryAttachmentTranscription = useCallback(
     (fileId: Id<'_storage'>) => {
