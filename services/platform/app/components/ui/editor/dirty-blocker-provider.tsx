@@ -104,6 +104,12 @@ export function DirtyBlockerProvider({
   }, [blocker]);
 
   const handleDiscardAndLeave = useCallback(() => {
+    // Drop every registered dirty flag before proceeding. The user chose to
+    // discard, so this can't lose work — and it makes `anyDirty` false
+    // immediately, so a re-evaluation of `shouldBlockFn` during the in-flight
+    // navigation can't re-arm the blocker and prompt a second time. A later
+    // edit re-registers the source via its own effect.
+    setSources((prev) => (prev.size === 0 ? prev : new Map()));
     blocker.proceed?.();
   }, [blocker]);
 

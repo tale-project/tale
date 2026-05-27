@@ -12,7 +12,11 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { ActiveEditorProvider } from '@/app/components/ui/editor';
+import {
+  ActiveEditorProvider,
+  EditorActions,
+  useActiveEditor,
+} from '@/app/components/ui/editor';
 import { SettingsNavigation } from '@/app/features/settings/components/settings-navigation';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -27,7 +31,6 @@ export const Route = createFileRoute('/dashboard/$id/settings')({
 function SettingsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t: tNav } = useT('navigation');
-  const { t: tCommon } = useT('common');
   const location = useLocation();
 
   const settingsRoot = `/dashboard/${organizationId}/settings`;
@@ -65,24 +68,63 @@ function SettingsLayout() {
           </>
         }
       >
-        {!isAtIndex && isDirectChild && (
-          <Link
-            to={
-              isUserScope
-                ? '/dashboard/$id/settings/personal'
-                : '/dashboard/$id/settings'
-            }
-            params={{ id: organizationId }}
-            className="text-muted-foreground hover:text-foreground border-border flex items-center gap-1.5 border-b px-4 py-2.5 text-sm font-medium md:hidden"
-          >
-            <ChevronLeft aria-hidden="true" className="size-4" />
-            {tCommon('actions.back')}
-          </Link>
-        )}
+        <SettingsMobileActionBar
+          showBack={!isAtIndex && isDirectChild}
+          isUserScope={isUserScope}
+          organizationId={organizationId}
+        />
         <ContentArea className="min-h-0 flex-1" variant="page" gap={6}>
           <Outlet />
         </ContentArea>
       </PageLayout>
     </ActiveEditorProvider>
+  );
+}
+
+interface SettingsMobileActionBarProps {
+  showBack: boolean;
+  isUserScope: boolean;
+  organizationId: string;
+}
+
+/**
+ * Mobile-only bar holding the back link and the active settings page's
+ * Save/Discard cluster. The desktop equivalent lives in the settings tab
+ * strip (`SettingsNavigation`), which is `hidden md:block` — so on small
+ * screens the Save/Discard buttons were unreachable. Reads the active editor
+ * (set by each form page) and renders the cluster only when one is present.
+ */
+function SettingsMobileActionBar({
+  showBack,
+  isUserScope,
+  organizationId,
+}: SettingsMobileActionBarProps) {
+  const { t: tCommon } = useT('common');
+  const controller = useActiveEditor();
+
+  if (!showBack && !controller) return null;
+
+  return (
+    <div className="border-border flex items-center justify-between gap-2 border-b px-4 py-2 md:hidden">
+      {showBack ? (
+        <Link
+          to={
+            isUserScope
+              ? '/dashboard/$id/settings/personal'
+              : '/dashboard/$id/settings'
+          }
+          params={{ id: organizationId }}
+          className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm font-medium"
+        >
+          <ChevronLeft aria-hidden="true" className="size-4" />
+          {tCommon('actions.back')}
+        </Link>
+      ) : (
+        <span aria-hidden="true" />
+      )}
+      {controller && (
+        <EditorActions controller={controller} entityKind="settings" />
+      )}
+    </div>
   );
 }
