@@ -90,7 +90,7 @@ export function OrganizationButton({
         <TooltipPrimitive.Content
           side="right"
           sideOffset={4}
-          className="bg-foreground text-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
+          className="bg-foreground text-background animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
         >
           {accessibleLabel}
         </TooltipPrimitive.Content>
