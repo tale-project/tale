@@ -34,7 +34,7 @@ const dialogContentVariants = cva(
     // (which sets BOTH left+right to auto) caused the inset shorthand to
     // overwrite the left positioning, anchoring the dialog at the viewport
     // edge instead of the centre.
-    'md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-full md:-translate-x-1/2 md:-translate-y-1/2 md:max-h-[90dvh] md:p-6 md:pb-6 md:pt-5 md:rounded-2xl md:data-[state=open]:zoom-in-95 md:data-[state=closed]:zoom-out-95 md:data-[state=open]:slide-in-from-bottom-0 md:data-[state=closed]:slide-out-to-bottom-0',
+    'md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-full md:-translate-x-1/2 md:-translate-y-1/2 md:max-h-[90dvh] md:p-6 md:pb-6 md:pt-5 md:rounded-2xl md:data-[state=open]:slide-in-from-bottom-0 md:data-[state=closed]:slide-out-to-bottom-0',
   {
     variants: {
       size: {
