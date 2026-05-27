@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
 import { render } from '@/test/utils/render';
@@ -49,14 +49,19 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: [], isLoading: false }),
 }));
 
+const paginatedMock = vi.hoisted(() => ({
+  loadMore: vi.fn(),
+  status: 'CanLoadMore' as string,
+}));
+
 vi.mock('../hooks/queries', () => ({
   useApproxDocumentCount: () => ({ data: 0 }),
   useFolder: () => ({ data: null }),
   useFolders: () => ({ data: [] }),
   useListDocumentsPaginated: () => ({
     results: [],
-    status: 'success',
-    loadMore: vi.fn(),
+    status: paginatedMock.status,
+    loadMore: paginatedMock.loadMore,
     isLoading: false,
   }),
 }));
@@ -85,6 +90,35 @@ vi.mock('./breadcrumb-navigation', () => ({
 import { DocumentsTable } from './documents-table';
 
 describe('DocumentsTable', () => {
+  beforeEach(() => {
+    paginatedMock.loadMore.mockClear();
+    paginatedMock.status = 'CanLoadMore';
+  });
+
+  // Search/filters run client-side over loaded pages only; without this the
+  // first matching document past page 1 reads as "no results".
+  describe('eager pagination while searching', () => {
+    it('loads remaining pages when a search query is active', () => {
+      render(
+        <DocumentsTable organizationId="test-org-id" searchQuery="contract" />,
+      );
+      expect(paginatedMock.loadMore).toHaveBeenCalled();
+    });
+
+    it('does not force-load pages without a search or filter', () => {
+      render(<DocumentsTable organizationId="test-org-id" />);
+      expect(paginatedMock.loadMore).not.toHaveBeenCalled();
+    });
+
+    it('stops loading once pages are exhausted', () => {
+      paginatedMock.status = 'Exhausted';
+      render(
+        <DocumentsTable organizationId="test-org-id" searchQuery="contract" />,
+      );
+      expect(paginatedMock.loadMore).not.toHaveBeenCalled();
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(

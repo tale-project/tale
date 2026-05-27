@@ -3,7 +3,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
 import { FileText } from 'lucide-react';
-import { useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
@@ -69,6 +69,24 @@ export function DocumentsTable({
     folderId: currentFolderId,
     initialNumItems: 20,
   });
+
+  // Search and filters run client-side over `paginatedResult.results`, which
+  // only holds loaded pages. The default infinite-scroll list has nothing to
+  // scroll while a query is active, so further pages never load and any match
+  // beyond the first page reads as "no results". Eagerly pull every page while
+  // a search/filter is active so the client-side filter sees the full set.
+  const hasActiveQuery =
+    debouncedQuery.trim().length > 0 ||
+    selectedRagStatuses.length > 0 ||
+    selectedSources.length > 0 ||
+    selectedTeamIds.length > 0;
+
+  const { status: pageStatus, loadMore: loadMorePage } = paginatedResult;
+  useEffect(() => {
+    if (hasActiveQuery && pageStatus === 'CanLoadMore') {
+      loadMorePage(200);
+    }
+  }, [hasActiveQuery, pageStatus, loadMorePage]);
 
   const { data: currentFolder } = useFolder(currentFolderId);
   const parentFolderTeamId = currentFolder?.teamId ?? undefined;
