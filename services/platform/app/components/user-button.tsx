@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { IosInstallSheet } from '@/app/components/pwa/ios-install-sheet';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { NotificationListPanel } from '@/app/features/notifications/components/notification-list-panel';
@@ -91,14 +92,21 @@ export function UserButton({
     organizationId ?? '',
   );
   const unreadCount = notificationsUnread ?? 0;
-  // PWA install — `canInstall` is only true on browsers that fired
-  // `beforeinstallprompt` AND when the app isn't already installed, so the
-  // "Get app" row stays hidden everywhere else (iOS Safari, Firefox, etc.).
-  const { canInstall, promptInstall } = useInstallPrompt();
+  // PWA install — `canInstall` is true on browsers that fired
+  // `beforeinstallprompt` (Chromium/Android), where we can prompt directly.
+  // iOS can't install programmatically, so `isIOS` instead opens manual
+  // "Add to Home Screen" instructions. Both stay hidden once installed and
+  // on browsers with no install path (Firefox, desktop Safari).
+  const { canInstall, isIOS, promptInstall } = useInstallPrompt();
+  const [iosSheetOpen, setIosSheetOpen] = useState(false);
 
   const handleInstallApp = useCallback(() => {
-    void promptInstall();
-  }, [promptInstall]);
+    if (canInstall) {
+      void promptInstall();
+      return;
+    }
+    setIosSheetOpen(true);
+  }, [canInstall, promptInstall]);
 
   // Used to display the current org name in the dropdown trigger row.
   const { organizations: userOrgs } = useUserOrganizationsWithDetails();
@@ -451,7 +459,7 @@ export function UserButton({
     ]);
 
     const helpGroup: DropdownMenuGroup = [];
-    if (canInstall) {
+    if (canInstall || isIOS) {
       helpGroup.push({
         type: 'item',
         label: t('userButton.getApp'),
@@ -505,6 +513,7 @@ export function UserButton({
     handleBackToProfile,
     handleInstallApp,
     canInstall,
+    isIOS,
     unreadCount,
     currentVersion,
     lastSeenVersion,
@@ -555,6 +564,13 @@ export function UserButton({
     />
   );
 
+  const overlays = (
+    <>
+      {signOutConfirmDialog}
+      <IosInstallSheet open={iosSheetOpen} onOpenChange={setIosSheetOpen} />
+    </>
+  );
+
   // Width transitions between the compact profile view and the wider
   // notifications view so the side-extension swap feels continuous.
   // `max-w-[calc(100vw-2rem)]` keeps the wider variant inside the viewport
@@ -575,7 +591,7 @@ export function UserButton({
           onOpenChange={handleOpenChange}
           contentClassName={contentClassName}
         />
-        {signOutConfirmDialog}
+        {overlays}
       </>
     );
   }
@@ -605,7 +621,7 @@ export function UserButton({
           </TooltipPrimitive.Content>
         </TooltipPrimitive.Root>
       </TooltipPrimitive.Provider>
-      {signOutConfirmDialog}
+      {overlays}
     </>
   );
 }

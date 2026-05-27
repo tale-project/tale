@@ -278,6 +278,13 @@
       "defaultName": "Benutzer",
       "manageAccount": "Konto verwalten",
       "getApp": "App installieren",
+      "iosInstall": {
+        "title": "Tale installieren",
+        "description": "Füge Tale zu deinem Home-Bildschirm hinzu, damit es im Vollbild wie eine App läuft.",
+        "step1": "Tippe in der Symbolleiste deines Browsers auf „Teilen“.",
+        "step2": "Wähle „Zum Home-Bildschirm“ und tippe dann auf „Hinzufügen“.",
+        "done": "Verstanden"
+      },
       "helpFeedback": "Hilfe & Feedback",
       "currentVersion": "Aktuelle Version: v{version}",
       "whatsNew": "Neuigkeiten",

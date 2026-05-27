@@ -278,6 +278,13 @@
       "defaultName": "User",
       "manageAccount": "Manage account",
       "getApp": "Get app",
+      "iosInstall": {
+        "title": "Install Tale",
+        "description": "Add Tale to your home screen for a full-screen, app-like experience.",
+        "step1": "Tap the Share button in your browser's toolbar.",
+        "step2": "Choose \"Add to Home Screen\", then tap \"Add\".",
+        "done": "Got it"
+      },
       "helpFeedback": "Help & feedback",
       "currentVersion": "Current version: v{version}",
       "whatsNew": "What's new",

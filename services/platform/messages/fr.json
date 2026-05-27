@@ -279,6 +279,13 @@
       "defaultName": "Utilisateur",
       "manageAccount": "Gérer le compte",
       "getApp": "Installer l'app",
+      "iosInstall": {
+        "title": "Installer Tale",
+        "description": "Ajoute Tale à ton écran d'accueil pour l'ouvrir en plein écran, comme une app.",
+        "step1": "Appuie sur « Partager » dans la barre d'outils de ton navigateur.",
+        "step2": "Choisis « Sur l'écran d'accueil », puis appuie sur « Ajouter ».",
+        "done": "Compris"
+      },
       "helpFeedback": "Aide et retours",
       "currentVersion": "Version actuelle : v{version}",
       "whatsNew": "Nouveautés",

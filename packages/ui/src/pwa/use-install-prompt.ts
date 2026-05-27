@@ -27,6 +27,14 @@ function readIosStandalone(navigator: Navigator): boolean {
   return value === true;
 }
 
+// iOS never fires `beforeinstallprompt`, so install there is the manual
+// "Add to Home Screen" flow. Detect iPhone/iPad/iPod directly, plus iPadOS
+// 13+ which masquerades as "MacIntel" but reports multiple touch points.
+function isIosDevice(navigator: Navigator): boolean {
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) return true;
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+}
+
 export interface InstallPromptState {
   /**
    * True when the browser has fired `beforeinstallprompt` (meaning the PWA
@@ -34,6 +42,13 @@ export interface InstallPromptState {
    * False on iOS Safari, Firefox, and when running as an installed PWA.
    */
   canInstall: boolean;
+  /**
+   * True on an iOS device that isn't already installed. iOS can't install
+   * programmatically (no `beforeinstallprompt`), so a button gated on this
+   * should open manual "Add to Home Screen" instructions rather than calling
+   * `promptInstall`.
+   */
+  isIOS: boolean;
   /**
    * True when the app is running as an installed PWA — i.e. in standalone
    * display mode (Chromium/Android) or via the legacy `navigator.standalone`
@@ -61,9 +76,12 @@ export function useInstallPrompt(): InstallPromptState {
     null,
   );
   const [isInstalled, setIsInstalled] = useState(false);
+  const [isIosDeviceFlag, setIsIosDeviceFlag] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
+
+    setIsIosDeviceFlag(isIosDevice(window.navigator));
 
     const standaloneQuery = window.matchMedia('(display-mode: standalone)');
     setIsInstalled(
@@ -117,6 +135,7 @@ export function useInstallPrompt(): InstallPromptState {
 
   return {
     canInstall: deferred !== null && !isInstalled,
+    isIOS: isIosDeviceFlag && !isInstalled,
     isInstalled,
     promptInstall,
   };
