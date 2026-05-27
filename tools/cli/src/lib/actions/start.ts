@@ -122,7 +122,6 @@ interface StartOptions {
   detach?: boolean;
   port?: number;
   host?: string;
-  fresh?: boolean;
   /** Non-interactive acceptance of any pending migrations (mirrors deploy). */
   assumeYes?: boolean;
 }
@@ -248,7 +247,6 @@ export async function start(options: StartOptions): Promise<void> {
     { version, registry: env.GHCR_REGISTRY },
     hostAlias,
     port,
-    { fresh: options.fresh },
   );
 
   const overrideFile = findComposeOverride(projectDir);

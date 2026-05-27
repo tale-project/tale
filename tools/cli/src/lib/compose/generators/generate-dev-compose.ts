@@ -27,7 +27,6 @@ const HOST_CONFIG_DIRS = [
 ] as const;
 
 interface DevComposeOptions {
-  fresh?: boolean;
   /** Project root, used to verify host bind-mount sources exist before
    *  emitting them. Defaults to process.cwd() (which is what `tale start`
    *  passes implicitly via the deploy-compose temp-file location). */
@@ -76,9 +75,6 @@ export function generateDevCompose(
     'caddy-data:/caddy-data:ro',
   ];
   convex.depends_on = { db: { condition: 'service_healthy' } };
-  if (options.fresh) {
-    convex.environment = { ...convex.environment, FORCE_SEED: 'true' };
-  }
 
   // Platform becomes a thin client.
   //

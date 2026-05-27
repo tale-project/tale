@@ -10,10 +10,6 @@ export function createStartCommand(): Command {
     .option('-p, --port <port>', 'HTTPS port to expose', '443')
     .option('--host <hostname>', 'host alias for proxy', 'tale.local')
     .option(
-      '--fresh',
-      'force re-seed builtin agent/workflow/integration configs',
-    )
-    .option(
       '-y, --yes',
       'automatically accept any pending migrations (non-interactive; required in CI/non-TTY)',
     )
@@ -22,7 +18,6 @@ export function createStartCommand(): Command {
         detach?: boolean;
         port: string;
         host: string;
-        fresh?: boolean;
         yes?: boolean;
       }) => {
         try {
@@ -30,7 +25,6 @@ export function createStartCommand(): Command {
             detach: opts.detach,
             port: Number(opts.port),
             host: opts.host,
-            fresh: opts.fresh,
             assumeYes: opts.yes,
           });
         } catch (err) {

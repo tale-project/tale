@@ -71,7 +71,6 @@ tale init [directory]              # Neues Projekt mit Beispiel-Configs anlegen
 tale start                         # Alle Dienste lokal starten
 tale start --detach                # Im Hintergrund starten
 tale start --port 8443             # Eigenen HTTPS-Port nutzen
-tale start --fresh                 # Builtin-Configs neu seeden
 tale upgrade                       # CLI upgraden und Projektdateien synchronisieren
 tale convex admin                  # Convex-Dashboard-Admin-Key generieren
 tale config                        # CLI-Konfiguration verwalten
