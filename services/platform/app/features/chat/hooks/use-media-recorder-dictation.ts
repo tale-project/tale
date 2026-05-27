@@ -17,6 +17,14 @@ interface UseMediaRecorderDictationReturn {
   error: string | null;
   startListening: () => void;
   stopListening: () => void;
+  /** True when the last transcription failed and the recording is being
+   * held in memory for retry. Drives the failed-dictation pill. */
+  hasFailedRecording: boolean;
+  /** Re-send the retained recording to the transcription action. No
+   * re-recording — reuses the exact bytes captured before the failure. */
+  retryTranscription: () => void;
+  /** Drop the retained recording and clear the failed state. */
+  discardFailedRecording: () => void;
 }
 
 /**
@@ -36,10 +44,19 @@ export function useMediaRecorderDictation({
   const [isListening, setIsListening] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasFailedRecording, setHasFailedRecording] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  // Holds the recording when transcription fails so the user can retry
+  // without re-recording. In-browser only — never persisted server-side
+  // (the transcribeDictation action stays ephemeral by design). A ref, not
+  // state, so it survives re-renders and StrictMode's dev double-invoke; a
+  // separate `hasFailedRecording` flag drives the UI.
+  const failedRecordingRef = useRef<{ blob: Blob; mimeType: string } | null>(
+    null,
+  );
   const isMountedRef = useRef(true);
   // Guards against rapid double-clicks: getUserMedia is async and the
   // button stays clickable until isListening flips to true, so without
@@ -68,6 +85,40 @@ export function useMediaRecorderDictation({
     recorderRef.current = null;
     chunksRef.current = [];
   }, []);
+
+  // Shared transcribe round-trip used by both the initial stop and retry.
+  // On success forwards the text and clears any retained recording; on
+  // failure retains the blob so the user can fix the provider and retry.
+  const runTranscription = useCallback(
+    async (blob: Blob, mimeType: string) => {
+      setIsTranscribing(true);
+      setError(null);
+      try {
+        const audio = await blob.arrayBuffer();
+        const { text } = await transcribeDictation({
+          audio,
+          mimeType,
+          organizationId,
+        });
+
+        if (text.trim().length > 0) {
+          onTranscriptRef.current(text);
+        }
+        failedRecordingRef.current = null;
+        if (isMountedRef.current) setHasFailedRecording(false);
+      } catch (err) {
+        console.warn('[dictation] transcription failed:', err);
+        failedRecordingRef.current = { blob, mimeType };
+        if (isMountedRef.current) {
+          setHasFailedRecording(true);
+          setError('transcription-failed');
+        }
+      } finally {
+        if (isMountedRef.current) setIsTranscribing(false);
+      }
+    },
+    [transcribeDictation, organizationId],
+  );
 
   const startListening = useCallback(async () => {
     if (
@@ -148,26 +199,7 @@ export function useMediaRecorderDictation({
         return;
       }
 
-      setIsTranscribing(true);
-      void (async () => {
-        try {
-          const audio = await audioBlob.arrayBuffer();
-          const { text } = await transcribeDictation({
-            audio,
-            mimeType,
-            organizationId,
-          });
-
-          if (text.trim().length > 0) {
-            onTranscriptRef.current(text);
-          }
-        } catch (err) {
-          console.warn('[dictation] transcription failed:', err);
-          setError('transcription-failed');
-        } finally {
-          setIsTranscribing(false);
-        }
-      })();
+      void runTranscription(audioBlob, mimeType);
     });
 
     try {
@@ -181,7 +213,7 @@ export function useMediaRecorderDictation({
     } finally {
       startingRef.current = false;
     }
-  }, [isSupported, cleanup, transcribeDictation, organizationId]);
+  }, [isSupported, cleanup, runTranscription]);
 
   const stopListening = useCallback(() => {
     const recorder = recorderRef.current;
@@ -190,7 +222,25 @@ export function useMediaRecorderDictation({
     }
   }, []);
 
+  const retryTranscription = useCallback(() => {
+    const retained = failedRecordingRef.current;
+    if (retained) {
+      void runTranscription(retained.blob, retained.mimeType);
+    }
+  }, [runTranscription]);
+
+  const discardFailedRecording = useCallback(() => {
+    failedRecordingRef.current = null;
+    setHasFailedRecording(false);
+    setError(null);
+  }, []);
+
   useEffect(() => {
+    // Re-arm on (re)mount. The ref persists across React StrictMode's
+    // dev-mode unmount/remount, and the cleanup below sets it false — so
+    // without this line it stays false after the remount, and the stop
+    // handler silently drops every recording via the isMountedRef guard.
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       if (recorderRef.current && recorderRef.current.state !== 'inactive') {
@@ -213,5 +263,8 @@ export function useMediaRecorderDictation({
       void startListening();
     },
     stopListening,
+    hasFailedRecording,
+    retryTranscription,
+    discardFailedRecording,
   };
 }

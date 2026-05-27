@@ -3,7 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { HStack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { X, ArrowUp, CircleStop, Eye, Loader } from 'lucide-react';
+import { X, ArrowUp, CircleStop, Eye, Loader, RotateCcw } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
   useCallback,
@@ -95,6 +95,13 @@ interface ChatInputProps extends Omit<
       ragError?: string;
     }
   >;
+  /** True when any audio attachment's transcription terminally `failed`.
+   * Blocks send so the user retries or removes it first — mirrors
+   * `hasFailedVideoJobs`. */
+  hasFailedAudioJobs?: boolean;
+  /** Re-run a failed audio transcription (reuses the persisted `_storage`
+   * blob; no re-upload). Wired to the retry button on the audio chip. */
+  retryAudioTranscription?: (fileId: Id<'_storage'>) => void;
   onSavePrompt?: (content: string) => void;
   onOpenPromptLibrary?: () => void;
   /**
@@ -151,6 +158,8 @@ export function ChatInput({
   indexingStatuses,
   isTranscribing = false,
   transcriptionStatuses,
+  hasFailedAudioJobs = false,
+  retryAudioTranscription,
   videoLinkJobs = [],
   isProcessingVideo = false,
   hasFailedVideoJobs = false,
@@ -224,6 +233,7 @@ export function ChatInput({
       isTranscribing ||
       isProcessingVideo ||
       hasFailedVideoJobs ||
+      hasFailedAudioJobs ||
       pasteIngestPending ||
       sendBlocked
     )
@@ -689,6 +699,26 @@ export function ChatInput({
                         <Eye className="size-3" />
                       </button>
                     )}
+                    {audioInfo?.status === 'failed' &&
+                      retryAudioTranscription && (
+                        // Retry a failed transcription — reuses the persisted
+                        // `_storage` blob (no re-upload). Mutually exclusive
+                        // with the view-transcript (Eye) button, which only
+                        // renders on `completed`, so both can share the
+                        // bottom-right corner. Mirrors the video-link chip's
+                        // retry affordance.
+                        <button
+                          type="button"
+                          aria-label={tChat('transcription.retry')}
+                          title={tChat('transcription.retry')}
+                          onClick={() =>
+                            retryAudioTranscription(attachment.fileId)
+                          }
+                          className="bg-background text-muted-foreground hover:text-foreground absolute right-0.5 bottom-0.5 flex size-5 items-center justify-center rounded-full transition-colors"
+                        >
+                          <RotateCcw className="size-3" />
+                        </button>
+                      )}
                   </div>
                 );
               })}
@@ -820,6 +850,7 @@ export function ChatInput({
                     isTranscribing ||
                     isProcessingVideo ||
                     hasFailedVideoJobs ||
+                    hasFailedAudioJobs ||
                     pasteIngestPending ||
                     sendBlocked;
                 const tooltipContent =
@@ -829,9 +860,11 @@ export function ChatInput({
                       ? tChat('videoLink.chip.inProgressTooltip')
                       : hasFailedVideoJobs && !isLoading
                         ? tChat('videoLink.chip.failedSendBlockedTooltip')
-                        : sendBlocked && sendBlockedReason && !isLoading
-                          ? sendBlockedReason
-                          : '';
+                        : hasFailedAudioJobs && !isLoading
+                          ? tChat('transcription.failedSendBlockedTooltip')
+                          : sendBlocked && sendBlockedReason && !isLoading
+                            ? sendBlockedReason
+                            : '';
                 // Native `disabled` swallows pointer events on
                 // Chromium/WebKit, so the Tooltip trigger never fires
                 // when the button is in exactly the states the tooltip

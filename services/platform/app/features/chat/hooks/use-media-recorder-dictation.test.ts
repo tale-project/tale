@@ -413,6 +413,85 @@ describe('useMediaRecorderDictation', () => {
     });
   });
 
+  describe('failed-recording retry (in-browser, no re-record)', () => {
+    async function failOnce(onTranscript: (t: string) => void) {
+      mockTranscribeDictation.mockRejectedValueOnce(new Error('UNKNOWN_MODEL'));
+      const hook = renderHook(() =>
+        useMediaRecorderDictation({ organizationId: ORG_ID, onTranscript }),
+      );
+      await act(async () => {
+        hook.result.current.startListening();
+      });
+      const recorder = latestRecorder();
+      const audioChunk = new Blob([new Uint8Array([9, 8, 7, 6])], {
+        type: 'audio/webm',
+      });
+      await act(async () => {
+        recorder._fireEvent('dataavailable', { data: audioChunk });
+        recorder._fireEvent('stop');
+      });
+      await waitFor(() => {
+        expect(hook.result.current.hasFailedRecording).toBe(true);
+      });
+      return hook;
+    }
+
+    it('retains the recording when transcription fails', async () => {
+      const { result } = await failOnce(vi.fn());
+      expect(result.current.hasFailedRecording).toBe(true);
+      expect(result.current.error).toBe('transcription-failed');
+    });
+
+    it('retry re-sends the same bytes without re-recording, and clears on success', async () => {
+      const onTranscript = vi.fn();
+      const { result } = await failOnce(onTranscript);
+
+      const recordersBefore = recorders.length;
+      mockTranscribeDictation.mockResolvedValueOnce({ text: 'recovered' });
+
+      await act(async () => {
+        result.current.retryTranscription();
+      });
+
+      await waitFor(() => {
+        expect(onTranscript).toHaveBeenCalledWith('recovered');
+      });
+      // No new MediaRecorder / getUserMedia — retry reuses the retained blob.
+      expect(recorders.length).toBe(recordersBefore);
+      expect(mockTranscribeDictation).toHaveBeenCalledTimes(2);
+      // Same bytes re-sent.
+      const retryCall = mockTranscribeDictation.mock.calls[1]?.[0];
+      expect(new Uint8Array(retryCall.audio as ArrayBuffer)).toEqual(
+        new Uint8Array([9, 8, 7, 6]),
+      );
+      await waitFor(() => {
+        expect(result.current.hasFailedRecording).toBe(false);
+      });
+    });
+
+    it('discardFailedRecording clears the retained recording and error', async () => {
+      const { result } = await failOnce(vi.fn());
+
+      act(() => {
+        result.current.discardFailedRecording();
+      });
+
+      expect(result.current.hasFailedRecording).toBe(false);
+      expect(result.current.error).toBeNull();
+      // Retry after discard is a no-op (nothing retained).
+      act(() => {
+        result.current.retryTranscription();
+      });
+      expect(mockTranscribeDictation).toHaveBeenCalledTimes(1);
+    });
+
+    it('retained recording survives a re-render', async () => {
+      const { result, rerender } = await failOnce(vi.fn());
+      rerender();
+      expect(result.current.hasFailedRecording).toBe(true);
+    });
+  });
+
   describe('cleanup', () => {
     it('releases stream tracks on unmount during active recording', async () => {
       const { result, unmount } = renderHook(() =>

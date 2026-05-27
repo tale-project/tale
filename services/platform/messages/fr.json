@@ -915,7 +915,9 @@
       "indexingFailed": "Échec de l'indexation",
       "couldNotTranscribe": "N'a pas pu être transcrit",
       "viewTranscript": "Voir la transcription",
-      "previewSubtitle": "{seconds}s transcrites"
+      "previewSubtitle": "{seconds}s transcrites",
+      "retry": "Réessayer",
+      "failedSendBlockedTooltip": "Échec de la transcription — réessaie ou retire la pièce jointe avant d'envoyer"
     },
     "videoLink": {
       "statuses": {
@@ -1064,7 +1066,9 @@
       "level": "Niveau du microphone",
       "notSupported": "La reconnaissance vocale n'est pas prise en charge par ce navigateur",
       "permissionDenied": "L'accès au microphone a été refusé. Merci d'autoriser l'accès au microphone dans les paramètres de ton navigateur.",
-      "transcriptionFailed": "Impossible de transcrire ta dictée. Réessaie."
+      "transcriptionFailedShort": "Échec de la transcription",
+      "retry": "Réessayer",
+      "discard": "Supprimer l'enregistrement"
     },
     "citations": {
       "source": "Source {number}",

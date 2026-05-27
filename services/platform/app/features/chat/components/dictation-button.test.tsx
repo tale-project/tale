@@ -14,7 +14,9 @@ vi.mock('@/lib/i18n/client', () => ({
         'dictation.stop': 'Stop dictation',
         'dictation.transcribing': 'Transcribing',
         'dictation.permissionDenied': 'Microphone access denied',
-        'dictation.transcriptionFailed': 'Could not transcribe',
+        'dictation.transcriptionFailedShort': 'Transcription failed',
+        'dictation.retry': 'Try again',
+        'dictation.discard': 'Discard recording',
       };
       return translations[key] ?? key;
     },
@@ -52,6 +54,9 @@ vi.mock('../hooks/use-speech-to-text', () => ({
 // neither path is available.
 let mockRecorderSupported = false;
 let mockRecorderIsTranscribing = false;
+let mockRecorderHasFailedRecording = false;
+const mockRecorderRetry = vi.fn();
+const mockRecorderDiscard = vi.fn();
 
 vi.mock('../hooks/use-media-recorder-dictation', () => ({
   useMediaRecorderDictation: () => ({
@@ -61,6 +66,9 @@ vi.mock('../hooks/use-media-recorder-dictation', () => ({
     error: null,
     startListening: vi.fn(),
     stopListening: vi.fn(),
+    hasFailedRecording: mockRecorderHasFailedRecording,
+    retryTranscription: mockRecorderRetry,
+    discardFailedRecording: mockRecorderDiscard,
   }),
 }));
 
@@ -75,6 +83,7 @@ beforeEach(() => {
   mockError = null;
   mockRecorderSupported = false;
   mockRecorderIsTranscribing = false;
+  mockRecorderHasFailedRecording = false;
   mockOnTranscriptRef = null;
 });
 
@@ -175,6 +184,47 @@ describe('DictationButton', () => {
         'aria-pressed',
         'true',
       );
+    });
+  });
+
+  describe('failed-recording pill (MediaRecorder fallback)', () => {
+    function renderFailed() {
+      mockIsSupported = false;
+      mockRecorderSupported = true;
+      mockRecorderHasFailedRecording = true;
+      return render(
+        <DictationButton organizationId={orgId} onTranscript={vi.fn()} />,
+      );
+    }
+
+    it('renders the failed pill with retry and discard when a recording failed', () => {
+      renderFailed();
+      expect(screen.getByText('Transcription failed')).toBeInTheDocument();
+      expect(screen.getByLabelText('Try again')).toBeInTheDocument();
+      expect(screen.getByLabelText('Discard recording')).toBeInTheDocument();
+    });
+
+    it('retry button calls retryTranscription', async () => {
+      const { user } = renderFailed();
+      await user.click(screen.getByLabelText('Try again'));
+      expect(mockRecorderRetry).toHaveBeenCalledOnce();
+    });
+
+    it('discard button calls discardFailedRecording', async () => {
+      const { user } = renderFailed();
+      await user.click(screen.getByLabelText('Discard recording'));
+      expect(mockRecorderDiscard).toHaveBeenCalledOnce();
+    });
+
+    it('does not render the pill on the Web Speech path', () => {
+      // Web Speech supported → fallback inert → no pill even if the recorder
+      // hook reports a (stale) failed recording.
+      mockIsSupported = true;
+      mockRecorderHasFailedRecording = true;
+      render(<DictationButton organizationId={orgId} onTranscript={vi.fn()} />);
+      expect(
+        screen.queryByText('Transcription failed'),
+      ).not.toBeInTheDocument();
     });
   });
 

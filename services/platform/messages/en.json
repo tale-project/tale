@@ -914,7 +914,9 @@
       "indexingFailed": "Indexing failed",
       "couldNotTranscribe": "Could not be transcribed",
       "viewTranscript": "View transcript",
-      "previewSubtitle": "{seconds}s transcribed"
+      "previewSubtitle": "{seconds}s transcribed",
+      "retry": "Try again",
+      "failedSendBlockedTooltip": "Transcription failed — retry it or remove the attachment before sending"
     },
     "videoLink": {
       "statuses": {
@@ -1063,7 +1065,9 @@
       "level": "Microphone level",
       "notSupported": "Speech recognition is not supported in this browser",
       "permissionDenied": "Microphone access was denied. Please allow microphone access in your browser settings.",
-      "transcriptionFailed": "Could not transcribe your dictation. Please try again."
+      "transcriptionFailedShort": "Transcription failed",
+      "retry": "Try again",
+      "discard": "Discard recording"
     },
     "citations": {
       "source": "Source {number}",
