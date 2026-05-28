@@ -31,6 +31,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv for faster package management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+# Network resilience for PyPI: default uv timeout (~30s) is too aggressive for
+# large ML wheels on slow links — bump to 300s to survive transient slowdowns.
+ENV UV_HTTP_TIMEOUT=300
+
 # Copy and install shared packages first (better layer caching)
 COPY packages/tale_shared/pyproject.toml /packages/tale_shared/pyproject.toml
 COPY packages/tale_shared/src/ /packages/tale_shared/src/
