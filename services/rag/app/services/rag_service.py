@@ -28,8 +28,9 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 import asyncpg
 import httpx
@@ -116,9 +117,22 @@ class RagService:
         self._pinned_dims: int | None = None
         self._pin_dim_lock = asyncio.Lock()
         # Per-org client cache and per-org locks (so concurrent first-calls
-        # for the same org don't both build clients).
-        self._org_clients: dict[str, _OrgClients] = {}
-        self._org_locks: dict[str, asyncio.Lock] = {}
+        # for the same org don't both build clients). True LRU on access:
+        # `OrderedDict.move_to_end` on every cache hit; eviction pops the
+        # least-recently-used entry. The previous "FIFO" pop-iter scheme
+        # claimed to be LRU in comments but never reordered, so a busy
+        # org's lock could be evicted while still held by fiber A —
+        # fiber B then got a fresh lock and both fibers raced into
+        # `_build_or_refresh_org_clients` with `previous=None`, silently
+        # overwriting each other's client set with no `_safe_close`
+        # scheduled (round-2 P1-20).
+        self._org_clients: OrderedDict[str, _OrgClients] = OrderedDict()
+        self._org_locks: OrderedDict[str, asyncio.Lock] = OrderedDict()
+        # Set to True at the top of `shutdown`. New `_ensure_org_clients`
+        # calls raise immediately so requests landing mid-shutdown can't
+        # repopulate the cache after `clear()` and bind to a pool that's
+        # about to close (round-2 P1-19).
+        self._shutting_down: bool = False
 
     async def initialize(self) -> None:
         """Initialize the shared database pool.
@@ -147,20 +161,31 @@ class RagService:
 
     def _get_org_lock(self, org_slug: str) -> asyncio.Lock:
         lock = self._org_locks.get(org_slug)
-        if lock is None:
-            # Bounded LRU eviction: never grow past `_ORG_LOCKS_MAX`. Evict
-            # the oldest entry (Python dicts preserve insertion order); the
-            # evicted lock is safe to drop because either no caller holds
-            # it (it was idle), or the caller still has a reference and
-            # will continue using it — we just lose the "shared lock"
-            # property for that org until the next call recreates it.
-            if len(self._org_locks) >= _ORG_LOCKS_MAX:
-                # `next(iter(...))` returns the oldest key without
-                # building a list.
-                oldest = next(iter(self._org_locks))
-                self._org_locks.pop(oldest, None)
-            lock = asyncio.Lock()
-            self._org_locks[org_slug] = lock
+        if lock is not None:
+            # True LRU: bump on access. Without this, eviction order is
+            # insertion order (FIFO), so a busy org's lock could be
+            # evicted while held — breaking the "shared lock per org"
+            # invariant and producing the racing-builders bug described
+            # on the OrderedDict declaration above.
+            self._org_locks.move_to_end(org_slug)
+            return lock
+
+        # Bounded eviction: scan for the LEAST-recently-used UNHELD lock
+        # rather than blindly popping the head. A held lock means a
+        # fiber is mid-build for that org; evicting it would create a
+        # second concurrent builder. If every entry is held (>=256 orgs
+        # all building concurrently — extremely unlikely), give up on
+        # eviction and let the dict grow by one. The next call will
+        # have more idle locks to pick from.
+        if len(self._org_locks) >= _ORG_LOCKS_MAX:
+            for victim_key in list(self._org_locks.keys()):
+                victim = self._org_locks[victim_key]
+                if not victim.locked():
+                    self._org_locks.pop(victim_key, None)
+                    break
+            # else: all locks held — accept temporary overshoot.
+        lock = asyncio.Lock()
+        self._org_locks[org_slug] = lock
         return lock
 
     async def _ensure_org_clients(self, org_slug: str) -> _OrgClients:
@@ -169,6 +194,8 @@ class RagService:
         Refresh is gated on `_CONFIG_CHECK_INTERVAL` so a busy org doesn't
         re-read its provider files on every call.
         """
+        if self._shutting_down:
+            raise RuntimeError("RagService is shutting down")
         if not self.initialized:
             await self.initialize()
         if self._pool is None:
@@ -178,6 +205,7 @@ class RagService:
         if cached is not None:
             now = time.monotonic()
             if (now - cached.last_check) < _CONFIG_CHECK_INTERVAL:
+                self._org_clients.move_to_end(org_slug)
                 return cached
 
         lock = self._get_org_lock(org_slug)
@@ -186,6 +214,7 @@ class RagService:
             if cached is not None:
                 now = time.monotonic()
                 if (now - cached.last_check) < _CONFIG_CHECK_INTERVAL:
+                    self._org_clients.move_to_end(org_slug)
                     return cached
 
             return await self._build_or_refresh_org_clients(org_slug, cached)
@@ -290,6 +319,34 @@ class RagService:
             last_check=time.monotonic(),
         )
         self._org_clients[org_slug] = new_clients
+        self._org_clients.move_to_end(org_slug)
+
+        # Cap `_org_clients` size by the same LRU bound applied to
+        # `_org_locks`. Without this, a long-running process that sees
+        # many distinct (or typo'd) slugs grows the dict without limit;
+        # each entry holds an `AsyncOpenAI` httpx pool + a vision
+        # client. Evict the LRU entry whose org isn't in the middle of
+        # being built (we hold its lock during this block, so the LRU
+        # head won't be us). Round-2 P1-20.
+        while len(self._org_clients) > _ORG_LOCKS_MAX:
+            victim_key, victim_clients = self._org_clients.popitem(last=False)
+            if victim_key == org_slug:
+                # Defensive: re-add and stop. Should not happen — the
+                # entry we just inserted was move_to_end'd above.
+                self._org_clients[victim_key] = victim_clients
+                break
+            loop = asyncio.get_running_loop()
+            for coro_target in (
+                victim_clients.embedding_service.close(),
+                victim_clients.openai_client.close(),
+            ):
+                t = loop.create_task(_safe_close(coro_target))
+                _background_tasks.add(t)
+                t.add_done_callback(_background_tasks.discard)
+            if victim_clients.vision_client is not None:
+                t = loop.create_task(_safe_close(victim_clients.vision_client.close()))
+                _background_tasks.add(t)
+                t.add_done_callback(_background_tasks.discard)
 
         # Best-effort close of old clients after a grace period so in-flight
         # requests on the old clients finish cleanly.
@@ -795,8 +852,28 @@ class RagService:
 
         return result
 
+    # Bounded drain for background `_safe_close` tasks during shutdown.
+    # Each `_safe_close` sleeps 30s before its actual close call so in-
+    # flight requests on the old clients can finish; without a timeout
+    # here, a refresh-burst right before shutdown can keep the process
+    # hanging for ~30s x max-concurrent-refreshes. 10s is generous given
+    # the AsyncOpenAI / httpx pool close itself is sub-second.
+    _SHUTDOWN_DRAIN_TIMEOUT_S: ClassVar[float] = 10.0
+
     async def shutdown(self) -> None:
-        """Clean shutdown — close pool and all per-org clients."""
+        """Clean shutdown — close pool and all per-org clients.
+
+        Order matters:
+        1. Flip `_shutting_down` so new `_ensure_org_clients` calls fail
+           fast instead of repopulating the cache and binding new clients
+           to a pool that's about to close (P1-19).
+        2. Close per-org clients; clear the cache.
+        3. Drain `_background_tasks` (the `_safe_close` coroutines that
+           were spawned for client-refresh churn) under a bounded timeout.
+        4. Close the DB pool.
+        """
+        self._shutting_down = True
+
         # Best-effort close of each org's clients before tearing down the pool.
         for org_slug, clients in list(self._org_clients.items()):
             try:
@@ -823,10 +900,23 @@ class RagService:
         self._org_clients.clear()
 
         # Drain pending `_safe_close` tasks so they don't keep running
-        # after the pool is closed. `return_exceptions=True` ensures one
-        # failing close doesn't prevent the others from being awaited.
+        # after the pool is closed. Bounded by `_SHUTDOWN_DRAIN_TIMEOUT_S`
+        # so a refresh burst whose 30s `asyncio.sleep` is still pending
+        # can't pin shutdown for the full grace window (P1-19).
         if _background_tasks:
-            await asyncio.gather(*_background_tasks, return_exceptions=True)
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*_background_tasks, return_exceptions=True),
+                    timeout=self._SHUTDOWN_DRAIN_TIMEOUT_S,
+                )
+            except TimeoutError:
+                logger.warning(
+                    "shutdown: {} background tasks did not drain within {}s; cancelling",
+                    len(_background_tasks),
+                    self._SHUTDOWN_DRAIN_TIMEOUT_S,
+                )
+                for task in list(_background_tasks):
+                    task.cancel()
 
         await close_pool()
         self.initialized = False

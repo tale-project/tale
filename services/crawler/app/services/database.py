@@ -20,6 +20,14 @@ SCHEMA = "public_web"
 _pool: asyncpg.Pool | None = None
 _pool_lock = asyncio.Lock()
 
+# Dimensionality of `public_web.chunks.embedding` after `init_pool`
+# finishes. Resolved from the `default` org's embedding-model config at
+# boot; all subsequent per-org client builds in `embedding_service.py`
+# MUST validate against this value (P1-27) — a per-org provider config
+# that disagrees would silently succeed at config-load and crash only
+# at INSERT/search time with a cryptic pgvector cast error.
+BOOT_PINNED_DIMS: int | None = None
+
 
 def _get_database_url() -> str:
     if settings.database_url:
@@ -84,8 +92,38 @@ async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
 
         try:
             async with acquire_with_retry(pool) as conn:
-                await conn.execute(f"ALTER TABLE {SCHEMA}.chunks ALTER COLUMN embedding TYPE vector({dims})")
-            logger.info(f"Pinned {SCHEMA}.chunks.embedding to vector({dims})")
+                # Pre-check: read the current column type. format_type
+                # returns `vector` (no dim) on a fresh baseline,
+                # `vector(N)` once pinned. If it's already pinned to a
+                # different N, the historical "ALTER unconditionally"
+                # would either (a) raise a cryptic pgvector cast error
+                # mid-startup, or (b) silently re-pin and orphan stored
+                # vectors. Surface a legible message instead and refuse
+                # to continue. Round-2 P1-24 restoration.
+                col_type = await conn.fetchval(
+                    "SELECT format_type(atttypid, atttypmod) "
+                    "FROM pg_attribute "
+                    "WHERE attrelid = $1::regclass AND attname = 'embedding'",
+                    f"{SCHEMA}.chunks",
+                )
+                if isinstance(col_type, str) and col_type.startswith("vector(") and col_type != f"vector({dims})":
+                    raise RuntimeError(
+                        f"Embedding dimension mismatch: {SCHEMA}.chunks.embedding "
+                        f"is {col_type} but the 'default' org's provider config "
+                        f"requests vector({dims}). Either reconcile the provider "
+                        f"catalog to match the existing column dimension, or "
+                        f"restore the database from a backup taken before the "
+                        f"dimension change."
+                    )
+
+                # Only ALTER when needed (column is dimensionless OR
+                # we just verified it matches). Avoids the AccessExclusiveLock
+                # on the chunks table every boot.
+                if col_type != f"vector({dims})":
+                    await conn.execute(f"ALTER TABLE {SCHEMA}.chunks ALTER COLUMN embedding TYPE vector({dims})")
+                    logger.info(f"Pinned {SCHEMA}.chunks.embedding to vector({dims})")
+                else:
+                    logger.info(f"{SCHEMA}.chunks.embedding already pinned to vector({dims}); skipping ALTER")
 
             # Create HNSW index if it doesn't exist yet. After the pin
             # above this is the normal path; the function raises if the
@@ -101,6 +139,11 @@ async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
             await pool.close()
             raise
 
+        # Record the boot-pinned dim AFTER all guards pass so per-org
+        # embedding-service builds can validate against this single
+        # source of truth (P1-27).
+        global BOOT_PINNED_DIMS
+        BOOT_PINNED_DIMS = dims
         _pool = pool
         return _pool
 

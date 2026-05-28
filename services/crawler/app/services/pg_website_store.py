@@ -272,11 +272,22 @@ class PgWebsiteStoreManager:
         to decide whether to trigger an immediate scan.
         """
         async with acquire_with_retry(self._pool) as conn, conn.transaction():
+            # ON CONFLICT: don't overwrite `scan_interval` — any member
+            # org's re-register would otherwise silently clobber every
+            # other member's cadence (round-2 P1-22). First-org-sets-
+            # cadence semantics; updating cadence requires the explicit
+            # `update_scan_interval` API call. Also flip `status` back
+            # to 'idle' if a stuck-delete recovery left it at 'deleting'
+            # — a fresh registration is a clear signal the domain is
+            # wanted again (round-2 P1-23).
             await conn.execute(
                 """INSERT INTO websites (domain, scan_interval, created_at, updated_at)
                    VALUES ($1, $2, NOW(), NOW())
                    ON CONFLICT(domain) DO UPDATE SET
-                     scan_interval = EXCLUDED.scan_interval,
+                     status = CASE
+                       WHEN websites.status = 'deleting' THEN 'idle'
+                       ELSE websites.status
+                     END,
                      updated_at = NOW()""",
                 domain,
                 scan_interval,
@@ -393,9 +404,35 @@ class PgWebsiteStoreManager:
         }
 
     async def execute_delete(self, domain: str) -> None:
-        """Run the actual CASCADE DELETE. Intended for background execution."""
+        """Run the actual CASCADE DELETE. Intended for background execution.
+
+        Same-tx membership re-check (round-2 P1-23): between `begin_delete`
+        marking the row 'deleting' and this method firing on the
+        background task, a new org could have joined via `register_website`
+        (whose ON CONFLICT now resets status='idle' — see P1-22 fix
+        above). If any membership now exists, abort the DELETE rather
+        than CASCADE-killing the new org's content.
+        """
         async with acquire_with_retry(self._pool) as conn, conn.transaction():
             await conn.execute("SET LOCAL statement_timeout = '120s'")
+            remaining = await conn.fetchval(
+                "SELECT COUNT(*) FROM website_org_memberships WHERE domain = $1",
+                domain,
+            )
+            if remaining and remaining > 0:
+                logger.warning(
+                    "execute_delete: aborting CASCADE for %s — %s membership(s) "
+                    "appeared after begin_delete (race with register_website). "
+                    "Domain remains live; status will flip to 'idle' on the "
+                    "next register or scheduler tick.",
+                    domain,
+                    remaining,
+                )
+                await conn.execute(
+                    "UPDATE websites SET status = 'idle', updated_at = NOW() WHERE domain = $1 AND status = 'deleting'",
+                    domain,
+                )
+                return
             await conn.execute("DELETE FROM websites WHERE domain = $1", domain)
         await reindex_chunks(self._pool)
         logger.info(f"Deleted website: {domain}")

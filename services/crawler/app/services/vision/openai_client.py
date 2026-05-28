@@ -13,6 +13,7 @@ import base64
 import contextlib
 import imghdr
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 
 from loguru import logger
@@ -98,13 +99,14 @@ class _OrgVisionState:
 # so two orgs' requests never share `_client` / `_client_config` (which
 # would route org B's traffic through org A's API key when within the
 # TTL — the bug this refactor fixes).
-_vision_states: dict[str, _OrgVisionState] = {}
-
-# Same shape for chat config (used by `process_pages_with_llm`). Two
-# orgs may legitimately have different chat providers; without an
-# explicit per-org cache, the prior code rebuilt the client on every
-# call and leaked the httpx pool.
-_chat_states: dict[str, _OrgVisionState] = {}
+#
+# OrderedDict for true LRU on access; bounded by `_ORG_CACHE_MAX` so a
+# typo'd-slug spray or natural org churn doesn't leak httpx connection
+# pools indefinitely (round-2 P1-25). The peer cache in
+# `embedding_service.py` uses the same pattern.
+_ORG_CACHE_MAX = 64
+_vision_states: OrderedDict[str, _OrgVisionState] = OrderedDict()
+_chat_states: OrderedDict[str, _OrgVisionState] = OrderedDict()
 
 
 async def _safe_close_client(client: AsyncOpenAI) -> None:
@@ -116,8 +118,27 @@ async def _safe_close_client(client: AsyncOpenAI) -> None:
         logger.opt(exception=True).warning("Failed to close old vision client")
 
 
+def _evict_lru_if_needed(
+    states: OrderedDict[str, _OrgVisionState],
+    label: str,
+) -> None:
+    """Pop the LRU entry from `states` once it crosses `_ORG_CACHE_MAX`.
+
+    Each entry holds an `AsyncOpenAI` httpx connection pool. Without
+    this, a typo'd-slug spray or a long-running process with high org
+    churn slowly leaks file descriptors. Schedule the evicted client's
+    close after the standard grace window so any in-flight call still
+    finishes (round-2 P1-25).
+    """
+    while len(states) > _ORG_CACHE_MAX:
+        _victim_key, victim = states.popitem(last=False)
+        logger.info("Evicting LRU {} client for org '{}'", label, _victim_key)
+        with contextlib.suppress(RuntimeError):
+            asyncio.get_running_loop().create_task(_safe_close_client(victim.client))
+
+
 def _get_or_build_client(
-    states: dict[str, _OrgVisionState],
+    states: OrderedDict[str, _OrgVisionState],
     org_slug: str,
     config_getter,
     *,
@@ -137,6 +158,7 @@ def _get_or_build_client(
     state = states.get(org_slug)
     now = time.monotonic()
     if state is not None and (now - state.last_check) < _CONFIG_CHECK_INTERVAL:
+        states.move_to_end(org_slug)
         return state.client
 
     try:
@@ -175,6 +197,8 @@ def _get_or_build_client(
         config=config,
         last_check=now,
     )
+    states.move_to_end(org_slug)
+    _evict_lru_if_needed(states, label)
 
     if old_client is not None:
         logger.info("{} rebuilt for org '{}': model={}", label, org_slug, model)
@@ -223,8 +247,17 @@ class VisionClient:
         if cached_result is not None:
             return cached_result
 
+        # Read the model id from the cached `_vision_states[org].config`
+        # tuple instead of `settings.get_vision_model(org)`. The latter
+        # routes through `load_providers` which is uncached — every call
+        # globs the providers dir, parses JSON, and forks `sops -d` per
+        # `.secrets.json`. Multi-page PDF OCR fires this per page, so the
+        # sops fork storm dominated. `_get_client` above already loaded
+        # the same config and stashed it on the state. (Round-2 P1-26;
+        # see `process_pages_with_llm:456` for the same pattern.)
         client = self._get_client()
-        vision_model = settings.get_vision_model(get_active_org())
+        org_slug = get_active_org()
+        vision_model = _vision_states[org_slug].config[2]
         extraction_prompt = prompt or OCR_PROMPT
 
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -302,8 +335,11 @@ class VisionClient:
         if cached_result is not None:
             return cached_result
 
+        # Same cached-model-id read as `ocr_image` above. See P1-26 note
+        # there for rationale (sops fork storm bypass).
         client = self._get_client()
-        vision_model = settings.get_vision_model(get_active_org())
+        org_slug = get_active_org()
+        vision_model = _vision_states[org_slug].config[2]
         description_prompt = prompt or DESCRIBE_PROMPT
 
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
