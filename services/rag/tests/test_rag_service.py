@@ -199,11 +199,15 @@ class TestSearch:
 
     async def test_delegates_to_search_service(self):
         service = _make_service()
+        usage_obj = MagicMock(name="usage")
         service._search_service.search = AsyncMock(
-            return_value=[
-                {"content": "hit 1", "score": 0.9, "file_id": "doc-1"},
-                {"content": "hit 2", "score": 0.8, "file_id": "doc-2"},
-            ]
+            return_value=(
+                [
+                    {"content": "hit 1", "score": 0.9, "file_id": "doc-1"},
+                    {"content": "hit 2", "score": 0.8, "file_id": "doc-2"},
+                ],
+                usage_obj,
+            )
         )
 
         with patch("app.services.rag_service.settings") as mock_settings:
@@ -212,11 +216,11 @@ class TestSearch:
             results, usage = await service.search(TEST_ORG, "test query", file_ids=["doc-1"])
 
         assert len(results) == 2
-        # `search` returns a (results, usage) tuple now — the usage
-        # value is the per-call embedding usage attached to the search
-        # service, not a shared singleton.
-        assert usage is service._search_service.last_search_usage
+        # `search_service.search` now returns the `(results, usage)`
+        # tuple directly — no shared singleton attribute to read.
+        assert usage is usage_obj
         service._search_service.search.assert_awaited_once_with(
+            TEST_ORG,
             "test query",
             file_ids=["doc-1"],
             top_k=10,
@@ -225,7 +229,7 @@ class TestSearch:
 
     async def test_applies_similarity_threshold(self):
         service = _make_service()
-        service._search_service.search = AsyncMock(return_value=[])
+        service._search_service.search = AsyncMock(return_value=([], MagicMock()))
 
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
@@ -234,6 +238,7 @@ class TestSearch:
 
         # Threshold is now passed to search_service for vector pre-filtering
         service._search_service.search.assert_awaited_once_with(
+            TEST_ORG,
             "query",
             file_ids=None,
             top_k=10,
@@ -242,7 +247,7 @@ class TestSearch:
 
     async def test_custom_top_k_overrides_settings(self):
         service = _make_service()
-        service._search_service.search = AsyncMock(return_value=[])
+        service._search_service.search = AsyncMock(return_value=([], MagicMock()))
 
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 5
@@ -250,6 +255,7 @@ class TestSearch:
             await service.search(TEST_ORG, "query", top_k=20)
 
         service._search_service.search.assert_awaited_once_with(
+            TEST_ORG,
             "query",
             file_ids=None,
             top_k=20,
@@ -259,9 +265,10 @@ class TestSearch:
     async def test_custom_threshold_overrides_settings(self):
         service = _make_service()
         service._search_service.search = AsyncMock(
-            return_value=[
-                {"content": "mid", "score": 0.5, "file_id": "d1"},
-            ]
+            return_value=(
+                [{"content": "mid", "score": 0.5, "file_id": "d1"}],
+                MagicMock(),
+            )
         )
 
         with patch("app.services.rag_service.settings") as mock_settings:
@@ -274,9 +281,10 @@ class TestSearch:
     async def test_zero_threshold_returns_all(self):
         service = _make_service()
         service._search_service.search = AsyncMock(
-            return_value=[
-                {"content": "a", "score": 0.01, "file_id": "d1"},
-            ]
+            return_value=(
+                [{"content": "a", "score": 0.01, "file_id": "d1"}],
+                MagicMock(),
+            )
         )
 
         with patch("app.services.rag_service.settings") as mock_settings:
@@ -288,7 +296,7 @@ class TestSearch:
 
     async def test_passes_file_ids(self):
         service = _make_service()
-        service._search_service.search = AsyncMock(return_value=[])
+        service._search_service.search = AsyncMock(return_value=([], MagicMock()))
         service.get_document_statuses = AsyncMock(return_value={"doc-1": None, "doc-2": None})
 
         with patch("app.services.rag_service.settings") as mock_settings:
@@ -297,6 +305,7 @@ class TestSearch:
             await service.search(TEST_ORG, "q", file_ids=["doc-1", "doc-2"])
 
         service._search_service.search.assert_awaited_once_with(
+            TEST_ORG,
             "q",
             file_ids=["doc-1", "doc-2"],
             top_k=10,
@@ -498,7 +507,7 @@ class TestDeleteDocument:
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.delete_document("doc-1")
+            result = await service.delete_document(TEST_ORG, "doc-1")
 
         assert result["success"] is True
         assert result["deleted_count"] == 1
@@ -514,7 +523,7 @@ class TestDeleteDocument:
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.delete_document("doc-1")
+            result = await service.delete_document(TEST_ORG, "doc-1")
 
         assert result["deleted_count"] == 2
 
@@ -523,7 +532,7 @@ class TestDeleteDocument:
         mock_conn = _mock_conn(fetch_return=[])
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.delete_document("nonexistent")
+            result = await service.delete_document(TEST_ORG, "nonexistent")
 
         assert result["success"] is True
         assert result["deleted_count"] == 0
@@ -551,7 +560,7 @@ class TestDeleteDocument:
         mock_conn.execute = AsyncMock(side_effect=track_execute)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            await service.delete_document("doc-1")
+            await service.delete_document(TEST_ORG, "doc-1")
 
         assert call_order == ["delete_chunks", "delete_documents"]
 
@@ -565,7 +574,7 @@ class TestDeleteDocument:
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            await service.delete_document("doc-1")
+            await service.delete_document(TEST_ORG, "doc-1")
 
         mock_conn.transaction.assert_called_once()
 
@@ -574,7 +583,7 @@ class TestDeleteDocument:
         mock_conn = _mock_conn(fetch_return=[])
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.delete_document("doc-1")
+            result = await service.delete_document(TEST_ORG, "doc-1")
 
         assert "processing_time_ms" in result
         assert result["processing_time_ms"] >= 0

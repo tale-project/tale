@@ -9,6 +9,7 @@ import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { getPollingInterval } from '../documents/internal_actions';
 import { readJsonFile } from '../lib/file_io';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { ragFetch } from '../lib/helpers/rag_config';
 import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { uploadDocument } from '../workflow_engine/action_defs/rag/helpers/upload_document';
@@ -94,11 +95,13 @@ export const checkKnowledgeFileStatus = internalAction({
     }
 
     try {
+      const orgSlug = await orgSlugFromId(ctx, args.organizationId);
       const response = await ragFetch('/api/v1/documents/statuses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file_ids: [String(args.fileId)] }),
         timeoutMs: 10_000,
+        orgSlug,
       });
 
       if (response.status === 429 || !response.ok) {
@@ -230,12 +233,15 @@ export const checkKnowledgeFileStatus = internalAction({
 
 export const deleteKnowledgeFileFromRag = internalAction({
   args: {
+    organizationId: v.string(),
     fileId: v.id('_storage'),
   },
   returns: v.null(),
-  handler: async (_ctx, args): Promise<null> => {
+  handler: async (ctx, args): Promise<null> => {
     try {
+      const orgSlug = await orgSlugFromId(ctx, args.organizationId);
       await deleteDocumentById({
+        orgSlug,
         fileId: String(args.fileId),
       });
     } catch (error) {

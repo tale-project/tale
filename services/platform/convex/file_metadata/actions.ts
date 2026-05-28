@@ -6,6 +6,7 @@ import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { ragFetch } from '../lib/helpers/rag_config';
 
 /**
@@ -37,45 +38,32 @@ export const checkFileRagStatuses = action({
     }
     const callerId = String(authUser._id);
 
-    // Filter storageIds down to ones the caller is authorized to see.
-    // Per-row org membership check (stored on fileMetadata).
-    const allowedStorageIds = await ctx.runQuery(
+    // Filter storageIds down to ones the caller is authorized to see, and
+    // get the org for each so we can call RAG (which is now per-org) with
+    // the correct X-Tale-Org header per group.
+    const allowed = await ctx.runQuery(
       internal.file_metadata.internal_queries.filterStorageIdsByCallerOrg,
       { storageIds: args.storageIds, userId: callerId },
     );
-    if (allowedStorageIds.length === 0) {
+    if (allowed.length === 0) {
       console.warn(
         '[checkFileRagStatuses] no authorized storage ids for caller — refused',
       );
       return null;
     }
-    args = { ...args, storageIds: allowedStorageIds };
 
-    let body: unknown;
-    try {
-      const response = await ragFetch('/api/v1/documents/statuses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_ids: args.storageIds }),
-        timeoutMs: 10_000,
-      });
-
-      if (!response.ok) {
-        console.warn(`[checkFileRagStatuses] RAG returned ${response.status}`);
-        return null;
-      }
-
-      body = await response.json();
-    } catch (error) {
-      console.warn('[checkFileRagStatuses] Failed to fetch statuses:', error);
-      return null;
+    // Group authorized storage ids by org so we can issue one RAG call
+    // per distinct org. The cache means each org slug is resolved once
+    // even when many files belong to the same org.
+    const orgIdsToFiles = new Map<
+      string,
+      Array<(typeof args.storageIds)[number]>
+    >();
+    for (const { storageId, organizationId } of allowed) {
+      const bucket = orgIdsToFiles.get(organizationId);
+      if (bucket) bucket.push(storageId);
+      else orgIdsToFiles.set(organizationId, [storageId]);
     }
-
-    if (!isRecord(body) || !isRecord(body.statuses)) {
-      return null;
-    }
-
-    const statuses = body.statuses;
 
     // Give RAG 90s to have ingested a newly-queued upload. If we're still
     // getting null after that window, the upload never reached RAG (likely
@@ -84,7 +72,38 @@ export const checkFileRagStatuses = action({
     // the fileMetadata row, so re-queues reset the clock.
     const STALE_QUEUE_MS = 90_000;
 
-    for (const storageId of args.storageIds) {
+    const mergedStatuses: Record<string, unknown> = {};
+    for (const [organizationId, storageIds] of orgIdsToFiles) {
+      const orgSlug = await orgSlugFromId(ctx, organizationId);
+      try {
+        const response = await ragFetch('/api/v1/documents/statuses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_ids: storageIds }),
+          timeoutMs: 10_000,
+          orgSlug,
+        });
+        if (!response.ok) {
+          console.warn(
+            `[checkFileRagStatuses] RAG returned ${response.status} for org ${orgSlug}`,
+          );
+          continue;
+        }
+        const body: unknown = await response.json();
+        if (!isRecord(body) || !isRecord(body.statuses)) continue;
+        Object.assign(mergedStatuses, body.statuses);
+      } catch (error) {
+        console.warn(
+          `[checkFileRagStatuses] Failed to fetch statuses for org ${orgSlug}:`,
+          error,
+        );
+      }
+    }
+
+    const statuses = mergedStatuses;
+    const allAuthorizedStorageIds = allowed.map((a) => a.storageId);
+
+    for (const storageId of allAuthorizedStorageIds) {
       const docStatus = statuses[storageId];
       if (!isRecord(docStatus)) {
         await ctx.runMutation(

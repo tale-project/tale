@@ -21,6 +21,8 @@ from tale_knowledge.embedding import EmbeddingQueryResult, EmbeddingUsage
 
 pytestmark = pytest.mark.asyncio
 
+TEST_ORG = "test-org"
+
 
 def _make_row(
     row_id: int, chunk_content: str, file_id: str, score: float = 1.0, chunk_index: int = 0
@@ -115,7 +117,7 @@ class TestHybridSearch:
             service._fts_search = AsyncMock(return_value=fts_rows)
             service._vector_search = AsyncMock(return_value=vector_rows)
 
-            results = await service.search("test query", file_ids=["doc-1"])
+            results, _usage = await service.search(TEST_ORG, "test query", file_ids=["doc-1"])
 
         assert len(results) > 0
         for r in results:
@@ -129,7 +131,7 @@ class TestHybridSearch:
         service._fts_search = AsyncMock(return_value=[])
         service._vector_search = AsyncMock(return_value=[])
 
-        results = await service.search("nothing here")
+        results, _usage = await service.search(TEST_ORG, "nothing here")
 
         assert results == []
 
@@ -143,7 +145,7 @@ class TestHybridSearch:
         service._fts_search = AsyncMock(return_value=fts_rows)
         service._vector_search = AsyncMock(return_value=[])
 
-        results = await service.search("fts query")
+        results, _usage = await service.search(TEST_ORG, "fts query")
 
         assert len(results) == 2
         assert results[0]["content"] == "Only FTS hit"
@@ -155,7 +157,7 @@ class TestHybridSearch:
         service._fts_search = AsyncMock(return_value=[])
         service._vector_search = AsyncMock(return_value=vector_rows)
 
-        results = await service.search("vector query")
+        results, _usage = await service.search(TEST_ORG, "vector query")
 
         assert len(results) == 1
         assert results[0]["content"] == "Vector hit"
@@ -168,7 +170,7 @@ class TestHybridSearch:
         service._fts_search = AsyncMock(return_value=fts_rows)
         service._vector_search = AsyncMock(return_value=vector_rows)
 
-        results = await service.search("query", top_k=5)
+        results, _usage = await service.search(TEST_ORG, "query", top_k=5)
 
         assert len(results) <= 5
 
@@ -177,7 +179,7 @@ class TestHybridSearch:
         service._fts_search = AsyncMock(return_value=[])
         service._vector_search = AsyncMock(return_value=[])
 
-        await service.search("my search query")
+        await service.search(TEST_ORG, "my search query")
 
         embed_svc.embed_query_with_usage.assert_awaited_once_with("my search query")
 
@@ -192,11 +194,14 @@ class TestScopeFiltering:
         embed = MagicMock()
         service = RagSearchService(pool, embed)
 
-        clause, params = service._build_scope_clause(["doc-a", "doc-b"], 1)
+        clause, params = service._build_scope_clause(TEST_ORG, ["doc-a", "doc-b"], 1)
 
+        # org filter is ALWAYS present; file_id filter is additive.
+        assert "org_slug" in clause
+        assert "$2" in clause  # org param at offset+1
         assert "file_id" in clause
-        assert "ANY($2)" in clause
-        assert params == [["doc-a", "doc-b"]]
+        assert "ANY($3)" in clause  # file_ids at offset+2
+        assert params == [TEST_ORG, ["doc-a", "doc-b"]]
 
     def test_build_scope_clause_without_file_ids(self):
         from app.services.search_service import RagSearchService
@@ -205,10 +210,12 @@ class TestScopeFiltering:
         embed = MagicMock()
         service = RagSearchService(pool, embed)
 
-        clause, params = service._build_scope_clause(None, 1)
+        clause, params = service._build_scope_clause(TEST_ORG, None, 1)
 
-        assert clause == ""
-        assert params == []
+        # Empty/None file_ids now produces an org-only filter (not "").
+        assert "org_slug" in clause
+        assert "file_id" not in clause
+        assert params == [TEST_ORG]
 
     def test_build_scope_clause_respects_param_offset(self):
         from app.services.search_service import RagSearchService
@@ -217,24 +224,30 @@ class TestScopeFiltering:
         embed = MagicMock()
         service = RagSearchService(pool, embed)
 
-        clause, params = service._build_scope_clause(["doc-a"], 3)
+        clause, params = service._build_scope_clause(TEST_ORG, ["doc-a"], 3)
 
+        # org param at offset+1 = $4, file_ids at offset+2 = $5.
         assert "$4" in clause
+        assert "$5" in clause
 
     async def test_search_passes_file_ids_to_fts_and_vector(self):
         service, *_ = _build_service()
         service._fts_search = AsyncMock(return_value=[])
         service._vector_search = AsyncMock(return_value=[])
 
-        await service.search("query", file_ids=["doc-1", "doc-2"])
+        await service.search(TEST_ORG, "query", file_ids=["doc-1", "doc-2"])
 
+        # _fts_search signature is now (query, org_slug, file_ids, limit)
         service._fts_search.assert_awaited_once()
         fts_args = service._fts_search.call_args
-        assert fts_args[0][1] == ["doc-1", "doc-2"]
+        assert fts_args[0][1] == TEST_ORG
+        assert fts_args[0][2] == ["doc-1", "doc-2"]
 
+        # _vector_search signature is (embedding, org_slug, file_ids, limit)
         service._vector_search.assert_awaited_once()
         vec_args = service._vector_search.call_args
-        assert vec_args[0][1] == ["doc-1", "doc-2"]
+        assert vec_args[0][1] == TEST_ORG
+        assert vec_args[0][2] == ["doc-1", "doc-2"]
 
 
 class TestGracefulFallback:
@@ -250,7 +263,7 @@ class TestGracefulFallback:
         with patch.object(service, "_fts_search", side_effect=asyncpg.UndefinedTableError("no table")):
             with patch.object(service, "_vector_search", return_value=[]):
                 with patch.object(service._embedding, "embed_query", return_value=[0.1]):
-                    results = await service.search("query")
+                    results, _usage = await service.search(TEST_ORG, "query")
 
         assert results == []
 
@@ -260,7 +273,7 @@ class TestGracefulFallback:
         with patch.object(service, "_fts_search", side_effect=asyncpg.UndefinedColumnError("column missing")):
             with patch.object(service, "_vector_search", return_value=[]):
                 with patch.object(service._embedding, "embed_query", return_value=[0.1]):
-                    results = await service.search("query")
+                    results, _usage = await service.search(TEST_ORG, "query")
 
         assert results == []
 
@@ -278,7 +291,7 @@ class TestGracefulFallback:
         with patch.object(service, "_fts_search", side_effect=raise_bm25):
             with patch.object(service, "_vector_search", return_value=vector_rows):
                 with patch.object(service._embedding, "embed_query", return_value=[0.1]):
-                    results = await service.search("query")
+                    results, _usage = await service.search(TEST_ORG, "query")
 
         assert len(results) == 2
         assert results[0]["content"] == "vec result 1"
@@ -293,7 +306,7 @@ class TestGracefulFallback:
             with patch.object(service, "_vector_search", return_value=[]):
                 with patch.object(service._embedding, "embed_query", return_value=[0.1]):
                     with pytest.raises(RuntimeError, match="unexpected db error"):
-                        await service.search("query")
+                        await service.search(TEST_ORG, "query")
 
 
 class TestDataCorruptionRecovery:
@@ -307,7 +320,7 @@ class TestDataCorruptionRecovery:
             with patch.object(service, "_vector_search", return_value=vector_rows):
                 with patch.object(service._embedding, "embed_query", return_value=[0.1]):
                     with patch.object(service, "_rebuild_bm25_index", new_callable=AsyncMock):
-                        results = await service.search("query")
+                        results, _usage = await service.search(TEST_ORG, "query")
 
         assert len(results) == 1
         assert results[0]["content"] == "vec result"
@@ -322,7 +335,7 @@ class TestDataCorruptionRecovery:
             with patch.object(service, "_vector_search", return_value=[]):
                 with patch.object(service._embedding, "embed_query", return_value=[0.1]):
                     with patch.object(service, "_rebuild_bm25_index", new_callable=AsyncMock) as mock_rebuild:
-                        await service.search("query")
+                        await service.search(TEST_ORG, "query")
                         await _asyncio.sleep(0)
 
         mock_rebuild.assert_awaited_once()
@@ -342,7 +355,7 @@ class TestDataCorruptionRecovery:
             mock_acq.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
             mock_acq.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            results = await service._fts_search("query", None, 10)
+            results = await service._fts_search("query", TEST_ORG, None, 10)
 
         assert results == []
 
@@ -404,7 +417,7 @@ class TestFtsSearch:
             mock_acq.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
             mock_acq.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            results = await service._fts_search("query", None, 10)
+            results = await service._fts_search("query", TEST_ORG, None, 10)
 
         assert results == []
 
@@ -423,7 +436,7 @@ class TestFtsSearch:
             mock_acq.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
             mock_acq.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            results = await service._fts_search("query", ["doc-1"], 10)
+            results = await service._fts_search("query", TEST_ORG, ["doc-1"], 10)
 
         assert results == []
 
@@ -443,7 +456,7 @@ class TestFtsSearch:
             mock_acq.return_value.__aexit__ = AsyncMock(return_value=False)
 
             with pytest.raises(RuntimeError, match="connection refused"):
-                await service._fts_search("query", None, 10)
+                await service._fts_search("query", TEST_ORG, None, 10)
 
 
 class TestApplyRecencyBoost:
@@ -580,7 +593,7 @@ class TestRecencyBoostIntegration:
             mock_settings.vector_quality_threshold = 0
             mock_settings.reranking_enabled = False
 
-            results = await service.search("query")
+            results, _usage = await service.search(TEST_ORG, "query")
 
         assert len(results) == 2
         new_doc = next(r for r in results if r["file_id"] == "doc-2")
@@ -602,7 +615,7 @@ class TestRecencyBoostIntegration:
             mock_settings.reranking_enabled = False
 
             with patch("app.services.search_service._apply_recency_boost") as mock_boost:
-                results = await service.search("query")
+                results, _usage = await service.search(TEST_ORG, "query")
 
                 mock_boost.assert_not_called()
 

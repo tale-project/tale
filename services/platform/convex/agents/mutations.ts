@@ -262,7 +262,7 @@ export const removeKnowledgeFile = mutation({
     await ctx.scheduler.runAfter(
       0,
       internal.agents.internal_actions.deleteKnowledgeFileFromRag,
-      { fileId: args.fileId },
+      { organizationId: args.organizationId, fileId: args.fileId },
     );
     await ctx.storage.delete(args.fileId);
 
@@ -298,7 +298,7 @@ export const cleanupAgentBinding = internalMutation({
       await ctx.scheduler.runAfter(
         0,
         internal.agents.internal_actions.deleteKnowledgeFileFromRag,
-        { fileId: file.fileId },
+        { organizationId: args.organizationId, fileId: file.fileId },
       );
       await ctx.storage.delete(file.fileId);
 

@@ -1,12 +1,19 @@
 """Main RAG service.
 
-Provides: add_document, search, generate, delete_document.
-All operations use the private_knowledge schema in tale_knowledge database.
+Provides: add_document, search, generate, delete_document,
+get_document_content, get_document_statuses, compare_documents,
+compare_files.
 
-Multi-org: each public method requires an `org_slug` so the LLM /
-embedding / vision clients used for the call come from THAT org's
-provider catalog at `<TALE_CONFIG_DIR>/<org>/providers/`. Per-org client
-state is built lazily and cached for `_CONFIG_CHECK_INTERVAL` seconds.
+All public methods take `org_slug` as their first argument so the SQL
+layer can scope by `org_slug` and the per-org LLM / embedding / vision
+clients can be loaded from THAT org's provider catalog at
+`<TALE_CONFIG_DIR>/<org>/providers/`. Per-org client state is built
+lazily and cached for `_CONFIG_CHECK_INTERVAL` seconds.
+
+Tenant isolation is enforced at the data layer: `documents` and `chunks`
+both carry an `org_slug` column (NOT NULL DEFAULT 'default') and a
+composite FK ties chunks.org_slug to documents.org_slug. Every SELECT /
+UPDATE / DELETE / INSERT filters by `org_slug`.
 
 Embedding **dimensions** are global: the underlying knowledge DB uses
 one vector column, so all orgs sharing this RAG instance must use the
@@ -327,6 +334,7 @@ class RagService:
 
         return await index_document(
             self._pool,
+            org_slug,
             file_id,
             content,
             filename,
@@ -347,41 +355,39 @@ class RagService:
         similarity_threshold: float | None = None,
         file_ids: list[str] | None = None,
     ) -> tuple[list[dict[str, Any]], Any]:
-        """Search the knowledge base using hybrid BM25 + vector search.
+        """Search the knowledge base scoped to `org_slug`.
 
-        Returns a `(results, embedding_usage)` tuple so the per-call
-        embedding usage is propagated alongside the results — earlier
-        this hung on a mutable `self.last_search_usage` attribute that
-        concurrent calls overwrote, mis-attributing tokens across
-        callers under any real QPS.
+        Returns a `(results, embedding_usage)` tuple — the underlying
+        `RagSearchService.search` returns the tuple directly so there's
+        no shared singleton attribution race across concurrent callers.
         """
         clients = await self._ensure_org_clients(org_slug)
 
         effective_top_k = top_k if top_k is not None else settings.top_k
         threshold = similarity_threshold if similarity_threshold is not None else settings.similarity_threshold
 
-        results = await clients.search_service.search(
+        results, usage = await clients.search_service.search(
+            org_slug,
             query,
             file_ids=file_ids,
             top_k=effective_top_k,
             similarity_threshold=threshold,
         )
-        usage = getattr(clients.search_service, "last_search_usage", None)
 
         # If no results and some files are still indexing, wait and retry once
         if not results and file_ids:
-            statuses = await self.get_document_statuses(file_ids)
+            statuses = await self.get_document_statuses(org_slug, file_ids)
             has_processing = any(s is not None and s.get("status") == "processing" for s in statuses.values())
             if has_processing:
                 logger.info("No results and some files still indexing, retrying in 3s")
                 await asyncio.sleep(3)
-                results = await clients.search_service.search(
+                results, usage = await clients.search_service.search(
+                    org_slug,
                     query,
                     file_ids=file_ids,
                     top_k=effective_top_k,
                     similarity_threshold=threshold,
                 )
-                usage = getattr(clients.search_service, "last_search_usage", None)
 
         return results, usage
 
@@ -479,17 +485,18 @@ class RagService:
 
     async def get_document_content(
         self,
+        org_slug: str,
         file_id: str,
         *,
         chunk_start: int = 1,
         chunk_end: int | None = None,
         return_chunks: bool = False,
     ) -> dict[str, Any] | None:
-        """Retrieve document content by reassembling stored chunks.
+        """Retrieve document content by reassembling stored chunks, scoped to org.
 
-        Does not require an org slug: documents are looked up by file_id
-        in the shared knowledge schema. Access control / tenancy is
-        enforced at the platform → RAG boundary.
+        Returns None for documents that don't exist in `org_slug` — including
+        documents that exist for a different org (no cross-tenant disclosure
+        via 200 vs 404 differential).
         """
         if not self.initialized:
             await self.initialize()
@@ -500,14 +507,15 @@ class RagService:
         if chunk_end is None:
             chunk_end = chunk_start + self.MAX_CHUNK_WINDOW - 1
 
-        where = "file_id = $1"
-        params: list[Any] = [file_id]
-
         async with acquire_with_retry(self._pool) as conn:
             doc = await conn.fetchrow(
-                f"SELECT id, file_id, filename, chunks_count, source_created_at, source_modified_at"
-                f" FROM {SCHEMA}.documents WHERE {where} LIMIT 1",
-                *params,
+                f"""SELECT id, file_id, filename, chunks_count,
+                           source_created_at, source_modified_at
+                    FROM {SCHEMA}.documents
+                    WHERE org_slug = $1 AND file_id = $2
+                    LIMIT 1""",
+                org_slug,
+                file_id,
             )
 
             if doc is None:
@@ -517,14 +525,18 @@ class RagService:
             total_chunks = doc["chunks_count"]
 
             # Convert 1-indexed API params to 0-indexed chunk_index
-            chunk_params: list[Any] = [doc_uuid, chunk_start - 1, chunk_end - 1]
-
             rows = await conn.fetch(
-                f"SELECT chunk_index, chunk_content, core_content "
-                f"FROM {SCHEMA}.chunks "
-                f"WHERE document_id = $1 AND chunk_index >= $2 AND chunk_index <= $3 "
-                f"ORDER BY chunk_index ASC",
-                *chunk_params,
+                f"""SELECT chunk_index, chunk_content, core_content
+                    FROM {SCHEMA}.chunks
+                    WHERE org_slug = $1
+                      AND document_id = $2
+                      AND chunk_index >= $3
+                      AND chunk_index <= $4
+                    ORDER BY chunk_index ASC""",
+                org_slug,
+                doc_uuid,
+                chunk_start - 1,
+                chunk_end - 1,
             )
 
         if not rows:
@@ -568,12 +580,14 @@ class RagService:
 
     async def get_document_statuses(
         self,
+        org_slug: str,
         file_ids: list[str],
     ) -> dict[str, dict[str, Any] | None]:
-        """Get statuses for multiple documents by file_id.
+        """Get statuses for multiple documents by file_id, scoped to org.
 
-        Returns a dict mapping file_id to status info or None if not found.
-        Org-agnostic (status lookup uses the shared knowledge schema).
+        Returns a dict mapping file_id → status info, or None for IDs that
+        don't exist in `org_slug` (including IDs that exist for a different
+        org — those return None too, to avoid cross-tenant disclosure).
         """
         if not self.initialized:
             await self.initialize()
@@ -588,7 +602,7 @@ class RagService:
                     file_id, status, error, progress_phase, progress_detail,
                     source_created_at, source_modified_at, ocr_applied
                 FROM {SCHEMA}.documents
-                WHERE file_id = ANY($1)
+                WHERE org_slug = $1 AND file_id = ANY($2)
                 ORDER BY file_id,
                     CASE status
                         WHEN 'processing' THEN 0
@@ -598,6 +612,7 @@ class RagService:
                     END,
                     updated_at DESC
                 """,
+                org_slug,
                 file_ids,
             )
 
@@ -617,12 +632,16 @@ class RagService:
 
     async def delete_document(
         self,
+        org_slug: str,
         file_id: str,
     ) -> dict[str, Any]:
-        """Delete a document and its chunks from the knowledge base.
+        """Delete a document (and its chunks via FK CASCADE) within `org_slug`.
 
-        Org-agnostic: file_id is globally unique in this schema. Access
-        control is enforced at the platform → RAG boundary.
+        Scoped to `org_slug`: a foreign-org file_id will return zero
+        deletions rather than touching another tenant's data. The composite
+        FK on (document_id, org_slug) means chunks cascade automatically,
+        but we still scope the DELETE on chunks first to keep the
+        transaction explicit.
         """
         if not self.initialized:
             await self.initialize()
@@ -634,7 +653,9 @@ class RagService:
 
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
-                f"SELECT id FROM {SCHEMA}.documents WHERE file_id = $1",
+                f"""SELECT id FROM {SCHEMA}.documents
+                    WHERE org_slug = $1 AND file_id = $2""",
+                org_slug,
                 file_id,
             )
 
@@ -652,11 +673,15 @@ class RagService:
 
         async with acquire_with_retry(self._pool) as conn, conn.transaction():
             await conn.execute(
-                f"DELETE FROM {SCHEMA}.chunks WHERE document_id = ANY($1)",
+                f"""DELETE FROM {SCHEMA}.chunks
+                    WHERE org_slug = $1 AND document_id = ANY($2)""",
+                org_slug,
                 ids_to_delete,
             )
             await conn.execute(
-                f"DELETE FROM {SCHEMA}.documents WHERE id = ANY($1)",
+                f"""DELETE FROM {SCHEMA}.documents
+                    WHERE org_slug = $1 AND id = ANY($2)""",
+                org_slug,
                 ids_to_delete,
             )
 
@@ -672,20 +697,18 @@ class RagService:
 
     async def compare_documents(
         self,
+        org_slug: str,
         base_file_id: str,
         comparison_file_id: str,
         *,
         max_changes: int = 500,
     ) -> dict[str, Any] | None:
-        """Compare two documents using deterministic paragraph-level diffing.
-
-        Org-agnostic — operates on stored documents by file_id.
-        """
+        """Compare two stored documents (both must belong to `org_slug`)."""
         from .diff_service import compute_diff
 
         base, comp = await asyncio.gather(
-            self.get_document_content(base_file_id),
-            self.get_document_content(comparison_file_id),
+            self.get_document_content(org_slug, base_file_id),
+            self.get_document_content(org_slug, comparison_file_id),
         )
 
         if base is None:

@@ -61,6 +61,7 @@ import {
 import * as ApprovalsHelpers from '../approvals/helpers';
 import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { hashEmailForAudit } from '../lib/helpers/pii_hash';
 import { ragFetch } from '../lib/helpers/rag_config';
 import { rateLimiter } from '../lib/rate_limiter';
@@ -1727,11 +1728,14 @@ export const processErasureRequest = internalAction({
       );
       documentsErased = docResult.rows;
       documentsSkippedByHold = docResult.skippedByHold;
+      // RAG is per-org; resolve once and reuse for all per-file DELETEs in
+      // this erasure pass (subject is bound to a single organizationId).
+      const ragOrgSlug = await orgSlugFromId(ctx, state.organizationId);
       for (const fileId of docResult.fileIds) {
         try {
           const res = await ragFetch(
             `/api/v1/documents/${encodeURIComponent(fileId)}`,
-            { method: 'DELETE', timeoutMs: 10_000 },
+            { method: 'DELETE', timeoutMs: 10_000, orgSlug: ragOrgSlug },
           );
           if (res.ok || res.status === 404) {
             ragDocumentsRemoved += 1;
@@ -1792,7 +1796,7 @@ export const processErasureRequest = internalAction({
         try {
           const res = await ragFetch(
             `/api/v1/documents/${encodeURIComponent(storageId)}`,
-            { method: 'DELETE', timeoutMs: 10_000 },
+            { method: 'DELETE', timeoutMs: 10_000, orgSlug: ragOrgSlug },
           );
           if (res.ok || res.status === 404) {
             ragDocumentsRemoved += 1;
@@ -1826,7 +1830,7 @@ export const processErasureRequest = internalAction({
         try {
           const res = await ragFetch(
             `/api/v1/documents/${encodeURIComponent(storageId)}`,
-            { method: 'DELETE', timeoutMs: 10_000 },
+            { method: 'DELETE', timeoutMs: 10_000, orgSlug: ragOrgSlug },
           );
           if (res.ok || res.status === 404) {
             ragDocumentsRemoved += 1;

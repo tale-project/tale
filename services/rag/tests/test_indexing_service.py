@@ -89,6 +89,7 @@ SAMPLE_CONTENT = b"Hello, this is a sample document with enough text to chunk."
 SAMPLE_FILENAME = "test.txt"
 SAMPLE_DOC_ID = "doc-123"
 SAMPLE_HASH = "abcdef1234567890"
+TEST_ORG = "test-org"
 DIFFERENT_HASH = "ffffffffffffffff"
 
 SAMPLE_CHUNKS = [
@@ -124,6 +125,7 @@ class TestSuccessfulIndexing:
         ):
             result = await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -153,6 +155,7 @@ class TestSuccessfulIndexing:
         ):
             await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -178,6 +181,7 @@ class TestSuccessfulIndexing:
         ):
             await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -207,6 +211,7 @@ class TestSuccessfulIndexing:
         ):
             await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -234,6 +239,7 @@ class TestSuccessfulIndexing:
         ):
             await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -265,6 +271,7 @@ class TestContentHashDedup:
         ):
             result = await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -305,6 +312,7 @@ class TestContentHashDedup:
         ):
             result = await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -359,6 +367,7 @@ class TestExplicitChunkDeletion:
         ):
             await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -395,6 +404,7 @@ class TestExplicitChunkDeletion:
         ):
             await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -421,6 +431,7 @@ class TestEmptyContentHandling:
         ):
             result = await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -446,6 +457,7 @@ class TestEmptyContentHandling:
         ):
             result = await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -471,6 +483,7 @@ class TestEmptyContentHandling:
         ):
             result = await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -493,6 +506,7 @@ class TestEmptyContentHandling:
         ):
             result = await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -524,6 +538,7 @@ class TestExtractionErrors:
             with pytest.raises(ValueError, match="Could not decode file"):
                 await index_document(
                     pool,
+                    TEST_ORG,
                     SAMPLE_DOC_ID,
                     SAMPLE_CONTENT,
                     "binary.xyz",
@@ -548,6 +563,7 @@ class TestExtractionErrors:
             with pytest.raises(ValueError, match="my-file.bin"):
                 await index_document(
                     pool,
+                    TEST_ORG,
                     SAMPLE_DOC_ID,
                     SAMPLE_CONTENT,
                     "my-file.bin",
@@ -599,6 +615,7 @@ class TestHnswIndexSelfHealing:
         ):
             result = await store_prepared_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_FILENAME,
                 prepared,
@@ -641,6 +658,7 @@ class TestHnswIndexSelfHealing:
             with pytest.raises(asyncpg.exceptions.InternalServerError):
                 await store_prepared_document(
                     pool,
+                    TEST_ORG,
                     SAMPLE_DOC_ID,
                     SAMPLE_FILENAME,
                     prepared,
@@ -670,6 +688,7 @@ class TestHnswIndexSelfHealing:
             with pytest.raises(asyncpg.exceptions.InternalServerError, match="some other internal error"):
                 await store_prepared_document(
                     pool,
+                    TEST_ORG,
                     SAMPLE_DOC_ID,
                     SAMPLE_FILENAME,
                     prepared,
@@ -694,7 +713,7 @@ class TestCrossHashClone:
         mock_conn.fetchrow = AsyncMock(return_value={"id": 42})
 
         with _patch_acquire(mock_conn):
-            result = await find_existing_by_hash(pool, SAMPLE_HASH)
+            result = await find_existing_by_hash(pool, TEST_ORG, SAMPLE_HASH)
 
         assert result == 42
 
@@ -705,7 +724,7 @@ class TestCrossHashClone:
         mock_conn.fetchrow = AsyncMock(return_value=None)
 
         with _patch_acquire(mock_conn):
-            result = await find_existing_by_hash(pool, SAMPLE_HASH)
+            result = await find_existing_by_hash(pool, TEST_ORG, SAMPLE_HASH)
 
         assert result is None
 
@@ -718,6 +737,7 @@ class TestCrossHashClone:
         with _patch_acquire(mock_conn):
             result = await clone_from_existing(
                 pool,
+                TEST_ORG,
                 42,
                 SAMPLE_DOC_ID,
                 SAMPLE_FILENAME,
@@ -744,6 +764,7 @@ class TestCrossHashClone:
         with _patch_acquire(mock_conn):
             result = await clone_from_existing(
                 pool,
+                TEST_ORG,
                 42,
                 SAMPLE_DOC_ID,
                 SAMPLE_FILENAME,
@@ -764,6 +785,7 @@ class TestCrossHashClone:
         with _patch_acquire(mock_conn):
             result = await clone_from_existing(
                 pool,
+                TEST_ORG,
                 42,
                 SAMPLE_DOC_ID,
                 SAMPLE_FILENAME,
@@ -802,6 +824,7 @@ class TestCrossHashClone:
         ):
             result = await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
@@ -842,6 +865,7 @@ class TestCrossHashClone:
         ):
             result = await index_document(
                 pool,
+                TEST_ORG,
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,

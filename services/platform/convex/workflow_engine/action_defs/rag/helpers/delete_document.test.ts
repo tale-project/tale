@@ -53,6 +53,7 @@ describe('deleteDocumentById', () => {
     });
 
     await deleteDocumentById({
+      orgSlug: 'test-org',
       fileId: 'doc-123',
     });
 
@@ -70,6 +71,7 @@ describe('deleteDocumentById', () => {
     });
 
     const result = await deleteDocumentById({
+      orgSlug: 'test-org',
       fileId: 'doc-abc',
     });
 
@@ -85,6 +87,7 @@ describe('deleteDocumentById', () => {
     mockFetch({ detail: 'bad request' }, 400);
 
     const result = await deleteDocumentById({
+      orgSlug: 'test-org',
       fileId: 'doc-fail',
     });
 
@@ -98,7 +101,7 @@ describe('deleteDocumentById', () => {
     mockFetch({ detail: 'service error' }, 500);
 
     await expect(
-      deleteDocumentById({ fileId: 'doc-fail-5xx' }),
+      deleteDocumentById({ orgSlug: 'test-org', fileId: 'doc-fail-5xx' }),
     ).rejects.toThrow(/HTTP 500|unavailable/);
   });
 
@@ -112,6 +115,7 @@ describe('deleteDocumentById', () => {
     mockFetch({ detail: 'not found' }, 404);
 
     const result = await deleteDocumentById({
+      orgSlug: 'test-org',
       fileId: 'doc-already-gone',
     });
 
@@ -125,6 +129,7 @@ describe('deleteDocumentById', () => {
     mockFetch({ success: true, deleted_count: 0, deleted_data_ids: [] });
 
     await deleteDocumentById({
+      orgSlug: 'test-org',
       fileId: 'doc/with spaces',
     });
 

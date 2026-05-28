@@ -33,6 +33,7 @@ import type { MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import type { ActiveHolds } from '../governance/legal_hold';
 import { loadActiveHolds } from '../governance/legal_hold';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { parseSubThreadIds } from './delete_chat_thread';
 
 // Audit actions emitted by this file. Keep grep-able:
@@ -331,11 +332,15 @@ export async function cascadeDeleteThreadChildren(
       await ctx.db.delete(fileMeta._id);
     }
     if (ragPurgeStorageIds.length > 0) {
+      // `organizationId` is guaranteed truthy at this point (outer
+      // `if (organizationId)` branch). Resolve to slug so RAG's per-org
+      // delete scope targets the correct tenant's chunks.
+      const orgSlug = await orgSlugFromId(ctx, organizationId);
       await ctx.scheduler.runAfter(
         0,
         internal.workflow_engine.action_defs.rag.helpers.delete_document
           .deleteFromRagBatch,
-        { fileIds: ragPurgeStorageIds },
+        { orgSlug, fileIds: ragPurgeStorageIds },
       );
     }
     if (filesPage.length === PAGE_SIZE) {

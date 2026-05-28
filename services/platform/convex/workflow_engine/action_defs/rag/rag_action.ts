@@ -64,22 +64,31 @@ export const ragAction: ActionDefinition<RagActionParams> = {
         return { ...result, executionTimeMs: Date.now() - startTime };
       }
       case 'delete_document': {
-        // Cross-tenant gate: file_id is global in RAG; verify the workflow's
-        // org owns the storage row before forwarding the delete.
-        await assertStorageIdsInOrg(ctx, _variables, [migratedParams.fileId]);
+        // Cross-tenant gate: even though RAG now scopes DELETE by org_slug,
+        // verify the workflow's org owns the storage row first so a foreign
+        // file_id surfaces as the documented error (not silently 0 deletes).
+        const orgId = await assertStorageIdsInOrg(ctx, _variables, [
+          migratedParams.fileId,
+        ]);
+        const orgSlug = await orgSlugFromId(ctx, orgId);
         const result = await deleteDocumentById({
+          orgSlug,
           fileId: migratedParams.fileId,
         });
         return { ...result, executionTimeMs: Date.now() - startTime };
       }
       case 'get_chunks': {
-        // Cross-tenant gate: workflow params can carry caller-controlled
-        // file ids from upstream steps, and the RAG service has no per-org
-        // namespace — file_id is global. Mirror the `compare` branch in
-        // document_action.ts:333-354 by verifying the storage id belongs
-        // to the workflow's org before forwarding to RAG.
-        await assertStorageIdsInOrg(ctx, _variables, [migratedParams.fileId]);
-        const result = await fetchDocumentChunks(migratedParams.fileId);
+        // Cross-tenant gate: even with RAG's data-layer org_slug filter,
+        // verify the storage id belongs to the workflow's org so a foreign
+        // file_id surfaces as the documented error (not a confusing 404).
+        const orgId = await assertStorageIdsInOrg(ctx, _variables, [
+          migratedParams.fileId,
+        ]);
+        const orgSlug = await orgSlugFromId(ctx, orgId);
+        const result = await fetchDocumentChunks(
+          orgSlug,
+          migratedParams.fileId,
+        );
         // Prompt-injection defense: video-link-sourced chunks contain
         // attacker-controlled transcript text. Mirror the wrap that
         // `rag_search_tool.ts` applies on the agent-tool side.

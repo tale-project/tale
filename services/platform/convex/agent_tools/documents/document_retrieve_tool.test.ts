@@ -18,6 +18,15 @@ vi.mock('../../_generated/api', () => ({
       },
     },
   },
+  // `orgSlugFromId` (called inside retrieveDocument before forwarding
+  // the request to RAG) hits `components.betterAuth.adapter.findOne`.
+  components: {
+    betterAuth: {
+      adapter: {
+        findOne: 'mock-better-auth-find-one',
+      },
+    },
+  },
 }));
 
 vi.mock('../../lib/helpers/rag_config', () => ({
@@ -41,6 +50,7 @@ function createMockCtx(overrides?: Record<string, unknown>) {
       title: 'Test',
     }) // findDocumentByFileId
     .mockResolvedValueOnce(['doc123', 'doc456']) // getAccessibleDocumentIds
+    .mockResolvedValueOnce({ slug: 'org-1' }) // orgSlugFromId → betterAuth findOne
     .mockResolvedValueOnce([]); // lookupVideoLinkSources — no video-link metadata
   return {
     organizationId: 'org1',
@@ -214,6 +224,7 @@ describe('retrieveDocument helper', () => {
           storageId: 'chat-upload-1',
           ragStatus: 'completed',
         }) // getByStorageId — chat attachment, indexed
+        .mockResolvedValueOnce({ slug: 'org-1' }) // orgSlugFromId → betterAuth findOne
         .mockResolvedValueOnce([]), // lookupVideoLinkSources
     });
 
@@ -297,6 +308,7 @@ describe('retrieveDocument helper', () => {
         storageId: 'chat-upload-1',
         ragStatus: 'completed',
       }) // getByStorageId
+      .mockResolvedValueOnce({ slug: 'org-1' }) // orgSlugFromId → betterAuth findOne
       .mockResolvedValueOnce([]); // lookupVideoLinkSources
     const ctx = createMockCtx({ runQuery });
 
@@ -388,6 +400,7 @@ describe('retrieveDocument helper', () => {
         title: 'Test',
       }) // findDocumentByFileId
       .mockResolvedValueOnce(['doc-slashes']) // getAccessibleDocumentIds
+      .mockResolvedValueOnce({ slug: 'org-1' }) // orgSlugFromId → betterAuth findOne
       .mockResolvedValueOnce([]); // lookupVideoLinkSources
     const ctx = createMockCtx({ runQuery });
 

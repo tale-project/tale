@@ -132,43 +132,47 @@ SUPPORTED_EXTENSIONS = {
 
 
 async def _insert_processing_row(
+    org_slug: str,
     file_id: str,
     filename: str,
 ) -> None:
-    """Insert a processing status row at ingestion start."""
+    """Insert a processing status row at ingestion start (scoped to org)."""
     pool = await get_pool()
     async with acquire_with_retry(pool) as conn:
         await conn.execute(
             f"""
-            INSERT INTO {SCHEMA}.documents (file_id, filename, status)
-            VALUES ($1, $2, 'processing')
-            ON CONFLICT (file_id, COALESCE(team_id, ''))
+            INSERT INTO {SCHEMA}.documents (org_slug, file_id, filename, status)
+            VALUES ($1, $2, $3, 'processing')
+            ON CONFLICT (org_slug, file_id)
             DO UPDATE SET status = 'processing', error = NULL, chunks_count = 0,
                          progress_phase = NULL, progress_detail = NULL,
                          updated_at = NOW()
             """,
+            org_slug,
             file_id,
             filename,
         )
 
 
 async def _record_failure(
+    org_slug: str,
     file_id: str,
     filename: str,
     error: str,
 ) -> None:
-    """Record failure status in documents table."""
+    """Record failure status in documents table (scoped to org)."""
     pool = await get_pool()
     async with acquire_with_retry(pool) as conn:
         await conn.execute(
             f"""
-            INSERT INTO {SCHEMA}.documents (file_id, filename, status, error)
-            VALUES ($1, $2, 'failed', $3)
-            ON CONFLICT (file_id, COALESCE(team_id, ''))
+            INSERT INTO {SCHEMA}.documents (org_slug, file_id, filename, status, error)
+            VALUES ($1, $2, $3, 'failed', $4)
+            ON CONFLICT (org_slug, file_id)
             DO UPDATE SET status = 'failed', error = EXCLUDED.error, chunks_count = 0,
                          progress_phase = NULL, progress_detail = NULL,
                          updated_at = NOW()
             """,
+            org_slug,
             file_id,
             filename,
             error,
@@ -176,6 +180,7 @@ async def _record_failure(
 
 
 async def _mark_completed(
+    org_slug: str,
     file_id: str,
 ) -> None:
     """Mark document status as completed and restore chunks_count from actual chunk rows."""
@@ -187,11 +192,13 @@ async def _mark_completed(
             SET status = 'completed',
                 error = NULL,
                 chunks_count = (
-                    SELECT COUNT(*) FROM {SCHEMA}.chunks c WHERE c.document_id = d.id
+                    SELECT COUNT(*) FROM {SCHEMA}.chunks c
+                    WHERE c.document_id = d.id AND c.org_slug = $1
                 ),
                 updated_at = NOW()
-            WHERE d.file_id = $1
+            WHERE d.org_slug = $1 AND d.file_id = $2
             """,
+            org_slug,
             file_id,
         )
 
@@ -223,7 +230,7 @@ async def _background_ingest(
             source_modified_at=source_modified_at,
         )
         if result.get("skipped"):
-            await _mark_completed(file_id)
+            await _mark_completed(org_slug, file_id)
         logger.info(
             "Background ingestion completed",
             extra={
@@ -239,7 +246,7 @@ async def _background_ingest(
             file_id,
         )
         try:
-            await _record_failure(file_id, filename, _sanitize_error(exc))
+            await _record_failure(org_slug, file_id, filename, _sanitize_error(exc))
         except Exception as record_exc:
             logger.critical("Could not record failure for {}: {}", file_id, record_exc)
     finally:
@@ -378,7 +385,7 @@ async def upload_document(
 
         doc_id = file_id or f"file-{uuid4().hex}"
 
-        await _insert_processing_row(doc_id, file.filename)
+        await _insert_processing_row(org_slug, doc_id, file.filename)
 
         if sync:
             try:
@@ -391,11 +398,11 @@ async def upload_document(
                     source_modified_at=source_modified_at,
                 )
             except Exception as sync_exc:
-                await _record_failure(doc_id, file.filename, _sanitize_error(sync_exc))
+                await _record_failure(org_slug, doc_id, file.filename, _sanitize_error(sync_exc))
                 raise
 
             if result.get("skipped"):
-                await _mark_completed(doc_id)
+                await _mark_completed(org_slug, doc_id)
 
             skipped = result.get("skipped", False)
             skip_reason = result.get("skip_reason")
@@ -438,10 +445,13 @@ async def upload_document(
 
 
 @router.delete("/documents/{file_id}", response_model=DocumentDeleteResponse)
-async def delete_document(file_id: str):
-    """Delete a document from the knowledge base by ID."""
+async def delete_document(
+    file_id: str,
+    org_slug: str = Depends(require_org_slug),
+):
+    """Delete a document from the knowledge base, scoped to caller's org."""
     try:
-        result = await rag_service.delete_document(file_id)
+        result = await rag_service.delete_document(org_slug, file_id)
 
         return DocumentDeleteResponse(
             success=result["success"],
@@ -462,11 +472,12 @@ async def delete_document(file_id: str):
 @router.get("/documents/{file_id}/content", response_model=DocumentContentResponse)
 async def get_document_content(
     file_id: str,
+    org_slug: str = Depends(require_org_slug),
     chunk_start: int = Query(default=1, ge=1, description="Start chunk (1-indexed)"),
     chunk_end: int | None = Query(default=None, ge=1, description="End chunk (1-indexed, inclusive)"),
     return_chunks: bool = Query(default=False, description="If true, include individual chunks as a list"),
 ):
-    """Retrieve full document text by reassembling stored chunks.
+    """Retrieve full document text by reassembling stored chunks, scoped to caller's org.
 
     Use chunk_start/chunk_end to paginate through large documents.
     Set return_chunks=true to get individual chunks as an array.
@@ -479,6 +490,7 @@ async def get_document_content(
 
     try:
         result = await rag_service.get_document_content(
+            org_slug,
             file_id,
             chunk_start=chunk_start,
             chunk_end=chunk_end,
@@ -501,8 +513,11 @@ async def get_document_content(
 
 
 @router.post("/documents/compare", response_model=DocumentCompareResponse)
-async def compare_documents(request: DocumentCompareRequest):
-    """Compare two documents using deterministic paragraph-level diffing.
+async def compare_documents(
+    request: DocumentCompareRequest,
+    org_slug: str = Depends(require_org_slug),
+):
+    """Compare two stored documents (both must belong to caller's org).
 
     Returns structured change blocks with context, statistics, and
     divergence detection.
@@ -515,6 +530,7 @@ async def compare_documents(request: DocumentCompareRequest):
 
     try:
         result = await rag_service.compare_documents(
+            org_slug,
             request.base_file_id,
             request.comparison_file_id,
             max_changes=request.max_changes,
@@ -590,13 +606,17 @@ async def compare_files(
 
 
 @router.post("/documents/statuses", response_model=DocumentStatusResponse)
-async def get_document_statuses(request: DocumentStatusRequest):
-    """Get statuses for multiple documents by ID.
+async def get_document_statuses(
+    request: DocumentStatusRequest,
+    org_slug: str = Depends(require_org_slug),
+):
+    """Get statuses for multiple documents by ID, scoped to caller's org.
 
-    Returns status info for each file_id, or null if not found.
+    Returns status info for each file_id, or null if the file doesn't
+    exist in `org_slug` (including IDs that exist for a different org).
     """
     try:
-        statuses_raw = await rag_service.get_document_statuses(request.file_ids)
+        statuses_raw = await rag_service.get_document_statuses(org_slug, request.file_ids)
         statuses = {
             did: DocumentStatusInfo(
                 status=info["status"],

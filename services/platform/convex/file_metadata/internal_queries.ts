@@ -77,9 +77,20 @@ export const filterStorageIdsByCallerOrg = internalQuery({
     storageIds: v.array(v.id('_storage')),
     userId: v.string(),
   },
-  returns: v.array(v.id('_storage')),
+  // Returns one entry per authorized storage id with its organizationId so
+  // callers can group by org (e.g., RAG endpoints are now org-scoped and
+  // accept one org_slug per request).
+  returns: v.array(
+    v.object({
+      storageId: v.id('_storage'),
+      organizationId: v.string(),
+    }),
+  ),
   async handler(ctx, args) {
-    const allowed: Array<(typeof args.storageIds)[number]> = [];
+    const allowed: Array<{
+      storageId: (typeof args.storageIds)[number];
+      organizationId: string;
+    }> = [];
     const orgMembershipCache = new Map<string, boolean>();
     for (const storageId of args.storageIds) {
       const meta = await ctx.db
@@ -104,7 +115,7 @@ export const filterStorageIdsByCallerOrg = internalQuery({
         isMember = (result?.page?.length ?? 0) > 0;
         orgMembershipCache.set(orgId, isMember);
       }
-      if (isMember) allowed.push(storageId);
+      if (isMember) allowed.push({ storageId, organizationId: orgId });
     }
     return allowed;
   },

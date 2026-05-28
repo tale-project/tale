@@ -16,18 +16,20 @@ import { ragFetch } from '../../../../lib/helpers/rag_config';
 import type { RagDeleteResult } from './types';
 
 export interface DeleteDocumentByIdArgs {
+  orgSlug: string;
   fileId: string;
   timeoutMs?: number;
 }
 
 /**
- * Delete document from RAG service by document ID.
+ * Delete document from RAG service by document ID, scoped to `orgSlug`.
  *
- * This calls the RAG service's DELETE endpoint with the document ID.
- * The document ID should match the ID that was used when uploading
- * the document (recordId from the platform).
+ * RAG now scopes documents by `org_slug`, so the caller's org must be
+ * passed through. A foreign-org `fileId` returns 0 deletions rather than
+ * touching another tenant's data.
  */
 export async function deleteDocumentById({
+  orgSlug,
   fileId,
   timeoutMs = 60000,
 }: DeleteDocumentByIdArgs): Promise<RagDeleteResult> {
@@ -36,7 +38,7 @@ export async function deleteDocumentById({
   try {
     const response = await ragFetch(
       `/api/v1/documents/${encodeURIComponent(fileId)}`,
-      { method: 'DELETE', timeoutMs },
+      { method: 'DELETE', timeoutMs, orgSlug },
     );
 
     // Round-2 review HIGH: 404 means the document was already deleted
@@ -116,9 +118,13 @@ export async function deleteDocumentById({
  * action with the storageIds of the chat-upload files they removed.
  * Best-effort: failures per file log but do not abort the batch.
  * Round-2 review CRITICAL #17.
+ *
+ * Now per-tenant: `orgSlug` is required so the per-org RAG namespace is
+ * targeted. All `fileIds` in a single call MUST belong to that org.
  */
 export const deleteFromRagBatch = internalAction({
   args: {
+    orgSlug: v.string(),
     fileIds: v.array(v.string()),
   },
   returns: v.null(),
@@ -129,7 +135,10 @@ export const deleteFromRagBatch = internalAction({
       // should not abort cleanup of the other ids — log + move on so
       // the next retention sweep gets to retry.
       try {
-        const result = await deleteDocumentById({ fileId });
+        const result = await deleteDocumentById({
+          orgSlug: args.orgSlug,
+          fileId,
+        });
         if (!result.success) {
           console.warn(
             `[deleteFromRagBatch] delete failed for ${fileId}:`,

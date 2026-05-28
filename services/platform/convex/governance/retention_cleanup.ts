@@ -9,6 +9,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { ragFetch } from '../lib/helpers/rag_config';
 import type { ActiveHolds } from './legal_hold';
 import {
@@ -105,11 +106,15 @@ interface OrgPolicy {
   config: RetentionPolicyConfig;
 }
 
-async function deleteRagEntry(fileId: string, label: string): Promise<void> {
+async function deleteRagEntry(
+  orgSlug: string,
+  fileId: string,
+  label: string,
+): Promise<void> {
   try {
     const res = await ragFetch(
       `/api/v1/documents/${encodeURIComponent(fileId)}`,
-      { method: 'DELETE', timeoutMs: 10_000 },
+      { method: 'DELETE', timeoutMs: 10_000, orgSlug },
     );
     // 404 is success on DELETE — already gone.
     if (!res.ok && res.status !== 404) {
@@ -194,6 +199,8 @@ async function cleanupDocuments(
           { organizationId: org.organizationId, cutoffMs, batchSize },
         );
 
+  const orgSlug = await orgSlugFromId(ctx, org.organizationId);
+
   for (const doc of passB) {
     if (doc.createdBy && holds.userMembershipIds.has(doc.createdBy)) {
       console.info(
@@ -203,7 +210,7 @@ async function cleanupDocuments(
     }
 
     if (doc.fileId) {
-      await deleteRagEntry(doc.fileId, `document ${doc._id}`);
+      await deleteRagEntry(orgSlug, doc.fileId, `document ${doc._id}`);
     }
 
     await ctx.runMutation(
@@ -302,6 +309,8 @@ async function cleanupTempFiles(
           { organizationId: org.organizationId, source, cutoffMs, batchSize },
         );
 
+  const tempOrgSlug = await orgSlugFromId(ctx, org.organizationId);
+
   for (const file of passB) {
     if (file.uploadedBy && holds.userMembershipIds.has(file.uploadedBy)) {
       console.info(
@@ -310,7 +319,7 @@ async function cleanupTempFiles(
       continue;
     }
 
-    await deleteRagEntry(file.storageId, `temp file ${file._id}`);
+    await deleteRagEntry(tempOrgSlug, file.storageId, `temp file ${file._id}`);
 
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredTempFile,

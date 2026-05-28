@@ -20,6 +20,7 @@ beforeAll(() => {
 });
 const BASE_FILE_ID = 'file-base-123';
 const COMP_FILE_ID = 'file-comp-456';
+const ORG_SLUG = 'test-org';
 
 const originalFetch = globalThis.fetch;
 
@@ -82,7 +83,11 @@ afterEach(() => {
 
 describe('fetchDocumentComparison', () => {
   it('returns correctly mapped result on happy path', async () => {
-    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
+    const result = await fetchDocumentComparison(
+      ORG_SLUG,
+      BASE_FILE_ID,
+      COMP_FILE_ID,
+    );
 
     expect(result.baseDocument).toEqual({
       fileId: BASE_FILE_ID,
@@ -105,7 +110,11 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('maps change blocks with all diff item fields', async () => {
-    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
+    const result = await fetchDocumentComparison(
+      ORG_SLUG,
+      BASE_FILE_ID,
+      COMP_FILE_ID,
+    );
 
     expect(result.changeBlocks).toHaveLength(1);
     const block = result.changeBlocks[0];
@@ -144,7 +153,11 @@ describe('fetchDocumentComparison', () => {
       }),
     );
 
-    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
+    const result = await fetchDocumentComparison(
+      ORG_SLUG,
+      BASE_FILE_ID,
+      COMP_FILE_ID,
+    );
 
     const item = result.changeBlocks[0].items[0];
     expect(item.inlineDiff).toBeNull();
@@ -154,7 +167,7 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('sends POST request with correct body', async () => {
-    await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
+    await fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID);
 
     // ragFetch wraps init.headers in a `new Headers(...)` and adds the
     // bearer token + redirect:'manual' + AbortSignal — so we assert on
@@ -177,7 +190,7 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('includes max_changes in body when provided', async () => {
-    await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID, 50);
+    await fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID, 50);
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
       expect.anything(),
@@ -192,7 +205,7 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('omits max_changes from body when not provided', async () => {
-    await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
+    await fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID);
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
       expect.anything(),
@@ -216,7 +229,7 @@ describe('fetchDocumentComparison', () => {
     // safeMessageFor maps 404 to a "returned not found" summary; the
     // upstream body lives only on `.bodySnippet`.
     await expect(
-      fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
+      fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID),
     ).rejects.toThrow(/not found/);
   });
 
@@ -231,7 +244,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     await expect(
-      fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
+      fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID),
     ).rejects.toThrow(/HTTP 400/);
   });
 
@@ -246,7 +259,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     await expect(
-      fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
+      fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID),
     ).rejects.toThrow(/HTTP 500/);
   });
 
@@ -261,7 +274,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     await expect(
-      fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
+      fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID),
     ).rejects.toThrow('timed out after 120s');
   });
 
@@ -272,7 +285,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     await expect(
-      fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
+      fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID),
     ).rejects.toThrow('Failed to fetch');
   });
 
@@ -292,7 +305,11 @@ describe('fetchDocumentComparison', () => {
       }),
     );
 
-    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
+    const result = await fetchDocumentComparison(
+      ORG_SLUG,
+      BASE_FILE_ID,
+      COMP_FILE_ID,
+    );
 
     expect(result.changeBlocks).toEqual([]);
     expect(result.stats.unchanged).toBe(5);
@@ -301,7 +318,11 @@ describe('fetchDocumentComparison', () => {
   it('handles truncated response', async () => {
     mockFetchSuccess(createRagCompareResponse({ truncated: true }));
 
-    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
+    const result = await fetchDocumentComparison(
+      ORG_SLUG,
+      BASE_FILE_ID,
+      COMP_FILE_ID,
+    );
 
     expect(result.truncated).toBe(true);
   });
@@ -321,7 +342,11 @@ describe('fetchDocumentComparison', () => {
       }),
     );
 
-    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
+    const result = await fetchDocumentComparison(
+      ORG_SLUG,
+      BASE_FILE_ID,
+      COMP_FILE_ID,
+    );
 
     expect(result.stats.highDivergence).toBe(true);
   });
@@ -334,7 +359,11 @@ describe('fetchDocumentComparison', () => {
       }),
     );
 
-    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
+    const result = await fetchDocumentComparison(
+      ORG_SLUG,
+      BASE_FILE_ID,
+      COMP_FILE_ID,
+    );
 
     expect(result.baseDocument.title).toBeNull();
     expect(result.comparisonDocument.title).toBeNull();
@@ -372,7 +401,11 @@ describe('fetchDocumentComparison', () => {
       }),
     );
 
-    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
+    const result = await fetchDocumentComparison(
+      ORG_SLUG,
+      BASE_FILE_ID,
+      COMP_FILE_ID,
+    );
 
     expect(result.changeBlocks).toHaveLength(2);
     expect(result.changeBlocks[0].items[0].type).toBe('deleted');
@@ -380,7 +413,7 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('passes AbortSignal to fetch', async () => {
-    await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
+    await fetchDocumentComparison(ORG_SLUG, BASE_FILE_ID, COMP_FILE_ID);
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
     const options = fetchCall?.[1];

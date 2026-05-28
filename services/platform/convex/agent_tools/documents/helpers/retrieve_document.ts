@@ -3,6 +3,7 @@ import type { z } from 'zod/v4';
 
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { toId } from '../../../lib/type_cast_helpers';
 import { wrapUntrusted } from '../../../lib/untrusted_content';
 import type { documentRetrieveArgs } from '../document_retrieve_tool';
@@ -89,7 +90,8 @@ export async function retrieveDocument(
     }
   }
 
-  const result = await fetchDocumentContent(args.fileId, {
+  const orgSlug = await orgSlugFromId(ctx, organizationId);
+  const result = await fetchDocumentContent(orgSlug, args.fileId, {
     chunkStart: args.chunkStart,
     chunkEnd: args.chunkEnd,
   });

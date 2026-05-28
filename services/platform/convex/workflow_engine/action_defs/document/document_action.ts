@@ -295,11 +295,16 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             `Document with file ID "${params.fileId}" not found in this organization`,
           );
         }
-        const result = await fetchDocumentContent(params.fileId, {
-          chunkStart: params.chunkStart,
-          chunkEnd: params.chunkEnd,
-          returnChunks: params.returnChunks,
-        });
+        const retrieveOrgSlug = await orgSlugFromId(ctx, organizationId);
+        const result = await fetchDocumentContent(
+          retrieveOrgSlug,
+          params.fileId,
+          {
+            chunkStart: params.chunkStart,
+            chunkEnd: params.chunkEnd,
+            returnChunks: params.returnChunks,
+          },
+        );
         // Prompt-injection defense for the workflow path. The
         // agent-tool sibling `retrieveDocument` already wraps video-
         // link-sourced content in `<untrusted_source>`; the workflow

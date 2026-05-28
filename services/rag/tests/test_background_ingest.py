@@ -92,7 +92,7 @@ class TestGetDocumentStatuses:
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_statuses(["doc-1", "doc-2", "doc-3"])
+            result = await service.get_document_statuses(TEST_ORG, ["doc-1", "doc-2", "doc-3"])
 
         assert result["doc-1"]["status"] == "completed"
         assert result["doc-2"]["status"] == "processing"
@@ -121,7 +121,7 @@ class TestGetDocumentStatuses:
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_statuses(["doc-1"])
+            result = await service.get_document_statuses(TEST_ORG, ["doc-1"])
 
         assert result["doc-1"]["status"] == "failed"
         assert result["doc-1"]["error"] == "Embedding failed"
@@ -136,7 +136,7 @@ class TestGetDocumentStatuses:
         mock_conn = _mock_conn(fetch_return=[])
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_statuses(["nonexistent"])
+            result = await service.get_document_statuses(TEST_ORG, ["nonexistent"])
 
         assert result["nonexistent"] is None
 
@@ -148,7 +148,7 @@ class TestGetDocumentStatuses:
         service._pool = None
 
         with pytest.raises(RuntimeError, match="database pool is None"):
-            await service.get_document_statuses(["doc-1"])
+            await service.get_document_statuses(TEST_ORG, ["doc-1"])
 
 
 # ============================================================================
@@ -232,7 +232,7 @@ class TestBackgroundIngest:
                 "test.txt",
             )
 
-        mock_mark.assert_awaited_once_with("doc-1")
+        mock_mark.assert_awaited_once_with(TEST_ORG, "doc-1")
 
     async def test_non_skipped_does_not_call_mark_completed(self):
         from app.routers.documents import _background_ingest
@@ -276,7 +276,8 @@ class TestBackgroundIngest:
             )
 
         mock_fail.assert_awaited_once()
-        error_arg = mock_fail.call_args[0][2]
+        # signature: _record_failure(org_slug, file_id, filename, error)
+        error_arg = mock_fail.call_args[0][3]
         assert len(error_arg) <= 503  # 500 + "..."
 
     async def test_record_failure_error_does_not_propagate(self):

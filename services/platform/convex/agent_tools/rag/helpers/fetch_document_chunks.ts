@@ -23,6 +23,7 @@ export interface DocumentChunksResult {
 }
 
 export async function fetchDocumentChunks(
+  orgSlug: string,
   fileId: string,
 ): Promise<DocumentChunksResult> {
   const allChunks: Array<{ index: number; content: string }> = [];
@@ -42,7 +43,7 @@ export async function fetchDocumentChunks(
       // Default ragFetch timeout is 10s; sibling RAG ops in
       // workflow_engine use 30–120s. Matching that here so chunk
       // pagination doesn't fail mid-scan on a slow embedding tail.
-      { timeoutMs: 60_000 },
+      { timeoutMs: 60_000, orgSlug },
     );
 
     if (!response.ok) {
