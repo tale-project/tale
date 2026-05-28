@@ -77,10 +77,41 @@ _ORG_LOCKS_MAX = 256
 
 _background_tasks: set[asyncio.Task[None]] = set()
 
+# When set, every pending `_safe_close` skips its remaining grace
+# window and proceeds to the close call immediately. Shutdown sets
+# this before draining so the underlying httpx pools actually close
+# even when the drain timeout fires — previously the 10s drain
+# cancelled the 30s `asyncio.sleep` mid-flight and the close
+# coroutine never ran, leaking sockets through process exit
+# (round-3 P2 R20-P2-d).
+_shutdown_event: asyncio.Event | None = None
+
+
+def _get_shutdown_event() -> asyncio.Event:
+    """Lazy-construct the per-event-loop shutdown event.
+
+    Created on first use rather than at import time so we don't grab a
+    handle to the wrong event loop in test environments that spin up
+    fresh loops per case.
+    """
+    global _shutdown_event
+    if _shutdown_event is None:
+        _shutdown_event = asyncio.Event()
+    return _shutdown_event
+
 
 async def _safe_close(coro) -> None:
-    """Close an old client after a grace period for in-flight requests."""
-    await asyncio.sleep(30)
+    """Close an old client after a grace period for in-flight requests.
+
+    The grace is interruptible: when `_shutdown_event` fires, the sleep
+    aborts early and the close runs immediately. Without this, a
+    bounded shutdown drain would cancel the `asyncio.sleep(30)` and the
+    wrapped close coroutine would never be awaited.
+    """
+    try:
+        await asyncio.wait_for(_get_shutdown_event().wait(), timeout=30)
+    except TimeoutError:
+        pass
     try:
         await coro
     except Exception:
@@ -873,6 +904,11 @@ class RagService:
         4. Close the DB pool.
         """
         self._shutting_down = True
+        # Wake every pending `_safe_close` so the underlying client
+        # close runs without waiting out its 30s grace — pairs with the
+        # interruptible sleep in `_safe_close` to ensure httpx pools are
+        # actually torn down before the drain timeout fires.
+        _get_shutdown_event().set()
 
         # Best-effort close of each org's clients before tearing down the pool.
         for org_slug, clients in list(self._org_clients.items()):
