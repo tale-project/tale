@@ -26,8 +26,12 @@ const HOST_DOMAIN_DIRS = [
   'providers',
   'skills',
 ] as const;
-/** Org-slug regex aligned with the platform-side validator. Refuses dotfiles
- *  and any non-org-shaped dir at the project root (`.tale`, `.git`, etc.). */
+/** Org-slug regex aligned with services/platform/lib/shared/constants/org-slug.ts
+ *  and tools/cli/src/lib/actions/deploy.ts (round-3 P1 cap of 64 chars).
+ *  Refuses dotfiles and any non-org-shaped dir at the project root
+ *  (`.tale`, `.git`, etc.). Single source of truth lives in the platform
+ *  package; duplicated here because the CLI binary doesn't import convex
+ *  sources at runtime. */
 const ORG_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 interface DevComposeOptions {

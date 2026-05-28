@@ -625,10 +625,14 @@ export async function deploy(options: DeployOptions): Promise<void> {
   }
 }
 
-// Org slug shape — must match validateOrgSlug at services/platform/lib/shared/constants/org-slug.ts.
-// Duplicated here because the CLI ships in a single compiled binary that does
-// not import convex sources at runtime.
-const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
+// Org slug shape — must match ORG_SLUG_REGEX at
+// services/platform/lib/shared/constants/org-slug.ts and ORG_SLUG_RE at
+// packages/tale_shared/src/tale_shared/config/org_slug.py. The 64-char
+// cap (round-3 P1) aligns this file with the canonical validator;
+// without it, the deploy-side enumerator would accept slugs the platform
+// itself refuses to mint. Duplicated here because the CLI ships in a
+// single compiled binary that does not import convex sources at runtime.
+const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 // Top-level names under the project root that are legitimate per-domain
 // dirs from the OLD flat layout (`agents/`, `workflows/`, …). Under

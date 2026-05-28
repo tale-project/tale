@@ -347,6 +347,20 @@ atomic_cp() {
   cp "$src" "$tmp" && mv -f "$tmp" "$dest"
 }
 
+# Crash-safe directory copy: stage into a sibling `.tale-seed.<pid>` dir
+# then atomically rename over the destination after rm-ing any prior
+# dest. cp -r alone leaves a half-populated dest on interruption, and
+# the next-run `[ -d "$dest" ]` check then treats the partial bundle
+# as "already seeded" and skips it permanently. Round-3 P2 R32-P2-c.
+atomic_cp_bundle() {
+  local src_dir="$1" dest_dir="$2"
+  local stage="${dest_dir}.tale-seed.$$"
+  rm -rf "$stage"
+  cp -r "$src_dir" "$stage"
+  rm -rf "$dest_dir"
+  mv "$stage" "$dest_dir"
+}
+
 run_seed() {
   log_section "Seeding builtin configs into default org (TALE_VERSION=${TALE_VERSION:-dev})"
 
@@ -386,17 +400,28 @@ run_seed() {
       local flat_slug="$(echo "$slug" | sed 's|/|__|g')"
       local history_dir="$workflows_dir/.history/$flat_slug"
 
+      # Round-3 P2 R32-P2-b: `if mkdir && atomic_cp; then echo ✓; else log_error` —
+      # the previous `mkdir && atomic_cp && echo; continue` chain silently
+      # swallowed failures under `set -e` because the `; continue` reset
+      # the implicit last-status to 0, so a disk-full / permission denied
+      # in mkdir or atomic_cp produced neither a ✓ line nor an error.
       if [ "$FORCE_SEED" = "true" ]; then
-        # `&&` (not `;`) so a failed mkdir aborts the copy attempt
-        # — otherwise atomic_cp runs against a missing dir and the
-        # diagnostic attributes the fault to the copy.
-        mkdir -p "$dest_dir" && atomic_cp "$src" "$dest" && echo "   ✓ Seeded workflow $rel_path (forced)"; continue
+        if mkdir -p "$dest_dir" && atomic_cp "$src" "$dest"; then
+          echo "   ✓ Seeded workflow $rel_path (forced)"
+        else
+          log_error "   ✗ Failed to seed workflow $rel_path (forced)"
+        fi
+        continue
       fi
       if [ -f "$dest" ]; then echo "   ⏭ Skipping workflow $rel_path (already exists)"; continue; fi
       if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
         echo "   ⏭ Skipping workflow $rel_path (user has modifications in .history)"; continue
       fi
-      mkdir -p "$dest_dir" && atomic_cp "$src" "$dest" && echo "   ✓ Seeded workflow $rel_path"
+      if mkdir -p "$dest_dir" && atomic_cp "$src" "$dest"; then
+        echo "   ✓ Seeded workflow $rel_path"
+      else
+        log_error "   ✗ Failed to seed workflow $rel_path"
+      fi
     done
   fi
 
@@ -410,14 +435,13 @@ run_seed() {
       local name="$(basename "$src_dir")"
       local dest_dir="$integrations_dir/$name"
       if [ "$FORCE_SEED" = "true" ]; then
-        # rm before cp: without this, `cp -r src/ dest` nests the bundle as
-        # `dest/<name>` instead of overwriting it, leaving stale files and
-        # doubling the on-disk layout per restart.
-        rm -rf "$dest_dir"
-        cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name (forced)"; continue
+        # atomic_cp_bundle stages + renames so an interruption can't leave
+        # a half-populated bundle that the next-run dest-existence probe
+        # would skip permanently.
+        atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name (forced)"; continue
       fi
       if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping integration $name (already exists)"; continue; fi
-      cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name"
+      atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name"
     done
   fi
 
@@ -431,13 +455,10 @@ run_seed() {
       local name="$(basename "$src_dir")"
       local dest_dir="$skills_dir/$name"
       if [ "$FORCE_SEED" = "true" ]; then
-        # rm before cp — same fix as the integrations seed loop above:
-        # without it, FORCE_SEED nests the bundle and leaves stale files.
-        rm -rf "$dest_dir"
-        cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name (forced)"; continue
+        atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name (forced)"; continue
       fi
       if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping skill $name (already exists)"; continue; fi
-      cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name"
+      atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name"
     done
   fi
 

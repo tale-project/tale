@@ -241,7 +241,14 @@ copy_secret() {
   fi
   mkdir -p "$dst_dir"
   chown "$APP_UID:$APP_GID" "$dst_dir" 2>/dev/null || true
-  cp -a "$src" "$dst"
+  # Atomic publish via tmp + rename: a SIGINT / container crash mid-cp
+  # would otherwise leave a half-written $dst that blocks re-runs (the
+  # cmp -s above would refuse to overwrite). tmp file lives in the
+  # same dir so the mv stays on one filesystem (POSIX-atomic).
+  # Round-3 P2 R29-P2-c.
+  local tmp="$dst.tale-migrate.$$"
+  cp -a "$src" "$tmp"
+  mv -f "$tmp" "$dst"
   copied=$((copied+1))
   echo "OK: $src -> $dst"
 }
@@ -307,6 +314,21 @@ process_secret() {
 }
 
 detect_default_dst_collisions
+
+# Round-3 P2 R29-P2-b: when the pre-scan finds dst collisions, abort
+# BEFORE running process_secret. Previously the script logged the
+# conflicts but proceeded to enumerate sources anyway; whichever
+# source process_secret happened to hit first won, and the operator's
+# end state depended on dir iteration order.
+if [ "$errors" -gt 0 ]; then
+  echo
+  echo "MIGRATE_ABORT: $errors conflict(s) detected during pre-scan; refusing to proceed." >&2
+  echo "Unresolved conflicts (require manual reconciliation):" >&2
+  for c in "\${conflicts[@]}"; do
+    echo "  - $c" >&2
+  done
+  exit 1
+fi
 
 # Default org: top-level $DATA/providers/*.secrets.json → $DATA/default/providers/
 if [ -d "$DATA/providers" ]; then
