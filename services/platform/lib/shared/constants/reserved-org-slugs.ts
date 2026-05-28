@@ -12,7 +12,7 @@
  * organization form — kept in `lib/shared/constants/` so it stays
  * Node-runtime-neutral.
  */
-export const RESERVED_ORG_SLUGS: ReadonlySet<string> = new Set(['default']);
+const RESERVED_ORG_SLUGS: ReadonlySet<string> = new Set(['default']);
 
 export function isReservedOrgSlug(slug: string): boolean {
   return RESERVED_ORG_SLUGS.has(slug.toLowerCase());

@@ -26,7 +26,7 @@ import * as logger from '../../utils/logger';
 import { exec } from '../docker/exec';
 import { isContainerRunning } from '../docker/is-container-running';
 
-export interface MigrateConfigLayoutOptions {
+interface MigrateConfigLayoutOptions {
   dryRun: boolean;
   cleanupOld: boolean;
 }

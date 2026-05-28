@@ -26,7 +26,7 @@ import * as logger from '../../utils/logger';
 import { exec } from '../docker/exec';
 import { findPlatformContainer } from '../docker/find-platform-container';
 
-export interface ReseedAllOrgsOptions {
+interface ReseedAllOrgsOptions {
   dryRun: boolean;
   assumeYes: boolean;
 }
