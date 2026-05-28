@@ -97,6 +97,17 @@ export async function searchPages(
 ): Promise<SearchPagesResult> {
   let validDomain: string | undefined;
 
+  // When the agent supplies a `domain` that doesn't pass the shape
+  // check, surface it explicitly rather than silently dropping the
+  // filter and running a global search — the LLM thinks its filter
+  // applied and the user gets unrelated cross-domain hits.
+  if (args.domain && !isValidDomain(args.domain) && ctx.organizationId) {
+    return {
+      text: `The domain "${args.domain}" doesn't look valid. Use a bare domain like "example.com" (no protocol, no path), or omit the filter to search every website in your knowledge base.`,
+      citations: [],
+    };
+  }
+
   if (args.domain && isValidDomain(args.domain) && ctx.organizationId) {
     const website = await ctx.runQuery(
       internal.websites.internal_queries.getWebsiteByDomain,
@@ -130,20 +141,35 @@ export async function searchPages(
     throw new Error('search_pages requires organizationId in ToolCtx.');
   }
   const orgSlug = await orgSlugFromId(ctx, ctx.organizationId);
-  let data = await fetchSearch(crawlerUrl, orgSlug, args.query, validDomain);
-  let results = data.results;
 
-  // Fallback to global search if domain-scoped search returns no results
+  // Wrap crawler calls so a network blip / 5xx becomes a graceful
+  // "search is unavailable" reply to the agent rather than an
+  // unhandled exception — matches fetchAndExtract's contract in the
+  // sibling helper (round-3 P2 R8-P2-a).
+  let data: Awaited<ReturnType<typeof fetchSearch>>;
   let domainFallback = false;
-  if ((!results || results.length === 0) && validDomain) {
-    debugLog('web:search_pages domain fallback', {
-      query: args.query,
-      domain: validDomain,
-    });
-    data = await fetchSearch(crawlerUrl, orgSlug, args.query);
-    results = data.results;
-    domainFallback = true;
+  try {
+    data = await fetchSearch(crawlerUrl, orgSlug, args.query, validDomain);
+    // Fallback to global search if domain-scoped search returns no results
+    if ((!data.results || data.results.length === 0) && validDomain) {
+      debugLog('web:search_pages domain fallback', {
+        query: args.query,
+        domain: validDomain,
+      });
+      data = await fetchSearch(crawlerUrl, orgSlug, args.query);
+      domainFallback = true;
+    }
+  } catch (err) {
+    console.warn(
+      '[web:search_pages] crawler fetchSearch failed',
+      err instanceof Error ? err.message : err,
+    );
+    return {
+      text: 'The web-search service is temporarily unavailable. Try again in a moment, or use fetch mode with a specific URL to access pages directly.',
+      citations: [],
+    };
   }
+  const results = data.results;
 
   if (!results || results.length === 0) {
     debugLog('web:search_pages no results', { query: args.query });

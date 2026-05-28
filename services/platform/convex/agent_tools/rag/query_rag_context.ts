@@ -158,12 +158,27 @@ export async function queryRagContext(
   similarityThreshold: number = DEFAULT_SIMILARITY_THRESHOLD,
   signal?: AbortSignal,
   recentMessages?: RecentMessage[],
-  // Required: callers must always pass `orgSlug` (and usually fileIds).
-  // Previously this was `options?: RagContextOptions`, which made the
-  // declared-required `orgSlug` field reachable as `undefined` at
-  // runtime — a type-vs-runtime mismatch that this signature fixes.
+  // The type says orgSlug is required, but TS forces this parameter to
+  // be optional because all preceding params have defaults. The runtime
+  // assertion below (outside the outer try/catch) enforces it loudly.
   options: RagContextOptions = { orgSlug: '' },
 ): Promise<RagContextResult | undefined> {
+  // Validate orgSlug up front, OUTSIDE the outer try/catch so the bug
+  // surfaces as a real throw instead of being silently swallowed by the
+  // graceful-degrade catch at the bottom of this function. A missing /
+  // blank slug is a caller misconfiguration, not a runtime RAG outage.
+  // (Round-3 P2 R7-P2-a — previously the empty-slug case hit ragFetch's
+  // throw, fell into the catch, and returned undefined as if the search
+  // had failed.)
+  if (
+    !options ||
+    typeof options.orgSlug !== 'string' ||
+    !options.orgSlug.trim()
+  ) {
+    throw new Error(
+      'queryRagContext: options.orgSlug is required and must be non-empty',
+    );
+  }
   try {
     const ragServiceUrl = getRagConfig().serviceUrl;
 
