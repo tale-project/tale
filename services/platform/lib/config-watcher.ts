@@ -28,6 +28,15 @@ const ATOMIC_WRITE_TMP_RE = /\.\d+\.[a-f0-9]{8}\.tmp$/;
 const EMIT_DEBOUNCE_MS = 100;
 
 /**
+ * Stems allowed at `<org>/<stem>.json` (single-file-per-org configs).
+ * Must stay in lockstep with the read-side resolvers — adding a new
+ * entry here without a matching reader means the watcher emits events
+ * nothing consumes, and adding a reader without an entry here means
+ * operator edits silently never invalidate caches.
+ */
+const SINGLE_FILE_ORG_CONFIGS: ReadonlySet<string> = new Set(['retention']);
+
+/**
  * Parse a relative path within the config directory into a structured event,
  * under the uniform org-first layout `${TALE_CONFIG_DIR}/<orgSlug>/<domain>/...`.
  *
@@ -61,16 +70,20 @@ function parseConfigChange(relativePath: string): ConfigChangeEvent | null {
   const orgSlug = parts[0];
   if (!ORG_SLUG_REGEX.test(orgSlug)) return null;
 
-  // Single-file-per-org configs sit at `<org>/<stem>.json` (currently
-  // just `retention.json`; future-proof for `quota.json` etc.). Without
-  // this branch they fell through to null, so operator edits to
-  // `<org>/retention.json` never invalidated the governance UI cache
-  // (round-2 P1-15). Emit at slug=stem granularity so consumers can
-  // key their cache invalidation on it.
+  // Single-file-per-org configs sit at `<org>/<stem>.json`. The allowed
+  // stems are listed in SINGLE_FILE_ORG_CONFIGS so adding a new sibling
+  // (e.g. `quota.json`) is a one-line change here AND in the read-side
+  // resolver — they must stay in lockstep. Previously hardcoded to
+  // `retention` only; any future stem silently no-op'd (round-3 P2
+  // R18-P2-d).
   if (parts.length === 2 && parts[1].endsWith('.json')) {
     const stem = parts[1].slice(0, -'.json'.length);
-    if (stem === 'retention') {
-      return { type: 'retention', orgSlug, slug: stem };
+    if (SINGLE_FILE_ORG_CONFIGS.has(stem)) {
+      return {
+        type: stem as ConfigChangeEvent['type'],
+        orgSlug,
+        slug: stem,
+      };
     }
     return null;
   }

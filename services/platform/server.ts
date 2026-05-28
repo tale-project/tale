@@ -93,7 +93,22 @@ function convexHttpActionsBaseUrl(): string {
     return process.env.CONVEX_SITE_PROXY_URL.replace(/\/$/, '');
   }
   const wsUrl = process.env.CONVEX_URL ?? 'http://convex:3210';
-  return wsUrl.replace(/:\d+$/, ':3211').replace(/\/$/, '');
+  // Parse via URL() so the rewrite works for bare hostnames
+  // (`https://convex.example.com` → no explicit port) and URLs with
+  // path suffixes (`http://convex:3210/sub`) — the previous regex
+  // `:\d+$` only matched the literal trailing-port shape and would
+  // silently leave the wrong port in place for any operator who set
+  // CONVEX_URL to anything else. Falls back to the original string if
+  // parsing fails (defensive — should be unreachable).
+  try {
+    const parsed = new URL(wsUrl);
+    parsed.port = '3211';
+    // URL toString preserves protocol, host, path; strip any trailing
+    // slash for symmetry with CONVEX_SITE_PROXY_URL handling above.
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return wsUrl.replace(/:\d+$/, ':3211').replace(/\/$/, '');
+  }
 }
 
 async function resolveAllowedOrgSlugs(

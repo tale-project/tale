@@ -75,11 +75,16 @@ export function DocumentsTable({
   // scroll while a query is active, so further pages never load and any match
   // beyond the first page reads as "no results". Eagerly pull every page while
   // a search/filter is active so the client-side filter sees the full set.
+  // Includes `selectedTeamId` from the page-level team filter context —
+  // filterDocumentResults reads it too, so omitting it from this predicate
+  // means a context-only filter (no search, no local filters) still showed
+  // only the first page (round-3 P2 R19-P2-a).
   const hasActiveQuery =
     debouncedQuery.trim().length > 0 ||
     selectedRagStatuses.length > 0 ||
     selectedSources.length > 0 ||
-    selectedTeamIds.length > 0;
+    selectedTeamIds.length > 0 ||
+    selectedTeamId != null;
 
   const { status: pageStatus, loadMore: loadMorePage } = paginatedResult;
   useEffect(() => {
