@@ -16,6 +16,7 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 
 export interface LoadedIntegration {
   _id: Doc<'integrationCredentials'>['_id'];
@@ -127,6 +128,18 @@ export const loadIntegration = internalAction({
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<LoadedIntegration | null> => {
+    // The two args drive different reads: orgSlug → filesystem config,
+    // organizationId → DB credentials. A future caller that mismatches
+    // them (or a refactor that drifts the resolution) would silently
+    // splice one org's config template with another org's encrypted
+    // secrets. Resolve canonically from organizationId and refuse on
+    // mismatch (round-3 P2 R15-P2-a).
+    const canonicalSlug = await orgSlugFromId(ctx, args.organizationId);
+    if (canonicalSlug !== args.orgSlug) {
+      throw new Error(
+        `[loadIntegration] orgSlug/${args.orgSlug} does not match canonical slug ${canonicalSlug} for organizationId ${args.organizationId}`,
+      );
+    }
     const [fileResult, credentials] = await Promise.all([
       ctx.runAction(
         internal.integrations.file_actions.readIntegrationForExecution,

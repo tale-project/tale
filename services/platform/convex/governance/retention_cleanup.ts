@@ -1332,6 +1332,17 @@ async function cleanupNotifications(
  *
  * `cleanupLoginAttemptsGlobal` runs unconditionally now (no per-org
  * opt-in), once per dispatcher invocation, with the fixed TTL.
+ *
+ * **Legal-hold interaction (round-3 P2 R12-P2-b)**: The global sweep
+ * intentionally does NOT cross-check `loadActiveHolds`. The tables are
+ * email-keyed and global; resolving each row's email → userId → all
+ * orgs → active holds on every sweep would re-introduce the per-org
+ * coupling the reframe deliberately removed. The trade-off (a custodian
+ * hold in org X does not protect that user's `loginAttempts` rows from
+ * the 30-day TTL) is accepted: forensics relevant to a hold live in
+ * `auditLogs`, which IS hold-gated and honors per-org retention. Document
+ * this in the data-handling runbook rather than pull operational state
+ * back into the legal-hold scope.
  */
 const LOGIN_ATTEMPTS_FIXED_TTL_DAYS = 30;
 

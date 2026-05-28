@@ -429,11 +429,23 @@ async function seedRetention(
       targetStatErr = err;
       return false;
     });
+  // Round-3 P2 R14-P2-a: non-ENOENT stat errors (EACCES on a chmod-locked
+  // file, EPERM on an immutable-bit attribute, ELOOP on a symlink cycle)
+  // previously fell through and silently overwrote whatever the operator
+  // had locked. Treat unknown stat failures as "target exists" so the
+  // override:false branch refuses, and bubble the error code through the
+  // result so a deploy can surface it instead of producing a silent
+  // clobber.
   if (!targetExists && errnoCode(targetStatErr) !== 'ENOENT' && targetStatErr) {
-    console.warn(
-      `[scaffold] retention: stat ${targetFile} failed:`,
-      targetStatErr,
-    );
+    const message = `[scaffold] retention: stat ${targetFile} failed: ${
+      targetStatErr instanceof Error
+        ? targetStatErr.message
+        : String(targetStatErr)
+    }`;
+    console.warn(message);
+    if (!override) {
+      return { domain: 'retention', ok: false, error: message };
+    }
   }
   if (targetExists && !override) {
     console.warn(
