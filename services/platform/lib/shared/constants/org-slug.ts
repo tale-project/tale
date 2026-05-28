@@ -11,22 +11,26 @@
  * Rules:
  *   - Must start with a lowercase letter or digit
  *   - Body may include lowercase letters, digits, `_`, `-`
- *   - `'default'` is allowed as the reserved platform-seed org slug
- *     even though every other check would still pass it; the explicit
- *     short-circuit documents the invariant.
+ *   - Length capped at {@link MAX_ORG_SLUG_LENGTH} (64) — the Python
+ *     validator at `packages/tale_shared/.../org_slug.py` enforces
+ *     `{0,63}` (≤64 total). Allowing longer slugs here would mint
+ *     organizations that RAG/crawler refuse, locking those services
+ *     out for the org permanently.
  */
-export const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
+export const MAX_ORG_SLUG_LENGTH = 64;
+export const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 /** Soft check — does NOT throw. Returns true for valid slugs. */
 export function isValidOrgSlug(slug: string): boolean {
-  return slug === 'default' || ORG_SLUG_REGEX.test(slug);
+  return slug.length <= MAX_ORG_SLUG_LENGTH && ORG_SLUG_REGEX.test(slug);
 }
 
 /** Hard check — throws `Error` with a uniform message on invalid input. */
 export function assertValidOrgSlug(slug: string): void {
   if (!isValidOrgSlug(slug)) {
     throw new Error(
-      `Invalid org slug "${slug}". Must match ${ORG_SLUG_REGEX.source}.`,
+      `Invalid org slug "${slug}". Must match ${ORG_SLUG_REGEX.source} ` +
+        `(max ${MAX_ORG_SLUG_LENGTH} chars).`,
     );
   }
 }

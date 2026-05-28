@@ -20,6 +20,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { MAX_ORG_SLUG_LENGTH } from '@/lib/shared/constants/org-slug';
 import { isReservedOrgSlug } from '@/lib/shared/constants/reserved-org-slugs';
 
 import { useInitializeDefaultWorkflows } from '../hooks/actions';
@@ -35,14 +36,18 @@ type FormData = { name: string };
  *
  * Must produce a slug that matches
  * `services/platform/lib/shared/constants/org-slug.ts` ORG_SLUG_REGEX —
- * see `assertValidOrgSlug`.
+ * see `assertValidOrgSlug`. Truncates to `MAX_ORG_SLUG_LENGTH` so a
+ * long display name doesn't mint a slug that RAG/crawler's Python
+ * validator (capped at 64 chars) would reject — that path causes
+ * total feature loss for the org with no recovery.
  */
 function deriveOrgSlug(name: string): string {
   return name
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/^-+|-+$/g, '')
+    .slice(0, MAX_ORG_SLUG_LENGTH);
 }
 
 export function OrganizationForm() {
