@@ -18,11 +18,20 @@ pytestmark = pytest.mark.asyncio
 
 
 def _make_conn(*, fetchval_return=0, execute_return="DELETE 1", fetchrow_return=None):
-    """Build a per-test asyncpg connection stub with configurable returns."""
+    """Build a per-test asyncpg connection stub with configurable returns.
+
+    `fetchrow_return` may be a single value (returned for every fetchrow
+    call) or a list (each call pops the next entry). `register_website`
+    now does two fetchrows — the websites UPSERT (returns scan_interval +
+    status) and the membership insert (returns the `inserted` flag).
+    """
     conn = AsyncMock()
     conn.execute = AsyncMock(return_value=execute_return)
     conn.fetchval = AsyncMock(return_value=fetchval_return)
-    conn.fetchrow = AsyncMock(return_value=fetchrow_return)
+    if isinstance(fetchrow_return, list):
+        conn.fetchrow = AsyncMock(side_effect=list(fetchrow_return))
+    else:
+        conn.fetchrow = AsyncMock(return_value=fetchrow_return)
     # Transactions are no-ops at this layer; just yield the same conn.
     conn.transaction = MagicMock()
     conn.transaction.return_value.__aenter__ = AsyncMock(return_value=None)
@@ -44,7 +53,10 @@ class TestRegisterWebsite:
     async def test_first_membership_reports_first_membership_true(self):
         conn = _make_conn(
             fetchval_return=1,  # total members after insert = 1
-            fetchrow_return={"inserted": True},
+            fetchrow_return=[
+                {"scan_interval": 3600, "status": "idle"},  # websites UPSERT RETURNING
+                {"inserted": True},  # membership INSERT RETURNING
+            ],
         )
         with _patch_acquire(conn):
             manager = PgWebsiteStoreManager(pool=MagicMock())
@@ -57,7 +69,10 @@ class TestRegisterWebsite:
     async def test_second_org_joining_does_not_report_first_membership(self):
         conn = _make_conn(
             fetchval_return=2,  # total members after insert = 2
-            fetchrow_return={"inserted": True},
+            fetchrow_return=[
+                {"scan_interval": 3600, "status": "idle"},
+                {"inserted": True},
+            ],
         )
         with _patch_acquire(conn):
             manager = PgWebsiteStoreManager(pool=MagicMock())
@@ -66,10 +81,14 @@ class TestRegisterWebsite:
         assert result["first_membership"] is False
 
     async def test_idempotent_when_same_org_re_registers(self):
-        # ON CONFLICT DO NOTHING → no RETURNING row, total stays as-is.
+        # ON CONFLICT DO NOTHING on the membership insert → no RETURNING row.
+        # The websites UPSERT still returns its stored row, so feed both.
         conn = _make_conn(
             fetchval_return=1,
-            fetchrow_return=None,
+            fetchrow_return=[
+                {"scan_interval": 3600, "status": "idle"},
+                None,
+            ],
         )
         with _patch_acquire(conn):
             manager = PgWebsiteStoreManager(pool=MagicMock())

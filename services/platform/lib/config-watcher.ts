@@ -32,9 +32,16 @@ const EMIT_DEBOUNCE_MS = 100;
  * Must stay in lockstep with the read-side resolvers — adding a new
  * entry here without a matching reader means the watcher emits events
  * nothing consumes, and adding a reader without an entry here means
- * operator edits silently never invalidate caches.
+ * operator edits silently never invalidate caches. Typed as an array
+ * of literal-type members so membership lookup narrows without a cast.
  */
-const SINGLE_FILE_ORG_CONFIGS: ReadonlySet<string> = new Set(['retention']);
+type SingleFileOrgConfigStem = Extract<ConfigChangeEvent['type'], 'retention'>;
+const SINGLE_FILE_ORG_CONFIGS: ReadonlyArray<SingleFileOrgConfigStem> = [
+  'retention',
+];
+function isSingleFileOrgConfig(stem: string): stem is SingleFileOrgConfigStem {
+  return (SINGLE_FILE_ORG_CONFIGS as ReadonlyArray<string>).includes(stem);
+}
 
 /**
  * Parse a relative path within the config directory into a structured event,
@@ -78,12 +85,10 @@ function parseConfigChange(relativePath: string): ConfigChangeEvent | null {
   // R18-P2-d).
   if (parts.length === 2 && parts[1].endsWith('.json')) {
     const stem = parts[1].slice(0, -'.json'.length);
-    if (SINGLE_FILE_ORG_CONFIGS.has(stem)) {
-      return {
-        type: stem as ConfigChangeEvent['type'],
-        orgSlug,
-        slug: stem,
-      };
+    // `isSingleFileOrgConfig` is a type predicate so `stem` narrows to
+    // a literal that fits ConfigChangeEvent['type'] without a cast.
+    if (isSingleFileOrgConfig(stem)) {
+      return { type: stem, orgSlug, slug: stem };
     }
     return null;
   }

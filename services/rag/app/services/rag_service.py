@@ -26,6 +26,7 @@ mis-dimensioned vectors. (Per-org dims would require per-org DB schemas
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import datetime as dt
 import time
 from collections import OrderedDict
@@ -108,10 +109,8 @@ async def _safe_close(coro) -> None:
     bounded shutdown drain would cancel the `asyncio.sleep(30)` and the
     wrapped close coroutine would never be awaited.
     """
-    try:
+    with contextlib.suppress(TimeoutError):
         await asyncio.wait_for(_get_shutdown_event().wait(), timeout=30)
-    except TimeoutError:
-        pass
     try:
         await coro
     except Exception:

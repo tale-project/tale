@@ -437,11 +437,11 @@ async function seedRetention(
   // result so a deploy can surface it instead of producing a silent
   // clobber.
   if (!targetExists && errnoCode(targetStatErr) !== 'ENOENT' && targetStatErr) {
-    const message = `[scaffold] retention: stat ${targetFile} failed: ${
+    const errDetail =
       targetStatErr instanceof Error
         ? targetStatErr.message
-        : String(targetStatErr)
-    }`;
+        : JSON.stringify(targetStatErr);
+    const message = `[scaffold] retention: stat ${targetFile} failed: ${errDetail}`;
     console.warn(message);
     if (!override) {
       return { domain: 'retention', ok: false, error: message };
