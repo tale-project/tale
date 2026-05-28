@@ -317,6 +317,25 @@ export async function cascadeDeleteThreadChildren(
         q.eq('organizationId', organizationId).eq('threadId', threadId),
       )
       .take(PAGE_SIZE);
+    // Resolve slug BEFORE the delete loop. Previously the lookup ran
+    // after every storage.delete + db.delete had committed; if it threw
+    // (org row deleted mid-cascade, replica skew), the DB tx rolls back
+    // so fileMetadata rows reappear, but `ctx.storage.delete` is out-
+    // of-band and NOT rolled back — the blob is gone AND no RAG purge
+    // was scheduled. Resolve first so a slug-lookup failure aborts the
+    // loop before any destructive op runs.
+    let orgSlug: string;
+    try {
+      orgSlug = await orgSlugFromId(ctx, organizationId);
+    } catch (error) {
+      console.warn(
+        `[cascadeDeleteThreadChildren] orgSlugFromId failed for ${organizationId}; deferring file cascade:`,
+        error instanceof Error ? error.message : error,
+      );
+      // Signal "not done" so the caller retries. The fileMetadata page
+      // is still present so a re-run will find it.
+      return { done: false, remaining: 1 };
+    }
     const ragPurgeStorageIds: string[] = [];
     for (const fileMeta of filesPage) {
       try {
@@ -332,10 +351,6 @@ export async function cascadeDeleteThreadChildren(
       await ctx.db.delete(fileMeta._id);
     }
     if (ragPurgeStorageIds.length > 0) {
-      // `organizationId` is guaranteed truthy at this point (outer
-      // `if (organizationId)` branch). Resolve to slug so RAG's per-org
-      // delete scope targets the correct tenant's chunks.
-      const orgSlug = await orgSlugFromId(ctx, organizationId);
       await ctx.scheduler.runAfter(
         0,
         internal.workflow_engine.action_defs.rag.helpers.delete_document

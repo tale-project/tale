@@ -22,8 +22,20 @@ type CtxWithRunQuery = {
 /**
  * Resolve an organizationId to its slug via Better Auth.
  *
- * Throws if no matching org row exists — callers should ensure the
- * organizationId came from a verified-membership check upstream.
+ * **This helper does NOT verify caller membership.** It is purely an
+ * id → slug lookup that succeeds for any organization row that exists.
+ * Callers must ensure `organizationId` came from a verified-membership
+ * check upstream (e.g. `requireOrgMembership`, `requireOrgMembershipById`,
+ * `getOrganizationMember`, or a server-side context whose
+ * `organizationId` is trusted by construction).
+ *
+ * **Never** call this with an `organizationId` taken directly from
+ * a request body / argument without first verifying membership — that
+ * would let a member of org A pass org B's id and silently obtain
+ * org B's slug, then use it as the `X-Tale-Org` header on a downstream
+ * RAG/crawler call.
+ *
+ * Throws if no matching org row exists, or if the row has no slug.
  */
 export async function orgSlugFromId(
   ctx: CtxWithRunQuery,

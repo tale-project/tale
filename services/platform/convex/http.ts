@@ -334,7 +334,10 @@ http.route({
       components.betterAuth.adapter.findMany,
       {
         model: 'member',
-        // Cap matches the platform's hard limit on per-user org membership.
+        // 256 is a soft cap — there is no hard platform-side limit on
+        // per-user memberships. Anyone with >256 active memberships is
+        // an operator / service account, not a regular subject. We log
+        // when we hit the cap below so silent truncation is observable.
         paginationOpts: { cursor: null, numItems: 256 },
         where: [{ field: 'userId', value: session.user.id, operator: 'eq' }],
       },
@@ -343,6 +346,14 @@ http.route({
     const memberRows: unknown[] = Array.isArray(memberships?.page)
       ? memberships.page
       : [];
+    if (memberRows.length === 256) {
+      // Surface the soft-cap truncation so an operator with >256 memberships
+      // notices instead of silently losing SSE coverage for the excess orgs.
+      console.warn(
+        '[/api/sse/auth] hit 256-membership soft cap for user; some orgs may be silently truncated',
+        { userId: session.user.id },
+      );
+    }
     // Drop rows where the user is soft-removed via `role = 'disabled'`
     // (matches the canonical filter in lib/rls/organization/get_user_organizations.ts).
     // Without this filter, a disabled member keeps receiving SSE file events

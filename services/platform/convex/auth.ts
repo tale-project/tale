@@ -586,7 +586,16 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
             // Reject anything that doesn't fit the canonical slug shape
             // so users can't smuggle invalid filesystem characters or
             // length-cap-busting strings past the auth boundary.
-            assertValidOrgSlug(normalizedSlug);
+            // assertValidOrgSlug throws plain Error; wrap as
+            // APIError('BAD_REQUEST') so Better Auth surfaces 400 to the
+            // client rather than 500 (round-3 P2 R1-P2-a).
+            try {
+              assertValidOrgSlug(normalizedSlug);
+            } catch (err) {
+              throw new APIError('BAD_REQUEST', {
+                message: err instanceof Error ? err.message : String(err),
+              });
+            }
 
             // Refuse reserved slugs ("default") that the platform pins
             // global resources to (branding, retention defaults).
@@ -646,7 +655,13 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
             const rawSlug = orgPatch.slug;
             if (typeof rawSlug !== 'string') return;
             const normalizedSlug = rawSlug.toLowerCase();
-            assertValidOrgSlug(normalizedSlug);
+            try {
+              assertValidOrgSlug(normalizedSlug);
+            } catch (err) {
+              throw new APIError('BAD_REQUEST', {
+                message: err instanceof Error ? err.message : String(err),
+              });
+            }
             if (isReservedOrgSlug(normalizedSlug)) {
               throw new APIError('BAD_REQUEST', {
                 message: `Organization slug "${normalizedSlug}" is reserved by the platform.`,

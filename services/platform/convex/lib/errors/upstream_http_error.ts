@@ -44,10 +44,20 @@ export function isRetryableStatus(status: number): boolean {
 }
 
 /**
+ * Cap parsed Retry-After delays to a sane ceiling so a malicious /
+ * misconfigured upstream cannot pin our scheduler backoff at an absurd
+ * future. `Number('1e10')` is a finite non-negative number and would
+ * otherwise produce ~317 years of delay; capping at 24h keeps both
+ * "seconds" and "HTTP-date" branches bounded.
+ */
+export const MAX_RETRY_AFTER_MS = 24 * 60 * 60 * 1000;
+
+/**
  * Parse the upstream `Retry-After` header into milliseconds. Supports
  * both the integer-seconds and HTTP-date forms per RFC 9110 §10.2.3.
  * Returns `undefined` when the header is missing or unparseable so
- * callers can fall back to a default backoff.
+ * callers can fall back to a default backoff. Capped at
+ * {@link MAX_RETRY_AFTER_MS}.
  */
 export function parseRetryAfterMs(value: string | null): number | undefined {
   if (!value) return undefined;
@@ -55,12 +65,13 @@ export function parseRetryAfterMs(value: string | null): number | undefined {
   if (!trimmed) return undefined;
   const asInt = Number(trimmed);
   if (Number.isFinite(asInt) && asInt >= 0) {
-    return Math.round(asInt * 1000);
+    return Math.min(Math.round(asInt * 1000), MAX_RETRY_AFTER_MS);
   }
   const asDate = Date.parse(trimmed);
   if (!Number.isNaN(asDate)) {
     const delta = asDate - Date.now();
-    return delta > 0 ? delta : 0;
+    if (delta <= 0) return 0;
+    return Math.min(delta, MAX_RETRY_AFTER_MS);
   }
   return undefined;
 }

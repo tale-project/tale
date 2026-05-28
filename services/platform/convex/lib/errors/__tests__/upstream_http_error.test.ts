@@ -166,6 +166,22 @@ describe('UpstreamHttpError', () => {
     expect(err.retryAfterMs).toBe(30000);
   });
 
+  it('caps Retry-After at 24h to defend against absurd upstream values', () => {
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    // Scientific-notation finite value: 1e10 seconds ≈ 317 years.
+    expect(parseRetryAfterMs('1e10')).toBe(ONE_DAY_MS);
+    // Plain too-large seconds.
+    expect(parseRetryAfterMs('999999999')).toBe(ONE_DAY_MS);
+    // Far-future HTTP date.
+    const farFuture = new Date(
+      Date.now() + 1000 * 60 * 60 * 24 * 365,
+    ).toUTCString();
+    expect(parseRetryAfterMs(farFuture)).toBe(ONE_DAY_MS);
+    // Past HTTP date still clamps to 0 (unchanged).
+    const past = new Date(Date.now() - 60_000).toUTCString();
+    expect(parseRetryAfterMs(past)).toBe(0);
+  });
+
   it('defaults endpoint to response.url when caller omits it', () => {
     const err = UpstreamHttpError.fromResponse(
       'rag',

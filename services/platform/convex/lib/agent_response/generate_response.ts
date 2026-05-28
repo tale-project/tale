@@ -704,19 +704,34 @@ export async function generateAgentResponse(
       if (accessibleFileIds.length === 0) {
         debugLog('No accessible RAG documents, skipping knowledge context');
       } else {
-        const orgSlug = await orgSlugFromId(ctx, organizationId);
-        knowledgeContextPromise = queryRagContext(
-          promptMessage,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          { fileIds: accessibleFileIds, orgSlug },
-        );
-        debugLog('Knowledge context query started', {
-          threadId,
-          elapsedMs: Date.now() - startTime,
-        });
+        // Resolve slug defensively: a transient lookup miss (org row
+        // deleted between membership check and here, replica skew) should
+        // degrade gracefully — skip knowledge context — rather than abort
+        // the entire response generation. Matches the guardrails-resolve
+        // pattern lower in this file.
+        let orgSlug: string | undefined;
+        try {
+          orgSlug = await orgSlugFromId(ctx, organizationId);
+        } catch (err) {
+          console.warn(
+            '[generateAgentResponse] orgSlugFromId failed; skipping knowledge context',
+            err instanceof Error ? err.message : err,
+          );
+        }
+        if (orgSlug) {
+          knowledgeContextPromise = queryRagContext(
+            promptMessage,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            { fileIds: accessibleFileIds, orgSlug },
+          );
+          debugLog('Knowledge context query started', {
+            threadId,
+            elapsedMs: Date.now() - startTime,
+          });
+        }
       }
     }
 

@@ -199,12 +199,15 @@ export function _resetRagConfigForTests(): void {
  * Sets `Authorization: Bearer ${authToken}` when `RAG_AUTH_TOKEN` is
  * configured; otherwise sends no Authorization header (RAG runs open).
  *
- * `orgSlug` is required for endpoints whose service-side handler reads
- * the org's provider catalog (search, generate, upload, compare-files).
- * The RAG service enforces this via per-router `Depends(require_org_slug)`,
- * so callers MUST pass `orgSlug` for those endpoints — a missing header
- * yields 400 from RAG. Status / delete / content / compare-by-id
- * endpoints are org-agnostic and accept calls without the header.
+ * `orgSlug` is required for ALL endpoints whose service-side handler
+ * scopes by tenant. Verified against the routers at
+ * `services/rag/app/routers/documents.py` and `.../search.py`: every
+ * non-health endpoint declares `org_slug: str = Depends(require_org_slug)`
+ * — including `/documents/{file_id}/content` (read), `/documents/compare`
+ * (compare-by-id), `/documents/compare-files` (compare bytes), `/search`,
+ * `/documents/upload`, `/documents/{file_id}` DELETE. Only `/health` /
+ * `/` accept calls without the header. Callers MUST pass `orgSlug` for
+ * every other route — a missing header yields 400 from RAG.
  *
  * When `orgSlug` is supplied, it sets `X-Tale-Org: ${orgSlug}` and
  * cannot be overridden via a header in `init.headers` — preventing
@@ -256,12 +259,15 @@ export async function ragFetch(
   // the field entirely" (the org-agnostic endpoint path). Earlier the
   // truthy check folded both into the same silent-omit branch.
   if (init.orgSlug !== undefined) {
-    if (!init.orgSlug.trim()) {
+    const trimmedSlug = init.orgSlug.trim();
+    if (!trimmedSlug) {
       throw new Error(
         'ragFetch: orgSlug was provided but is empty; refusing to call RAG without a valid X-Tale-Org header',
       );
     }
-    headers.set('x-tale-org', init.orgSlug);
+    // Send the trimmed value (not init.orgSlug) so accidental whitespace
+    // doesn't ride into RAG's `<orgSlug>/...` filesystem lookup.
+    headers.set('x-tale-org', trimmedSlug);
   }
 
   const timeoutMs = init.timeoutMs ?? 10_000;
