@@ -146,12 +146,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
       logger.header(`${prefix}Deploying Tale ${version}`);
 
       // Auto-migration framework removed — `tale migrate config-layout` is
-      // the only opt-in, manually-run migration now. Fail fast (before
-      // pulling images / rolling services) if the project still has the
-      // pre-refactor flat layout at the root; otherwise a no-op deploy
-      // could complete while the host config silently never reaches the
-      // container.
-      {
+      // the only opt-in, manually-run migration now. Fail fast on the
+      // pre-refactor flat layout — but ONLY when the operator is actually
+      // pushing host config (`--override` or `--override-all`). Plain
+      // `tale deploy` (container rotation, image pull only) has no host-
+      // push hazard, so trapping operators with legacy artifacts on a
+      // no-op deploy was over-broad. The host-push code path at
+      // syncProjectFiles enforces the same check where it matters
+      // (round-2 P1-32).
+      if (options.override || options.overrideAll) {
         const { legacyDirs } = await findOrgDirs(env.DEPLOY_DIR);
         if (legacyDirs.length > 0) {
           throw new Error(

@@ -103,18 +103,23 @@ function shouldSkipFile(name: string): boolean {
   return SKIP_FILE_SUFFIXES.some((s) => name.endsWith(s));
 }
 
-// atomicWrite leaves `.<basename>.<ts>.<uuid>.tmp` orphans on crash. Those
-// shouldn't lock out a retry, but every other entry (including dotfiles
-// like `.history/` that agents/workflows write on every edit) means a user
-// has been here and we must not overwrite in the non-override path.
-function isAtomicWriteTmp(name: string): boolean {
-  return name.startsWith('.') && name.endsWith('.tmp');
+// atomicWrite leaves `.<basename>.<ts>.<uuid>.tmp` orphans on crash. Bundle-
+// mode scaffolds (this file) and skills uploads (skills/file_actions.ts)
+// stage into `<basename>.staging-<8hex>` / `<basename>.replacing-<8hex>`
+// dirs that are atomic-renamed onto the target. None of these are user-
+// authored content, so a leftover from a crash must not (a) lock out a
+// retry by making `dirHasFiles` return true and (b) make `override:false`
+// skip the whole domain indefinitely.
+const STAGING_SUFFIX_RE = /\.(staging|replacing)-[a-f0-9]{8}$/;
+function isTransientArtifact(name: string): boolean {
+  if (name.startsWith('.') && name.endsWith('.tmp')) return true;
+  return STAGING_SUFFIX_RE.test(name);
 }
 
 async function dirHasFiles(dir: string): Promise<boolean> {
   try {
     const entries = await readdir(dir);
-    return entries.some((n) => !isAtomicWriteTmp(n));
+    return entries.some((n) => !isTransientArtifact(n));
   } catch (err) {
     if (errnoCode(err) !== 'ENOENT') {
       console.warn('[scaffold.dirHasFiles] readdir failed:', dir, err);
@@ -452,33 +457,113 @@ async function seedRetention(
 }
 
 /**
- * Best-effort opportunistic sweep of `.deleted-*` siblings older than
- * 24h that survived a prior failed `rm`. Called at the top of
- * `cleanupOrgFilesystem`. Errors are swallowed (the main op shouldn't
- * fail because of a leftover dir we couldn't clean).
+ * Best-effort opportunistic sweep of orphan transient dirs older than
+ * 24h that survived a prior failed `rm` or process crash:
+ *
+ *   - Root-level `<root>/.deleted-*` (left by the two-phase rename-then-
+ *     delete in `cleanupOrgFilesystem`).
+ *   - Nested `<root>/<org>/<domain>/<bundle>.staging-<8hex>` and
+ *     `.replacing-<8hex>` (left by `seedSingleDomain`'s bundle mode here,
+ *     and by `skills/file_actions.ts:706-707` uploadSkillBundle). Without
+ *     this, an orphan staging dir would make `dirHasFiles` return true
+ *     and the next `override:false` scaffold would skip the whole domain
+ *     indefinitely.
+ *
+ * Errors are swallowed per-entry (the main op shouldn't fail because of a
+ * leftover dir we couldn't clean). Called from both `cleanupOrgFilesystem`
+ * and `scaffoldNewOrganization` so reseed paths sweep too.
  */
 const CONDEMNED_TTL_MS = 24 * 60 * 60 * 1000;
 async function sweepStaleCondemnedDirs(root: string): Promise<void> {
-  let entries: string[];
+  let rootEntries: string[];
   try {
-    entries = await readdir(root);
+    rootEntries = await readdir(root);
   } catch (err) {
     if (errnoCode(err) === 'ENOENT') return;
     throw err;
   }
+
   const now = Date.now();
-  for (const name of entries) {
-    if (!name.startsWith('.deleted-')) continue;
-    const p = path.join(root, name);
-    const info = await lstat(p).catch(() => null);
-    if (!info || info.isSymbolicLink()) continue;
-    if (now - info.mtimeMs < CONDEMNED_TTL_MS) continue;
+
+  const tryRm = async (p: string): Promise<void> => {
     await rm(p, { recursive: true }).catch((err) => {
       console.warn(
-        `[cleanupOrgFilesystem] janitor: rm ${p} failed:`,
+        `[scaffold.janitor] rm ${p} failed:`,
         err instanceof Error ? err.message : err,
       );
     });
+  };
+
+  for (const orgEntry of rootEntries) {
+    const orgPath = path.join(root, orgEntry);
+
+    // Root-level `.deleted-*` orphan from cleanupOrgFilesystem.
+    if (orgEntry.startsWith('.deleted-')) {
+      const info = await lstat(orgPath).catch(() => null);
+      if (!info || info.isSymbolicLink()) continue;
+      if (now - info.mtimeMs < CONDEMNED_TTL_MS) continue;
+      await tryRm(orgPath);
+      continue;
+    }
+
+    // Skip non-org dotdirs at root and ignore non-directories. Org slugs
+    // must validate against the same regex used to scaffold them, so we
+    // don't accidentally recurse into a stray bind-mount.
+    if (orgEntry.startsWith('.')) continue;
+    if (!validateOrgSlug(orgEntry)) continue;
+    const orgInfo = await lstat(orgPath).catch(() => null);
+    if (!orgInfo || !orgInfo.isDirectory() || orgInfo.isSymbolicLink()) {
+      continue;
+    }
+
+    let domainEntries: string[];
+    try {
+      domainEntries = await readdir(orgPath);
+    } catch (err) {
+      if (errnoCode(err) !== 'ENOENT') {
+        console.warn(
+          '[scaffold.janitor] readdir org dir failed:',
+          orgPath,
+          err,
+        );
+      }
+      continue;
+    }
+
+    for (const domainName of domainEntries) {
+      const domainPath = path.join(orgPath, domainName);
+      const domainInfo = await lstat(domainPath).catch(() => null);
+      if (
+        !domainInfo ||
+        !domainInfo.isDirectory() ||
+        domainInfo.isSymbolicLink()
+      ) {
+        continue;
+      }
+
+      let leaves: string[];
+      try {
+        leaves = await readdir(domainPath);
+      } catch (err) {
+        if (errnoCode(err) !== 'ENOENT') {
+          console.warn(
+            '[scaffold.janitor] readdir domain dir failed:',
+            domainPath,
+            err,
+          );
+        }
+        continue;
+      }
+
+      for (const leaf of leaves) {
+        if (!STAGING_SUFFIX_RE.test(leaf)) continue;
+        const leafPath = path.join(domainPath, leaf);
+        const leafInfo = await lstat(leafPath).catch(() => null);
+        if (!leafInfo || leafInfo.isSymbolicLink()) continue;
+        if (now - leafInfo.mtimeMs < CONDEMNED_TTL_MS) continue;
+        await tryRm(leafPath);
+      }
+    }
   }
 }
 
@@ -660,6 +745,16 @@ export const scaffoldNewOrganization = internalAction({
       }
       return { ok: false, skipped: true, results: [] };
     }
+
+    // Opportunistic janitor: sweep root-level `.deleted-*` AND nested
+    // `<org>/<domain>/<bundle>.staging-*` orphans older than 24h before
+    // any per-domain work. Without this, a bundle staging dir orphaned
+    // by a prior crash would make `dirHasFiles` return true and the
+    // domain's non-override seed would skip indefinitely (round-2 P1-14).
+    // Best-effort: errors only log.
+    await sweepStaleCondemnedDirs(configRoot).catch((err) => {
+      console.warn('[scaffoldNewOrganization] janitor sweep failed:', err);
+    });
 
     const catalogRoot = process.env[BUILTIN_ENV];
     const override = args.override ?? false;

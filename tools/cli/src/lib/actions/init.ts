@@ -182,11 +182,32 @@ export async function init(options: InitOptions): Promise<void> {
   const skillFiles = getEmbeddedExamples('skills');
   await writeEmbeddedFiles(skillFiles, join(defaultOrgDir, 'skills'));
 
+  // Write AI rules files. Moved ABOVE the checksum step (was below,
+  // after writeChecksums) so the four rules files — CLAUDE.md,
+  // .cursor/rules/tale.mdc, .github/copilot-instructions.md,
+  // .windsurfrules — get hashed into `.tale/checksums.json` alongside
+  // the example files. Without the hash recorded, `tale update`'s
+  // `!oldHash` "new" branch (update.ts:95-101) hits unconditional
+  // overwrite on the FIRST run after init and silently clobbers any
+  // local edits the user made between init and that first update
+  // (round-2 P1-34).
+  logger.step('Writing AI rules files...');
+  const rulesFiles = generateAllRules();
+  for (const { relativePath, content } of rulesFiles) {
+    const destPath = join(target, relativePath);
+    await mkdir(dirname(destPath), { recursive: true });
+    await Bun.write(destPath, content);
+  }
+
   // Compute checksums. Paths are recorded relative to the project root,
-  // matching where the files actually live (default/<domain>/...).
+  // matching where the files actually live (default/<domain>/... and
+  // the rules files at the project root).
   logger.step('Computing file checksums...');
   const allFiles = new Map<string, string>();
 
+  for (const { relativePath, content } of rulesFiles) {
+    allFiles.set(relativePath, computeContentHash(content));
+  }
   for (const [relPath, content] of agentFiles) {
     allFiles.set(
       join('default', 'agents', relPath),
@@ -255,14 +276,8 @@ export async function init(options: InitOptions): Promise<void> {
   // framework. Existing projects' stale files are harmless and can be
   // deleted manually.)
 
-  // Write AI rules files
-  logger.step('Writing AI rules files...');
-  const rulesFiles = generateAllRules();
-  for (const { relativePath, content } of rulesFiles) {
-    const destPath = join(target, relativePath);
-    await mkdir(dirname(destPath), { recursive: true });
-    await Bun.write(destPath, content);
-  }
+  // (AI rules files are now written ABOVE the checksum step — see the
+  // `generateAllRules()` block earlier so their hashes are recorded.)
 
   // Ensure .gitignore
   await ensureGitignore(target);

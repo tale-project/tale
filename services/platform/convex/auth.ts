@@ -626,14 +626,15 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
               });
             }
             // Project the normalized slug back so the persisted row
-            // matches what the checks just used. If the field is
-            // read-only on `data.organization`, this is a defensive
-            // no-op — callers are still expected to submit lowercase.
-            try {
-              data.organization.slug = normalizedSlug;
-            } catch {
-              /* read-only field — caller-supplied slug stands */
-            }
+            // matches what the checks just used. Use the same loose-
+            // payload cast pattern as `beforeUpdateOrganization` below
+            // instead of a try/catch swallow — if the assignment ever
+            // throws (frozen object, etc.) it should surface, not
+            // silently fall back to the caller-supplied case (which
+            // would defeat the normalization the reservation + unique-
+            // ness checks just relied on).
+            (data.organization as Record<string, unknown>).slug =
+              normalizedSlug;
           },
           beforeUpdateOrganization: async (data) => {
             // Re-run the create-time guards on update: without this
@@ -660,7 +661,20 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                 ],
               },
             );
-            if (collision) {
+            // Exclude self from collision: Better Auth's payload carries
+            // `data.member.organizationId` (the org being updated). Its
+            // own pre-check at crud-org.mjs:213-215 does this same self-
+            // exclude; without mirroring it here, any update that re-
+            // sends the current slug (e.g. a name-only PATCH that
+            // round-trips the full object) 400s with "already taken".
+            const selfOrgId = (
+              data.member as { organizationId?: unknown } | undefined
+            )?.organizationId;
+            const collisionIsSelf =
+              typeof selfOrgId === 'string' &&
+              isRecord(collision) &&
+              getString(collision, '_id') === selfOrgId;
+            if (collision && !collisionIsSelf) {
               throw new APIError('BAD_REQUEST', {
                 message: `Organization slug "${normalizedSlug}" is already taken.`,
               });

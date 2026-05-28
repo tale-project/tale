@@ -92,13 +92,32 @@ export async function update(options: UpdateOptions): Promise<void> {
     const newHash = computeContentHash(content);
     const oldHash = oldFiles[relativePath];
 
-    if (!oldHash) {
+    if (!oldHash && !existsSync(destPath)) {
       logger.info(`${prefix}+ ${relativePath} (new)`);
       if (!options.dryRun) {
         await mkdir(dirname(destPath), { recursive: true });
         await writeFile(destPath, content);
       }
       rulesUpdates[relativePath] = newHash;
+    } else if (!oldHash) {
+      // File present on disk but missing from checksums.json — treat
+      // as locally-modified (likely a project init'd by a pre-fix CLI
+      // version that wrote the rules files without recording their
+      // hashes). Preserve user edits; require --force to overwrite.
+      // Round-2 P1-34 defense in depth.
+      if (options.force) {
+        logger.warn(
+          `${prefix}~ ${relativePath} (overwritten, no recorded hash)`,
+        );
+        if (!options.dryRun) {
+          await writeFile(destPath, content);
+        }
+        rulesUpdates[relativePath] = newHash;
+      } else {
+        logger.warn(
+          `${prefix}! ${relativePath} (present on disk but no recorded hash; preserving — pass --force to overwrite)`,
+        );
+      }
     } else if (!existsSync(destPath)) {
       logger.info(`${prefix}- ${relativePath} (deleted by user, skipping)`);
     } else {

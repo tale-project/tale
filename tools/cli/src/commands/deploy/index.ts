@@ -47,6 +47,22 @@ export function createDeployCommand(): Command {
     )
     .action(async (options) => {
       try {
+        // `--override` and `--override-all` are semantically incompatible:
+        // host push runs first, then the catalog factory reseed clobbers
+        // everything --override would have written (host push effectively
+        // becomes a no-op for non-secrets / non-history / non-branding-
+        // images). Reject the combination at parse time so operators
+        // don't reason about a silently-discarded flag.
+        if (options.override && options.overrideAll) {
+          logger.error(
+            '--override and --override-all cannot be combined: ' +
+              '--override-all factory-reseeds from the builtin catalog and ' +
+              'would clobber whatever --override just pushed. ' +
+              'Pick one: --override (push host workspace to container) ' +
+              'OR --override-all (factory-reseed all orgs server-side).',
+          );
+          process.exit(1);
+        }
         const projectDir = requireProject();
         await resolveOrAssignProjectContext(projectDir);
         const { success: envSetupSuccess, regeneratedAutoSecrets } =
