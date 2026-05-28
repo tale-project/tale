@@ -6,14 +6,39 @@
  * references: team assignment and knowledge files with storage IDs.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 import { internalMutation, mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { extractExtension } from '../documents/extract_extension';
 import { getOrganizationMember } from '../lib/rls';
 import { knowledgeFileValidator } from './schema';
+
+/**
+ * Convex `_storage` is a deployment-global namespace and the `fileMetadata`
+ * `by_storageId` index is not org-scoped. Public mutations that take a caller-
+ * supplied `fileId` must cross-check the storageId against fileMetadata before
+ * touching storage / scheduling RAG work — otherwise a member of org A can
+ * supply an org B storageId and trigger writes against org B's blob/row.
+ */
+async function assertStorageIdInOrg(
+  ctx: MutationCtx,
+  organizationId: string,
+  storageId: Id<'_storage'>,
+): Promise<void> {
+  const meta = await ctx.db
+    .query('fileMetadata')
+    .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
+    .first();
+  if (meta && meta.organizationId !== organizationId) {
+    // Same opaque message in both refusal paths so a caller cannot probe
+    // whether a foreign storageId exists in some other org.
+    throw new ConvexError('file_not_in_org');
+  }
+}
 
 export const upsertBinding = internalMutation({
   args: {
@@ -167,6 +192,8 @@ export const addKnowledgeFile = mutation({
       name: authUser.name,
     });
 
+    await assertStorageIdInOrg(ctx, args.organizationId, args.fileId);
+
     await ctx.runMutation(
       internal.file_metadata.internal_mutations.saveFileMetadata,
       {
@@ -251,6 +278,17 @@ export const removeKnowledgeFile = mutation({
           .eq('agentSlug', args.agentSlug),
       )
       .first();
+
+    // The fileId must be present in this org's binding. Storage + metadata
+    // deletes below are global by storageId, so trusting the caller-supplied
+    // fileId without proving org-ownership lets org A wipe org B's blobs.
+    const inBinding = (binding?.knowledgeFiles ?? []).some(
+      (f) => f.fileId === args.fileId,
+    );
+    if (!inBinding) throw new ConvexError('file_not_in_org');
+
+    // Defense-in-depth: also confirm fileMetadata (if any) is org-scoped.
+    await assertStorageIdInOrg(ctx, args.organizationId, args.fileId);
 
     if (binding) {
       const filtered = (binding.knowledgeFiles ?? []).filter(
