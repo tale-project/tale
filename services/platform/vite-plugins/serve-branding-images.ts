@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 
 import { type Plugin } from 'vite';
 
@@ -31,14 +31,24 @@ export function serveBrandingImages(): Plugin {
           return;
         }
 
-        const filename = req.url.slice('/branding/images/'.length);
+        // Parse via URL so query strings (e.g. ?v=2 cache-busters)
+        // and fragments are dropped before filename validation. Without
+        // this, /branding/images/logo.png?v=2 became filename
+        // 'logo.png?v=2' which then failed existsSync and 404'd in
+        // dev — silently diverging from the prod handler that uses
+        // c.req.param('filename') (round-3 P2 R3-P2-a).
+        const url = new URL(req.url, 'http://x');
+        const filename = url.pathname.slice('/branding/images/'.length);
         if (!filename || filename.includes('/') || filename.includes('..')) {
           next();
           return;
         }
 
         const filePath = resolve(imagesDir, filename);
-        if (!filePath.startsWith(imagesDir) || !existsSync(filePath)) {
+        // `+ sep` defense-in-depth so a future sibling dir whose name
+        // is a string prefix of imagesDir (e.g. `imagesXYZ/`) can't be
+        // matched by raw startsWith if the filename filter ever loosens.
+        if (!filePath.startsWith(imagesDir + sep) || !existsSync(filePath)) {
           next();
           return;
         }

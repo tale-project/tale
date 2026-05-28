@@ -537,36 +537,53 @@ export const reindexDocumentInRag = internalAction({
   args: {
     documentId: v.id('documents'),
     oldFileId: v.id('_storage'),
+    /** Optional for backward compatibility with in-flight scheduled jobs.
+     * New scheduler callers always pass it; when missing we fall back
+     * to the current document's organizationId (which may have changed
+     * or been deleted — best-effort). */
+    oldOrganizationId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    // Look up current document first so we can scope the delete by org.
+    // Look up current document so we can also schedule the new-upload
+    // step, but DON'T let a missing document skip the old-RAG delete —
+    // that would orphan oldFileId chunks. Resolve the delete org-scope
+    // from `oldOrganizationId` (preferred — captured by the scheduler
+    // caller at update time) and fall back to the current document only
+    // when missing.
     const document = await ctx.runQuery(
       internal.documents.internal_queries.getDocumentByIdRaw,
       { documentId: args.documentId },
     );
 
-    if (!document || !document.fileId) {
-      return null;
-    }
-
-    // Delete old RAG entry (ignore 404 — may not have been indexed)
-    try {
-      const orgSlug = await orgSlugFromId(ctx, document.organizationId);
-      const response = await ragFetch(
-        `/api/v1/documents/${encodeURIComponent(args.oldFileId)}`,
-        { method: 'DELETE', timeoutMs: 60_000, orgSlug },
-      );
-      if (!response.ok && response.status !== 404) {
+    const deleteOrgId =
+      args.oldOrganizationId ?? document?.organizationId ?? null;
+    if (deleteOrgId) {
+      try {
+        const orgSlug = await orgSlugFromId(ctx, deleteOrgId);
+        const response = await ragFetch(
+          `/api/v1/documents/${encodeURIComponent(args.oldFileId)}`,
+          { method: 'DELETE', timeoutMs: 60_000, orgSlug },
+        );
+        if (!response.ok && response.status !== 404) {
+          console.warn(
+            `[reindexDocumentInRag] Failed to delete old RAG entry ${args.oldFileId}: ${response.status}`,
+          );
+        }
+      } catch (error) {
         console.warn(
-          `[reindexDocumentInRag] Failed to delete old RAG entry ${args.oldFileId}: ${response.status}`,
+          `[reindexDocumentInRag] Error deleting old RAG entry ${args.oldFileId}:`,
+          error,
         );
       }
-    } catch (error) {
+    } else {
       console.warn(
-        `[reindexDocumentInRag] Error deleting old RAG entry ${args.oldFileId}:`,
-        error,
+        `[reindexDocumentInRag] No org context for old RAG delete; oldFileId ${args.oldFileId} may leak chunks (documentId=${args.documentId})`,
       );
+    }
+
+    if (!document || !document.fileId) {
+      return null;
     }
 
     // Upload new file to RAG

@@ -408,6 +408,12 @@ export const acquireTranscriptionLock = internalMutation({
       row.transcriptionLeaseExpiresAt > now &&
       row.transcriptionStatus === 'running';
     if (leaseHeld) return null;
+    // Defense-in-depth (round-3 P2): a row in `completed` should not be
+    // re-acquired by a late-arriving duplicate `transcribeAudio` schedule
+    // — re-running Whisper would re-bill the org and re-write the
+    // transcript / re-index RAG. The entry points pre-check today, but
+    // the lock is the single chokepoint and is the right place to enforce.
+    if (row.transcriptionStatus === 'completed') return null;
 
     await ctx.db.patch(row._id, {
       transcriptionStatus: 'running',

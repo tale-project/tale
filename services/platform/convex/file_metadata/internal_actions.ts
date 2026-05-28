@@ -213,6 +213,29 @@ export const extractFileMetadata = internalAction({
           console.warn(
             `[extractFileMetadata] Permanent failure for file ${args.storageId}; not retrying: ${message}`,
           );
+          // Stamp a terminal marker so downstream consumers exit the
+          // "still extracting" state. Without this, visionRequired
+          // stayed undefined forever on a permanent failure and the
+          // UI / scannedPagesDetected gating couldn't distinguish
+          // "extraction pending" from "extraction failed". We treat
+          // permanent failure as "no vision needed" — RAG will still
+          // pick up the file via the other ingest path.
+          try {
+            await ctx.runMutation(
+              internal.file_metadata.internal_mutations
+                .updateFileVisionMetadata,
+              {
+                storageId: args.storageId,
+                scannedPagesDetected: 0,
+                visionRequired: false,
+              },
+            );
+          } catch (markerErr) {
+            console.warn(
+              `[extractFileMetadata] Failed to stamp permanent-failure marker for ${args.storageId}:`,
+              markerErr instanceof Error ? markerErr.message : markerErr,
+            );
+          }
         } else if (attempt < EXTRACT_METADATA_RETRY_DELAYS.length) {
           const retryDelay = EXTRACT_METADATA_RETRY_DELAYS[attempt];
           await ctx.scheduler.runAfter(

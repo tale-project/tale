@@ -96,12 +96,20 @@ export async function updateDocumentInternal(
     await ctx.db.patch(documentId, cleanUpdateData);
   }
 
-  // Schedule RAG re-index after the patch
+  // Schedule RAG re-index after the patch. Pass `organizationId`
+  // explicitly so the action can purge the *old* RAG entry even if
+  // the document row is later deleted/cleared before the scheduled
+  // job fires — otherwise the orphan oldFileId chunks survive
+  // forever (round-3 P2 R4-P2-a).
   if (needsReindex && oldFileId) {
     await ctx.scheduler.runAfter(
       0,
       internal.documents.internal_actions.reindexDocumentInRag,
-      { documentId, oldFileId },
+      {
+        documentId,
+        oldFileId,
+        oldOrganizationId: document.organizationId,
+      },
     );
   }
 }
