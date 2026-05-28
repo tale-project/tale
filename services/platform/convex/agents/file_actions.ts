@@ -30,6 +30,7 @@ import {
 import {
   atomicWrite,
   generateHistoryTimestamp,
+  handleDirReadError,
   pruneHistory,
   readFileSafe,
   readJsonFile,
@@ -167,7 +168,8 @@ export const listAgents = action({
     let entries: string[];
     try {
       entries = await readdir(dir);
-    } catch {
+    } catch (err) {
+      handleDirReadError(err, 'agents.listAgents');
       return [];
     }
 
@@ -491,7 +493,8 @@ export const duplicateAgent = action({
     let entries: string[];
     try {
       entries = await readdir(dir);
-    } catch {
+    } catch (err) {
+      handleDirReadError(err, 'agents.duplicateAgent');
       entries = [];
     }
     const existingNames = new Set(
@@ -652,7 +655,8 @@ export const listHistory = action({
     let entries: string[];
     try {
       entries = await readdir(historyDir);
-    } catch {
+    } catch (err) {
+      handleDirReadError(err, 'agents.listHistory');
       return [];
     }
 

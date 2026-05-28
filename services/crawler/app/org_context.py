@@ -16,14 +16,10 @@ forgetting to set the header is a caller bug we want to surface as a
 500, not as "served the wrong org's models for an hour".
 """
 
-import re
 from contextvars import ContextVar
 
 from fastapi import Header, HTTPException, status
-
-# Aligned with services/platform/convex/lib/file_io.ts:25; capped at 64 chars
-# to match tools/cli/src/lib/migrate-config-layout/script.sh:134.
-_ORG_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+from tale_shared.config.org_slug import ORG_SLUG_RE
 
 _active_org: ContextVar[str | None] = ContextVar("tale_active_org", default=None)
 
@@ -60,7 +56,7 @@ async def require_org_slug(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="missing X-Tale-Org header",
         )
-    if not _ORG_SLUG_RE.match(x_tale_org):
+    if not ORG_SLUG_RE.match(x_tale_org):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="invalid X-Tale-Org header",

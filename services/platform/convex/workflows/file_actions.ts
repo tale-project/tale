@@ -22,6 +22,7 @@ import { authComponent } from '../auth';
 import {
   atomicWrite,
   generateHistoryTimestamp,
+  handleDirReadError,
   pruneHistory,
   readFileSafe,
   readJsonFile,
@@ -705,7 +706,8 @@ export const listWorkflowsForAgent = internalAction({
     let raw;
     try {
       raw = await readdir(dir, { recursive: true, withFileTypes: true });
-    } catch {
+    } catch (err) {
+      handleDirReadError(err, 'workflows.listWorkflowsForAgent');
       return [];
     }
 
@@ -771,7 +773,8 @@ export const getAvailableWorkflows = action({
     let raw;
     try {
       raw = await readdir(dir, { recursive: true, withFileTypes: true });
-    } catch {
+    } catch (err) {
+      handleDirReadError(err, 'workflows.getAvailableWorkflows');
       return [];
     }
 

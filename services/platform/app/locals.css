@@ -10,3 +10,11 @@ body,
   margin: 0;
   overflow: clip;
 }
+
+/* Suppress the document-level rubber-band / pull-to-refresh so the app shell
+   feels native. Inner overflow-y-auto regions still scroll normally.
+   Platform-only: the docs and web sites want native rubber-band scroll. */
+html,
+body {
+  overscroll-behavior: none;
+}

@@ -15,7 +15,7 @@ Les modèles dérivent plus vite que la doc. Les listes ci-dessous sont correcte
 | **OpenAI**            | Reconnaissance et synthèse vocales | Whisper est la baseline pratique pour la transcription ; gpt-4o-mini-tts est le TTS fiable le moins cher                          | [platform.openai.com/docs/models](https://platform.openai.com/docs/models)     |
 | **Vercel AI Gateway** | Génération d'images                | Un seul endpoint compatible OpenAI couvre FLUX, Imagen et Nano Banana sans clé par fournisseur                                    | [vercel.com/docs/ai-gateway/models](https://vercel.com/docs/ai-gateway/models) |
 
-Chaque fournisseur ci-dessus est un endpoint compatible OpenAI que Tale appelle en HTTPS avec un bearer token. Tu peux remplacer chacun par un autre fournisseur (y compris un serveur Ollama ou vLLM local) en éditant le JSON correspondant sous `TALE_CONFIG_DIR/providers/` de ton instance.
+Chaque fournisseur ci-dessus est un endpoint compatible OpenAI que Tale appelle en HTTPS avec un bearer token. Tu peux remplacer chacun par un autre fournisseur (y compris un serveur Ollama ou vLLM local) en éditant le JSON correspondant sous `TALE_CONFIG_DIR/<orgSlug>/providers/` de ton instance — sous le layout org-first, les catalogues de fournisseurs sont par-org (chaque org a son propre sous-arbre `providers/`).
 
 ## OpenRouter — chat, vision, embeddings
 
@@ -35,7 +35,7 @@ OpenRouter est une passerelle multi-modèles. La configuration livrée choisit `
 - **Meta** — LLaMA 4 Maverick, LLaMA 4 Scout.
 - **Black Forest Labs** — FLUX.2 [max], FLUX.2 [pro], FLUX.2 [flex].
 
-Le catalogue complet et à jour vit sur [openrouter.ai/models](https://openrouter.ai/models). Tout modèle exposé par OpenRouter peut être ajouté à ton instance en éditant le tableau `models` dans `providers/openrouter.json` sous `TALE_CONFIG_DIR`.
+Le catalogue complet et à jour vit sur [openrouter.ai/models](https://openrouter.ai/models). Tout modèle exposé par OpenRouter peut être ajouté à ton instance en éditant le tableau `models` dans `<orgSlug>/providers/openrouter.json` sous `TALE_CONFIG_DIR` (par-org sous le layout org-first).
 
 ## OpenAI — reconnaissance et synthèse vocales
 
@@ -57,7 +57,7 @@ Le catalogue plus large vit sur [vercel.com/docs/ai-gateway/models](https://verc
 
 ## Échanger ou ajouter des fournisseurs
 
-Les trois fournisseurs ci-dessus sont des défauts, pas des obligations. Remplace chacun par un autre endpoint compatible OpenAI en éditant le JSON dans `TALE_CONFIG_DIR/providers/` — pointe-le vers ton API, change le tableau `models`, et Tale recharge au prochain démarrage. Une instance Ollama locale, un cluster vLLM privé, ou un proxy Bedrock entrent tous dans la même forme. La mécanique vit sous [Configuration → providers](/fr/self-hosted/configuration/providers) ; le formulaire UI admin pour la même configuration est sur [Providers](/fr/platform/admin/providers).
+Les trois fournisseurs ci-dessus sont des défauts, pas des obligations. Remplace chacun par un autre endpoint compatible OpenAI en éditant le JSON dans `TALE_CONFIG_DIR/<orgSlug>/providers/` — pointe-le vers ton API, change le tableau `models`, et Tale recharge au prochain démarrage. Une instance Ollama locale, un cluster vLLM privé, ou un proxy Bedrock entrent tous dans la même forme. La mécanique vit sous [Configuration → providers](/fr/self-hosted/configuration/providers) ; le formulaire UI admin pour la même configuration est sur [Providers](/fr/platform/admin/providers).
 
 ## Où ça s'inscrit
 

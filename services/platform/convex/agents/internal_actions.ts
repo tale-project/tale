@@ -8,7 +8,7 @@ import { isRecord, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { getPollingInterval } from '../documents/internal_actions';
-import { readJsonFile } from '../lib/file_io';
+import { handleDirReadError, readJsonFile } from '../lib/file_io';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { ragFetch } from '../lib/helpers/rag_config';
 import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
@@ -285,7 +285,8 @@ export const listAgentsInternal = internalAction({
     let entries: string[];
     try {
       entries = await readdir(dir);
-    } catch {
+    } catch (err) {
+      handleDirReadError(err, 'agents.listAgentsInternal');
       return [];
     }
 

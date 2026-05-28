@@ -65,7 +65,7 @@ Microsoft 365 couvre aussi l'identité. La connecter sous **Paramètres > Intég
 
 ## Ajouter une intégration personnalisée
 
-Les intégrations personnalisées suivent la même forme JSON que celles ci-dessus. Dépose une configuration dans `TALE_CONFIG_DIR/integrations/<slug>/config.json` déclarant les opérations, la méthode d'auth et les hôtes autorisés ; l'intégration apparaît sous **Paramètres > Intégrations** pour que les utilisateurs la connectent. La forme et les règles de validation vivent à côté des configurations livrées dans `examples/default/integrations/`.
+Les intégrations personnalisées suivent la même forme JSON que celles ci-dessus. Dépose une configuration dans `TALE_CONFIG_DIR/<orgSlug>/integrations/<slug>/config.json` déclarant les opérations, la méthode d'auth et les hôtes autorisés ; sous le layout org-first, le sous-arbre `integrations/` de chaque org est indépendant. L'intégration apparaît sous **Paramètres > Intégrations** pour que les utilisateurs la connectent. La forme et les règles de validation vivent à côté des configurations livrées dans `examples/default/integrations/`.
 
 Pour des ponts plus riches ou auto-hébergés, les [serveurs MCP](/fr/platform/integrations/mcp-servers) sont la surface alternative — chaque serveur MCP que tu enregistres ajoute ses outils à la ceinture d'outils de l'agent avec approbation par outil.
 

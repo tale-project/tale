@@ -65,7 +65,7 @@ Microsoft 365 deckt auch Identität ab. Sie unter **Einstellungen > Integratione
 
 ## Eine eigene Integration hinzufügen
 
-Eigene Integrationen folgen derselben JSON-Form wie die oben. Leg eine Konfiguration in `TALE_CONFIG_DIR/integrations/<slug>/config.json` ab, die die Operationen, die Auth-Methode und die erlaubten Hosts deklariert; die Integration erscheint in **Einstellungen > Integrationen**, damit User sie verbinden können. Die Form und die Validierungsregeln leben neben den ausgelieferten Konfigurationen in `examples/default/integrations/`.
+Eigene Integrationen folgen derselben JSON-Form wie die oben. Leg eine Konfiguration in `TALE_CONFIG_DIR/<orgSlug>/integrations/<slug>/config.json` ab, die die Operationen, die Auth-Methode und die erlaubten Hosts deklariert; unter dem org-first Layout ist jeder `integrations/`-Unterbaum der Org unabhängig. Die Integration erscheint in **Einstellungen > Integrationen**, damit User sie verbinden können. Die Form und die Validierungsregeln leben neben den ausgelieferten Konfigurationen in `examples/default/integrations/`.
 
 Für reichere oder selbst gehostete Brücken sind [MCP-Server](/de/platform/integrations/mcp-servers) die alternative Oberfläche — jeder MCP-Server, den du registrierst, fügt seine Tools dem Agent-Werkzeuggürtel hinzu mit pro-Tool-Genehmigung.
 

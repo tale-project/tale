@@ -54,6 +54,29 @@ function isFileNotFound(err: unknown): boolean {
  * "permission denied" / "I/O error" (always worth logging) without
  * duplicating the property-check ceremony.
  */
+/**
+ * Apply the providers/-style ENOENT-vs-other discrimination to a
+ * `readdir` error. ENOENT is the legitimate "directory doesn't exist
+ * yet" case — every list-domain endpoint treats it as an empty result.
+ * Any other errno (EACCES, EIO, EISDIR, …) means the operator misconfigured
+ * the volume mount or there's a real fs problem; silently returning `[]`
+ * makes the bug invisible. Log with a label so the source is identifiable
+ * in `docker logs` and surface as an empty list to the caller so the
+ * route still responds.
+ *
+ * Used to replace silent `catch {}` blocks at:
+ *  - convex/agents/file_actions.ts (listAgents, duplicateAgent, listHistory)
+ *  - convex/agents/internal_actions.ts (listAgentsInternal)
+ *  - convex/workflows/file_actions.ts (listWorkflowsInternal, getAvailableWorkflows)
+ */
+export function handleDirReadError(err: unknown, label: string): void {
+  if (errnoCode(err) === 'ENOENT') return;
+  console.warn(
+    `[${label}] readdir failed:`,
+    err instanceof Error ? err.message : err,
+  );
+}
+
 export function errnoCode(err: unknown): string | undefined {
   if (err instanceof Error && 'code' in err && typeof err.code === 'string') {
     return err.code;

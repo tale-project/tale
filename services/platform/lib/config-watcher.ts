@@ -11,7 +11,8 @@ interface ConfigChangeEvent {
     | 'integrations'
     | 'providers'
     | 'branding'
-    | 'skills';
+    | 'skills'
+    | 'retention';
   orgSlug?: string;
   slug?: string;
 }
@@ -59,6 +60,20 @@ function parseConfigChange(relativePath: string): ConfigChangeEvent | null {
 
   const orgSlug = parts[0];
   if (!ORG_SLUG_REGEX.test(orgSlug)) return null;
+
+  // Single-file-per-org configs sit at `<org>/<stem>.json` (currently
+  // just `retention.json`; future-proof for `quota.json` etc.). Without
+  // this branch they fell through to null, so operator edits to
+  // `<org>/retention.json` never invalidated the governance UI cache
+  // (round-2 P1-15). Emit at slug=stem granularity so consumers can
+  // key their cache invalidation on it.
+  if (parts.length === 2 && parts[1].endsWith('.json')) {
+    const stem = parts[1].slice(0, -'.json'.length);
+    if (stem === 'retention') {
+      return { type: 'retention', orgSlug, slug: stem };
+    }
+    return null;
+  }
 
   const domain = parts[1];
 

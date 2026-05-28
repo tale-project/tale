@@ -7,6 +7,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from tale_shared.config.org_slug import validate_org_slug
 from tale_shared.utils.sops import decrypt_secrets_file
 
 logger = logging.getLogger(__name__)
@@ -53,8 +54,17 @@ def load_providers(
     Reads *.json (excluding *.secrets.json) and decrypts matching
     *.secrets.json files via SOPS.
     """
-    if not org_slug:
-        raise ValueError("load_providers requires a non-empty org_slug")
+    # Defense in depth: the FastAPI deps in RAG / crawler already gate
+    # `X-Tale-Org` against the same regex at request boundary, but
+    # internal callers in long-running tasks (e.g. crawler scheduler,
+    # vision hot paths) reach this function with a slug taken from
+    # `get_active_org()` or other module state. A `.` or `/etc` slipping
+    # in here would silently route to `<base>/providers` or `/etc/
+    # providers` via Path()'s "absolute resets" / "dot is a no-op"
+    # semantics — exactly the legacy-flat-layout class the org-first
+    # refactor exists to retire. Validate at the boundary, not just on
+    # the way in. (Round-2 P1-30.)
+    validate_org_slug(org_slug)
 
     shared_config = os.environ.get("TALE_PLATFORM_SHARED_CONFIG_DIR")
     if shared_config:

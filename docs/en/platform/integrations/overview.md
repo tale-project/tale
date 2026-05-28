@@ -65,7 +65,7 @@ Microsoft 365 also covers identity. Connecting it under **Settings > Integration
 
 ## Adding a custom integration
 
-Custom integrations follow the same JSON shape as the ones above. Drop a config into `TALE_CONFIG_DIR/integrations/<slug>/config.json` declaring the operations, auth method, and allowed hosts; the integration appears in **Settings > Integrations** for users to connect. The shape and validation rules live alongside the shipped configs in `examples/default/integrations/`.
+Custom integrations follow the same JSON shape as the ones above. Drop a config into `TALE_CONFIG_DIR/<orgSlug>/integrations/<slug>/config.json` declaring the operations, auth method, and allowed hosts; under the org-first layout each org's `integrations/` subtree is independent. The integration appears in **Settings > Integrations** for users to connect. The shape and validation rules live alongside the shipped configs in `examples/default/integrations/`.
 
 For richer or self-hosted bridges, [MCP servers](/platform/integrations/mcp-servers) are the alternative surface — every MCP server you register adds its tools to the agent toolbelt with per-tool approval.
 
