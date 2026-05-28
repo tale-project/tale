@@ -50,4 +50,17 @@ describe('redactAdminKey', () => {
     const input = 'Admin Key: TBD';
     expect(redactAdminKey(input)).toBe('Admin Key: TBD');
   });
+
+  test('redacts the full pipe-delimited self-hosted Convex admin key', () => {
+    // Convex self-hosted generate_key emits `<INSTANCE_NAME>|<base64-payload>`.
+    // Previously the charset excluded `|`, so the regex stopped at the
+    // first pipe and left the secret payload exposed.
+    const payload = 'aGVsbG8gd29ybGQK==';
+    const input = `Admin Key: tale_platform|01abcdef-secret-${payload}`;
+    const out = redactAdminKey(input);
+    expect(out).toBe('Admin Key: <redacted>');
+    expect(out).not.toContain('tale_platform');
+    expect(out).not.toContain(payload);
+    expect(out).not.toContain('01abcdef');
+  });
 });

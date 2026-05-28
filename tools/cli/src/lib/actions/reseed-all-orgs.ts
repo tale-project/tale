@@ -85,10 +85,15 @@ HOME=/home/app timeout ${RESEED_TIMEOUT_S} bunx convex run \\
  * If anything upstream (env.sh's diagnostic mode, a future Convex CLI
  * banner, etc.) prints an admin-key line that slips past the bash grep,
  * this regex strips it before the value reaches the logger. Case-
- * insensitive, anchors on any leading whitespace, and is intentionally
- * conservative on the value charset (admin keys are base64/hex-like).
+ * insensitive, anchors on any leading whitespace.
+ *
+ * Charset includes `|` because self-hosted Convex admin keys are
+ * formatted `<INSTANCE_NAME>|<base64-payload>` (e.g.
+ * `tale_platform|01abc...`). Without the pipe the regex matched only
+ * up to the first `|`, leaving the secret payload after it in the
+ * logged stream (round-3 P1-adjacent secret leak).
  */
-const ADMIN_KEY_RE = /\b([Aa]dmin\s+[Kk]ey)\s*:?\s*[A-Za-z0-9+/=._-]{12,}/g;
+const ADMIN_KEY_RE = /\b([Aa]dmin\s+[Kk]ey)\s*:?\s*[A-Za-z0-9+/=._\-|]{12,}/g;
 
 export function redactAdminKey(text: string): string {
   return text.replace(ADMIN_KEY_RE, '$1: <redacted>');
