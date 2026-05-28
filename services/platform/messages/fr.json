@@ -201,6 +201,7 @@
       },
       "recent": {
         "title": "Retours récents",
+        "entityLabel": "retours",
         "emptyTitle": "Aucun retour sur cette période",
         "emptyDescription": "Ajuste la période ou les filtres pour en voir davantage.",
         "noComment": "(aucun commentaire)",
@@ -560,6 +561,7 @@
     },
     "executions": {
       "title": "Exécutions",
+      "entityLabel": "exécutions",
       "searchPlaceholder": "Rechercher des exécutions"
     },
     "createDialog": {
@@ -1413,7 +1415,8 @@
       "loading": "Chargement...",
       "noMore": "Plus d'éléments à charger",
       "showingAll": "Affichage de {count} {entity} au total",
-      "showingFiltered": "Affichage de {filtered} sur {total} {entity}"
+      "showingFiltered": "Affichage de {filtered} sur {total} {entity}",
+      "showingRange": "Affichage de {start}-{end} sur {total} {entity}"
     },
     "search": {
       "noResults": "Aucun résultat trouvé",
@@ -1720,6 +1723,7 @@
     "errorSaveFailed": "Échec de l'enregistrement du document"
   },
   "documents": {
+    "entityLabel": "documents",
     "searchPlaceholder": "Rechercher des documents",
     "deleteFolder": {
       "title": "Supprimer le dossier",
@@ -2808,6 +2812,7 @@
         },
         "history": {
           "title": "Historique des libérations",
+          "entityLabel": "libérations",
           "description": "Audit en lecture seule des demandes effectives et rejetées.",
           "empty": {
             "title": "Aucune demande terminée",
@@ -2984,6 +2989,7 @@
     },
     "dataSubjectRequests": {
       "title": "Demandes de personnes concernées",
+      "entityLabel": "demandes",
       "description": "Reçus d'effacement RGPD art. 17. Dépose de nouvelles demandes, surveille les délais et accorde des prolongations art. 12(3) lorsque les dossiers complexes l'exigent.",
       "accessDenied": "Réservé aux administrateurs.",
       "filters": {
@@ -3551,7 +3557,10 @@
   "notifications": {
     "title": "Notifications",
     "ariaUnread": "Non lu",
-    "empty": "Aucune notification.",
+    "emptyCaughtUpTitle": "Tout est à jour",
+    "emptyCaughtUpDescription": "Nous vous préviendrons dès qu'il y aura du nouveau.",
+    "emptyAllTitle": "Aucune notification pour l'instant",
+    "emptyAllDescription": "Les alertes et mises à jour système apparaîtront ici à mesure qu'elles arriveront.",
     "markAsRead": "Marquer comme lu",
     "markAllAsRead": "Tout marquer comme lu",
     "filterUnread": "Non lus",
@@ -4164,6 +4173,7 @@
     },
     "agents": {
       "title": "Agents",
+      "entityLabel": "agents",
       "createAgent": "Créer un agent",
       "searchAgent": "Rechercher des agents",
       "columns": {
@@ -4412,6 +4422,7 @@
       }
     },
     "skills": {
+      "entityLabel": "skills",
       "uploadSkill": "Téléverser un skill",
       "searchPlaceholder": "Rechercher des skills…",
       "deleteSkill": "Supprimer le skill",
@@ -4707,6 +4718,7 @@
     },
     "providers": {
       "title": "Fournisseurs",
+      "entityLabel": "fournisseurs",
       "addProvider": "Ajouter un fournisseur",
       "editProvider": "Modifier le fournisseur",
       "deleteProvider": "Supprimer le fournisseur",
@@ -4941,6 +4953,7 @@
         }
       },
       "audit": {
+        "entityLabel": "journaux d'audit",
         "tableCaption": "Tableau des journaux d'audit",
         "emptyTitle": "Aucun journal d'audit",
         "emptyDescription": "Les journaux d'audit apparaîtront ici à mesure que des actions sont effectuées dans ton organisation.",
@@ -5358,7 +5371,6 @@
     "enrollment": {
       "title": "Authentification à double facteur",
       "description": "Protège ton compte avec un code temporel généré par une application d'authentification.",
-      "notEnabledHint": "L'authentification à double facteur n'est pas encore activée sur ton compte.",
       "enabledHint": "L'authentification à double facteur est active sur ton compte.",
       "requiredByOrg": "Ton organisation exige l'authentification à double facteur. Active-la maintenant pour continuer.",
       "enableButton": "Activer le double facteur",
@@ -5630,6 +5642,7 @@
   },
   "projects": {
     "title": "Projets",
+    "entityLabel": "projets",
     "navigation": {
       "list": "Tous les projets",
       "overview": "Général",

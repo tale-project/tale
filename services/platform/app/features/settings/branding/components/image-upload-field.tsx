@@ -131,7 +131,7 @@ export function ImageUploadField({
           onClick={handleClick}
           disabled={isUploading}
           className={cn(
-            'border-input flex items-center justify-center overflow-clip rounded-lg border bg-background shadow-sm',
+            'border-border flex items-center justify-center overflow-clip rounded-lg border bg-background shadow-xs',
             sizeClasses,
             isUploading && 'cursor-wait opacity-60',
           )}

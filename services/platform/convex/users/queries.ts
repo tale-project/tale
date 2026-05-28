@@ -6,6 +6,7 @@
 
 import { v } from 'convex/values';
 
+import { getString, isRecord } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getStrictestPasswordPolicyForUser } from '../governance/helpers';
@@ -28,6 +29,11 @@ export const hasAnyUsers = query({
 /**
  * Get the current authenticated user.
  * Returns null if not authenticated.
+ *
+ * Reads `name` and `email` from the Better Auth `user` row, not the JWT
+ * identity, so profile updates surface immediately without forcing the user
+ * to sign out and back in. The JWT identity is only used to resolve the
+ * caller's userId (auth gate).
  */
 export const getCurrentUser = query({
   args: {},
@@ -46,7 +52,27 @@ export const getCurrentUser = query({
     email?: string;
     name?: string;
   } | null> => {
-    return await getAuthUserIdentity(ctx);
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) return null;
+
+    const userRow = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+      model: 'user',
+      where: [{ field: '_id', value: identity.userId, operator: 'eq' }],
+    });
+
+    const fresh = isRecord(userRow) ? userRow : undefined;
+    const name = fresh
+      ? (getString(fresh, 'name') ?? identity.name)
+      : identity.name;
+    const email = fresh
+      ? (getString(fresh, 'email') ?? identity.email)
+      : identity.email;
+
+    return {
+      userId: identity.userId,
+      email,
+      name,
+    };
   },
 });
 

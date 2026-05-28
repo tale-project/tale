@@ -24,7 +24,7 @@ const DatePickerWithRange = lazyComponent(
       default: mod.DatePickerWithRange,
     })),
   {
-    loading: () => <Skeleton className="h-9 w-[16rem]" />,
+    loading: () => <Skeleton className="h-9 w-[18rem]" />,
   },
 );
 
@@ -161,9 +161,10 @@ export function DataTableFilters({
               placeholder={search.placeholder ?? t('search.placeholder')}
               value={search.value}
               onChange={(e) => search.onChange(e.target.value)}
+              className="max-w-none"
               wrapperClassName={cn(
                 'flex-1 sm:flex-none',
-                search.className ?? 'w-auto sm:max-w-[16rem]',
+                search.className ?? 'w-auto sm:w-[18rem]',
               )}
             />
           )}
@@ -320,7 +321,7 @@ export function DataTableFilters({
 
         {dateRange && (
           <SuspenseBoundary
-            fallback={<Skeleton className="h-9 w-[16rem]" />}
+            fallback={<Skeleton className="h-9 w-[18rem]" />}
             errorFallback={
               <Text as="span" variant="muted">
                 Date filter unavailable

@@ -182,6 +182,7 @@ export function ReleaseHistorySection({
           onLoadMore: () => result.loadMore(25),
           isLoadingMore,
           isInitialLoading,
+          entityLabel: t('legalHold.sections.history.entityLabel'),
         }}
         emptyState={{
           title: t('legalHold.sections.history.empty.title'),

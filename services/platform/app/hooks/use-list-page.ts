@@ -119,6 +119,7 @@ interface ListPagePaginationTableProps<TData> {
     pageSize: number;
     total: number;
     showPageSizeSelector: boolean;
+    entityLabel?: string;
   };
   isLoading: boolean;
   approxRowCount?: number;
@@ -362,6 +363,7 @@ export function useListPage<TData>(
           pageSize,
           total: processed.length,
           showPageSizeSelector: false,
+          entityLabel,
         },
         isLoading,
       },

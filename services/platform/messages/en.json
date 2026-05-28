@@ -200,6 +200,7 @@
       },
       "recent": {
         "title": "Recent feedback",
+        "entityLabel": "feedback entries",
         "emptyTitle": "No feedback in this window",
         "emptyDescription": "Adjust the period or filters to see more.",
         "noComment": "(no comment)",
@@ -559,6 +560,7 @@
     },
     "executions": {
       "title": "Executions",
+      "entityLabel": "executions",
       "searchPlaceholder": "Search executions"
     },
     "createDialog": {
@@ -1412,7 +1414,8 @@
       "loading": "Loading more...",
       "noMore": "No more items to load",
       "showingAll": "Showing all {count} {entity}",
-      "showingFiltered": "Showing {filtered} of {total} {entity}"
+      "showingFiltered": "Showing {filtered} of {total} {entity}",
+      "showingRange": "Showing {start}-{end} of {total} {entity}"
     },
     "search": {
       "noResults": "No results found",
@@ -1719,6 +1722,7 @@
     "errorSaveFailed": "Failed to save document"
   },
   "documents": {
+    "entityLabel": "documents",
     "searchPlaceholder": "Search documents",
     "deleteFolder": {
       "title": "Delete folder",
@@ -2807,6 +2811,7 @@
         },
         "history": {
           "title": "Release history",
+          "entityLabel": "releases",
           "description": "Read-only audit of effected and rejected release requests.",
           "empty": {
             "title": "No completed release requests yet",
@@ -2983,6 +2988,7 @@
     },
     "dataSubjectRequests": {
       "title": "Data subject requests",
+      "entityLabel": "requests",
       "description": "GDPR Art. 17 erasure receipts. File new requests, monitor SLA deadlines, and grant Art. 12(3) extensions when complex cases need more time.",
       "accessDenied": "Admin only.",
       "filters": {
@@ -3550,7 +3556,10 @@
   "notifications": {
     "title": "Notifications",
     "ariaUnread": "Unread",
-    "empty": "No notifications.",
+    "emptyCaughtUpTitle": "You're all caught up",
+    "emptyCaughtUpDescription": "We'll let you know when anything new comes in.",
+    "emptyAllTitle": "No notifications yet",
+    "emptyAllDescription": "Alerts and system updates will appear here when they arrive.",
     "markAsRead": "Mark as read",
     "markAllAsRead": "Mark all as read",
     "filterUnread": "Unread",
@@ -4021,6 +4030,7 @@
   },
   "projects": {
     "title": "Projects",
+    "entityLabel": "projects",
     "navigation": {
       "list": "All projects",
       "overview": "General",
@@ -4420,6 +4430,7 @@
     },
     "agents": {
       "title": "Agents",
+      "entityLabel": "agents",
       "createAgent": "Create agent",
       "searchAgent": "Search agents",
       "columns": {
@@ -4668,6 +4679,7 @@
       }
     },
     "skills": {
+      "entityLabel": "skills",
       "uploadSkill": "Upload skill",
       "searchPlaceholder": "Search skills…",
       "deleteSkill": "Delete skill",
@@ -4963,6 +4975,7 @@
     },
     "providers": {
       "title": "Providers",
+      "entityLabel": "providers",
       "addProvider": "Add provider",
       "editProvider": "Edit provider",
       "deleteProvider": "Delete provider",
@@ -5197,6 +5210,7 @@
         }
       },
       "audit": {
+        "entityLabel": "audit logs",
         "tableCaption": "Audit logs data table",
         "emptyTitle": "No audit logs",
         "emptyDescription": "Audit logs will appear here as actions are performed in your organization.",
@@ -5614,7 +5628,6 @@
     "enrollment": {
       "title": "Two-factor authentication",
       "description": "Protect your account with a time-based code from an authenticator app.",
-      "notEnabledHint": "Two-factor authentication is not yet enabled on your account.",
       "enabledHint": "Two-factor authentication is active on your account.",
       "requiredByOrg": "Your organization requires two-factor authentication. Enrol now to continue.",
       "enableButton": "Enable two-factor",

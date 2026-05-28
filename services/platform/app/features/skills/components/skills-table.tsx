@@ -135,6 +135,7 @@ export function SkillsTable({
       fields: ['name', 'slug', 'description'],
       placeholder: searchPlaceholder,
     },
+    entityLabel: t('skills.entityLabel'),
   });
 
   const bindingCaption = bindingMode ? (

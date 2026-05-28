@@ -131,6 +131,7 @@ export function ExecutionsTable({
   const { locale } = useLocale();
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
+  const { t: tAutomations } = useT('automations');
 
   const { searchPlaceholder, stickyLayout, pageSize } =
     useExecutionsTableConfig();
@@ -440,6 +441,7 @@ export function ExecutionsTable({
       onClear: handleClearFilters,
     },
     approxRowCount: count,
+    entityLabel: tAutomations('executions.entityLabel'),
   });
 
   const renderExpandedRow = useCallback(

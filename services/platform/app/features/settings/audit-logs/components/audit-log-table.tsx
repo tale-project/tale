@@ -49,6 +49,7 @@ export function AuditLogTable({
       isLoading: paginatedResult.isLoading,
     },
     pageSize,
+    entityLabel: t('logs.audit.entityLabel'),
   });
 
   return (

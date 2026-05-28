@@ -153,6 +153,7 @@ export function ProvidersTable({
       fields: ['displayName', 'baseUrl'],
       placeholder: t('providers.searchProvider'),
     },
+    entityLabel: t('providers.entityLabel'),
   });
 
   return (

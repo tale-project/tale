@@ -676,6 +676,7 @@ export function DataTable<TData, TValue = unknown>({
         }
         pagination.onPageSizeChange?.(size);
       }}
+      entityLabel={pagination.entityLabel}
       className={pagination.className}
     />
   );
@@ -710,7 +711,7 @@ export function DataTable<TData, TValue = unknown>({
           </div>
         </>
       ) : !infiniteScroll.entityLabel ? (
-        <output className="text-muted-foreground block py-3 text-center text-xs">
+        <output className="text-muted-foreground block px-3 py-3 text-left text-xs">
           {t('pagination.noMore')}
         </output>
       ) : null}
@@ -720,7 +721,7 @@ export function DataTable<TData, TValue = unknown>({
   const entityCountFooter = infiniteScroll &&
     infiniteScroll.entityLabel &&
     data.length > 0 && (
-      <output className="bg-background border-border text-muted-foreground sticky bottom-0 z-10 block py-3 text-center text-xs">
+      <output className="bg-background border-border text-muted-foreground sticky bottom-0 z-10 block px-3 py-3 text-left text-xs">
         {infiniteScroll.totalCount !== undefined &&
         infiniteScroll.totalCount !== data.length
           ? t('pagination.showingFiltered', {

@@ -200,6 +200,7 @@
       },
       "recent": {
         "title": "Aktuelles Feedback",
+        "entityLabel": "Feedback-Einträge",
         "emptyTitle": "Kein Feedback in diesem Zeitraum",
         "emptyDescription": "Passe Zeitraum oder Filter an, um mehr zu sehen.",
         "noComment": "(kein Kommentar)",
@@ -559,6 +560,7 @@
     },
     "executions": {
       "title": "Ausführungen",
+      "entityLabel": "Ausführungen",
       "searchPlaceholder": "Ausführungen suchen"
     },
     "createDialog": {
@@ -1412,7 +1414,8 @@
       "loading": "Weitere werden geladen...",
       "noMore": "Keine weiteren Einträge",
       "showingAll": "Alle {count} {entity} werden angezeigt",
-      "showingFiltered": "{filtered} von {total} {entity} werden angezeigt"
+      "showingFiltered": "{filtered} von {total} {entity} werden angezeigt",
+      "showingRange": "{start}-{end} von {total} {entity} werden angezeigt"
     },
     "search": {
       "noResults": "Keine Ergebnisse gefunden",
@@ -1719,6 +1722,7 @@
     "errorSaveFailed": "Dokument konnte nicht gespeichert werden"
   },
   "documents": {
+    "entityLabel": "Dokumente",
     "searchPlaceholder": "Dokumente suchen",
     "deleteFolder": {
       "title": "Ordner löschen",
@@ -2807,6 +2811,7 @@
         },
         "history": {
           "title": "Freigabeverlauf",
+          "entityLabel": "Freigaben",
           "description": "Schreibgeschützte Übersicht wirksam gewordener und abgelehnter Freigabeanträge.",
           "empty": {
             "title": "Noch keine abgeschlossenen Freigabeanträge",
@@ -2983,6 +2988,7 @@
     },
     "dataSubjectRequests": {
       "title": "Anfragen betroffener Personen",
+      "entityLabel": "Anfragen",
       "description": "DSGVO Art. 17 Löschungsbelege. Neue Anfragen einreichen, Fristen überwachen und Art. 12(3)-Verlängerungen gewähren, wenn komplexe Fälle mehr Zeit brauchen.",
       "accessDenied": "Nur Administratoren.",
       "filters": {
@@ -3550,7 +3556,10 @@
   "notifications": {
     "title": "Benachrichtigungen",
     "ariaUnread": "Ungelesen",
-    "empty": "Keine Benachrichtigungen.",
+    "emptyCaughtUpTitle": "Alles erledigt",
+    "emptyCaughtUpDescription": "Wir melden uns, sobald etwas Neues eintrifft.",
+    "emptyAllTitle": "Noch keine Benachrichtigungen",
+    "emptyAllDescription": "Hinweise und System-Updates erscheinen hier, sobald sie eintreffen.",
     "markAsRead": "Als gelesen markieren",
     "markAllAsRead": "Alle als gelesen markieren",
     "filterUnread": "Ungelesen",
@@ -4163,6 +4172,7 @@
     },
     "agents": {
       "title": "Agenten",
+      "entityLabel": "Agenten",
       "createAgent": "Agent erstellen",
       "searchAgent": "Agents suchen",
       "columns": {
@@ -4411,6 +4421,7 @@
       }
     },
     "skills": {
+      "entityLabel": "Skills",
       "uploadSkill": "Skill hochladen",
       "searchPlaceholder": "Skills suchen…",
       "deleteSkill": "Skill löschen",
@@ -4706,6 +4717,7 @@
     },
     "providers": {
       "title": "Anbieter",
+      "entityLabel": "Anbieter",
       "addProvider": "Anbieter hinzufügen",
       "editProvider": "Anbieter bearbeiten",
       "deleteProvider": "Anbieter löschen",
@@ -4940,6 +4952,7 @@
         }
       },
       "audit": {
+        "entityLabel": "Audit-Protokolle",
         "tableCaption": "Audit-Protokoll-Datentabelle",
         "emptyTitle": "Keine Audit-Protokolle",
         "emptyDescription": "Audit-Protokolle werden hier angezeigt, sobald Aktionen in deiner Organisation durchgeführt werden.",
@@ -5357,7 +5370,6 @@
     "enrollment": {
       "title": "Zwei-Faktor-Authentifizierung",
       "description": "Sichere dein Konto mit einem zeitbasierten Code aus einer Authenticator-App.",
-      "notEnabledHint": "Zwei-Faktor-Authentifizierung ist für dein Konto noch nicht aktiviert.",
       "enabledHint": "Zwei-Faktor-Authentifizierung ist für dein Konto aktiv.",
       "requiredByOrg": "Deine Organisation verlangt Zwei-Faktor-Authentifizierung. Richte sie jetzt ein, um fortzufahren.",
       "enableButton": "Zwei-Faktor aktivieren",
@@ -5629,6 +5641,7 @@
   },
   "projects": {
     "title": "Projekte",
+    "entityLabel": "Projekte",
     "navigation": {
       "list": "Alle Projekte",
       "overview": "Allgemein",
