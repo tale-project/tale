@@ -17,14 +17,129 @@
  *      (sha-verifies new == old, then unlinks the olds)
  */
 
+import { existsSync } from 'node:fs';
+import { mkdir, rename, stat } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { exec } from '../docker/exec';
 import { isContainerRunning } from '../docker/is-container-running';
+import { LEGACY_DOMAIN_DIR_NAMES } from './deploy';
 
 interface MigrateConfigLayoutOptions {
   dryRun: boolean;
   cleanupOld: boolean;
+  /**
+   * Project root on the host. Used by the host-layout phase to relocate
+   * legacy per-domain dirs (`agents/`, `workflows/`, …) into
+   * `default/<dir>/`. Optional only because some callers may want to
+   * skip the host phase (none do today); when omitted we use the
+   * current working directory.
+   */
+  projectDir?: string;
+}
+
+interface HostLayoutResult {
+  /** Dirs already in the new location (no action). */
+  alreadyMigrated: string[];
+  /** Dirs the script moved (or would move in dry-run). */
+  migrated: string[];
+  /** Dirs that couldn't be moved because the destination already exists with content. */
+  conflicts: string[];
+}
+
+/**
+ * Relocate legacy host-side per-domain dirs into `<projectDir>/default/`.
+ *
+ * Background: `tale start` / `tale deploy` hard-fail when any of
+ * `LEGACY_DOMAIN_DIR_NAMES` sits at the project root, and point the
+ * operator at `tale migrate config-layout`. Previously the migrate
+ * script only touched the convex container's `$DATA` — operators
+ * following the runbook would re-run `tale start` and hit the same
+ * error (a deadlock). This phase fixes that by also reorganizing host
+ * files in lockstep.
+ *
+ * Safety:
+ *   - Atomic `rename(2)` within the same filesystem (project root +
+ *     `default/` are siblings, so no cross-device copy hazard).
+ *   - Refuses to overwrite an existing populated `default/<dir>/` —
+ *     records a conflict the operator must resolve.
+ *   - Dry-run prints the plan without writing.
+ *   - `--cleanup-old` is a no-op for the host phase (rename is
+ *     destructive — there is no "old" to clean up).
+ */
+async function migrateHostLayout(
+  projectDir: string,
+  options: { dryRun: boolean },
+): Promise<HostLayoutResult> {
+  const result: HostLayoutResult = {
+    alreadyMigrated: [],
+    migrated: [],
+    conflicts: [],
+  };
+  const defaultDir = join(projectDir, 'default');
+
+  for (const name of LEGACY_DOMAIN_DIR_NAMES) {
+    const src = join(projectDir, name);
+    const dst = join(defaultDir, name);
+    if (!existsSync(src)) continue;
+    if (existsSync(dst)) {
+      // Both old and new locations exist. We do not attempt a merge —
+      // the operator must reconcile (typically by inspecting `dst` and
+      // `rm -rf`-ing the stale side).
+      result.conflicts.push(
+        `${name}/: both ${src} and ${dst} exist; manual reconcile required`,
+      );
+      continue;
+    }
+    if (options.dryRun) {
+      result.migrated.push(name);
+      continue;
+    }
+    // Ensure the parent `default/` exists before the rename. Same-fs
+    // rename so this is atomic per POSIX.
+    await mkdir(defaultDir, { recursive: true });
+    try {
+      await rename(src, dst);
+      result.migrated.push(name);
+    } catch (err) {
+      // Cross-device rename (EXDEV) shouldn't happen because src and
+      // dst share a parent, but a stale dst inode could also surface
+      // EEXIST or EPERM here. Record + continue rather than abort the
+      // whole migration.
+      result.conflicts.push(
+        `${name}/: rename failed (${err instanceof Error ? err.message : String(err)})`,
+      );
+    }
+  }
+  // Detect a fully-already-migrated layout for diagnostics. We can't
+  // distinguish "operator never had legacy dirs" from "operator already
+  // migrated", so this is informational only.
+  for (const name of LEGACY_DOMAIN_DIR_NAMES) {
+    const dst = join(defaultDir, name);
+    if (existsSync(dst) && !existsSync(join(projectDir, name))) {
+      result.alreadyMigrated.push(name);
+    }
+  }
+  // Best-effort empty-defaultDir cleanup: if we created `default/` but
+  // every probe missed (rename failed, dry-run), don't leave an empty
+  // dir behind.
+  try {
+    if (
+      result.migrated.length === 0 &&
+      existsSync(defaultDir) &&
+      (await stat(defaultDir)).isDirectory()
+    ) {
+      // No-op — left intentionally; an empty `default/` is harmless and
+      // future scaffold ops will populate it.
+    }
+  } catch (err) {
+    logger.warn(
+      `Could not stat ${defaultDir}: ${err instanceof Error ? err.message : err}`,
+    );
+  }
+  return result;
 }
 
 /**
@@ -264,7 +379,53 @@ export async function migrateConfigLayout(
   options: MigrateConfigLayoutOptions,
 ): Promise<void> {
   const { dryRun, cleanupOld } = options;
+  const projectDir = options.projectDir ?? process.cwd();
 
+  // ---------------------------------------------------------------------------
+  // Phase 1 — host layout
+  //
+  // Container-side migration would leave the operator stuck if they don't
+  // also fix the host project layout (which `tale start` + `tale deploy`
+  // refuse to push). Run host first so the runbook in the error message
+  // from those two commands actually fixes what they detected.
+  // `--cleanup-old` skips the host phase: rename is destructive, there's
+  // no "old" to clean.
+  // ---------------------------------------------------------------------------
+  if (!cleanupOld) {
+    logger.blank();
+    logger.step(
+      dryRun
+        ? '[DRY-RUN] Host layout: would move legacy per-domain dirs into default/'
+        : 'Host layout: moving legacy per-domain dirs into default/...',
+    );
+    const hostResult = await migrateHostLayout(projectDir, { dryRun });
+    if (hostResult.migrated.length > 0) {
+      for (const name of hostResult.migrated) {
+        logger.info(
+          dryRun
+            ? `  HOST_PLAN: mv ${name}/ default/${name}/`
+            : `  OK: mv ${name}/ default/${name}/`,
+        );
+      }
+    } else if (hostResult.alreadyMigrated.length > 0) {
+      logger.info('  Host layout already migrated.');
+    } else {
+      logger.info('  No legacy host dirs found.');
+    }
+    if (hostResult.conflicts.length > 0) {
+      logger.warn(
+        `Host-layout conflicts (require manual reconciliation):\n  - ${hostResult.conflicts.join('\n  - ')}`,
+      );
+      throw new Error(
+        `tale migrate config-layout: ${hostResult.conflicts.length} host-layout conflict(s); ` +
+          'resolve them and re-run. See docs/en/self-hosted/operate/upgrades.md.',
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Phase 2 — container layout (providers/*.secrets.json under $DATA)
+  // ---------------------------------------------------------------------------
   const containerName = `${getProjectId()}-convex`;
   if (!(await isContainerRunning(containerName))) {
     // Earlier the message said "e.g. `tale deploy`", but `tale deploy`
@@ -276,7 +437,7 @@ export async function migrateConfigLayout(
       `Convex container "${containerName}" is not running. ` +
         'Start the OLD platform first (`tale start` or `docker compose start convex`) ' +
         'so the migrate script can run against the still-mounted volume, then re-run ' +
-        '`tale migrate config-layout`. See docs/<locale>/self-hosted/operate/upgrades.md ' +
+        '`tale migrate config-layout`. See docs/en/self-hosted/operate/upgrades.md ' +
         'for the full migrate → deploy → cleanup runbook.',
     );
   }

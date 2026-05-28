@@ -26,10 +26,12 @@ export function createMigrateCommand(): Command {
     )
     .action(async (opts: { dryRun?: boolean; cleanupOld?: boolean }) => {
       try {
-        await resolveProjectContext(requireProject());
+        const projectDir = requireProject();
+        await resolveProjectContext(projectDir);
         await migrateConfigLayout({
           dryRun: opts.dryRun ?? false,
           cleanupOld: opts.cleanupOld ?? false,
+          projectDir,
         });
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));

@@ -165,7 +165,7 @@ export async function start(options: StartOptions): Promise<void> {
         .join(', ')}\n` +
         '  The org-first layout expects these under `default/<domain>/` (or another org subtree).\n' +
         '  Migrate with: `tale migrate config-layout` then `tale deploy --override-all -y`.\n' +
-        '  See docs/<locale>/self-hosted/operate/upgrades.md for the full runbook.',
+        '  See docs/en/self-hosted/operate/upgrades.md for the full runbook.',
     );
   }
 
