@@ -280,7 +280,12 @@ class PgWebsiteStoreManager:
             # to 'idle' if a stuck-delete recovery left it at 'deleting'
             # — a fresh registration is a clear signal the domain is
             # wanted again (round-2 P1-23).
-            await conn.execute(
+            # ON CONFLICT preserves the existing scan_interval — first-org
+            # sets cadence; subsequent orgs joining a tracked domain keep
+            # whatever the first org configured (P1-22). RETURNING surfaces
+            # the *stored* scan_interval so the caller can echo the truth
+            # back instead of repeating the request param (round-3 P1).
+            website_row = await conn.fetchrow(
                 """INSERT INTO websites (domain, scan_interval, created_at, updated_at)
                    VALUES ($1, $2, NOW(), NOW())
                    ON CONFLICT(domain) DO UPDATE SET
@@ -288,10 +293,13 @@ class PgWebsiteStoreManager:
                        WHEN websites.status = 'deleting' THEN 'idle'
                        ELSE websites.status
                      END,
-                     updated_at = NOW()""",
+                     updated_at = NOW()
+                   RETURNING scan_interval, status""",
                 domain,
                 scan_interval,
             )
+            stored_scan_interval = int(website_row["scan_interval"]) if website_row else scan_interval
+            stored_status = str(website_row["status"]) if website_row else "idle"
             # ON CONFLICT DO NOTHING — re-registering from the same org is a no-op.
             # `xmax = 0` is true on a row INSERTed in this command; non-zero on
             # an existing row that hit ON CONFLICT. We use it to tell the caller
@@ -311,16 +319,17 @@ class PgWebsiteStoreManager:
             )
         first_membership = membership_inserted and total_members == 1
         logger.info(
-            "Registered website: %s for org=%s (interval=%ss, first_membership=%s)",
+            "Registered website: %s for org=%s (requested_interval=%ss, stored_interval=%ss, first_membership=%s)",
             domain,
             org_slug,
             scan_interval,
+            stored_scan_interval,
             first_membership,
         )
         return {
             "domain": domain,
-            "scan_interval": scan_interval,
-            "status": "idle",
+            "scan_interval": stored_scan_interval,
+            "status": stored_status,
             "first_membership": first_membership,
         }
 
@@ -412,9 +421,24 @@ class PgWebsiteStoreManager:
         (whose ON CONFLICT now resets status='idle' — see P1-22 fix
         above). If any membership now exists, abort the DELETE rather
         than CASCADE-killing the new org's content.
+
+        Round-3 P1: take a row-level lock on the parent `websites` row
+        before the membership COUNT. Without it the COUNT runs under
+        READ COMMITTED with no lock held, so a concurrent
+        `register_website` from a different org could insert a fresh
+        membership row between this COUNT and the DELETE — the CASCADE
+        FK on `website_org_memberships(domain)` would then silently
+        wipe the new org's just-inserted membership. SELECT … FOR UPDATE
+        forces the concurrent INSERT's ON CONFLICT DO UPDATE on
+        `websites` to block until we commit (or roll back, in which
+        case the membership remains and our COUNT sees it).
         """
         async with acquire_with_retry(self._pool) as conn, conn.transaction():
             await conn.execute("SET LOCAL statement_timeout = '120s'")
+            await conn.execute(
+                "SELECT 1 FROM websites WHERE domain = $1 FOR UPDATE",
+                domain,
+            )
             remaining = await conn.fetchval(
                 "SELECT COUNT(*) FROM website_org_memberships WHERE domain = $1",
                 domain,

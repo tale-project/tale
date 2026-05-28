@@ -97,10 +97,20 @@ async def register_website(request: RegisterWebsiteRequest, http_request: Reques
         if result.get("first_membership"):
             trigger_scan()
 
+        # Echo the *stored* scan_interval, not the request's. ON CONFLICT
+        # preserves the existing cadence (P1-22 / round-3 P1) so the second
+        # org to register a domain with a different cadence would otherwise
+        # be told their value was accepted when in fact the first org's
+        # cadence remains in force.
+        stored_interval = int(
+            result.get("scan_interval", request.scan_interval),
+        )
         return WebsiteInfoResponse(
             domain=request.domain,
-            status="scanning" if result.get("first_membership") else (website.get("status") if website else "idle"),
-            scan_interval=request.scan_interval,
+            status="scanning"
+            if result.get("first_membership")
+            else (website.get("status") if website else result.get("status", "idle")),
+            scan_interval=stored_interval,
         )
     except HTTPException:
         raise
