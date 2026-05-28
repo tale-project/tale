@@ -34,7 +34,9 @@ import {
   pruneHistory,
   readFileSafe,
   readJsonFile,
+  safeJoinWithinDir,
   sha256,
+  validateTimestamp,
 } from '../lib/file_io';
 import { stripNulls } from '../lib/strip_nulls';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
@@ -683,13 +685,11 @@ export const readHistoryEntry = action({
       ctx,
       args.organizationId,
     );
-    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
-    const filePath = path.join(historyDir, `${args.timestamp}.json`);
-
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(historyDir))) {
-      throw new Error('Path traversal detected');
+    if (!validateTimestamp(args.timestamp)) {
+      throw new Error('Invalid timestamp');
     }
+    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
+    const filePath = safeJoinWithinDir(historyDir, `${args.timestamp}.json`);
 
     const content = await readFileSafe(filePath);
     if (!content) {
@@ -719,14 +719,12 @@ export const restoreFromHistory = action({
   handler: async (ctx, args): Promise<{ hash: string }> => {
     const auth = await requireOrgMembershipById(ctx, args.organizationId);
     const { orgSlug } = auth;
-    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
-    const historyPath = path.join(historyDir, `${args.timestamp}.json`);
-    const agentPath = resolveAgentFilePath(orgSlug, args.agentName);
-
-    const resolved = path.resolve(historyPath);
-    if (!resolved.startsWith(path.resolve(historyDir))) {
-      throw new Error('Path traversal detected');
+    if (!validateTimestamp(args.timestamp)) {
+      throw new Error('Invalid timestamp');
     }
+    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
+    const historyPath = safeJoinWithinDir(historyDir, `${args.timestamp}.json`);
+    const agentPath = resolveAgentFilePath(orgSlug, args.agentName);
 
     const historyContent = await readFileSafe(historyPath);
     if (!historyContent) throw new Error('History entry not found');

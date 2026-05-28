@@ -343,7 +343,14 @@ http.route({
     const memberRows: unknown[] = Array.isArray(memberships?.page)
       ? memberships.page
       : [];
+    // Drop rows where the user is soft-removed via `role = 'disabled'`
+    // (matches the canonical filter in lib/rls/organization/get_user_organizations.ts).
+    // Without this filter, a disabled member keeps receiving SSE file events
+    // for the org they were kicked from until the row is hard-deleted.
     const orgIds: string[] = memberRows
+      .filter((row) =>
+        isRecord(row) ? getString(row, 'role') !== 'disabled' : false,
+      )
       .map((row) =>
         isRecord(row) ? getString(row, 'organizationId') : undefined,
       )
