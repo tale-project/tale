@@ -209,9 +209,13 @@ class TestSearch:
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.0
-            results = await service.search(TEST_ORG, "test query", file_ids=["doc-1"])
+            results, usage = await service.search(TEST_ORG, "test query", file_ids=["doc-1"])
 
         assert len(results) == 2
+        # `search` returns a (results, usage) tuple now — the usage
+        # value is the per-call embedding usage attached to the search
+        # service, not a shared singleton.
+        assert usage is service._search_service.last_search_usage
         service._search_service.search.assert_awaited_once_with(
             "test query",
             file_ids=["doc-1"],
@@ -263,7 +267,7 @@ class TestSearch:
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.9
-            results = await service.search(TEST_ORG, "query", similarity_threshold=0.3)
+            results, _usage = await service.search(TEST_ORG, "query", similarity_threshold=0.3)
 
         assert len(results) == 1
 
@@ -278,7 +282,7 @@ class TestSearch:
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.0
-            results = await service.search(TEST_ORG, "query")
+            results, _usage = await service.search(TEST_ORG, "query")
 
         assert len(results) == 1
 
@@ -317,10 +321,15 @@ class TestGenerate:
                 service,
                 "search",
                 new_callable=AsyncMock,
-                return_value=[
-                    {"content": "Context chunk 1", "score": 0.9, "file_id": "d1"},
-                    {"content": "Context chunk 2", "score": 0.8, "file_id": "d2"},
-                ],
+                # `search` returns `(results, usage)` — usage is None
+                # here since we only care about the LLM completion side.
+                return_value=(
+                    [
+                        {"content": "Context chunk 1", "score": 0.9, "file_id": "d1"},
+                        {"content": "Context chunk 2", "score": 0.8, "file_id": "d2"},
+                    ],
+                    None,
+                ),
             ),
             patch("app.services.rag_service.settings") as mock_settings,
         ):
@@ -339,7 +348,7 @@ class TestGenerate:
             service,
             "search",
             new_callable=AsyncMock,
-            return_value=[],
+            return_value=([], None),
         ):
             result = await service.generate(TEST_ORG, "Unknown topic?")
 
@@ -364,7 +373,10 @@ class TestGenerate:
                 service,
                 "search",
                 new_callable=AsyncMock,
-                return_value=[{"content": "relevant info", "score": 0.9, "file_id": "d1"}],
+                return_value=(
+                    [{"content": "relevant info", "score": 0.9, "file_id": "d1"}],
+                    None,
+                ),
             ),
             patch("app.services.rag_service.settings") as mock_settings,
         ):
@@ -391,7 +403,10 @@ class TestGenerate:
                 service,
                 "search",
                 new_callable=AsyncMock,
-                return_value=[{"content": "info", "score": 0.9, "file_id": "d1"}],
+                return_value=(
+                    [{"content": "info", "score": 0.9, "file_id": "d1"}],
+                    None,
+                ),
             ),
             patch("app.services.rag_service.settings") as mock_settings,
         ):
@@ -413,7 +428,12 @@ class TestGenerate:
         large_chunks = [{"content": "x" * 100_000, "score": 0.9 - i * 0.01, "file_id": f"d{i}"} for i in range(5)]
 
         with (
-            patch.object(service, "search", new_callable=AsyncMock, return_value=large_chunks),
+            patch.object(
+                service,
+                "search",
+                new_callable=AsyncMock,
+                return_value=(large_chunks, None),
+            ),
             patch("app.services.rag_service.settings") as mock_settings,
         ):
             mock_settings.get_llm_config.return_value = {"model": "m"}
@@ -426,7 +446,12 @@ class TestGenerate:
     async def test_passes_file_ids_to_search(self):
         service = _make_service()
 
-        with patch.object(service, "search", new_callable=AsyncMock, return_value=[]) as mock_search:
+        with patch.object(
+            service,
+            "search",
+            new_callable=AsyncMock,
+            return_value=([], None),
+        ) as mock_search:
             await service.generate(TEST_ORG, "q", file_ids=["doc-1"])
 
         mock_search.assert_awaited_once()
@@ -447,7 +472,10 @@ class TestGenerate:
                 service,
                 "search",
                 new_callable=AsyncMock,
-                return_value=[{"content": "info", "score": 0.9, "file_id": "d1"}],
+                return_value=(
+                    [{"content": "info", "score": 0.9, "file_id": "d1"}],
+                    None,
+                ),
             ),
             patch("app.services.rag_service.settings") as mock_settings,
         ):

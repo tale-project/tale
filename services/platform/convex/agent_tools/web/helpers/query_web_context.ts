@@ -64,8 +64,11 @@ export async function queryWebContext(
   query: string,
   limit = DEFAULT_LIMIT,
 ): Promise<WebContextResult | undefined> {
-  const orgSlug = await orgSlugFromId(ctx, organizationId);
   try {
+    // Resolve the slug INSIDE the try so an org-lookup failure folds
+    // into the documented `undefined`-on-failure contract instead of
+    // throwing past the caller (`generate_response.ts`).
+    const orgSlug = await orgSlugFromId(ctx, organizationId);
     debugLog('Querying web context', {
       query: query.slice(0, 100),
       limit,

@@ -250,7 +250,17 @@ export async function ragFetch(
   // directly. When omitted, the RAG endpoint either runs org-agnostic
   // (status/delete/content/compare-by-id) or returns 400 from its
   // `Depends(require_org_slug)` dep (search/generate/upload/compare-files).
-  if (init.orgSlug) {
+  //
+  // Distinguish "caller deliberately passed empty/blank slug" (a bug —
+  // fail fast, don't silently strip the header) from "caller omitted
+  // the field entirely" (the org-agnostic endpoint path). Earlier the
+  // truthy check folded both into the same silent-omit branch.
+  if (init.orgSlug !== undefined) {
+    if (!init.orgSlug.trim()) {
+      throw new Error(
+        'ragFetch: orgSlug was provided but is empty; refusing to call RAG without a valid X-Tale-Org header',
+      );
+    }
     headers.set('x-tale-org', init.orgSlug);
   }
 

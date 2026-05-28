@@ -57,10 +57,13 @@ copy_secret() {
   local dst_dir; dst_dir="$(dirname "$dst")"
   if [ -e "$dst" ]; then
     if cmp -s "$src" "$dst" 2>/dev/null; then
+      # SKIP belongs to stdout (informational, expected on re-run);
+      # only true ERROR lines go to stderr so the CLI wrapper can
+      # distinguish noise from real failures.
       skipped=$((skipped+1)); echo "SKIP (already migrated): $src"
       return 0
     else
-      conflicts+=("$src ≠ $dst")
+      conflicts+=("$src != $dst")
       errors=$((errors+1))
       echo "ERROR: $dst exists but differs from $src; refusing to overwrite" >&2
       return 0
@@ -90,7 +93,7 @@ remove_old_secret() {
     return 0
   fi
   if ! cmp -s "$old" "$new" 2>/dev/null; then
-    conflicts+=("$old ≠ $new")
+    conflicts+=("$old != $new")
     errors=$((errors+1))
     echo "ERROR: $old and $new differ; refusing to remove $old" >&2
     return 0
@@ -108,6 +111,27 @@ remove_old_secret() {
 # ---------------------------------------------------------------------------
 # Enumeration
 # ---------------------------------------------------------------------------
+
+# Pre-scan: flag when both the flat path (providers/foo.secrets.json)
+# and the nested path (providers/default/foo.secrets.json) would map to
+# the same destination. Without this, copy_secret's per-pair cmp -s
+# would surface only one of the two as an error, leaving the operator
+# guessing which source was the "real" one.
+detect_default_dst_collisions() {
+  [ -d "$DATA/providers/default" ] || return 0
+  for f in "$DATA"/providers/*.secrets.json; do
+    [ -f "$f" ] || continue
+    local base nested
+    base="$(basename "$f")"
+    nested="$DATA/providers/default/$base"
+    if [ -f "$nested" ]; then
+      conflicts+=("dst collision: $f and $nested both map to $DATA/default/providers/$base")
+      errors=$((errors+1))
+      echo "ERROR: $f and $nested both target $DATA/default/providers/$base; manual reconcile required" >&2
+    fi
+  done
+}
+
 process_secret() {
   local src="$1" dst="$2"
   if [ "$CLEANUP_OLD" = 1 ]; then
@@ -116,6 +140,8 @@ process_secret() {
     copy_secret "$src" "$dst"
   fi
 }
+
+detect_default_dst_collisions
 
 # Default org: top-level $DATA/providers/*.secrets.json → $DATA/default/providers/
 if [ -d "$DATA/providers" ]; then
@@ -133,13 +159,18 @@ if [ -d "$DATA/providers" ]; then
     case "$org" in
       .*) continue ;;
     esac
-    # Validate against ORG_SLUG_REGEX (keep in sync with validateOrgSlug
-    # at services/platform/convex/lib/file_io.ts). Anything that doesn't
-    # match is skipped with a warning — defends against `.history` or
-    # future hidden markers leaking into the iteration.
-    if ! [[ "$org" =~ ^[a-z0-9][a-z0-9_-]{0,63}$ ]]; then
-      echo "SKIP (not a valid org slug): $org" >&2
-      skipped=$((skipped+1))
+    # Validate against ORG_SLUG_REGEX (keep in sync with
+    # services/platform/lib/shared/constants/org-slug.ts). No length
+    # cap here — the canonical validator imposes none, and silently
+    # dropping long-but-valid slugs would lose their secrets on
+    # --cleanup-old. Anything that fails the shape is recorded as an
+    # error + conflict so the summary surfaces it (legacy slugs from a
+    # prior, more-permissive regime get an actionable diagnostic
+    # rather than disappearing).
+    if ! [[ "$org" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+      conflicts+=("invalid org slug under providers/: $org")
+      errors=$((errors+1))
+      echo "ERROR: providers/$org/ has invalid slug shape; manual reconcile required" >&2
       continue
     fi
     for f in "$d"*.secrets.json; do

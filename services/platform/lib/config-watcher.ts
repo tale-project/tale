@@ -2,6 +2,8 @@ import { relative } from 'node:path';
 
 import chokidar from 'chokidar';
 
+import { ORG_SLUG_REGEX } from './shared/constants/org-slug';
+
 interface ConfigChangeEvent {
   type:
     | 'agents'
@@ -15,8 +17,6 @@ interface ConfigChangeEvent {
 }
 
 const ATOMIC_WRITE_TMP_RE = /\.\d+\.[a-f0-9]{8}\.tmp$/;
-// Must match validateOrgSlug at services/platform/convex/lib/file_io.ts.
-const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
 
 /**
  * Tail-debounce window for SSE invalidations: events arriving within this

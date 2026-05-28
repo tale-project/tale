@@ -7,6 +7,10 @@ import { isRecord, getNumber } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { getCrawlerUrl } from '../documents/generate_document_helpers';
+import {
+  isUpstreamHttpError,
+  UpstreamHttpError,
+} from '../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
@@ -133,8 +137,11 @@ export const extractFileMetadata = internalAction({
 
         if (!metadataResponse.ok) {
           const errorText = await metadataResponse.text().catch(() => '');
-          throw new Error(
-            `Crawler extract-metadata returned ${metadataResponse.status}: ${errorText}`,
+          throw UpstreamHttpError.fromResponse(
+            'crawler',
+            metadataResponse,
+            errorText,
+            `/api/v1/${ext}/extract-metadata`,
           );
         }
 
@@ -187,11 +194,25 @@ export const extractFileMetadata = internalAction({
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        // Classify the failure: only schedule retries when the upstream
+        // (crawler) reported a status the abstraction marks retryable
+        // (5xx / 408 / 429). 4xx classes (org-slug lookup failure,
+        // missing file, malformed payload) are permanent — retrying
+        // burns scheduler slots without progress.
+        const isRetryable = isUpstreamHttpError(error) && error.retryable;
+        // Non-UpstreamHttpError throws (e.g. network reset, blob fetch
+        // failure before we even hit the crawler) are also assumed
+        // transient — we have no signal otherwise.
+        const isTransient = isRetryable || !isUpstreamHttpError(error);
         console.error(
-          `[extractFileMetadata] Error for file ${args.storageId} (attempt ${attempt}): ${message}`,
+          `[extractFileMetadata] Error for file ${args.storageId} (attempt ${attempt}, transient=${isTransient}): ${message}`,
         );
 
-        if (attempt < EXTRACT_METADATA_RETRY_DELAYS.length) {
+        if (!isTransient) {
+          console.warn(
+            `[extractFileMetadata] Permanent failure for file ${args.storageId}; not retrying: ${message}`,
+          );
+        } else if (attempt < EXTRACT_METADATA_RETRY_DELAYS.length) {
           const retryDelay = EXTRACT_METADATA_RETRY_DELAYS[attempt];
           await ctx.scheduler.runAfter(
             retryDelay,

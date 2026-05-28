@@ -8,7 +8,10 @@ import {
   isRecord,
 } from '../../../../../lib/utils/type-guards';
 import { internalAction } from '../../../../_generated/server';
-import { UpstreamHttpError } from '../../../../lib/errors/upstream_http_error';
+import {
+  isUpstreamHttpError,
+  UpstreamHttpError,
+} from '../../../../lib/errors/upstream_http_error';
 import { ragFetch } from '../../../../lib/helpers/rag_config';
 import type { RagDeleteResult } from './types';
 
@@ -81,6 +84,17 @@ export async function deleteDocumentById({
       timestamp: Date.now(),
     };
   } catch (error) {
+    // Retryable upstream failures (5xx / 429 / 408) must propagate so
+    // the action-level retry harness (workflow scheduler or callsite
+    // re-try loop) gets a chance to recover. Folding them into
+    // `{ success: false }` silently — as the earlier code did —
+    // converted transient unavailability into permanent failures.
+    // Non-retryable failures (4xx) and non-UpstreamHttpError throws
+    // still return the structured result so batch callers don't abort
+    // the whole loop on a single bad fileId.
+    if (isUpstreamHttpError(error) && error.retryable) {
+      throw error;
+    }
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       success: false,
@@ -110,11 +124,22 @@ export const deleteFromRagBatch = internalAction({
   returns: v.null(),
   handler: async (_ctx, args) => {
     for (const fileId of args.fileIds) {
-      const result = await deleteDocumentById({ fileId });
-      if (!result.success) {
+      // Best-effort per file. `deleteDocumentById` re-throws retryable
+      // UpstreamHttpError, but in a batch context one transient 5xx
+      // should not abort cleanup of the other ids — log + move on so
+      // the next retention sweep gets to retry.
+      try {
+        const result = await deleteDocumentById({ fileId });
+        if (!result.success) {
+          console.warn(
+            `[deleteFromRagBatch] delete failed for ${fileId}:`,
+            result.error ?? result.message,
+          );
+        }
+      } catch (err) {
         console.warn(
-          `[deleteFromRagBatch] delete failed for ${fileId}:`,
-          result.error ?? result.message,
+          `[deleteFromRagBatch] retryable upstream error on ${fileId}; skipping:`,
+          err instanceof Error ? err.message : String(err),
         );
       }
     }

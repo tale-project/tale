@@ -11,6 +11,7 @@
 
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../lib/debug_log';
+import { UpstreamHttpError } from '../../lib/errors/upstream_http_error';
 import { getRagConfig, ragFetch } from '../../lib/helpers/rag_config';
 import {
   extractCitationsFromSearchResults,
@@ -133,7 +134,8 @@ export interface RagContextOptions {
   /**
    * Org slug for the X-Tale-Org header. Required by the RAG service's
    * `/api/v1/search` endpoint (it picks the org's provider catalog to
-   * embed the query). Omitting will yield HTTP 400.
+   * embed the query). Empty / missing yields HTTP 400 from RAG and is
+   * surfaced (not silently swallowed) so the caller sees the bug.
    */
   orgSlug: string;
 }
@@ -156,7 +158,11 @@ export async function queryRagContext(
   similarityThreshold: number = DEFAULT_SIMILARITY_THRESHOLD,
   signal?: AbortSignal,
   recentMessages?: RecentMessage[],
-  options?: RagContextOptions,
+  // Required: callers must always pass `orgSlug` (and usually fileIds).
+  // Previously this was `options?: RagContextOptions`, which made the
+  // declared-required `orgSlug` field reachable as `undefined` at
+  // runtime — a type-vs-runtime mismatch that this signature fixes.
+  options: RagContextOptions = { orgSlug: '' },
 ): Promise<RagContextResult | undefined> {
   try {
     const ragServiceUrl = getRagConfig().serviceUrl;
@@ -188,7 +194,7 @@ export async function queryRagContext(
         include_metadata: true,
       };
 
-      if (!options?.fileIds || options.fileIds.length === 0) {
+      if (!options.fileIds || options.fileIds.length === 0) {
         debugLog('No file IDs provided, skipping RAG query');
         // Without this, the controller fires `controller.abort()`
         // RAG_REQUEST_TIMEOUT_MS later against no in-flight fetch — a
@@ -203,19 +209,35 @@ export async function queryRagContext(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestPayload),
-        orgSlug: options?.orgSlug,
+        orgSlug: options.orgSlug,
         signal: fetchSignal,
       });
 
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[rag_query] RAG service error', {
+        const errorText = await response.text().catch(() => '');
+        // 4xx is a caller/config bug: missing or bad X-Tale-Org,
+        // schema-rejected query, etc. Surfacing as a thrown
+        // UpstreamHttpError gives the agent runtime a clear signal
+        // (and prevents the agent from treating "auth misconfigured"
+        // as "knowledge base is empty"). 5xx remains silent fallback
+        // — RAG outage shouldn't break chat completely.
+        if (response.status >= 400 && response.status < 500) {
+          throw UpstreamHttpError.fromResponse(
+            'rag',
+            response,
+            errorText,
+            '/api/v1/search',
+          );
+        }
+        console.error('[rag_query] RAG service unavailable', {
           status: response.status,
+          // errorText logged engineer-side only; caller gets a graceful
+          // empty-context return so chat continues without RAG.
           error: errorText,
         });
-        return undefined; // Gracefully degrade if RAG is unavailable
+        return undefined;
       }
 
       const result = await fetchJson<SearchResponse>(response);

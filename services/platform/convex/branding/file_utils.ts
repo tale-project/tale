@@ -13,7 +13,13 @@ import {
   brandingJsonSchema,
   type BrandingJsonConfig,
 } from '../../lib/shared/schemas/branding';
-import { serializeJson, sha256, validateOrgSlug } from '../lib/file_io';
+import {
+  getConfigRoot,
+  safeJoinWithinDir,
+  serializeJson,
+  sha256,
+  validateOrgSlug,
+} from '../lib/file_io';
 
 export type { BrandingJsonConfig };
 
@@ -36,16 +42,6 @@ export type BrandingReadResult =
       message: string;
     };
 
-function getConfigRoot(): string {
-  const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return configDir;
-  throw new Error(
-    'TALE_CONFIG_DIR environment variable is not set. ' +
-      'Set it to the root config directory ' +
-      '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
-  );
-}
-
 /**
  * Resolve the branding directory for an organization. Org-first:
  * `${TALE_CONFIG_DIR}/<orgSlug>/branding/`. Read-side currently hardcodes
@@ -56,20 +52,11 @@ export function resolveBrandingDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  return path.join(getConfigRoot(), orgSlug, 'branding');
+  return path.join(getConfigRoot('branding'), orgSlug, 'branding');
 }
 
 export function resolveBrandingFilePath(orgSlug: string): string {
-  const dir = resolveBrandingDir(orgSlug);
-  const resolved = path.resolve(dir, BRANDING_FILE_NAME);
-  const expectedPrefix = path.resolve(dir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error('Path traversal detected');
-  }
-  return resolved;
+  return safeJoinWithinDir(resolveBrandingDir(orgSlug), BRANDING_FILE_NAME);
 }
 
 export function resolveHistoryDir(orgSlug: string): string {
@@ -135,16 +122,7 @@ export function resolveImagePath(orgSlug: string, filename: string): string {
   if (!validateImageFilename(filename)) {
     throw new Error(`Invalid image filename: ${filename}`);
   }
-  const dir = resolveImagesDir(orgSlug);
-  const resolved = path.resolve(dir, filename);
-  const expectedPrefix = path.resolve(dir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error('Path traversal detected');
-  }
-  return resolved;
+  return safeJoinWithinDir(resolveImagesDir(orgSlug), filename);
 }
 
 export { ALLOWED_IMAGE_EXTENSIONS, MAX_FILE_SIZE_BYTES, MAX_HISTORY_ENTRIES };

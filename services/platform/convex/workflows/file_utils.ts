@@ -13,7 +13,13 @@ import {
   workflowJsonSchema,
   type WorkflowJsonConfig,
 } from '../../lib/shared/schemas/workflows';
-import { serializeJson, sha256, validateOrgSlug } from '../lib/file_io';
+import {
+  getConfigRoot,
+  safeJoinWithinDir,
+  serializeJson,
+  sha256,
+  validateOrgSlug,
+} from '../lib/file_io';
 
 export { sha256 };
 
@@ -75,16 +81,6 @@ export function urlParamToSlug(param: string): string {
   return param.replace(new RegExp(SLUG_SEPARATOR, 'g'), '/');
 }
 
-function getConfigRoot(): string {
-  const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return configDir;
-  throw new Error(
-    'TALE_CONFIG_DIR environment variable is not set. ' +
-      'Set it to the root config directory ' +
-      '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
-  );
-}
-
 /**
  * Resolve the workflows directory for an organization. Org-first:
  * `${TALE_CONFIG_DIR}/<orgSlug>/workflows/`. No `@`-prefix collision concern
@@ -94,7 +90,7 @@ export function resolveWorkflowsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  return path.join(getConfigRoot(), orgSlug, 'workflows');
+  return path.join(getConfigRoot('workflows'), orgSlug, 'workflows');
 }
 
 /**
@@ -108,16 +104,10 @@ export function resolveWorkflowFilePath(
   if (!validateWorkflowSlug(workflowSlug)) {
     throw new Error(`Invalid workflow slug: ${workflowSlug}`);
   }
-  const dir = resolveWorkflowsDir(orgSlug);
-  const resolved = path.resolve(dir, `${workflowSlug}.json`);
-  const expectedPrefix = path.resolve(dir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error(`Path traversal detected: ${workflowSlug}`);
-  }
-  return resolved;
+  return safeJoinWithinDir(
+    resolveWorkflowsDir(orgSlug),
+    `${workflowSlug}.json`,
+  );
 }
 
 /**

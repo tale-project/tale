@@ -29,17 +29,10 @@
 
 import { v } from 'convex/values';
 
+import { isValidOrgSlug } from '../../lib/shared/constants/org-slug';
 import { getString, isRecord } from '../../lib/utils/type-guards';
 import { components, internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
-
-// Inlined to avoid importing from convex/lib/file_io.ts (which has 'use node'
-// and would force this orchestration action into the Node runtime). Keep in
-// sync with `validateOrgSlug` at services/platform/convex/lib/file_io.ts.
-const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
-function isValidOrgSlug(slug: string): boolean {
-  return slug === 'default' || ORG_SLUG_REGEX.test(slug);
-}
 
 type OrgReseedResult =
   | { slug: string; status: 'ok' }
@@ -65,9 +58,28 @@ export const reseedAllOrgsFromBuiltin = internalAction({
   handler: async (ctx) => {
     const slugSet = new Set<string>(['default']);
 
+    const invalidSlugs: string[] = [];
     let cursor: string | null = null;
+    let prevCursor: string | null | undefined;
     let isDone = false;
+    // Defensive cap: if the betterAuth adapter ever returned
+    // `{ isDone: false }` with a non-advancing cursor, the loop would
+    // spin forever within the Convex action wall-clock. Break out so
+    // the operator gets a real error instead of a 30-minute timeout.
+    const MAX_PAGES = 1000;
+    let pages = 0;
     while (!isDone) {
+      if (pages++ >= MAX_PAGES) {
+        throw new Error(
+          `reseedAllOrgs: betterAuth pagination did not terminate within ${MAX_PAGES} pages`,
+        );
+      }
+      if (prevCursor !== undefined && cursor === prevCursor) {
+        throw new Error(
+          'reseedAllOrgs: betterAuth pagination cursor did not advance; aborting to avoid infinite loop',
+        );
+      }
+      prevCursor = cursor;
       const res: unknown = await ctx.runQuery(
         components.betterAuth.adapter.findMany,
         {
@@ -85,6 +97,10 @@ export const reseedAllOrgsFromBuiltin = internalAction({
           console.warn(
             `[reseedAllOrgs] skipping invalid slug "${slug}" returned by betterAuth`,
           );
+          // Surface invalid slugs through the structured `results`
+          // payload so the CLI summary and CI logs see them — earlier
+          // they were dropped silently and operators had no signal.
+          invalidSlugs.push(slug);
           continue;
         }
         slugSet.add(slug);
@@ -99,6 +115,17 @@ export const reseedAllOrgsFromBuiltin = internalAction({
 
     const slugs = Array.from(slugSet).sort();
     const results: OrgReseedResult[] = [];
+
+    // Surface any invalid-slug rows seen during pagination as
+    // structured error results. They never get reseeded (the orgs are
+    // unreachable until renamed), but the CLI summary now lists them.
+    for (const bad of invalidSlugs) {
+      results.push({
+        slug: bad,
+        status: 'error',
+        error: 'invalid slug shape; cannot reseed',
+      });
+    }
 
     for (const slug of slugs) {
       try {

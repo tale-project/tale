@@ -59,7 +59,16 @@ export const getLegacyBranding = internalQuery({
       try {
         const url = await ctx.storage.getUrl(storageId);
         return url ? toPublicUrl(url) : null;
-      } catch {
+      } catch (error) {
+        // Symmetry with `getBindingsWithUrls.safeGetUrl` below — surface
+        // the storage-resolve failure at warn level instead of silently
+        // returning null. An empty catch here used to hide stale
+        // storage references that would have been visible in logs.
+        console.warn(
+          '[Branding] legacy storage URL resolve failed',
+          storageId,
+          error,
+        );
         return null;
       }
     }

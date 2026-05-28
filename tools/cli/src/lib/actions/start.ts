@@ -16,6 +16,7 @@ import { exec } from '../docker/exec';
 import { findProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
 import { withLock } from '../state/with-lock';
+import { LEGACY_DOMAIN_DIR_NAMES } from './deploy';
 import { init } from './init';
 
 async function assertDockerAvailable(): Promise<void> {
@@ -134,49 +135,38 @@ export async function start(options: StartOptions): Promise<void> {
     }
   }
 
+  // Environment setup runs unconditionally so `tale start` after a CLI
+  // upgrade that introduces a new auto-secret (e.g. SANDBOX_TOKEN) picks
+  // it up before compose starts — matches `tale deploy` semantics so
+  // both commands give the same surface behavior.
   const envPath = join(projectDir, '.env');
-  if (!existsSync(envPath)) {
-    logger.warn('No .env file found. Running environment setup...');
-    logger.blank();
-    const { ensureEnv } = await import('../config/ensure-env');
-    const { success } = await ensureEnv({ deployDir: projectDir });
-    if (!success) {
-      throw new Error(
-        'Environment setup failed. Cannot start without .env file.',
-      );
-    }
+  const { ensureEnv } = await import('../config/ensure-env');
+  const { success: envOk } = await ensureEnv({ deployDir: projectDir });
+  if (!envOk) {
+    throw new Error(
+      `Environment setup failed. Cannot start without ${envPath}.`,
+    );
   }
 
   // Detect legacy flat-layout dirs at the project root (`agents/`,
-  // `workflows/`, …). Under the org-first layout these belong under
-  // `default/<domain>/` instead — the platform's resolvers won't read
-  // anything at the old paths. Surface the runbook so the operator
-  // doesn't boot into a "nothing's working" state.
-  const LEGACY_FLAT_DOMAINS = [
-    'agents',
-    'workflows',
-    'integrations',
-    'branding',
-    'providers',
-    'skills',
-  ];
-  const legacyDirsFound = LEGACY_FLAT_DOMAINS.filter((d) =>
+  // `workflows/`, …, `retention/`). Under the org-first layout these
+  // belong under `default/<domain>/` — the platform's resolvers won't
+  // read anything at the old paths. Same constant + same hard-fail as
+  // `tale deploy`: both commands either accept or refuse the layout
+  // identically. (Earlier this file warn-and-proceeded, which let a
+  // project pass `tale start` but fail `tale deploy`.)
+  const legacyDirsFound = [...LEGACY_DOMAIN_DIR_NAMES].filter((d) =>
     existsSync(join(projectDir, d)),
   );
   if (legacyDirsFound.length > 0) {
-    logger.warn(
-      `Legacy flat layout detected at project root: ${legacyDirsFound.map((d) => `${d}/`).join(', ')}`,
+    throw new Error(
+      `Legacy flat layout detected at project root: ${legacyDirsFound
+        .map((d) => `${d}/`)
+        .join(', ')}\n` +
+        '  The org-first layout expects these under `default/<domain>/` (or another org subtree).\n' +
+        '  Migrate with: `tale migrate config-layout` then `tale deploy --override-all -y`.\n' +
+        '  See docs/<locale>/self-hosted/operate/upgrades.md for the full runbook.',
     );
-    logger.info(
-      '  The org-first layout expects these under `default/<domain>/` (or another org subtree).',
-    );
-    logger.info(
-      '  Migrate with: `tale migrate config-layout` then `tale deploy --override-all -y`.',
-    );
-    logger.info(
-      '  See docs/<locale>/self-hosted/operate/upgrades.md for the full runbook.',
-    );
-    logger.blank();
   }
 
   await assertDockerAvailable();

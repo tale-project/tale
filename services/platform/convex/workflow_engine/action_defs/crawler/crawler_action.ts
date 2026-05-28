@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { createDebugLog } from '../../../lib/debug_log';
+import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type {
@@ -141,8 +142,13 @@ async function discoverUrls(
   clearTimeout(timeoutId);
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Crawler service error (${response.status}): ${errorText}`);
+    const errorText = await response.text().catch(() => '');
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
+      errorText,
+      '/api/v1/urls/discover',
+    );
   }
 
   const result: DiscoverUrlsRawData = await response.json();
@@ -199,8 +205,13 @@ async function fetchUrls(
   clearTimeout(timeoutId);
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Crawler service error (${response.status}): ${errorText}`);
+    const errorText = await response.text().catch(() => '');
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
+      errorText,
+      '/api/v1/urls/fetch',
+    );
   }
 
   const result: FetchUrlsData = await response.json();
@@ -250,8 +261,13 @@ async function queryUrls(
   clearTimeout(timeoutId);
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Crawler service error (${response.status}): ${errorText}`);
+    const errorText = await response.text().catch(() => '');
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
+      errorText,
+      `/api/v1/websites/${params.domain}/urls`,
+    );
   }
 
   const result: QueryUrlsRawData = await response.json();

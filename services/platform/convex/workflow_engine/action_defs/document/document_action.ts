@@ -582,6 +582,8 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       }
 
       case 'extract_docx_structured': {
+        // Cross-tenant gate: caller-supplied fileId could reference any
+        // org's storage; verify ownership before reading.
         const organizationId =
           typeof _variables.organizationId === 'string'
             ? _variables.organizationId
@@ -591,10 +593,20 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             'extract_docx_structured requires organizationId in workflow _variables.',
           );
         }
+        const ownsStorage = await ctx.runQuery(
+          internal.documents.internal_queries.verifyStorageIdsBelongToOrg,
+          { organizationId, storageIds: [params.fileId] },
+        );
+        if (!ownsStorage) {
+          throw new Error('fileId does not belong to this organization');
+        }
         return await extractDocxStructured(ctx, params.fileId, organizationId);
       }
 
       case 'apply_docx_structured': {
+        // Cross-tenant gate: templateFileId could reference any org's
+        // storage; verify ownership before reading + writing derived
+        // output back into the caller's library.
         const organizationId =
           typeof _variables.organizationId === 'string'
             ? _variables.organizationId
@@ -602,6 +614,15 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         if (!organizationId) {
           throw new Error(
             'apply_docx_structured requires organizationId in workflow _variables.',
+          );
+        }
+        const ownsTemplate = await ctx.runQuery(
+          internal.documents.internal_queries.verifyStorageIdsBelongToOrg,
+          { organizationId, storageIds: [params.templateFileId] },
+        );
+        if (!ownsTemplate) {
+          throw new Error(
+            'templateFileId does not belong to this organization',
           );
         }
 

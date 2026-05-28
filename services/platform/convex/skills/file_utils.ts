@@ -30,7 +30,13 @@ import {
   SKILL_NAME_REGEX,
   type SkillFrontmatter,
 } from '../../lib/shared/schemas/skills';
-import { sha256, validateOrgSlug, verifyPathWithinBase } from '../lib/file_io';
+import {
+  getConfigRoot,
+  safeJoinWithinDir,
+  sha256,
+  validateOrgSlug,
+  verifyPathWithinBase,
+} from '../lib/file_io';
 
 /**
  * Names reserved by the SKILL.md frontmatter schema. Duplicated here so
@@ -94,16 +100,6 @@ export function validateSkillSlug(slug: string): boolean {
   return true;
 }
 
-function getConfigRoot(): string {
-  const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return configDir;
-  throw new Error(
-    'TALE_CONFIG_DIR environment variable is not set. ' +
-      'Set it to the root config directory ' +
-      '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
-  );
-}
-
 /**
  * Resolve the skills directory for an organization. Org-first:
  * `${TALE_CONFIG_DIR}/<orgSlug>/skills/`.
@@ -112,23 +108,14 @@ export function resolveSkillsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  return path.join(getConfigRoot(), orgSlug, 'skills');
+  return path.join(getConfigRoot('skills'), orgSlug, 'skills');
 }
 
 export function resolveSkillDir(orgSlug: string, slug: string): string {
   if (!validateSkillSlug(slug)) {
     throw new Error(`Invalid skill slug: ${slug}`);
   }
-  const dir = resolveSkillsDir(orgSlug);
-  const resolved = path.resolve(dir, slug);
-  const expectedPrefix = path.resolve(dir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error(`Path traversal detected: ${slug}`);
-  }
-  return resolved;
+  return safeJoinWithinDir(resolveSkillsDir(orgSlug), slug);
 }
 
 export function resolveSkillMdPath(orgSlug: string, slug: string): string {
@@ -149,17 +136,11 @@ export function resolveSkillAssetPath(
 ): string {
   validateAssetRelPath(relPath);
   const skillDir = resolveSkillDir(orgSlug, slug);
-  const resolved = path.resolve(skillDir, relPath);
-  const expectedPrefix = path.resolve(skillDir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error(`Path traversal detected: ${relPath}`);
-  }
+  const resolved = safeJoinWithinDir(skillDir, relPath);
   // Case-fold the SKILL.md lockout — on case-insensitive filesystems (macOS
   // default, Windows) `skill.md` resolves to the same inode as `SKILL.md`
   // but a literal `===` compare would miss it.
+  const expectedPrefix = path.resolve(skillDir);
   const finalSegment = path.basename(resolved);
   if (
     path.dirname(resolved) === expectedPrefix &&

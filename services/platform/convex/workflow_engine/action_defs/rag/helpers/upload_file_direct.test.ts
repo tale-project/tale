@@ -150,9 +150,13 @@ describe('uploadFile', () => {
     );
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).name).toBe('UpstreamHttpError');
-    // Engineer-facing .message embeds the safe-summary + sanitized body.
+    // `.message` carries the safe summary only (the sanitized body
+    // lives on `.bodySnippet` so it does not cross the Convex client
+    // boundary as a default error toast).
     expect((err as Error).message).toMatch(/HTTP 500/);
-    expect((err as Error).message).toMatch(/something broke/);
+    expect((err as { bodySnippet?: string }).bodySnippet).toMatch(
+      /something broke/,
+    );
     // Retryable for 5xx — caller can decide whether to bounce.
     expect((err as { retryable?: boolean }).retryable).toBe(true);
   });

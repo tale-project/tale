@@ -9,6 +9,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { formatWebResults } from './format_web_results';
 import { formatWebsiteSummaries } from './format_website_summaries';
@@ -65,7 +66,13 @@ async function fetchSearch(
   });
 
   if (!response.ok) {
-    throw new Error(`Search API returned ${response.status}`);
+    const errorText = await response.text().catch(() => '');
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
+      errorText,
+      endpoint.replace(crawlerUrl, ''),
+    );
   }
 
   return response.json();
@@ -141,9 +148,9 @@ export async function searchPages(
   if (!results || results.length === 0) {
     debugLog('web:search_pages no results', { query: args.query });
 
-    const summaryText = ctx.organizationId
-      ? await formatWebsiteSummaries(ctx, ctx.organizationId)
-      : undefined;
+    // `ctx.organizationId` was already asserted truthy at line 123
+    // (the throw above), so the ternary's `: undefined` arm is dead.
+    const summaryText = await formatWebsiteSummaries(ctx, ctx.organizationId);
 
     if (summaryText) {
       return {
@@ -195,9 +202,8 @@ export async function searchPages(
   }));
 
   if (domainFallback) {
-    const summaryText = ctx.organizationId
-      ? await formatWebsiteSummaries(ctx, ctx.organizationId)
-      : undefined;
+    // ctx.organizationId is asserted truthy at line 123 — dead ternary removed.
+    const summaryText = await formatWebsiteSummaries(ctx, ctx.organizationId);
     const availableNote = summaryText
       ? `\n\nAvailable websites in the knowledge base:\n${summaryText}`
       : '';

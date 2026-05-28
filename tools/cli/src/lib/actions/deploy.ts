@@ -622,11 +622,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
   }
 }
 
-// Org slug shape — must match validateOrgSlug at services/platform/convex/lib/file_io.ts.
+// Org slug shape — must match validateOrgSlug at services/platform/lib/shared/constants/org-slug.ts.
 // Duplicated here because the CLI ships in a single compiled binary that does
 // not import convex sources at runtime.
 const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
-const MAX_ORG_SLUG_LENGTH = 64;
 
 // Top-level names under the project root that are legitimate per-domain
 // dirs from the OLD flat layout (`agents/`, `workflows/`, …). Under
@@ -634,7 +633,7 @@ const MAX_ORG_SLUG_LENGTH = 64;
 // it's a legacy project that hasn't been re-init'd. Refuse to push (would
 // silently land in `/app/data/agents/` etc., which the new resolvers don't
 // read) and point the operator at `tale init --force`.
-const LEGACY_DOMAIN_DIR_NAMES = new Set([
+export const LEGACY_DOMAIN_DIR_NAMES = new Set([
   'agents',
   'workflows',
   'integrations',
@@ -645,11 +644,10 @@ const LEGACY_DOMAIN_DIR_NAMES = new Set([
 ]);
 
 function isValidOrgSlug(name: string): boolean {
-  return (
-    name.length > 0 &&
-    name.length <= MAX_ORG_SLUG_LENGTH &&
-    ORG_SLUG_REGEX.test(name)
-  );
+  // Mirrors `validateOrgSlug` in shared/constants/org-slug.ts — no length
+  // cap (the canonical validator imposes none, and adding one here would
+  // silently drop legitimate long slugs from compose mounts).
+  return name === 'default' || ORG_SLUG_REGEX.test(name);
 }
 
 async function findOrgDirs(

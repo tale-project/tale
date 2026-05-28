@@ -85,12 +85,15 @@ The upgrade flow ties together every other operate page — backups are what mak
 
 Older Tale releases stored config in a flat tree at the workspace root (`agents/`, `workflows/`, `integrations/`, `branding/`, `providers/`, `skills/`). Current Tale uses an **org-first** layout where every org — including the canonical `default` — owns its own subtree: `<root>/<org>/<domain>/...`. The migration is opt-in and runs once per workspace. The new platform refuses to read the legacy paths; until you migrate, your provider secrets and customizations live in directories the runtime no longer looks at.
 
-The migration is three commands:
+The migration is three commands. The convex container from the **old** image must still be running for step 1 — keep the platform up on the old version, then run step 1 against that running container before upgrading.
 
 ```bash
-# 1. Copy provider secrets (and other config) from the flat layout into
-#    `default/<domain>/...`. cp not mv, so the old paths stay intact in
-#    case you need to roll back.
+# 1. Copy provider secrets from the flat layout into
+#    `default/providers/...`. cp not mv, so the old paths stay intact
+#    in case you need to roll back. Scope is provider secrets only;
+#    every other domain (agents, workflows, integrations, skills,
+#    branding, retention) is re-seeded server-side by step 2 from the
+#    builtin catalog.
 tale migrate config-layout
 
 # 2. Recreate the Convex container against the org-first volume layout
@@ -100,8 +103,8 @@ tale migrate config-layout
 tale deploy --override-all -y
 
 # 3. Once you have verified the new layout is intact, remove the legacy
-#    paths. sha-verifies that the new file matches the old before
-#    unlinking; refuses to delete on any mismatch.
+#    paths. Verifies that the new file matches the old byte-for-byte
+#    before unlinking; refuses to delete on any mismatch.
 tale migrate config-layout --cleanup-old
 ```
 
@@ -117,4 +120,4 @@ After step 3 (`--cleanup-old`), the legacy paths are gone. Downgrade still re-se
 
 ### What if I skip step 1?
 
-The Convex container will detect leftover flat-layout dirs on boot and print a warning to its logs naming the directories and pointing at this runbook. The deployment will start up, but reads from those directories return empty and writes go to the new (empty) org-first paths. The fix is still steps 1 + 2 — running them after the warning works exactly the same as running them up front.
+`tale deploy` and `tale start` both refuse to run when they detect leftover flat-layout dirs (`agents/`, `workflows/`, `integrations/`, `branding/`, `providers/`, `skills/`, `retention/`) at the workspace root. The error names the offending directories and points at this runbook. The fix is steps 1 + 2 in order; there is no "deploy anyway and ignore the legacy paths" mode — the runtime resolvers do not read those paths, so booting without migrating would leave the platform with empty config.

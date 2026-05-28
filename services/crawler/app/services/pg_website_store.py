@@ -352,8 +352,21 @@ class PgWebsiteStoreManager:
                 domain,
                 org_slug,
             )
-            # asyncpg returns "DELETE N" as the tag; "DELETE 0" means no row matched.
-            removed_membership = deleted != "DELETE 0"
+            # asyncpg returns "DELETE N" as the documented command tag.
+            # Parse the integer rather than comparing the literal string
+            # so a future tag-format change (e.g. extra whitespace, OID
+            # column on older Postgres) doesn't silently flip the flag.
+            try:
+                removed_membership = int(deleted.rsplit(" ", 1)[-1]) > 0
+            except (ValueError, AttributeError):
+                # Defensive — should be unreachable given asyncpg's
+                # contract — but failing loud is better than silently
+                # mis-classifying.
+                logger.warning(
+                    "[begin_delete] unexpected command tag from asyncpg: %r",
+                    deleted,
+                )
+                removed_membership = False
             remaining = await conn.fetchval(
                 "SELECT COUNT(*) FROM website_org_memberships WHERE domain = $1",
                 domain,

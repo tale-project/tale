@@ -20,8 +20,8 @@ export function createMigrateCommand(): Command {
     .option('--dry-run', 'Preview moves without changing files', false)
     .option(
       '--cleanup-old',
-      'After verifying new == old (sha256), remove the old-path secrets. ' +
-        'Run only after the new deployment is healthy.',
+      'After verifying new == old (byte-for-byte), remove the old-path ' +
+        'secrets. Run only after the new deployment is healthy.',
       false,
     )
     .action(async (opts: { dryRun?: boolean; cleanupOld?: boolean }) => {

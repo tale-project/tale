@@ -28,7 +28,7 @@ async def search(
     try:
         start_time = time.time()
 
-        results = await rag_service.search(
+        results, search_usage = await rag_service.search(
             org_slug,
             query=request.query,
             top_k=request.top_k,
@@ -51,8 +51,9 @@ async def search(
             for r in results
         ]
 
+        # `search_usage` is the per-call value returned alongside results
+        # — no shared singleton, no cross-request mis-attribution.
         usage = None
-        search_usage = getattr(rag_service, "last_search_usage", None)
         if search_usage:
             usage = UsageInfo(
                 input_tokens=search_usage.prompt_tokens,

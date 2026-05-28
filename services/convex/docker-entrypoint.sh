@@ -6,6 +6,13 @@
 # noise it would catch.
 set -eo pipefail
 
+# Default for the seed-force flag. The script references `$FORCE_SEED`
+# in several places (`[ "$FORCE_SEED" = "true" ]`); without this
+# default it works only because `set -u` is intentionally off — any
+# future audit that enables nounset would break startup. Pin the
+# default here so the script stays correct under both modes.
+FORCE_SEED="${FORCE_SEED:-false}"
+
 # ============================================================================
 # Tale Convex Service Entrypoint
 # ----------------------------------------------------------------------------
@@ -44,7 +51,13 @@ if [ "$(id -u)" = '0' ]; then
   # org seed target) up front; per-domain dirs are created on-demand by
   # `run_seed` and `scaffoldNewOrganization`.
   mkdir -p "$data_dir/convex" "$data_dir/default"
-  chown -R app:app "$data_dir"
+  # Only chown files NOT already owned by `app:app`. On large volumes
+  # (RAG uploads, Convex storage) the prior unconditional `chown -R`
+  # walked every inode every boot, adding tens of seconds and racing
+  # with backend writes during fast restart loops. `find ... -exec
+  # chown {} +` is idempotent and short-circuits once the volume is
+  # consistent.
+  find "$data_dir" \! -user app -exec chown app:app {} +
 
   # ----------------------------------------------------------------------------
   # SSRF egress firewall (defense-in-depth)
@@ -240,8 +253,32 @@ wait_for_http() {
 }
 
 # Extract DB host:port from POSTGRES_URL for a TCP probe.
-db_host=$(echo "$POSTGRES_URL" | sed -E 's#^postgres(ql)?://([^@/]+@)?([^:/?]+).*#\3#')
-db_port=$(echo "$POSTGRES_URL" | sed -nE 's#^postgres(ql)?://([^@/]+@)?[^:/?]+:([0-9]+).*#\3#p')
+#
+# Strip the scheme + optional `user:pass@` userinfo (greedy match up to
+# the LAST `@`, which handles passwords containing `@` correctly), then
+# special-case the bracketed IPv6 form `[::1]:5432` before falling
+# through to the bare `host:port` form.
+hostport="${POSTGRES_URL#*://}"
+case "$hostport" in
+  *@*) hostport="${hostport##*@}" ;;
+esac
+hostport="${hostport%%/*}"
+hostport="${hostport%%\?*}"
+case "$hostport" in
+  '['*']'*)
+    db_host="${hostport#[}"; db_host="${db_host%%]*}"
+    tail="${hostport#*]}"
+    db_port="${tail#:}"
+    ;;
+  *:*)
+    db_host="${hostport%%:*}"
+    db_port="${hostport##*:}"
+    ;;
+  *)
+    db_host="$hostport"
+    db_port=""
+    ;;
+esac
 db_port="${db_port:-5432}"
 if [ -n "$db_host" ]; then
   wait_for_port "$db_host" "$db_port" 60 "PostgreSQL" || exit 1
@@ -250,8 +287,13 @@ fi
 # ============================================================================
 # Prepare working directories
 # ============================================================================
-mkdir -p /app/data/convex
-export TMPDIR=/app/data/convex/tmp
+# Single source of truth — every path below derives from `data_dir` so
+# an operator who sets `TALE_CONFIG_DIR` to a non-default mount gets
+# consistent behavior. Previously this block hardcoded `/app/data/...`
+# despite the root-priv chown loop above respecting TALE_CONFIG_DIR.
+data_dir="${TALE_CONFIG_DIR:-/app/data}"
+mkdir -p "$data_dir/convex"
+export TMPDIR="$data_dir/convex/tmp"
 mkdir -p "$TMPDIR"
 
 # Orphan video-link tmp dirs from crashed/killed ingest_video_link.ts actions.
@@ -287,8 +329,8 @@ fi
 # an older binary that doesn't recognize this marker re-seeds (idempotently)
 # into its expected old paths on a hypothetical downgrade.
 # ----------------------------------------------------------------------------
-seed_marker="/app/data/.seeded-${TALE_VERSION:-dev}-orgfirst"
-data_dir="/app/data"
+seed_marker="$data_dir/.seeded-${TALE_VERSION:-dev}-orgfirst"
+# `data_dir` already set above (single source of truth); no re-assign.
 
 # Crash-safe file copy: write to a sibling tmp file then rename to dest.
 # `cp` itself is non-atomic; the value is that an interrupted run leaves
@@ -345,13 +387,16 @@ run_seed() {
       local history_dir="$workflows_dir/.history/$flat_slug"
 
       if [ "$FORCE_SEED" = "true" ]; then
-        mkdir -p "$dest_dir"; atomic_cp "$src" "$dest"; echo "   ✓ Seeded workflow $rel_path (forced)"; continue
+        # `&&` (not `;`) so a failed mkdir aborts the copy attempt
+        # — otherwise atomic_cp runs against a missing dir and the
+        # diagnostic attributes the fault to the copy.
+        mkdir -p "$dest_dir" && atomic_cp "$src" "$dest" && echo "   ✓ Seeded workflow $rel_path (forced)"; continue
       fi
       if [ -f "$dest" ]; then echo "   ⏭ Skipping workflow $rel_path (already exists)"; continue; fi
       if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
         echo "   ⏭ Skipping workflow $rel_path (user has modifications in .history)"; continue
       fi
-      mkdir -p "$dest_dir"; atomic_cp "$src" "$dest"; echo "   ✓ Seeded workflow $rel_path"
+      mkdir -p "$dest_dir" && atomic_cp "$src" "$dest" && echo "   ✓ Seeded workflow $rel_path"
     done
   fi
 

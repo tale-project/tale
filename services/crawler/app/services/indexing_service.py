@@ -162,7 +162,11 @@ VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8, $9, $10)"""
 
         async def _store_chunks(conn: asyncpg.Connection) -> None:
             await conn.execute(_UPSERT_WEBSITE_URL, domain, url, title, content_hash, filtered_hash)
-            await conn.execute("DELETE FROM chunks WHERE url = $1", url)
+            # Scope by domain too: chunks PK is (domain, url, chunk_index)
+            # so two different domains hosting the same URL path
+            # (e.g. `/about`) would over-delete each other's chunks
+            # without this filter.
+            await conn.execute("DELETE FROM chunks WHERE domain = $1 AND url = $2", domain, url)
             for i in range(0, len(chunk_rows), _EXECUTEMANY_BATCH_SIZE):
                 await conn.executemany(_chunk_insert, chunk_rows[i : i + _EXECUTEMANY_BATCH_SIZE])
 
@@ -250,8 +254,19 @@ VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8, $9, $10)"""
             "total_chunks": total_chunks,
         }
 
-    async def delete_page_chunks(self, url: str) -> int:
+    async def delete_page_chunks(self, url: str, domain: str | None = None) -> int:
+        # `domain` is optional for backwards compatibility — existing
+        # callers that don't pass it get the wider (URL-only) delete.
+        # New callers should pass it so two domains sharing a path
+        # don't over-delete each other's chunks.
         async with acquire_with_retry(self._pool) as conn:
-            result = await conn.execute("DELETE FROM chunks WHERE url = $1", url)
+            if domain is None:
+                result = await conn.execute("DELETE FROM chunks WHERE url = $1", url)
+            else:
+                result = await conn.execute(
+                    "DELETE FROM chunks WHERE domain = $1 AND url = $2",
+                    domain,
+                    url,
+                )
             count = int(result.split()[-1]) if result else 0
             return count

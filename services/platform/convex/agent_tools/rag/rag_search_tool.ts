@@ -21,7 +21,10 @@ import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { internal } from '../../_generated/api';
 import { stripReservedPromptTags } from '../../lib/agent_response/sanitize_prompt';
 import { createDebugLog } from '../../lib/debug_log';
-import { UpstreamHttpError } from '../../lib/errors/upstream_http_error';
+import {
+  isUpstreamHttpError,
+  UpstreamHttpError,
+} from '../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import { ragFetch } from '../../lib/helpers/rag_config';
 import { toId } from '../../lib/type_cast_helpers';
@@ -575,6 +578,23 @@ RESPONSE (list_indexed):
           }),
         };
       } catch (error) {
+        // Mirror the retrieve path (see line 297) — return the safe
+        // summary instead of throwing so the agent can recover with a
+        // user-presentable message. Throwing here used to propagate
+        // `error.message` (which once contained the unsanitized body
+        // snippet) into the agent runtime and onward to the UI toast.
+        if (isUpstreamHttpError(error)) {
+          console.error('[tool:rag_search] upstream error', {
+            query: args.query,
+            status: error.status,
+            endpoint: error.endpoint,
+            safeMessage: error.safeMessage,
+            // Engineer-only: include the scrubbed body excerpt in logs
+            // so triage still has the upstream's reason.
+            bodySnippet: error.bodySnippet,
+          });
+          return { success: false, response: error.safeMessage };
+        }
         console.error('[tool:rag_search] error', {
           query: args.query,
           error: error instanceof Error ? error.message : String(error),

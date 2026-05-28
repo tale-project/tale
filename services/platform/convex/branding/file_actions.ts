@@ -58,11 +58,14 @@ async function requireBrandingAdmin(ctx: ActionCtx): Promise<void> {
   if (!authUser) throw new Error('Unauthenticated');
 
   const trustedData = await getTrustedAuthData(ctx);
-  if (trustedData) {
-    if (!isAdmin(trustedData.trustedRole)) {
-      throw new Error('Only admins can modify branding');
-    }
-    return;
+  // Trusted-headers mode: `trustedRole` is a JWT claim sourced from an
+  // upstream IdP. A user marked as admin in SOME org (or globally)
+  // would previously short-circuit past the per-org membership check
+  // and mutate global branding. Branding is pinned to the `default`
+  // org's admin set, so the trusted-role fast-fail must still defer
+  // to `isCallerAdmin` for the actual membership lookup.
+  if (trustedData && !isAdmin(trustedData.trustedRole)) {
+    throw new Error('Only admins can modify branding');
   }
 
   const isUserAdmin = await ctx.runQuery(
@@ -232,7 +235,9 @@ export const saveImage = action({
     const imagesDir = resolveImagesDir('default');
     await mkdir(imagesDir, { recursive: true });
 
-    // Remove any existing file for this image type (may have different extension)
+    // Remove any existing file for this image type (may have different
+    // extension). Tolerate ENOENT (first-write); log everything else
+    // so permission/IO bugs don't leak stale image files unnoticed.
     try {
       const existing = await readdir(imagesDir);
       for (const entry of existing) {
@@ -240,8 +245,10 @@ export const saveImage = action({
           await unlink(path.join(imagesDir, entry));
         }
       }
-    } catch {
-      // Directory may not exist yet
+    } catch (err) {
+      if (errnoCode(err) !== 'ENOENT') {
+        console.warn(`[saveImage] readdir ${imagesDir} failed:`, err);
+      }
     }
 
     const filePath = resolveImagePath('default', filename);
@@ -271,8 +278,10 @@ export const deleteImage = action({
           await unlink(path.join(imagesDir, entry));
         }
       }
-    } catch {
-      // Directory may not exist
+    } catch (err) {
+      if (errnoCode(err) !== 'ENOENT') {
+        console.warn(`[deleteImage] readdir ${imagesDir} failed:`, err);
+      }
     }
 
     return null;

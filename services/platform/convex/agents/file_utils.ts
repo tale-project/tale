@@ -13,7 +13,13 @@ import {
   agentJsonSchema,
   type SkillBindingResolvedEntry,
 } from '../../lib/shared/schemas/agents';
-import { serializeJson, sha256, validateOrgSlug } from '../lib/file_io';
+import {
+  getConfigRoot,
+  safeJoinWithinDir,
+  serializeJson,
+  sha256,
+  validateOrgSlug,
+} from '../lib/file_io';
 import { validateAgentName } from './validators';
 
 export { sha256, validateAgentName };
@@ -125,21 +131,11 @@ export function parseAgentJson(content: string): AgentJsonConfig {
   return result.data;
 }
 
-function getConfigRoot(): string {
-  const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return configDir;
-  throw new Error(
-    'TALE_CONFIG_DIR environment variable is not set. ' +
-      'Set it to the root config directory ' +
-      '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
-  );
-}
-
 export function resolveAgentsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  return path.join(getConfigRoot(), orgSlug, 'agents');
+  return path.join(getConfigRoot('agents'), orgSlug, 'agents');
 }
 
 export function resolveAgentFilePath(
@@ -149,16 +145,7 @@ export function resolveAgentFilePath(
   if (!validateAgentName(agentName)) {
     throw new Error(`Invalid agent name: ${agentName}`);
   }
-  const dir = resolveAgentsDir(orgSlug);
-  const resolved = path.resolve(dir, `${agentName}.json`);
-  const expectedPrefix = path.resolve(dir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error(`Path traversal detected: ${agentName}`);
-  }
-  return resolved;
+  return safeJoinWithinDir(resolveAgentsDir(orgSlug), `${agentName}.json`);
 }
 
 export function resolveHistoryDir(orgSlug: string, agentName: string): string {

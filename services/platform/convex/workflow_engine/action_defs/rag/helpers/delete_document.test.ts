@@ -79,15 +79,27 @@ describe('deleteDocumentById', () => {
     expect(result.message).toBe('Deleted 2 docs');
   });
 
-  it('returns error result on HTTP failure', async () => {
-    mockFetch({ detail: 'service error' }, 500);
+  it('returns structured failure on non-retryable HTTP error', async () => {
+    // 400 is non-retryable per `isRetryableStatus`; the helper folds
+    // it into `{ success: false }` rather than re-throwing.
+    mockFetch({ detail: 'bad request' }, 400);
 
     const result = await deleteDocumentById({
       fileId: 'doc-fail',
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('500');
+    expect(result.error).toMatch(/HTTP 400|400/);
+  });
+
+  it('re-throws retryable upstream failures so callers can retry', async () => {
+    // 5xx is retryable; folding it into `{ success: false }` would
+    // mask transient RAG outages as permanent retention failures.
+    mockFetch({ detail: 'service error' }, 500);
+
+    await expect(
+      deleteDocumentById({ fileId: 'doc-fail-5xx' }),
+    ).rejects.toThrow(/HTTP 500|unavailable/);
   });
 
   // Round-2 review HIGH (E.4.2): retention re-runs and cascade RAG

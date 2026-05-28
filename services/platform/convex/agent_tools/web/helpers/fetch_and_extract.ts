@@ -9,6 +9,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../../lib/debug_log';
+import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
 import type { WebFetchUrlResult, WebFetchExtractApiResponse } from './types';
@@ -30,7 +31,6 @@ export async function fetchAndExtract(
   if (!ctx.organizationId) {
     throw new Error('fetch_and_extract requires organizationId in ToolCtx.');
   }
-  const orgSlug = await orgSlugFromId(ctx, ctx.organizationId);
 
   debugLog('tool:web:fetch_and_extract start', {
     url: args.url,
@@ -38,6 +38,12 @@ export async function fetchAndExtract(
   });
 
   try {
+    // Resolve the slug INSIDE the try so a lookup failure folds into
+    // the same `{ success: false, error }` shape every other failure
+    // path returns. Earlier this happened outside the try, which
+    // threw raw Error past the tool's contract.
+    const orgSlug = await orgSlugFromId(ctx, ctx.organizationId);
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 300_000);
 
@@ -58,8 +64,13 @@ export async function fetchAndExtract(
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Crawler service error: ${response.status} ${errorText}`);
+      const errorText = await response.text().catch(() => '');
+      throw UpstreamHttpError.fromResponse(
+        'crawler',
+        response,
+        errorText,
+        '/api/v1/web/fetch-and-extract',
+      );
     }
 
     const result = await fetchJson<WebFetchExtractApiResponse>(response);

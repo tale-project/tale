@@ -205,7 +205,7 @@ describe('fetchDocumentComparison', () => {
     );
   });
 
-  it('throws on RAG 404', async () => {
+  it('throws UpstreamHttpError "not found" on RAG 404', async () => {
     globalThis.fetch = Object.assign(
       vi
         .fn()
@@ -213,12 +213,14 @@ describe('fetchDocumentComparison', () => {
       { preconnect: vi.fn() },
     );
 
+    // safeMessageFor maps 404 to a "returned not found" summary; the
+    // upstream body lives only on `.bodySnippet`.
     await expect(
       fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
-    ).rejects.toThrow('Document not found during comparison');
+    ).rejects.toThrow(/not found/);
   });
 
-  it('throws on RAG 400', async () => {
+  it('throws UpstreamHttpError with HTTP 400 summary on RAG 400', async () => {
     globalThis.fetch = Object.assign(
       vi
         .fn()
@@ -230,7 +232,7 @@ describe('fetchDocumentComparison', () => {
 
     await expect(
       fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
-    ).rejects.toThrow('Invalid comparison request');
+    ).rejects.toThrow(/HTTP 400/);
   });
 
   it('throws with status on RAG 500', async () => {

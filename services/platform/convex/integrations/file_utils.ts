@@ -13,7 +13,13 @@ import {
   integrationJsonSchema,
   type IntegrationJsonConfig,
 } from '../../lib/shared/schemas/integrations';
-import { serializeJson, sha256, validateOrgSlug } from '../lib/file_io';
+import {
+  getConfigRoot,
+  safeJoinWithinDir,
+  serializeJson,
+  sha256,
+  validateOrgSlug,
+} from '../lib/file_io';
 
 export { sha256 };
 
@@ -44,16 +50,6 @@ export function validateIntegrationSlug(slug: string): boolean {
   return INTEGRATION_SLUG_REGEX.test(slug);
 }
 
-function getConfigRoot(): string {
-  const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return configDir;
-  throw new Error(
-    'TALE_CONFIG_DIR environment variable is not set. ' +
-      'Set it to the root config directory ' +
-      '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
-  );
-}
-
 /**
  * Resolve the integrations directory for an organization. Org-first:
  * `${TALE_CONFIG_DIR}/<orgSlug>/integrations/`.
@@ -62,7 +58,7 @@ export function resolveIntegrationsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  return path.join(getConfigRoot(), orgSlug, 'integrations');
+  return path.join(getConfigRoot('integrations'), orgSlug, 'integrations');
 }
 
 /**
@@ -72,16 +68,7 @@ export function resolveIntegrationDir(orgSlug: string, slug: string): string {
   if (!validateIntegrationSlug(slug)) {
     throw new Error(`Invalid integration slug: ${slug}`);
   }
-  const dir = resolveIntegrationsDir(orgSlug);
-  const resolved = path.resolve(dir, slug);
-  const expectedPrefix = path.resolve(dir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error(`Path traversal detected: ${slug}`);
-  }
-  return resolved;
+  return safeJoinWithinDir(resolveIntegrationsDir(orgSlug), slug);
 }
 
 export function resolveConfigPath(orgSlug: string, slug: string): string {

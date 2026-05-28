@@ -130,18 +130,11 @@ export async function fetchDocumentComparison(
       timeoutMs: FETCH_TIMEOUT_MS,
     });
 
-    if (response.status === 404) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `Document not found during comparison: ${errorText || 'unknown document'}`,
-      );
-    }
-
-    if (response.status === 400) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(`Invalid comparison request: ${errorText}`);
-    }
-
+    // All non-2xx paths now route through UpstreamHttpError so the
+    // (potentially body-embedded) upstream error text gets sanitized
+    // and truncated. The status-specific messaging is already encoded
+    // in `safeMessageFor` (404 → "returned not found", 4xx → "returned
+    // HTTP …", 5xx → "is unavailable").
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
       throw UpstreamHttpError.fromResponse(

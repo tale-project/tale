@@ -77,6 +77,36 @@ Focus on: image type (photo/chart/diagram), main subject, and key visible text.
 Be extremely concise - omit minor details."""
 
 
+_CONFIG_CHECK_INTERVAL = 15  # seconds
+
+
+class _OrgVisionState:
+    __slots__ = ("client", "config", "last_check")
+
+    def __init__(
+        self,
+        client: AsyncOpenAI,
+        config: tuple,
+        last_check: float,
+    ) -> None:
+        self.client = client
+        self.config = config
+        self.last_check = last_check
+
+
+# Per-org cached AsyncOpenAI clients for vision config. Keyed by org slug
+# so two orgs' requests never share `_client` / `_client_config` (which
+# would route org B's traffic through org A's API key when within the
+# TTL — the bug this refactor fixes).
+_vision_states: dict[str, _OrgVisionState] = {}
+
+# Same shape for chat config (used by `process_pages_with_llm`). Two
+# orgs may legitimately have different chat providers; without an
+# explicit per-org cache, the prior code rebuilt the client on every
+# call and leaked the httpx pool.
+_chat_states: dict[str, _OrgVisionState] = {}
+
+
 async def _safe_close_client(client: AsyncOpenAI) -> None:
     """Close an old client after a grace period for in-flight requests."""
     await asyncio.sleep(30)
@@ -86,50 +116,93 @@ async def _safe_close_client(client: AsyncOpenAI) -> None:
         logger.opt(exception=True).warning("Failed to close old vision client")
 
 
+def _get_or_build_client(
+    states: dict[str, _OrgVisionState],
+    org_slug: str,
+    config_getter,
+    *,
+    timeout: float,
+    label: str,
+) -> AsyncOpenAI:
+    """Look up or build the per-org AsyncOpenAI client.
+
+    Mirrors `embedding_service.get_embedding_service` so behavior is
+    consistent across crawler services:
+      - Within TTL: return cached client without re-reading config.
+      - Config read fails: keep the existing client; never silently
+        downgrade to an empty key.
+      - Config changed: build a new client, schedule the old one to
+        close after a grace period so in-flight calls finish.
+    """
+    state = states.get(org_slug)
+    now = time.monotonic()
+    if state is not None and (now - state.last_check) < _CONFIG_CHECK_INTERVAL:
+        return state.client
+
+    try:
+        config = config_getter(org_slug)  # (base_url, api_key, model)
+    except (ValueError, OSError):
+        if state is not None:
+            logger.opt(exception=True).warning(
+                "Config read failed for org '{}', keeping current {} client",
+                org_slug,
+                label,
+            )
+            state.last_check = now
+            return state.client
+        raise
+
+    if state is not None and config == state.config:
+        state.last_check = now
+        return state.client
+
+    base_url, api_key, model = config
+
+    # Never downgrade to empty key
+    if not api_key and state is not None:
+        logger.warning(
+            "Skipping {} reload for org '{}': new config has empty API key",
+            label,
+            org_slug,
+        )
+        state.last_check = now
+        return state.client
+
+    old_client = state.client if state is not None else None
+    new_client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+    states[org_slug] = _OrgVisionState(
+        client=new_client,
+        config=config,
+        last_check=now,
+    )
+
+    if old_client is not None:
+        logger.info("{} rebuilt for org '{}': model={}", label, org_slug, model)
+        with contextlib.suppress(RuntimeError):
+            asyncio.get_running_loop().create_task(_safe_close_client(old_client))
+    else:
+        logger.info("{} created for org '{}': model={}", label, org_slug, model)
+
+    return new_client
+
+
 class VisionClient:
-    """Async client for OpenAI Vision API calls."""
+    """Async client for OpenAI Vision API calls.
 
-    _CONFIG_CHECK_INTERVAL = 15  # seconds
-
-    def __init__(self) -> None:
-        self._client: AsyncOpenAI | None = None
-        self._client_config: tuple | None = None
-        self._last_config_check: float = 0
+    Stateless wrapper: per-org AsyncOpenAI instances live in the
+    module-level `_vision_states` dict, looked up on every call via
+    `get_active_org()`. This prevents the previous singleton from
+    handing org A's client to org B's request inside the TTL window.
+    """
 
     def _get_client(self) -> AsyncOpenAI:
-        """Get or create the OpenAI client, rebuilding if config changed."""
-        now = time.monotonic()
-        if self._client is not None and (now - self._last_config_check) < self._CONFIG_CHECK_INTERVAL:
-            return self._client
-
-        self._last_config_check = now
-        try:
-            config = settings.get_vision_config(get_active_org())  # (base_url, api_key, model)
-        except (ValueError, OSError):
-            if self._client is not None:
-                logger.opt(exception=True).warning("Config read failed, keeping current vision client")
-                return self._client
-            raise
-
-        if config == self._client_config and self._client is not None:
-            return self._client
-
-        base_url, api_key, _model = config
-
-        # Never downgrade to empty key
-        if not api_key and self._client is not None:
-            logger.warning("Skipping vision client reload: new config has empty API key")
-            return self._client
-
-        old = self._client
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=120.0)
-        self._client_config = config
-
-        if old is not None:
-            logger.info("Vision client rebuilt: model={}", _model)
-            with contextlib.suppress(RuntimeError):
-                asyncio.get_running_loop().create_task(_safe_close_client(old))
-        return self._client
+        return _get_or_build_client(
+            _vision_states,
+            get_active_org(),
+            settings.get_vision_config,
+            timeout=120.0,
+            label="vision client",
+        )
 
     async def ocr_image(
         self,
@@ -370,13 +443,18 @@ async def process_pages_with_llm(
 
     logger.info(f"LLM processing: {total_chars} chars total, chunking at {max_chars_per_chunk} chars")
 
-    base_url, api_key, chat_model = settings.get_chat_config(get_active_org())
-    client = AsyncOpenAI(
-        api_key=api_key,
-        base_url=base_url,
+    org_slug = get_active_org()
+    client = _get_or_build_client(
+        _chat_states,
+        org_slug,
+        settings.get_chat_config,
         timeout=300.0,
+        label="chat client",
     )
-    resolved_model = model or chat_model
+    # `resolved_model` is read from the freshly-cached config to ensure it
+    # matches the client we just got back from the per-org cache.
+    cached_chat_model = _chat_states[org_slug].config[2]
+    resolved_model = model or cached_chat_model
     semaphore = asyncio.Semaphore(max_concurrent)
 
     chunks = _chunk_by_chars(full_text, max_chars_per_chunk)

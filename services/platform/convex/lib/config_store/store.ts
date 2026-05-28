@@ -31,7 +31,13 @@ import path from 'node:path';
 
 import type { z } from 'zod/v4';
 
-import { atomicWrite, readJsonFile, validateOrgSlug } from '../file_io';
+import {
+  atomicWrite,
+  getConfigRoot,
+  readJsonFile,
+  safeJoinWithinDir,
+  validateOrgSlug,
+} from '../file_io';
 
 const MAX_FILE_SIZE_BYTES = 256 * 1024;
 
@@ -48,17 +54,19 @@ export interface ConfigStore<T> {
   list(): Promise<Array<{ orgSlug: string }>>;
 }
 
-function getConfigRoot(area: string): string {
-  const configDir = process.env.TALE_CONFIG_DIR;
-  if (!configDir) {
+// Restrict `area` to a flat lowercase identifier so it cannot contain
+// path separators / `..` and silently escape the per-org subdir. This is
+// a factory-time invariant: callers of `createFileConfigStore` hard-code
+// the area string (e.g. `'retention'`), so any failure here is a
+// developer-time misuse, never user-supplied input.
+const AREA_REGEX = /^[a-z][a-z0-9_-]*$/;
+
+function assertValidArea(area: string): void {
+  if (!AREA_REGEX.test(area)) {
     throw new Error(
-      `TALE_CONFIG_DIR environment variable is not set. ` +
-        `Set TALE_CONFIG_DIR in .env to the root config directory ` +
-        `(e.g., TALE_CONFIG_DIR=/path/to/tale/examples) so ${area} ` +
-        `can be resolved.`,
+      `Invalid config_store area "${area}". Must match ${AREA_REGEX.source}.`,
     );
   }
-  return configDir;
 }
 
 function resolveFilePath(area: string, orgSlug: string): string {
@@ -67,16 +75,7 @@ function resolveFilePath(area: string, orgSlug: string): string {
   }
   const root = getConfigRoot(area);
   const dir = path.join(root, orgSlug);
-  const fileName = `${area}.json`;
-  const resolved = path.resolve(dir, fileName);
-  const expectedPrefix = path.resolve(dir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error(`Path traversal detected: ${orgSlug}`);
-  }
-  return resolved;
+  return safeJoinWithinDir(dir, `${area}.json`);
 }
 
 /**
@@ -88,6 +87,7 @@ export function createFileConfigStore<T>(
   area: string,
   schema: z.ZodType<T>,
 ): ConfigStore<T> {
+  assertValidArea(area);
   const parse = (content: string): T => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON before Zod validation
     const parsed = JSON.parse(content) as unknown;

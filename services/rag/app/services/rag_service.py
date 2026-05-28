@@ -60,6 +60,12 @@ SYSTEM_PROMPT = (
 
 _CONFIG_CHECK_INTERVAL = 15  # seconds
 
+# Bound the per-org-lock dict so a misbehaving caller cannot grow the
+# table without limit by spraying random slugs. Real deployments have
+# tens, not thousands, of orgs; 256 is comfortably above any realistic
+# concurrent-init fan-out while still capping memory.
+_ORG_LOCKS_MAX = 256
+
 
 _background_tasks: set[asyncio.Task[None]] = set()
 
@@ -97,14 +103,15 @@ class RagService:
         self._init_lock = asyncio.Lock()
         self._pool: asyncpg.Pool | None = None
         # Embedding dimensions are pinned globally; see module docstring.
+        # `_pin_dim_lock` serializes the first-write race between two orgs
+        # initializing concurrently (which previously each held their own
+        # per-org lock and both raced past `if _pinned_dims is None`).
         self._pinned_dims: int | None = None
+        self._pin_dim_lock = asyncio.Lock()
         # Per-org client cache and per-org locks (so concurrent first-calls
         # for the same org don't both build clients).
         self._org_clients: dict[str, _OrgClients] = {}
         self._org_locks: dict[str, asyncio.Lock] = {}
-        # Per-search-call usage propagation — set by search(), read by
-        # generate(). Single-threaded asyncio so no need for per-org isolation.
-        self.last_search_usage: Any = None
 
     async def initialize(self) -> None:
         """Initialize the shared database pool.
@@ -134,6 +141,17 @@ class RagService:
     def _get_org_lock(self, org_slug: str) -> asyncio.Lock:
         lock = self._org_locks.get(org_slug)
         if lock is None:
+            # Bounded LRU eviction: never grow past `_ORG_LOCKS_MAX`. Evict
+            # the oldest entry (Python dicts preserve insertion order); the
+            # evicted lock is safe to drop because either no caller holds
+            # it (it was idle), or the caller still has a reference and
+            # will continue using it — we just lose the "shared lock"
+            # property for that org until the next call recreates it.
+            if len(self._org_locks) >= _ORG_LOCKS_MAX:
+                # `next(iter(...))` returns the oldest key without
+                # building a list.
+                oldest = next(iter(self._org_locks))
+                self._org_locks.pop(oldest, None)
             lock = asyncio.Lock()
             self._org_locks[org_slug] = lock
         return lock
@@ -191,21 +209,27 @@ class RagService:
 
         _b, _a, _m, dims = settings.get_embedding_config(org_slug)
 
-        if self._pinned_dims is None:
-            self._pinned_dims = dims
-            await pin_embedding_dimensions(self._pool, dims)
-            logger.info(
-                "Pinned RAG embedding dimensions to {} (set by org '{}')",
-                dims,
-                org_slug,
-            )
-        elif dims != self._pinned_dims:
-            raise ValueError(
-                f"Org '{org_slug}' embedding dimensions ({dims}) do not match the "
-                f"pinned RAG schema dimensions ({self._pinned_dims}). All orgs "
-                f"sharing this RAG instance must use the same embedding model "
-                f"dimensions. Reconcile provider configs or run RAG per-org."
-            )
+        # Serialize the first-write so two concurrent org inits don't
+        # race past `_pinned_dims is None` with different dims and both
+        # call `pin_embedding_dimensions`. Subsequent calls take the
+        # lock too but find `_pinned_dims` already set and fall through
+        # to the mismatch check.
+        async with self._pin_dim_lock:
+            if self._pinned_dims is None:
+                self._pinned_dims = dims
+                await pin_embedding_dimensions(self._pool, dims)
+                logger.info(
+                    "Pinned RAG embedding dimensions to {} (set by org '{}')",
+                    dims,
+                    org_slug,
+                )
+            elif dims != self._pinned_dims:
+                raise ValueError(
+                    f"Org '{org_slug}' embedding dimensions ({dims}) do not match the "
+                    f"pinned RAG schema dimensions ({self._pinned_dims}). All orgs "
+                    f"sharing this RAG instance must use the same embedding model "
+                    f"dimensions. Reconcile provider configs or run RAG per-org."
+                )
 
         embedding_service = EmbeddingService(
             api_key=llm_config["embedding_api_key"],
@@ -322,10 +346,14 @@ class RagService:
         top_k: int | None = None,
         similarity_threshold: float | None = None,
         file_ids: list[str] | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], Any]:
         """Search the knowledge base using hybrid BM25 + vector search.
 
-        Embedding token usage available via `self.last_search_usage` after call.
+        Returns a `(results, embedding_usage)` tuple so the per-call
+        embedding usage is propagated alongside the results — earlier
+        this hung on a mutable `self.last_search_usage` attribute that
+        concurrent calls overwrote, mis-attributing tokens across
+        callers under any real QPS.
         """
         clients = await self._ensure_org_clients(org_slug)
 
@@ -338,8 +366,7 @@ class RagService:
             top_k=effective_top_k,
             similarity_threshold=threshold,
         )
-
-        self.last_search_usage = getattr(clients.search_service, "last_search_usage", None)
+        usage = getattr(clients.search_service, "last_search_usage", None)
 
         # If no results and some files are still indexing, wait and retry once
         if not results and file_ids:
@@ -354,9 +381,9 @@ class RagService:
                     top_k=effective_top_k,
                     similarity_threshold=threshold,
                 )
-                self.last_search_usage = getattr(clients.search_service, "last_search_usage", None)
+                usage = getattr(clients.search_service, "last_search_usage", None)
 
-        return results
+        return results, usage
 
     async def generate(
         self,
@@ -370,7 +397,7 @@ class RagService:
         try:
             start_time = time.time()
 
-            search_results = await self.search(org_slug, query, top_k=RAG_TOP_K, file_ids=file_ids)
+            search_results, embedding_usage = await self.search(org_slug, query, top_k=RAG_TOP_K, file_ids=file_ids)
 
             if not search_results:
                 return {
@@ -423,8 +450,10 @@ class RagService:
             processing_time = (time.time() - start_time) * 1000
             logger.info("Generation completed in {:.2f}ms", processing_time)
 
-            # Combine embedding usage (from search step) + LLM usage
-            embedding_usage = getattr(self, "last_search_usage", None)
+            # Combine embedding usage (from search step) + LLM usage.
+            # `embedding_usage` is the local var bound from `await
+            # self.search(...)` above, so this is correct under
+            # concurrent calls.
             embedding_tokens = embedding_usage.prompt_tokens if embedding_usage else 0
             llm_input = completion.usage.prompt_tokens if completion.usage else 0
             llm_output = completion.usage.completion_tokens if completion.usage else 0
@@ -769,6 +798,13 @@ class RagService:
                         exc_info=True,
                     )
         self._org_clients.clear()
+
+        # Drain pending `_safe_close` tasks so they don't keep running
+        # after the pool is closed. `return_exceptions=True` ensures one
+        # failing close doesn't prevent the others from being awaited.
+        if _background_tasks:
+            await asyncio.gather(*_background_tasks, return_exceptions=True)
+
         await close_pool()
         self.initialized = False
 

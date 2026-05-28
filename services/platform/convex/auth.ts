@@ -12,6 +12,7 @@ import {
   ownerAc,
 } from 'better-auth/plugins/organization/access';
 
+import { assertValidOrgSlug } from '../lib/shared/constants/org-slug';
 import { isReservedOrgSlug } from '../lib/shared/constants/reserved-org-slugs';
 import { isRecord, getString } from '../lib/utils/type-guards';
 import { components, internal } from './_generated/api';
@@ -576,13 +577,24 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           beforeCreateOrganization: async (data) => {
             const slug = data.organization.slug;
             if (!slug) return;
+            // Normalize to lowercase BEFORE both the reservation and
+            // uniqueness checks. Convex `eq` is byte-equal, so without
+            // normalization a caller could pass `Default` to bypass
+            // the reservation set (which lowercases) while also
+            // bypassing the unique-slug `eq` lookup (case-sensitive).
+            const normalizedSlug = slug.toLowerCase();
+            // Reject anything that doesn't fit the canonical slug shape
+            // so users can't smuggle invalid filesystem characters or
+            // length-cap-busting strings past the auth boundary.
+            assertValidOrgSlug(normalizedSlug);
+
             // Refuse reserved slugs ("default") that the platform pins
             // global resources to (branding, retention defaults).
             // Without this, an open-signup user could claim "default"
             // before the platform seed runs and inherit branding-admin.
             // Exception: the platform's own first-run seed creates
             // `default` when no orgs exist yet — let that one through.
-            if (isReservedOrgSlug(slug)) {
+            if (isReservedOrgSlug(normalizedSlug)) {
               const anyOrg = await ctx.runQuery(
                 components.betterAuth.adapter.findMany,
                 {
@@ -593,7 +605,7 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
               );
               if (anyOrg && anyOrg.page.length > 0) {
                 throw new APIError('BAD_REQUEST', {
-                  message: `Organization slug "${slug}" is reserved by the platform.`,
+                  message: `Organization slug "${normalizedSlug}" is reserved by the platform.`,
                 });
               }
             }
@@ -603,14 +615,60 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
               components.betterAuth.adapter.findOne,
               {
                 model: 'organization',
-                where: [{ field: 'slug', value: slug, operator: 'eq' }],
+                where: [
+                  { field: 'slug', value: normalizedSlug, operator: 'eq' },
+                ],
               },
             );
             if (existing) {
               throw new APIError('BAD_REQUEST', {
-                message: `Organization slug "${slug}" is already taken.`,
+                message: `Organization slug "${normalizedSlug}" is already taken.`,
               });
             }
+            // Project the normalized slug back so the persisted row
+            // matches what the checks just used. If the field is
+            // read-only on `data.organization`, this is a defensive
+            // no-op — callers are still expected to submit lowercase.
+            try {
+              data.organization.slug = normalizedSlug;
+            } catch {
+              /* read-only field — caller-supplied slug stands */
+            }
+          },
+          beforeUpdateOrganization: async (data) => {
+            // Re-run the create-time guards on update: without this
+            // hook, an org owner could rename their org to a reserved
+            // slug after creation and inherit branding-admin. Pulled
+            // through a `Record<string, unknown>` view so the field
+            // shape matches Better Auth's loose update payload type.
+            const orgPatch = data.organization as Record<string, unknown>;
+            const rawSlug = orgPatch.slug;
+            if (typeof rawSlug !== 'string') return;
+            const normalizedSlug = rawSlug.toLowerCase();
+            assertValidOrgSlug(normalizedSlug);
+            if (isReservedOrgSlug(normalizedSlug)) {
+              throw new APIError('BAD_REQUEST', {
+                message: `Organization slug "${normalizedSlug}" is reserved by the platform.`,
+              });
+            }
+            const collision = await ctx.runQuery(
+              components.betterAuth.adapter.findOne,
+              {
+                model: 'organization',
+                where: [
+                  { field: 'slug', value: normalizedSlug, operator: 'eq' },
+                ],
+              },
+            );
+            if (collision) {
+              throw new APIError('BAD_REQUEST', {
+                message: `Organization slug "${normalizedSlug}" is already taken.`,
+              });
+            }
+            // Project the normalized slug back onto the loose patch
+            // shape; assignment is safe whether or not Better Auth
+            // ends up re-validating it server-side.
+            orgPatch.slug = normalizedSlug;
           },
           afterCreateOrganization: async (data) => {
             const slug = data.organization.slug;

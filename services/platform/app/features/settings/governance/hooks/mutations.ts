@@ -21,7 +21,7 @@ export function useCancelPendingDsarPolicyChange() {
 /**
  * Retention is the one policy type that can't go through the generic
  * `upsertPolicy` mutation: bounds validation needs to read the per-org
- * file at `$TALE_CONFIG_DIR/retention/{orgSlug}.json`, which only the
+ * file at `$TALE_CONFIG_DIR/<orgSlug>/retention.json`, which only the
  * Node-side action layer can do. The V8 action wrapper validates and
  * then calls an internal mutation for the actual write.
  */

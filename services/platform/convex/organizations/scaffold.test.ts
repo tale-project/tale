@@ -26,8 +26,12 @@ const { scaffoldNewOrganization, cleanupOrgFilesystem } =
 type ActionConfig = {
   handler: (
     ctx: never,
-    args: { orgSlug: string; override?: boolean },
-  ) => Promise<unknown>;
+    args: { orgSlug: string; override?: boolean; strict?: boolean },
+  ) => Promise<{
+    ok: boolean;
+    skipped: boolean;
+    results: Array<{ domain: string; ok: boolean; error?: string }>;
+  }>;
 };
 const scaffoldHandler = (scaffoldNewOrganization as unknown as ActionConfig)
   .handler;
@@ -386,6 +390,94 @@ describe('scaffoldNewOrganization (org-first)', () => {
         'utf-8',
       ),
     ).toBe('{"name":"existing"}');
+  });
+
+  it('refuses invalid org slugs with skipped:true (no fs writes)', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    // Populate something the scaffolder would normally seed so we can
+    // be sure the refusal happens BEFORE any writes.
+    await writeText(catSrc('agents', 'a.json'), '{}');
+
+    const result = await scaffoldHandler({} as never, {
+      orgSlug: '../escape',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.skipped).toBe(true);
+    expect(result.results).toEqual([]);
+    // Nothing under the (invalid) slug should exist on disk.
+    expect(existsSync(orgDst('../escape'))).toBe(false);
+  });
+
+  it('seedRetention override:true overwrites; override:false skips existing', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(catSrc('retention.json'), '{"defaults":"new"}');
+    // Pre-existing per-org retention.json simulates an operator edit.
+    await writeText(
+      orgDst('acme', 'retention.json'),
+      '{"defaults":"existing"}',
+    );
+
+    // override:false → operator file survives.
+    await scaffoldHandler({} as never, {
+      orgSlug: 'acme',
+      override: false,
+    });
+    expect(await readFile(orgDst('acme', 'retention.json'), 'utf-8')).toBe(
+      '{"defaults":"existing"}',
+    );
+
+    // override:true → catalog file wins.
+    await scaffoldHandler({} as never, {
+      orgSlug: 'acme',
+      override: true,
+    });
+    expect(await readFile(orgDst('acme', 'retention.json'), 'utf-8')).toBe(
+      '{"defaults":"new"}',
+    );
+  });
+
+  it('strict:true throws with aggregated per-domain failure detail', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    // Make the catalog's agents/ source unreadable by replacing the
+    // expected directory with a regular file — the scaffolder's
+    // per-domain copy will fail and the strict gate aggregates it.
+    await writeText(catSrc('agents'), 'not-a-directory');
+    await writeText(catSrc('workflows', 'general', 'a.json'), '{"ok":true}');
+
+    let threw: Error | null = null;
+    try {
+      await scaffoldHandler({} as never, {
+        orgSlug: 'acme',
+        strict: true,
+      });
+    } catch (err) {
+      threw = err as Error;
+    }
+
+    expect(threw).not.toBeNull();
+    // Aggregated message must name the failing domain so operators
+    // can act on it without trawling logs. Non-strict mode (covered
+    // below) folds the same shape into a result without throwing.
+    expect(threw?.message ?? '').toMatch(/scaffold "acme"/);
+    expect(threw?.message ?? '').toMatch(/agents/);
+  });
+
+  it('non-strict aggregates failures into result without throwing', async () => {
+    process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+    await writeText(catSrc('agents'), 'not-a-directory');
+    await writeText(catSrc('workflows', 'general', 'a.json'), '{"ok":true}');
+
+    const result = await scaffoldHandler({} as never, {
+      orgSlug: 'acme',
+      // strict defaults to false — caller gets the result object back.
+    });
+
+    expect(result.ok).toBe(false);
+    const failedDomains = result.results
+      .filter((r) => !r.ok)
+      .map((r) => r.domain);
+    expect(failedDomains).toContain('agents');
   });
 });
 

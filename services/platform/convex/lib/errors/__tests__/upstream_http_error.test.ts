@@ -1,14 +1,31 @@
+import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
 import {
   isRetryableStatus,
   isUpstreamHttpError,
+  parseRetryAfterMs,
   UpstreamHttpError,
 } from '../upstream_http_error';
 
-function makeResponse(status: number): Response {
-  // Minimal Response stand-in — UpstreamHttpError.fromResponse only reads `.status`.
-  return new Response(null, { status });
+function makeResponse(
+  status: number,
+  init: { headers?: Record<string, string>; url?: string } = {},
+): Response {
+  // UpstreamHttpError.fromResponse reads .status, .headers, and (when
+  // endpoint is omitted) .url. Response's `url` is read-only on
+  // construction, so simulate it via a thin proxy that lets us override.
+  const res = new Response(null, {
+    status,
+    headers: init.headers,
+  });
+  if (init.url !== undefined) {
+    Object.defineProperty(res, 'url', {
+      value: init.url,
+      configurable: true,
+    });
+  }
+  return res;
 }
 
 describe('UpstreamHttpError', () => {
@@ -24,8 +41,10 @@ describe('UpstreamHttpError', () => {
     expect(err.bodySnippet).not.toMatch(/sk-abcdefgh/);
     expect(err.bodySnippet).not.toMatch(/Bearer\s+sk-/);
     expect(err.bodySnippet).toMatch(/REDACTED/);
-    // Engineer-facing message still embeds the (now-scrubbed) snippet for triage.
-    expect(err.message).toMatch(/REDACTED/);
+    // `.message` carries safeMessage only — snippet stays out so it
+    // does not cross the Convex client boundary as a default toast.
+    expect(err.message).not.toMatch(/REDACTED/);
+    expect(err.message).toBe(err.safeMessage);
     // Safe message is clean of any body content.
     expect(err.safeMessage).not.toMatch(/REDACTED/);
     expect(err.safeMessage).toMatch(/RAG/);
@@ -91,5 +110,86 @@ describe('UpstreamHttpError', () => {
     expect(isUpstreamHttpError(new Error('other'))).toBe(false);
     expect(isUpstreamHttpError(null)).toBe(false);
     expect(isUpstreamHttpError('string')).toBe(false);
+  });
+
+  it('produces distinct safeMessage branches for 401 / 403 / 404 / 429', () => {
+    const e401 = UpstreamHttpError.fromResponse(
+      'rag',
+      makeResponse(401),
+      '',
+      '/api/v1/search',
+    );
+    expect(e401.safeMessage).toMatch(/authentication failed/i);
+    expect(e401.safeMessage).toMatch(/401/);
+
+    const e403 = UpstreamHttpError.fromResponse(
+      'rag',
+      makeResponse(403),
+      '',
+      '/api/v1/search',
+    );
+    expect(e403.safeMessage).toMatch(/authentication failed/i);
+    expect(e403.safeMessage).toMatch(/403/);
+
+    const e404 = UpstreamHttpError.fromResponse(
+      'rag',
+      makeResponse(404),
+      '',
+      '/api/v1/docs/123',
+    );
+    expect(e404.safeMessage).toMatch(/not found/i);
+    expect(e404.safeMessage).toMatch(/404/);
+
+    const e429 = UpstreamHttpError.fromResponse(
+      'rag',
+      makeResponse(429),
+      '',
+      '/api/v1/search',
+    );
+    expect(e429.safeMessage).toMatch(/throttling/i);
+    expect(e429.safeMessage).toMatch(/429/);
+  });
+
+  it('parses Retry-After header into retryAfterMs', () => {
+    expect(parseRetryAfterMs('30')).toBe(30000);
+    expect(parseRetryAfterMs('0')).toBe(0);
+    expect(parseRetryAfterMs('')).toBeUndefined();
+    expect(parseRetryAfterMs(null)).toBeUndefined();
+    expect(parseRetryAfterMs('not-a-number')).toBeUndefined();
+
+    const err = UpstreamHttpError.fromResponse(
+      'rag',
+      makeResponse(429, { headers: { 'retry-after': '30' } }),
+      '',
+      '/api/v1/search',
+    );
+    expect(err.retryAfterMs).toBe(30000);
+  });
+
+  it('defaults endpoint to response.url when caller omits it', () => {
+    const err = UpstreamHttpError.fromResponse(
+      'rag',
+      makeResponse(500, { url: 'http://rag/api/v1/search' }),
+      '',
+    );
+    expect(err.endpoint).toBe('http://rag/api/v1/search');
+    expect(err.safeMessage).toContain('http://rag/api/v1/search');
+  });
+
+  it('toConvexError marshals structured fields for the client boundary', () => {
+    const err = UpstreamHttpError.fromResponse(
+      'rag',
+      makeResponse(429, { headers: { 'retry-after': '5' } }),
+      'rate limited',
+      '/api/v1/search',
+    );
+    const cv = err.toConvexError();
+    expect(cv).toBeInstanceOf(ConvexError);
+    expect(cv.data.code).toBe('upstream_http');
+    expect(cv.data.service).toBe('rag');
+    expect(cv.data.status).toBe(429);
+    expect(cv.data.retryable).toBe(true);
+    expect(cv.data.retryAfterMs).toBe(5000);
+    expect(cv.data.safeMessage).toMatch(/429/);
   });
 });

@@ -64,6 +64,9 @@ export const ragAction: ActionDefinition<RagActionParams> = {
         return { ...result, executionTimeMs: Date.now() - startTime };
       }
       case 'delete_document': {
+        // Cross-tenant gate: file_id is global in RAG; verify the workflow's
+        // org owns the storage row before forwarding the delete.
+        await assertStorageIdsInOrg(ctx, _variables, [migratedParams.fileId]);
         const result = await deleteDocumentById({
           fileId: migratedParams.fileId,
         });

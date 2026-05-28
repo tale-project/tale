@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createPrecompiledServer, type ArtifactsServer } from '@tale/ui/seo';
@@ -364,6 +364,20 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     convexMetricsResponse(c.req.query('format') ?? null),
   );
 
+  // Branding images. Defense-in-depth: filename is already locked
+  // down (no `/`, no `..`), but the prefix check uses `path.sep` so a
+  // future sibling dir like `imagesXYZ/` cannot prefix-match via
+  // string compare. We also pin Content-Type from an allowlist
+  // instead of letting Bun.file infer it from the extension so a
+  // mis-renamed file cannot be served with a script-y content type.
+  const BRANDING_MIME: Record<string, string> = {
+    png: 'image/png',
+    svg: 'image/svg+xml',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp',
+    ico: 'image/x-icon',
+  };
   app.get('/branding/images/:filename', async (c) => {
     if (!brandingImagesDir) return c.notFound();
     const filename = c.req.param('filename');
@@ -371,11 +385,22 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       return c.notFound();
     }
     const filePath = resolve(brandingImagesDir, filename);
-    if (!filePath.startsWith(brandingImagesDir)) return c.notFound();
+    if (
+      !filePath.startsWith(brandingImagesDir + sep) &&
+      filePath !== brandingImagesDir
+    ) {
+      return c.notFound();
+    }
     const file = Bun.file(filePath);
     if (!(await file.exists())) return c.notFound();
+    const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+    const contentType = BRANDING_MIME[ext];
+    if (!contentType) return c.notFound();
     return new Response(file, {
-      headers: { 'Cache-Control': 'no-cache, must-revalidate' },
+      headers: {
+        'Cache-Control': 'no-cache, must-revalidate',
+        'Content-Type': contentType,
+      },
     });
   });
 

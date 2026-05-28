@@ -10,7 +10,13 @@ import {
   providerJsonSchema,
   providerSecretsSchema,
 } from '../../lib/shared/schemas/providers';
-import { serializeJson, sha256, validateOrgSlug } from '../lib/file_io';
+import {
+  getConfigRoot,
+  safeJoinWithinDir,
+  serializeJson,
+  sha256,
+  validateOrgSlug,
+} from '../lib/file_io';
 import { validateProviderName } from './validators';
 
 export { sha256, validateProviderName };
@@ -92,16 +98,10 @@ export function parseProviderSecrets(
   return result.data;
 }
 
-function getConfigRoot(): string {
-  const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return configDir;
-  throw new Error('TALE_CONFIG_DIR environment variable is not set.');
-}
-
 export function resolveProvidersDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug))
     throw new Error(`Invalid org slug: ${orgSlug}`);
-  return path.join(getConfigRoot(), orgSlug, 'providers');
+  return path.join(getConfigRoot('providers'), orgSlug, 'providers');
 }
 
 export function resolveProviderFilePath(
@@ -110,16 +110,10 @@ export function resolveProviderFilePath(
 ): string {
   if (!validateProviderName(providerName))
     throw new Error(`Invalid provider name: ${providerName}`);
-  const dir = resolveProvidersDir(orgSlug);
-  const resolved = path.resolve(dir, `${providerName}.json`);
-  const expectedPrefix = path.resolve(dir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error(`Path traversal detected: ${providerName}`);
-  }
-  return resolved;
+  return safeJoinWithinDir(
+    resolveProvidersDir(orgSlug),
+    `${providerName}.json`,
+  );
 }
 
 export function resolveProviderSecretsPath(
@@ -128,16 +122,10 @@ export function resolveProviderSecretsPath(
 ): string {
   if (!validateProviderName(providerName))
     throw new Error(`Invalid provider name: ${providerName}`);
-  const dir = resolveProvidersDir(orgSlug);
-  const resolved = path.resolve(dir, `${providerName}.secrets.json`);
-  const expectedPrefix = path.resolve(dir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error(`Path traversal detected: ${providerName}`);
-  }
-  return resolved;
+  return safeJoinWithinDir(
+    resolveProvidersDir(orgSlug),
+    `${providerName}.secrets.json`,
+  );
 }
 
 export { MAX_FILE_SIZE_BYTES };

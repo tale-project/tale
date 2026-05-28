@@ -55,9 +55,17 @@ export async function migrateConfigLayout(
 
   const containerName = `${getProjectId()}-convex`;
   if (!(await isContainerRunning(containerName))) {
+    // Earlier the message said "e.g. `tale deploy`", but `tale deploy`
+    // now hard-fails on legacy layout — creating a deadlock for fresh
+    // upgrades where the operator stopped the convex container before
+    // running migrate. Point at `tale start` (which only fails when
+    // legacy layout is present at the host) and the docs runbook.
     throw new Error(
       `Convex container "${containerName}" is not running. ` +
-        'Start the platform first (e.g. `tale deploy`) before running this migration.',
+        'Start the OLD platform first (`tale start` or `docker compose start convex`) ' +
+        'so the migrate script can run against the still-mounted volume, then re-run ' +
+        '`tale migrate config-layout`. See docs/<locale>/self-hosted/operate/upgrades.md ' +
+        'for the full migrate → deploy → cleanup runbook.',
     );
   }
 
@@ -72,7 +80,7 @@ export async function migrateConfigLayout(
     logger.step(
       dryRun
         ? '[DRY-RUN] Cleanup-old: would verify and remove old-path secrets'
-        : 'Verifying + removing old-path secrets (sha-matched against new paths)...',
+        : 'Verifying + removing old-path secrets (byte-for-byte matched against new paths)...',
     );
   } else {
     logger.step(
@@ -98,7 +106,12 @@ export async function migrateConfigLayout(
     );
   }
   if (result.stderr) {
-    // Warnings printed to stderr (e.g. SKIP messages) are not fatal but worth surfacing.
+    // The script now sends only true `ERROR:` lines to stderr (SKIP
+    // notices go to stdout). On a clean run we still see nothing here;
+    // any non-empty stderr on success means the script encountered a
+    // recoverable conflict (dst collision, invalid slug shape) that
+    // didn't bump errors past zero — surface it loudly so the operator
+    // notices.
     logger.warn(result.stderr.trim());
   }
 }

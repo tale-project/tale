@@ -18,7 +18,7 @@ Zwei Dinge sind es wert, zuerst zu bestätigen:
 
 ## Die zwei Kommandos
 
-`tale upgrade` aktualisiert das CLI-Binary selbst. Die deployte Plattform-Version stimmt mit der Version des CLI überein — diese Kopplung ist Absicht, damit das CLI, das du läufst, nicht eine Version deployen kann, die es nicht kennt.
+`tale upgrade` aktualisiert das CLI-Binary selbst. Die deployte Plattform-Version stimmt mit der Version des CLI überein — diese Kopplung ist Absicht, damit das CLI, das du ausführst, nicht eine Version deployen kann, die es nicht kennt.
 
 ```bash
 # Bewege das CLI auf das letzte Release
@@ -79,18 +79,21 @@ Minor-Versionen zu überspringen (von 0.9 auf 0.11 zu gehen) ist unterstützt, s
 
 ## Wo das hingehört
 
-Der Upgrade-Flow knüpft jede andere Operate-Seite an — Backups sind das, was ein gescheitertes Upgrade wiederherstellbar macht, Observability ist das, was dir sagt, dass die neue Farbe healthy ist, Hardening ist das, was du nach einer Major-Version neu walkst. Setzt du das CLI zum ersten Mal auf, deckt [Tale-CLI installieren](/de/self-hosted/install/cli-install) das workstationseitige Setup ab; nimmst du den Pager mitten im Rollout auf, nennt [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting) die Symptome.
+Der Upgrade-Flow knüpft jede andere Operate-Seite an — Backups sind das, was ein gescheitertes Upgrade wiederherstellbar macht, Observability ist das, was dir sagt, dass die neue Farbe healthy ist, Hardening ist das, was du nach einer Major-Version neu durchgehst. Setzt du das CLI zum ersten Mal auf, deckt [Tale-CLI installieren](/de/self-hosted/install/cli-install) das workstationseitige Setup ab; nimmst du den Pager mitten im Rollout auf, nennt [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting) die Symptome.
 
 ## Migration auf das Org-first-Config-Layout
 
 Ältere Tale-Releases haben Config in einem flachen Baum im Workspace-Root abgelegt (`agents/`, `workflows/`, `integrations/`, `branding/`, `providers/`, `skills/`). Aktuelles Tale nutzt ein **Org-first**-Layout, in dem jede Org — auch die kanonische `default` — ihren eigenen Unterbaum besitzt: `<root>/<org>/<domain>/...`. Die Migration ist opt-in und läuft einmal pro Workspace. Die neue Plattform liest die alten Pfade nicht mehr; bis du migrierst, liegen Provider-Secrets und Anpassungen in Verzeichnissen, die das Runtime nicht mehr anschaut.
 
-Die Migration sind drei Kommandos:
+Die Migration sind drei Kommandos. Für Schritt 1 muss der Convex-Container vom **alten** Image noch laufen — halt die Plattform auf der alten Version online und führe Schritt 1 gegen diesen laufenden Container aus, bevor du upgradest.
 
 ```bash
-# 1. Provider-Secrets (und andere Config) aus dem flachen Layout nach
-#    `default/<domain>/...` kopieren. cp statt mv, damit die alten Pfade
-#    für einen möglichen Rollback intakt bleiben.
+# 1. Provider-Secrets aus dem flachen Layout nach
+#    `default/providers/...` kopieren. cp statt mv, damit die alten
+#    Pfade für einen möglichen Rollback intakt bleiben. Scope sind
+#    ausschließlich Provider-Secrets; alle anderen Domains (agents,
+#    workflows, integrations, skills, branding, retention) werden in
+#    Schritt 2 server-seitig aus dem Builtin-Katalog re-seedet.
 tale migrate config-layout
 
 # 2. Convex-Container gegen das Org-first-Volume-Layout neu erstellen
@@ -100,8 +103,9 @@ tale migrate config-layout
 tale deploy --override-all -y
 
 # 3. Wenn du das neue Layout verifiziert hast, alte Pfade entfernen.
-#    sha-verifiziert, dass die neue Datei der alten entspricht, bevor
-#    unlink; bei Mismatch wird das Löschen verweigert.
+#    Verifiziert byte-für-byte, dass die neue Datei der alten
+#    entspricht, bevor unlink; bei Mismatch wird das Löschen
+#    verweigert.
 tale migrate config-layout --cleanup-old
 ```
 
@@ -117,4 +121,4 @@ Nach Schritt 3 (`--cleanup-old`) sind die alten Pfade weg. Downgrade re-seedet d
 
 ### Was, wenn ich Schritt 1 überspringe?
 
-Der Convex-Container erkennt beim Start die übrig gebliebenen flachen Layout-Dirs und schreibt eine Warnung in seine Logs, die die Verzeichnisse benennt und auf dieses Runbook zeigt. Das Deployment startet, aber Reads aus diesen Verzeichnissen liefern leer, und Writes gehen in die neuen (leeren) Org-first-Pfade. Die Korrektur sind weiterhin Schritt 1 + 2 — sie nach der Warnung laufen zu lassen funktioniert genauso wie sie im Voraus laufen zu lassen.
+`tale deploy` und `tale start` verweigern beide den Start, wenn sie übrig gebliebene flache Layout-Dirs (`agents/`, `workflows/`, `integrations/`, `branding/`, `providers/`, `skills/`, `retention/`) im Workspace-Root finden. Der Fehler nennt die betroffenen Verzeichnisse und verweist auf dieses Runbook. Die Korrektur sind Schritt 1 + 2 in dieser Reihenfolge; es gibt keinen "trotzdem deployen und Legacy-Pfade ignorieren"-Modus — die Runtime-Resolver lesen diese Pfade nicht, ein Boot ohne Migration würde die Plattform also mit leerer Config zurücklassen.

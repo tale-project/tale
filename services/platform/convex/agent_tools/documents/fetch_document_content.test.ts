@@ -202,13 +202,23 @@ describe('fetchDocumentContent', () => {
     await expect(fetchDocumentContent(FILE_ID)).rejects.toThrow(/HTTP 500/);
   });
 
-  it('includes error body text in non-ok error message', async () => {
+  it('throws an UpstreamHttpError shaped from the response on non-ok', async () => {
     globalThis.fetch = Object.assign(
       vi.fn().mockResolvedValue(new Response('Rate limited', { status: 429 })),
       { preconnect: vi.fn() },
     );
 
-    await expect(fetchDocumentContent(FILE_ID)).rejects.toThrow('Rate limited');
+    // `.message` carries the safe summary (status + endpoint); the
+    // raw "Rate limited" body now lives only on `.bodySnippet`.
+    const err = await fetchDocumentContent(FILE_ID).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/HTTP 429|throttling/);
+    expect((err as { bodySnippet?: string }).bodySnippet).toMatch(
+      /Rate limited/,
+    );
   });
 
   it('wraps non-JSON response parse error', async () => {

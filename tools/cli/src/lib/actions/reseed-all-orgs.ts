@@ -48,6 +48,13 @@ export interface ReseedAllOrgsOptions {
  * `/app/`). No `cd /app/services/platform` — that path does not exist
  * at runtime.
  */
+const RESEED_TIMEOUT_S = 1800;
+const RESEED_TIMEOUT_EXIT = 124;
+
+// The shell pipeline appends `|| true` to the grep so a zero-match
+// outcome (grep exits 1) does not poison `set -o pipefail`. The real
+// signal is `bunx convex run`'s exit code, captured before the grep
+// strips banner lines.
 const RESEED_SCRIPT = `set -eo pipefail
 source /app/env.sh
 env_normalize_common
@@ -55,12 +62,12 @@ source /app/generate-admin-key.sh
 ensure_instance_secret
 ADMIN_KEY=$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")
 cd /app
-HOME=/home/app timeout 1800 bunx convex run \\
+HOME=/home/app timeout ${RESEED_TIMEOUT_S} bunx convex run \\
   organizations/reseed_all_orgs:reseedAllOrgsFromBuiltin \\
   --url "\${CONVEX_URL:-http://convex:3210}" \\
   --admin-key "$ADMIN_KEY" \\
   --no-push 2>&1 \\
-  | grep -v "^Admin key\\|^📋\\|^✅ Admin\\|^━\\|^🌐\\|^$\\|Steps:\\|Open\\|Enter\\|Paste"
+  | { grep -v "^Admin key\\|^📋\\|^✅ Admin\\|^━\\|^🌐\\|^$\\|Steps:\\|Open\\|Enter\\|Paste" || true; }
 `;
 
 const CONFIRM_MESSAGE =
@@ -80,36 +87,46 @@ type ReseedResult = {
 };
 
 /**
- * Extract the last JSON object from a stream of mixed-output stdout.
+ * Extract the trailing JSON object from a stream of mixed-output stdout.
  * `bunx convex run` prints `null` for void-returning actions or the
- * action's return value for value-returning ones. Either way, the JSON
- * payload is on its own line(s) at the very end.
+ * action's return value for value-returning ones. We want the LAST
+ * line(s) that form a parseable JSON object whose shape matches
+ * `ReseedResult` — not just "anything after the last `{`", which would
+ * mis-parse when per-org error strings include `{` (e.g. a JS object
+ * literal in an error message).
+ *
+ * Strategy:
+ *   1. Split into lines.
+ *   2. Walk backwards; for each starting line that begins with `{`,
+ *      try `JSON.parse(joinedSlice)`.
+ *   3. First parse that produces a shape-validated ReseedResult wins.
  */
 function parseTrailingJson(stdout: string): ReseedResult | null {
   const trimmed = stdout.trim();
   if (!trimmed) return null;
 
-  // Walk backwards from the end looking for the start of a JSON value.
-  // The action returns an object, so look for the matching `{`.
-  const lastBrace = trimmed.lastIndexOf('{');
-  if (lastBrace < 0) return null;
-
-  try {
-    const parsed = JSON.parse(trimmed.slice(lastBrace));
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      typeof parsed.total === 'number' &&
-      typeof parsed.succeeded === 'number' &&
-      typeof parsed.failed === 'number' &&
-      Array.isArray(parsed.results)
-    ) {
-      return parsed as ReseedResult;
+  const lines = trimmed.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const candidate = lines[i].trimStart();
+    if (!candidate.startsWith('{')) continue;
+    const slice = lines.slice(i).join('\n');
+    try {
+      const parsed: unknown = JSON.parse(slice);
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        typeof (parsed as Record<string, unknown>).total === 'number' &&
+        typeof (parsed as Record<string, unknown>).succeeded === 'number' &&
+        typeof (parsed as Record<string, unknown>).failed === 'number' &&
+        Array.isArray((parsed as Record<string, unknown>).results)
+      ) {
+        return parsed as ReseedResult;
+      }
+    } catch {
+      // Not a complete JSON value starting at this line; try earlier.
     }
-    return null;
-  } catch {
-    return null;
   }
+  return null;
 }
 
 export async function reseedAllOrgsFromBuiltin(
@@ -164,6 +181,36 @@ export async function reseedAllOrgsFromBuiltin(
     if (result.stderr) {
       logger.error(result.stderr.trim());
     }
+
+    // Special-case `timeout(1)`'s SIGTERM exit so the operator sees
+    // "timed out" rather than a generic "raised". The action is
+    // idempotent so re-running is always safe.
+    if (result.exitCode === RESEED_TIMEOUT_EXIT) {
+      throw new Error(
+        `--override-all timed out after ${RESEED_TIMEOUT_S}s in ${container}. ` +
+          `The reseed action may still be running on the convex side; ` +
+          `wait a minute, then re-run (idempotent).`,
+      );
+    }
+
+    // Parse the trailing JSON payload on the failure branch too — the
+    // action emits it before throwing so per-org slug detail survives
+    // the non-zero exit and reaches CI logs as structured data.
+    const failed = parseTrailingJson(result.stdout);
+    if (failed) {
+      const failedSlugs = failed.results
+        .filter(
+          (r): r is { slug: string; status: 'error'; error: string } =>
+            r.status === 'error',
+        )
+        .map((r) => `${r.slug}: ${r.error.split('\n')[0]}`)
+        .join('; ');
+      throw new Error(
+        `--override-all failed: ${failed.failed}/${failed.total} orgs raised — ${failedSlugs}. ` +
+          `Re-run after addressing the listed orgs (the action is idempotent).`,
+      );
+    }
+
     throw new Error(
       `--override-all failed: reseed action raised in ${container}. ` +
         `Per-org detail above; partial state on disk — re-run --override-all ` +

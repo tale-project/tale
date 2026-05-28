@@ -19,6 +19,7 @@ import {
   getCrawlerUrl,
 } from '../../../../documents/generate_document_helpers';
 import { createDebugLog } from '../../../../lib/debug_log';
+import { UpstreamHttpError } from '../../../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../../../lib/helpers/org_slug';
 import { toId } from '../../../../lib/type_cast_helpers';
 
@@ -130,8 +131,11 @@ export async function applyDocxStructured(
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    throw new Error(
-      `Crawler apply-structured failed: ${response.status} ${errorText}`,
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
+      errorText,
+      '/api/v1/apply-structured',
     );
   }
 

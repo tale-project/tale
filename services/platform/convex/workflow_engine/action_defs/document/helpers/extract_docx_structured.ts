@@ -11,6 +11,7 @@ import { fetchJson } from '../../../../../lib/utils/type-cast-helpers';
 import type { ActionCtx } from '../../../../_generated/server';
 import { getCrawlerUrl } from '../../../../documents/generate_document_helpers';
 import { createDebugLog } from '../../../../lib/debug_log';
+import { UpstreamHttpError } from '../../../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../../../lib/helpers/org_slug';
 import { toId } from '../../../../lib/type_cast_helpers';
 
@@ -71,8 +72,11 @@ export async function extractDocxStructured(
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    throw new Error(
-      `Crawler extract-structured failed: ${response.status} ${errorText}`,
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
+      errorText,
+      '/api/v1/docx/extract-structured',
     );
   }
 

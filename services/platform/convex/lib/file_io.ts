@@ -22,7 +22,8 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
-const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
+import { isValidOrgSlug as sharedIsValidOrgSlug } from '../../lib/shared/constants/org-slug';
+
 const TIMESTAMP_REGEX = /^\d{13,}(-[a-f0-9]+)?$/;
 
 export type FileReadResult<T> =
@@ -70,7 +71,53 @@ export async function isSymlink(filePath: string): Promise<boolean> {
 }
 
 export function validateOrgSlug(orgSlug: string): boolean {
-  return orgSlug === 'default' || ORG_SLUG_REGEX.test(orgSlug);
+  return sharedIsValidOrgSlug(orgSlug);
+}
+
+/**
+ * Resolve the on-disk root for all org-scoped config from the
+ * `TALE_CONFIG_DIR` env var. Each domain module used to inline its own
+ * copy of this; centralizing prevents the error-message drift previous
+ * reviews caught.
+ *
+ * Optional `area` suffix is included in the error message when the env
+ * var is missing, so the operator sees which catalog they were trying
+ * to access ("agents", "providers", etc.).
+ */
+export function getConfigRoot(area?: string): string {
+  const configDir = process.env.TALE_CONFIG_DIR;
+  if (configDir) return configDir;
+  const suffix = area ? ` so ${area} can be resolved` : '';
+  throw new Error(
+    `TALE_CONFIG_DIR environment variable is not set. ` +
+      `Set it to the root config directory ` +
+      `(e.g., TALE_CONFIG_DIR=/path/to/tale/examples)${suffix}.`,
+  );
+}
+
+/**
+ * Join `name` onto `dir` and refuse anything that escapes `dir`.
+ *
+ * Catches `..`-style traversal as well as absolute-path injection.
+ * Centralized so every domain module's resolver gets the same guard
+ * with the same error shape — previous review found this block
+ * copy-pasted in 9 places.
+ *
+ * Use this for the leaf-name leg only (after the org-slug has been
+ * validated and joined). Pass a pre-validated `name` whose shape is
+ * already restricted by a per-domain regex; this helper is a
+ * defense-in-depth backstop, not the primary validator.
+ */
+export function safeJoinWithinDir(dir: string, name: string): string {
+  const resolved = path.resolve(dir, name);
+  const expectedPrefix = path.resolve(dir);
+  if (
+    !resolved.startsWith(expectedPrefix + path.sep) &&
+    resolved !== expectedPrefix
+  ) {
+    throw new Error(`Path traversal detected: ${name}`);
+  }
+  return resolved;
 }
 
 export function validateTimestamp(ts: string): boolean {
