@@ -55,10 +55,20 @@ const RESEED_TIMEOUT_EXIT = 124;
 // outcome (grep exits 1) does not poison `set -o pipefail`. The real
 // signal is `bunx convex run`'s exit code, captured before the grep
 // strips banner lines.
+//
+// `generate-admin-key.sh` is intentionally NOT sourced here even though
+// it provides a complete admin-key derivation routine — the script also
+// echoes a dashboard banner including a `   Admin Key:      <key>` line
+// that would land in our captured stdout. Sourcing once leaked the key
+// past the line-based grep filter (the grep anchored on `^Admin key`
+// which mis-matched the lower-case 'k' AND the 3-space indent). Re-
+// derive ADMIN_KEY inline from env.sh's helpers (`ensure_instance_secret`
+// is exported by env.sh; `generate_key` is the binary on $PATH that the
+// official Convex Docker image uses) — see scripts/2026-03-28-migrate-
+// convex-data.sh:120-131 for the exact same pattern.
 const RESEED_SCRIPT = `set -eo pipefail
 source /app/env.sh
 env_normalize_common
-source /app/generate-admin-key.sh
 ensure_instance_secret
 ADMIN_KEY=$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")
 cd /app
@@ -69,6 +79,20 @@ HOME=/home/app timeout ${RESEED_TIMEOUT_S} bunx convex run \\
   --no-push 2>&1 \\
   | { grep -v "^Admin key\\|^📋\\|^✅ Admin\\|^━\\|^🌐\\|^$\\|Steps:\\|Open\\|Enter\\|Paste" || true; }
 `;
+
+/**
+ * Defense-in-depth redactor for the captured `bunx convex run` stdout.
+ * If anything upstream (env.sh's diagnostic mode, a future Convex CLI
+ * banner, etc.) prints an admin-key line that slips past the bash grep,
+ * this regex strips it before the value reaches the logger. Case-
+ * insensitive, anchors on any leading whitespace, and is intentionally
+ * conservative on the value charset (admin keys are base64/hex-like).
+ */
+const ADMIN_KEY_RE = /\b([Aa]dmin\s+[Kk]ey)\s*:?\s*[A-Za-z0-9+/=._-]{12,}/g;
+
+export function redactAdminKey(text: string): string {
+  return text.replace(ADMIN_KEY_RE, '$1: <redacted>');
+}
 
 const CONFIRM_MESSAGE =
   '--override-all will factory-reset every registered org from the builtin catalog. ' +
@@ -176,10 +200,10 @@ export async function reseedAllOrgsFromBuiltin(
   // exit code, which becomes `result.success === false` here.
   if (!result.success) {
     if (result.stdout) {
-      logger.info(result.stdout.trim());
+      logger.info(redactAdminKey(result.stdout.trim()));
     }
     if (result.stderr) {
-      logger.error(result.stderr.trim());
+      logger.error(redactAdminKey(result.stderr.trim()));
     }
 
     // Special-case `timeout(1)`'s SIGTERM exit so the operator sees
@@ -193,24 +217,11 @@ export async function reseedAllOrgsFromBuiltin(
       );
     }
 
-    // Parse the trailing JSON payload on the failure branch too — the
-    // action emits it before throwing so per-org slug detail survives
-    // the non-zero exit and reaches CI logs as structured data.
-    const failed = parseTrailingJson(result.stdout);
-    if (failed) {
-      const failedSlugs = failed.results
-        .filter(
-          (r): r is { slug: string; status: 'error'; error: string } =>
-            r.status === 'error',
-        )
-        .map((r) => `${r.slug}: ${r.error.split('\n')[0]}`)
-        .join('; ');
-      throw new Error(
-        `--override-all failed: ${failed.failed}/${failed.total} orgs raised — ${failedSlugs}. ` +
-          `Re-run after addressing the listed orgs (the action is idempotent).`,
-      );
-    }
-
+    // The convex-side action `console.log`s a human-readable failure
+    // summary then `throw`s — `bunx convex run` does NOT emit the
+    // action's return value on the throw path, so any attempt to parse
+    // structured failure detail here is dead code. The stdout logged
+    // above already surfaces the per-slug detail to the operator / CI.
     throw new Error(
       `--override-all failed: reseed action raised in ${container}. ` +
         `Per-org detail above; partial state on disk — re-run --override-all ` +
@@ -225,9 +236,9 @@ export async function reseedAllOrgsFromBuiltin(
       `Reseeded ${parsed.succeeded}/${parsed.total} orgs from builtin catalog.`,
     );
   } else if (result.stdout) {
-    // Couldn't parse — surface raw stdout so the operator isn't flying
-    // blind. Should be rare given the grep strip above.
-    logger.info(result.stdout.trim());
+    // Couldn't parse — surface raw stdout (redacted) so the operator
+    // isn't flying blind. Should be rare given the grep strip above.
+    logger.info(redactAdminKey(result.stdout.trim()));
   }
 
   logger.success('Reseed complete.');
