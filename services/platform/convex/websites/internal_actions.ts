@@ -174,7 +174,15 @@ async function fetchHomepageMetadata(
     30_000,
   );
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    // Surface the failure so an operator notices that title/description
+    // stayed blank because the homepage fetch failed, not because the
+    // site genuinely has no metadata (round-3 P2 R9-P2-c).
+    console.warn(
+      `[fetchHomepageMetadata] crawler ${res.status} for ${domain} (orgSlug=${orgSlug})`,
+    );
+    return null;
+  }
 
   const data = await res.json();
   const page = data.pages?.[0];

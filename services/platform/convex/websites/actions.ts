@@ -271,16 +271,28 @@ export const fetchPages = action({
   handler: async (ctx, args): Promise<FetchPagesResult> => {
     const { website } = await loadOwnedWebsite(ctx, args.websiteId);
 
-    // Trigger async metadata sync from crawler
-    await ctx.scheduler.runAfter(
-      0,
-      internal.websites.internal_actions.syncSingleWebsite,
-      {
-        websiteId: args.websiteId,
-        domain: website.domain,
-        organizationId: website.organizationId,
-      },
-    );
+    // Debounce the crawler sync: every fetchPages call (page view, poll,
+    // tab open) previously scheduled syncSingleWebsite unconditionally,
+    // fanning out N concurrent crawler hits + creating a last-write-wins
+    // race on the row's status field. Mirror the 1-hour throttle that
+    // syncWebsiteStatuses uses via metadata.lastStatusSyncAt (round-3 P2
+    // R9-P2-b).
+    const SYNC_DEBOUNCE_MS = 60 * 60 * 1000;
+    const lastSyncAt =
+      typeof website.metadata?.lastStatusSyncAt === 'number'
+        ? website.metadata.lastStatusSyncAt
+        : 0;
+    if (Date.now() - lastSyncAt > SYNC_DEBOUNCE_MS) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.websites.internal_actions.syncSingleWebsite,
+        {
+          websiteId: args.websiteId,
+          domain: website.domain,
+          organizationId: website.organizationId,
+        },
+      );
+    }
 
     return await ctx.runAction(
       internal.websites.internal_actions.fetchWebsitePages,

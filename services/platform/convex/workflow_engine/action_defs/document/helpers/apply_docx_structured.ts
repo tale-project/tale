@@ -171,17 +171,33 @@ export async function applyDocxStructured(
     : `${args.fileName}.docx`;
 
   // Save file metadata so the file shows up in the org's library.
-  await ctx.runMutation(
-    internal.file_metadata.internal_mutations.saveFileMetadata,
-    {
-      organizationId: args.organizationId,
-      storageId,
-      fileName: finalFileName,
-      contentType: DOCX_CONTENT_TYPE,
-      size: docxBytes.length,
-      source: 'agent',
-    },
-  );
+  // Cleanup the just-uploaded _storage blob if the metadata write
+  // fails — without this, a transient mutation failure leaves an
+  // orphan blob in the global _storage namespace with no fileMetadata
+  // pointer (round-3 P2 R10-P2-c).
+  try {
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.saveFileMetadata,
+      {
+        organizationId: args.organizationId,
+        storageId,
+        fileName: finalFileName,
+        contentType: DOCX_CONTENT_TYPE,
+        size: docxBytes.length,
+        source: 'agent',
+      },
+    );
+  } catch (err) {
+    try {
+      await ctx.storage.delete(storageId);
+    } catch (deleteErr) {
+      console.warn(
+        `[applyDocxStructured] orphan-blob cleanup failed for ${storageId}:`,
+        deleteErr instanceof Error ? deleteErr.message : deleteErr,
+      );
+    }
+    throw err;
+  }
 
   const downloadUrl = buildDownloadUrl(storageId, finalFileName);
 

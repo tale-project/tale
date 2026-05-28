@@ -270,9 +270,19 @@ export const websitePostActions = withRestAuth(
     }
 
     if (subPath === 'sync') {
+      // The :id path param scopes the sync to a single website. The
+      // earlier implementation called syncWebsiteStatuses (whole-org),
+      // making :id load-bearing only as an ownership tripwire — REST
+      // callers got an org-wide side effect when they thought they were
+      // re-syncing one row. Use the per-website action so the contract
+      // matches the URL (round-3 P2 R9-P2-a).
       await rc.ctx.runAction(
-        internal.websites.internal_actions.syncWebsiteStatuses,
-        { organizationId: rc.org.organizationId },
+        internal.websites.internal_actions.syncSingleWebsite,
+        {
+          websiteId: website._id,
+          domain: website.domain,
+          organizationId: rc.org.organizationId,
+        },
       );
 
       return jsonOk({ status: 'syncing' });
