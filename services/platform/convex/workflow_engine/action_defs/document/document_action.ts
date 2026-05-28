@@ -48,6 +48,39 @@ async function resolveStorageUrl(
   return fileUrl;
 }
 
+/**
+ * Document-row access gate for workflow ops that resolve a `documents`
+ * row by `fileId`. Mirrors the agent-tool sibling
+ * `retrieve_document.ts:42-58`: same-org gate via `findDocumentByFileId`
+ * (already inline in callers) PLUS team-ACL gate via
+ * `getAccessibleDocumentIds` (was missing — same-org members of a
+ * different team could read foreign-team documents).
+ *
+ * When `userId` is absent from `_variables` (system-triggered workflows
+ * that don't impersonate a user), the team-ACL gate is skipped — the
+ * org-membership gate above already constrains scope and there's no
+ * member identity to scope further. Throws Error on access denied.
+ */
+async function assertDocumentAccessibleInWorkflow(
+  ctx: ActionCtx,
+  organizationId: string,
+  userId: string | undefined,
+  document: { _id: string },
+  fileId: string,
+): Promise<void> {
+  if (!userId) return;
+  const accessibleIds: string[] = await ctx.runQuery(
+    internal.documents.internal_queries.getAccessibleDocumentIds,
+    { organizationId, userId },
+  );
+  if (!accessibleIds.includes(document._id)) {
+    throw new Error(
+      `Access denied for document "${fileId}". ` +
+        "You may not have access to this document's team.",
+    );
+  }
+}
+
 async function resolveFileName(
   ctx: ActionCtx,
   fileId: string,
@@ -221,6 +254,8 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           typeof _variables.organizationId === 'string'
             ? _variables.organizationId
             : undefined;
+        const userId =
+          typeof _variables.userId === 'string' ? _variables.userId : undefined;
 
         if (!organizationId) {
           throw new Error(
@@ -236,6 +271,14 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         if (!document) {
           throw new Error(`Document not found for file ID "${params.fileId}"`);
         }
+
+        await assertDocumentAccessibleInWorkflow(
+          ctx,
+          organizationId,
+          userId,
+          document,
+          params.fileId,
+        );
 
         const documentId = document._id;
 
@@ -281,6 +324,8 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           typeof _variables.organizationId === 'string'
             ? _variables.organizationId
             : undefined;
+        const userId =
+          typeof _variables.userId === 'string' ? _variables.userId : undefined;
         if (!organizationId) {
           throw new Error(
             'organizationId is required in workflow variables to retrieve a document',
@@ -295,6 +340,13 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             `Document with file ID "${params.fileId}" not found in this organization`,
           );
         }
+        await assertDocumentAccessibleInWorkflow(
+          ctx,
+          organizationId,
+          userId,
+          ownsDocument,
+          params.fileId,
+        );
         const retrieveOrgSlug = await orgSlugFromId(ctx, organizationId);
         const result = await fetchDocumentContent(
           retrieveOrgSlug,
@@ -542,6 +594,21 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           typeof _variables.organizationId === 'string'
             ? _variables.organizationId
             : undefined;
+        const userId =
+          typeof _variables.userId === 'string' ? _variables.userId : undefined;
+
+        // Team-ACL gate: load the caller's accessible documentIds once
+        // (cheaper than once per fileId) and filter in the per-id loop
+        // below. Only applies when both organizationId and userId are
+        // known — system-triggered workflows (no userId) get the
+        // org-membership gate only, consistent with the other doc ops.
+        const accessibleIds: string[] | null =
+          organizationId && userId
+            ? await ctx.runQuery(
+                internal.documents.internal_queries.getAccessibleDocumentIds,
+                { organizationId, userId },
+              )
+            : null;
 
         const results = await Promise.all(
           params.fileIds.map(async (fileId) => {
@@ -558,27 +625,38 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
                 : Promise.resolve(undefined),
             ]);
 
+            // Drop the docs-row if the caller doesn't have access to its
+            // team. fileMetadata + base name still surface so workflow
+            // steps that only need fileName don't break — but team-
+            // private fields (sourceCreatedAt/sourceModifiedAt/
+            // lastModified, docMetadata) are gated below.
+            const visibleDocument =
+              document &&
+              (accessibleIds === null || accessibleIds.includes(document._id))
+                ? document
+                : undefined;
+
             /* oxlint-disable typescript/no-unsafe-type-assertion -- metadata is a generic JSON record from Convex schema; runtime guard ensures it's an object before narrowing */
             const docMetadata =
-              document?.metadata != null &&
-              typeof document.metadata === 'object'
-                ? (document.metadata as DocumentMetadata)
+              visibleDocument?.metadata != null &&
+              typeof visibleDocument.metadata === 'object'
+                ? (visibleDocument.metadata as DocumentMetadata)
                 : undefined;
             /* oxlint-enable typescript/no-unsafe-type-assertion */
 
-            const lastModified = document
+            const lastModified = visibleDocument
               ? getDocumentEffectiveDate(
-                  document,
+                  visibleDocument,
                   docMetadata,
-                  document._creationTime,
+                  visibleDocument._creationTime,
                 )
               : undefined;
 
             return {
               fileId,
               fileName: fileMetadata?.fileName ?? 'Unknown',
-              sourceCreatedAt: document?.sourceCreatedAt,
-              sourceModifiedAt: document?.sourceModifiedAt,
+              sourceCreatedAt: visibleDocument?.sourceCreatedAt,
+              sourceModifiedAt: visibleDocument?.sourceModifiedAt,
               lastModified,
             };
           }),

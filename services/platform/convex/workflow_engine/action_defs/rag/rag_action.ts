@@ -5,6 +5,7 @@ import { internal } from '../../../_generated/api';
 import type { ActionCtx } from '../../../_generated/server';
 import type { SearchResponse } from '../../../agent_tools/rag/format_search_results';
 import { fetchDocumentChunks } from '../../../agent_tools/rag/helpers/fetch_document_chunks';
+import { stripReservedPromptTags } from '../../../lib/agent_response/sanitize_prompt';
 import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { ragFetch } from '../../../lib/helpers/rag_config';
@@ -56,6 +57,12 @@ export const ragAction: ActionDefinition<RagActionParams> = {
 
     switch (migratedParams.operation) {
       case 'upload_document': {
+        // Cross-tenant gate: without this, org A's workflow can force
+        // ingestion of org B's storage blob (the helper would resolve
+        // org B's slug from file metadata and index into org B's RAG
+        // namespace — cost shift + content injection). Mirror the
+        // delete/get_chunks/search ops which all gate first.
+        await assertStorageIdsInOrg(ctx, _variables, [migratedParams.fileId]);
         const result = await uploadDocument(ctx, migratedParams.fileId, {
           sync: migratedParams.sync,
           fileName: migratedParams.fileName,
@@ -89,6 +96,15 @@ export const ragAction: ActionDefinition<RagActionParams> = {
           orgSlug,
           migratedParams.fileId,
         );
+        // SEC1: indexed-doc chunks may contain `<system>…</system>` or
+        // other reserved wrapper tags that would otherwise escape the
+        // workflow's downstream system prompt. Strip BEFORE any further
+        // wrapping (the video-link `wrapUntrusted` then layers on top).
+        // Mirrors `rag_search_tool.ts:319` (agent-tool retrieve path).
+        result.chunks = result.chunks.map((c) => ({
+          ...c,
+          content: stripReservedPromptTags(c.content),
+        }));
         // Prompt-injection defense: video-link-sourced chunks contain
         // attacker-controlled transcript text. Mirror the wrap that
         // `rag_search_tool.ts` applies on the agent-tool side.
@@ -146,10 +162,14 @@ export const ragAction: ActionDefinition<RagActionParams> = {
           }
 
           const result = await fetchJson<SearchResponse>(response);
-          // Prompt-injection defense: per-result content wrap for any
-          // file ids that map to a video-link source. Mirror the
-          // `rag_search_tool.ts` search-mode wrap.
-          let wrappedResults = result.results;
+          // SEC1: strip reserved wrapper tags from every search hit
+          // BEFORE further processing. Mirrors `rag_search_tool.ts:483`
+          // (agent-tool search path). The subsequent video-link
+          // `wrapUntrusted` layers on top of the stripped content.
+          let wrappedResults = result.results.map((r) => ({
+            ...r,
+            content: stripReservedPromptTags(r.content),
+          }));
           if (wrappedResults.length > 0) {
             const fileIds = wrappedResults
               .map((r) => r.file_id)
