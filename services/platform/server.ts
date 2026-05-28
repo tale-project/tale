@@ -33,7 +33,18 @@ const SHUTDOWN_MARKER = '/tmp/platform-shutting-down';
 // TanStack Query caches without a full page reload.
 // ---------------------------------------------------------------------------
 
-const sseClients = new Set<ReadableStreamDefaultController>();
+interface SseClient {
+  controller: ReadableStreamDefaultController;
+  // Org slugs the connected user is a member of. Watcher events whose
+  // `orgSlug` falls outside this set are dropped before the payload
+  // hits the wire — closes the cross-org metadata leak that
+  // unauthenticated / cross-org clients otherwise saw via the SSE
+  // stream. `null` means "platform-wide / org-agnostic event" (rare;
+  // currently only the `{type:"connected"}` ping).
+  allowedOrgSlugs: Set<string>;
+}
+
+const sseClients = new Set<SseClient>();
 
 const fileEventsEnabled = process.env.TALE_FILE_EVENTS === 'true';
 const configDir = process.env.TALE_CONFIG_DIR;
@@ -44,16 +55,73 @@ if (fileEventsEnabled && configDir && existsSync(configDir)) {
   const watcher = createConfigWatcher(configDir);
   watcher.onChange((event) => {
     const payload = `data: ${JSON.stringify(event)}\n\n`;
-    for (const controller of sseClients) {
+    // Per-event org filter. Every config-watcher event carries an
+    // `orgSlug` (see lib/config-watcher.ts: parseConfigChange always
+    // sets it for valid paths). If a future event type appears without
+    // a slug, default-deny — the legacy fan-out-to-everyone behavior is
+    // what this fix is closing.
+    const eventOrg =
+      typeof event === 'object' && event !== null && 'orgSlug' in event
+        ? (event as { orgSlug?: string }).orgSlug
+        : undefined;
+    for (const client of sseClients) {
+      if (eventOrg && !client.allowedOrgSlugs.has(eventOrg)) continue;
       try {
-        controller.enqueue(payload);
+        client.controller.enqueue(payload);
       } catch (err) {
         console.warn('SSE enqueue failed; dropping client', err);
-        sseClients.delete(controller);
+        sseClients.delete(client);
       }
     }
   });
   console.log(`Config file watcher active: ${configDir}`);
+}
+
+/**
+ * Resolve the org slugs the current session is allowed to receive
+ * events for by forwarding the request's Cookie header to Convex's
+ * `/api/sse/auth` httpAction. Returns null on missing/invalid session
+ * (the SSE handler then closes the connection with 401).
+ *
+ * `CONVEX_SITE_PROXY_URL` overrides the derived URL for dev — see
+ * vite.config.ts. In compose the convex HTTP-actions port is `:3211`
+ * on the same internal hostname as the WS API (`:3210` from
+ * CONVEX_URL).
+ */
+function convexHttpActionsBaseUrl(): string {
+  if (process.env.CONVEX_SITE_PROXY_URL) {
+    return process.env.CONVEX_SITE_PROXY_URL.replace(/\/$/, '');
+  }
+  const wsUrl = process.env.CONVEX_URL ?? 'http://convex:3210';
+  return wsUrl.replace(/:\d+$/, ':3211').replace(/\/$/, '');
+}
+
+async function resolveAllowedOrgSlugs(
+  cookieHeader: string | undefined,
+): Promise<Set<string> | null> {
+  if (!cookieHeader) return null;
+  try {
+    const res = await fetch(`${convexHttpActionsBaseUrl()}/api/sse/auth`, {
+      headers: { cookie: cookieHeader },
+    });
+    if (res.status === 401) return null;
+    if (!res.ok) {
+      console.warn(`[/events/file] convex auth lookup returned ${res.status}`);
+      return null;
+    }
+    const body: unknown = await res.json();
+    const slugs =
+      body && typeof body === 'object' && 'orgSlugs' in body
+        ? (body as { orgSlugs: unknown }).orgSlugs
+        : null;
+    if (!Array.isArray(slugs)) return new Set();
+    return new Set(
+      slugs.filter((s): s is string => typeof s === 'string' && s.length > 0),
+    );
+  } catch (err) {
+    console.warn('[/events/file] convex auth lookup failed', err);
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -336,24 +404,46 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     });
   });
 
-  app.get('/events/file', (c) => {
+  app.get('/events/file', async (c) => {
     if (!env.FILE_EVENTS_ENABLED) return c.notFound();
 
-    let ctrl: ReadableStreamDefaultController;
+    // Auth gate. SSE clients (EventSource) cannot set Authorization
+    // headers but DO send same-origin cookies, so we forward the
+    // request's Cookie to Convex's `/api/sse/auth` httpAction which
+    // validates the Better Auth session and returns the user's org
+    // memberships. Anonymous / cross-tenant fan-out used to leak
+    // every org's config-item names; per-client `allowedOrgSlugs`
+    // gates events at fan-out time so foreign-org payloads never
+    // reach the wire.
+    const cookieHeader = c.req.header('cookie');
+    const allowedOrgSlugs = await resolveAllowedOrgSlugs(cookieHeader);
+    if (allowedOrgSlugs === null) {
+      return new Response('Unauthenticated', {
+        status: 401,
+        headers: {
+          'Cache-Control': 'no-store',
+          Vary: 'Cookie',
+          'WWW-Authenticate': 'Cookie',
+        },
+      });
+    }
+
+    let client: SseClient;
     const stream = new ReadableStream({
       start(controller) {
-        ctrl = controller;
-        sseClients.add(ctrl);
-        ctrl.enqueue('data: {"type":"connected"}\n\n');
+        client = { controller, allowedOrgSlugs };
+        sseClients.add(client);
+        controller.enqueue('data: {"type":"connected"}\n\n');
       },
       cancel() {
-        sseClients.delete(ctrl);
+        sseClients.delete(client);
       },
     });
     return new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
+        Vary: 'Cookie',
       },
     });
   });

@@ -1,6 +1,7 @@
 import { httpRouter } from 'convex/server';
 
-import { internal } from './_generated/api';
+import { getString, isRecord } from '../lib/utils/type-guards';
+import { components, internal } from './_generated/api';
 import { httpAction } from './_generated/server';
 import {
   listAgents as listAgentsRest,
@@ -298,6 +299,77 @@ http.route({
       });
       return new Response('Internal server error', { status: 500 });
     }
+  }),
+});
+
+/**
+ * Resolve which org slugs a session-authenticated user is allowed to see
+ * events for. Consumed by the Bun-side `/events/file` SSE handler so the
+ * fan-out can drop events whose `orgSlug` is not in the caller's
+ * membership set — before any wire payload reaches the client.
+ *
+ * Returns `{ userId, orgSlugs }` on success or 401 on missing/invalid
+ * session. The 401 carries `Vary: Cookie` so a TLS-terminating proxy
+ * can't cache the response against the URL and starve a freshly-logged-
+ * in user.
+ */
+http.route({
+  path: '/api/sse/auth',
+  method: 'GET',
+  handler: httpAction(async (ctx, req) => {
+    const auth = createAuth(ctx);
+    const session = await auth.api.getSession({ headers: req.headers });
+    if (!session?.user) {
+      return new Response('Unauthenticated', {
+        status: 401,
+        headers: {
+          'Cache-Control': 'no-store',
+          Vary: 'Cookie',
+          'WWW-Authenticate': 'Cookie',
+        },
+      });
+    }
+
+    const memberships = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'member',
+        // Cap matches the platform's hard limit on per-user org membership.
+        paginationOpts: { cursor: null, numItems: 256 },
+        where: [{ field: 'userId', value: session.user.id, operator: 'eq' }],
+      },
+    );
+
+    const memberRows: unknown[] = Array.isArray(memberships?.page)
+      ? memberships.page
+      : [];
+    const orgIds: string[] = memberRows
+      .map((row) =>
+        isRecord(row) ? getString(row, 'organizationId') : undefined,
+      )
+      .filter((s): s is string => typeof s === 'string' && s.length > 0);
+
+    const slugs: string[] = [];
+    for (const orgId of orgIds) {
+      const orgRow = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+        model: 'organization',
+        where: [{ field: '_id', value: orgId, operator: 'eq' }],
+      });
+      const slug = isRecord(orgRow) ? getString(orgRow, 'slug') : undefined;
+      if (typeof slug === 'string' && slug.length > 0) slugs.push(slug);
+    }
+
+    return new Response(
+      JSON.stringify({ userId: session.user.id, orgSlugs: slugs }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          Vary: 'Cookie',
+        },
+      },
+    );
   }),
 });
 

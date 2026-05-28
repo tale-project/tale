@@ -1,6 +1,6 @@
 import * as vm from 'node:vm';
 
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { wrapCanvasPreviewHtml } from './lib/canvas-preview-shell';
 import { createApp } from './server';
@@ -360,14 +360,52 @@ describe('GET /status.json', () => {
 });
 
 describe('SSE /events/file', () => {
-  test('preserves text/event-stream content type and no-cache', async () => {
+  test('returns 401 when no session cookie is present', async () => {
     const app = createApp(baseEnv);
+    // No cookie → convex auth is never even called; the handler short-
+    // circuits the early-null branch in resolveAllowedOrgSlugs.
     const res = await app.fetch(new Request('http://localhost/events/file'));
+    expect(res.status).toBe(401);
+    expect(res.headers.get('www-authenticate')).toBe('Cookie');
+    expect(res.headers.get('vary')).toBe('Cookie');
+  });
+
+  test('returns 401 when convex auth lookup rejects the session', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('Unauthenticated', { status: 401 }));
+    const app = createApp(baseEnv);
+    const res = await app.fetch(
+      new Request('http://localhost/events/file', {
+        headers: { cookie: 'better-auth.session_token=invalid' },
+      }),
+    );
+    expect(res.status).toBe(401);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    fetchSpy.mockRestore();
+  });
+
+  test('streams text/event-stream when session resolves to org memberships', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ userId: 'u1', orgSlugs: ['acme'] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const app = createApp(baseEnv);
+    const res = await app.fetch(
+      new Request('http://localhost/events/file', {
+        headers: { cookie: 'better-auth.session_token=valid' },
+      }),
+    );
+    expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/event-stream');
     expect(res.headers.get('cache-control')).toBe('no-cache');
+    expect(res.headers.get('vary')).toBe('Cookie');
     expect(res.body).toBeInstanceOf(ReadableStream);
     // Cancel to drop the SSE client and avoid leaking the controller.
     await res.body?.cancel();
+    fetchSpy.mockRestore();
   });
 
   test('returns 404 when FILE_EVENTS_ENABLED is false', async () => {
