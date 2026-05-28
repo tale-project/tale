@@ -223,6 +223,7 @@ export async function start(options: StartOptions): Promise<void> {
     { version, registry: env.GHCR_REGISTRY },
     hostAlias,
     port,
+    { projectDir },
   );
 
   const overrideFile = findComposeOverride(projectDir);

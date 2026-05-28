@@ -20,6 +20,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { isReservedOrgSlug } from '@/lib/shared/constants/reserved-org-slugs';
 
 import { useInitializeDefaultWorkflows } from '../hooks/actions';
 
@@ -49,6 +50,17 @@ export function OrganizationForm() {
           .regex(
             /^[A-Za-z0-9][A-Za-z0-9 _-]*$/,
             'Use letters, digits, spaces, hyphens, and underscores only, starting with a letter or digit.',
+          )
+          .refine(
+            (name) => {
+              const derived = name
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+              return !isReservedOrgSlug(derived);
+            },
+            { message: 'This name is reserved by the platform.' },
           ),
       }),
     [t],

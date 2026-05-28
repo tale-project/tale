@@ -12,6 +12,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { buildDownloadUrl, getCrawlerUrl } from './generate_document_helpers';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
@@ -62,6 +63,7 @@ export async function generateDocx(
 ): Promise<GenerateDocxResult> {
   const crawlerUrl = getCrawlerUrl();
   const apiUrl = `${crawlerUrl}/api/v1/docx`;
+  const orgSlug = await orgSlugFromId(ctx, args.organizationId);
 
   const requestBody = {
     content: args.content,
@@ -74,7 +76,10 @@ export async function generateDocx(
 
   const response = await fetch(apiUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-tale-org': orgSlug,
+    },
     body: JSON.stringify(requestBody),
   });
 

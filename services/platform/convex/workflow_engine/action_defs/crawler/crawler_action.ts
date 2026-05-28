@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { createDebugLog } from '../../../lib/debug_log';
+import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type {
   CrawlerActionParams,
@@ -51,17 +52,28 @@ export const crawlerAction: ActionDefinition<CrawlerActionParams> = {
     }),
   ),
 
-  async execute(_ctx, params) {
+  async execute(ctx, params, variables) {
     const serviceUrl = process.env.CRAWLER_URL || 'http://localhost:8002';
     const timeout = params.timeout || 1800000;
 
+    const organizationId =
+      typeof variables.organizationId === 'string'
+        ? variables.organizationId
+        : undefined;
+    if (!organizationId) {
+      throw new Error(
+        'crawler action requires organizationId in workflow _variables.',
+      );
+    }
+    const orgSlug = await orgSlugFromId(ctx, organizationId);
+
     switch (params.operation) {
       case 'discover_urls':
-        return await discoverUrls(params, serviceUrl, timeout);
+        return await discoverUrls(params, serviceUrl, orgSlug, timeout);
       case 'fetch_urls':
-        return await fetchUrls(params, serviceUrl, timeout);
+        return await fetchUrls(params, serviceUrl, orgSlug, timeout);
       case 'query_urls':
-        return await queryUrls(params, serviceUrl, timeout);
+        return await queryUrls(params, serviceUrl, orgSlug, timeout);
       default:
         throw new Error(
           `Unknown crawler operation: ${(params as { operation: string }).operation}`,
@@ -88,6 +100,7 @@ type QueryUrlsParams = Extract<
 async function discoverUrls(
   params: DiscoverUrlsParams,
   serviceUrl: string,
+  orgSlug: string,
   timeout: number,
 ): Promise<DiscoverUrlsResult> {
   let domain = params.domain;
@@ -119,6 +132,7 @@ async function discoverUrls(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'x-tale-org': orgSlug,
     },
     body: JSON.stringify(payload),
     signal: controller.signal,
@@ -158,6 +172,7 @@ async function discoverUrls(
 async function fetchUrls(
   params: FetchUrlsParams,
   serviceUrl: string,
+  orgSlug: string,
   timeout: number,
 ): Promise<FetchUrlsResult> {
   const payload = {
@@ -175,6 +190,7 @@ async function fetchUrls(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'x-tale-org': orgSlug,
     },
     body: JSON.stringify(payload),
     signal: controller.signal,
@@ -206,6 +222,7 @@ async function fetchUrls(
 async function queryUrls(
   params: QueryUrlsParams,
   serviceUrl: string,
+  orgSlug: string,
   timeout: number,
 ): Promise<QueryUrlsResult> {
   const searchParams = new URLSearchParams();
@@ -224,7 +241,10 @@ async function queryUrls(
 
   const response = await fetch(
     `${serviceUrl}/api/v1/websites/${encodeURIComponent(params.domain)}/urls?${searchParams}`,
-    { signal: controller.signal },
+    {
+      headers: { 'x-tale-org': orgSlug },
+      signal: controller.signal,
+    },
   );
 
   clearTimeout(timeoutId);

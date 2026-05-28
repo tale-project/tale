@@ -21,6 +21,7 @@ import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { internal } from '../../_generated/api';
 import { stripReservedPromptTags } from '../../lib/agent_response/sanitize_prompt';
 import { createDebugLog } from '../../lib/debug_log';
+import { UpstreamHttpError } from '../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import { ragFetch } from '../../lib/helpers/rag_config';
 import { toId } from '../../lib/type_cast_helpers';
@@ -284,10 +285,16 @@ RESPONSE (list_indexed):
 
         if (!response.ok) {
           const errorText = await response.text().catch(() => '');
-          return {
-            success: false,
-            response: `Failed to retrieve document: ${response.status} ${errorText}`,
-          };
+          const err = UpstreamHttpError.fromResponse(
+            'rag',
+            response,
+            errorText,
+            `/api/v1/documents/${args.fileId}/content`,
+          );
+          // Agent-facing tool path: return the safe summary instead of throwing
+          // so the agent can recover (e.g. show the user "not found" rather than
+          // an opaque tool error).
+          return { success: false, response: err.safeMessage };
         }
 
         interface RetrieveResponse {
@@ -452,7 +459,12 @@ RESPONSE (list_indexed):
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`RAG service error: ${response.status} ${errorText}`);
+          throw UpstreamHttpError.fromResponse(
+            'rag',
+            response,
+            errorText,
+            '/api/v1/search',
+          );
         }
 
         const result = await fetchJson<SearchResponse>(response);

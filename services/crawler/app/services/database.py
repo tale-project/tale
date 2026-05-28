@@ -46,8 +46,28 @@ async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
         if _pool is not None:
             return _pool
 
+        # Resolve the deployment-wide embedding dim BEFORE creating the
+        # pool. This way, a missing `default` org provider fails fast
+        # with no pool resource to clean up — and the module-level
+        # `_pool` stays None so a follow-up retry can re-enter cleanly.
+        #
+        # Background: the baseline migration declares `embedding vector`
+        # (no dim) so pgvector accepts mixed-dim inserts silently and
+        # `create_chunks_hnsw_index()` raises ("has no dimensions").
+        # All orgs on this deployment must share embedding dims (single
+        # chunks table); we pin from the `default` org's catalog.
+        try:
+            _, _, _, dims = settings.get_embedding_config("default")
+        except Exception as e:
+            raise RuntimeError(
+                "Cannot resolve embedding dims for the 'default' org "
+                "(needed to pin public_web.chunks.embedding at boot). "
+                "Ensure providers are configured for the default org "
+                "before starting crawler."
+            ) from e
+
         dsn = _get_database_url()
-        _pool = await asyncpg.create_pool(
+        pool = await asyncpg.create_pool(
             dsn,
             min_size=min(2, max_size),
             max_size=max_size,
@@ -62,26 +82,26 @@ async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
         )
         logger.info(f"PostgreSQL connection pool initialized (min={min(2, max_size)}, max={max_size})")
 
-        # Note: the previous boot-time embedding-dimension guard was
-        # removed when crawler became multi-org. Dim is now an attribute
-        # of the org's provider catalog, not a global setting, and there
-        # is no org context at lifespan start. `get_embedding_service()`
-        # refuses dim changes per-org at request time; pgvector enforces
-        # column dim on insert.
-        #
-        # The column type and HNSW index are pinned lazily on the first
-        # insert (pgvector errors loudly on dim mismatch). All orgs
-        # sharing this crawler instance must agree on embedding dims.
-
-        # Create HNSW index if it doesn't exist yet. The index targets
-        # whatever the column type is set to; if no rows have been
-        # inserted, the call is cheap.
         try:
-            async with acquire_with_retry(_pool) as conn:
-                await conn.execute(f"SELECT {SCHEMA}.create_chunks_hnsw_index()")
-        except Exception as e:
-            logger.warning(f"HNSW index creation deferred: {e}")
+            async with acquire_with_retry(pool) as conn:
+                await conn.execute(f"ALTER TABLE {SCHEMA}.chunks ALTER COLUMN embedding TYPE vector({dims})")
+            logger.info(f"Pinned {SCHEMA}.chunks.embedding to vector({dims})")
 
+            # Create HNSW index if it doesn't exist yet. After the pin
+            # above this is the normal path; the function raises if the
+            # dim is still unset, which would now indicate a deeper
+            # invariant break.
+            try:
+                async with acquire_with_retry(pool) as conn:
+                    await conn.execute(f"SELECT {SCHEMA}.create_chunks_hnsw_index()")
+            except Exception as e:
+                logger.warning(f"HNSW index creation deferred: {e}")
+        except Exception:
+            # Roll back the pool we just opened so a retry hits a clean state.
+            await pool.close()
+            raise
+
+        _pool = pool
         return _pool
 
 

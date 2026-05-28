@@ -1,4 +1,5 @@
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
+import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
 import { ragFetch } from '../../../lib/helpers/rag_config';
 
 const FETCH_TIMEOUT_MS = 120_000;
@@ -143,8 +144,11 @@ export async function fetchDocumentComparison(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `RAG service error (${response.status}): ${errorText || 'Unknown error'}`,
+      throw UpstreamHttpError.fromResponse(
+        'rag',
+        response,
+        errorText,
+        '/api/v1/documents/compare',
       );
     }
 
@@ -238,8 +242,11 @@ export async function fetchDocumentComparisonByUrls(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `RAG service error (${response.status}): ${errorText || 'Unknown error'}`,
+      throw UpstreamHttpError.fromResponse(
+        'rag',
+        response,
+        errorText,
+        '/api/v1/documents/compare-files',
       );
     }
 

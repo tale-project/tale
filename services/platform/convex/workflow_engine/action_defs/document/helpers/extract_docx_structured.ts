@@ -11,6 +11,7 @@ import { fetchJson } from '../../../../../lib/utils/type-cast-helpers';
 import type { ActionCtx } from '../../../../_generated/server';
 import { getCrawlerUrl } from '../../../../documents/generate_document_helpers';
 import { createDebugLog } from '../../../../lib/debug_log';
+import { orgSlugFromId } from '../../../../lib/helpers/org_slug';
 import { toId } from '../../../../lib/type_cast_helpers';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
@@ -38,9 +39,11 @@ export interface ExtractDocxStructuredResult {
 export async function extractDocxStructured(
   ctx: ActionCtx,
   fileId: string,
+  organizationId: string,
 ): Promise<ExtractDocxStructuredResult> {
   const crawlerUrl = getCrawlerUrl();
   const apiUrl = `${crawlerUrl}/api/v1/docx/extract-structured`;
+  const orgSlug = await orgSlugFromId(ctx, organizationId);
 
   debugLog('extractDocxStructured start', { fileId });
 
@@ -59,6 +62,7 @@ export async function extractDocxStructured(
 
   const response = await fetch(apiUrl, {
     method: 'POST',
+    headers: { 'x-tale-org': orgSlug },
     body: formData,
     signal: controller.signal,
   });

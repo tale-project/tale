@@ -8,6 +8,7 @@ import {
   isRecord,
 } from '../../../../../lib/utils/type-guards';
 import { internalAction } from '../../../../_generated/server';
+import { UpstreamHttpError } from '../../../../lib/errors/upstream_http_error';
 import { ragFetch } from '../../../../lib/helpers/rag_config';
 import type { RagDeleteResult } from './types';
 
@@ -54,7 +55,12 @@ export async function deleteDocumentById({
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`RAG service error: ${response.status} ${errorText}`);
+      throw UpstreamHttpError.fromResponse(
+        'rag',
+        response,
+        errorText,
+        `/api/v1/documents/${fileId}`,
+      );
     }
 
     const rawResult: unknown = await response.json();

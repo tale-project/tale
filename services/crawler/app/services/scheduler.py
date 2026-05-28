@@ -12,6 +12,7 @@ import time
 
 import httpx
 
+from app.org_context import set_active_org
 from app.services.crawler_service import CrawlerService
 from app.services.indexing_service import IndexingService
 from app.services.pg_website_store import PgWebsiteStore, PgWebsiteStoreManager
@@ -66,21 +67,15 @@ async def run_scheduler(
     global _scan_trigger
     _scan_trigger = asyncio.Event()
 
-    # Background scheduler has no per-request X-Tale-Org context. Until
-    # the websites table carries the owning org slug, fall back to
-    # `default` for any provider lookups triggered by scheduled scans.
-    # Log once so operators see the assumption.
-    from app.org_context import set_active_org
-
-    set_active_org("default")
-    logger.warning(
-        "Scheduler background task using org slug 'default' for provider "
-        "lookups. Per-website org binding is a follow-up."
-    )
-
     sem = asyncio.Semaphore(max_concurrent_scans)
 
-    async def bounded_scan(domain: str):
+    async def bounded_scan(domain: str, owner_org_slug: str):
+        # ContextVar is per-asyncio-task: asyncio.create_task copies the
+        # parent context at spawn, then any `set` inside the task only
+        # affects this task. Setting here binds provider lookups for the
+        # embed/fetch path to the website's owning org for the duration
+        # of the scan.
+        set_active_org(owner_org_slug)
         async with sem:
             await _scan_website(
                 domain,
@@ -95,7 +90,7 @@ async def run_scheduler(
             due = await store_manager.get_due_websites()
             if due:
                 logger.info(f"Scheduler: {len(due)} website(s) due for scanning")
-                tasks = [asyncio.create_task(bounded_scan(w["domain"])) for w in due]
+                tasks = [asyncio.create_task(bounded_scan(w["domain"], w["owner_org_slug"])) for w in due]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 for website, result in zip(due, results, strict=True):
                     if isinstance(result, BaseException):

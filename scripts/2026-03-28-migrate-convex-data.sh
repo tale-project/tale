@@ -2,18 +2,22 @@
 # ============================================================================
 # Migration: Convex data migration (2026-03-28)
 # ============================================================================
-# Handles two tasks:
-#   1. Copy Convex storage data from old volume to new volume
-#   2. Rename organization slug to "default"
+# Copies Convex storage data from old volume to new volume.
 #
 # Background:
 #   The platform volume was renamed from platform-convex-data to platform-data.
 #   Old Convex storage files (modules, user uploads) need to be copied to the
 #   new volume so the Convex backend can find them.
 #
+# Note:
+#   A prior version of this script also called `convex run
+#   migrations/rename_org_slug:renameOrgSlug` (Phase 2) — that migration was
+#   removed in v1.0 along with the upgrade framework; the Phase 2 step is
+#   no longer needed and would now fail with "function not found".
+#
 # Prerequisites:
 #   - Docker must be running
-#   - Platform container should be stopped for phase 1
+#   - Platform container should be stopped before running
 #
 # Usage:
 #   ./scripts/2026-03-28-migrate-convex-data.sh
@@ -83,56 +87,8 @@ else
   echo ""
 fi
 
-# ============================================================================
-# Phase 2: Rename organization slug to "default"
-# ============================================================================
-
-find_platform_container() {
-  docker ps --filter "name=tale-platform" --filter "status=running" --format '{{.Names}}' | head -1
-}
-
-echo ""
-echo "── Phase 2: Organization slug rename ──"
-echo ""
-
-container=$(find_platform_container)
-
-if [ -z "$container" ]; then
-  echo "❌ Platform container is not running."
-  echo "   Please start it first:"
-  echo ""
-  echo "     docker compose up --build -d platform"
-  echo ""
-  echo "   Then re-run this script."
-  exit 1
-fi
-
-status=$(docker inspect --format='{{.State.Health.Status}}' "$container" 2>/dev/null || echo "unknown")
-if [ "$status" != "healthy" ]; then
-  echo "❌ Platform container '$container' is not healthy (status: $status)."
-  echo "   Wait for it to become healthy, then re-run this script."
-  exit 1
-fi
-
-echo "   ✅ $container is healthy."
-echo "   Running organization slug migration..."
-
-docker exec "$container" bash -c '
-  source /app/env.sh
-  env_normalize_common
-  source /app/generate-admin-key.sh
-  ensure_instance_secret
-  ADMIN_KEY=$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")
-  cd /app
-  HOME=/home/tanstack bunx convex run \
-    migrations/rename_org_slug:renameOrgSlug \
-    --url "http://localhost:3210" \
-    --admin-key "$ADMIN_KEY" \
-    --no-push 2>&1
-' | grep -v "^Admin key\|^📋\|^✅ Admin\|^━\|^🌐\|^$\|Steps:\|Open\|Enter\|Paste"
+# Phase 2 (renameOrgSlug) removed in v1.0 — the underlying Convex migration
+# function no longer exists in the platform codebase.
 
 echo ""
 echo "✅ Migration complete!"
-echo ""
-echo "You can verify the organization slug with:"
-echo "  docker exec $container bash -c 'source /app/env.sh && env_normalize_common && source /app/generate-admin-key.sh && ensure_instance_secret && ADMIN_KEY=\$(generate_key \"\$INSTANCE_NAME\" \"\$INSTANCE_SECRET\") && cd /app && HOME=/home/tanstack bunx convex data --component betterAuth organization --url \"http://localhost:3210\" --admin-key \"\$ADMIN_KEY\"'"

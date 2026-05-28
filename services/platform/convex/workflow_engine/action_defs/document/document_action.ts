@@ -582,7 +582,16 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       }
 
       case 'extract_docx_structured': {
-        return await extractDocxStructured(ctx, params.fileId);
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+        if (!organizationId) {
+          throw new Error(
+            'extract_docx_structured requires organizationId in workflow _variables.',
+          );
+        }
+        return await extractDocxStructured(ctx, params.fileId, organizationId);
       }
 
       case 'apply_docx_structured': {
@@ -590,6 +599,11 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           typeof _variables.organizationId === 'string'
             ? _variables.organizationId
             : undefined;
+        if (!organizationId) {
+          throw new Error(
+            'apply_docx_structured requires organizationId in workflow _variables.',
+          );
+        }
 
         return await applyDocxStructured(ctx, {
           templateFileId: params.templateFileId,

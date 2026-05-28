@@ -145,8 +145,22 @@ export async function deploy(options: DeployOptions): Promise<void> {
       const prefix = dryRun ? '[DRY-RUN] ' : '';
       logger.header(`${prefix}Deploying Tale ${version}`);
 
-      // (Auto-migration framework removed — `tale migrate config-layout` is
-      // the only opt-in, manually-run migration now.)
+      // Auto-migration framework removed — `tale migrate config-layout` is
+      // the only opt-in, manually-run migration now. Fail fast (before
+      // pulling images / rolling services) if the project still has the
+      // pre-refactor flat layout at the root; otherwise a no-op deploy
+      // could complete while the host config silently never reaches the
+      // container.
+      {
+        const { legacyDirs } = await findOrgDirs(env.DEPLOY_DIR);
+        if (legacyDirs.length > 0) {
+          throw new Error(
+            `Legacy flat layout detected at project root (${legacyDirs.join(', ')}/). ` +
+              `Run 'tale migrate config-layout' then 'tale deploy --override-all -y' ` +
+              `(see docs/self-hosted/operate/upgrades.md).`,
+          );
+        }
+      }
 
       // Check if this is a first-time deployment
       const currentColor = await getCurrentColor(env.DEPLOY_DIR);
@@ -572,7 +586,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
           `${prefix}Dry-run complete! Would deploy version ${version}`,
         );
       } else {
-        logger.success(`Deployment complete! Version ${version} is now live`);
+        // Containers are now rolled. Don't print "Deployment complete!"
+        // yet — that announces success over the wire, but sync + reseed
+        // still run below and either can abort the deploy.
+        logger.info(`${prefix}Services updated to version ${version}.`);
       }
 
       // Sync project files to the convex container (owns convex-data volume rw)
@@ -593,6 +610,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
           dryRun,
           assumeYes: options.assumeYes ?? false,
         });
+      }
+
+      if (!dryRun) {
+        logger.success(`Deployment complete! Version ${version} is now live`);
       }
     });
   } finally {
@@ -681,14 +702,11 @@ async function syncProjectFiles(
   const { orgDirs, legacyDirs } = await findOrgDirs(projectDir);
 
   if (legacyDirs.length > 0) {
-    logger.error(
-      `${prefix}Legacy flat layout detected at project root (${legacyDirs.join(', ')}/).`,
+    throw new Error(
+      `Legacy flat layout detected at project root (${legacyDirs.join(', ')}/). ` +
+        `Run 'tale migrate config-layout' then 'tale deploy --override-all -y' ` +
+        `(see docs/self-hosted/operate/upgrades.md).`,
     );
-    logger.info(
-      `${prefix}  Move config under 'default/<domain>/' (or run 'tale init --force' to rescaffold).`,
-    );
-    logger.info(`${prefix}  Aborting --override push.`);
-    return;
   }
 
   if (orgDirs.length === 0) {

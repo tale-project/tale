@@ -197,6 +197,7 @@ export const saveFileMetadata = mutation({
         storageId: args.storageId,
         fileName: args.fileName,
         contentType: args.contentType,
+        organizationId: args.organizationId,
       },
     );
 

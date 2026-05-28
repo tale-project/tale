@@ -7,6 +7,7 @@ import { isRecord, getNumber } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { getCrawlerUrl } from '../documents/generate_document_helpers';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
 /**
@@ -73,6 +74,7 @@ export const extractFileMetadata = internalAction({
     storageId: v.id('_storage'),
     fileName: v.string(),
     contentType: v.string(),
+    organizationId: v.string(),
     attempt: v.optional(v.number()),
   },
   returns: v.null(),
@@ -117,12 +119,14 @@ export const extractFileMetadata = internalAction({
         const fileBlob = await fileResponse.blob();
         const crawlerUrl = getCrawlerUrl();
         const endpoint = `${crawlerUrl}/api/v1/${ext}/extract-metadata`;
+        const orgSlug = await orgSlugFromId(ctx, args.organizationId);
 
         const formData = new FormData();
         formData.append('file', fileBlob, args.fileName);
 
         const metadataResponse = await fetch(endpoint, {
           method: 'POST',
+          headers: { 'x-tale-org': orgSlug },
           body: formData,
           signal: AbortSignal.timeout(30_000),
         });
@@ -196,6 +200,7 @@ export const extractFileMetadata = internalAction({
               storageId: args.storageId,
               fileName: args.fileName,
               contentType: args.contentType,
+              organizationId: args.organizationId,
               attempt: attempt + 1,
             },
           );

@@ -5,6 +5,7 @@ import { internal } from '../../../_generated/api';
 import type { ActionCtx } from '../../../_generated/server';
 import type { SearchResponse } from '../../../agent_tools/rag/format_search_results';
 import { fetchDocumentChunks } from '../../../agent_tools/rag/helpers/fetch_document_chunks';
+import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { ragFetch } from '../../../lib/helpers/rag_config';
 import { toId } from '../../../lib/type_cast_helpers';
@@ -124,8 +125,11 @@ export const ragAction: ActionDefinition<RagActionParams> = {
 
           if (!response.ok) {
             const errorText = await response.text().catch(() => '');
-            throw new Error(
-              `RAG search error (${response.status}): ${errorText || 'Unknown error'}`,
+            throw UpstreamHttpError.fromResponse(
+              'rag',
+              response,
+              errorText,
+              '/api/v1/search',
             );
           }
 

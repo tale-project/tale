@@ -12,6 +12,7 @@ import {
   ownerAc,
 } from 'better-auth/plugins/organization/access';
 
+import { isReservedOrgSlug } from '../lib/shared/constants/reserved-org-slugs';
 import { isRecord, getString } from '../lib/utils/type-guards';
 import { components, internal } from './_generated/api';
 import { DataModel } from './_generated/dataModel';
@@ -575,6 +576,27 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           beforeCreateOrganization: async (data) => {
             const slug = data.organization.slug;
             if (!slug) return;
+            // Refuse reserved slugs ("default") that the platform pins
+            // global resources to (branding, retention defaults).
+            // Without this, an open-signup user could claim "default"
+            // before the platform seed runs and inherit branding-admin.
+            // Exception: the platform's own first-run seed creates
+            // `default` when no orgs exist yet — let that one through.
+            if (isReservedOrgSlug(slug)) {
+              const anyOrg = await ctx.runQuery(
+                components.betterAuth.adapter.findMany,
+                {
+                  model: 'organization',
+                  paginationOpts: { cursor: null, numItems: 1 },
+                  where: [],
+                },
+              );
+              if (anyOrg && anyOrg.page.length > 0) {
+                throw new APIError('BAD_REQUEST', {
+                  message: `Organization slug "${slug}" is reserved by the platform.`,
+                });
+              }
+            }
             // Convex has no unique-index primitive, so enforce slug uniqueness
             // at application level before Better Auth's adapter writes the row.
             const existing = await ctx.runQuery(

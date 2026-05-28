@@ -9,6 +9,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../../lib/debug_log';
+import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
 import type { WebFetchUrlResult, WebFetchExtractApiResponse } from './types';
 
@@ -26,6 +27,11 @@ export async function fetchAndExtract(
   const crawlerServiceUrl = getCrawlerServiceUrl(ctx.variables);
   const apiUrl = `${crawlerServiceUrl}/api/v1/web/fetch-and-extract`;
 
+  if (!ctx.organizationId) {
+    throw new Error('fetch_and_extract requires organizationId in ToolCtx.');
+  }
+  const orgSlug = await orgSlugFromId(ctx, ctx.organizationId);
+
   debugLog('tool:web:fetch_and_extract start', {
     url: args.url,
     hasInstruction: !!args.instruction,
@@ -37,7 +43,10 @@ export async function fetchAndExtract(
 
     const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-tale-org': orgSlug,
+      },
       body: JSON.stringify({
         url: args.url,
         instruction: args.instruction,

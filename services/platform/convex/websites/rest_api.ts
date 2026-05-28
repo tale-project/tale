@@ -76,6 +76,7 @@ export const createWebsite = withRestAuth('rest:api', async (rc, request) => {
     websiteId,
     domain,
     scanInterval: body.scanInterval,
+    organizationId: rc.org.organizationId,
   });
 
   return jsonCreated({ id: websiteId });
@@ -127,6 +128,7 @@ export const getWebsite = withRestAuth('rest:api', async (rc, request) => {
       internal.websites.internal_actions.fetchWebsitePages,
       {
         domain: website.domain,
+        organizationId: website.organizationId,
         offset,
         limit,
       },
@@ -231,6 +233,7 @@ export const websiteSubActions = withRestAuth(
         internal.websites.internal_actions.fetchWebsitePages,
         {
           domain: website.domain,
+          organizationId: website.organizationId,
           offset,
           limit,
         },
@@ -287,6 +290,7 @@ export const websitePostActions = withRestAuth(
         {
           domain: website.domain,
           query: body.query,
+          organizationId: website.organizationId,
           limit: body.limit,
         },
       );

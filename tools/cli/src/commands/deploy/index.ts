@@ -60,9 +60,13 @@ export function createDeployCommand(): Command {
         // (typical: a new `SANDBOX_TOKEN` for an existing deployment),
         // force-recreate the running services so their in-memory env
         // refreshes to the new value rather than keeping the stale null.
+        // Also force-recreate on --override-all so the reseed action
+        // runs against the new binary, not a stale container that the
+        // image/config-unchanged path would have left running.
         const forceRecreate =
-          regeneratedAutoSecrets !== undefined &&
-          regeneratedAutoSecrets.length > 0;
+          (regeneratedAutoSecrets !== undefined &&
+            regeneratedAutoSecrets.length > 0) ||
+          (options.overrideAll ?? false);
         const env = loadEnv(projectDir);
 
         const version = pkg.version.includes('-dev') ? 'latest' : pkg.version;

@@ -10,6 +10,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import {
   buildDownloadUrl,
   buildRequestBody,
@@ -32,6 +33,7 @@ export async function generateDocument(
 
   const endpointPath = getEndpointPath(args.sourceType, args.outputFormat);
   const apiUrl = `${crawlerUrl}${endpointPath}`;
+  const orgSlug = await orgSlugFromId(ctx, args.organizationId);
 
   const requestBody = buildRequestBody(
     args.sourceType,
@@ -55,7 +57,10 @@ export async function generateDocument(
 
   const response = await fetch(apiUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-tale-org': orgSlug,
+    },
     body: JSON.stringify(requestBody),
   });
 

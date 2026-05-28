@@ -347,7 +347,7 @@ describe('retrieveDocument helper', () => {
 
     await expect(
       retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
-    ).rejects.toThrow('RAG service error (500)');
+    ).rejects.toThrow(/HTTP 500/);
   });
 
   it('wraps non-JSON response parse error', async () => {

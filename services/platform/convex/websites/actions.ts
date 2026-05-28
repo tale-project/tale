@@ -4,6 +4,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { toWebsiteDomain } from './create_website';
 import {
   deregisterDomainFromCrawler,
@@ -56,7 +57,12 @@ export const createWebsite = action({
     await ctx.scheduler.runAfter(
       0,
       internal.websites.internal_actions.registerAndSync,
-      { websiteId, domain, scanInterval: args.scanInterval },
+      {
+        websiteId,
+        domain,
+        scanInterval: args.scanInterval,
+        organizationId: args.organizationId,
+      },
     );
 
     return websiteId;
@@ -88,8 +94,9 @@ export const deleteWebsite = action({
       },
     );
 
+    const orgSlug = await orgSlugFromId(ctx, website.organizationId);
     // Deregister from crawler first — if this fails, the user can retry
-    await deregisterDomainFromCrawler(website.domain);
+    await deregisterDomainFromCrawler(orgSlug, website.domain);
 
     await ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
       websiteId: args.websiteId,
@@ -130,8 +137,13 @@ export const updateWebsite = action({
 
     // Sync scan interval to crawler
     if (args.scanInterval && args.scanInterval !== website.scanInterval) {
+      const orgSlug = await orgSlugFromId(ctx, website.organizationId);
       try {
-        await updateCrawlerScanInterval(website.domain, args.scanInterval);
+        await updateCrawlerScanInterval(
+          orgSlug,
+          website.domain,
+          args.scanInterval,
+        );
       } catch (error) {
         if (
           error instanceof Error &&
@@ -236,13 +248,18 @@ export const fetchPages = action({
     await ctx.scheduler.runAfter(
       0,
       internal.websites.internal_actions.syncSingleWebsite,
-      { websiteId: args.websiteId, domain: website.domain },
+      {
+        websiteId: args.websiteId,
+        domain: website.domain,
+        organizationId: website.organizationId,
+      },
     );
 
     return await ctx.runAction(
       internal.websites.internal_actions.fetchWebsitePages,
       {
         domain: website.domain,
+        organizationId: website.organizationId,
         offset: args.offset,
         limit: args.limit,
       },
@@ -267,7 +284,11 @@ export const fetchChunks = action({
 
     return await ctx.runAction(
       internal.websites.internal_actions.fetchPageChunks,
-      { domain: website.domain, url: args.url },
+      {
+        domain: website.domain,
+        url: args.url,
+        organizationId: website.organizationId,
+      },
     );
   },
 });
@@ -290,7 +311,12 @@ export const searchContent = action({
 
     return await ctx.runAction(
       internal.websites.internal_actions.searchWebsiteContent,
-      { domain: website.domain, query: args.query, limit: args.limit },
+      {
+        domain: website.domain,
+        query: args.query,
+        organizationId: website.organizationId,
+        limit: args.limit,
+      },
     );
   },
 });

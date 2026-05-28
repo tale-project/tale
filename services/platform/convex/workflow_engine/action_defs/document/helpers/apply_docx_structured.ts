@@ -19,6 +19,7 @@ import {
   getCrawlerUrl,
 } from '../../../../documents/generate_document_helpers';
 import { createDebugLog } from '../../../../lib/debug_log';
+import { orgSlugFromId } from '../../../../lib/helpers/org_slug';
 import { toId } from '../../../../lib/type_cast_helpers';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
@@ -53,9 +54,9 @@ export interface ApplyDocxStructuredArgs {
   sourceHash: string;
   modifications: Modification[];
   fileName: string;
+  organizationId: string;
   trackChanges?: boolean;
   author?: string;
-  organizationId?: string;
 }
 
 export interface ApplyDocxStructuredResult {
@@ -116,8 +117,11 @@ export async function applyDocxStructured(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300_000);
 
+  const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+
   const response = await fetch(apiUrl, {
     method: 'POST',
+    headers: { 'x-tale-org': orgSlug },
     body: formData,
     signal: controller.signal,
   });
@@ -162,20 +166,18 @@ export async function applyDocxStructured(
     ? args.fileName
     : `${args.fileName}.docx`;
 
-  // Save file metadata if organizationId is available
-  if (args.organizationId) {
-    await ctx.runMutation(
-      internal.file_metadata.internal_mutations.saveFileMetadata,
-      {
-        organizationId: args.organizationId,
-        storageId,
-        fileName: finalFileName,
-        contentType: DOCX_CONTENT_TYPE,
-        size: docxBytes.length,
-        source: 'agent',
-      },
-    );
-  }
+  // Save file metadata so the file shows up in the org's library.
+  await ctx.runMutation(
+    internal.file_metadata.internal_mutations.saveFileMetadata,
+    {
+      organizationId: args.organizationId,
+      storageId,
+      fileName: finalFileName,
+      contentType: DOCX_CONTENT_TYPE,
+      size: docxBytes.length,
+      source: 'agent',
+    },
+  );
 
   const downloadUrl = buildDownloadUrl(storageId, finalFileName);
 

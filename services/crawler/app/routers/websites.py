@@ -16,6 +16,7 @@ from app.models import (
     WebsiteUrl,
     WebsiteUrlsResponse,
 )
+from app.org_context import get_active_org
 from app.services.pg_website_store import PgWebsiteStoreManager
 from app.services.scheduler import cancel_scan, trigger_scan
 
@@ -74,6 +75,7 @@ def _format_timestamp(val) -> str | None:
 async def register_website(request: RegisterWebsiteRequest, http_request: Request):
     try:
         manager = _get_manager(http_request)
+        org_slug = get_active_org()
 
         # Reject registration if domain is currently being deleted
         website = await manager.get_website(request.domain)
@@ -83,20 +85,21 @@ async def register_website(request: RegisterWebsiteRequest, http_request: Reques
                 detail=f"Domain {request.domain} is currently being deleted. Please retry later.",
             )
 
-        await manager.register_website(
+        result = await manager.register_website(
             domain=request.domain,
             scan_interval=request.scan_interval,
+            org_slug=org_slug,
         )
 
-        # Wake the scheduler — newly registered sites have last_scanned_at=NULL
-        # and will be picked up immediately by get_due_websites().
-        # The scheduler handles URL discovery, crawling, and metadata extraction
-        # with proper concurrency control (max_concurrent_scans semaphore).
-        trigger_scan()
+        # Wake the scheduler only when this membership creates new work
+        # (first org to register this domain). Subsequent orgs joining an
+        # already-tracked domain reuse the existing crawl cadence.
+        if result.get("first_membership"):
+            trigger_scan()
 
         return WebsiteInfoResponse(
             domain=request.domain,
-            status="scanning",
+            status="scanning" if result.get("first_membership") else (website.get("status") if website else "idle"),
             scan_interval=request.scan_interval,
         )
     except HTTPException:
@@ -110,6 +113,11 @@ async def register_website(request: RegisterWebsiteRequest, http_request: Reques
 async def update_website(domain: str, request: UpdateWebsiteRequest, http_request: Request):
     try:
         manager = _get_manager(http_request)
+        org_slug = get_active_org()
+        # Caller's org must have a membership on this domain or it doesn't
+        # exist (from their viewpoint).
+        if not await manager.org_has_membership(domain, org_slug):
+            raise HTTPException(status_code=404, detail=f"Website not found: {domain}")
         website = await manager.get_website(domain)
         if not website:
             raise HTTPException(status_code=404, detail=f"Website not found: {domain}")
@@ -145,6 +153,9 @@ async def update_website(domain: str, request: UpdateWebsiteRequest, http_reques
 async def get_website_info(domain: str, http_request: Request):
     try:
         manager = _get_manager(http_request)
+        org_slug = get_active_org()
+        if not await manager.org_has_membership(domain, org_slug):
+            raise HTTPException(status_code=404, detail=f"Website not found: {domain}")
         website = await manager.get_website(domain)
 
         if not website:
@@ -173,19 +184,28 @@ async def get_website_info(domain: str, http_request: Request):
 @router.delete("/{domain}")
 async def deregister_website(domain: str, http_request: Request):
     try:
-        cancel_scan(domain)
         manager = _get_manager(http_request)
-        marked = await manager.begin_delete(domain)
-        if not marked:
-            # Already deleting — return 202 idempotently
-            website = await manager.get_website(domain)
-            if website and website.get("status") == "deleting":
-                return JSONResponse(
-                    status_code=202,
-                    content={"domain": domain, "status": "deleting"},
-                )
+        org_slug = get_active_org()
+
+        result = await manager.begin_delete(domain, org_slug)
+        if not result["removed_membership"]:
+            # The caller's org wasn't tracking this domain. From their
+            # viewpoint, the website doesn't exist — return 404 instead
+            # of leaking whether another org has it.
             raise HTTPException(status_code=404, detail=f"Website not found: {domain}")
 
+        if not result["removed_website"]:
+            # Other orgs are still using this domain; only the caller's
+            # membership was removed. Domain data stays in place.
+            return JSONResponse(
+                status_code=200,
+                content={"domain": domain, "status": "membership_removed"},
+            )
+
+        # We dropped the last membership and the website was marked for
+        # deletion. Cancel any in-flight scan and start the CASCADE in
+        # the background.
+        cancel_scan(domain)
         _spawn_delete_task(manager, domain)
         return JSONResponse(
             status_code=202,
@@ -208,6 +228,9 @@ async def get_website_urls(
 ):
     try:
         manager = _get_manager(http_request)
+        org_slug = get_active_org()
+        if not await manager.org_has_membership(domain, org_slug):
+            raise HTTPException(status_code=404, detail=f"Website not found: {domain}")
         website = await manager.get_website(domain)
 
         if not website:

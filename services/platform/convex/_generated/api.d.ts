@@ -452,6 +452,7 @@ import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_crypto_internal_actions from "../lib/crypto/internal_actions.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
 import type * as lib_error_classification from "../lib/error_classification.js";
+import type * as lib_errors_upstream_http_error from "../lib/errors/upstream_http_error.js";
 import type * as lib_file_io from "../lib/file_io.js";
 import type * as lib_fnv1a from "../lib/fnv1a.js";
 import type * as lib_fuzzy_match from "../lib/fuzzy_match.js";
@@ -1549,6 +1550,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/internal_actions": typeof lib_crypto_internal_actions;
   "lib/debug_log": typeof lib_debug_log;
   "lib/error_classification": typeof lib_error_classification;
+  "lib/errors/upstream_http_error": typeof lib_errors_upstream_http_error;
   "lib/file_io": typeof lib_file_io;
   "lib/fnv1a": typeof lib_fnv1a;
   "lib/fuzzy_match": typeof lib_fuzzy_match;

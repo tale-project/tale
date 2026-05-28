@@ -1,22 +1,44 @@
 import { v } from 'convex/values';
 
+import { getString, isRecord } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
 import { toPublicUrl } from '../lib/helpers/public_storage_url';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 
 const GLOBAL_BINDING_KEY = 'global';
+const DEFAULT_ORG_SLUG = 'default';
 
+/**
+ * Branding is pinned to the `default` org (see `branding/file_actions.ts`
+ * doc comment) — so admin authority over branding must require admin role
+ * IN THE DEFAULT ORG SPECIFICALLY, not "admin in any org". Without this
+ * narrowing, an admin in any user-created org could mutate the platform's
+ * global branding.
+ */
 export const isCallerAdmin = internalQuery({
   args: { userId: v.string() },
   returns: v.boolean(),
   handler: async (ctx, args) => {
+    const orgRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'organization',
+      paginationOpts: { cursor: null, numItems: 1 },
+      where: [{ field: 'slug', value: DEFAULT_ORG_SLUG, operator: 'eq' }],
+    });
+    const orgRow = orgRes?.page?.[0];
+    if (!isRecord(orgRow)) return false;
+    const defaultOrgId = getString(orgRow, '_id');
+    if (!defaultOrgId) return false;
+
     const memberRes = await ctx.runQuery(
       components.betterAuth.adapter.findMany,
       {
         model: 'member',
-        paginationOpts: { cursor: null, numItems: 10 },
-        where: [{ field: 'userId', value: args.userId, operator: 'eq' }],
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          { field: 'userId', value: args.userId, operator: 'eq' },
+          { field: 'organizationId', value: defaultOrgId, operator: 'eq' },
+        ],
       },
     );
     for (const member of memberRes?.page ?? []) {

@@ -253,8 +253,25 @@ class PgWebsiteStoreManager:
         self._pool = pool
         self._stores: dict[str, PgWebsiteStore] = {}
 
-    async def register_website(self, domain: str, scan_interval: int = 21600) -> dict:
-        async with acquire_with_retry(self._pool) as conn:
+    async def register_website(
+        self,
+        domain: str,
+        scan_interval: int = 21600,
+        *,
+        org_slug: str,
+    ) -> dict:
+        """Register a domain on behalf of `org_slug`.
+
+        websites is deployment-shared content storage; the per-org
+        boundary lives in `website_org_memberships`. The first org to
+        register a domain creates the website row; subsequent orgs
+        simply join the membership table without re-fetching.
+
+        Returns a dict that includes `first_membership=True` only when
+        this call is the first to register the domain — callers use it
+        to decide whether to trigger an immediate scan.
+        """
+        async with acquire_with_retry(self._pool) as conn, conn.transaction():
             await conn.execute(
                 """INSERT INTO websites (domain, scan_interval, created_at, updated_at)
                    VALUES ($1, $2, NOW(), NOW())
@@ -264,8 +281,37 @@ class PgWebsiteStoreManager:
                 domain,
                 scan_interval,
             )
-        logger.info(f"Registered website: {domain} (interval={scan_interval}s)")
-        return {"domain": domain, "scan_interval": scan_interval, "status": "idle"}
+            # ON CONFLICT DO NOTHING — re-registering from the same org is a no-op.
+            # `xmax = 0` is true on a row INSERTed in this command; non-zero on
+            # an existing row that hit ON CONFLICT. We use it to tell the caller
+            # whether this was the very first membership for the domain.
+            row = await conn.fetchrow(
+                """INSERT INTO website_org_memberships (domain, org_slug)
+                   VALUES ($1, $2)
+                   ON CONFLICT DO NOTHING
+                   RETURNING (xmax = 0) AS inserted""",
+                domain,
+                org_slug,
+            )
+            membership_inserted = bool(row and row["inserted"])
+            total_members = await conn.fetchval(
+                "SELECT COUNT(*) FROM website_org_memberships WHERE domain = $1",
+                domain,
+            )
+        first_membership = membership_inserted and total_members == 1
+        logger.info(
+            "Registered website: %s for org=%s (interval=%ss, first_membership=%s)",
+            domain,
+            org_slug,
+            scan_interval,
+            first_membership,
+        )
+        return {
+            "domain": domain,
+            "scan_interval": scan_interval,
+            "status": "idle",
+            "first_membership": first_membership,
+        }
 
     async def update_website_metadata(
         self,
@@ -288,16 +334,50 @@ class PgWebsiteStoreManager:
                 page_count,
             )
 
-    async def begin_delete(self, domain: str) -> bool:
-        """Mark a website for deletion. Returns True if the domain was found and marked."""
-        self._stores.pop(domain, None)
-        async with acquire_with_retry(self._pool) as conn:
-            row = await conn.fetchrow(
-                "UPDATE websites SET status = 'deleting', updated_at = NOW() "
-                "WHERE domain = $1 AND status != 'deleting' RETURNING domain",
+    async def begin_delete(self, domain: str, org_slug: str) -> dict:
+        """Remove org's membership of `domain`. If no orgs remain after
+        the removal, mark the website itself for deletion (the actual
+        CASCADE happens in `execute_delete`, called from a background
+        task).
+
+        Returns a dict with:
+          - `removed_membership`: True if the (domain, org) row existed
+            and was removed.
+          - `removed_website`: True if this caller dropped the last
+            membership and the website was marked for deletion.
+        """
+        async with acquire_with_retry(self._pool) as conn, conn.transaction():
+            deleted = await conn.execute(
+                "DELETE FROM website_org_memberships WHERE domain = $1 AND org_slug = $2",
+                domain,
+                org_slug,
+            )
+            # asyncpg returns "DELETE N" as the tag; "DELETE 0" means no row matched.
+            removed_membership = deleted != "DELETE 0"
+            remaining = await conn.fetchval(
+                "SELECT COUNT(*) FROM website_org_memberships WHERE domain = $1",
                 domain,
             )
-            return row is not None
+            removed_website = False
+            if remaining == 0:
+                self._stores.pop(domain, None)
+                row = await conn.fetchrow(
+                    "UPDATE websites SET status = 'deleting', updated_at = NOW() "
+                    "WHERE domain = $1 AND status != 'deleting' RETURNING domain",
+                    domain,
+                )
+                removed_website = row is not None
+        logger.info(
+            "begin_delete: domain=%s org=%s removed_membership=%s removed_website=%s",
+            domain,
+            org_slug,
+            removed_membership,
+            removed_website,
+        )
+        return {
+            "removed_membership": removed_membership,
+            "removed_website": removed_website,
+        }
 
     async def execute_delete(self, domain: str) -> None:
         """Run the actual CASCADE DELETE. Intended for background execution."""
@@ -320,18 +400,50 @@ class PgWebsiteStoreManager:
         - Its scan interval has elapsed and it is not currently scanning/deleting, OR
         - It has been stuck in 'scanning' for >2 hours (no heartbeat progress),
           indicating the previous scanner crashed or was replaced.
+
+        Each returned row also includes `owner_org_slug` — the slug of the
+        org that registered the domain earliest. The scheduler uses this to
+        bind `set_active_org()` so the per-org provider catalog can resolve
+        API keys for the embed/fetch path. Domains with no remaining
+        memberships (a transient race during delete) are skipped.
         """
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
-                """SELECT domain, status, scan_interval, last_scanned_at, error
-                   FROM websites
-                   WHERE (status NOT IN ('scanning', 'deleting')
-                          AND (last_scanned_at IS NULL
-                               OR last_scanned_at + make_interval(secs => scan_interval) < NOW()))
-                      OR (status = 'scanning'
-                          AND updated_at < NOW() - INTERVAL '2 hours')"""
+                """SELECT w.domain, w.status, w.scan_interval, w.last_scanned_at, w.error,
+                          m.org_slug AS owner_org_slug
+                   FROM websites w
+                   JOIN LATERAL (
+                       SELECT org_slug FROM website_org_memberships
+                       WHERE domain = w.domain
+                       ORDER BY added_at ASC, org_slug ASC
+                       LIMIT 1
+                   ) m ON true
+                   WHERE (w.status NOT IN ('scanning', 'deleting')
+                          AND (w.last_scanned_at IS NULL
+                               OR w.last_scanned_at + make_interval(secs => w.scan_interval) < NOW()))
+                      OR (w.status = 'scanning'
+                          AND w.updated_at < NOW() - INTERVAL '2 hours')"""
             )
             return [dict(r) for r in rows]
+
+    async def org_has_membership(self, domain: str, org_slug: str) -> bool:
+        """True if `org_slug` has registered `domain` (used by per-org views)."""
+        async with acquire_with_retry(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT 1 FROM website_org_memberships WHERE domain = $1 AND org_slug = $2",
+                domain,
+                org_slug,
+            )
+            return row is not None
+
+    async def list_domains_for_org(self, org_slug: str) -> list[str]:
+        """Return all domains the given org has registered."""
+        async with acquire_with_retry(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT domain FROM website_org_memberships WHERE org_slug = $1 ORDER BY domain",
+                org_slug,
+            )
+            return [r["domain"] for r in rows]
 
     async def update_scan_interval(self, domain: str, scan_interval: int) -> None:
         async with acquire_with_retry(self._pool) as conn:

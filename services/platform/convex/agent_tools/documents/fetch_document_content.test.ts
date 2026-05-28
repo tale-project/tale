@@ -199,9 +199,7 @@ describe('fetchDocumentContent', () => {
       { preconnect: vi.fn() },
     );
 
-    await expect(fetchDocumentContent(FILE_ID)).rejects.toThrow(
-      'RAG service error (500)',
-    );
+    await expect(fetchDocumentContent(FILE_ID)).rejects.toThrow(/HTTP 500/);
   });
 
   it('includes error body text in non-ok error message', async () => {

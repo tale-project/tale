@@ -130,6 +130,7 @@ export const saveFileMetadata = internalMutation({
         storageId: args.storageId,
         fileName: args.fileName,
         contentType: args.contentType,
+        organizationId: args.organizationId,
       },
     );
 

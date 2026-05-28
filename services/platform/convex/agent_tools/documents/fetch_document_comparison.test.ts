@@ -245,7 +245,7 @@ describe('fetchDocumentComparison', () => {
 
     await expect(
       fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
-    ).rejects.toThrow('RAG service error (500)');
+    ).rejects.toThrow(/HTTP 500/);
   });
 
   it('throws timeout error when fetch is aborted', async () => {
