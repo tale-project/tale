@@ -178,6 +178,48 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     except Exception:
         logger.exception("Failed to cleanup crawler service")
 
+    # Drain per-org client caches so the httpx pools they hold close
+    # cleanly. Without this, graceful shutdown leaks FDs and produces
+    # noisy "Event loop is closed" tracebacks under uvicorn --reload
+    # / docker rolling restart. Each close is bounded by 10s so a
+    # hung peer can't pin shutdown. Round-3 P2 R26-P2-c.
+    async def _drain_org_caches() -> None:
+        from app.services.embedding_service import _org_states as _emb_states  # type: ignore[attr-defined]
+        from app.services.vision.openai_client import (  # type: ignore[attr-defined]
+            _chat_states,
+            _vision_states,
+        )
+
+        async def _safe(close_aw):
+            try:
+                await close_aw
+            except Exception:
+                logger.opt(exception=True).warning("Failed to close per-org client during shutdown")
+
+        closes = []
+        for state in _emb_states.values():
+            closes.append(_safe(state.service.close()))
+        for state in _vision_states.values():
+            closes.append(_safe(state.client.close()))
+        for state in _chat_states.values():
+            closes.append(_safe(state.client.close()))
+        _emb_states.clear()
+        _vision_states.clear()
+        _chat_states.clear()
+        if closes:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*closes, return_exceptions=True),
+                    timeout=10,
+                )
+            except TimeoutError:
+                logger.warning("Per-org client drain did not finish within 10s; continuing")
+
+    try:
+        await _drain_org_caches()
+    except Exception:
+        logger.exception("Failed to drain per-org client caches")
+
     shutdown_telemetry()
 
 

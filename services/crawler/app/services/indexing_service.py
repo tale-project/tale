@@ -254,19 +254,18 @@ VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8, $9, $10)"""
             "total_chunks": total_chunks,
         }
 
-    async def delete_page_chunks(self, url: str, domain: str | None = None) -> int:
-        # `domain` is optional for backwards compatibility — existing
-        # callers that don't pass it get the wider (URL-only) delete.
-        # New callers should pass it so two domains sharing a path
-        # don't over-delete each other's chunks.
+    async def delete_page_chunks(self, url: str, domain: str) -> int:
+        # `domain` is now REQUIRED (round-3 P2 R25-P1). The previous
+        # `domain=None` branch issued `DELETE FROM chunks WHERE url=$1`
+        # which spans every domain that ever ingested the path —
+        # silently over-deleting another org's chunks on shared paths
+        # like `/about` or `/index`. No production caller relied on
+        # the omit-domain behavior; only legacy tests did.
         async with acquire_with_retry(self._pool) as conn:
-            if domain is None:
-                result = await conn.execute("DELETE FROM chunks WHERE url = $1", url)
-            else:
-                result = await conn.execute(
-                    "DELETE FROM chunks WHERE domain = $1 AND url = $2",
-                    domain,
-                    url,
-                )
+            result = await conn.execute(
+                "DELETE FROM chunks WHERE domain = $1 AND url = $2",
+                domain,
+                url,
+            )
             count = int(result.split()[-1]) if result else 0
             return count

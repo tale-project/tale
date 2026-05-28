@@ -110,8 +110,15 @@ _chat_states: OrderedDict[str, _OrgVisionState] = OrderedDict()
 
 
 async def _safe_close_client(client: AsyncOpenAI) -> None:
-    """Close an old client after a grace period for in-flight requests."""
-    await asyncio.sleep(30)
+    """Close an old client after a grace period for in-flight requests.
+
+    Grace window must cover the longest in-flight request the client
+    could be servicing. Vision requests can run up to
+    `vision_request_timeout=180s` and chat completions can run for up
+    to ~300s; 30s was too short and would tear down the httpx pool
+    while a long PDF OCR was still in flight (round-3 P2 R26-P2-b).
+    """
+    await asyncio.sleep(300)
     try:
         await client.close()
     except Exception:
@@ -498,8 +505,15 @@ async def process_pages_with_llm(
 
     logger.info(f"Split into {total_chunks} chunks for LLM processing")
 
+    # Resolve base_url for the cache key so a within-org provider
+    # rotation (same model id, different upstream) doesn't serve stale
+    # cached outputs from the previous provider. Round-3 P2 R26-P2-d.
+    cached_chat_base_url = str(getattr(client, "base_url", "") or "")
+
     async def process_chunk(chunk_idx: int, chunk_text: str) -> tuple[int, str]:
-        cache_key = compute_text_hash(chunk_text + "\n---\n" + user_input + "\n---\n" + resolved_model)
+        cache_key = compute_text_hash(
+            chunk_text + "\n---\n" + user_input + "\n---\n" + resolved_model + "\n---\n" + cached_chat_base_url,
+        )
         cached = llm_cache.get_llm(cache_key)
         if cached is not None:
             logger.info(f"LLM chunk {chunk_idx + 1}/{total_chunks} cache hit ({len(chunk_text)} chars)")
@@ -534,8 +548,18 @@ async def process_pages_with_llm(
                 logger.info(f"LLM chunk {chunk_idx + 1}/{total_chunks} done: {len(chunk_text)} -> {len(result)} chars")
                 return chunk_idx, result
             except Exception as e:
-                logger.warning(f"Failed to process chunk {chunk_idx + 1} with LLM: {e}")
-                return chunk_idx, chunk_text
+                # Round-3 P2 R26-P2-a: log at error level (was warning)
+                # and prepend an explicit failure marker so downstream
+                # storage / indexing can spot extractions that fell
+                # back to raw content. Previously the caller couldn't
+                # distinguish "LLM extracted this" from "LLM died,
+                # this is the raw input pretending to be extraction".
+                logger.error(
+                    f"Failed to process chunk {chunk_idx + 1} with LLM ({type(e).__name__}: {e}); "
+                    f"returning raw content with failure marker",
+                )
+                marker = f"[LLM_EXTRACTION_FAILED: {type(e).__name__}]\n"
+                return chunk_idx, marker + chunk_text
 
     tasks = [process_chunk(idx, text) for idx, text in chunks]
     results = await asyncio.gather(*tasks)

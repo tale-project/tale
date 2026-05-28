@@ -276,21 +276,21 @@ class TestDeletePageChunks:
     async def test_returns_deleted_count(self, indexing_service, mock_conn):
         mock_conn.execute = AsyncMock(return_value="DELETE 5")
 
-        count = await indexing_service.delete_page_chunks("https://example.com/page")
+        count = await indexing_service.delete_page_chunks("https://example.com/page", "example.com")
 
         assert count == 5
 
     async def test_returns_zero_when_no_rows_deleted(self, indexing_service, mock_conn):
         mock_conn.execute = AsyncMock(return_value="DELETE 0")
 
-        count = await indexing_service.delete_page_chunks("https://example.com/page")
+        count = await indexing_service.delete_page_chunks("https://example.com/page", "example.com")
 
         assert count == 0
 
     async def test_returns_zero_when_result_is_empty(self, indexing_service, mock_conn):
         mock_conn.execute = AsyncMock(return_value="")
 
-        count = await indexing_service.delete_page_chunks("https://example.com/page")
+        count = await indexing_service.delete_page_chunks("https://example.com/page", "example.com")
 
         assert count == 0
 

@@ -27,6 +27,14 @@ CREATE TABLE IF NOT EXISTS public_web.website_org_memberships (
 CREATE INDEX IF NOT EXISTS idx_website_org_memberships_by_org
     ON public_web.website_org_memberships (org_slug);
 
+-- Backfill assumes a `default` org exists. This holds in every shipped
+-- platform deployment — the entrypoint always seeds a `default` org as
+-- the bootstrap target — but operators with an unusual layout (e.g.
+-- seeded only non-default orgs) will see `bounded_scan` crash on
+-- `settings.get_embedding_config('default')` for the migrated rows.
+-- The scheduler's first scan attempt is the actionable signal: it
+-- logs a clear error and the operator manually rewrites org_slug
+-- on the migrated rows.
 INSERT INTO public_web.website_org_memberships (domain, org_slug)
 SELECT domain, 'default'
 FROM public_web.websites

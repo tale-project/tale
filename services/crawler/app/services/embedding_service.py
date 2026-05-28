@@ -63,8 +63,15 @@ def _evict_lru_if_needed() -> None:
 
 
 async def _close_old(service: EmbeddingService) -> None:
-    """Close an old client after a grace period for in-flight requests."""
-    await asyncio.sleep(30)
+    """Close an old client after a grace period for in-flight requests.
+
+    Matches the 300s window used for the chat/vision clients
+    (`vision/openai_client.py:_safe_close_client`). The previous 30s
+    grace was shorter than a long batch embed could legitimately
+    take; tearing down the httpx pool mid-flight produced opaque
+    "Event loop is closed" errors. Round-3 P2 R26-P2-b.
+    """
+    await asyncio.sleep(300)
     try:
         await service.close()
     except Exception:
