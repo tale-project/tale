@@ -12,7 +12,9 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
+import { UpstreamHttpError } from '../lib/errors/upstream_http_error';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { buildDownloadUrl, getCrawlerUrl } from './generate_document_helpers';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
@@ -85,11 +87,12 @@ export async function generateDocx(
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    console.error('[documents.generateDocx] crawler error', {
-      status: response.status,
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
       errorText,
-    });
-    throw new Error(`Crawler generateDocx failed: ${response.status}`);
+      '/api/v1/docx',
+    );
   }
 
   const result = await response.json();
@@ -112,7 +115,17 @@ export async function generateDocx(
   });
 
   if (!uploadResponse.ok) {
-    throw new Error(`Failed to upload DOCX: ${uploadResponse.status}`);
+    const uploadErrorText = await uploadResponse.text().catch(() => '');
+    // Storage upload (Convex `_storage`) is not in the UpstreamHttpError
+    // service union; scrub body via sanitizeError before logging so any
+    // signed URL or token in the response can't leak. Throw a status-
+    // only error to the caller.
+    console.error('[documents.generateDocx] upload error', {
+      status: uploadResponse.status,
+      statusText: uploadResponse.statusText,
+      errorText: sanitizeError(uploadErrorText, 400),
+    });
+    throw new Error(`Failed to upload DOCX: HTTP ${uploadResponse.status}`);
   }
 
   const { storageId } = await fetchJson<{ storageId: Id<'_storage'> }>(

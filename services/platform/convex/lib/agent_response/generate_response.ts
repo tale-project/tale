@@ -1174,6 +1174,12 @@ export async function generateAgentResponse(
           result.text = OUTPUT_BLOCKED_SENTINEL;
           // Skip the empty-output-provider-error heuristic below: empty
           // text is now expected.
+          // Match the sibling success/catch return paths (`:580`, `:2008`,
+          // `:2011`) which all stop the abort watcher before returning.
+          // Without this the polling closure keeps issuing redundant
+          // Convex `check_cancelled` queries for up to one ABORT_POLL_INTERVAL
+          // (~1.5s) after the function has returned.
+          abortWatcher?.stop();
           return buildBlockedReturn(
             threadId,
             savedMessageId,
@@ -1264,6 +1270,9 @@ export async function generateAgentResponse(
                 blockedReason,
               );
               result.text = OUTPUT_BLOCKED_SENTINEL;
+              // Sibling parity with the mid-stream guardrails-block path
+              // and the success/catch returns — see note above.
+              abortWatcher?.stop();
               return buildBlockedReturn(
                 threadId,
                 savedMessageId,

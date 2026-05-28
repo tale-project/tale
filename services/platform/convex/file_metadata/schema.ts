@@ -55,6 +55,24 @@ export const fileMetadataTable = defineTable({
   // Human-readable progress hint while transcriptionStatus is 'running'
   // (e.g. "compressing", "transcribing chunk 2 of 4"). Cleared on completion.
   transcriptionProgress: v.optional(v.string()),
+  // Single-flight lock for the `transcribeAudio` action. Set atomically
+  // by `acquireTranscriptionLock` when status transitions queued/null →
+  // running. Concurrent invocations on the same storageId (e.g. a
+  // `retryTranscription` double-click) check the run id under a lease
+  // window and short-circuit if another invocation is in flight.
+  // Cleared on completion / final failure / lease expiry.
+  transcriptionRunId: v.optional(v.string()),
+  // Unix ms; transcribeAudio re-acquisition is gated until this point.
+  // `recoverStuckTranscriptions` (watchdog) breaks the lock once the
+  // lease expires AND there's been no progress.
+  transcriptionLeaseExpiresAt: v.optional(v.number()),
+  // Unix ms when transcriptionStatus most recently flipped to 'running'
+  // (stamped by acquireTranscriptionLock). Used by the watchdog to
+  // detect stuck transcriptions without confusing a freshly-retried row
+  // — `_creationTime` alone caused fresh retries of old rows to be
+  // killed within seconds. Falls back to `_creationTime` for legacy
+  // rows that pre-date this field.
+  transcriptionStartedAt: v.optional(v.number()),
   // RAG indexing of the transcript (separate from ragStatus above, which is
   // gated out at scheduling time for audio uploads — see mutations).
   transcriptRagStatus: v.optional(

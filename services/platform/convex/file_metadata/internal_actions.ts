@@ -194,16 +194,17 @@ export const extractFileMetadata = internalAction({
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        // Classify the failure: only schedule retries when the upstream
-        // (crawler) reported a status the abstraction marks retryable
-        // (5xx / 408 / 429). 4xx classes (org-slug lookup failure,
-        // missing file, malformed payload) are permanent — retrying
-        // burns scheduler slots without progress.
-        const isRetryable = isUpstreamHttpError(error) && error.retryable;
-        // Non-UpstreamHttpError throws (e.g. network reset, blob fetch
-        // failure before we even hit the crawler) are also assumed
-        // transient — we have no signal otherwise.
-        const isTransient = isRetryable || !isUpstreamHttpError(error);
+        // Default to permanent. Only the upstream `UpstreamHttpError` path
+        // gives us a positive retry signal (`retryable` set from
+        // 5xx/408/429 classification). Everything else — `orgSlugFromId`
+        // throws, malformed JSON, "Invalid response shape", blob fetch
+        // failures before we even hit the crawler — is treated as
+        // non-transient: retrying 3× burns scheduler slots without
+        // progress. The trade-off (a genuine network blip surfaces as
+        // a permanent failure instead of self-healing) is acceptable
+        // because the original deterministic-error retry storms were
+        // far more damaging.
+        const isTransient = isUpstreamHttpError(error) && error.retryable;
         console.error(
           `[extractFileMetadata] Error for file ${args.storageId} (attempt ${attempt}, transient=${isTransient}): ${message}`,
         );

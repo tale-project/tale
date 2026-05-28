@@ -315,12 +315,39 @@ export const transcribeAudio = internalAction({
       return null;
     }
 
+    // Single-flight gate. Two concurrent invocations on the same
+    // storageId (retryTranscription double-click, scheduled retry +
+    // user-triggered retry, etc.) used to both proceed: double Whisper
+    // bill, double `+=` ledger write, double RAG index. The lock holds
+    // for the action's 30-min hard timeout + a small grace so the
+    // watchdog can break it if Convex SIGKILLs us. If we lose the
+    // race, return without doing any work.
+    const TRANSCRIBE_LEASE_MS = 35 * 60 * 1000;
+    const acquired = await ctx.runMutation(
+      internal.file_metadata.internal_mutations.acquireTranscriptionLock,
+      {
+        storageId: args.storageId,
+        runId: requestId,
+        leaseMs: TRANSCRIBE_LEASE_MS,
+      },
+    );
+    if (acquired !== requestId) {
+      console.log(
+        JSON.stringify({
+          event: 'transcription.deduplicated',
+          requestId,
+          storageId: args.storageId,
+          attempt,
+        }),
+      );
+      return null;
+    }
+
     try {
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.updateFileTranscription,
         {
           storageId: args.storageId,
-          transcriptionStatus: 'running',
           transcriptionProgress: 'checking',
         },
       );
@@ -659,6 +686,14 @@ export const transcribeAudio = internalAction({
       if (chunked) {
         await chunked.cleanup();
       }
+      // Release the single-flight lock IFF this invocation still owns
+      // it (the watchdog may have broken it on lease expiry; another
+      // retry could also have claimed it after status flipped). The
+      // mutation no-ops on mismatch.
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.releaseTranscriptionLock,
+        { storageId: args.storageId, runId: requestId },
+      );
     }
   },
 });

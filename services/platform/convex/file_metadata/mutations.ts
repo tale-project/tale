@@ -248,10 +248,32 @@ export const skipTranscription = mutation({
       throw new Error('Not authorized');
     }
 
-    await ctx.db.patch(metadata._id, {
-      transcriptionStatus: 'skipped',
-      transcriptionError: 'User skipped transcription',
-    });
+    // Source-state precondition. `skipTranscription` is the Skip button
+    // the chat composer shows after 60s of `running` — it only makes
+    // sense to skip a transcription that's actively in flight or queued.
+    // Skipping a `completed` row would clobber the transcript and
+    // cascade `videoLinkJobs` into a failed state for a successful run.
+    if (
+      metadata.transcriptionStatus !== 'queued' &&
+      metadata.transcriptionStatus !== 'running'
+    ) {
+      throw new Error(
+        `Cannot skip transcription in status "${metadata.transcriptionStatus ?? 'none'}" — only queued or running.`,
+      );
+    }
+
+    // Route through `updateFileTranscription` so the `videoLinkJobs`
+    // cascade at internal_mutations.ts:319-345 fires correctly for
+    // video-link audio (Whisper branch). Direct `db.patch` here would
+    // leave the linked job stuck at `transcribing_handoff` forever.
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.updateFileTranscription,
+      {
+        storageId: args.storageId,
+        transcriptionStatus: 'skipped',
+        transcriptionError: 'User skipped transcription',
+      },
+    );
   },
 });
 
@@ -280,9 +302,26 @@ export const retryTranscription = mutation({
       throw new Error('Not authorized');
     }
 
+    // Source-state precondition. Retry is only valid from a terminal
+    // failure state — retrying `running` would double-bill Whisper
+    // (single-flight gate catches it now, but the UI still shouldn't
+    // surface a "Retry" button for an in-flight row); retrying
+    // `completed` would clobber the existing transcript.
+    if (
+      metadata.transcriptionStatus !== 'failed' &&
+      metadata.transcriptionStatus !== 'skipped'
+    ) {
+      throw new Error(
+        `Cannot retry transcription in status "${metadata.transcriptionStatus ?? 'none'}" — only failed or skipped.`,
+      );
+    }
+
     await ctx.db.patch(metadata._id, {
       transcriptionStatus: 'queued',
       transcriptionError: undefined,
+      // Clear the single-flight lock so transcribeAudio can re-acquire.
+      transcriptionRunId: undefined,
+      transcriptionLeaseExpiresAt: undefined,
     });
 
     await ctx.scheduler.runAfter(

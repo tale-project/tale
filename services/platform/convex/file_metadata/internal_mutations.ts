@@ -373,10 +373,88 @@ export const updateFileVisionMetadata = internalMutation({
 });
 
 /**
+ * Atomic single-flight lock for the `transcribeAudio` action. Two
+ * concurrent invocations on the same storageId (e.g. a `retryTranscription`
+ * double-click) used to both proceed: double Whisper bill, double `+=`
+ * ledger write in `recordTranscriptionUsage`, double RAG index. Now the
+ * second caller sees an active lease and short-circuits.
+ *
+ * Returns the active `transcriptionRunId` (string) when this caller wins
+ * the race, or `null` when another invocation is in flight (caller MUST
+ * return without doing any work — no compress, no Whisper, no ledger).
+ *
+ * Stamps `transcriptionStartedAt` so the watchdog can distinguish
+ * freshly-retried runs from genuinely-stuck legacy rows. Pre-existing
+ * `_creationTime`-keyed watchdog could kill a freshly-retried old row
+ * within seconds of starting.
+ */
+export const acquireTranscriptionLock = internalMutation({
+  args: {
+    storageId: v.id('_storage'),
+    runId: v.string(),
+    leaseMs: v.number(),
+  },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (!row) return null;
+
+    const now = Date.now();
+    const leaseHeld =
+      typeof row.transcriptionLeaseExpiresAt === 'number' &&
+      row.transcriptionLeaseExpiresAt > now &&
+      row.transcriptionStatus === 'running';
+    if (leaseHeld) return null;
+
+    await ctx.db.patch(row._id, {
+      transcriptionStatus: 'running',
+      transcriptionRunId: args.runId,
+      transcriptionLeaseExpiresAt: now + args.leaseMs,
+      transcriptionStartedAt: now,
+      transcriptionProgress: 'starting',
+    });
+    return args.runId;
+  },
+});
+
+/**
+ * Release the single-flight lock IFF the supplied `runId` matches the
+ * row's current `transcriptionRunId`. Other concurrent callers (or a
+ * watchdog that broke the lock) leave the field alone.
+ */
+export const releaseTranscriptionLock = internalMutation({
+  args: {
+    storageId: v.id('_storage'),
+    runId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (!row || row.transcriptionRunId !== args.runId) return null;
+    await ctx.db.patch(row._id, {
+      transcriptionRunId: undefined,
+      transcriptionLeaseExpiresAt: undefined,
+    });
+    return null;
+  },
+});
+
+/**
  * Watchdog: sweep fileMetadata rows stuck in `transcriptionStatus: 'running'`
  * for >35 minutes. Convex hard-kills actions at the 30-min timeout without
  * running their catch blocks, so without this sweep the send-gate would stay
  * locked forever for the affected uploads. Scheduled from crons.ts.
+ *
+ * Keyed on `transcriptionStartedAt ?? _creationTime` (round-2 P1-10) so a
+ * `retryTranscription` against an old fileMetadata row doesn't get killed
+ * within seconds by the next 5-min tick. Legacy rows without the new
+ * field fall back to `_creationTime`.
  */
 export const recoverStuckTranscriptions = internalMutation({
   args: {},
@@ -391,10 +469,13 @@ export const recoverStuckTranscriptions = internalMutation({
       .withIndex('by_transcriptionStatus', (q) =>
         q.eq('transcriptionStatus', 'running'),
       )) {
-      if (row._creationTime < cutoff) {
+      const startedAt = row.transcriptionStartedAt ?? row._creationTime;
+      if (startedAt < cutoff) {
         await ctx.db.patch(row._id, {
           transcriptionStatus: 'failed',
           transcriptionError: 'Transcription timed out (watchdog)',
+          transcriptionRunId: undefined,
+          transcriptionLeaseExpiresAt: undefined,
         });
         // Cascade the failure back to the owning videoLinkJobs row when
         // present. Without this, a videoLinkJob stuck at
