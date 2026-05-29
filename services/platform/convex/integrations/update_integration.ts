@@ -63,6 +63,7 @@ async function runHealthCheckIfNeeded(
     args.connectionConfig?.domain ?? integration.connectionConfig?.domain;
 
   await runHealthCheck(ctx, {
+    organizationId: integration.organizationId,
     name: integration.name,
     type: integration.type ?? undefined,
     connector: args.connector ?? integration.connector ?? undefined,

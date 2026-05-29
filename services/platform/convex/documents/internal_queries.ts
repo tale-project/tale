@@ -9,6 +9,7 @@ import { getAgentScopedFileIds as getAgentScopedFileIdsHelper } from './get_agen
 import * as DocumentsHelpers from './helpers';
 import { listDocumentsForAgent as listDocumentsForAgentHelper } from './list_documents_for_agent';
 import { listIndexedDocumentsForAgent as listIndexedDocumentsForAgentHelper } from './list_indexed_documents_for_agent';
+import { listOrphanedExternalDocs as listOrphanedExternalDocsHelper } from './list_orphaned_external_docs';
 import { sourceProviderValidator } from './validators';
 
 export const getDocumentByIdRaw = internalQuery({
@@ -56,6 +57,10 @@ export const findDocumentByExternalId = internalQuery({
     // When provided, scopes the lookup to a specific target folder (`null`
     // means the root). Omit to match across all folders (legacy behavior).
     folderId: v.optional(v.union(v.id('folders'), v.null())),
+    // When provided, scopes the lookup to docs whose `folderPath` equals the
+    // prefix or sits under it. Used by sync workflows to keep the cross-folder
+    // fallback confined to a single sync's target subtree.
+    folderPathPrefix: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await DocumentsHelpers.findDocumentByExternalId(ctx, args);
@@ -161,6 +166,19 @@ export const listIndexedForAgent = internalQuery({
   },
   handler: async (ctx, args) => {
     return listIndexedDocumentsForAgentHelper(ctx, args);
+  },
+});
+
+export const listOrphanedExternalDocs = internalQuery({
+  args: {
+    organizationId: v.string(),
+    sourceProvider: v.string(),
+    folderPathPrefix: v.string(),
+    presentExternalIds: v.array(v.string()),
+    driveId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await listOrphanedExternalDocsHelper(ctx, args);
   },
 });
 

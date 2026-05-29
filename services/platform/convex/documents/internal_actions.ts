@@ -444,42 +444,122 @@ export const deleteDocumentFromRag = internalAction({
   args: {
     documentId: v.id('documents'),
     attempt: v.optional(v.number()),
+    // Retry-only path: the Tale row was deleted on a previous attempt; this
+    // invocation is finishing the RAG-side cleanup with the cached key + slug.
+    rowAlreadyDeleted: v.optional(v.boolean()),
+    pendingRagFileId: v.optional(v.string()),
+    pendingOrgSlug: v.optional(v.string()),
+    /**
+     * Snapshot-and-verify: when the caller (e.g. reconcile_deletes) knows
+     * the externalItemId / fileId it intended to delete, pass them so we
+     * can abort if the row was re-bound by an interleaving upsert (e.g.
+     * a restore racing with a pending reconcile delete). Missing fields
+     * preserve the legacy unconditional-delete behavior so already-
+     * scheduled jobs from earlier code keep working.
+     */
+    expectedExternalItemId: v.optional(v.string()),
+    expectedFileId: v.optional(v.id('_storage')),
+    /**
+     * Sync-reconcile only: forwarded to `deleteDocumentById` so the
+     * mutation reaps now-empty ancestor folders up to (but not
+     * including) this folder id (the sync target root).
+     */
+    cleanupAncestorsUpTo: v.optional(v.id('folders')),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const attempt = args.attempt ?? 0;
 
-    const document = await ctx.runQuery(
-      internal.documents.internal_queries.getDocumentByIdRaw,
-      { documentId: args.documentId },
-    );
+    let ragKey: string;
+    let orgSlug: string;
 
-    if (!document?.fileId) {
-      console.warn(
-        `[deleteDocumentFromRag] Document ${args.documentId} has no fileId, skipping RAG delete`,
-      );
-      return null;
-    }
-
-    const ragKey = document.fileId;
-
-    // Resolve slug OUTSIDE the retry-on-RAG-failure path. A missing slug
-    // (org row deleted) is terminal — previously each retry re-threw
-    // here, exhausted DELETE_RETRY_DELAYS, then "Document remains in
-    // database" forever. Treat slug-missing as "RAG-side index is gone
-    // too" and proceed with the local-row delete.
-    const orgSlug = await orgSlugFromIdOrNull(ctx, document.organizationId);
-    if (orgSlug === null) {
-      console.warn(
-        `[deleteDocumentFromRag] org ${document.organizationId} unresolvable; assuming RAG index already purged and deleting local document ${args.documentId}`,
-      );
-      await ctx.runMutation(
-        internal.documents.internal_mutations.deleteDocumentById,
+    if (args.rowAlreadyDeleted) {
+      if (!args.pendingRagFileId || !args.pendingOrgSlug) {
+        console.error(
+          `[deleteDocumentFromRag] retry invoked without cached key/slug for ${args.documentId}; aborting`,
+        );
+        return null;
+      }
+      ragKey = args.pendingRagFileId;
+      orgSlug = args.pendingOrgSlug;
+    } else {
+      const document = await ctx.runQuery(
+        internal.documents.internal_queries.getDocumentByIdRaw,
         { documentId: args.documentId },
       );
-      return null;
+
+      if (!document?.fileId) {
+        console.warn(
+          `[deleteDocumentFromRag] Document ${args.documentId} has no fileId, skipping RAG delete`,
+        );
+        return null;
+      }
+
+      // Snapshot-and-verify (reconcile path): if the row's identifying
+      // fields no longer match what the caller staged, abandon the
+      // delete — the doc was re-bound (restore, externalItemId fixup,
+      // or new upload under same documentId) since this job was
+      // scheduled, and the orphan claim is stale.
+      if (
+        args.expectedExternalItemId !== undefined &&
+        document.externalItemId !== args.expectedExternalItemId
+      ) {
+        console.warn(
+          `[deleteDocumentFromRag] Aborting stale delete for ${args.documentId}: expected externalItemId=${args.expectedExternalItemId} but row now has ${document.externalItemId ?? 'undefined'}`,
+        );
+        return null;
+      }
+      if (
+        args.expectedFileId !== undefined &&
+        document.fileId !== args.expectedFileId
+      ) {
+        console.warn(
+          `[deleteDocumentFromRag] Aborting stale delete for ${args.documentId}: expected fileId=${args.expectedFileId} but row now has ${document.fileId}`,
+        );
+        return null;
+      }
+
+      // Resolve slug OUTSIDE the retry-on-RAG-failure path. A missing slug
+      // (org row deleted) is terminal — previously each retry re-threw
+      // here, exhausted DELETE_RETRY_DELAYS, then "Document remains in
+      // database" forever. Treat slug-missing as "RAG-side index is gone
+      // too" and proceed with the local-row delete.
+      const resolvedOrgSlug = await orgSlugFromIdOrNull(
+        ctx,
+        document.organizationId,
+      );
+      if (resolvedOrgSlug === null) {
+        console.warn(
+          `[deleteDocumentFromRag] org ${document.organizationId} unresolvable; assuming RAG index already purged and deleting local document ${args.documentId}`,
+        );
+        await ctx.runMutation(
+          internal.documents.internal_mutations.deleteDocumentById,
+          {
+            documentId: args.documentId,
+            cleanupAncestorsUpTo: args.cleanupAncestorsUpTo,
+          },
+        );
+        return null;
+      }
+
+      ragKey = document.fileId;
+      orgSlug = resolvedOrgSlug;
+
+      // Tale-row first. assertNotHeld may throw on legal hold — when it
+      // does, the RAG vectors stay intact (correct legal-hold semantics:
+      // held docs remain both stored and searchable). The throw propagates
+      // out of this action; scheduler logs it; no orphan side effects.
+      await ctx.runMutation(
+        internal.documents.internal_mutations.deleteDocumentById,
+        {
+          documentId: args.documentId,
+          cleanupAncestorsUpTo: args.cleanupAncestorsUpTo,
+        },
+      );
     }
 
+    // Tale row is now gone (either by this attempt or a previous one).
+    // Best-effort RAG-side delete; retry only the RAG step if it fails.
     let ragSuccess = false;
     try {
       const response = await ragFetch(
@@ -487,7 +567,8 @@ export const deleteDocumentFromRag = internalAction({
         { method: 'DELETE', timeoutMs: 60_000, orgSlug },
       );
 
-      if (response.ok) {
+      if (response.ok || response.status === 404) {
+        // 404 means the RAG entry was never indexed (or was already deleted).
         ragSuccess = true;
       } else {
         const errorText = await response.text();
@@ -502,24 +583,27 @@ export const deleteDocumentFromRag = internalAction({
       );
     }
 
-    if (ragSuccess) {
-      await ctx.runMutation(
-        internal.documents.internal_mutations.deleteDocumentById,
-        { documentId: args.documentId },
-      );
-    } else if (attempt < DELETE_RETRY_DELAYS.length) {
-      console.warn(
-        `[deleteDocumentFromRag] Scheduling retry ${attempt + 1}/${DELETE_RETRY_DELAYS.length} for ${args.documentId}`,
-      );
-      await ctx.scheduler.runAfter(
-        DELETE_RETRY_DELAYS[attempt],
-        internal.documents.internal_actions.deleteDocumentFromRag,
-        { documentId: args.documentId, attempt: attempt + 1 },
-      );
-    } else {
-      console.error(
-        `[deleteDocumentFromRag] All retries exhausted for ${args.documentId}. Document remains in database.`,
-      );
+    if (!ragSuccess) {
+      if (attempt < DELETE_RETRY_DELAYS.length) {
+        console.warn(
+          `[deleteDocumentFromRag] Tale row deleted; scheduling RAG-only retry ${attempt + 1}/${DELETE_RETRY_DELAYS.length} for ${args.documentId}`,
+        );
+        await ctx.scheduler.runAfter(
+          DELETE_RETRY_DELAYS[attempt],
+          internal.documents.internal_actions.deleteDocumentFromRag,
+          {
+            documentId: args.documentId,
+            attempt: attempt + 1,
+            rowAlreadyDeleted: true,
+            pendingRagFileId: ragKey,
+            pendingOrgSlug: orgSlug,
+          },
+        );
+      } else {
+        console.error(
+          `[deleteDocumentFromRag] All RAG-side retries exhausted for ${args.documentId}. Tale row deleted; RAG entry may linger.`,
+        );
+      }
     }
 
     return null;
@@ -553,7 +637,7 @@ export const uploadDocumentToRag = internalAction({
           fileName: document.title,
           contentType: document.mimeType,
         },
-        {},
+        { organizationId: document.organizationId },
       );
       const resultRec = isRecord(rawResult) ? rawResult : undefined;
       const success = resultRec
@@ -655,7 +739,33 @@ export const reindexDocumentInRag = internalAction({
       return null;
     }
 
-    // Upload new file to RAG FIRST.
+    // Title-only rename detection: when the caller passes the same fileId
+    // as the row's current fileId, the upload would dedup against the
+    // existing RAG row (RAG's content-hash dedup short-circuits before
+    // touching `filename`), so the new title would never reach search
+    // results. Purge the old RAG row FIRST so the subsequent upload
+    // inserts a fresh row carrying the new filename. Brief search gap
+    // until the new chunks land — acceptable; reconcile-tolerant.
+    const sameFileId = args.oldFileId === document.fileId;
+    if (sameFileId) {
+      const deleteOrgId =
+        args.oldOrganizationId ?? document.organizationId ?? null;
+      if (deleteOrgId) {
+        await deleteOldRagEntry(
+          ctx,
+          deleteOrgId,
+          args.oldFileId,
+          args.documentId,
+        );
+      } else {
+        console.warn(
+          `[reindexDocumentInRag] No org context for pre-upload old RAG delete; oldFileId ${args.oldFileId} may leak chunks (documentId=${args.documentId})`,
+        );
+      }
+    }
+
+    // Upload new file to RAG FIRST (for the content-change path; for the
+    // same-fileId rename path the old row is already gone above).
     let uploadSuccess = false;
     try {
       const rawResult = await ragAction.execute(
@@ -666,7 +776,7 @@ export const reindexDocumentInRag = internalAction({
           fileName: document.title,
           contentType: document.mimeType,
         },
-        {},
+        { organizationId: document.organizationId },
       );
       const resultRec = isRecord(rawResult) ? rawResult : undefined;
       const success = resultRec
@@ -716,11 +826,15 @@ export const reindexDocumentInRag = internalAction({
       );
     }
 
-    // Only purge the old RAG entry once the new upload is committed.
-    // A failed upload leaves the previous chunks in place so search
-    // keeps returning the prior revision (degraded but consistent)
-    // instead of returning nothing.
-    if (uploadSuccess) {
+    // Content-change path: purge the old RAG entry once the new upload
+    // is committed. A failed upload leaves the previous chunks in place
+    // so search keeps returning the prior revision (degraded but
+    // consistent) instead of returning nothing.
+    //
+    // Same-fileId (title-only rename) is already handled above by the
+    // pre-upload delete, so we skip the post-upload purge for that path
+    // to avoid deleting the freshly-uploaded chunks.
+    if (uploadSuccess && !sameFileId) {
       const deleteOrgId =
         args.oldOrganizationId ?? document.organizationId ?? null;
       if (deleteOrgId) {

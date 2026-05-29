@@ -57,7 +57,7 @@ export const retryRagIndexing = action({
           fileName: document.title,
           contentType: document.mimeType,
         },
-        {},
+        { organizationId: document.organizationId },
       );
       const result = isRecord(rawResult) ? rawResult : undefined;
       const success = result ? (getBoolean(result, 'success') ?? false) : false;

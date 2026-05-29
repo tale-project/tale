@@ -161,6 +161,7 @@ async function testRestConnection(
       secrets,
       allowedHosts,
       timeoutMs: timeoutMs ?? 15000,
+      organizationId: integration.organizationId,
     },
   );
 

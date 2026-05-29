@@ -125,6 +125,7 @@ export const sendMessageViaIntegrationAction = internalAction({
             ...extraAllowedHosts,
           ],
           timeoutMs: connectorConfig.timeoutMs ?? 30000,
+          organizationId: args.organizationId,
         },
       );
 
@@ -263,6 +264,7 @@ export const checkMessageDeliveryAction = internalAction({
           secrets,
           allowedHosts: connectorConfig.allowedHosts ?? [],
           timeoutMs: connectorConfig.timeoutMs ?? 30000,
+          organizationId: args.organizationId,
         },
       );
 
@@ -395,6 +397,7 @@ export const downloadAttachmentsAction = internalAction({
           secrets,
           allowedHosts: connectorConfig.allowedHosts ?? [],
           timeoutMs: connectorConfig.timeoutMs ?? 30000,
+          organizationId: args.organizationId,
         },
       );
 

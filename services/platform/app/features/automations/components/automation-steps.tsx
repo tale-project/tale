@@ -46,15 +46,12 @@ import { AutomationCallbacksProvider } from './automation-callbacks-context';
 import { AutomationEdge } from './automation-edge';
 import { AutomationGroupNode } from './automation-group-node';
 import { AutomationLoopContainer } from './automation-loop-container';
-import { AutomationSidePanel } from './automation-sidepanel';
 import { AutomationStep } from './automation-step';
 import { CreateStepDialog } from './step-create-dialog';
 
 interface AutomationStepsProps {
   steps: Doc<'wfStepDefs'>[];
   className?: string;
-  organizationId: string;
-  automationId: string;
   hasActiveTrigger: boolean;
   onStepCreated?: () => void;
   onOpenAIChat?: () => void;
@@ -70,6 +67,11 @@ const edgeTypes = {
   smoothstep: AutomationEdge,
   default: AutomationEdge,
 };
+
+export const AUTOMATION_PANEL_URL_DEFINITIONS = {
+  panel: { default: null },
+  step: { default: null },
+} as const;
 
 const MINIMAP_STYLES = `
   .react-flow__edges { z-index: auto; }
@@ -106,8 +108,6 @@ function minimapNodeStrokeColor(node: Node): string {
 function AutomationStepsInner({
   steps,
   className: _className,
-  organizationId,
-  automationId,
   hasActiveTrigger,
   onStepCreated: _onStepCreated,
   onOpenAIChat,
@@ -119,32 +119,9 @@ function AutomationStepsInner({
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [isCreateStepDialogOpen, setIsCreateStepDialogOpen] = useState(false);
 
-  const urlStateDefinitions = useMemo(
-    () => ({
-      panel: { default: null },
-      step: { default: null },
-    }),
-    [],
-  );
-
-  const {
-    state: panelState,
-    setStates: setPanelStates,
-    clearAll: clearPanelState,
-  } = useUrlState({
-    definitions: urlStateDefinitions,
+  const { setStates: setPanelStates } = useUrlState({
+    definitions: AUTOMATION_PANEL_URL_DEFINITIONS,
   });
-
-  const sidePanelMode =
-    panelState.panel === 'step' || panelState.panel === 'test'
-      ? panelState.panel
-      : null;
-  const selectedStepSlug = panelState.step;
-
-  const selectedStep = useMemo(() => {
-    if (!selectedStepSlug) return null;
-    return steps.find((s) => s.stepSlug === selectedStepSlug) ?? null;
-  }, [steps, selectedStepSlug]);
 
   const [_parentStepForNewStep, setParentStepForNewStep] = useState<
     string | null
@@ -237,10 +214,6 @@ function AutomationStepsInner({
     },
     [steps, setPanelStates],
   );
-
-  const handleCloseSidePanel = useCallback(() => {
-    clearPanelState();
-  }, [clearPanelState]);
 
   const handleOpenTestPanel = useCallback(() => {
     setPanelStates({ panel: 'test', step: null });
@@ -478,17 +451,6 @@ function AutomationStepsInner({
           </ReactFlow>
         </div>
 
-        {sidePanelMode && (
-          <AutomationSidePanel
-            step={selectedStep}
-            isOpen={!!sidePanelMode}
-            onClose={handleCloseSidePanel}
-            showTestPanel={sidePanelMode === 'test'}
-            automationId={automationId}
-            organizationId={organizationId}
-            stepOptions={stepOptions}
-          />
-        )}
         <CreateStepDialog
           open={isCreateStepDialogOpen}
           onOpenChange={(open) => {

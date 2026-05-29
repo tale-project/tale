@@ -276,6 +276,7 @@ import type * as documents_internal_queries from "../documents/internal_queries.
 import type * as documents_list_documents_for_agent from "../documents/list_documents_for_agent.js";
 import type * as documents_list_documents_paginated from "../documents/list_documents_paginated.js";
 import type * as documents_list_indexed_documents_for_agent from "../documents/list_indexed_documents_for_agent.js";
+import type * as documents_list_orphaned_external_docs from "../documents/list_orphaned_external_docs.js";
 import type * as documents_migrate_team_fields from "../documents/migrate_team_fields.js";
 import type * as documents_mutations from "../documents/mutations.js";
 import type * as documents_queries from "../documents/queries.js";
@@ -289,6 +290,7 @@ import type * as documents_update_document from "../documents/update_document.js
 import type * as documents_update_document_internal from "../documents/update_document_internal.js";
 import type * as documents_update_document_rag_info from "../documents/update_document_rag_info.js";
 import type * as documents_upload_base64_to_storage from "../documents/upload_base64_to_storage.js";
+import type * as documents_upsert_document_by_external_id from "../documents/upsert_document_by_external_id.js";
 import type * as documents_validators from "../documents/validators.js";
 import type * as feedback_mutations from "../feedback/mutations.js";
 import type * as feedback_queries from "../feedback/queries.js";
@@ -306,8 +308,11 @@ import type * as file_metadata_transcribe_audio from "../file_metadata/transcrib
 import type * as file_metadata_transcribe_dictation from "../file_metadata/transcribe_dictation.js";
 import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
+import type * as folders_cleanup_empty_ancestors from "../folders/cleanup_empty_ancestors.js";
+import type * as folders_find_folder_by_path from "../folders/find_folder_by_path.js";
 import type * as folders_get_or_create_path from "../folders/get_or_create_path.js";
 import type * as folders_internal_mutations from "../folders/internal_mutations.js";
+import type * as folders_internal_queries from "../folders/internal_queries.js";
 import type * as folders_mutations from "../folders/mutations.js";
 import type * as folders_queries from "../folders/queries.js";
 import type * as governance_budget_enforcement from "../governance/budget_enforcement.js";
@@ -990,6 +995,7 @@ import type * as workflow_engine_helpers_step_execution_initialize_execution_var
 import type * as workflow_engine_helpers_step_execution_load_and_validate_execution from "../workflow_engine/helpers/step_execution/load_and_validate_execution.js";
 import type * as workflow_engine_helpers_step_execution_merge_execution_variables from "../workflow_engine/helpers/step_execution/merge_execution_variables.js";
 import type * as workflow_engine_helpers_step_execution_persist_execution_result from "../workflow_engine/helpers/step_execution/persist_execution_result.js";
+import type * as workflow_engine_helpers_step_execution_record_step_failure from "../workflow_engine/helpers/step_execution/record_step_failure.js";
 import type * as workflow_engine_helpers_step_execution_types from "../workflow_engine/helpers/step_execution/types.js";
 import type * as workflow_engine_helpers_validation_circular_dependency_validator from "../workflow_engine/helpers/validation/circular_dependency_validator.js";
 import type * as workflow_engine_helpers_validation_constants from "../workflow_engine/helpers/validation/constants.js";
@@ -1374,6 +1380,7 @@ declare const fullApi: ApiFromModules<{
   "documents/list_documents_for_agent": typeof documents_list_documents_for_agent;
   "documents/list_documents_paginated": typeof documents_list_documents_paginated;
   "documents/list_indexed_documents_for_agent": typeof documents_list_indexed_documents_for_agent;
+  "documents/list_orphaned_external_docs": typeof documents_list_orphaned_external_docs;
   "documents/migrate_team_fields": typeof documents_migrate_team_fields;
   "documents/mutations": typeof documents_mutations;
   "documents/queries": typeof documents_queries;
@@ -1387,6 +1394,7 @@ declare const fullApi: ApiFromModules<{
   "documents/update_document_internal": typeof documents_update_document_internal;
   "documents/update_document_rag_info": typeof documents_update_document_rag_info;
   "documents/upload_base64_to_storage": typeof documents_upload_base64_to_storage;
+  "documents/upsert_document_by_external_id": typeof documents_upsert_document_by_external_id;
   "documents/validators": typeof documents_validators;
   "feedback/mutations": typeof feedback_mutations;
   "feedback/queries": typeof feedback_queries;
@@ -1404,8 +1412,11 @@ declare const fullApi: ApiFromModules<{
   "file_metadata/transcribe_dictation": typeof file_metadata_transcribe_dictation;
   "files/mutations": typeof files_mutations;
   "files/queries": typeof files_queries;
+  "folders/cleanup_empty_ancestors": typeof folders_cleanup_empty_ancestors;
+  "folders/find_folder_by_path": typeof folders_find_folder_by_path;
   "folders/get_or_create_path": typeof folders_get_or_create_path;
   "folders/internal_mutations": typeof folders_internal_mutations;
+  "folders/internal_queries": typeof folders_internal_queries;
   "folders/mutations": typeof folders_mutations;
   "folders/queries": typeof folders_queries;
   "governance/budget_enforcement": typeof governance_budget_enforcement;
@@ -2088,6 +2099,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/step_execution/load_and_validate_execution": typeof workflow_engine_helpers_step_execution_load_and_validate_execution;
   "workflow_engine/helpers/step_execution/merge_execution_variables": typeof workflow_engine_helpers_step_execution_merge_execution_variables;
   "workflow_engine/helpers/step_execution/persist_execution_result": typeof workflow_engine_helpers_step_execution_persist_execution_result;
+  "workflow_engine/helpers/step_execution/record_step_failure": typeof workflow_engine_helpers_step_execution_record_step_failure;
   "workflow_engine/helpers/step_execution/types": typeof workflow_engine_helpers_step_execution_types;
   "workflow_engine/helpers/validation/circular_dependency_validator": typeof workflow_engine_helpers_validation_circular_dependency_validator;
   "workflow_engine/helpers/validation/constants": typeof workflow_engine_helpers_validation_constants;

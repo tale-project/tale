@@ -10,10 +10,12 @@ import type { LoadedIntegration } from '../../../../integrations/load_integratio
 export async function buildSecretsFromIntegration(
   ctx: ActionCtx,
   integration: LoadedIntegration,
+  options?: { forceRefresh?: boolean },
 ): Promise<Record<string, string>> {
   return buildIntegrationSecrets(
     ctx,
     { ...integration, secretBindings: integration.connector?.secretBindings },
     integration._id,
+    options,
   );
 }

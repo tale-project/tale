@@ -78,6 +78,13 @@ interface TestConnectionContext {
 
 const API_BASE = 'https://www.googleapis.com/drive/v3';
 
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
+// Soft caps for recursive listing. Hitting either returns a truncated result
+// with `truncated: true` rather than throwing, so a sync workflow can still
+// make progress on huge folders.
+const RECURSIVE_FILE_CAP = 5000;
+const RECURSIVE_DEPTH_CAP = 20;
+
 const connector = {
   operations: ['list_files', 'download_file'],
 
@@ -151,8 +158,12 @@ const connector = {
 
 function handleError(response: HttpResponse, operation: string): void {
   if (response.status === 401) {
+    // Sentinel [401_UNAUTHORIZED] lets the integration action wrapper
+    // detect this case and retry once after force-refreshing the OAuth2
+    // access token (covers tokens that expire between buildIntegrationSecrets
+    // and the actual Drive request, or revoked tokens).
     throw new Error(
-      'Authentication failed during ' +
+      '[401_UNAUTHORIZED] Authentication failed during ' +
         operation +
         '. The access token may be expired. Please re-authorize.',
     );
@@ -206,16 +217,21 @@ function escapeDriveQueryLiteral(value: string): string {
 function buildListQuery(
   folderId: string,
   mimeTypes: string[] | undefined,
+  includeFolders: boolean,
 ): string {
   const parts: string[] = [];
   parts.push("'" + escapeDriveQueryLiteral(folderId) + "' in parents");
   parts.push('trashed = false');
 
-  // Always exclude folders themselves from the file list — we're syncing files,
-  // not nested folder containers. (For now; subfolder recursion is a future op.)
-  parts.push("mimeType != 'application/vnd.google-apps.folder'");
+  if (!includeFolders) {
+    parts.push("mimeType != 'application/vnd.google-apps.folder'");
+  }
 
-  if (mimeTypes && mimeTypes.length > 0) {
+  // mimeTypes filter applies only to files, not folders. When recursing we
+  // need to enumerate folders unconditionally to descend into them, so the
+  // mimeTypes filter is intentionally skipped in that mode and applied
+  // client-side by the caller.
+  if (mimeTypes && mimeTypes.length > 0 && !includeFolders) {
     const ors: string[] = [];
     for (let i = 0; i < mimeTypes.length; i++) {
       ors.push("mimeType = '" + escapeDriveQueryLiteral(mimeTypes[i]) + "'");
@@ -224,6 +240,138 @@ function buildListQuery(
   }
 
   return parts.join(' and ');
+}
+
+// Replace characters that are valid in Drive folder names but rejected by
+// Tale's folder name validator (which forbids '/' and '\', trim-empty
+// names, and reserved '.' / '..') or that would otherwise corrupt the
+// workflow's '/'-joined folderPath template. Also strips ASCII control
+// characters, BOM, ZWSP, and bidi marks — Drive accepts those but they
+// produce homograph spoofing or NUL-truncation downstream. The
+// substitution is one-way and lossy by design — collisions (e.g. `a?b`
+// and `a_b` both become `a_b`) are acceptable at demo stage and avoidable
+// by users renaming.
+function sanitizeDriveFolderName(name: string): string {
+  let cleaned = name
+    // ASCII control chars, DEL, BOM (U+FEFF), ZWSP (U+200B),
+    // bidi marks (U+200E/F, U+202A-E), and Unicode line/paragraph
+    // separators (U+2028/U+2029) which break log scraping / some
+    // terminals even though JSON allows them literally.
+    .replace(/[\x00-\x1F\x7F﻿​‎‏‪-‮ ]/g, '')
+    .replace(/[/\\?*<>:"|]/g, '_')
+    .trim()
+    .slice(0, 255);
+  // Drop an unpaired surrogate left at the tail by slice. High surrogate
+  // (U+D800-U+DBFF) means an emoji split mid-pair; a lone LOW surrogate
+  // (U+DC00-U+DFFF) can survive if Drive returned a malformed name. Both
+  // produce invalid UTF-8 / U+FFFD downstream.
+  if (cleaned.length > 0) {
+    const lastCode = cleaned.charCodeAt(cleaned.length - 1);
+    if (lastCode >= 0xd800 && lastCode <= 0xdfff) {
+      cleaned = cleaned.slice(0, -1);
+    }
+  }
+  // Reserved on Tale's side and easy to silently truncate the path —
+  // substitute with a safe single underscore.
+  if (cleaned === '.' || cleaned === '..') {
+    cleaned = '_';
+  }
+  return cleaned.length > 0 ? cleaned : '_';
+}
+
+interface DriveRawFile {
+  id: string;
+  name: string;
+  size?: string;
+  mimeType?: string;
+  modifiedTime?: string;
+  md5Checksum?: string;
+}
+
+interface DrivePage {
+  files?: DriveRawFile[];
+  nextPageToken?: string;
+}
+
+interface OutputFile {
+  id: string;
+  name: string;
+  size: number;
+  mimeType: string | undefined;
+  modifiedTime: string | undefined;
+  md5Checksum: string | undefined;
+  subfolderPath: string;
+}
+
+// Fetch every page for one folder query (no recursion). Drive's pageSize is
+// capped at 200, so callers must paginate to get a complete list — leaving
+// pagination to the workflow layer (as the original implementation did) is
+// unsafe because reconcile_deletes uses the file list to compute deletes.
+function listOnePageFolder(
+  http: HttpApi,
+  headers: Record<string, string>,
+  folderId: string,
+  mimeTypes: string[] | undefined,
+  includeFolders: boolean,
+): DriveRawFile[] {
+  const q = buildListQuery(folderId, mimeTypes, includeFolders);
+  const fields =
+    'nextPageToken, files(id, name, size, mimeType, modifiedTime, md5Checksum)';
+
+  const allFiles: DriveRawFile[] = [];
+  let pageToken: string | undefined;
+
+  while (true) {
+    const queryParts = [
+      'q=' + encodeURIComponent(q),
+      'fields=' + encodeURIComponent(fields),
+      'pageSize=200',
+    ];
+    if (pageToken) {
+      queryParts.push('pageToken=' + encodeURIComponent(pageToken));
+    }
+
+    const url = API_BASE + '/files?' + queryParts.join('&');
+    const response = http.get(url, { headers: headers });
+    handleError(response, 'list files');
+
+    const data = response.json() as DrivePage;
+    const pageFiles = data.files || [];
+    for (let i = 0; i < pageFiles.length; i++) {
+      allFiles.push(pageFiles[i]);
+    }
+
+    if (!data.nextPageToken) {
+      break;
+    }
+    pageToken = data.nextPageToken;
+  }
+
+  return allFiles;
+}
+
+function toOutputFile(raw: DriveRawFile, subfolderPath: string): OutputFile {
+  return {
+    id: raw.id,
+    name: raw.name,
+    size: raw.size ? parseInt(raw.size, 10) : 0,
+    mimeType: raw.mimeType,
+    modifiedTime: raw.modifiedTime,
+    md5Checksum: raw.md5Checksum,
+    subfolderPath: subfolderPath,
+  };
+}
+
+function matchesMimeFilter(
+  raw: DriveRawFile,
+  mimeTypes: string[] | undefined,
+): boolean {
+  if (!mimeTypes || mimeTypes.length === 0) return true;
+  if (!raw.mimeType) return false;
+  for (let i = 0; i < mimeTypes.length; i++) {
+    if (raw.mimeType === mimeTypes[i]) return true;
+  }
+  return false;
 }
 
 function listFiles(
@@ -239,61 +387,96 @@ function listFiles(
   const mimeTypes = Array.isArray(params.mimeTypes)
     ? (params.mimeTypes as string[])
     : undefined;
+  const recursive = params.recursive === true;
 
-  const q = buildListQuery(folderId, mimeTypes);
-  const fields =
-    'nextPageToken, files(id, name, size, mimeType, modifiedTime, md5Checksum)';
+  const files: OutputFile[] = [];
+  let truncated = false;
 
-  const queryParts = [
-    'q=' + encodeURIComponent(q),
-    'fields=' + encodeURIComponent(fields),
-    'pageSize=200',
-  ];
-  if (params.pageToken) {
-    queryParts.push(
-      'pageToken=' + encodeURIComponent(params.pageToken as string),
-    );
+  if (!recursive) {
+    // Flat: one folder, exhaust pagination.
+    const raw = listOnePageFolder(http, headers, folderId, mimeTypes, false);
+    for (let i = 0; i < raw.length; i++) {
+      if (files.length >= RECURSIVE_FILE_CAP) {
+        truncated = true;
+        break;
+      }
+      files.push(toOutputFile(raw[i], ''));
+    }
+  } else {
+    // BFS over subfolders. One Drive query per folder returns files + folders
+    // mixed (no `mimeType != folder` filter); we partition client-side.
+    // `visited` dedups folder IDs — Drive's legacy multi-parent items can
+    // reach the same folder via more than one branch, which without dedup
+    // would inflate the file count toward the cap and emit duplicate file
+    // rows under divergent `subfolderPath` values.
+    const visited: Record<string, boolean> = {};
+    visited[folderId] = true;
+    const queue: Array<{
+      folderId: string;
+      subfolderPath: string;
+      depth: number;
+    }> = [{ folderId: folderId, subfolderPath: '', depth: 0 }];
+
+    outer: while (queue.length > 0) {
+      const head = queue.shift() as {
+        folderId: string;
+        subfolderPath: string;
+        depth: number;
+      };
+
+      const raw = listOnePageFolder(
+        http,
+        headers,
+        head.folderId,
+        undefined,
+        true,
+      );
+
+      for (let i = 0; i < raw.length; i++) {
+        const r = raw[i];
+        if (r.mimeType === FOLDER_MIME) {
+          if (visited[r.id]) continue;
+          if (head.depth + 1 > RECURSIVE_DEPTH_CAP) {
+            truncated = true;
+            continue;
+          }
+          visited[r.id] = true;
+          const segment = sanitizeDriveFolderName(r.name);
+          const childPath = head.subfolderPath
+            ? head.subfolderPath + '/' + segment
+            : segment;
+          queue.push({
+            folderId: r.id,
+            subfolderPath: childPath,
+            depth: head.depth + 1,
+          });
+        } else {
+          if (!matchesMimeFilter(r, mimeTypes)) continue;
+          if (files.length >= RECURSIVE_FILE_CAP) {
+            truncated = true;
+            break outer;
+          }
+          files.push(toOutputFile(r, head.subfolderPath));
+        }
+      }
+    }
   }
 
-  const url = API_BASE + '/files?' + queryParts.join('&');
-  console.log('Listing Drive files: ' + url);
-
-  const response = http.get(url, { headers: headers });
-  handleError(response, 'list files');
-
-  const data = response.json() as {
-    files?: Array<{
-      id: string;
-      name: string;
-      size?: string;
-      mimeType?: string;
-      modifiedTime?: string;
-      md5Checksum?: string;
-    }>;
-    nextPageToken?: string;
-  };
-
-  const rawFiles = data.files || [];
-  const files = rawFiles.map(function (f) {
-    return {
-      id: f.id,
-      name: f.name,
-      size: f.size ? parseInt(f.size, 10) : 0,
-      mimeType: f.mimeType,
-      modifiedTime: f.modifiedTime,
-      md5Checksum: f.md5Checksum,
-    };
-  });
+  console.log(
+    'Listed Drive files: count=' +
+      files.length +
+      ', recursive=' +
+      recursive +
+      ', truncated=' +
+      truncated,
+  );
 
   return {
     success: true,
     operation: 'list_files',
     data: {
       files: files,
-      pagination: {
-        hasNextPage: !!data.nextPageToken,
-        nextPageToken: data.nextPageToken || null,
-      },
+      truncated: truncated,
     },
     count: files.length,
     timestamp: Date.now(),
@@ -325,10 +508,35 @@ function downloadFile(
   const url = API_BASE + '/files/' + encodeURIComponent(fileId) + '?alt=media';
   console.log('Downloading Drive file: ' + url);
 
-  const stored = files.download(url, {
-    headers: headers,
-    fileName: fileName,
-  });
+  // Drive lists are eventually consistent: a file present at list_files
+  // time can be deleted before download. Treat 404/410 as a soft "gone"
+  // signal so the workflow's loop continues to the next file (and
+  // reconcile drops the row on the next sync) instead of aborting the
+  // whole batch with a generic error.
+  let stored;
+  try {
+    stored = files.download(url, {
+      headers: headers,
+      fileName: fileName,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/\b(404|410|not[\s_-]?found|gone)\b/i.test(msg)) {
+      return {
+        success: false,
+        operation: 'download_file',
+        skipped: 'not_found',
+        fileId: fileId,
+        error:
+          'File no longer exists in Drive (deleted between listing and download).',
+        timestamp: Date.now(),
+      };
+    }
+    if (/\b401\b|access token may be expired/i.test(msg)) {
+      throw new Error('[401_UNAUTHORIZED] ' + msg);
+    }
+    throw e;
+  }
 
   return {
     success: true,

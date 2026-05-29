@@ -18,7 +18,7 @@
     {
       "name": "list_files",
       "title": "List Files in Folder",
-      "description": "List files in a Google Drive folder, optionally filtered by mime type.",
+      "description": "List files in a Google Drive folder. Pagination is handled internally — the operation returns the complete file list in one call. When recursive=true, traverses subfolders breadth-first; each file's relative path is reported as `subfolderPath`.",
       "operationType": "read",
       "parametersSchema": {
         "type": "object",
@@ -33,9 +33,9 @@
             "description": "Mime types to include (e.g. [\"application/pdf\"]). Empty/omitted returns all non-folder files.",
             "required": false
           },
-          "pageToken": {
-            "type": "string",
-            "description": "Page token from a previous list_files call for pagination.",
+          "recursive": {
+            "type": "boolean",
+            "description": "When true, traverse all subfolders breadth-first and return a flat list with each file's `subfolderPath`. Capped at 5000 files / 20 levels deep — beyond that the result is soft-truncated and `truncated: true` is set in the response. Default false.",
             "required": false
           }
         }

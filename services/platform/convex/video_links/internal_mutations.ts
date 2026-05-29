@@ -282,6 +282,7 @@ export const insertSyntheticFileMetadata = internalMutation({
       0,
       internal.file_metadata.internal_actions.uploadFileToRag,
       {
+        organizationId: args.organizationId,
         storageId: args.storageId,
         fileName: `${args.videoTitle}.txt`,
         contentType: 'text/plain; charset=utf-8',
