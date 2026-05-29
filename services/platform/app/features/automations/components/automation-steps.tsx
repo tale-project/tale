@@ -71,6 +71,11 @@ const edgeTypes = {
   default: AutomationEdge,
 };
 
+export const AUTOMATION_PANEL_URL_DEFINITIONS = {
+  panel: { default: null },
+  step: { default: null },
+} as const;
+
 const MINIMAP_STYLES = `
   .react-flow__edges { z-index: auto; }
   .react-flow__nodes { z-index: auto; }
@@ -119,20 +124,12 @@ function AutomationStepsInner({
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [isCreateStepDialogOpen, setIsCreateStepDialogOpen] = useState(false);
 
-  const urlStateDefinitions = useMemo(
-    () => ({
-      panel: { default: null },
-      step: { default: null },
-    }),
-    [],
-  );
-
   const {
     state: panelState,
     setStates: setPanelStates,
     clearAll: clearPanelState,
   } = useUrlState({
-    definitions: urlStateDefinitions,
+    definitions: AUTOMATION_PANEL_URL_DEFINITIONS,
   });
 
   const sidePanelMode =

@@ -23,12 +23,14 @@ import { PageLayout } from '@/app/components/layout/page-layout';
 import { ActiveEditorProvider } from '@/app/components/ui/editor';
 import { AutomationAIChatPanel } from '@/app/features/automations/components/automation-ai-chat-panel';
 import { AutomationNavigation } from '@/app/features/automations/components/automation-navigation';
+import { AUTOMATION_PANEL_URL_DEFINITIONS } from '@/app/features/automations/components/automation-steps';
 import { useReadWorkflow } from '@/app/features/automations/hooks/file-queries';
 import {
   WorkflowConfigProvider,
   useWorkflowConfig,
 } from '@/app/features/automations/hooks/use-workflow-config-context';
 import { useWorkflowActivity } from '@/app/features/automations/triggers/hooks/queries';
+import { useUrlState } from '@/app/hooks/use-url-state';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -251,13 +253,20 @@ function AutomationDetailInner({
   const [isAIChatOpen, setIsAIChatOpen] = useState(true);
   const [panelWidth, setPanelWidth] = useState(384);
 
+  const { state: panelState, clearAll: clearPanelUrlState } = useUrlState({
+    definitions: AUTOMATION_PANEL_URL_DEFINITIONS,
+  });
+  const isUrlSidePanelOpen =
+    panelState.panel === 'test' || panelState.panel === 'step';
+
   const handleCloseAIChat = useCallback(() => {
     setIsAIChatOpen(false);
   }, []);
 
   const handleOpenAIChat = useCallback(() => {
+    clearPanelUrlState();
     setIsAIChatOpen(true);
-  }, []);
+  }, [clearPanelUrlState]);
 
   useEffect(() => {
     const handler = () => void onRefetch();
@@ -335,7 +344,7 @@ function AutomationDetailInner({
           )}
         </div>
 
-        {isAIChatOpen && (
+        {isAIChatOpen && !isUrlSidePanelOpen && (
           <AutomationAIChatPanel
             workflowSlug={workflowSlug}
             workflowName={config.name}
