@@ -3524,6 +3524,10 @@
     "shared-chat": {
       "title": "Shared chat",
       "description": "View a shared chat conversation."
+    },
+    "webdav": {
+      "title": "WebDAV",
+      "description": "Mount Tale documents as a network drive."
     }
   },
   "navigation": {
@@ -5905,5 +5909,37 @@
     "statusCompletedSuccess": "Workflow was updated successfully.",
     "statusRejected": "Workflow update was cancelled.",
     "errorApplyFailed": "Failed to apply update"
+  },
+  "webdav": {
+    "title": "WebDAV",
+    "description": "Mount Tale documents as a network drive in Finder, File Explorer, or any WebDAV client.",
+    "connectionDetails": {
+      "title": "Connection details",
+      "description": "Use these in Finder, File Explorer, or any WebDAV client.",
+      "usernameLabel": "Username",
+      "usernameHelp": "Your Tale account email (or username)",
+      "passwordLabel": "Password",
+      "passwordHelp": "An app-password you generate below — not your account password."
+    },
+    "create": {
+      "title": "Generate a new app-password",
+      "description": "Use one per device. The full password is only shown once — copy it before closing this dialog.",
+      "labelPlaceholder": "e.g. MacBook Finder",
+      "submit": "Generate",
+      "error": "Failed to create app-password",
+      "savedTitle": "Save this password — it will not be shown again.",
+      "copy": "Copy",
+      "dismiss": "I have saved it"
+    },
+    "list": {
+      "empty": "No app-passwords yet.",
+      "label": "Label",
+      "prefix": "Prefix",
+      "lastUsed": "Last used",
+      "created": "Created",
+      "neverUsed": "never",
+      "revoked": "revoked",
+      "revokedToast": "Revoked"
+    }
   }
 }

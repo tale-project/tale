@@ -12,6 +12,9 @@ import {
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
+import { fetchAdapter as webdavFetchAdapter } from './lib/webdav/adapters/fetch';
+import { makeWebdavCtx } from './lib/webdav/ctx';
+import { WEBDAV_METHODS } from './lib/webdav/types';
 import {
   buildStatusFeed,
   probeServices,
@@ -348,9 +351,14 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
   // header overrides. The Canvas preview shell needs its own permissive
   // CSP; bypass `secureHeaders` for that single path explicitly. Path
   // guard, not registration order — the latter is fragile to refactors.
-  app.use('*', async (c, next) =>
-    c.req.path === '/canvas-preview' ? next() : secure(c, next),
-  );
+  app.use('*', async (c, next) => {
+    if (c.req.path === '/canvas-preview') return next();
+    // WebDAV responses set their own Content-Type and stream raw blobs;
+    // secureHeaders' CSP / X-Frame-Options would interfere with client
+    // compatibility (Finder's HTML preview, rclone integrity checks).
+    if (c.req.path.startsWith('/dav/') || c.req.path === '/dav') return next();
+    return secure(c, next);
+  });
 
   app.post('/canvas-preview', async (c) => {
     const body = await c.req.parseBody();
@@ -508,6 +516,36 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       },
     });
   });
+
+  // WebDAV server (/dav/<orgSlug>/...). HTTP Basic auth with per-user
+  // app-passwords; Caddy default fallback already routes /dav/* here so
+  // no proxy rule is needed. Code lives in `lib/webdav/`; the same
+  // protocol layer is mirrored into Vite dev by `vite-plugins/serve-webdav.ts`.
+  //
+  // CSP / security-headers from `secureHeaders` would clobber blob
+  // responses on GET — webdav handlers set their own Content-Type and
+  // we want the raw bytes through. Skip the middleware on this path.
+  const webdavAdminKey = process.env.ADMIN_KEY ?? '';
+  const webdavConvexUrl = process.env.CONVEX_URL ?? 'http://convex:3210';
+  let webdavCtx: ReturnType<typeof makeWebdavCtx> | null = null;
+  function getWebdavCtx() {
+    if (!webdavAdminKey) {
+      throw new Error(
+        'ADMIN_KEY not set — required for /dav/* (webdav server reads Convex via admin auth)',
+      );
+    }
+    if (!webdavCtx) {
+      webdavCtx = makeWebdavCtx({
+        convexUrl: webdavConvexUrl,
+        adminKey: webdavAdminKey,
+      });
+    }
+    return webdavCtx;
+  }
+  const webdavHandler = (c: { req: { raw: Request } }) =>
+    webdavFetchAdapter(c.req.raw, getWebdavCtx());
+  app.on(WEBDAV_METHODS as unknown as string[], '/dav/*', webdavHandler);
+  app.on(WEBDAV_METHODS as unknown as string[], '/dav', webdavHandler);
 
   // Static files + index.html fallback (TanStack Router SPA).
   app.get('*', async (c) => {
