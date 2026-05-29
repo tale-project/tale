@@ -83,7 +83,7 @@ export function useSearchCommand({
   source,
   open,
   minQueryLength = 2,
-  debounceMs = 120,
+  debounceMs = 250,
   getGroupKey,
   getGroupLabel,
   recentsStorageKey,

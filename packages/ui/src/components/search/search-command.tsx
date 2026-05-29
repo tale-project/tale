@@ -60,7 +60,7 @@ export function SearchCommand({
   onSelect,
   labels: labelOverrides,
   minQueryLength = 2,
-  debounceMs = 120,
+  debounceMs = 250,
   recentsStorageKey,
   getGroupKey,
   getGroupLabel,
@@ -252,7 +252,7 @@ export function SearchCommand({
                   role="listbox"
                   aria-label={labels.title}
                   aria-busy={status === 'loading'}
-                  className="max-h-[58vh] min-h-45 overflow-y-auto"
+                  className="max-h-[58vh] min-h-72 overflow-y-auto"
                 >
                   {showEmptyState ? (
                     <motion.div

@@ -5,7 +5,7 @@ import { cn } from '../../lib/cn';
  *  real result rows so the swap-in doesn't shift layout. */
 export function SearchSkeleton({
   reduceMotion = false,
-  rows = 3,
+  rows = 4,
 }: {
   reduceMotion?: boolean;
   rows?: number;
