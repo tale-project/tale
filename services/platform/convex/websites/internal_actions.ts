@@ -341,6 +341,41 @@ export const registerAndSync = internalAction({
   },
 });
 
+/**
+ * Internal-action equivalent of `actions.deleteWebsite`'s body:
+ * deregister the crawler binding first, then delete the row. The REST
+ * `DELETE /api/v1/websites/:id` path delegates to this so REST and the
+ * Convex action have the same shape — without it, REST deleted the
+ * `websites` row but left the crawler with a dangling registration that
+ * would keep scanning and produce "website not found in crawler" errors
+ * if the same domain was re-added later.
+ *
+ * Caller is responsible for verifying caller membership / row
+ * ownership BEFORE invoking (REST: `withRestAuth` + the existing
+ * `organizationId !== rc.org.organizationId` check at the call site).
+ */
+export const deregisterAndDelete = internalAction({
+  args: {
+    websiteId: v.id('websites'),
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const website = await ctx.runQuery(
+      internal.websites.internal_queries.getWebsite,
+      { websiteId: args.websiteId },
+    );
+    if (!website) return;
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+    // Deregister first so a crawler-side failure surfaces to the
+    // caller (matches `actions.deleteWebsite` semantics) and the row
+    // is left in place for retry rather than orphaning the registration.
+    await deregisterDomainFromCrawler(orgSlug, website.domain);
+    await ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
+      websiteId: args.websiteId,
+    });
+  },
+});
+
 export const syncSingleWebsite = internalAction({
   args: {
     websiteId: v.id('websites'),
@@ -354,6 +389,15 @@ export const syncSingleWebsite = internalAction({
       { websiteId: args.websiteId },
     );
     if (!website) return;
+
+    // Every patch below MUST write `lastStatusSyncAt: Date.now()`.
+    // `fetchPages` debounces re-fan-out using exactly this field — if
+    // the success / error / missing branches forget to stamp it, the
+    // debounce gate stays permanently open and every subsequent
+    // `fetchPages` call schedules a fresh sync, defeating the rate-
+    // limit and reintroducing the concurrent-write race the gate was
+    // added to prevent.
+    const syncTimestamp = Date.now();
 
     try {
       const info = await fetchWebsiteInfo(orgSlug, args.domain);
@@ -374,6 +418,7 @@ export const syncSingleWebsite = internalAction({
             metadata: {
               ...website.metadata,
               lastSyncError: undefined,
+              lastStatusSyncAt: syncTimestamp,
             },
           },
         );
@@ -387,6 +432,7 @@ export const syncSingleWebsite = internalAction({
               ...website.metadata,
               lastSyncError:
                 'Website not found in crawler. Please delete and re-add it.',
+              lastStatusSyncAt: syncTimestamp,
             },
           },
         );
@@ -402,6 +448,7 @@ export const syncSingleWebsite = internalAction({
         metadata: {
           ...website.metadata,
           lastSyncError: message,
+          lastStatusSyncAt: syncTimestamp,
         },
       });
     }

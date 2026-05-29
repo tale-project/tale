@@ -71,13 +71,22 @@ export const createWebsite = withRestAuth('rest:api', async (rc, request) => {
     },
   );
 
-  // Register with crawler and schedule follow-up sync
-  await rc.ctx.runAction(internal.websites.internal_actions.registerAndSync, {
-    websiteId,
-    domain,
-    scanInterval: body.scanInterval,
-    organizationId: rc.org.organizationId,
-  });
+  // Register with crawler and schedule follow-up sync.
+  // Fire-and-forget via the scheduler — matches `actions.createWebsite`
+  // (the Convex-action surface), so REST + Convex both return as soon
+  // as the row exists rather than blocking the HTTP response on a
+  // crawler round-trip. `registerAndSync` patches the row to
+  // `status: 'error'` on its own failure path.
+  await rc.ctx.scheduler.runAfter(
+    0,
+    internal.websites.internal_actions.registerAndSync,
+    {
+      websiteId,
+      domain,
+      scanInterval: body.scanInterval,
+      organizationId: rc.org.organizationId,
+    },
+  );
 
   return jsonCreated({ id: websiteId });
 });
@@ -195,9 +204,17 @@ export const deleteWebsite = withRestAuth('rest:api', async (rc, request) => {
     return jsonError('Website not found', 404);
   }
 
-  await rc.ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
-    websiteId: toId<'websites'>(id),
-  });
+  // Route through `deregisterAndDelete` so the crawler binding is
+  // removed before the row goes — REST + the Convex `actions.deleteWebsite`
+  // surface now share the same shape. Previously REST deleted the
+  // row directly, leaving the crawler with a dangling registration.
+  await rc.ctx.runAction(
+    internal.websites.internal_actions.deregisterAndDelete,
+    {
+      websiteId: toId<'websites'>(id),
+      organizationId: rc.org.organizationId,
+    },
+  );
 
   return jsonNoContent();
 });
@@ -276,7 +293,14 @@ export const websitePostActions = withRestAuth(
       // callers got an org-wide side effect when they thought they were
       // re-syncing one row. Use the per-website action so the contract
       // matches the URL (round-3 P2 R9-P2-a).
-      await rc.ctx.runAction(
+      //
+      // Fire-and-forget via `scheduler.runAfter(0, ...)` so the HTTP
+      // response actually means "syncing started" (matches the
+      // returned status). Previously `runAction` blocked the response
+      // until the crawler round-trip finished, making the `'syncing'`
+      // body misleading and tying caller latency to the crawler.
+      await rc.ctx.scheduler.runAfter(
+        0,
         internal.websites.internal_actions.syncSingleWebsite,
         {
           websiteId: website._id,
