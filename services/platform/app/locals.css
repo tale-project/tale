@@ -18,3 +18,36 @@ html,
 body {
   overscroll-behavior: none;
 }
+
+/* Short fade for content swapping in behind a skeleton (QueryState). Reuses the
+   shared `fade-in` keyframe + easing token from @tale/ui globals. */
+.animate-content-in {
+  animation: fade-in 200ms var(--ease-out-quint) both;
+}
+
+/* Indeterminate sweep for the top-of-page navigation progress bar. */
+@keyframes route-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(150%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-route-progress {
+  animation: route-progress 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-content-in {
+    animation: none;
+  }
+  .animate-route-progress {
+    animation: none;
+    transform: none;
+  }
+}

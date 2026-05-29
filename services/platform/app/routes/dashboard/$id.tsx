@@ -30,12 +30,23 @@ import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
+import { ensureConvexQuery } from '@/app/lib/loader-preload';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
 
 export const Route = createFileRoute('/dashboard/$id')({
+  // Warm the membership/ability context before the layout renders so children
+  // mount with access resolved (no shell-skeleton flash on warm org entry).
+  // The component's gating logic surfaces denied/not-found states, so an
+  // access error here must not fail the transition.
+  loader: ({ context, params }) =>
+    ensureConvexQuery(context, api.members.queries.getCurrentMemberContext, {
+      organizationId: params.id,
+    }).catch((error: unknown) => {
+      console.warn('Failed to preload member context', error);
+    }),
   component: DashboardLayout,
 });
 

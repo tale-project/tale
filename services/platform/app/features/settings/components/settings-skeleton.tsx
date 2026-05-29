@@ -193,6 +193,7 @@ export function SettingsPageSkeleton({
 }: SettingsPageSkeletonProps) {
   return (
     <div
+      aria-busy="true"
       className={cn(
         'flex w-full flex-col gap-8',
         fitToContainer && 'min-h-0 flex-1',

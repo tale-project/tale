@@ -1,11 +1,27 @@
 import { useQueryClient } from '@tanstack/react-query';
 
+import { updateDocumentQuery } from '@/app/hooks/optimistic-updates';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
+/**
+ * Upsert a governance policy. The optimistic patch flips the matching
+ * `getPolicy` read the instant the toggle/save fires (Convex rolls it back on
+ * failure), so every policy editor that reads through `useGovernancePolicy`
+ * updates without a server round-trip. No-ops on the very first save for a
+ * policy type (no row to patch yet), which then resolves from the server.
+ */
 export function useUpsertGovernancePolicy() {
-  return useConvexMutation(api.governance.mutations.upsertPolicy);
+  return useConvexMutation(api.governance.mutations.upsertPolicy, {
+    optimisticUpdate: (store, args) =>
+      updateDocumentQuery(
+        store,
+        api.governance.queries.getPolicy,
+        { organizationId: args.organizationId, policyType: args.policyType },
+        (current) => ({ ...current, config: args.config }),
+      ),
+  });
 }
 
 export function useProposeDsarPolicy() {

@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import { QueryState } from '@/app/components/ui/query-state';
 import { BrandingPageSkeleton } from '@/app/features/settings/branding/components/branding-page-skeleton';
 import { BrandingSettings } from '@/app/features/settings/branding/components/branding-settings';
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
@@ -23,14 +24,9 @@ function BrandingSettingsPage() {
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
+  const brandingQuery = useBranding();
 
-  const {
-    data: branding,
-    isLoading: isBrandingLoading,
-    refetch,
-  } = useBranding();
-
-  if (abilityLoading || isBrandingLoading) {
+  if (abilityLoading) {
     return <BrandingPageSkeleton />;
   }
 
@@ -39,11 +35,18 @@ function BrandingSettingsPage() {
   }
 
   return (
-    <SettingsPage
-      title={tNav('branding')}
-      description={tSettings('menu.branding.description')}
-    >
-      <BrandingSettings branding={branding ?? undefined} onSaved={refetch} />
-    </SettingsPage>
+    <QueryState query={brandingQuery} pending={<BrandingPageSkeleton />}>
+      {(branding) => (
+        <SettingsPage
+          title={tNav('branding')}
+          description={tSettings('menu.branding.description')}
+        >
+          <BrandingSettings
+            branding={branding ?? undefined}
+            onSaved={() => void brandingQuery.refetch()}
+          />
+        </SettingsPage>
+      )}
+    </QueryState>
   );
 }

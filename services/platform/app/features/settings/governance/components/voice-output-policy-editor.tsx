@@ -2,7 +2,6 @@
 
 import { PageSection } from '@tale/ui/page-section';
 import { Skeleton } from '@tale/ui/skeleton';
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { z } from 'zod';
 
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -44,40 +43,30 @@ export function VoiceOutputPolicyEditor({
   );
   const upsertMutation = useUpsertGovernancePolicy();
 
-  const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
-  const [enabled, setEnabled] = useState(true);
-
-  useEffect(() => {
-    setEnabled(savedConfig.enabled);
-  }, [savedConfig]);
+  // Derived straight from the query: the optimistic update flips it the instant
+  // the switch is toggled and Convex rolls it back on failure, so no local
+  // mirror state (and no manual rollback) is needed.
+  const enabled = parseConfig(policy?.config).enabled;
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
-  const handleToggleEnabled = useCallback(
-    async (checked: boolean) => {
-      setEnabled(checked);
-      try {
-        await upsertMutation.mutateAsync({
-          organizationId,
-          policyType: 'voice_output',
-          config: { enabled: checked },
-        });
-        toast({
-          title: t('toastSavedTitle'),
-          description: t('voiceOutput.saved'),
-          variant: 'success',
-        });
-      } catch {
-        setEnabled(!checked);
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('voiceOutput.saveFailed'),
-          variant: 'destructive',
-        });
-      }
-    },
-    [organizationId, upsertMutation, toast, t],
-  );
+  const handleToggleEnabled = (checked: boolean) => {
+    upsertMutation.mutate(
+      {
+        organizationId,
+        policyType: 'voice_output',
+        config: { enabled: checked },
+      },
+      {
+        onSuccess: () =>
+          toast({
+            title: t('toastSavedTitle'),
+            description: t('voiceOutput.saved'),
+            variant: 'success',
+          }),
+      },
+    );
+  };
 
   if (isLoading) {
     return (

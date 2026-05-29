@@ -4,6 +4,7 @@ import {
   createRootRouteWithContext,
 } from '@tanstack/react-router';
 
+import { RouteProgressBar } from '@/app/components/layout/route-progress-bar';
 import { SkipLink } from '@/app/components/layout/skip-link';
 import { ThemeAssets } from '@/app/components/theme/theme-assets';
 import { Toaster } from '@/app/components/ui/feedback/toaster';
@@ -27,6 +28,7 @@ function RootComponent() {
   return (
     <>
       <HeadContent />
+      <RouteProgressBar />
       <SkipLink />
       <ThemeAssets />
       <FileEventsListener />

@@ -1450,7 +1450,11 @@
     "moveUp": "Move up",
     "moveDown": "Move down",
     "drag": "Drag to reorder",
-    "remove": "Remove"
+    "remove": "Remove",
+    "loading": {
+      "navigating": "Loading page",
+      "label": "Loading"
+    }
   },
   "composer": {
     "openMenu": "Open composer menu",
@@ -2373,8 +2377,7 @@
       "title": "Voice output",
       "description": "When disabled, no member of this organization can use voice output — neither the user-level default nor any per-conversation override has any effect.",
       "enabledLabel": "Voice output enabled for this organization",
-      "saved": "Voice-output policy updated",
-      "saveFailed": "Failed to update voice-output policy"
+      "saved": "Voice-output policy updated"
     },
     "personalization": {
       "enabledLabel": "Enabled for this organization",
@@ -5607,7 +5610,8 @@
       "addMemberFailed": "Failed to add member",
       "automationDuplicateFailed": "Failed to duplicate automation",
       "automationRenameFailed": "Failed to rename automation",
-      "automationDeleteFailed": "Failed to delete automation"
+      "automationDeleteFailed": "Failed to delete automation",
+      "generic": "Something went wrong. Please try again."
     }
   },
   "todoList": {

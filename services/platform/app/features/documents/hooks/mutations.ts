@@ -2,7 +2,15 @@
 
 import { useState, useRef, useCallback } from 'react';
 
+import {
+  removeItemFromListQuery,
+  updateItemInListQuery,
+} from '@/app/hooks/optimistic-updates';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import {
+  removeItemFromPaginatedQuery,
+  updateItemInPaginatedQuery,
+} from '@/app/hooks/use-convex-paginated-query';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -405,11 +413,45 @@ export function useDeleteFolder() {
 }
 
 export function useDeleteDocument() {
-  return useConvexMutation(api.documents.mutations.deleteDocument);
+  return useConvexMutation(api.documents.mutations.deleteDocument, {
+    // EntityDeleteDialog shows its own specific error toast.
+    errorToast: false,
+    optimisticUpdate: (store, args) => {
+      removeItemFromListQuery(
+        store,
+        api.documents.queries.listDocuments,
+        args.documentId,
+      );
+      removeItemFromPaginatedQuery(
+        store,
+        api.documents.queries.listDocumentsPaginated,
+        args.documentId,
+      );
+    },
+  });
 }
 
 export function useUpdateDocument() {
-  return useConvexMutation(api.documents.mutations.updateDocument);
+  return useConvexMutation(api.documents.mutations.updateDocument, {
+    // The team-tags dialog shows its own specific error toast.
+    errorToast: false,
+    optimisticUpdate: (store, args) => {
+      const { title } = args;
+      if (title === undefined) return;
+      updateItemInListQuery(
+        store,
+        api.documents.queries.listDocuments,
+        args.documentId,
+        (document) => ({ ...document, title }),
+      );
+      updateItemInPaginatedQuery(
+        store,
+        api.documents.queries.listDocumentsPaginated,
+        args.documentId,
+        (document) => ({ ...document, title }),
+      );
+    },
+  });
 }
 
 export function useUpdateFolderTeams() {
