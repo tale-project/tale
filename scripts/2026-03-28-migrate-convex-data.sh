@@ -100,12 +100,14 @@ if [ "$old_exists" = true ]; then
 
         before=$(ls "$dst" 2>/dev/null | wc -l)
         # `cp -rn` is no-clobber, so re-runs are no-ops on already-
-        # copied trees. Earlier this swallowed stderr unconditionally,
-        # which hid disk-full / permission-denied as "0 new items".
-        # `|| true` is kept only to tolerate the "no files to copy"
-        # edge case (matched glob with no entries) without aborting
-        # `set -e`; real I/O errors now surface on stderr.
-        cp -rn "$src/"* "$dst/" || true
+        # copied trees. The earlier `|| true` swallowed real I/O
+        # failures (disk-full, EACCES, EIO) — the script would echo
+        # "0 new items copied" and exit 0 while the migration was
+        # silently incomplete. The empty-src guard above already
+        # handles the "no files to copy" edge case, so `|| true` is
+        # not needed for set -e correctness. Drop it and let real
+        # cp failures abort.
+        cp -rn "$src/"* "$dst/"
         after=$(ls "$dst" | wc -l)
         added=$((after - before))
 

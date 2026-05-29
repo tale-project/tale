@@ -352,11 +352,28 @@ atomic_cp() {
 # dest. cp -r alone leaves a half-populated dest on interruption, and
 # the next-run `[ -d "$dest" ]` check then treats the partial bundle
 # as "already seeded" and skips it permanently. Round-3 P2 R32-P2-c.
+#
+# `FORCE_SEED=true` is destructive for bundle dirs (skills, integrations,
+# branding sub-bundles): the existing dest is removed wholesale before
+# the new one lands. If the operator added custom files inside a bundle
+# (e.g. an integration's `custom_state.json`), force-seed would wipe
+# them. Take a timestamped snapshot under `<dest>.history/<ts>/` first
+# so the operator can recover the pre-force tree. Best-effort — a
+# snapshot failure must not block the seed.
 atomic_cp_bundle() {
   local src_dir="$1" dest_dir="$2"
   local stage="${dest_dir}.tale-seed.$$"
   rm -rf "$stage"
   cp -r "$src_dir" "$stage"
+  if [ -d "$dest_dir" ]; then
+    local snapshot_dir="${dest_dir}.history/$(date -u +%Y%m%dT%H%M%SZ)"
+    if mkdir -p "$snapshot_dir" 2>/dev/null && cp -r "$dest_dir/." "$snapshot_dir/" 2>/dev/null; then
+      echo "   ↻ Snapshotted previous bundle to ${snapshot_dir}"
+    else
+      echo "   ⚠ Could not snapshot previous bundle at ${dest_dir} (proceeding with force-seed anyway)"
+      rm -rf "$snapshot_dir" 2>/dev/null || true
+    fi
+  fi
   rm -rf "$dest_dir"
   mv "$stage" "$dest_dir"
 }
@@ -392,7 +409,15 @@ run_seed() {
   local workflows_builtin="/app/builtin/default/workflows"
   mkdir -p "$workflows_dir"
   if [ -d "$workflows_builtin" ] && [ "$(ls -A "$workflows_builtin" 2>/dev/null)" ]; then
-    find "$workflows_builtin" -name '*.json' -type f | while read -r src; do
+    # Aggregate per-file failure count. Previously the seed loop ran
+    # inside a `find | while` subshell — `log_error` printed to stderr
+    # but no aggregate counter survived past the subshell, so boot
+    # would silently complete with a partially-seeded workflows/ dir
+    # (disk-full mid-seed = boot succeeds, broken builtin workflows).
+    # Use process substitution so the counter lives in the parent
+    # shell.
+    local workflows_failed=0
+    while IFS= read -r src; do
       local rel_path="${src#$workflows_builtin/}"
       local dest="$workflows_dir/$rel_path"
       local dest_dir="$(dirname "$dest")"
@@ -410,6 +435,7 @@ run_seed() {
           echo "   ✓ Seeded workflow $rel_path (forced)"
         else
           log_error "   ✗ Failed to seed workflow $rel_path (forced)"
+          workflows_failed=$((workflows_failed + 1))
         fi
         continue
       fi
@@ -421,8 +447,12 @@ run_seed() {
         echo "   ✓ Seeded workflow $rel_path"
       else
         log_error "   ✗ Failed to seed workflow $rel_path"
+        workflows_failed=$((workflows_failed + 1))
       fi
-    done
+    done < <(find "$workflows_builtin" -name '*.json' -type f)
+    if [ "$workflows_failed" -gt 0 ]; then
+      log_warn "workflow seed: $workflows_failed file(s) failed to seed; check stderr for details"
+    fi
   fi
 
   # --- Integrations (directory bundles) ---
