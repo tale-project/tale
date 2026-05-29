@@ -68,6 +68,7 @@ export interface SearchCommandController {
   showEmptyState: boolean;
   showSkeleton: boolean;
   showNoResults: boolean;
+  showError: boolean;
   showResults: boolean;
 }
 
@@ -201,6 +202,10 @@ export function useSearchCommand({
   const showEmptyState = !showResults;
   const showNoResults =
     showResults && status === 'ready' && results.length === 0;
+  // Surface a source error instead of a blank list — but only when there are no
+  // stale results worth keeping on screen (a transient error mid-typing
+  // shouldn't wipe the last good page).
+  const showError = showResults && status === 'error' && results.length === 0;
   // Skeleton only when loading AND there's nothing stale to keep visible —
   // otherwise we keep the previous results on screen so the list doesn't
   // blink between keystrokes.
@@ -231,6 +236,7 @@ export function useSearchCommand({
     showEmptyState,
     showSkeleton,
     showNoResults,
+    showError,
     showResults,
   };
 }

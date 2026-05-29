@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import { cn } from '../../lib/cn';
+import { FALLBACK_GROUP, humanizeGroupKey } from './group-by';
 import { SearchCommandInput } from './search-command-input';
 import { SearchEmpty } from './search-empty';
 import { SearchFooter } from './search-footer';
@@ -78,13 +79,25 @@ export function SearchCommand({
     [onOpenChange, onSelect],
   );
 
+  // Localise the catch-all group header while delegating real keys to the
+  // caller's resolver (docs maps section slugs to titles; others humanise).
+  const resolveGroupLabel = useCallback(
+    (key: string): string =>
+      key === FALLBACK_GROUP
+        ? labels.resultsGroup
+        : getGroupLabel
+          ? getGroupLabel(key)
+          : humanizeGroupKey(key),
+    [getGroupLabel, labels.resultsGroup],
+  );
+
   const controller = useSearchCommand({
     source,
     open,
     minQueryLength,
     debounceMs,
     getGroupKey,
-    getGroupLabel,
+    getGroupLabel: resolveGroupLabel,
     recentsStorageKey,
     onSelect: select,
   });
@@ -111,6 +124,7 @@ export function SearchCommand({
     showEmptyState,
     showSkeleton,
     showNoResults,
+    showError,
   } = controller;
 
   const listboxId = useId();
@@ -267,6 +281,22 @@ export function SearchCommand({
                       data-testid="search-skeleton"
                     >
                       <SearchSkeleton reduceMotion={reduceMotion} />
+                    </motion.div>
+                  ) : showError ? (
+                    <motion.div
+                      key="error"
+                      initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: reduceMotion ? 0 : 0.18 }}
+                      className="text-fg-muted px-6 py-10 text-center"
+                      role="alert"
+                    >
+                      <p className="text-fg-base text-sm font-medium">
+                        {labels.errorTitle}
+                      </p>
+                      <p className="text-fg-subtle mt-1 text-xs">
+                        {labels.errorHint}
+                      </p>
                     </motion.div>
                   ) : showNoResults ? (
                     <motion.div

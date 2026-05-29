@@ -252,17 +252,63 @@ describe('SearchCommand', () => {
     expect(screen.getByPlaceholderText('Find anything')).toBeInTheDocument();
   });
 
-  it('surfaces a source error without a skeleton or a false "no results"', async () => {
+  it('renders a localized error state when the source fails', async () => {
     respond = () => ({ kind: 'error' });
     const { user } = renderCommand();
     await user.type(screen.getByPlaceholderText('Search…'), 'config');
-    // An error must not masquerade as loading or as an empty result set.
     await waitFor(() =>
-      expect(screen.queryByTestId('search-skeleton')).not.toBeInTheDocument(),
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Something went wrong',
+      ),
     );
+    // An error must not masquerade as loading or as an empty result set.
+    expect(screen.queryByTestId('search-skeleton')).not.toBeInTheDocument();
     expect(screen.queryByText('No results found')).not.toBeInTheDocument();
-    // The palette stays mounted and usable (no crash).
-    expect(screen.getByPlaceholderText('Search…')).toBeInTheDocument();
+  });
+
+  it('fills the query when a recent search is picked', async () => {
+    window.localStorage.setItem(
+      'tale.test.recentSearches.v1',
+      JSON.stringify([{ query: 'previous query', savedAt: 1 }]),
+    );
+    const { user } = renderCommand();
+    await user.click(screen.getByText('previous query'));
+    expect(screen.getByPlaceholderText('Search…')).toHaveValue(
+      'previous query',
+    );
+  });
+
+  it('removes a single recent and clears the rest', async () => {
+    window.localStorage.setItem(
+      'tale.test.recentSearches.v1',
+      JSON.stringify([
+        { query: 'alpha', savedAt: 2 },
+        { query: 'beta', savedAt: 1 },
+      ]),
+    );
+    const { user } = renderCommand();
+    expect(screen.getByText('alpha')).toBeInTheDocument();
+    expect(screen.getByText('beta')).toBeInTheDocument();
+
+    await user.click(screen.getAllByLabelText('Remove from recent')[0]);
+    expect(screen.queryByText('alpha')).not.toBeInTheDocument();
+    expect(screen.getByText('beta')).toBeInTheDocument();
+
+    await user.click(screen.getByText('Clear'));
+    expect(screen.queryByText('beta')).not.toBeInTheDocument();
+    expect(screen.getByText('Start typing to search.')).toBeInTheDocument();
+  });
+
+  it('labels the catch-all group when results have no group', async () => {
+    respond = () => ({
+      kind: 'ready',
+      results: [result({ id: '1', group: undefined })],
+    });
+    const { user } = renderCommand();
+    await user.type(screen.getByPlaceholderText('Search…'), 'config');
+    await waitFor(() =>
+      expect(screen.getByText('Results')).toBeInTheDocument(),
+    );
   });
 
   it('renders nothing when closed', () => {

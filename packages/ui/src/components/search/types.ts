@@ -103,6 +103,12 @@ export interface SearchCommandLabels {
   keepTyping: string;
   noResultsTitle: string;
   noResultsHint: string;
+  /** Title shown when the source reports an error. */
+  errorTitle: string;
+  /** Secondary line under the error title. */
+  errorHint: string;
+  /** Header for the catch-all group when a result has no `group`. */
+  resultsGroup: string;
   loading: string;
   close: string;
   recent: string;

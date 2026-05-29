@@ -88,4 +88,12 @@ describe('extractSnippet', () => {
     const snippet = extractSnippet(body, ['', 'residency'], 80);
     expect(snippet).toMatch(/residency/i);
   });
+
+  it('keeps a match near the end of the body without a trailing ellipsis', () => {
+    const snippet = extractSnippet(body, ['infrastructure'], 80);
+    expect(snippet).toMatch(/infrastructure/);
+    // The match is in the final sentence, so there is nothing to elide after it.
+    expect(snippet.endsWith('…')).toBe(false);
+    expect(snippet.startsWith('… ')).toBe(true);
+  });
 });
