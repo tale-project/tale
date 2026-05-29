@@ -140,7 +140,6 @@
       "name": "@tale/docs",
       "version": "0.1.0",
       "dependencies": {
-        "@radix-ui/react-dialog": "1.1.15",
         "@tale/ui": "workspace:*",
         "framer-motion": "12.38.0",
         "minisearch": "7.2.0",

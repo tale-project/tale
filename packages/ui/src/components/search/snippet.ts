@@ -35,21 +35,22 @@ export function extractSnippet(
 
   const half = Math.floor(windowChars / 2);
   let start = Math.max(0, firstIdx - half);
-  let end = Math.min(body.length, start + windowChars);
+  const end = Math.min(body.length, start + windowChars);
 
   // Snap to nearest word boundary so snippets don't begin/end mid-word.
   if (start > 0) {
     const space = body.indexOf(' ', start);
     if (space !== -1 && space - start < 24) start = space + 1;
   }
-  if (end < body.length) {
-    const space = body.lastIndexOf(' ', end);
-    if (space > start) end = space;
+  let clampedEnd = end;
+  if (clampedEnd < body.length) {
+    const space = body.lastIndexOf(' ', clampedEnd);
+    if (space > start) clampedEnd = space;
   }
 
   const prefix = start > 0 ? '… ' : '';
-  const suffix = end < body.length ? ' …' : '';
-  return prefix + body.slice(start, end).trim() + suffix;
+  const suffix = clampedEnd < body.length ? ' …' : '';
+  return prefix + body.slice(start, clampedEnd).trim() + suffix;
 }
 
 /** Lowercased, deduplicated tokens from a search query. Single-character

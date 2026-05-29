@@ -1,5 +1,6 @@
-import { cn } from '@tale/ui/cn';
 import { Fragment } from 'react';
+
+import { cn } from '../../lib/cn';
 
 interface HighlightProps {
   text: string;

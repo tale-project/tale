@@ -1,3 +1,7 @@
+/** A MiniSearch hit after rerank — the docs-internal result shape produced by
+ *  `client.ts`. The shared `@tale/ui/search` palette consumes the normalised
+ *  `SearchResult` (see `source.ts` for the mapping `url → href`,
+ *  `section → group`). */
 export interface SearchResult {
   /** Document id (locale-prefixed slug). */
   id: string;
@@ -16,23 +20,11 @@ export interface SearchResult {
   /** Index terms that matched — `["configuration"]` for query `"config"`.
    *  Drives highlight + snippet centring so the marks show *what was found*. */
   matchedTerms: string[];
-  /** User tokens that produced matches — subset of the typed query. Useful
-   *  for centring snippets on what the user actually typed. */
+  /** User tokens that produced matches — subset of the typed query. */
   queryTerms: string[];
   /** Map of matched index term → fields it hit in (`title`, `headings`,
    *  `body`). Drives field-aware ranking and the result-row icon. */
   match: Record<string, string[]>;
-}
-
-export interface RecentSearch {
-  /** Free-text query the user typed. */
-  query: string;
-  /** Optional URL the user navigated to from this query. */
-  url?: string;
-  /** Optional title of the result the user opened. */
-  title?: string;
-  /** Epoch milliseconds — used for ordering and TTL. */
-  savedAt: number;
 }
 
 export type SearchStatus = 'idle' | 'loading' | 'ready' | 'error';

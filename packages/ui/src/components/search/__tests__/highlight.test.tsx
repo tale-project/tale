@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { Highlight } from './highlight';
+import { checkAccessibility } from '@/test/utils/a11y';
+
+import { Highlight } from '../highlight';
 
 describe('Highlight', () => {
   it('renders text unchanged when no terms are provided', () => {
@@ -87,10 +89,6 @@ describe('Highlight', () => {
   });
 
   it('matches the longer term first when terms overlap as prefixes', () => {
-    // Regression: MiniSearch can return both `config` and `configuration` for
-    // a prefix search. Naively joining as `config|configuration` highlights
-    // only "config" inside "configuration". The fix sorts by length DESC so
-    // the longer alternative wins.
     const { container } = render(
       <Highlight
         text="The configuration is loaded from the config file."
@@ -103,12 +101,21 @@ describe('Highlight', () => {
     expect(marks).toEqual(['configuration', 'config']);
   });
 
-  it('still marks the standalone shorter form when it is not part of a longer match', () => {
+  it('still marks the standalone shorter form when not part of a longer match', () => {
     const { container } = render(
       <Highlight text="config" terms={['config', 'configuration']} />,
     );
     const marks = container.querySelectorAll('mark');
     expect(marks).toHaveLength(1);
     expect(marks[0]?.textContent).toBe('config');
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <Highlight text="hello world" terms={['world']} />,
+      );
+      await checkAccessibility(container);
+    });
   });
 });

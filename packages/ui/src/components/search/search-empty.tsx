@@ -1,8 +1,8 @@
-import { cn } from '@tale/ui/cn';
 import { motion } from 'framer-motion';
 import { Clock, CornerDownLeft, History, Search, X } from 'lucide-react';
 
-import type { RecentSearch } from './types';
+import { cn } from '../../lib/cn';
+import type { RecentSearch, SearchCommandLabels } from './types';
 
 interface SearchEmptyProps {
   recents: RecentSearch[];
@@ -10,21 +10,9 @@ interface SearchEmptyProps {
   onRemoveRecent: (query: string) => void;
   onClearRecents: () => void;
   /** When non-empty, the user has typed something below `minQueryLength`.
-   *  We render a "keep typing" hint instead of recents so they don't have
-   *  to clear the field to navigate by recents anyway. */
+   *  Render a "keep typing" hint instead of recents. */
   shortQuery?: string;
-  labels: {
-    empty: string;
-    emptyHint: string;
-    keepTyping: string;
-    recent: string;
-    clearRecent: string;
-    removeRecent: string;
-    tipsTitle: string;
-    tipNavigate: string;
-    tipSelect: string;
-    tipClose: string;
-  };
+  labels: SearchCommandLabels;
   reduceMotion: boolean;
 }
 
@@ -73,7 +61,7 @@ export function SearchEmpty({
               {labels.clearRecent}
             </button>
           </header>
-          <ul className="flex flex-col gap-0.5">
+          <ul role="list" className="flex flex-col gap-0.5">
             {recents.map((recent) => (
               <li
                 key={recent.query + recent.savedAt}
@@ -128,7 +116,10 @@ export function SearchEmpty({
             {labels.tipsTitle}
           </span>
         </header>
-        <ul className="text-fg-muted grid grid-cols-1 gap-2 px-1 text-xs sm:grid-cols-3">
+        <ul
+          role="list"
+          className="text-fg-muted grid grid-cols-1 gap-2 px-1 text-xs sm:grid-cols-3"
+        >
           <li className="flex items-center gap-2">
             <KeyHint>↑</KeyHint>
             <KeyHint>↓</KeyHint>

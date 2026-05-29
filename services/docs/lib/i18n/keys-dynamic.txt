@@ -13,6 +13,13 @@
 languageSwitcher
 themeSwitcher
 
+# --- the search palette consumes its keys from @tale/ui's SearchCommand ---
+# `search.*` is resolved by `useSearchCommandLabels` inside
+# packages/ui/src/components/search/, but the scanner only walks services/docs/.
+# Docs ships its own copy to override the generic labels (e.g. the title is
+# "Search documentation", not "Search").
+search
+
 # --- docs reuses the marketing footer bundle (slimmed to copyright + GitHub) ---
 # DocsFooter only renders `copyrightLine1/2`, `llmsTxtLabel`, `githubAriaLabel`,
 # but the docs message bundle still ships the full `footer.*` tree because

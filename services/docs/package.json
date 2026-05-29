@@ -22,7 +22,6 @@
     "storybook:build": "bunx --bun storybook build -o storybook-static"
   },
   "dependencies": {
-    "@radix-ui/react-dialog": "1.1.15",
     "@tale/ui": "workspace:*",
     "framer-motion": "12.38.0",
     "minisearch": "7.2.0",

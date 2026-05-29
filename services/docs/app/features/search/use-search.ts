@@ -1,50 +1,40 @@
-import { useDebounce } from '@tale/ui/use-debounce';
+import { extractTerms } from '@tale/ui/search/snippet';
 import { useEffect, useState } from 'react';
 
 import { loadIndex, search } from './client';
-import { extractTerms } from './snippet';
 import type { SearchResult, SearchStatus } from './types';
 
-interface UseSearchOptions {
+interface UseDocSearchOptions {
+  /** The query to run. Already debounced + min-length-gated by the shared
+   *  search controller — this hook just executes it (empty ⇒ idle). */
+  query: string;
   locale: string;
   baseUrl?: string;
   /** Cap the number of results forwarded to the UI. */
   limit?: number;
-  /** Debounce window in milliseconds. */
-  debounceMs?: number;
-  /** Don't run a search until the trimmed query reaches this length. Single
-   *  characters surface noise; the threshold also avoids prefix-scanning a
-   *  large index for nearly every letter typed. */
-  minQueryLength?: number;
-  /** Pre-fetch the index as soon as the hook mounts so the first keystroke
-   *  hits a hot cache. */
+  /** Pre-fetch the index so the first real query hits a hot cache. Driven by
+   *  the dialog's open/active state. */
   prefetch?: boolean;
 }
 
-interface UseSearchReturn {
-  query: string;
-  setQuery: (next: string) => void;
+interface UseDocSearchReturn {
   results: SearchResult[];
-  /** Lower-cased, deduped query tokens — for highlight + snippet centring
-   *  fallback when a result has no `matchedTerms`. */
+  /** Lower-cased, deduped query tokens — for highlight + snippet centring. */
   terms: string[];
   status: SearchStatus;
   error: Error | null;
 }
 
-/** Debounced search hook backed by the static MiniSearch index. Tracks
- *  loading/ready/error states so the UI can render skeletons or messages
- *  appropriately, and re-runs whenever locale or query change. */
+/** Runs the static MiniSearch index for a given (already-debounced) query and
+ *  tracks loading/ready/error so the shared palette can render skeletons or
+ *  messages. The query/debounce/min-length live in the shared controller. */
 export function useDocSearch({
+  query,
   locale,
   baseUrl = '',
   limit = 25,
-  debounceMs = 120,
-  minQueryLength = 2,
   prefetch = true,
-}: UseSearchOptions): UseSearchReturn {
-  const [query, setQuery] = useState('');
-  const debounced = useDebounce(query, debounceMs);
+}: UseDocSearchOptions): UseDocSearchReturn {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [status, setStatus] = useState<SearchStatus>('idle');
   const [error, setError] = useState<Error | null>(null);
@@ -59,8 +49,8 @@ export function useDocSearch({
   }, [locale, baseUrl, prefetch]);
 
   useEffect(() => {
-    const trimmed = debounced.trim();
-    if (trimmed.length < minQueryLength) {
+    const trimmed = query.trim();
+    if (!trimmed) {
       setResults([]);
       setStatus('idle');
       setError(null);
@@ -90,13 +80,11 @@ export function useDocSearch({
     return () => {
       cancelled = true;
     };
-  }, [debounced, locale, baseUrl, limit, minQueryLength]);
+  }, [query, locale, baseUrl, limit]);
 
   return {
-    query,
-    setQuery,
     results,
-    terms: extractTerms(debounced),
+    terms: extractTerms(query),
     status,
     error,
   };

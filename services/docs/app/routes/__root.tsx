@@ -6,7 +6,7 @@ import {
   Outlet,
   useRouterState,
 } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { DocsFooter } from '@/app/components/docs/docs-footer';
 import { DocsHeader } from '@/app/components/docs/docs-header';
@@ -58,7 +58,6 @@ function RootLayout() {
   const locale = localeFromPathname(pathname);
   const { resolvedTheme } = useTheme();
   const { t: tNav } = useT('nav');
-  const { t: tSearch } = useT('search');
 
   // ⌘K / Ctrl+K opens the search dialog.
   useEffect(() => {
@@ -86,29 +85,6 @@ function RootLayout() {
       return tNav(`groups.${navKey}`);
     },
     [tNav],
-  );
-
-  const searchLabels = useMemo(
-    () => ({
-      title: tSearch('title'),
-      placeholder: tSearch('placeholder'),
-      empty: tSearch('empty'),
-      emptyHint: tSearch('emptyHint'),
-      keepTyping: tSearch('keepTyping'),
-      noResultsTitle: tSearch('noResultsTitle'),
-      noResultsHint: tSearch('noResultsHint'),
-      loading: tSearch('loading'),
-      close: tSearch('close'),
-      recent: tSearch('recent'),
-      clearRecent: tSearch('clearRecent'),
-      removeRecent: tSearch('removeRecent'),
-      tipsTitle: tSearch('tipsTitle'),
-      tipNavigate: tSearch('tipNavigate'),
-      tipSelect: tSearch('tipSelect'),
-      tipClose: tSearch('tipClose'),
-      resultCount: (count: number) => tSearch('results', { count }),
-    }),
-    [tSearch],
   );
 
   if (isSpecialEndpoint(pathname)) {
@@ -147,7 +123,6 @@ function RootLayout() {
         locale={locale}
         open={searchOpen}
         onOpenChange={setSearchOpen}
-        labels={searchLabels}
         sectionLabel={sectionLabel}
       />
     </div>

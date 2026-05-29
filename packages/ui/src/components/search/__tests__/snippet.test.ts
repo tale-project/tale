@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractSnippet, extractTerms } from './snippet';
+import { extractSnippet, extractTerms } from '../snippet';
 
 describe('extractTerms', () => {
   it('lowercases and dedupes', () => {
@@ -12,8 +12,6 @@ describe('extractTerms', () => {
   });
 
   it('keeps single-character tokens so they can still highlight', () => {
-    // Old behaviour dropped len<2 — we keep them. Search-gating happens at
-    // the call site (the hook) instead, so the tokenizer is permissive.
     expect(extractTerms('a b config')).toEqual(['a', 'b', 'config']);
   });
 
@@ -53,9 +51,6 @@ describe('extractSnippet', () => {
   });
 
   it('prefers the longest matched term over a shorter one', () => {
-    // Both "config" and "configuration" appear; the longer one carries more
-    // signal. Build a body where the two are far enough apart that the
-    // returned window would clearly include only one.
     const big =
       'config appears very early in this short overview. ' +
       'A long stretch of unrelated prose follows: ' +
@@ -80,8 +75,6 @@ describe('extractSnippet', () => {
 
   it('snaps the start to a word boundary', () => {
     const snippet = extractSnippet(body, ['residency'], 80);
-    // The "… " prefix marks the cut; the next character should not be
-    // mid-word — we either land on a capital letter or a known word start.
     const after = snippet.slice(2);
     expect(after[0]).toMatch(/[A-Za-z]/);
   });
