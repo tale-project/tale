@@ -68,7 +68,20 @@
         "type": "integration"
       },
       "nextSteps": {
-        "success": "loop_files"
+        "success": "check_has_files"
+      }
+    },
+    {
+      "stepSlug": "check_has_files",
+      "name": "Skip Loop If Drive Listing Is Empty",
+      "stepType": "condition",
+      "config": {
+        "expression": "(steps.list_files.output.data.result.data.files | length) > 0",
+        "description": "Loop steps throw on an empty items array; the throw isn't covered by continueOnError, so an empty Drive listing would otherwise abort the workflow before the reconcile-safety net runs. Route the empty case straight to check_truncated → reconcile_deletes, which has its own empty-source-list safety guard."
+      },
+      "nextSteps": {
+        "true": "loop_files",
+        "false": "check_truncated"
       }
     },
     {
@@ -211,8 +224,8 @@
       "name": "Skip RAG If Unchanged",
       "stepType": "condition",
       "config": {
-        "description": "Skip RAG re-indexing when the document was unchanged (same content hash).",
-        "expression": "steps.create_document.output.data.action != 'skipped'"
+        "description": "Re-index only when the file's contentHash actually changed. Pure folder-move or metadata-only patches return action='updated' with contentChanged=false and must not re-upload to RAG (a same-md5 cross-folder move is the canonical case).",
+        "expression": "steps.create_document.output.data.contentChanged == true"
       },
       "nextSteps": {
         "false": "loop_files",
@@ -229,6 +242,22 @@
           "operation": "index_in_rag"
         },
         "type": "document"
+      },
+      "nextSteps": {
+        "success": "finalize_content_hash"
+      }
+    },
+    {
+      "stepSlug": "finalize_content_hash",
+      "name": "Commit Content Hash",
+      "stepType": "action",
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "update",
+          "fileId": "{{steps.download_file.output.data.result.data.fileId}}",
+          "contentHash": "{{loop.item.md5Checksum}}"
+        }
       },
       "nextSteps": {
         "success": "loop_files"

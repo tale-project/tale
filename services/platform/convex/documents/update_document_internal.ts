@@ -71,12 +71,27 @@ export async function updateDocumentInternal(
     finalUpdateData.historyFiles = historyFiles;
   }
 
+  // Title-only rename on an already-indexed doc: RAG stores the filename at
+  // upload time, so the search/citation surface keeps the old name until we
+  // delete and re-upload. Same scheduler path as the content-change case;
+  // `reindexDocumentInRag` reads the (just-patched) new title at upload.
+  const titleChanged =
+    updateData.title !== undefined && document.title !== updateData.title;
+
   // If file changed and document was RAG-indexed, mark as queued for re-indexing
-  const needsReindex =
+  const needsContentReindex =
     hashChanged &&
     hasNewFile &&
     document.ragInfo?.status === 'completed' &&
     document.fileId;
+
+  const needsTitleReindex =
+    titleChanged &&
+    !hashChanged &&
+    document.ragInfo?.status === 'completed' &&
+    document.fileId;
+
+  const needsReindex = needsContentReindex || needsTitleReindex;
 
   if (needsReindex) {
     finalUpdateData.ragInfo = {

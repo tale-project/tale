@@ -239,17 +239,35 @@ function buildListQuery(
 }
 
 // Replace characters that are valid in Drive folder names but rejected by
-// Tale's folder name validator (which forbids '/' and '\' and trim-empty
-// names) or that would otherwise corrupt the workflow's '/'-joined
-// folderPath template. The substitution is one-way and lossy by design —
-// `a?b` and `a_b` collide, which is acceptable at demo stage and avoidable
-// by users renaming. Whitespace-only Drive folder names map to '_' to keep
-// the workflow from aborting at folder-creation time.
+// Tale's folder name validator (which forbids '/' and '\', trim-empty
+// names, and reserved '.' / '..') or that would otherwise corrupt the
+// workflow's '/'-joined folderPath template. Also strips ASCII control
+// characters, BOM, ZWSP, and bidi marks — Drive accepts those but they
+// produce homograph spoofing or NUL-truncation downstream. The
+// substitution is one-way and lossy by design — collisions (e.g. `a?b`
+// and `a_b` both become `a_b`) are acceptable at demo stage and avoidable
+// by users renaming.
 function sanitizeDriveFolderName(name: string): string {
-  const cleaned = name
+  let cleaned = name
+    // ASCII control chars, DEL, BOM (U+FEFF), ZWSP (U+200B),
+    // bidi marks (U+200E/F, U+202A-E)
+    .replace(/[\x00-\x1F\x7F﻿​‎‏‪-‮]/g, '')
     .replace(/[/\\?*<>:"|]/g, '_')
     .trim()
     .slice(0, 255);
+  // Drop an unpaired high surrogate left at the tail by slice (e.g. a
+  // 4-byte emoji split mid-pair).
+  if (cleaned.length > 0) {
+    const lastCode = cleaned.charCodeAt(cleaned.length - 1);
+    if (lastCode >= 0xd800 && lastCode <= 0xdbff) {
+      cleaned = cleaned.slice(0, -1);
+    }
+  }
+  // Reserved on Tale's side and easy to silently truncate the path —
+  // substitute with a safe single underscore.
+  if (cleaned === '.' || cleaned === '..') {
+    cleaned = '_';
+  }
   return cleaned.length > 0 ? cleaned : '_';
 }
 
@@ -379,6 +397,12 @@ function listFiles(
   } else {
     // BFS over subfolders. One Drive query per folder returns files + folders
     // mixed (no `mimeType != folder` filter); we partition client-side.
+    // `visited` dedups folder IDs — Drive's legacy multi-parent items can
+    // reach the same folder via more than one branch, which without dedup
+    // would inflate the file count toward the cap and emit duplicate file
+    // rows under divergent `subfolderPath` values.
+    const visited: Record<string, boolean> = {};
+    visited[folderId] = true;
     const queue: Array<{
       folderId: string;
       subfolderPath: string;
@@ -403,10 +427,12 @@ function listFiles(
       for (let i = 0; i < raw.length; i++) {
         const r = raw[i];
         if (r.mimeType === FOLDER_MIME) {
+          if (visited[r.id]) continue;
           if (head.depth + 1 > RECURSIVE_DEPTH_CAP) {
             truncated = true;
             continue;
           }
+          visited[r.id] = true;
           const segment = sanitizeDriveFolderName(r.name);
           const childPath = head.subfolderPath
             ? head.subfolderPath + '/' + segment

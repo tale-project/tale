@@ -8,7 +8,16 @@
  * read+write set, and Convex retries the loser. On retry the loser sees the
  * row inserted by the winner and takes the update branch — so concurrent
  * sync runs converge on a single document row instead of duplicating.
+ *
+ * `contentHash` is intentionally NOT written here — callers (sync workflows)
+ * finalize it in a separate `update` step after RAG indexing succeeds. If
+ * RAG fails, the stale/missing hash forces `check_unchanged` false on the
+ * next run, automatically retrying the download + index. Without this
+ * deferral, a failed first-time RAG upload writes the new hash on the row
+ * and `check_unchanged` would skip the retry forever.
  */
+
+import { ConvexError } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -35,6 +44,17 @@ export interface UpsertDocumentByExternalIdArgs {
 export interface UpsertDocumentByExternalIdResult {
   documentId: Id<'documents'>;
   action: 'created' | 'updated' | 'skipped';
+  /**
+   * True when this call wrote a new file version (fresh insert, or update
+   * with differing `contentHash`). False for pure metadata / folder moves
+   * and for skips. Sync workflows key RAG re-indexing on this flag so a
+   * location-only move does not re-emit the unchanged file to RAG.
+   */
+  contentChanged: boolean;
+}
+
+function isPathUnderPrefix(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(prefix + '/');
 }
 
 export async function upsertDocumentByExternalId(
@@ -47,44 +67,74 @@ export async function upsertDocumentByExternalId(
     folderPathPrefix: args.folderPathPrefix,
   });
 
-  if (existing) {
-    if (
-      args.contentHash !== undefined &&
-      existing.contentHash === args.contentHash
-    ) {
-      return { documentId: existing._id, action: 'skipped' };
-    }
+  const newFolderPath = args.folderId
+    ? await buildFolderPath(ctx, args.folderId)
+    : undefined;
 
-    const folderPath = args.folderId
-      ? await buildFolderPath(ctx, args.folderId)
-      : undefined;
+  // Prefix-containment guard. A target folder outside the sync subtree would
+  // make the row unfindable on the next sync (prefix mismatch) and produce a
+  // duplicate. Refuse the write rather than silently desync.
+  if (
+    args.folderPathPrefix !== undefined &&
+    args.folderPathPrefix.length > 0 &&
+    newFolderPath !== undefined &&
+    !isPathUnderPrefix(newFolderPath, args.folderPathPrefix)
+  ) {
+    throw new ConvexError({
+      code: 'PREFIX_VIOLATION',
+      message: `Target folderPath "${newFolderPath}" is outside the sync prefix "${args.folderPathPrefix}".`,
+    });
+  }
+
+  if (existing) {
+    const contentChanged =
+      args.contentHash !== undefined &&
+      existing.contentHash !== args.contentHash;
+    const folderChanged =
+      args.folderId !== undefined && existing.folderId !== args.folderId;
+    // Any metadata arg counts as a change. A deep compare is not worth the
+    // cost — the patch below is cheap and idempotent.
+    const metadataChanged = args.metadata !== undefined;
+
+    if (!contentChanged && !folderChanged && !metadataChanged) {
+      return {
+        documentId: existing._id,
+        action: 'skipped',
+        contentChanged: false,
+      };
+    }
 
     const patch: Record<string, unknown> = {
       title: args.title,
-      fileId: args.fileId,
       mimeType: args.mimeType,
       sourceProvider: args.sourceProvider,
       externalItemId: args.externalItemId,
-      contentHash: args.contentHash,
       metadata:
         args.metadata !== undefined
           ? toConvexJsonRecord(args.metadata)
           : undefined,
       folderId: args.folderId,
-      folderPath,
+      folderPath: newFolderPath,
     };
+    // Only patch the storage handle when the underlying content actually
+    // changed; otherwise a same-md5 cross-folder move would orphan the old
+    // blob for no gain.
+    if (contentChanged) {
+      patch.fileId = args.fileId;
+      patch.extension = extractExtension(args.title);
+    }
     const cleaned = Object.fromEntries(
       Object.entries(patch).filter(([, value]) => value !== undefined),
     );
     if (Object.keys(cleaned).length > 0) {
       await ctx.db.patch(existing._id, cleaned);
     }
-    return { documentId: existing._id, action: 'updated' };
+    return {
+      documentId: existing._id,
+      action: 'updated',
+      contentChanged,
+    };
   }
-
-  const folderPath = args.folderId
-    ? await buildFolderPath(ctx, args.folderId)
-    : undefined;
 
   const documentId = await ctx.db.insert('documents', {
     organizationId: args.organizationId,
@@ -94,12 +144,12 @@ export async function upsertDocumentByExternalId(
     extension: extractExtension(args.title),
     sourceProvider: args.sourceProvider,
     externalItemId: args.externalItemId,
-    contentHash: args.contentHash,
+    // contentHash deliberately omitted — see file docstring.
     metadata: toConvexJsonRecord(args.metadata),
     createdBy: args.createdBy,
     folderId: args.folderId,
-    folderPath,
+    folderPath: newFolderPath,
   });
 
-  return { documentId, action: 'created' };
+  return { documentId, action: 'created', contentChanged: true };
 }

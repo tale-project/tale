@@ -444,42 +444,76 @@ export const deleteDocumentFromRag = internalAction({
   args: {
     documentId: v.id('documents'),
     attempt: v.optional(v.number()),
+    // Retry-only path: the Tale row was deleted on a previous attempt; this
+    // invocation is finishing the RAG-side cleanup with the cached key + slug.
+    rowAlreadyDeleted: v.optional(v.boolean()),
+    pendingRagFileId: v.optional(v.string()),
+    pendingOrgSlug: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const attempt = args.attempt ?? 0;
 
-    const document = await ctx.runQuery(
-      internal.documents.internal_queries.getDocumentByIdRaw,
-      { documentId: args.documentId },
-    );
+    let ragKey: string;
+    let orgSlug: string;
 
-    if (!document?.fileId) {
-      console.warn(
-        `[deleteDocumentFromRag] Document ${args.documentId} has no fileId, skipping RAG delete`,
+    if (args.rowAlreadyDeleted) {
+      if (!args.pendingRagFileId || !args.pendingOrgSlug) {
+        console.error(
+          `[deleteDocumentFromRag] retry invoked without cached key/slug for ${args.documentId}; aborting`,
+        );
+        return null;
+      }
+      ragKey = args.pendingRagFileId;
+      orgSlug = args.pendingOrgSlug;
+    } else {
+      const document = await ctx.runQuery(
+        internal.documents.internal_queries.getDocumentByIdRaw,
+        { documentId: args.documentId },
       );
-      return null;
-    }
 
-    const ragKey = document.fileId;
+      if (!document?.fileId) {
+        console.warn(
+          `[deleteDocumentFromRag] Document ${args.documentId} has no fileId, skipping RAG delete`,
+        );
+        return null;
+      }
 
-    // Resolve slug OUTSIDE the retry-on-RAG-failure path. A missing slug
-    // (org row deleted) is terminal — previously each retry re-threw
-    // here, exhausted DELETE_RETRY_DELAYS, then "Document remains in
-    // database" forever. Treat slug-missing as "RAG-side index is gone
-    // too" and proceed with the local-row delete.
-    const orgSlug = await orgSlugFromIdOrNull(ctx, document.organizationId);
-    if (orgSlug === null) {
-      console.warn(
-        `[deleteDocumentFromRag] org ${document.organizationId} unresolvable; assuming RAG index already purged and deleting local document ${args.documentId}`,
+      // Resolve slug OUTSIDE the retry-on-RAG-failure path. A missing slug
+      // (org row deleted) is terminal — previously each retry re-threw
+      // here, exhausted DELETE_RETRY_DELAYS, then "Document remains in
+      // database" forever. Treat slug-missing as "RAG-side index is gone
+      // too" and proceed with the local-row delete.
+      const resolvedOrgSlug = await orgSlugFromIdOrNull(
+        ctx,
+        document.organizationId,
       );
+      if (resolvedOrgSlug === null) {
+        console.warn(
+          `[deleteDocumentFromRag] org ${document.organizationId} unresolvable; assuming RAG index already purged and deleting local document ${args.documentId}`,
+        );
+        await ctx.runMutation(
+          internal.documents.internal_mutations.deleteDocumentById,
+          { documentId: args.documentId },
+        );
+        return null;
+      }
+
+      ragKey = document.fileId;
+      orgSlug = resolvedOrgSlug;
+
+      // Tale-row first. assertNotHeld may throw on legal hold — when it
+      // does, the RAG vectors stay intact (correct legal-hold semantics:
+      // held docs remain both stored and searchable). The throw propagates
+      // out of this action; scheduler logs it; no orphan side effects.
       await ctx.runMutation(
         internal.documents.internal_mutations.deleteDocumentById,
         { documentId: args.documentId },
       );
-      return null;
     }
 
+    // Tale row is now gone (either by this attempt or a previous one).
+    // Best-effort RAG-side delete; retry only the RAG step if it fails.
     let ragSuccess = false;
     try {
       const response = await ragFetch(
@@ -488,8 +522,7 @@ export const deleteDocumentFromRag = internalAction({
       );
 
       if (response.ok || response.status === 404) {
-        // 404 means the RAG entry was never indexed (or was already deleted)
-        // — either way, the Tale row is the only thing left to clean up.
+        // 404 means the RAG entry was never indexed (or was already deleted).
         ragSuccess = true;
       } else {
         const errorText = await response.text();
@@ -504,24 +537,27 @@ export const deleteDocumentFromRag = internalAction({
       );
     }
 
-    if (ragSuccess) {
-      await ctx.runMutation(
-        internal.documents.internal_mutations.deleteDocumentById,
-        { documentId: args.documentId },
-      );
-    } else if (attempt < DELETE_RETRY_DELAYS.length) {
-      console.warn(
-        `[deleteDocumentFromRag] Scheduling retry ${attempt + 1}/${DELETE_RETRY_DELAYS.length} for ${args.documentId}`,
-      );
-      await ctx.scheduler.runAfter(
-        DELETE_RETRY_DELAYS[attempt],
-        internal.documents.internal_actions.deleteDocumentFromRag,
-        { documentId: args.documentId, attempt: attempt + 1 },
-      );
-    } else {
-      console.error(
-        `[deleteDocumentFromRag] All retries exhausted for ${args.documentId}. Document remains in database.`,
-      );
+    if (!ragSuccess) {
+      if (attempt < DELETE_RETRY_DELAYS.length) {
+        console.warn(
+          `[deleteDocumentFromRag] Tale row deleted; scheduling RAG-only retry ${attempt + 1}/${DELETE_RETRY_DELAYS.length} for ${args.documentId}`,
+        );
+        await ctx.scheduler.runAfter(
+          DELETE_RETRY_DELAYS[attempt],
+          internal.documents.internal_actions.deleteDocumentFromRag,
+          {
+            documentId: args.documentId,
+            attempt: attempt + 1,
+            rowAlreadyDeleted: true,
+            pendingRagFileId: ragKey,
+            pendingOrgSlug: orgSlug,
+          },
+        );
+      } else {
+        console.error(
+          `[deleteDocumentFromRag] All RAG-side retries exhausted for ${args.documentId}. Tale row deleted; RAG entry may linger.`,
+        );
+      }
     }
 
     return null;
@@ -722,7 +758,12 @@ export const reindexDocumentInRag = internalAction({
     // A failed upload leaves the previous chunks in place so search
     // keeps returning the prior revision (degraded but consistent)
     // instead of returning nothing.
-    if (uploadSuccess) {
+    //
+    // Skip the delete when `oldFileId` matches the current `fileId` —
+    // that path covers title-only renames where the upload was a
+    // metadata refresh against the same storage handle, and a delete
+    // would erase the just-uploaded chunks.
+    if (uploadSuccess && args.oldFileId !== document.fileId) {
       const deleteOrgId =
         args.oldOrganizationId ?? document.organizationId ?? null;
       if (deleteOrgId) {

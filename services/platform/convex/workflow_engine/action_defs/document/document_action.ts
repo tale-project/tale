@@ -12,7 +12,7 @@
 import { v } from 'convex/values';
 
 import { internal } from '../../../_generated/api';
-import type { Id } from '../../../_generated/dataModel';
+import type { Doc, Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 import { fetchDocumentComparisonByUrls } from '../../../agent_tools/documents/helpers/fetch_document_comparison';
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
@@ -103,6 +103,7 @@ type DocumentActionParams =
       extension?: string;
       metadata?: Record<string, unknown>;
       sourceProvider?: string;
+      contentHash?: string;
     }
   | {
       operation: 'retrieve';
@@ -172,6 +173,13 @@ type DocumentActionParams =
       operation: 'find_by_external_id';
       externalItemId: string;
       folderPath?: string;
+      /**
+       * Optional sync-subtree scope. Mirrors `create` — when set, the
+       * lookup includes docs anywhere under this prefix (subtree), so a
+       * cross-subfolder move is detected at lookup time instead of
+       * triggering a wasteful download.
+       */
+      folderPathPrefix?: string;
     }
   | {
       operation: 'reconcile_deletes';
@@ -204,6 +212,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       extension: v.optional(v.string()),
       metadata: v.optional(jsonRecordValidator),
       sourceProvider: v.optional(v.string()),
+      contentHash: v.optional(v.string()),
     }),
     v.object({
       operation: v.literal('retrieve'),
@@ -267,6 +276,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       operation: v.literal('find_by_external_id'),
       externalItemId: v.string(),
       folderPath: v.optional(v.string()),
+      folderPathPrefix: v.optional(v.string()),
     }),
     v.object({
       operation: v.literal('reconcile_deletes'),
@@ -324,6 +334,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             mimeType: params.mimeType,
             extension: params.extension,
             sourceProvider: params.sourceProvider,
+            contentHash: params.contentHash,
           },
         );
 
@@ -831,6 +842,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         }
 
         let folderId: Id<'folders'> | null = null;
+        let folderResolved = true;
         if (params.folderPath) {
           const resolved = await ctx.runQuery(
             internal.folders.internal_queries.findFolderByPath,
@@ -840,25 +852,42 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             },
           );
           if (resolved === null) {
-            // Path does not exist — no document can live there yet.
-            return { exists: false };
+            folderResolved = false;
+          } else {
+            folderId = resolved;
           }
-          folderId = resolved;
         }
 
-        const lookupFolderId =
-          folderId ?? (params.folderPath ? null : undefined);
+        let existing: Doc<'documents'> | null = null;
 
-        const existing = await ctx.runQuery(
-          internal.documents.internal_queries.findDocumentByExternalId,
-          {
-            organizationId,
-            externalItemId: params.externalItemId,
-            ...(lookupFolderId !== undefined
-              ? { folderId: lookupFolderId }
-              : {}),
-          },
-        );
+        if (folderResolved) {
+          const lookupFolderId =
+            folderId ?? (params.folderPath ? null : undefined);
+          existing = await ctx.runQuery(
+            internal.documents.internal_queries.findDocumentByExternalId,
+            {
+              organizationId,
+              externalItemId: params.externalItemId,
+              ...(lookupFolderId !== undefined
+                ? { folderId: lookupFolderId }
+                : {}),
+            },
+          );
+        }
+
+        // Prefix fallback closes the unscoped-first-match hole when
+        // `folderPath` is omitted, and lets callers detect cross-folder
+        // moves at lookup time when the exact folder lookup misses.
+        if (!existing && params.folderPathPrefix) {
+          existing = await ctx.runQuery(
+            internal.documents.internal_queries.findDocumentByExternalId,
+            {
+              organizationId,
+              externalItemId: params.externalItemId,
+              folderPathPrefix: params.folderPathPrefix,
+            },
+          );
+        }
 
         if (!existing) {
           return { exists: false };
@@ -871,6 +900,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           externalItemId: existing.externalItemId,
           fileId: existing.fileId,
           title: existing.title,
+          folderPath: existing.folderPath,
         };
       }
 

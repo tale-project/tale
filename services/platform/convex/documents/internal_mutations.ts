@@ -238,6 +238,7 @@ export const upsertDocumentByExternalId = internalMutation({
       v.literal('updated'),
       v.literal('skipped'),
     ),
+    contentChanged: v.boolean(),
   }),
   handler: async (ctx, args) => {
     return await upsertDocumentByExternalIdHelper(ctx, args);

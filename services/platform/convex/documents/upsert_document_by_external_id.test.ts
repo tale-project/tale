@@ -7,15 +7,26 @@ interface MockDoc {
   _id: string;
   organizationId: string;
   externalItemId?: string;
+  folderId?: string;
   folderPath?: string;
   contentHash?: string;
   title?: string;
   fileId?: string;
+  metadata?: Record<string, unknown>;
 }
 
-function createMockCtx(initial: MockDoc[]) {
+interface MockFolder {
+  _id: string;
+  name: string;
+  parentId?: string;
+  organizationId: string;
+}
+
+function createMockCtx(initial: MockDoc[], initialFolders: MockFolder[] = []) {
   const docs = new Map<string, MockDoc>();
   for (const doc of initial) docs.set(doc._id, doc);
+  const folders = new Map<string, MockFolder>();
+  for (const f of initialFolders) folders.set(f._id, f);
   let counter = initial.length;
   const inserts: MockDoc[] = [];
   const patches: Array<{ id: string; patch: Record<string, unknown> }> = [];
@@ -61,10 +72,12 @@ function createMockCtx(initial: MockDoc[]) {
           _id: id,
           organizationId: doc.organizationId as string,
           externalItemId: doc.externalItemId as string | undefined,
+          folderId: doc.folderId as string | undefined,
           folderPath: doc.folderPath as string | undefined,
           contentHash: doc.contentHash as string | undefined,
           title: doc.title as string | undefined,
           fileId: doc.fileId as string | undefined,
+          metadata: doc.metadata as Record<string, unknown> | undefined,
         };
         docs.set(id, stored);
         inserts.push(stored);
@@ -78,7 +91,8 @@ function createMockCtx(initial: MockDoc[]) {
         }
         return Promise.resolve(undefined);
       },
-      get: () => Promise.resolve(null),
+      get: (id: string) =>
+        Promise.resolve(folders.get(id) ?? docs.get(id) ?? null),
     },
   };
 
@@ -89,7 +103,7 @@ const ORG = 'org1';
 const PROVIDER = 'google_drive';
 
 describe('upsertDocumentByExternalId', () => {
-  it('inserts a new document when none exists', async () => {
+  it('inserts a new document when none exists — contentHash omitted on insert', async () => {
     const { ctx, inserts } = createMockCtx([]);
     const result = await upsertDocumentByExternalId(
       ctx as unknown as MutationCtx,
@@ -102,11 +116,16 @@ describe('upsertDocumentByExternalId', () => {
       },
     );
     expect(result.action).toBe('created');
+    expect(result.contentChanged).toBe(true);
     expect(inserts).toHaveLength(1);
     expect(inserts[0].externalItemId).toBe('gd-1');
+    // contentHash is intentionally NOT written on insert — the workflow's
+    // finalize step commits it after RAG indexing succeeds so a failed
+    // first-time RAG upload auto-retries on the next sync.
+    expect(inserts[0].contentHash).toBeUndefined();
   });
 
-  it('returns "skipped" when the existing doc has the same contentHash', async () => {
+  it('returns "skipped" only when content + folder + metadata are all unchanged', async () => {
     const { ctx, inserts, patches } = createMockCtx([
       {
         _id: 'd1',
@@ -124,15 +143,17 @@ describe('upsertDocumentByExternalId', () => {
         title: 'file.txt',
         contentHash: 'h1',
         folderPathPrefix: 'Sync',
+        // No folderId, no metadata → nothing to write.
       },
     );
     expect(result.action).toBe('skipped');
+    expect(result.contentChanged).toBe(false);
     expect(result.documentId).toBe('d1');
     expect(inserts).toHaveLength(0);
     expect(patches).toHaveLength(0);
   });
 
-  it('updates the existing doc when contentHash differs', async () => {
+  it('updates content + bumps fileId when contentHash differs', async () => {
     const { ctx, inserts, patches } = createMockCtx([
       {
         _id: 'd1',
@@ -140,6 +161,7 @@ describe('upsertDocumentByExternalId', () => {
         externalItemId: 'gd-1',
         contentHash: 'h1',
         folderPath: 'Sync',
+        fileId: 'storage_old',
       },
     ]);
     const result = await upsertDocumentByExternalId(
@@ -149,17 +171,110 @@ describe('upsertDocumentByExternalId', () => {
         externalItemId: 'gd-1',
         title: 'file.txt',
         contentHash: 'h2',
+        fileId: 'storage_new' as unknown as never,
         folderPathPrefix: 'Sync',
       },
     );
     expect(result.action).toBe('updated');
+    expect(result.contentChanged).toBe(true);
     expect(result.documentId).toBe('d1');
     expect(inserts).toHaveLength(0);
     expect(patches).toHaveLength(1);
-    expect(patches[0].patch.contentHash).toBe('h2');
+    // contentHash is finalized by the workflow's separate step, NOT here.
+    expect(patches[0].patch.contentHash).toBeUndefined();
+    expect(patches[0].patch.fileId).toBe('storage_new');
   });
 
-  it('finds an existing doc anywhere under the prefix subtree (cross-folder move)', async () => {
+  it('patches folder only on same-md5 cross-subfolder move (no contentHash bump, no fileId bump)', async () => {
+    // The C3 fix: a Drive file moved A → B with identical contents should
+    // not orphan-leak Tale rows or re-index RAG.
+    const { ctx, patches } = createMockCtx(
+      [
+        {
+          _id: 'd1',
+          organizationId: ORG,
+          externalItemId: 'gd-1',
+          contentHash: 'h1',
+          folderId: 'folder_a',
+          folderPath: 'Sync/A',
+          fileId: 'storage_keep',
+        },
+      ],
+      [
+        { _id: 'folder_sync', name: 'Sync', organizationId: ORG },
+        {
+          _id: 'folder_a',
+          name: 'A',
+          parentId: 'folder_sync',
+          organizationId: ORG,
+        },
+        {
+          _id: 'folder_b',
+          name: 'B',
+          parentId: 'folder_sync',
+          organizationId: ORG,
+        },
+      ],
+    );
+    const result = await upsertDocumentByExternalId(
+      ctx as unknown as MutationCtx,
+      {
+        organizationId: ORG,
+        externalItemId: 'gd-1',
+        title: 'file.txt',
+        contentHash: 'h1',
+        fileId: 'storage_new' as unknown as never,
+        folderId: 'folder_b' as unknown as never,
+        folderPathPrefix: 'Sync',
+      },
+    );
+    expect(result.action).toBe('updated');
+    expect(result.contentChanged).toBe(false);
+    expect(result.documentId).toBe('d1');
+    expect(patches).toHaveLength(1);
+    expect(patches[0].patch.folderId).toBe('folder_b');
+    expect(patches[0].patch.folderPath).toBe('Sync/B');
+    // fileId stays at the prior storage handle — the new download is not
+    // needed and should not orphan the previously-indexed blob.
+    expect(patches[0].patch.fileId).toBeUndefined();
+    expect(patches[0].patch.contentHash).toBeUndefined();
+  });
+
+  it('rejects an upsert that would move the row outside the prefix subtree (H4)', async () => {
+    const { ctx } = createMockCtx(
+      [
+        {
+          _id: 'd1',
+          organizationId: ORG,
+          externalItemId: 'gd-1',
+          contentHash: 'h1',
+          folderId: 'folder_sync_a',
+          folderPath: 'SyncA/files',
+        },
+      ],
+      [
+        { _id: 'folder_other', name: 'OtherRoot', organizationId: ORG },
+        {
+          _id: 'folder_outside',
+          name: 'X',
+          parentId: 'folder_other',
+          organizationId: ORG,
+        },
+      ],
+    );
+    await expect(
+      upsertDocumentByExternalId(ctx as unknown as MutationCtx, {
+        organizationId: ORG,
+        externalItemId: 'gd-1',
+        title: 'file.txt',
+        contentHash: 'h1',
+        folderId: 'folder_outside' as unknown as never,
+        folderPathPrefix: 'SyncA',
+      }),
+    ).rejects.toThrow(/PREFIX_VIOLATION|outside the sync prefix/);
+  });
+
+  it('finds an existing doc anywhere under the prefix subtree (cross-folder move with content change)', async () => {
     const { ctx, patches } = createMockCtx([
       {
         _id: 'd1',
@@ -176,11 +291,11 @@ describe('upsertDocumentByExternalId', () => {
         externalItemId: 'gd-1',
         title: 'file.txt',
         contentHash: 'h2',
-        // The doc moved from Sync/A → Sync/B inside the same sync subtree.
         folderPathPrefix: 'Sync',
       },
     );
     expect(result.action).toBe('updated');
+    expect(result.contentChanged).toBe(true);
     expect(result.documentId).toBe('d1');
     expect(patches).toHaveLength(1);
   });
@@ -195,7 +310,6 @@ describe('upsertDocumentByExternalId', () => {
         folderPath: 'SyncA/files',
       },
     ]);
-    // Second sync targets SyncB; should NOT pick up the doc in SyncA.
     const result = await upsertDocumentByExternalId(
       ctx as unknown as MutationCtx,
       {
@@ -207,6 +321,7 @@ describe('upsertDocumentByExternalId', () => {
       },
     );
     expect(result.action).toBe('created');
+    expect(result.contentChanged).toBe(true);
     expect(inserts).toHaveLength(1);
   });
 
@@ -230,7 +345,6 @@ describe('upsertDocumentByExternalId', () => {
         folderPathPrefix: 'Sync',
       },
     );
-    // No match → new row inserted. The 'Sync 2/x' doc is left alone.
     expect(result.action).toBe('created');
     expect(inserts).toHaveLength(1);
   });
