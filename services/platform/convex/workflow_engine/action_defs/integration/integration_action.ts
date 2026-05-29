@@ -171,12 +171,12 @@ export const integrationAction: ActionDefinition<{
     }
 
     // 7. Build secrets from integration credentials
-    const secrets = await buildSecretsFromIntegration(ctx, integration);
+    let secrets = await buildSecretsFromIntegration(ctx, integration);
 
     // 8. Execute the connector in sandbox (via Node.js action)
     debugLog(`Executing ${name}.${operation} (v${connectorConfig.version})`);
 
-    const result = await ctx.runAction(
+    let result = await ctx.runAction(
       internal.node_only.integration_sandbox.internal_actions
         .executeIntegration,
       {
@@ -189,6 +189,39 @@ export const integrationAction: ActionDefinition<{
         timeoutMs: connectorConfig.timeoutMs ?? 30000,
       },
     );
+
+    // OAuth2 force-refresh + one retry on 401. The connector marks
+    // unauthorized failures with the [401_UNAUTHORIZED] sentinel; that
+    // path fires when the access token expired or was revoked between
+    // buildIntegrationSecrets and the actual upstream request. Forcing
+    // a refresh and retrying once recovers cleanly without surfacing
+    // the failure to the workflow.
+    if (
+      !result.success &&
+      integration.authMethod === 'oauth2' &&
+      typeof result.error === 'string' &&
+      result.error.includes('[401_UNAUTHORIZED]')
+    ) {
+      debugLog(
+        `[integration] 401 from ${name}.${operation}; force-refreshing OAuth2 token and retrying once`,
+      );
+      secrets = await buildSecretsFromIntegration(ctx, integration, {
+        forceRefresh: true,
+      });
+      result = await ctx.runAction(
+        internal.node_only.integration_sandbox.internal_actions
+          .executeIntegration,
+        {
+          code: connectorConfig.code,
+          operation,
+          params: toConvexJsonRecord(opParams),
+          variables: {},
+          secrets,
+          allowedHosts: connectorConfig.allowedHosts ?? [],
+          timeoutMs: connectorConfig.timeoutMs ?? 30000,
+        },
+      );
+    }
 
     if (result.logs && result.logs.length > 0) {
       debugLog('Logs:', result.logs);

@@ -111,6 +111,29 @@ describe('findFolderByPath', () => {
     expect(result).toBeNull();
   });
 
+  it('does not match folders from a different organization (cross-org isolation)', async () => {
+    // Both orgs have a folder structure "A/B"; querying org1 must never
+    // see org2's leaf even though the path matches structurally. This
+    // catches regressions to the (organizationId, parentId, name) index
+    // scope.
+    const ctx = createMockCtx([
+      { _id: 'org1-A', name: 'A', organizationId: ORG, parentId: undefined },
+      { _id: 'org1-B', name: 'B', organizationId: ORG, parentId: 'org1-A' },
+      { _id: 'org2-A', name: 'A', organizationId: 'org2', parentId: undefined },
+      { _id: 'org2-B', name: 'B', organizationId: 'org2', parentId: 'org2-A' },
+    ]);
+    const r1 = await findFolderByPath(ctx as unknown as QueryCtx, ORG, [
+      'A',
+      'B',
+    ]);
+    expect(r1).toBe('org1-B');
+    const r2 = await findFolderByPath(ctx as unknown as QueryCtx, 'org2', [
+      'A',
+      'B',
+    ]);
+    expect(r2).toBe('org2-B');
+  });
+
   it('does not insert any folders (read-only)', async () => {
     let inserts = 0;
     const ctx = {

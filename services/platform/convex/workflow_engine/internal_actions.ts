@@ -11,6 +11,7 @@ import * as ConditionNodeHelpers from './helpers/nodes/condition/execute_conditi
 import * as LLMNodeHelpers from './helpers/nodes/llm/execute_llm_node';
 import * as LoopNodeHelpers from './helpers/nodes/loop/execute_loop_node';
 import * as SchedulerHelpers from './helpers/scheduler';
+import { recordStepFailure } from './helpers/step_execution/record_step_failure';
 import type { LLMNodeConfig } from './types';
 import {
   llmStepConfigValidator,
@@ -67,6 +68,20 @@ export const executeStep = internalAction({
   }),
   handler: async (ctx, args) => {
     return await EngineHelpers.handleExecuteStep(ctx, args);
+  },
+});
+
+export const recordBodyStepFailure = internalAction({
+  args: {
+    executionId: v.string(),
+    stepSlug: v.string(),
+    stepName: v.optional(v.string()),
+    error: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await recordStepFailure(ctx, args);
+    return null;
   },
 });
 

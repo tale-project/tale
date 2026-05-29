@@ -158,8 +158,12 @@ const connector = {
 
 function handleError(response: HttpResponse, operation: string): void {
   if (response.status === 401) {
+    // Sentinel [401_UNAUTHORIZED] lets the integration action wrapper
+    // detect this case and retry once after force-refreshing the OAuth2
+    // access token (covers tokens that expire between buildIntegrationSecrets
+    // and the actual Drive request, or revoked tokens).
     throw new Error(
-      'Authentication failed during ' +
+      '[401_UNAUTHORIZED] Authentication failed during ' +
         operation +
         '. The access token may be expired. Please re-authorize.',
     );
@@ -250,16 +254,20 @@ function buildListQuery(
 function sanitizeDriveFolderName(name: string): string {
   let cleaned = name
     // ASCII control chars, DEL, BOM (U+FEFF), ZWSP (U+200B),
-    // bidi marks (U+200E/F, U+202A-E)
-    .replace(/[\x00-\x1F\x7F﻿​‎‏‪-‮]/g, '')
+    // bidi marks (U+200E/F, U+202A-E), and Unicode line/paragraph
+    // separators (U+2028/U+2029) which break log scraping / some
+    // terminals even though JSON allows them literally.
+    .replace(/[\x00-\x1F\x7F﻿​‎‏‪-‮ ]/g, '')
     .replace(/[/\\?*<>:"|]/g, '_')
     .trim()
     .slice(0, 255);
-  // Drop an unpaired high surrogate left at the tail by slice (e.g. a
-  // 4-byte emoji split mid-pair).
+  // Drop an unpaired surrogate left at the tail by slice. High surrogate
+  // (U+D800-U+DBFF) means an emoji split mid-pair; a lone LOW surrogate
+  // (U+DC00-U+DFFF) can survive if Drive returned a malformed name. Both
+  // produce invalid UTF-8 / U+FFFD downstream.
   if (cleaned.length > 0) {
     const lastCode = cleaned.charCodeAt(cleaned.length - 1);
-    if (lastCode >= 0xd800 && lastCode <= 0xdbff) {
+    if (lastCode >= 0xd800 && lastCode <= 0xdfff) {
       cleaned = cleaned.slice(0, -1);
     }
   }
@@ -500,10 +508,35 @@ function downloadFile(
   const url = API_BASE + '/files/' + encodeURIComponent(fileId) + '?alt=media';
   console.log('Downloading Drive file: ' + url);
 
-  const stored = files.download(url, {
-    headers: headers,
-    fileName: fileName,
-  });
+  // Drive lists are eventually consistent: a file present at list_files
+  // time can be deleted before download. Treat 404/410 as a soft "gone"
+  // signal so the workflow's loop continues to the next file (and
+  // reconcile drops the row on the next sync) instead of aborting the
+  // whole batch with a generic error.
+  let stored;
+  try {
+    stored = files.download(url, {
+      headers: headers,
+      fileName: fileName,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/\b(404|410|not[\s_-]?found|gone)\b/i.test(msg)) {
+      return {
+        success: false,
+        operation: 'download_file',
+        skipped: 'not_found',
+        fileId: fileId,
+        error:
+          'File no longer exists in Drive (deleted between listing and download).',
+        timestamp: Date.now(),
+      };
+    }
+    if (/\b401\b|access token may be expired/i.test(msg)) {
+      throw new Error('[401_UNAUTHORIZED] ' + msg);
+    }
+    throw e;
+  }
 
   return {
     success: true,

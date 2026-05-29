@@ -175,6 +175,7 @@ export const listOrphanedExternalDocs = internalQuery({
     sourceProvider: v.string(),
     folderPathPrefix: v.string(),
     presentExternalIds: v.array(v.string()),
+    driveId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await listOrphanedExternalDocsHelper(ctx, args);

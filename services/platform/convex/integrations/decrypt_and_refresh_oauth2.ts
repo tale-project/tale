@@ -55,6 +55,7 @@ export async function decryptAndRefreshIntegrationOAuth2(
   ctx: ActionCtx,
   integration: IntegrationWithCredentials,
   credentialId?: Id<'integrationCredentials'>,
+  options?: { forceRefresh?: boolean },
 ): Promise<string> {
   const { oauth2Auth, oauth2Config } = integration;
 
@@ -66,8 +67,9 @@ export async function decryptAndRefreshIntegrationOAuth2(
 
   const currentTime = Math.floor(Date.now() / 1000);
   const needsRefresh =
-    oauth2Auth.tokenExpiry != null &&
-    currentTime >= oauth2Auth.tokenExpiry - 300;
+    options?.forceRefresh === true ||
+    (oauth2Auth.tokenExpiry != null &&
+      currentTime >= oauth2Auth.tokenExpiry - 300);
 
   if (!needsRefresh) {
     debugLog(

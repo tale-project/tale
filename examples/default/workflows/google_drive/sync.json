@@ -120,7 +120,8 @@
         "parameters": {
           "operation": "find_by_external_id",
           "externalItemId": "{{loop.item.id}}",
-          "folderPath": "{{(input.targetFolderPath || 'Google Drive') + (loop.item.subfolderPath ? '/' + loop.item.subfolderPath : '')}}"
+          "folderPath": "{{(input.targetFolderPath || 'Google Drive') + (loop.item.subfolderPath ? '/' + loop.item.subfolderPath : '')}}",
+          "folderPathPrefix": "{{input.targetFolderPath || 'Google Drive'}}"
         }
       },
       "nextSteps": {
@@ -196,6 +197,7 @@
       "config": {
         "parameters": {
           "contentHash": "{{loop.item.md5Checksum}}",
+          "driveId": "{{input.folderId}}",
           "externalItemId": "{{loop.item.id}}",
           "fileId": "{{steps.download_file.output.data.result.data.fileId}}",
           "folderPath": "{{(input.targetFolderPath || 'Google Drive') + (loop.item.subfolderPath ? '/' + loop.item.subfolderPath : '')}}",
@@ -273,6 +275,7 @@
           "operation": "reconcile_deletes",
           "sourceProvider": "google_drive",
           "folderPath": "{{input.targetFolderPath || 'Google Drive'}}",
+          "driveId": "{{input.folderId}}",
           "presentExternalIds": "{{steps.list_files.output.data.result.data.files | map('id')}}",
           "truncated": "{{steps.list_files.output.data.result.data.truncated}}"
         }

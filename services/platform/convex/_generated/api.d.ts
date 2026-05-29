@@ -994,6 +994,7 @@ import type * as workflow_engine_helpers_step_execution_initialize_execution_var
 import type * as workflow_engine_helpers_step_execution_load_and_validate_execution from "../workflow_engine/helpers/step_execution/load_and_validate_execution.js";
 import type * as workflow_engine_helpers_step_execution_merge_execution_variables from "../workflow_engine/helpers/step_execution/merge_execution_variables.js";
 import type * as workflow_engine_helpers_step_execution_persist_execution_result from "../workflow_engine/helpers/step_execution/persist_execution_result.js";
+import type * as workflow_engine_helpers_step_execution_record_step_failure from "../workflow_engine/helpers/step_execution/record_step_failure.js";
 import type * as workflow_engine_helpers_step_execution_types from "../workflow_engine/helpers/step_execution/types.js";
 import type * as workflow_engine_helpers_validation_circular_dependency_validator from "../workflow_engine/helpers/validation/circular_dependency_validator.js";
 import type * as workflow_engine_helpers_validation_constants from "../workflow_engine/helpers/validation/constants.js";
@@ -2096,6 +2097,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/step_execution/load_and_validate_execution": typeof workflow_engine_helpers_step_execution_load_and_validate_execution;
   "workflow_engine/helpers/step_execution/merge_execution_variables": typeof workflow_engine_helpers_step_execution_merge_execution_variables;
   "workflow_engine/helpers/step_execution/persist_execution_result": typeof workflow_engine_helpers_step_execution_persist_execution_result;
+  "workflow_engine/helpers/step_execution/record_step_failure": typeof workflow_engine_helpers_step_execution_record_step_failure;
   "workflow_engine/helpers/step_execution/types": typeof workflow_engine_helpers_step_execution_types;
   "workflow_engine/helpers/validation/circular_dependency_validator": typeof workflow_engine_helpers_validation_circular_dependency_validator;
   "workflow_engine/helpers/validation/constants": typeof workflow_engine_helpers_validation_constants;

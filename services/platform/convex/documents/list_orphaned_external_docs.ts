@@ -5,6 +5,7 @@ export interface OrphanedExternalDoc {
   documentId: Id<'documents'>;
   externalItemId: string;
   fileId?: Id<'_storage'>;
+  title?: string;
 }
 
 export interface ListOrphanedExternalDocsArgs {
@@ -12,6 +13,11 @@ export interface ListOrphanedExternalDocsArgs {
   sourceProvider: string;
   folderPathPrefix: string;
   presentExternalIds: string[];
+  /** When set, only orphan docs whose `driveId` matches. Lets two Drive
+   * (or other) integrations in one org coexist under overlapping
+   * `folderPathPrefix`es without mutually orphaning each other. Missing
+   * = legacy behavior (no integration scope). */
+  driveId?: string;
 }
 
 export async function listOrphanedExternalDocs(
@@ -19,7 +25,9 @@ export async function listOrphanedExternalDocs(
   args: ListOrphanedExternalDocsArgs,
 ): Promise<OrphanedExternalDoc[]> {
   const presentSet = new Set(args.presentExternalIds);
-  const root = args.folderPathPrefix;
+  // Normalize trailing slash so a workflow input like "Inbox/" doesn't
+  // collapse the subtree range to "Inbox//".."Inbox//￿".
+  const root = args.folderPathPrefix.replace(/\/+$/, '');
   const orphaned: OrphanedExternalDoc[] = [];
 
   const collectIfOrphan = (doc: {
@@ -27,7 +35,17 @@ export async function listOrphanedExternalDocs(
     sourceProvider?: string;
     externalItemId?: string;
     fileId?: Id<'_storage'>;
+    title?: string;
+    driveId?: string;
+    lifecycleStatus?: string;
   }) => {
+    // Skip soft-deleted rows (trashed/expired/deleted) — the Trash UI
+    // grace window depends on those rows surviving until the user
+    // restores or the grace period elapses; reconcile must not hard-
+    // delete them out from under that flow.
+    const status = doc.lifecycleStatus ?? 'active';
+    if (status !== 'active') return;
+    if (args.driveId !== undefined && doc.driveId !== args.driveId) return;
     if (
       doc.sourceProvider === args.sourceProvider &&
       doc.externalItemId &&
@@ -37,6 +55,7 @@ export async function listOrphanedExternalDocs(
         documentId: doc._id,
         externalItemId: doc.externalItemId,
         fileId: doc.fileId,
+        title: doc.title,
       });
     }
   };

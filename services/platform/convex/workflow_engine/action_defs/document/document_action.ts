@@ -146,6 +146,8 @@ type DocumentActionParams =
       externalItemId?: string;
       contentHash?: string;
       metadata?: Record<string, unknown>;
+      /** Integration identifier stamped on the row for reconcile scoping. */
+      driveId?: string;
     }
   | {
       operation: 'extract_docx_structured';
@@ -186,6 +188,13 @@ type DocumentActionParams =
       sourceProvider: string;
       folderPath: string;
       presentExternalIds: string[];
+      /**
+       * When set, scopes the orphan candidate set to docs whose `driveId`
+       * matches. Lets two sync workflows targeting the same `folderPath`
+       * coexist (e.g. two Drive accounts under the default "Google Drive"
+       * folder) without mutually orphaning each other.
+       */
+      driveId?: string;
       /**
        * When true, the upstream listing was truncated and `presentExternalIds`
        * is incomplete — reconcile must skip to avoid deleting legitimate docs.
@@ -241,6 +250,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       externalItemId: v.optional(v.string()),
       contentHash: v.optional(v.string()),
       metadata: v.optional(jsonRecordValidator),
+      driveId: v.optional(v.string()),
     }),
     v.object({
       operation: v.literal('compare'),
@@ -283,6 +293,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       sourceProvider: v.string(),
       folderPath: v.string(),
       presentExternalIds: v.array(v.string()),
+      driveId: v.optional(v.string()),
       truncated: v.optional(v.boolean()),
     }),
   ),
@@ -555,6 +566,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
               sourceProvider,
               contentHash: params.contentHash,
               metadata: params.metadata,
+              driveId: params.driveId,
               ...(folderId ? { folderId: toId<'folders'>(folderId) } : {}),
               createdBy: userId,
             },
@@ -567,6 +579,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             folderPath: params.folderPath ?? null,
             documentId: result.documentId,
             action: result.action,
+            contentChanged: result.contentChanged,
           };
         }
 
@@ -936,6 +949,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             sourceProvider: params.sourceProvider,
             folderPathPrefix: params.folderPath,
             presentExternalIds: params.presentExternalIds,
+            driveId: params.driveId,
           },
         );
 
@@ -953,16 +967,53 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           };
         }
 
+        // Mass-delete sanity bound: a Drive folder narrowed by permissions
+        // or mime-filter can return a small-but-non-empty listing that
+        // would silently delete every other doc under the prefix. Abort
+        // when more than half (and >20 absolute) would be deleted.
+        const scanned = params.presentExternalIds.length;
+        const MAX_DELETE_ABS = 20;
+        const MAX_DELETE_RATIO = 0.5;
+        if (
+          orphaned.length > MAX_DELETE_ABS &&
+          orphaned.length > scanned * MAX_DELETE_RATIO
+        ) {
+          return {
+            success: false,
+            deleted: 0,
+            scanned,
+            skippedReason: `Skipping reconcile: ${orphaned.length} orphans vs ${scanned} present — exceeds safety bound (>${MAX_DELETE_ABS} and >${Math.round(MAX_DELETE_RATIO * 100)}% of scanned).`,
+          };
+        }
+
+        // Operator audit trail: one line per scheduled delete so the
+        // affected docs can be identified and (if needed) restored from
+        // backup. Keep individual log lines so they survive log rotation
+        // by id rather than depending on one giant payload.
+        for (const doc of orphaned) {
+          console.warn(
+            `[reconcile_deletes] Scheduling delete documentId=${doc.documentId} externalItemId=${doc.externalItemId} title=${JSON.stringify(doc.title ?? null)} sourceProvider=${params.sourceProvider}`,
+          );
+        }
+
         // Stagger deletes by 100ms to avoid swamping the scheduler and the
         // RAG service when a folder churns. deleteDocumentFromRag's own
         // backoff still applies on top.
+        //
+        // Snapshot-and-verify: pass `expectedExternalItemId` / `expectedFileId`
+        // into the scheduled args so a doc re-bound by an interleaving
+        // upsert (e.g. restore-during-pending-reconcile) is not deleted.
         for (let i = 0; i < orphaned.length; i++) {
           const doc = orphaned[i];
           if (doc.fileId) {
             await ctx.scheduler.runAfter(
               i * 100,
               internal.documents.internal_actions.deleteDocumentFromRag,
-              { documentId: doc.documentId },
+              {
+                documentId: doc.documentId,
+                expectedExternalItemId: doc.externalItemId,
+                expectedFileId: doc.fileId,
+              },
             );
           } else {
             await ctx.scheduler.runAfter(
@@ -976,7 +1027,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         return {
           success: true,
           deleted: orphaned.length,
-          scanned: params.presentExternalIds.length,
+          scanned,
         };
       }
 

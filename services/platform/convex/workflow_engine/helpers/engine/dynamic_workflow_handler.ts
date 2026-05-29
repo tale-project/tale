@@ -170,10 +170,22 @@ export async function handleDynamicWorkflow(
             ownerStep?.stepType === 'loop' &&
             ownerCfg?.continueOnError === true
           ) {
+            const errMsg = err instanceof Error ? err.message : String(err);
             console.warn(
-              `[loop:${ownerSlug}] step '${stepDef.stepSlug}' failed, continuing iteration: ${
-                err instanceof Error ? err.message : String(err)
-              }`,
+              `[loop:${ownerSlug}] step '${stepDef.stepSlug}' failed, continuing iteration: ${errMsg}`,
+            );
+            // Persist a minimal failure marker so (a) operators see which
+            // step in which iteration broke (audit trail), and (b)
+            // subsequent steps that read `steps.<slug>.output` see a
+            // failure record instead of stale data from a prior iteration.
+            await step.runAction(
+              internal.workflow_engine.internal_actions.recordBodyStepFailure,
+              {
+                executionId: executionId,
+                stepSlug: stepDef.stepSlug,
+                stepName: stepDef.name,
+                error: errMsg,
+              },
             );
             // Trim nested loops nested above the recovery point — their
             // remaining body is being skipped together with the failing step.

@@ -449,6 +449,16 @@ export const deleteDocumentFromRag = internalAction({
     rowAlreadyDeleted: v.optional(v.boolean()),
     pendingRagFileId: v.optional(v.string()),
     pendingOrgSlug: v.optional(v.string()),
+    /**
+     * Snapshot-and-verify: when the caller (e.g. reconcile_deletes) knows
+     * the externalItemId / fileId it intended to delete, pass them so we
+     * can abort if the row was re-bound by an interleaving upsert (e.g.
+     * a restore racing with a pending reconcile delete). Missing fields
+     * preserve the legacy unconditional-delete behavior so already-
+     * scheduled jobs from earlier code keep working.
+     */
+    expectedExternalItemId: v.optional(v.string()),
+    expectedFileId: v.optional(v.id('_storage')),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -475,6 +485,30 @@ export const deleteDocumentFromRag = internalAction({
       if (!document?.fileId) {
         console.warn(
           `[deleteDocumentFromRag] Document ${args.documentId} has no fileId, skipping RAG delete`,
+        );
+        return null;
+      }
+
+      // Snapshot-and-verify (reconcile path): if the row's identifying
+      // fields no longer match what the caller staged, abandon the
+      // delete — the doc was re-bound (restore, externalItemId fixup,
+      // or new upload under same documentId) since this job was
+      // scheduled, and the orphan claim is stale.
+      if (
+        args.expectedExternalItemId !== undefined &&
+        document.externalItemId !== args.expectedExternalItemId
+      ) {
+        console.warn(
+          `[deleteDocumentFromRag] Aborting stale delete for ${args.documentId}: expected externalItemId=${args.expectedExternalItemId} but row now has ${document.externalItemId ?? 'undefined'}`,
+        );
+        return null;
+      }
+      if (
+        args.expectedFileId !== undefined &&
+        document.fileId !== args.expectedFileId
+      ) {
+        console.warn(
+          `[deleteDocumentFromRag] Aborting stale delete for ${args.documentId}: expected fileId=${args.expectedFileId} but row now has ${document.fileId}`,
         );
         return null;
       }
@@ -693,7 +727,33 @@ export const reindexDocumentInRag = internalAction({
       return null;
     }
 
-    // Upload new file to RAG FIRST.
+    // Title-only rename detection: when the caller passes the same fileId
+    // as the row's current fileId, the upload would dedup against the
+    // existing RAG row (RAG's content-hash dedup short-circuits before
+    // touching `filename`), so the new title would never reach search
+    // results. Purge the old RAG row FIRST so the subsequent upload
+    // inserts a fresh row carrying the new filename. Brief search gap
+    // until the new chunks land — acceptable; reconcile-tolerant.
+    const sameFileId = args.oldFileId === document.fileId;
+    if (sameFileId) {
+      const deleteOrgId =
+        args.oldOrganizationId ?? document.organizationId ?? null;
+      if (deleteOrgId) {
+        await deleteOldRagEntry(
+          ctx,
+          deleteOrgId,
+          args.oldFileId,
+          args.documentId,
+        );
+      } else {
+        console.warn(
+          `[reindexDocumentInRag] No org context for pre-upload old RAG delete; oldFileId ${args.oldFileId} may leak chunks (documentId=${args.documentId})`,
+        );
+      }
+    }
+
+    // Upload new file to RAG FIRST (for the content-change path; for the
+    // same-fileId rename path the old row is already gone above).
     let uploadSuccess = false;
     try {
       const rawResult = await ragAction.execute(
@@ -754,16 +814,15 @@ export const reindexDocumentInRag = internalAction({
       );
     }
 
-    // Only purge the old RAG entry once the new upload is committed.
-    // A failed upload leaves the previous chunks in place so search
-    // keeps returning the prior revision (degraded but consistent)
-    // instead of returning nothing.
+    // Content-change path: purge the old RAG entry once the new upload
+    // is committed. A failed upload leaves the previous chunks in place
+    // so search keeps returning the prior revision (degraded but
+    // consistent) instead of returning nothing.
     //
-    // Skip the delete when `oldFileId` matches the current `fileId` —
-    // that path covers title-only renames where the upload was a
-    // metadata refresh against the same storage handle, and a delete
-    // would erase the just-uploaded chunks.
-    if (uploadSuccess && args.oldFileId !== document.fileId) {
+    // Same-fileId (title-only rename) is already handled above by the
+    // pre-upload delete, so we skip the post-upload purge for that path
+    // to avoid deleting the freshly-uploaded chunks.
+    if (uploadSuccess && !sameFileId) {
       const deleteOrgId =
         args.oldOrganizationId ?? document.organizationId ?? null;
       if (deleteOrgId) {

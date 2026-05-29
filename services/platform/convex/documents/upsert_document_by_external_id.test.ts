@@ -183,6 +183,13 @@ describe('upsertDocumentByExternalId', () => {
     // contentHash is finalized by the workflow's separate step, NOT here.
     expect(patches[0].patch.contentHash).toBeUndefined();
     expect(patches[0].patch.fileId).toBe('storage_new');
+    // Title and extension are part of the content-change patch — the H2
+    // skip would drop them silently if the dispatcher regressed.
+    expect(patches[0].patch.title).toBe('file.txt');
+    expect(patches[0].patch.extension).toBe('txt');
+    // H2 fix: previous storage handle must land in historyFiles so the
+    // blob is reachable for cleanup and version history.
+    expect(patches[0].patch.historyFiles).toEqual(['storage_old']);
   });
 
   it('patches folder only on same-md5 cross-subfolder move (no contentHash bump, no fileId bump)', async () => {
@@ -270,6 +277,35 @@ describe('upsertDocumentByExternalId', () => {
         contentHash: 'h1',
         folderId: 'folder_outside' as unknown as never,
         folderPathPrefix: 'SyncA',
+      }),
+    ).rejects.toThrow(/PREFIX_VIOLATION|outside the sync prefix/);
+  });
+
+  it('rejects target folder at the lex-adjacent sibling "Sync 2" against prefix "Sync"', async () => {
+    // Lex-edge guard: " " (0x20) sorts below "/" (0x2F), so a naive
+    // startsWith(prefix) without the trailing-slash boundary would
+    // wrongly accept "Sync 2/x" as a child of "Sync". Confirms
+    // isPathUnderPrefix uses the `/`-boundary form.
+    const { ctx } = createMockCtx(
+      [],
+      [
+        { _id: 'folder_sync2', name: 'Sync 2', organizationId: ORG },
+        {
+          _id: 'folder_sync2_x',
+          name: 'x',
+          parentId: 'folder_sync2',
+          organizationId: ORG,
+        },
+      ],
+    );
+    await expect(
+      upsertDocumentByExternalId(ctx as unknown as MutationCtx, {
+        organizationId: ORG,
+        externalItemId: 'gd-1',
+        title: 'file.txt',
+        contentHash: 'h1',
+        folderId: 'folder_sync2_x' as unknown as never,
+        folderPathPrefix: 'Sync',
       }),
     ).rejects.toThrow(/PREFIX_VIOLATION|outside the sync prefix/);
   });

@@ -19,6 +19,7 @@
 
 import { ConvexError } from 'convex/values';
 
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { buildFolderPath } from '../folders/queries';
@@ -39,6 +40,9 @@ export interface UpsertDocumentByExternalIdArgs {
   metadata?: Record<string, unknown>;
   folderId?: Id<'folders'>;
   createdBy?: string;
+  /** Integration identifier stamped on the row so reconcile can scope
+   * orphan detection per-integration (see `listOrphanedExternalDocs`). */
+  driveId?: string;
 }
 
 export interface UpsertDocumentByExternalIdResult {
@@ -54,7 +58,11 @@ export interface UpsertDocumentByExternalIdResult {
 }
 
 function isPathUnderPrefix(path: string, prefix: string): boolean {
-  return path === prefix || path.startsWith(prefix + '/');
+  // Normalize trailing slash on the prefix so user inputs like
+  // "Google Drive/" don't false-reject every write.
+  const p = prefix.replace(/\/+$/, '');
+  if (p.length === 0) return true;
+  return path === p || path.startsWith(p + '/');
 }
 
 export async function upsertDocumentByExternalId(
@@ -109,6 +117,7 @@ export async function upsertDocumentByExternalId(
       mimeType: args.mimeType,
       sourceProvider: args.sourceProvider,
       externalItemId: args.externalItemId,
+      driveId: args.driveId,
       metadata:
         args.metadata !== undefined
           ? toConvexJsonRecord(args.metadata)
@@ -118,10 +127,19 @@ export async function upsertDocumentByExternalId(
     };
     // Only patch the storage handle when the underlying content actually
     // changed; otherwise a same-md5 cross-folder move would orphan the old
-    // blob for no gain.
+    // blob for no gain. When we do swap fileId, preserve the previous
+    // storage handle in `historyFiles` so `eraseDocumentBlobs` can clean
+    // it up on later deletion and so version-history readers can still
+    // reach prior revisions.
     if (contentChanged) {
       patch.fileId = args.fileId;
       patch.extension = extractExtension(args.title);
+      if (existing.fileId && existing.fileId !== args.fileId) {
+        patch.historyFiles = [
+          ...(existing.historyFiles ?? []),
+          existing.fileId,
+        ];
+      }
     }
     const cleaned = Object.fromEntries(
       Object.entries(patch).filter(([, value]) => value !== undefined),
@@ -129,6 +147,31 @@ export async function upsertDocumentByExternalId(
     if (Object.keys(cleaned).length > 0) {
       await ctx.db.patch(existing._id, cleaned);
     }
+
+    // When a previously RAG-indexed row gets a new storage handle, the
+    // old RAG entry stays orphaned unless we schedule its purge. The
+    // C4-retry path (RAG indexed, finalize_content_hash threw, next sync
+    // re-uploads) is the main producer of this state. `reindexDocumentInRag`
+    // dedup-skips a re-upload when the new content already exists in RAG,
+    // so the only work it does here is the old-fileId DELETE.
+    if (
+      contentChanged &&
+      existing.fileId &&
+      args.fileId &&
+      existing.fileId !== args.fileId &&
+      existing.ragInfo?.status === 'completed'
+    ) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documents.internal_actions.reindexDocumentInRag,
+        {
+          documentId: existing._id,
+          oldFileId: existing.fileId,
+          oldOrganizationId: existing.organizationId,
+        },
+      );
+    }
+
     return {
       documentId: existing._id,
       action: 'updated',
@@ -144,6 +187,7 @@ export async function upsertDocumentByExternalId(
     extension: extractExtension(args.title),
     sourceProvider: args.sourceProvider,
     externalItemId: args.externalItemId,
+    driveId: args.driveId,
     // contentHash deliberately omitted — see file docstring.
     metadata: toConvexJsonRecord(args.metadata),
     createdBy: args.createdBy,

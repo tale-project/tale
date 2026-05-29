@@ -9,6 +9,9 @@ interface MockDoc {
   externalItemId?: string;
   fileId?: string;
   folderPath?: string;
+  driveId?: string;
+  lifecycleStatus?: string;
+  title?: string;
 }
 
 function createMockCtx(docs: MockDoc[]) {
@@ -293,5 +296,143 @@ describe('listOrphanedExternalDocs', () => {
     );
     expect(byId['gd-1']).toBe('f-storage-id');
     expect(byId['gd-2']).toBeUndefined();
+  });
+
+  it('does not return docs from other organizations (cross-org isolation)', async () => {
+    const ctx = createMockCtx([
+      {
+        _id: 'd1',
+        organizationId: ORG,
+        sourceProvider: PROVIDER,
+        externalItemId: 'gd-1',
+        folderPath: 'Test',
+      },
+      {
+        _id: 'd2',
+        organizationId: 'org2',
+        sourceProvider: PROVIDER,
+        externalItemId: 'gd-2',
+        folderPath: 'Test',
+      },
+      {
+        _id: 'd3',
+        organizationId: 'org2',
+        sourceProvider: PROVIDER,
+        externalItemId: 'gd-3',
+        folderPath: 'Test/sub',
+      },
+    ]);
+
+    const result = await listOrphanedExternalDocs(ctx as never, {
+      organizationId: ORG,
+      sourceProvider: PROVIDER,
+      folderPathPrefix: 'Test',
+      presentExternalIds: [],
+    });
+
+    // Only org1's doc may surface; org2's docs MUST be invisible to org1's reconcile.
+    expect(result.map((r) => r.externalItemId)).toEqual(['gd-1']);
+  });
+
+  it('skips soft-deleted docs (H5 — Trash grace window must survive reconcile)', async () => {
+    const ctx = createMockCtx([
+      {
+        _id: 'd-active',
+        organizationId: ORG,
+        sourceProvider: PROVIDER,
+        externalItemId: 'gd-active',
+        folderPath: 'Test',
+        lifecycleStatus: 'active',
+      },
+      {
+        _id: 'd-trashed',
+        organizationId: ORG,
+        sourceProvider: PROVIDER,
+        externalItemId: 'gd-trashed',
+        folderPath: 'Test',
+        lifecycleStatus: 'trashed',
+      },
+      {
+        _id: 'd-expired',
+        organizationId: ORG,
+        sourceProvider: PROVIDER,
+        externalItemId: 'gd-expired',
+        folderPath: 'Test/sub',
+        lifecycleStatus: 'expired',
+      },
+    ]);
+
+    const result = await listOrphanedExternalDocs(ctx as never, {
+      organizationId: ORG,
+      sourceProvider: PROVIDER,
+      folderPathPrefix: 'Test',
+      presentExternalIds: [],
+    });
+
+    expect(result.map((r) => r.externalItemId)).toEqual(['gd-active']);
+  });
+
+  it('scopes by driveId when set (H4 — two integrations sharing a folderPathPrefix)', async () => {
+    const ctx = createMockCtx([
+      {
+        _id: 'd-acct-a',
+        organizationId: ORG,
+        sourceProvider: PROVIDER,
+        externalItemId: 'gd-a-only',
+        folderPath: 'Google Drive',
+        driveId: 'drive-a',
+      },
+      {
+        _id: 'd-acct-b',
+        organizationId: ORG,
+        sourceProvider: PROVIDER,
+        externalItemId: 'gd-b-only',
+        folderPath: 'Google Drive',
+        driveId: 'drive-b',
+      },
+    ]);
+
+    // Sync run for drive-a with empty listing — must NOT orphan drive-b's doc.
+    const result = await listOrphanedExternalDocs(ctx as never, {
+      organizationId: ORG,
+      sourceProvider: PROVIDER,
+      folderPathPrefix: 'Google Drive',
+      presentExternalIds: [],
+      driveId: 'drive-a',
+    });
+
+    expect(result.map((r) => r.externalItemId)).toEqual(['gd-a-only']);
+  });
+
+  it('handles trailing slash in folderPathPrefix without collapsing the subtree (M2)', async () => {
+    const ctx = createMockCtx([
+      {
+        _id: 'd-root',
+        organizationId: ORG,
+        sourceProvider: PROVIDER,
+        externalItemId: 'gd-root',
+        folderPath: 'Inbox',
+      },
+      {
+        _id: 'd-child',
+        organizationId: ORG,
+        sourceProvider: PROVIDER,
+        externalItemId: 'gd-child',
+        folderPath: 'Inbox/sub',
+      },
+    ]);
+
+    // Caller passes "Inbox/" — must still find children under "Inbox/".
+    const result = await listOrphanedExternalDocs(ctx as never, {
+      organizationId: ORG,
+      sourceProvider: PROVIDER,
+      folderPathPrefix: 'Inbox/',
+      presentExternalIds: [],
+    });
+
+    expect(result.map((r) => r.externalItemId).sort()).toEqual([
+      'gd-child',
+      'gd-root',
+    ]);
   });
 });

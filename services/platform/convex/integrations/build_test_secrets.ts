@@ -13,6 +13,7 @@ export async function buildIntegrationSecrets(
   ctx: ActionCtx,
   integration: IntegrationWithCredentials,
   credentialId?: Id<'integrationCredentials'>,
+  options?: { forceRefresh?: boolean },
 ): Promise<Record<string, string>> {
   const secrets: Record<string, string> = {};
 
@@ -57,6 +58,7 @@ export async function buildIntegrationSecrets(
       ctx,
       integration,
       credentialId,
+      options,
     );
   }
 
