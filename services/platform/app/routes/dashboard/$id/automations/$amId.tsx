@@ -23,6 +23,7 @@ import { PageLayout } from '@/app/components/layout/page-layout';
 import { ActiveEditorProvider } from '@/app/components/ui/editor';
 import { AutomationAIChatPanel } from '@/app/features/automations/components/automation-ai-chat-panel';
 import { AutomationNavigation } from '@/app/features/automations/components/automation-navigation';
+import { AutomationSidePanel } from '@/app/features/automations/components/automation-sidepanel';
 import { AUTOMATION_PANEL_URL_DEFINITIONS } from '@/app/features/automations/components/automation-steps';
 import { useReadWorkflow } from '@/app/features/automations/hooks/file-queries';
 import {
@@ -296,6 +297,28 @@ function AutomationDetailInner({
     [config.steps, workflowSlug, organizationId],
   );
 
+  const selectedStep = useMemo(() => {
+    if (!panelState.step) return null;
+    const found = steps.find((s) => s.stepSlug === panelState.step);
+    if (!found) return null;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to Doc shape; AutomationSidePanel only reads display fields
+    return found as Doc<'wfStepDefs'>;
+  }, [steps, panelState.step]);
+
+  const stepOptions = useMemo(
+    () =>
+      steps.map((s) => ({
+        stepSlug: s.stepSlug,
+        name: s.name,
+        stepType: s.stepType,
+        actionType:
+          s.stepType === 'action' && 'type' in s.config
+            ? s.config.type
+            : undefined,
+      })),
+    [steps],
+  );
+
   return (
     <PageLayout
       header={
@@ -334,8 +357,6 @@ function AutomationDetailInner({
                 className="flex-1"
                 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to Doc shape; component only reads display fields
                 steps={steps as Doc<'wfStepDefs'>[]}
-                organizationId={organizationId}
-                automationId={workflowSlug}
                 onOpenAIChat={handleOpenAIChat}
               />
             </Suspense>
@@ -352,7 +373,20 @@ function AutomationDetailInner({
             onClose={handleCloseAIChat}
             panelWidth={panelWidth}
             onPanelWidthChange={setPanelWidth}
-            overlay
+          />
+        )}
+
+        {isUrlSidePanelOpen && (
+          <AutomationSidePanel
+            step={selectedStep}
+            isOpen
+            onClose={clearPanelUrlState}
+            showTestPanel={panelState.panel === 'test'}
+            automationId={workflowSlug}
+            organizationId={organizationId}
+            stepOptions={stepOptions}
+            panelWidth={panelWidth}
+            onPanelWidthChange={setPanelWidth}
           />
         )}
       </div>

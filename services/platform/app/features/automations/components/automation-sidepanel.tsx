@@ -39,6 +39,8 @@ interface AutomationSidePanelProps {
     stepType?: Doc<'wfStepDefs'>['stepType'];
     actionType?: string;
   }>;
+  panelWidth?: number;
+  onPanelWidthChange?: (width: number) => void;
 }
 
 interface EditState {
@@ -205,11 +207,16 @@ export function AutomationSidePanel({
   automationId,
   organizationId,
   stepOptions = EMPTY_STEP_OPTIONS,
+  panelWidth,
+  onPanelWidthChange,
 }: AutomationSidePanelProps) {
   const { t } = useT('automations');
   const panelRef = useRef<HTMLDivElement>(null);
   const { width, minWidth, maxWidth, handleMouseDown, handleKeyDown } =
-    useResizable(panelRef);
+    useResizable(panelRef, {
+      width: panelWidth,
+      onWidthChange: onPanelWidthChange,
+    });
 
   const initialEditState: EditState = { config: '', nextSteps: {} };
   const [editState, setEditState] = useState(initialEditState);
