@@ -132,6 +132,15 @@ export function getConfigRoot(area?: string): string {
  * defense-in-depth backstop, not the primary validator.
  */
 export function safeJoinWithinDir(dir: string, name: string): string {
+  // Empty name resolves to `dir` itself — every callable site of this
+  // helper expects to land on a CHILD of `dir`, so an empty name is a
+  // bug at the call site (likely an unvalidated empty string from user
+  // input). Reject it explicitly rather than silently returning the
+  // parent directory's path, which would let a caller `unlink` /
+  // `rm -rf` the whole config root.
+  if (name === '') {
+    throw new Error('Path traversal detected: empty name');
+  }
   const resolved = path.resolve(dir, name);
   const expectedPrefix = path.resolve(dir);
   if (

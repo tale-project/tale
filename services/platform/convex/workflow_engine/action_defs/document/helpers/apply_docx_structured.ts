@@ -135,7 +135,7 @@ export async function applyDocxStructured(
       'crawler',
       response,
       errorText,
-      '/api/v1/apply-structured',
+      '/api/v1/docx/apply-structured',
     );
   }
 

@@ -154,10 +154,22 @@ async function discoverUrls(
   const result: DiscoverUrlsRawData = await response.json();
 
   if (!result.success) {
+    // Wrap as `UpstreamHttpError` (non-retryable) so the workflow retry
+    // layer can distinguish "crawler said no" from transport failures
+    // (which already throw `UpstreamHttpError`). Treating both as
+    // generic `Error` lost the structured retry signal — a transient
+    // crawler-internal error indistinguishable from a permanent one.
     const errorMessage =
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       (result as { error?: string }).error || 'Unknown error';
-    throw new Error(`URL discovery failed: ${errorMessage}`);
+    throw new UpstreamHttpError({
+      service: 'crawler',
+      endpoint: '/api/v1/urls/discover',
+      status: 200,
+      bodySnippet: `URL discovery failed: ${errorMessage}`,
+      retryable: false,
+      safeMessage: 'Crawler URL discovery failed.',
+    });
   }
 
   debugLog(
@@ -220,7 +232,14 @@ async function fetchUrls(
     const errorMessage =
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       (result as { error?: string }).error || 'Unknown error';
-    throw new Error(`URL fetch failed: ${errorMessage}`);
+    throw new UpstreamHttpError({
+      service: 'crawler',
+      endpoint: '/api/v1/urls/fetch',
+      status: 200,
+      bodySnippet: `URL fetch failed: ${errorMessage}`,
+      retryable: false,
+      safeMessage: 'Crawler URL fetch failed.',
+    });
   }
 
   debugLog(

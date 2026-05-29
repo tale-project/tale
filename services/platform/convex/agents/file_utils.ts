@@ -149,7 +149,19 @@ export function resolveAgentFilePath(
 }
 
 export function resolveHistoryDir(orgSlug: string, agentName: string): string {
-  return path.join(resolveAgentsDir(orgSlug), '.history', agentName);
+  // Defence-in-depth: `listHistory`, `readHistoryEntry`, and
+  // `restoreFromHistory` invoke this BEFORE any
+  // `resolveAgentFilePath`-style validation runs, so a crafted
+  // `agentName` containing `..` would otherwise traverse out of
+  // `agents/.history/`. Mirror the agent-name + safeJoin guard the
+  // other path builders already do.
+  if (!validateAgentName(agentName)) {
+    throw new Error(`Invalid agent name: ${agentName}`);
+  }
+  return safeJoinWithinDir(
+    safeJoinWithinDir(resolveAgentsDir(orgSlug), '.history'),
+    agentName,
+  );
 }
 
 export { MAX_FILE_SIZE_BYTES, MAX_HISTORY_ENTRIES };

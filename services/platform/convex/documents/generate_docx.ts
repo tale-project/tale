@@ -98,7 +98,18 @@ export async function generateDocx(
   const result = await response.json();
 
   if (!result.success || !result.file_base64) {
-    throw new Error(result.error || 'Failed to generate DOCX');
+    // Sanitise the upstream `result.error` before it lands in the
+    // thrown message. The HTTP-error path above already runs through
+    // `sanitizeError` via `UpstreamHttpError.fromResponse`; this
+    // body-level branch is the second escape hatch and must scrub
+    // too — otherwise a crawler that 200s with `{"success":false,
+    // "error":"Authorization: Bearer ..."}` would leak the secret
+    // straight into the agent boundary.
+    const rawErr =
+      typeof result.error === 'string'
+        ? result.error
+        : 'Failed to generate DOCX';
+    throw new Error(sanitizeError(rawErr));
   }
 
   // Decode base64 and upload to Convex storage

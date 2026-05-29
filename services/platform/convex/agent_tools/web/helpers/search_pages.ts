@@ -42,6 +42,12 @@ export function isValidDomain(domain: string): boolean {
   return DOMAIN_PATTERN.test(domain);
 }
 
+// 15 s aligns with `query_web_context.ts` (10 s) at the short end and
+// stays well below the agent-runtime tool budget. A hung crawler
+// connection used to block here indefinitely (no signal/timeout) and
+// tie the entire agent step to the crawler's stall window.
+const SEARCH_TIMEOUT_MS = 15_000;
+
 async function fetchSearch(
   crawlerUrl: string,
   orgSlug: string,
@@ -52,18 +58,27 @@ async function fetchSearch(
     ? `${crawlerUrl}/api/v1/search/${encodeURIComponent(domain)}`
     : `${crawlerUrl}/api/v1/search`;
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-tale-org': orgSlug,
-    },
-    body: JSON.stringify({
-      query,
-      limit: DEFAULT_LIMIT,
-      similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-tale-org': orgSlug,
+      },
+      body: JSON.stringify({
+        query,
+        limit: DEFAULT_LIMIT,
+        similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');

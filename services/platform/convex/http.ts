@@ -317,6 +317,28 @@ http.route({
   path: '/api/sse/auth',
   method: 'GET',
   handler: httpAction(async (ctx, req) => {
+    // Mirror the `/api/tts-audio` and `/storage` routes: rate-limit
+    // BEFORE the session lookup so an anonymous flood can't force a
+    // Better Auth DB session-query per request. The browser EventSource
+    // hitting this endpoint passes the auth cookie, so the limit applies
+    // to anonymous probes only — authenticated SSE handshakes stay
+    // unthrottled in practice.
+    const trusted = await loadTrustedProxies(ctx);
+    const ip = getClientIp(req.headers, trusted);
+    try {
+      await checkIpRateLimit(ctx, 'security:sse-auth', ip);
+    } catch (error) {
+      if (error instanceof RateLimitExceededError) {
+        return new Response('Rate limit exceeded', {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil(error.retryAfter / 1000)),
+          },
+        });
+      }
+      throw error;
+    }
+
     const auth = createAuth(ctx);
     const session = await auth.api.getSession({ headers: req.headers });
     if (!session?.user) {

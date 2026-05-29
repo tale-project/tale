@@ -29,6 +29,7 @@ import {
 } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
+  errnoCode,
   generateHistoryTimestamp,
   handleDirReadError,
   pruneHistory,
@@ -416,7 +417,19 @@ export const saveAgent = action({
         });
       }
       const oldFilePath = resolveAgentFilePath(orgSlug, args.oldAgentName);
-      await unlink(oldFilePath).catch(() => {});
+      // ENOENT-tolerant only — silently swallowing EACCES/EBUSY/EIO
+      // would leave the OLD file on disk while the NEW file is being
+      // written next to it, so `listAgents` would surface the same
+      // agent twice and the audit log would record a rename that
+      // didn't fully complete.
+      await unlink(oldFilePath).catch((err: unknown) => {
+        if (errnoCode(err) !== 'ENOENT') {
+          console.warn(
+            `[saveAgent] unlink old agent file ${oldFilePath} failed:`,
+            err,
+          );
+        }
+      });
     }
 
     await atomicWrite(filePath, content);
@@ -615,7 +628,15 @@ export const deleteAgent = action({
     let preDelete: AgentReadResult | undefined;
     try {
       preDelete = await readAgentFile(orgSlug, args.agentName);
-    } catch {
+    } catch (err) {
+      // Best-effort snapshot per the comment block above. Log the
+      // underlying error so the audit-row-without-previousState case
+      // is explainable in post-mortem (vs the prior silent swallow
+      // which gave no signal about what went wrong).
+      console.warn(
+        `[deleteAgent] preDelete capture failed for ${args.agentName}:`,
+        err,
+      );
       preDelete = undefined;
     }
 
