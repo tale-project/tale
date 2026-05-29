@@ -22,6 +22,7 @@ import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
  */
 export const uploadFileToRag = internalAction({
   args: {
+    organizationId: v.string(),
     storageId: v.id('_storage'),
     fileName: v.string(),
     contentType: v.string(),
@@ -37,7 +38,7 @@ export const uploadFileToRag = internalAction({
           fileName: args.fileName,
           contentType: args.contentType,
         },
-        {},
+        { organizationId: args.organizationId },
       );
     } catch (error) {
       console.error(

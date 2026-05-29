@@ -10,6 +10,7 @@ import type { ConnectorConfig, SqlConnectionConfig } from './types';
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
 interface HealthCheckArgs {
+  organizationId: string;
   name: string;
   type?: 'rest_api' | 'sql';
   connector?: ConnectorConfig;
@@ -121,6 +122,7 @@ async function runRestHealthCheck(
       secrets,
       allowedHosts,
       timeoutMs: timeoutMs ?? 15000,
+      organizationId: args.organizationId,
     },
   );
 

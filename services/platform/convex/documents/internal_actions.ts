@@ -459,6 +459,12 @@ export const deleteDocumentFromRag = internalAction({
      */
     expectedExternalItemId: v.optional(v.string()),
     expectedFileId: v.optional(v.id('_storage')),
+    /**
+     * Sync-reconcile only: forwarded to `deleteDocumentById` so the
+     * mutation reaps now-empty ancestor folders up to (but not
+     * including) this folder id (the sync target root).
+     */
+    cleanupAncestorsUpTo: v.optional(v.id('folders')),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -528,7 +534,10 @@ export const deleteDocumentFromRag = internalAction({
         );
         await ctx.runMutation(
           internal.documents.internal_mutations.deleteDocumentById,
-          { documentId: args.documentId },
+          {
+            documentId: args.documentId,
+            cleanupAncestorsUpTo: args.cleanupAncestorsUpTo,
+          },
         );
         return null;
       }
@@ -542,7 +551,10 @@ export const deleteDocumentFromRag = internalAction({
       // out of this action; scheduler logs it; no orphan side effects.
       await ctx.runMutation(
         internal.documents.internal_mutations.deleteDocumentById,
-        { documentId: args.documentId },
+        {
+          documentId: args.documentId,
+          cleanupAncestorsUpTo: args.cleanupAncestorsUpTo,
+        },
       );
     }
 

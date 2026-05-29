@@ -187,6 +187,7 @@ export const integrationAction: ActionDefinition<{
         secrets,
         allowedHosts: connectorConfig.allowedHosts ?? [],
         timeoutMs: connectorConfig.timeoutMs ?? 30000,
+        organizationId,
       },
     );
 
@@ -219,6 +220,7 @@ export const integrationAction: ActionDefinition<{
           secrets,
           allowedHosts: connectorConfig.allowedHosts ?? [],
           timeoutMs: connectorConfig.timeoutMs ?? 30000,
+          organizationId,
         },
       );
     }

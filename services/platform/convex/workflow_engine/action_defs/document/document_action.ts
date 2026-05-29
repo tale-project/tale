@@ -986,6 +986,24 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           };
         }
 
+        // Resolve the sync target root so per-doc deletes can reap their
+        // now-empty ancestor folders without ever crossing this boundary.
+        // Read-only — never create folders during a delete pass. Missing
+        // root → skip cleanup (no orphans should exist either).
+        const rootPathSegments = params.folderPath
+          .split('/')
+          .filter((s: string) => s.trim().length > 0);
+        const cleanupAncestorsUpTo: Id<'folders'> | undefined =
+          rootPathSegments.length > 0
+            ? ((await ctx.runQuery(
+                internal.folders.internal_queries.findFolderByPath,
+                {
+                  organizationId,
+                  pathSegments: rootPathSegments,
+                },
+              )) ?? undefined)
+            : undefined;
+
         // Operator audit trail: one line per scheduled delete so the
         // affected docs can be identified and (if needed) restored from
         // backup. Keep individual log lines so they survive log rotation
@@ -1013,13 +1031,17 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
                 documentId: doc.documentId,
                 expectedExternalItemId: doc.externalItemId,
                 expectedFileId: doc.fileId,
+                cleanupAncestorsUpTo,
               },
             );
           } else {
             await ctx.scheduler.runAfter(
               i * 100,
               internal.documents.internal_mutations.deleteDocumentById,
-              { documentId: doc.documentId },
+              {
+                documentId: doc.documentId,
+                cleanupAncestorsUpTo,
+              },
             );
           }
         }

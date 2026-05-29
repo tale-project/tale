@@ -103,6 +103,7 @@ export const saveFileMetadata = internalMutation({
         0,
         internal.file_metadata.internal_actions.uploadFileToRag,
         {
+          organizationId: args.organizationId,
           storageId: args.storageId,
           fileName: args.fileName,
           contentType: args.contentType,

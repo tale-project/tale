@@ -121,7 +121,7 @@ async function deleteFolderContents(
 }
 
 const MAX_FOLDER_NAME_LENGTH = 255;
-const MAX_FOLDER_DEPTH = 20;
+export const MAX_FOLDER_DEPTH = 20;
 const RESERVED_NAMES = new Set(['.', '..']);
 
 export function validateFolderName(name: string): string {

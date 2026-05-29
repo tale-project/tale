@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
+import { cleanupEmptyAncestorFolders } from '../folders/cleanup_empty_ancestors';
 import { eraseDocumentBlobs } from '../governance/erase_document_blobs';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { createDocument as createDocumentHelper } from './create_document';
@@ -69,6 +70,13 @@ export const deleteDocumentById = internalMutation({
      * callers (retention sweep, workflow); REST handlers MUST pass this.
      */
     callerOrgId: v.optional(v.string()),
+    /**
+     * Sync-reconcile only: after the row is deleted, walk up from the
+     * doc's `folderId` and remove ancestor folders that became empty,
+     * stopping at (and never deleting) this id (the sync target root).
+     * Omit for user-initiated deletes — folder reaping is opt-in.
+     */
+    cleanupAncestorsUpTo: v.optional(v.id('folders')),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -113,8 +121,19 @@ export const deleteDocumentById = internalMutation({
       // _storage forever — both the storage cost and the unreachable-blob
       // privacy risk. The retention path was already correct via the
       // helper. Round-2 review CRITICAL #18.
+      const folderIdBeforeDelete = document.folderId;
+      const organizationId = document.organizationId;
       await eraseDocumentBlobs(ctx, document);
       await ctx.db.delete(args.documentId);
+
+      if (args.cleanupAncestorsUpTo && folderIdBeforeDelete) {
+        await cleanupEmptyAncestorFolders(
+          ctx,
+          folderIdBeforeDelete,
+          args.cleanupAncestorsUpTo,
+          organizationId,
+        );
+      }
     }
     return null;
   },

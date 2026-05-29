@@ -308,6 +308,7 @@ import type * as file_metadata_transcribe_audio from "../file_metadata/transcrib
 import type * as file_metadata_transcribe_dictation from "../file_metadata/transcribe_dictation.js";
 import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
+import type * as folders_cleanup_empty_ancestors from "../folders/cleanup_empty_ancestors.js";
 import type * as folders_find_folder_by_path from "../folders/find_folder_by_path.js";
 import type * as folders_get_or_create_path from "../folders/get_or_create_path.js";
 import type * as folders_internal_mutations from "../folders/internal_mutations.js";
@@ -1411,6 +1412,7 @@ declare const fullApi: ApiFromModules<{
   "file_metadata/transcribe_dictation": typeof file_metadata_transcribe_dictation;
   "files/mutations": typeof files_mutations;
   "files/queries": typeof files_queries;
+  "folders/cleanup_empty_ancestors": typeof folders_cleanup_empty_ancestors;
   "folders/find_folder_by_path": typeof folders_find_folder_by_path;
   "folders/get_or_create_path": typeof folders_get_or_create_path;
   "folders/internal_mutations": typeof folders_internal_mutations;
