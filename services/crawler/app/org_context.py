@@ -56,7 +56,11 @@ async def require_org_slug(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="missing X-Tale-Org header",
         )
-    if not ORG_SLUG_RE.match(x_tale_org):
+    # `fullmatch` (not `match`) so e.g. `"acme\n"` is rejected: Python's
+    # `$` anchor matches before a trailing newline, so `match()` would
+    # silently accept a CRLF-smuggled slug. RAG-side `auth.py` already
+    # uses `fullmatch`; mirror that semantic here.
+    if not ORG_SLUG_RE.fullmatch(x_tale_org):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="invalid X-Tale-Org header",

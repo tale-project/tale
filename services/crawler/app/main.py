@@ -188,6 +188,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         from app.services.vision.openai_client import (  # type: ignore[attr-defined]
             _chat_states,
             _vision_states,
+            drain_pending_close_tasks,
         )
 
         async def _safe(close_aw):
@@ -214,6 +215,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
                 )
             except TimeoutError:
                 logger.warning("Per-org client drain did not finish within 10s; continuing")
+        # Cancel + await any outstanding `_safe_close_client` tasks
+        # left over from earlier LRU evictions / config rotations.
+        # Without this, those tasks sit in the loop sleeping out a 300s
+        # grace window and the event loop closes underneath them,
+        # leaking the httpx pool and producing "Event loop is closed"
+        # tracebacks (round-3 P2 R26-P2-c continuation).
+        try:
+            await asyncio.wait_for(drain_pending_close_tasks(), timeout=10)
+        except TimeoutError:
+            logger.warning("Pending close-task drain did not finish within 10s; continuing")
 
     try:
         await _drain_org_caches()

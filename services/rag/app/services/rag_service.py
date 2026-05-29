@@ -170,6 +170,14 @@ class RagService:
         Per-org client construction is deferred until the first call for
         that org. The DB pool is global — all orgs share one
         knowledge-DB connection pool because the schema is global.
+
+        Re-init after a prior `shutdown()` is supported (tests, supervisor
+        restart with the same singleton). Reset `_shutting_down` and
+        clear the module-level shutdown event up front so the new
+        process state is "live" before any `_ensure_org_clients` checks
+        run — otherwise those would keep raising
+        `RuntimeError("RagService is shutting down")` forever despite
+        the pool being back.
         """
         if self.initialized:
             return
@@ -178,16 +186,11 @@ class RagService:
             if self.initialized:
                 return
 
+            self._shutting_down = False
+            _get_shutdown_event().clear()
             self._pool = await init_pool()
             self.initialized = True
             logger.info("RagService initialized (DB pool ready; per-org clients lazy)")
-
-    @property
-    def embedding_service(self) -> EmbeddingService | None:
-        """Deprecated: kept for any callers that haven't been threaded
-        with `org_slug` yet. Returns None; callers must migrate.
-        """
-        return None
 
     def _get_org_lock(self, org_slug: str) -> asyncio.Lock:
         lock = self._org_locks.get(org_slug)

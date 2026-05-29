@@ -108,6 +108,46 @@ _ORG_CACHE_MAX = 64
 _vision_states: OrderedDict[str, _OrgVisionState] = OrderedDict()
 _chat_states: OrderedDict[str, _OrgVisionState] = OrderedDict()
 
+# Track outstanding `_safe_close_client` tasks so lifespan shutdown can
+# drain them before the event loop closes. Without this set, an
+# evicted-or-rotated client sleeps for up to 300 s in a fire-and-forget
+# task; when the FastAPI lifespan exits, the loop closes underneath the
+# sleeping task, the close never fires, and httpx connection pools
+# leak (round-2 P1-26). `app/main.py` lifespan awaits this set on
+# shutdown via `drain_pending_close_tasks()`.
+_PENDING_CLOSE_TASKS: set[asyncio.Task] = set()
+
+
+def _schedule_safe_close(client: AsyncOpenAI) -> None:
+    """Fire-and-forget close with task-set bookkeeping."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop (shutdown in progress, or called from outside
+        # an event loop). The caller treats this as best-effort; just
+        # close synchronously via a fresh loop would be unsafe, so log
+        # the leak instead. The aging pool is closed when the process
+        # exits anyway.
+        logger.warning(
+            "Could not schedule client close — no running event loop; pool will leak until process exit",
+        )
+        return
+    task = loop.create_task(_safe_close_client(client))
+    _PENDING_CLOSE_TASKS.add(task)
+    task.add_done_callback(_PENDING_CLOSE_TASKS.discard)
+
+
+async def drain_pending_close_tasks() -> None:
+    """Await every still-pending `_safe_close_client` so shutdown can
+    flush the 300s grace window without the event loop closing under
+    sleeping tasks. Called from `app/main.py` lifespan teardown."""
+    if not _PENDING_CLOSE_TASKS:
+        return
+    pending = list(_PENDING_CLOSE_TASKS)
+    for t in pending:
+        t.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+
 
 async def _safe_close_client(client: AsyncOpenAI) -> None:
     """Close an old client after a grace period for in-flight requests.
@@ -117,8 +157,14 @@ async def _safe_close_client(client: AsyncOpenAI) -> None:
     `vision_request_timeout=180s` and chat completions can run for up
     to ~300s; 30s was too short and would tear down the httpx pool
     while a long PDF OCR was still in flight (round-3 P2 R26-P2-b).
+
+    On cancellation (lifespan shutdown drain), close immediately
+    without waiting out the grace — the process is exiting, so
+    in-flight requests will fail regardless and the FD leak is the
+    more important concern.
     """
-    await asyncio.sleep(300)
+    with contextlib.suppress(asyncio.CancelledError):
+        await asyncio.sleep(300)
     try:
         await client.close()
     except Exception:
@@ -135,13 +181,13 @@ def _evict_lru_if_needed(
     this, a typo'd-slug spray or a long-running process with high org
     churn slowly leaks file descriptors. Schedule the evicted client's
     close after the standard grace window so any in-flight call still
-    finishes (round-2 P1-25).
+    finishes (round-2 P1-25). The scheduling helper tracks the task
+    in `_PENDING_CLOSE_TASKS` so lifespan shutdown can drain it.
     """
     while len(states) > _ORG_CACHE_MAX:
         _victim_key, victim = states.popitem(last=False)
         logger.info("Evicting LRU {} client for org '{}'", label, _victim_key)
-        with contextlib.suppress(RuntimeError):
-            asyncio.get_running_loop().create_task(_safe_close_client(victim.client))
+        _schedule_safe_close(victim.client)
 
 
 def _get_or_build_client(
@@ -209,8 +255,7 @@ def _get_or_build_client(
 
     if old_client is not None:
         logger.info("{} rebuilt for org '{}': model={}", label, org_slug, model)
-        with contextlib.suppress(RuntimeError):
-            asyncio.get_running_loop().create_task(_safe_close_client(old_client))
+        _schedule_safe_close(old_client)
     else:
         logger.info("{} created for org '{}': model={}", label, org_slug, model)
 
@@ -548,18 +593,26 @@ async def process_pages_with_llm(
                 logger.info(f"LLM chunk {chunk_idx + 1}/{total_chunks} done: {len(chunk_text)} -> {len(result)} chars")
                 return chunk_idx, result
             except Exception as e:
-                # Round-3 P2 R26-P2-a: log at error level (was warning)
-                # and prepend an explicit failure marker so downstream
-                # storage / indexing can spot extractions that fell
-                # back to raw content. Previously the caller couldn't
-                # distinguish "LLM extracted this" from "LLM died,
-                # this is the raw input pretending to be extraction".
+                # Log loud + return empty string. Previously we returned
+                # `[LLM_EXTRACTION_FAILED: ...]\n` + raw chunk_text so
+                # downstream consumers could "spot the failure", but
+                # the marker travelled into embeddings + BM25 index +
+                # search results as user-visible content. Embedding
+                # the raw fallback text was worse — the unprocessed
+                # source carries none of the structure the LLM step
+                # was supposed to extract, so search relevance for
+                # those chunks regressed silently.
+                #
+                # The empty-string return drops the chunk entirely
+                # from the merged page text; the error log here is
+                # the operator-visible signal, and the caller's
+                # cache miss (no `set_llm`) means a retry will
+                # re-attempt extraction without poisoned state.
                 logger.error(
                     f"Failed to process chunk {chunk_idx + 1} with LLM ({type(e).__name__}: {e}); "
-                    f"returning raw content with failure marker",
+                    f"dropping chunk from output (no marker injected into indexed content)",
                 )
-                marker = f"[LLM_EXTRACTION_FAILED: {type(e).__name__}]\n"
-                return chunk_idx, marker + chunk_text
+                return chunk_idx, ""
 
     tasks = [process_chunk(idx, text) for idx, text in chunks]
     results = await asyncio.gather(*tasks)
