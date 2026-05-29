@@ -11,7 +11,10 @@
 
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../lib/debug_log';
-import { UpstreamHttpError } from '../../lib/errors/upstream_http_error';
+import {
+  UpstreamHttpError,
+  isUpstreamHttpError,
+} from '../../lib/errors/upstream_http_error';
 import { getRagConfig, ragFetch } from '../../lib/helpers/rag_config';
 import {
   extractCitationsFromSearchResults,
@@ -280,6 +283,16 @@ export async function queryRagContext(
       return { text: ragContext, citations };
     } catch (fetchError) {
       clearTimeout(timeoutId);
+
+      // Caller/config bugs (4xx → `UpstreamHttpError`) MUST propagate
+      // past this graceful-degrade layer. Otherwise the explicit throw
+      // for missing `X-Tale-Org` / bad query in the `!response.ok`
+      // branch above is silently swallowed here and the agent treats
+      // "auth misconfigured" as "knowledge base is empty" — the very
+      // failure mode the upstream throw was added to prevent.
+      if (isUpstreamHttpError(fetchError)) {
+        throw fetchError;
+      }
 
       // Handle timeout specifically
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {

@@ -18,6 +18,33 @@ import { uploadDocument } from './helpers/upload_document';
 
 const SEARCH_TIMEOUT_MS = 30_000;
 
+/**
+ * Recursively run `stripReservedPromptTags` over every string leaf of
+ * a search-result `metadata` payload. Non-string values are passed
+ * through unchanged. Used to strip prompt-injection vectors from
+ * indexed-chunk metadata (titles, headings, captions, etc.) before
+ * the workflow step returns the result to downstream templates.
+ */
+function sanitizeMetadataStrings(
+  value: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(value)) {
+    out[key] = sanitizeMetadataLeaf(val);
+  }
+  return out;
+}
+
+function sanitizeMetadataLeaf(value: unknown): unknown {
+  if (typeof value === 'string') return stripReservedPromptTags(value);
+  if (Array.isArray(value)) return value.map(sanitizeMetadataLeaf);
+  if (value && typeof value === 'object') {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime guard above narrows to object; metadata is a free-form JSON record from RAG
+    return sanitizeMetadataStrings(value as Record<string, unknown>);
+  }
+  return value;
+}
+
 export const ragAction: ActionDefinition<RagActionParams> = {
   type: 'rag',
   title: 'RAG Document Manager',
@@ -101,10 +128,16 @@ export const ragAction: ActionDefinition<RagActionParams> = {
         // workflow's downstream system prompt. Strip BEFORE any further
         // wrapping (the video-link `wrapUntrusted` then layers on top).
         // Mirrors `rag_search_tool.ts:319` (agent-tool retrieve path).
+        // Also strip the document `title` — it's the user-uploaded
+        // filename and flows into downstream template renderings the
+        // same way `r.content` does.
         result.chunks = result.chunks.map((c) => ({
           ...c,
           content: stripReservedPromptTags(c.content),
         }));
+        if (result.title) {
+          result.title = stripReservedPromptTags(result.title);
+        }
         // Prompt-injection defense: video-link-sourced chunks contain
         // attacker-controlled transcript text. Mirror the wrap that
         // `rag_search_tool.ts` applies on the agent-tool side.
@@ -162,13 +195,22 @@ export const ragAction: ActionDefinition<RagActionParams> = {
           }
 
           const result = await fetchJson<SearchResponse>(response);
-          // SEC1: strip reserved wrapper tags from every search hit
-          // BEFORE further processing. Mirrors `rag_search_tool.ts:483`
-          // (agent-tool search path). The subsequent video-link
-          // `wrapUntrusted` layers on top of the stripped content.
+          // SEC1: strip reserved wrapper tags from every prompt-bound
+          // field on each search hit. `content` is the obvious one;
+          // `filename` is user-uploaded (any user with write access
+          // can name a file `</system><system>…`) and `metadata`
+          // string values come back from the indexed-chunk payload —
+          // both end up in downstream workflow templates the same way
+          // `content` does, so all three need the same defense.
           let wrappedResults = result.results.map((r) => ({
             ...r,
             content: stripReservedPromptTags(r.content),
+            ...(r.filename
+              ? { filename: stripReservedPromptTags(r.filename) }
+              : {}),
+            ...(r.metadata
+              ? { metadata: sanitizeMetadataStrings(r.metadata) }
+              : {}),
           }));
           if (wrappedResults.length > 0) {
             const fileIds = wrappedResults

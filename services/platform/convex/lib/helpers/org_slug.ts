@@ -20,6 +20,33 @@ type CtxWithRunQuery = {
 };
 
 /**
+ * Terminal lookup failure: the org row was not found, or exists but has
+ * no `slug` field. Both conditions are permanent — retrying will not
+ * succeed, so callers (`orgSlugFromIdOrNull`, retry-on-throw layers)
+ * should treat this distinctly from transient transport errors.
+ */
+export class OrgSlugUnresolvableError extends Error {
+  override readonly name = 'OrgSlugUnresolvableError';
+
+  constructor(
+    readonly organizationId: string,
+    readonly reason: 'no_row' | 'no_slug',
+  ) {
+    super(
+      reason === 'no_row'
+        ? `[orgSlugFromId] no organization row found for id ${JSON.stringify(organizationId)}`
+        : `[orgSlugFromId] organization ${JSON.stringify(organizationId)} has no slug`,
+    );
+  }
+}
+
+export function isOrgSlugUnresolvable(
+  err: unknown,
+): err is OrgSlugUnresolvableError {
+  return err instanceof OrgSlugUnresolvableError;
+}
+
+/**
  * Resolve an organizationId to its slug via Better Auth.
  *
  * **This helper does NOT verify caller membership.** It is purely an
@@ -35,7 +62,11 @@ type CtxWithRunQuery = {
  * org B's slug, then use it as the `X-Tale-Org` header on a downstream
  * RAG/crawler call.
  *
- * Throws if no matching org row exists, or if the row has no slug.
+ * Throws `OrgSlugUnresolvableError` when the row is missing or has no
+ * slug; transport errors (Better Auth adapter failure, network blip)
+ * propagate as themselves. Callers that want to fold the terminal-miss
+ * case into a `null` result (cascade cleanup, governance, multi-org
+ * status batches) should use `orgSlugFromIdOrNull`.
  */
 export async function orgSlugFromId(
   ctx: CtxWithRunQuery,
@@ -46,15 +77,44 @@ export async function orgSlugFromId(
     where: [{ field: '_id', value: organizationId, operator: 'eq' }],
   });
   if (!isRecord(row)) {
-    throw new Error(
-      `[orgSlugFromId] no organization row found for id ${JSON.stringify(organizationId)}`,
-    );
+    throw new OrgSlugUnresolvableError(organizationId, 'no_row');
   }
   const slug = getString(row, 'slug');
   if (!slug) {
-    throw new Error(
-      `[orgSlugFromId] organization ${JSON.stringify(organizationId)} has no slug`,
-    );
+    throw new OrgSlugUnresolvableError(organizationId, 'no_slug');
   }
   return slug;
+}
+
+/**
+ * Variant of `orgSlugFromId` that returns `null` on terminal lookup
+ * failure (row missing, no slug field) instead of throwing. Transient
+ * errors (transport, adapter exceptions) still propagate.
+ *
+ * Use this from callers where "the org is gone" is a recoverable state
+ * — typically anything that runs after the org may have been deleted:
+ *
+ *   - Background cascade cleanup (`threads/cascade_helpers.ts`)
+ *   - GDPR subject erasure cascade (`governance/erasure.ts`)
+ *   - Retention sweeps (`governance/retention_cleanup.ts`)
+ *   - Multi-org status batches that should not abort on one bad org
+ *     (`file_metadata/actions.ts`)
+ *   - Polling/retry actions where a missing slug should stop the
+ *     retry loop rather than reschedule indefinitely
+ *     (`documents/internal_actions.ts::deleteDocumentFromRag`)
+ *
+ * Callers that NEED the slug (agent tools, user-initiated reads/writes
+ * that must reach RAG/crawler with the X-Tale-Org header) should keep
+ * using `orgSlugFromId` so the throw bubbles up to a user-facing error.
+ */
+export async function orgSlugFromIdOrNull(
+  ctx: CtxWithRunQuery,
+  organizationId: string,
+): Promise<string | null> {
+  try {
+    return await orgSlugFromId(ctx, organizationId);
+  } catch (err) {
+    if (isOrgSlugUnresolvable(err)) return null;
+    throw err;
+  }
 }

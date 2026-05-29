@@ -25,7 +25,7 @@ import {
   isUpstreamHttpError,
   UpstreamHttpError,
 } from '../../lib/errors/upstream_http_error';
-import { orgSlugFromId } from '../../lib/helpers/org_slug';
+import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
 import { ragFetch } from '../../lib/helpers/rag_config';
 import { toId } from '../../lib/type_cast_helpers';
 import { wrapUntrusted } from '../../lib/untrusted_content';
@@ -280,11 +280,43 @@ RESPONSE (list_indexed):
           chunkEnd: end,
         });
 
-        const retrieveOrgSlug = await orgSlugFromId(ctx, orgIdRetrieve);
-        const response = await ragFetch(
-          `/api/v1/documents/${encodeURIComponent(args.fileId)}/content?return_chunks=true&chunk_start=${start}&chunk_end=${end}`,
-          { orgSlug: retrieveOrgSlug },
-        );
+        // Org-slug miss is terminal — surface as a safe summary, not
+        // a tool-runtime throw (which would propagate to the agent
+        // loop as an opaque error). Same shape as the search branch
+        // catch below.
+        const retrieveOrgSlug = await orgSlugFromIdOrNull(ctx, orgIdRetrieve);
+        if (retrieveOrgSlug === null) {
+          return {
+            success: false,
+            response: 'Knowledge base temporarily unavailable.',
+          };
+        }
+
+        let response: Response;
+        try {
+          response = await ragFetch(
+            `/api/v1/documents/${encodeURIComponent(args.fileId)}/content?return_chunks=true&chunk_start=${start}&chunk_end=${end}`,
+            { orgSlug: retrieveOrgSlug },
+          );
+        } catch (fetchError) {
+          // ragFetch SSRF guard, abort, network, etc. — agent-facing
+          // tool path returns a safe summary instead of throwing so
+          // the agent loop can recover with a user-visible "not
+          // reachable" message.
+          if (isUpstreamHttpError(fetchError)) {
+            return { success: false, response: fetchError.safeMessage };
+          }
+          console.error('[tool:rag_search retrieve] fetch error', {
+            error:
+              fetchError instanceof Error
+                ? fetchError.message
+                : String(fetchError),
+          });
+          return {
+            success: false,
+            response: 'Knowledge base temporarily unavailable.',
+          };
+        }
 
         if (!response.ok) {
           const errorText = await response.text().catch(() => '');
@@ -451,7 +483,17 @@ RESPONSE (list_indexed):
         if (!orgIdForSearch) {
           throw new Error('rag_search requires organizationId in ToolCtx.');
         }
-        const searchOrgSlug = await orgSlugFromId(ctx, orgIdForSearch);
+        // OrNull so a deleted-org / replica-skew slug miss returns the
+        // agent-friendly safe summary (caught below) rather than the
+        // raw `[orgSlugFromId] organization "..." has no slug` text
+        // bubbling to the model context.
+        const searchOrgSlug = await orgSlugFromIdOrNull(ctx, orgIdForSearch);
+        if (searchOrgSlug === null) {
+          return {
+            success: false,
+            response: 'Knowledge base temporarily unavailable.',
+          };
+        }
         const response = await ragFetch('/api/v1/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -459,6 +501,7 @@ RESPONSE (list_indexed):
           timeoutMs: SEARCH_TIMEOUT_MS,
           orgSlug: searchOrgSlug,
         });
+        // searchOrgSlug guaranteed non-null past the OrNull guard above
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -472,16 +515,13 @@ RESPONSE (list_indexed):
 
         const result = await fetchJson<SearchResponse>(response);
 
-        // SEC1: project-attached docs (and any user-uploaded RAG file) may
-        // contain `<system>…</system>` or other reserved wrapper tags an
-        // attacker crafted to escape the agent's surrounding system prompt.
-        // Strip reserved patterns from every hit's content before further
-        // wrapping/formatting. Pure removal (no XML escape) so legitimate
-        // code blocks / JSON / HTML examples in trusted docs are unaffected.
-        const sanitizedResults: SearchResult[] = result.results.map((r) => ({
-          ...r,
-          content: stripReservedPromptTags(r.content),
-        }));
+        // SEC1 (prompt-injection defense): `<system>…</system>` and the
+        // other reserved-wrapper tag stripping happens inside
+        // `formatSearchResults` itself now (single chokepoint covers
+        // both `content` and `filename`/`file_id` annotations). Keeping
+        // the strip there means a future caller can't forget it.
+        // Video-link wrapping below still uses the raw content because
+        // the strip runs on the wrapped string at format time.
 
         // Prompt-injection defense: per-hit wrap for any result that maps
         // back to a video-link transcript. The RAG service returns chunk
@@ -489,12 +529,14 @@ RESPONSE (list_indexed):
         // wrapping it lands in the agent context outside the TRUST RULES
         // system prompt's reach. Batch-query Convex once with all hit
         // file_ids; non-video-link hits are unchanged.
-        const candidateIds = sanitizedResults
+        const candidateIds = result.results
           .map((r) => r.file_id)
           .filter(
             (id): id is string => typeof id === 'string' && id.length > 0,
           );
-        const wrappedResults: SearchResult[] = sanitizedResults;
+        const wrappedResults: SearchResult[] = result.results.map((r) => ({
+          ...r,
+        }));
         if (candidateIds.length > 0) {
           const videoSourcesSearch = await ctx.runQuery(
             internal.file_metadata.internal_queries.lookupVideoLinkSources,
@@ -595,11 +637,18 @@ RESPONSE (list_indexed):
           });
           return { success: false, response: error.safeMessage };
         }
+        // Non-upstream errors (transport, parse, scope-lookup throws,
+        // etc.) used to rethrow here, surfacing raw internal messages
+        // to the agent loop. Return a neutral safe summary instead;
+        // engineer triage still has the full error in the log line.
         console.error('[tool:rag_search] error', {
           query: args.query,
           error: error instanceof Error ? error.message : String(error),
         });
-        throw error;
+        return {
+          success: false,
+          response: 'Knowledge base temporarily unavailable.',
+        };
       }
     },
   }),

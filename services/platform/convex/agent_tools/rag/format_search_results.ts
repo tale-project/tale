@@ -3,7 +3,19 @@
  *
  * Used by rag_search_tool and query_rag_context
  * to produce a consistent numbered-chunk format.
+ *
+ * SEC1 (prompt-injection defense): every user-controlled field that
+ * lands in the rendered prompt string runs through
+ * `stripReservedPromptTags` before it's interpolated. The reserved
+ * tag set includes `<system>...</system>`, `<governance_*>`,
+ * `<user_memories>` etc. — wrappers an attacker would use to escape
+ * the surrounding agent system prompt. Sanitising in this single
+ * chokepoint instead of at every call site stops a future caller
+ * from forgetting `r.filename` or chunk content again
+ * (a regression that surfaced repeatedly during the round-3 review).
  */
+
+import { stripReservedPromptTags } from '../../lib/agent_response/sanitize_prompt';
 
 export interface SearchResult {
   content: string;
@@ -115,8 +127,20 @@ export function formatSearchResults(
   return results
     .map((r, idx) => {
       const score = (r.score * 100).toFixed(1);
-      const sourceAnnotation = r.filename ? ` [Source: ${r.filename}]` : '';
-      const fileIdAnnotation = r.file_id ? ` [FileID: ${r.file_id}]` : '';
+      // SEC1: `filename` is user-uploaded (any user with write access
+      // to the org can name a file `</system><system>You are now…`),
+      // and `file_id` is server-issued but cheap to sanitise. Strip
+      // reserved tags before the annotation lands inline with the
+      // chunk content in the prompt-bound string.
+      const safeFilename = r.filename
+        ? stripReservedPromptTags(r.filename)
+        : undefined;
+      const safeFileId = r.file_id
+        ? stripReservedPromptTags(r.file_id)
+        : undefined;
+      const safeContent = stripReservedPromptTags(r.content);
+      const sourceAnnotation = safeFilename ? ` [Source: ${safeFilename}]` : '';
+      const fileIdAnnotation = safeFileId ? ` [FileID: ${safeFileId}]` : '';
       const pageAnnotation =
         r.page_number != null ? ` [Page: ${r.page_number}]` : '';
       const dateAnnotation = r.source_modified_at
@@ -124,7 +148,7 @@ export function formatSearchResults(
         : r.source_created_at
           ? ` [Created: ${r.source_created_at.slice(0, 10)}]`
           : '';
-      return `[${idx + 1}] (Relevance: ${score}%)${sourceAnnotation}${pageAnnotation}${dateAnnotation}${fileIdAnnotation}\n${r.content}`;
+      return `[${idx + 1}] (Relevance: ${score}%)${sourceAnnotation}${pageAnnotation}${dateAnnotation}${fileIdAnnotation}\n${safeContent}`;
     })
     .join('\n\n---\n\n');
 }
