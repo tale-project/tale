@@ -30,7 +30,7 @@ import * as logger from '../../utils/logger';
 import { LEGACY_DOMAIN_DIR_NAMES } from './deploy';
 import { migrateConfigLayout } from './migrate-config-layout';
 
-export interface LegacyLayoutPreflightOptions {
+interface LegacyLayoutPreflightOptions {
   /** Absolute path of the project root to scan. */
   projectDir: string;
   /** Skip the prompt and migrate immediately (non-interactive flag). */
@@ -42,7 +42,7 @@ export interface LegacyLayoutPreflightOptions {
   context: 'start' | 'deploy' | 'update';
 }
 
-export interface LegacyLayoutPreflightResult {
+interface LegacyLayoutPreflightResult {
   /** True iff a migration was actually performed in this call. */
   migrated: boolean;
 }
