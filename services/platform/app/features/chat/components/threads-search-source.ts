@@ -1,8 +1,11 @@
-import type { SearchResult, SearchSource } from '@tale/ui/search';
+import {
+  rankTokens,
+  scoreText,
+  type SearchResult,
+  type SearchSource,
+} from '@tale/ui/search';
 import { MessageSquare } from 'lucide-react';
 import { useMemo } from 'react';
-
-import { filterByTextSearch } from '@/lib/utils/filtering';
 
 import { type Thread, useThreads } from '../hooks/queries';
 
@@ -18,8 +21,9 @@ interface ThreadsSearchSourceConfig {
 
 /**
  * Build a {@link SearchSource} over the user's chat threads. Threads are a
- * bounded, whole-collection query, so this filters titles client-side (the
- * shared controller debounces) and groups by a localised date bucket. Mirrors
+ * bounded, whole-collection query, so this ranks titles client-side with the
+ * shared multi-token matcher (the controller debounces) and groups by a
+ * localised date bucket. Mirrors
  * the docs factory pattern — returned from a `useMemo` so its identity stays
  * stable across renders.
  *
@@ -39,18 +43,30 @@ export function createThreadsSearchSource(
 
     const results = useMemo<SearchResult[]>(() => {
       if (!threads) return [];
-      const matched = query
-        ? filterByTextSearch(threads, query, ['title'])
-        : threads;
-      return matched.map(
-        (thread: Thread): SearchResult => ({
-          id: thread._id,
-          title: thread.title ?? untitledLabel,
-          group: formatGroup(thread._creationTime),
-          icon: MessageSquare,
-          data: thread,
-        }),
-      );
+      // Multi-token, word-prefix-aware match + rank over titles, so "alpha
+      // launch" finds "Launch plan: Alpha". A blank query keeps every thread
+      // (score 1) in newest-first order.
+      const tokens = rankTokens(query);
+      return threads
+        .map((thread: Thread) => ({
+          thread,
+          score: scoreText(thread.title ?? '', tokens),
+        }))
+        .filter((scored) => scored.score > 0)
+        .sort(
+          (a, b) =>
+            b.score - a.score ||
+            b.thread._creationTime - a.thread._creationTime,
+        )
+        .map(
+          ({ thread }): SearchResult => ({
+            id: thread._id,
+            title: thread.title ?? untitledLabel,
+            group: formatGroup(thread._creationTime),
+            icon: MessageSquare,
+            data: thread,
+          }),
+        );
     }, [threads, query]);
 
     return {
