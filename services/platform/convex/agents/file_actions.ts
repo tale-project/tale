@@ -29,11 +29,15 @@ import {
 } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
+  errnoCode,
   generateHistoryTimestamp,
+  handleDirReadError,
   pruneHistory,
   readFileSafe,
   readJsonFile,
+  safeJoinWithinDir,
   sha256,
+  validateTimestamp,
 } from '../lib/file_io';
 import { stripNulls } from '../lib/strip_nulls';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
@@ -167,7 +171,8 @@ export const listAgents = action({
     let entries: string[];
     try {
       entries = await readdir(dir);
-    } catch {
+    } catch (err) {
+      handleDirReadError(err, 'agents.listAgents');
       return [];
     }
 
@@ -412,7 +417,19 @@ export const saveAgent = action({
         });
       }
       const oldFilePath = resolveAgentFilePath(orgSlug, args.oldAgentName);
-      await unlink(oldFilePath).catch(() => {});
+      // ENOENT-tolerant only — silently swallowing EACCES/EBUSY/EIO
+      // would leave the OLD file on disk while the NEW file is being
+      // written next to it, so `listAgents` would surface the same
+      // agent twice and the audit log would record a rename that
+      // didn't fully complete.
+      await unlink(oldFilePath).catch((err: unknown) => {
+        if (errnoCode(err) !== 'ENOENT') {
+          console.warn(
+            `[saveAgent] unlink old agent file ${oldFilePath} failed:`,
+            err,
+          );
+        }
+      });
     }
 
     await atomicWrite(filePath, content);
@@ -491,7 +508,8 @@ export const duplicateAgent = action({
     let entries: string[];
     try {
       entries = await readdir(dir);
-    } catch {
+    } catch (err) {
+      handleDirReadError(err, 'agents.duplicateAgent');
       entries = [];
     }
     const existingNames = new Set(
@@ -610,7 +628,15 @@ export const deleteAgent = action({
     let preDelete: AgentReadResult | undefined;
     try {
       preDelete = await readAgentFile(orgSlug, args.agentName);
-    } catch {
+    } catch (err) {
+      // Best-effort snapshot per the comment block above. Log the
+      // underlying error so the audit-row-without-previousState case
+      // is explainable in post-mortem (vs the prior silent swallow
+      // which gave no signal about what went wrong).
+      console.warn(
+        `[deleteAgent] preDelete capture failed for ${args.agentName}:`,
+        err,
+      );
       preDelete = undefined;
     }
 
@@ -652,7 +678,8 @@ export const listHistory = action({
     let entries: string[];
     try {
       entries = await readdir(historyDir);
-    } catch {
+    } catch (err) {
+      handleDirReadError(err, 'agents.listHistory');
       return [];
     }
 
@@ -679,13 +706,11 @@ export const readHistoryEntry = action({
       ctx,
       args.organizationId,
     );
-    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
-    const filePath = path.join(historyDir, `${args.timestamp}.json`);
-
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(historyDir))) {
-      throw new Error('Path traversal detected');
+    if (!validateTimestamp(args.timestamp)) {
+      throw new Error('Invalid timestamp');
     }
+    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
+    const filePath = safeJoinWithinDir(historyDir, `${args.timestamp}.json`);
 
     const content = await readFileSafe(filePath);
     if (!content) {
@@ -715,14 +740,12 @@ export const restoreFromHistory = action({
   handler: async (ctx, args): Promise<{ hash: string }> => {
     const auth = await requireOrgMembershipById(ctx, args.organizationId);
     const { orgSlug } = auth;
-    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
-    const historyPath = path.join(historyDir, `${args.timestamp}.json`);
-    const agentPath = resolveAgentFilePath(orgSlug, args.agentName);
-
-    const resolved = path.resolve(historyPath);
-    if (!resolved.startsWith(path.resolve(historyDir))) {
-      throw new Error('Path traversal detected');
+    if (!validateTimestamp(args.timestamp)) {
+      throw new Error('Invalid timestamp');
     }
+    const historyDir = resolveHistoryDir(orgSlug, args.agentName);
+    const historyPath = safeJoinWithinDir(historyDir, `${args.timestamp}.json`);
+    const agentPath = resolveAgentFilePath(orgSlug, args.agentName);
 
     const historyContent = await readFileSafe(historyPath);
     if (!historyContent) throw new Error('History entry not found');

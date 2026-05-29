@@ -8,6 +8,7 @@ import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
 import { classifyError } from '../lib/error_classification';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import type { ResolvedModelData } from '../providers/resolve_model';
 import { resolveTranscriptionModel } from '../providers/resolve_model';
 import { uploadFile } from '../workflow_engine/action_defs/rag/helpers/upload_file_direct';
@@ -162,6 +163,7 @@ async function indexTranscriptToRag(
     transcript: string;
     chunkCount: number;
     requestId: string;
+    orgSlug: string;
   },
 ): Promise<void> {
   if (args.transcript.length === 0) return;
@@ -201,6 +203,7 @@ async function indexTranscriptToRag(
         originalAudioContentType: args.audioContentType,
         chunkCount: args.chunkCount,
       },
+      orgSlug: args.orgSlug,
     });
     await ctx.runMutation(
       internal.file_metadata.internal_mutations.updateFileTranscription,
@@ -283,6 +286,14 @@ export const transcribeAudio = internalAction({
     const requestId = `transcribe-${args.storageId}-${Date.now()}`;
     const startedAt = Date.now();
 
+    // Resolve org slug ONCE up front and reuse on both the cached-path
+    // RAG index (≈ L404) and the post-Whisper RAG index (≈ L570).
+    // Previously each call site re-queried Better Auth, and a transient
+    // adapter failure on the SECOND lookup would bubble out into the
+    // outer catch — classifying as a transcription failure and re-
+    // queueing a fresh Whisper run on already-completed work.
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+
     let compressed: CompressedAudio | undefined;
     let chunked:
       | { chunks: AudioChunk[]; cleanup: () => Promise<void> }
@@ -312,12 +323,39 @@ export const transcribeAudio = internalAction({
       return null;
     }
 
+    // Single-flight gate. Two concurrent invocations on the same
+    // storageId (retryTranscription double-click, scheduled retry +
+    // user-triggered retry, etc.) used to both proceed: double Whisper
+    // bill, double `+=` ledger write, double RAG index. The lock holds
+    // for the action's 30-min hard timeout + a small grace so the
+    // watchdog can break it if Convex SIGKILLs us. If we lose the
+    // race, return without doing any work.
+    const TRANSCRIBE_LEASE_MS = 35 * 60 * 1000;
+    const acquired = await ctx.runMutation(
+      internal.file_metadata.internal_mutations.acquireTranscriptionLock,
+      {
+        storageId: args.storageId,
+        runId: requestId,
+        leaseMs: TRANSCRIBE_LEASE_MS,
+      },
+    );
+    if (acquired !== requestId) {
+      console.log(
+        JSON.stringify({
+          event: 'transcription.deduplicated',
+          requestId,
+          storageId: args.storageId,
+          attempt,
+        }),
+      );
+      return null;
+    }
+
     try {
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.updateFileTranscription,
         {
           storageId: args.storageId,
-          transcriptionStatus: 'running',
           transcriptionProgress: 'checking',
         },
       );
@@ -371,14 +409,21 @@ export const transcribeAudio = internalAction({
           // transcript was cached from). Duplicates content in RAG but
           // keeps per-upload citation identity correct; embeddings cost
           // is tiny compared to the Whisper call we just skipped.
-          await indexTranscriptToRag(ctx, {
-            storageId: args.storageId,
-            fileName: args.fileName,
-            audioContentType: args.contentType,
-            transcript: cached.transcript ?? '',
-            chunkCount: 0,
-            requestId,
-          });
+          if (orgSlug !== null) {
+            await indexTranscriptToRag(ctx, {
+              storageId: args.storageId,
+              fileName: args.fileName,
+              audioContentType: args.contentType,
+              transcript: cached.transcript ?? '',
+              chunkCount: 0,
+              requestId,
+              orgSlug,
+            });
+          } else {
+            console.warn(
+              `[transcribeAudio] org ${args.organizationId} unresolvable; transcript saved to fileMetadata but not indexed to RAG (cache path, storageId=${args.storageId})`,
+            );
+          }
           return null;
         }
       }
@@ -535,14 +580,21 @@ export const transcribeAudio = internalAction({
         );
       }
 
-      await indexTranscriptToRag(ctx, {
-        storageId: args.storageId,
-        fileName: args.fileName,
-        audioContentType: args.contentType,
-        transcript: fullTranscript,
-        chunkCount: chunks.length,
-        requestId,
-      });
+      if (orgSlug !== null) {
+        await indexTranscriptToRag(ctx, {
+          storageId: args.storageId,
+          fileName: args.fileName,
+          audioContentType: args.contentType,
+          transcript: fullTranscript,
+          chunkCount: chunks.length,
+          requestId,
+          orgSlug,
+        });
+      } else {
+        console.warn(
+          `[transcribeAudio] org ${args.organizationId} unresolvable; transcript saved to fileMetadata but not indexed to RAG (storageId=${args.storageId})`,
+        );
+      }
 
       return null;
     } catch (error) {
@@ -652,6 +704,14 @@ export const transcribeAudio = internalAction({
       if (chunked) {
         await chunked.cleanup();
       }
+      // Release the single-flight lock IFF this invocation still owns
+      // it (the watchdog may have broken it on lease expiry; another
+      // retry could also have claimed it after status flipped). The
+      // mutation no-ops on mismatch.
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.releaseTranscriptionLock,
+        { storageId: args.storageId, runId: requestId },
+      );
     }
   },
 });

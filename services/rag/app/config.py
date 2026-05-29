@@ -75,10 +75,10 @@ class Settings(BaseServiceSettings):
             return self.database_url
         raise ValueError("RAG_DATABASE_URL must be set in environment")
 
-    def get_llm_config(self) -> dict:
-        """Get LLM configuration from provider files."""
-        base_url, api_key, model = self.get_chat_config()
-        emb_base_url, emb_api_key, embedding_model, _dims = self.get_embedding_config()
+    def get_llm_config(self, org_slug: str) -> dict:
+        """Get LLM configuration for an org from provider files."""
+        base_url, api_key, model = self.get_chat_config(org_slug)
+        emb_base_url, emb_api_key, embedding_model, _dims = self.get_embedding_config(org_slug)
 
         config: dict = {
             "provider": "openai",

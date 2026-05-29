@@ -10,6 +10,7 @@
 
 import type { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
+import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { formatWebResults } from './format_web_results';
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
 
@@ -58,12 +59,16 @@ export interface WebContextResult {
  * @returns Formatted context with citation metadata, or undefined if no results / on failure
  */
 export async function queryWebContext(
-  _ctx: ActionCtx,
-  _organizationId: string,
+  ctx: ActionCtx,
+  organizationId: string,
   query: string,
   limit = DEFAULT_LIMIT,
 ): Promise<WebContextResult | undefined> {
   try {
+    // Resolve the slug INSIDE the try so an org-lookup failure folds
+    // into the documented `undefined`-on-failure contract instead of
+    // throwing past the caller (`generate_response.ts`).
+    const orgSlug = await orgSlugFromId(ctx, organizationId);
     debugLog('Querying web context', {
       query: query.slice(0, 100),
       limit,
@@ -79,7 +84,10 @@ export async function queryWebContext(
       const crawlerUrl = getCrawlerServiceUrl();
       const response = await fetch(`${crawlerUrl}/api/v1/search`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tale-org': orgSlug,
+        },
         body: JSON.stringify({
           query,
           limit,

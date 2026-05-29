@@ -4,6 +4,7 @@ import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { fetchDocumentComparisonByUrls } from '../agent_tools/documents/helpers/fetch_document_comparison';
 import { authComponent } from '../auth';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { toId } from '../lib/type_cast_helpers';
 
 export const compareDocuments = action({
@@ -61,11 +62,13 @@ export const compareDocuments = action({
       resolveStorageUrl(ctx, args.comparisonStorageId),
     ]);
 
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
     return await fetchDocumentComparisonByUrls(
       baseFileUrl,
       args.baseFileName,
       compFileUrl,
       args.comparisonFileName,
+      orgSlug,
     );
   },
 });

@@ -6,6 +6,13 @@
 # noise it would catch.
 set -eo pipefail
 
+# Default for the seed-force flag. The script references `$FORCE_SEED`
+# in several places (`[ "$FORCE_SEED" = "true" ]`); without this
+# default it works only because `set -u` is intentionally off — any
+# future audit that enables nounset would break startup. Pin the
+# default here so the script stays correct under both modes.
+FORCE_SEED="${FORCE_SEED:-false}"
+
 # ============================================================================
 # Tale Convex Service Entrypoint
 # ----------------------------------------------------------------------------
@@ -39,10 +46,18 @@ log_section() { echo; echo "═════════════════�
 # ----------------------------------------------------------------------------
 if [ "$(id -u)" = '0' ]; then
   data_dir="${TALE_CONFIG_DIR:-/app/data}"
-  mkdir -p "$data_dir/convex" "$data_dir/agents" "$data_dir/workflows" \
-           "$data_dir/integrations" "$data_dir/providers" "$data_dir/branding" \
-           "$data_dir/skills"
-  chown -R app:app "$data_dir"
+  # Org-first layout: per-org subtrees live under `<data_dir>/<orgSlug>/`.
+  # Only create `convex/` (backend storage) and `default/` (the canonical
+  # org seed target) up front; per-domain dirs are created on-demand by
+  # `run_seed` and `scaffoldNewOrganization`.
+  mkdir -p "$data_dir/convex" "$data_dir/default"
+  # Only chown files NOT already owned by `app:app`. On large volumes
+  # (RAG uploads, Convex storage) the prior unconditional `chown -R`
+  # walked every inode every boot, adding tens of seconds and racing
+  # with backend writes during fast restart loops. `find ... -exec
+  # chown {} +` is idempotent and short-circuits once the volume is
+  # consistent.
+  find "$data_dir" \! -user app -exec chown app:app {} +
 
   # ----------------------------------------------------------------------------
   # SSRF egress firewall (defense-in-depth)
@@ -238,8 +253,32 @@ wait_for_http() {
 }
 
 # Extract DB host:port from POSTGRES_URL for a TCP probe.
-db_host=$(echo "$POSTGRES_URL" | sed -E 's#^postgres(ql)?://([^@/]+@)?([^:/?]+).*#\3#')
-db_port=$(echo "$POSTGRES_URL" | sed -nE 's#^postgres(ql)?://([^@/]+@)?[^:/?]+:([0-9]+).*#\3#p')
+#
+# Strip the scheme + optional `user:pass@` userinfo (greedy match up to
+# the LAST `@`, which handles passwords containing `@` correctly), then
+# special-case the bracketed IPv6 form `[::1]:5432` before falling
+# through to the bare `host:port` form.
+hostport="${POSTGRES_URL#*://}"
+case "$hostport" in
+  *@*) hostport="${hostport##*@}" ;;
+esac
+hostport="${hostport%%/*}"
+hostport="${hostport%%\?*}"
+case "$hostport" in
+  '['*']'*)
+    db_host="${hostport#[}"; db_host="${db_host%%]*}"
+    tail="${hostport#*]}"
+    db_port="${tail#:}"
+    ;;
+  *:*)
+    db_host="${hostport%%:*}"
+    db_port="${hostport##*:}"
+    ;;
+  *)
+    db_host="$hostport"
+    db_port=""
+    ;;
+esac
 db_port="${db_port:-5432}"
 if [ -n "$db_host" ]; then
   wait_for_port "$db_host" "$db_port" 60 "PostgreSQL" || exit 1
@@ -248,8 +287,13 @@ fi
 # ============================================================================
 # Prepare working directories
 # ============================================================================
-mkdir -p /app/data/convex
-export TMPDIR=/app/data/convex/tmp
+# Single source of truth — every path below derives from `data_dir` so
+# an operator who sets `TALE_CONFIG_DIR` to a non-default mount gets
+# consistent behavior. Previously this block hardcoded `/app/data/...`
+# despite the root-priv chown loop above respecting TALE_CONFIG_DIR.
+data_dir="${TALE_CONFIG_DIR:-/app/data}"
+mkdir -p "$data_dir/convex"
+export TMPDIR="$data_dir/convex/tmp"
 mkdir -p "$TMPDIR"
 
 # Orphan video-link tmp dirs from crashed/killed ingest_video_link.ts actions.
@@ -268,22 +312,78 @@ if [ -f /etc/yt-dlp-version ]; then
 fi
 
 # ============================================================================
-# Builtin seed (version-marker gated)
+# Builtin seed (version + layout-marker gated) — org-first layout
 # ----------------------------------------------------------------------------
-# Marker: /app/data/.seeded-${TALE_VERSION}
-# - Fresh volume or new version → run 4 seed loops
+# Layout: `<data_dir>/default/<domain>/...` (the canonical default org's
+# subtree); source: `/app/builtin/default/<domain>/...` (org-agnostic
+# template baked into the convex image).
+#
+# Marker: /app/data/.seeded-${TALE_VERSION}-orgfirst
+# - Fresh volume or new version (or pre-orgfirst marker) → run seed loops
 # - Same version restart → skip (already seeded)
-# - FORCE_SEED=true → re-run regardless
+# - FORCE_SEED=true → re-run regardless (overwrites builtin-named files
+#   in place; user-added files at the same dir and `.history/` siblings
+#   survive; encrypted *.secrets.json files are never written)
+#
+# The `-orgfirst` token in the marker name signals the layout transition:
+# an older binary that doesn't recognize this marker re-seeds (idempotently)
+# into its expected old paths on a hypothetical downgrade.
 # ----------------------------------------------------------------------------
-seed_marker="/app/data/.seeded-${TALE_VERSION:-dev}"
-data_dir="/app/data"
+seed_marker="$data_dir/.seeded-${TALE_VERSION:-dev}-orgfirst"
+# `data_dir` already set above (single source of truth); no re-assign.
+
+# Crash-safe file copy: write to a sibling tmp file then rename to dest.
+# `cp` itself is non-atomic; the value is that an interrupted run leaves
+# either (a) no tmp / dest intact, or (b) a partial `.tale-seed.<pid>.tmp`
+# orphan + dest intact. The next-run skip-if-exists check on dest is
+# therefore never observing a half-written file. Orphan tmps don't gate
+# anything (they're not matched by the dest-existence probe) and survive
+# until the next reseed of that file. There is no fsync — power-loss
+# durability isn't asserted, but the seed data is re-derivable from the
+# immutable builtin catalog, so a lost write is recoverable on retry.
+atomic_cp() {
+  local src="$1" dest="$2"
+  local tmp="${dest}.tale-seed.$$.tmp"
+  cp "$src" "$tmp" && mv -f "$tmp" "$dest"
+}
+
+# Crash-safe directory copy: stage into a sibling `.tale-seed.<pid>` dir
+# then atomically rename over the destination after rm-ing any prior
+# dest. cp -r alone leaves a half-populated dest on interruption, and
+# the next-run `[ -d "$dest" ]` check then treats the partial bundle
+# as "already seeded" and skips it permanently. Round-3 P2 R32-P2-c.
+#
+# `FORCE_SEED=true` is destructive for bundle dirs (skills, integrations,
+# branding sub-bundles): the existing dest is removed wholesale before
+# the new one lands. If the operator added custom files inside a bundle
+# (e.g. an integration's `custom_state.json`), force-seed would wipe
+# them. Take a timestamped snapshot under `<dest>.history/<ts>/` first
+# so the operator can recover the pre-force tree. Best-effort — a
+# snapshot failure must not block the seed.
+atomic_cp_bundle() {
+  local src_dir="$1" dest_dir="$2"
+  local stage="${dest_dir}.tale-seed.$$"
+  rm -rf "$stage"
+  cp -r "$src_dir" "$stage"
+  if [ -d "$dest_dir" ]; then
+    local snapshot_dir="${dest_dir}.history/$(date -u +%Y%m%dT%H%M%SZ)"
+    if mkdir -p "$snapshot_dir" 2>/dev/null && cp -r "$dest_dir/." "$snapshot_dir/" 2>/dev/null; then
+      echo "   ↻ Snapshotted previous bundle to ${snapshot_dir}"
+    else
+      echo "   ⚠ Could not snapshot previous bundle at ${dest_dir} (proceeding with force-seed anyway)"
+      rm -rf "$snapshot_dir" 2>/dev/null || true
+    fi
+  fi
+  rm -rf "$dest_dir"
+  mv "$stage" "$dest_dir"
+}
 
 run_seed() {
-  log_section "Seeding builtin configs (TALE_VERSION=${TALE_VERSION:-dev})"
+  log_section "Seeding builtin configs into default org (TALE_VERSION=${TALE_VERSION:-dev})"
 
-  # --- Agents ---
-  local agents_dir="${data_dir}/agents"
-  local agents_builtin="/app/builtin/agents"
+  # --- Agents (flat) ---
+  local agents_dir="${data_dir}/default/agents"
+  local agents_builtin="/app/builtin/default/agents"
   mkdir -p "$agents_dir"
   if [ -d "$agents_builtin" ] && [ "$(ls -A "$agents_builtin" 2>/dev/null)" ]; then
     for src in "$agents_builtin"/*.json; do
@@ -293,23 +393,31 @@ run_seed() {
       local dest="$agents_dir/$name"
       local history_dir="$agents_dir/.history/$slug"
       if [ "$FORCE_SEED" = "true" ]; then
-        cp "$src" "$dest"; echo "   ✓ Seeded $name (forced)"
+        atomic_cp "$src" "$dest"; echo "   ✓ Seeded $name (forced)"
       elif [ -f "$dest" ]; then
         echo "   ⏭ Skipping $name (already exists)"
       elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
         echo "   ⏭ Skipping $name (user has modifications in .history)"
       else
-        cp "$src" "$dest"; echo "   ✓ Seeded agent $name"
+        atomic_cp "$src" "$dest"; echo "   ✓ Seeded agent $name"
       fi
     done
   fi
 
-  # --- Workflows (nested paths allowed) ---
-  local workflows_dir="${data_dir}/workflows"
-  local workflows_builtin="/app/builtin/workflows"
+  # --- Workflows (nested folder/name.json) ---
+  local workflows_dir="${data_dir}/default/workflows"
+  local workflows_builtin="/app/builtin/default/workflows"
   mkdir -p "$workflows_dir"
   if [ -d "$workflows_builtin" ] && [ "$(ls -A "$workflows_builtin" 2>/dev/null)" ]; then
-    find "$workflows_builtin" -name '*.json' -type f | while read -r src; do
+    # Aggregate per-file failure count. Previously the seed loop ran
+    # inside a `find | while` subshell — `log_error` printed to stderr
+    # but no aggregate counter survived past the subshell, so boot
+    # would silently complete with a partially-seeded workflows/ dir
+    # (disk-full mid-seed = boot succeeds, broken builtin workflows).
+    # Use process substitution so the counter lives in the parent
+    # shell.
+    local workflows_failed=0
+    while IFS= read -r src; do
       local rel_path="${src#$workflows_builtin/}"
       local dest="$workflows_dir/$rel_path"
       local dest_dir="$(dirname "$dest")"
@@ -317,20 +425,39 @@ run_seed() {
       local flat_slug="$(echo "$slug" | sed 's|/|__|g')"
       local history_dir="$workflows_dir/.history/$flat_slug"
 
+      # Round-3 P2 R32-P2-b: `if mkdir && atomic_cp; then echo ✓; else log_error` —
+      # the previous `mkdir && atomic_cp && echo; continue` chain silently
+      # swallowed failures under `set -e` because the `; continue` reset
+      # the implicit last-status to 0, so a disk-full / permission denied
+      # in mkdir or atomic_cp produced neither a ✓ line nor an error.
       if [ "$FORCE_SEED" = "true" ]; then
-        mkdir -p "$dest_dir"; cp "$src" "$dest"; echo "   ✓ Seeded workflow $rel_path (forced)"; continue
+        if mkdir -p "$dest_dir" && atomic_cp "$src" "$dest"; then
+          echo "   ✓ Seeded workflow $rel_path (forced)"
+        else
+          log_error "   ✗ Failed to seed workflow $rel_path (forced)"
+          workflows_failed=$((workflows_failed + 1))
+        fi
+        continue
       fi
       if [ -f "$dest" ]; then echo "   ⏭ Skipping workflow $rel_path (already exists)"; continue; fi
       if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
         echo "   ⏭ Skipping workflow $rel_path (user has modifications in .history)"; continue
       fi
-      mkdir -p "$dest_dir"; cp "$src" "$dest"; echo "   ✓ Seeded workflow $rel_path"
-    done
+      if mkdir -p "$dest_dir" && atomic_cp "$src" "$dest"; then
+        echo "   ✓ Seeded workflow $rel_path"
+      else
+        log_error "   ✗ Failed to seed workflow $rel_path"
+        workflows_failed=$((workflows_failed + 1))
+      fi
+    done < <(find "$workflows_builtin" -name '*.json' -type f)
+    if [ "$workflows_failed" -gt 0 ]; then
+      log_warn "workflow seed: $workflows_failed file(s) failed to seed; check stderr for details"
+    fi
   fi
 
-  # --- Integrations (directory-based) ---
-  local integrations_dir="${data_dir}/integrations"
-  local integrations_builtin="/app/builtin/integrations"
+  # --- Integrations (directory bundles) ---
+  local integrations_dir="${data_dir}/default/integrations"
+  local integrations_builtin="/app/builtin/default/integrations"
   mkdir -p "$integrations_dir"
   if [ -d "$integrations_builtin" ] && [ "$(ls -A "$integrations_builtin" 2>/dev/null)" ]; then
     for src_dir in "$integrations_builtin"/*/; do
@@ -338,20 +465,19 @@ run_seed() {
       local name="$(basename "$src_dir")"
       local dest_dir="$integrations_dir/$name"
       if [ "$FORCE_SEED" = "true" ]; then
-        # rm before cp: without this, `cp -r src/ dest` nests the bundle as
-        # `dest/<name>` instead of overwriting it, leaving stale files and
-        # doubling the on-disk layout per restart.
-        rm -rf "$dest_dir"
-        cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name (forced)"; continue
+        # atomic_cp_bundle stages + renames so an interruption can't leave
+        # a half-populated bundle that the next-run dest-existence probe
+        # would skip permanently.
+        atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name (forced)"; continue
       fi
       if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping integration $name (already exists)"; continue; fi
-      cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name"
+      atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   ✓ Seeded integration $name"
     done
   fi
 
   # --- Skills (directory bundles: SKILL.md + scripts/ + references/ + assets/) ---
-  local skills_dir="${data_dir}/skills"
-  local skills_builtin="/app/builtin/skills"
+  local skills_dir="${data_dir}/default/skills"
+  local skills_builtin="/app/builtin/default/skills"
   mkdir -p "$skills_dir"
   if [ -d "$skills_builtin" ] && [ "$(ls -A "$skills_builtin" 2>/dev/null)" ]; then
     for src_dir in "$skills_builtin"/*/; do
@@ -359,19 +485,16 @@ run_seed() {
       local name="$(basename "$src_dir")"
       local dest_dir="$skills_dir/$name"
       if [ "$FORCE_SEED" = "true" ]; then
-        # rm before cp — same fix as the integrations seed loop above:
-        # without it, FORCE_SEED nests the bundle and leaves stale files.
-        rm -rf "$dest_dir"
-        cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name (forced)"; continue
+        atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name (forced)"; continue
       fi
       if [ -d "$dest_dir" ]; then echo "   ⏭ Skipping skill $name (already exists)"; continue; fi
-      cp -r "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name"
+      atomic_cp_bundle "$src_dir" "$dest_dir"; echo "   ✓ Seeded skill $name"
     done
   fi
 
   # --- Providers (skip encrypted .secrets.json) ---
-  local providers_dir="${data_dir}/providers"
-  local providers_builtin="/app/builtin/providers"
+  local providers_dir="${data_dir}/default/providers"
+  local providers_builtin="/app/builtin/default/providers"
   mkdir -p "$providers_dir"
   if [ -d "$providers_builtin" ] && [ "$(ls -A "$providers_builtin" 2>/dev/null)" ]; then
     for src in "$providers_builtin"/*.json; do
@@ -382,41 +505,57 @@ run_seed() {
       local dest="$providers_dir/$name"
       local history_dir="$providers_dir/.history/$slug"
       if [ "$FORCE_SEED" = "true" ]; then
-        cp "$src" "$dest"; echo "   ✓ Seeded provider $name (forced)"
+        atomic_cp "$src" "$dest"; echo "   ✓ Seeded provider $name (forced)"
       elif [ -f "$dest" ]; then
         echo "   ⏭ Skipping provider $name (already exists)"
       elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
         echo "   ⏭ Skipping provider $name (user has modifications in .history)"
       else
-        cp "$src" "$dest"; echo "   ✓ Seeded provider $name"
+        atomic_cp "$src" "$dest"; echo "   ✓ Seeded provider $name"
       fi
     done
   fi
 
-  # --- Retention (per-org JSON files: $TALE_CONFIG_DIR/retention/{slug}.json) ---
-  # Default org's slug is hardcoded to `default`, so default.json fits
-  # the {orgSlug}.json convention. Retention has no secrets to skip
-  # (compare with providers' .secrets.json branch above).
-  local retention_dir="${data_dir}/retention"
-  local retention_builtin="/app/builtin/retention"
-  mkdir -p "$retention_dir"
-  if [ -d "$retention_builtin" ] && [ "$(ls -A "$retention_builtin" 2>/dev/null)" ]; then
-    for src in "$retention_builtin"/*.json; do
-      [ -f "$src" ] || continue
-      local name="$(basename "$src")"
-      local slug="$(basename "$src" .json)"
-      local dest="$retention_dir/$name"
-      local history_dir="$retention_dir/.history/$slug"
-      if [ "$FORCE_SEED" = "true" ]; then
-        cp "$src" "$dest"; echo "   ✓ Seeded retention $name (forced)"
-      elif [ -f "$dest" ]; then
-        echo "   ⏭ Skipping retention $name (already exists)"
-      elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-        echo "   ⏭ Skipping retention $name (user has modifications in .history)"
-      else
-        cp "$src" "$dest"; echo "   ✓ Seeded retention $name"
-      fi
-    done
+  # --- Branding (single file at default/branding/branding.json) ---
+  # Closes a long-standing gap: previously branding was only seeded by the
+  # Convex scaffold action for new orgs, never on the default-org bootstrap
+  # path. With org-first the default org needs the same treatment as any
+  # other org for consistency (uniform model).
+  local branding_dir="${data_dir}/default/branding"
+  local branding_src="/app/builtin/default/branding/branding.json"
+  mkdir -p "$branding_dir"
+  if [ -f "$branding_src" ]; then
+    local dest="$branding_dir/branding.json"
+    local history_dir="$branding_dir/.history/branding"
+    if [ "$FORCE_SEED" = "true" ]; then
+      atomic_cp "$branding_src" "$dest"; echo "   ✓ Seeded branding (forced)"
+    elif [ -f "$dest" ]; then
+      echo "   ⏭ Skipping branding (already exists)"
+    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping branding (user has modifications in .history)"
+    else
+      atomic_cp "$branding_src" "$dest"; echo "   ✓ Seeded branding"
+    fi
+  fi
+
+  # --- Retention (single file at default/retention.json) ---
+  # Retention is one JSON object per org under the uniform org-first layout
+  # (`$TALE_CONFIG_DIR/<orgSlug>/retention.json`). The catalog ships only
+  # the default org's retention config; non-default orgs are seeded by the
+  # Convex scaffold action.
+  local retention_src="/app/builtin/default/retention.json"
+  if [ -f "$retention_src" ]; then
+    local dest="${data_dir}/default/retention.json"
+    local history_dir="${data_dir}/default/.history/retention"
+    if [ "$FORCE_SEED" = "true" ]; then
+      atomic_cp "$retention_src" "$dest"; echo "   ✓ Seeded retention (forced)"
+    elif [ -f "$dest" ]; then
+      echo "   ⏭ Skipping retention (already exists)"
+    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping retention (user has modifications in .history)"
+    else
+      atomic_cp "$retention_src" "$dest"; echo "   ✓ Seeded retention"
+    fi
   fi
 
   touch "$seed_marker"
@@ -427,6 +566,39 @@ if [ "$FORCE_SEED" = "true" ] || [ ! -f "$seed_marker" ]; then
   run_seed
 else
   log_info "Builtin seed already applied for version ${TALE_VERSION:-dev} (marker: $seed_marker)"
+fi
+
+# ----------------------------------------------------------------------------
+# Legacy flat-layout detector
+# ----------------------------------------------------------------------------
+# The pre-orgfirst layout placed config at the data-root level
+# (`/app/data/agents/`, `/app/data/workflows/`, …). Under org-first that
+# tree is now at `/app/data/<org>/<domain>/`. If an upgrading operator's
+# volume still contains the legacy flat trees, the new runtime ignores
+# them — `seed_marker` already promoted seed data to `default/`, but the
+# operator's edits at the old root are unreachable. Warn loudly so they
+# know to run `tale migrate config-layout` on the host.
+legacy_flat_dirs=()
+for d in agents workflows integrations branding providers skills; do
+  if [ -d "${data_dir}/${d}" ]; then
+    legacy_flat_dirs+=("${d}")
+  fi
+done
+if [ ${#legacy_flat_dirs[@]} -gt 0 ]; then
+  echo
+  echo "⚠ WARNING: legacy flat-layout config detected at:"
+  for d in "${legacy_flat_dirs[@]}"; do
+    echo "    ${data_dir}/${d}/"
+  done
+  echo
+  echo "  The org-first runtime reads only from '<root>/<org>/<domain>/'."
+  echo "  Edits at the paths above are NOT loaded by the platform or any"
+  echo "  per-org config resolver. To migrate them into the new layout,"
+  echo "  run on the operator host:"
+  echo "    tale migrate config-layout"
+  echo "  then:"
+  echo "    tale deploy --override-all -y"
+  echo
 fi
 
 # ============================================================================

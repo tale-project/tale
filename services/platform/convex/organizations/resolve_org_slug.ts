@@ -1,22 +1,10 @@
-import { isRecord, getString } from '../../lib/utils/type-guards';
-import { components } from '../_generated/api';
-import type { ActionCtx, MutationCtx, QueryCtx } from '../_generated/server';
-
-type AnyCtx = QueryCtx | MutationCtx | ActionCtx;
-
-export async function resolveOrgSlug(
-  ctx: AnyCtx,
-  organizationId: string,
-): Promise<string> {
-  const org = await ctx.runQuery(components.betterAuth.adapter.findOne, {
-    model: 'organization',
-    where: [{ field: '_id', value: organizationId, operator: 'eq' }],
-  });
-
-  const orgRecord = isRecord(org) ? org : undefined;
-  const slug = orgRecord ? getString(orgRecord, 'slug') : undefined;
-  if (!slug) {
-    throw new Error(`Organization ${organizationId} not found or missing slug`);
-  }
-  return slug;
-}
+/**
+ * @deprecated Re-export of `orgSlugFromId` from `lib/helpers/org_slug`.
+ *
+ * This module used to host its own implementation; that body has been
+ * removed and the function now delegates to the canonical helper so
+ * there is one source of truth. Existing callers continue to import
+ * `resolveOrgSlug` from here; new code should prefer
+ * `import { orgSlugFromId } from '../lib/helpers/org_slug'`.
+ */
+export { orgSlugFromId as resolveOrgSlug } from '../lib/helpers/org_slug';

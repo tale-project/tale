@@ -21,13 +21,17 @@ import { readProject } from '../project/read-project';
 import type { Checksums } from '../project/types';
 import { writeProject } from '../project/write-project';
 import { generateAllRules } from '../rules/generators';
-import { MIGRATIONS } from '../upgrade/registry';
-import { planPendingMigrations } from '../upgrade/runner';
+import { legacyLayoutPreflight } from './legacy-layout-preflight';
 
 interface UpdateOptions {
   force?: boolean;
   dryRun?: boolean;
   skipHeader?: boolean;
+  /**
+   * Non-interactive: auto-accept the legacy-layout migration prompt
+   * when a pre-org-first project root is detected.
+   */
+  assumeYes?: boolean;
 }
 
 interface UpdateSummary {
@@ -53,6 +57,20 @@ export async function update(options: UpdateOptions): Promise<void> {
   logger.info(`Current version: ${project.cliVersion}`);
   logger.info(`Target version:  ${pkg.version}`);
 
+  // If the project is on the pre-org-first layout, migrate now (before
+  // we write any new `default/<domain>/...` files). Without this gate
+  // `tale update` happily lays the new tree down next to the legacy
+  // dirs, and the subsequent `tale start` then refuses to boot — a
+  // user-visible deadlock. The preflight prompts in interactive runs
+  // and requires `--yes` in non-TTY contexts.
+  if (!options.dryRun) {
+    await legacyLayoutPreflight({
+      projectDir,
+      assumeYes: options.assumeYes ?? false,
+      context: 'update',
+    });
+  }
+
   // Legacy projects (pre-ID) get an ID auto-assigned here. We also attempt
   // volume migration immediately, but the migration function itself defers
   // (via a marker file) if any legacy containers are running, so production
@@ -75,43 +93,103 @@ export async function update(options: UpdateOptions): Promise<void> {
     await fetchReference(projectDir);
   }
 
-  // Regenerate AI rules files
-  logger.step(`${prefix}Updating AI rules files...`);
-  if (!options.dryRun) {
-    const rulesFiles = generateAllRules();
-    for (const { relativePath, content } of rulesFiles) {
-      const destPath = join(projectDir, relativePath);
-      await mkdir(dirname(destPath), { recursive: true });
-      await writeFile(destPath, content);
-    }
-  }
-
-  // Read existing checksums
+  // Read existing checksums BEFORE rewriting rules so we can apply the
+  // same modified/unmodified policy as example files.
   const oldChecksums = await readChecksums(projectDir);
   const oldFiles = oldChecksums?.files ?? {};
 
-  // Get new example files from embedded data
+  // Regenerate AI rules files. Same protection policy as examples:
+  // - new file → write
+  // - deleted by user → skip
+  // - unmodified-since-last-update → overwrite
+  // - locally modified + no --force → keep, warn
+  // - locally modified + --force → overwrite
+  logger.step(`${prefix}Updating AI rules files...`);
+  const rulesFiles = generateAllRules();
+  const rulesUpdates: Record<string, string> = {};
+  for (const { relativePath, content } of rulesFiles) {
+    const destPath = join(projectDir, relativePath);
+    const newHash = computeContentHash(content);
+    const oldHash = oldFiles[relativePath];
+
+    if (!oldHash && !existsSync(destPath)) {
+      logger.info(`${prefix}+ ${relativePath} (new)`);
+      if (!options.dryRun) {
+        await mkdir(dirname(destPath), { recursive: true });
+        await writeFile(destPath, content);
+      }
+      rulesUpdates[relativePath] = newHash;
+    } else if (!oldHash) {
+      // File present on disk but missing from checksums.json — treat
+      // as locally-modified (likely a project init'd by a pre-fix CLI
+      // version that wrote the rules files without recording their
+      // hashes). Preserve user edits; require --force to overwrite.
+      // Round-2 P1-34 defense in depth.
+      if (options.force) {
+        logger.warn(
+          `${prefix}~ ${relativePath} (overwritten, no recorded hash)`,
+        );
+        if (!options.dryRun) {
+          await writeFile(destPath, content);
+        }
+        rulesUpdates[relativePath] = newHash;
+      } else {
+        logger.warn(
+          `${prefix}! ${relativePath} (present on disk but no recorded hash; preserving — pass --force to overwrite)`,
+        );
+      }
+    } else if (!existsSync(destPath)) {
+      logger.info(`${prefix}- ${relativePath} (deleted by user, skipping)`);
+    } else {
+      const currentHash = await computeFileHash(destPath);
+      if (currentHash === oldHash) {
+        logger.info(`${prefix}~ ${relativePath} (updated)`);
+        if (!options.dryRun) {
+          await writeFile(destPath, content);
+        }
+        rulesUpdates[relativePath] = newHash;
+      } else if (options.force) {
+        logger.warn(
+          `${prefix}~ ${relativePath} (overwritten, was locally modified)`,
+        );
+        if (!options.dryRun) {
+          await writeFile(destPath, content);
+        }
+        rulesUpdates[relativePath] = newHash;
+      } else {
+        logger.warn(
+          `${prefix}⚠ Skipped ${relativePath} (locally modified). Re-run with --force to overwrite.`,
+        );
+        rulesUpdates[relativePath] = oldHash;
+      }
+    }
+  }
+
+  // Get new example files from embedded data. Paths land under
+  // `default/<domain>/...` to match the org-first layout that
+  // `tale init` scaffolds.
   const newExampleFiles = new Map<string, string>();
+  const DEFAULT_ORG = 'default';
 
   for (const [relPath, content] of getEmbeddedExamples('agents')) {
-    newExampleFiles.set(join('agents', relPath), content);
+    newExampleFiles.set(join(DEFAULT_ORG, 'agents', relPath), content);
   }
   for (const [relPath, content] of getEmbeddedExamples('workflows')) {
-    newExampleFiles.set(join('workflows', relPath), content);
+    newExampleFiles.set(join(DEFAULT_ORG, 'workflows', relPath), content);
   }
   for (const [relPath, content] of getEmbeddedExamples('integrations')) {
-    newExampleFiles.set(join('integrations', relPath), content);
+    newExampleFiles.set(join(DEFAULT_ORG, 'integrations', relPath), content);
   }
   for (const [relPath, content] of getEmbeddedExamples('branding')) {
-    newExampleFiles.set(join('branding', relPath), content);
+    newExampleFiles.set(join(DEFAULT_ORG, 'branding', relPath), content);
   }
   for (const [relPath, content] of getEmbeddedExamples('providers')) {
     if (!relPath.endsWith('.secrets.json')) {
-      newExampleFiles.set(join('providers', relPath), content);
+      newExampleFiles.set(join(DEFAULT_ORG, 'providers', relPath), content);
     }
   }
   for (const [relPath, content] of getEmbeddedExamples('skills')) {
-    newExampleFiles.set(join('skills', relPath), content);
+    newExampleFiles.set(join(DEFAULT_ORG, 'skills', relPath), content);
   }
 
   // Classify and apply changes
@@ -122,7 +200,9 @@ export async function update(options: UpdateOptions): Promise<void> {
     removed: [],
   };
 
-  const newChecksumFiles: Record<string, string> = {};
+  // Seed checksum map with the rules-file decisions so the final write
+  // includes their hashes (so future updates can detect local edits).
+  const newChecksumFiles: Record<string, string> = { ...rulesUpdates };
 
   for (const [relPath, content] of newExampleFiles) {
     const destPath = join(projectDir, relPath);
@@ -206,21 +286,6 @@ export async function update(options: UpdateOptions): Promise<void> {
     );
   }
 
-  // Plan (but do NOT apply) any pending migrations so operators know what
-  // `tale start` / `tale deploy` will prompt them about next. Never stops
-  // containers or modifies Docker state from within `tale upgrade` itself —
-  // production deployments remain untouched.
-  if (!options.dryRun) {
-    const projectId = assignedId ?? project.id;
-    if (projectId) {
-      logger.blank();
-      const pending = await planPendingMigrations(MIGRATIONS, {
-        projectId,
-        projectDir,
-      });
-      if (pending.length === 0) {
-        logger.debug('No pending migrations.');
-      }
-    }
-  }
+  // (Auto-migration planning removed — `tale migrate config-layout` is the
+  // only opt-in, manually-run migration now; operators invoke it directly.)
 }

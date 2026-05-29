@@ -7,6 +7,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from tale_shared.config.org_slug import validate_org_slug
 from tale_shared.utils.sops import decrypt_secrets_file
 
 logger = logging.getLogger(__name__)
@@ -39,21 +40,45 @@ class ProviderConfig:
     defaults: dict[str, str] = field(default_factory=dict)
 
 
-def load_providers(config_dir: str | None = None) -> list[ProviderConfig]:
-    """Read all provider JSON files from {config_dir}/providers/.
+def load_providers(
+    org_slug: str,
+    config_dir: str | None = None,
+) -> list[ProviderConfig]:
+    """Read all provider JSON files from {config_dir}/{org_slug}/providers/.
+
+    Under the org-first config layout, each org owns its own provider
+    catalog at `<root>/<org_slug>/providers/`. `org_slug` is required —
+    pinning RAG/crawler globally to the `default` org's providers would
+    quietly serve the wrong models to other orgs.
 
     Reads *.json (excluding *.secrets.json) and decrypts matching
     *.secrets.json files via SOPS.
     """
+    # Defense in depth: the FastAPI deps in RAG / crawler already gate
+    # `X-Tale-Org` against the same regex at request boundary, but
+    # internal callers in long-running tasks (e.g. crawler scheduler,
+    # vision hot paths) reach this function with a slug taken from
+    # `get_active_org()` or other module state. A `.` or `/etc` slipping
+    # in here would silently route to `<base>/providers` or `/etc/
+    # providers` via Path()'s "absolute resets" / "dot is a no-op"
+    # semantics — exactly the legacy-flat-layout class the org-first
+    # refactor exists to retire. Validate at the boundary, not just on
+    # the way in. (Round-2 P1-30.)
+    validate_org_slug(org_slug)
+
     shared_config = os.environ.get("TALE_PLATFORM_SHARED_CONFIG_DIR")
     if shared_config:
         base = Path(shared_config)
     else:
         base = Path(config_dir or os.environ.get("TALE_CONFIG_DIR") or os.environ.get("CONFIG_DIR", DEFAULT_CONFIG_DIR))
-    providers_dir = base / "providers"
+    providers_dir = base / org_slug / "providers"
 
     if not providers_dir.is_dir():
-        logger.warning("Providers directory not found: %s", providers_dir)
+        logger.warning(
+            "Providers directory not found for org '%s': %s",
+            org_slug,
+            providers_dir,
+        )
         return []
 
     providers: list[ProviderConfig] = []
@@ -146,17 +171,18 @@ def _find_model(
 
 
 def get_chat_model(
+    org_slug: str,
     config_dir: str | None = None,
 ) -> tuple[str, str, str]:
-    """Return (base_url, api_key, model_id) for the default chat model.
+    """Return (base_url, api_key, model_id) for the org's default chat model.
 
     Finds the first model marked default that has a "chat" tag,
     or falls back to the first model with a "chat" tag.
     """
-    providers = load_providers(config_dir)
+    providers = load_providers(org_slug, config_dir)
     match = _find_model(providers, "chat", prefer_default=True)
     if match is None:
-        raise ValueError("No chat model found in provider configuration files.")
+        raise ValueError(f"No chat model found in provider configuration files for org '{org_slug}'.")
 
     provider, model = match
     api_key = provider.api_key or ""
@@ -164,13 +190,14 @@ def get_chat_model(
 
 
 def get_embedding_model(
+    org_slug: str,
     config_dir: str | None = None,
 ) -> tuple[str, str, str, int]:
-    """Return (base_url, api_key, model_id, dimensions) for the embedding model."""
-    providers = load_providers(config_dir)
+    """Return (base_url, api_key, model_id, dimensions) for the org's embedding model."""
+    providers = load_providers(org_slug, config_dir)
     match = _find_model(providers, "embedding", prefer_default=True)
     if match is None:
-        raise ValueError("No embedding model found in provider configuration files.")
+        raise ValueError(f"No embedding model found in provider configuration files for org '{org_slug}'.")
 
     provider, model = match
     api_key = provider.api_key or ""
@@ -183,13 +210,14 @@ def get_embedding_model(
 
 
 def get_vision_model(
+    org_slug: str,
     config_dir: str | None = None,
 ) -> tuple[str, str, str]:
-    """Return (base_url, api_key, model_id) for the vision model."""
-    providers = load_providers(config_dir)
+    """Return (base_url, api_key, model_id) for the org's vision model."""
+    providers = load_providers(org_slug, config_dir)
     match = _find_model(providers, "vision", prefer_default=True)
     if match is None:
-        raise ValueError("No vision model found in provider configuration files.")
+        raise ValueError(f"No vision model found in provider configuration files for org '{org_slug}'.")
 
     provider, model = match
     api_key = provider.api_key or ""

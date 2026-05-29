@@ -5,7 +5,7 @@
  * for the runtime engine's snapshot read).
  *
  * Storage model mirrors agents/integrations: SKILL.md + bundle assets on
- * disk under `${SKILLS_DIR}/<orgSlug-prefix>/<slug>/`. There is NO Convex
+ * disk under `${TALE_CONFIG_DIR}/<orgSlug>/skills/<slug>/`. There is NO Convex
  * DB table for skills — the file is the source of truth, team scoping and
  * role restriction live in YAML frontmatter, author/timestamps come from
  * audit_logs (see Phase 5c follow-up).
@@ -477,7 +477,7 @@ export const listSkills = action({
     const dir = resolveSkillsDir(orgSlug);
     const entries = await readdirSafe(dir);
     const slugs = entries.filter(
-      (e) => !e.startsWith('.') && !e.startsWith('@') && validateSkillSlug(e),
+      (e) => !e.startsWith('.') && validateSkillSlug(e),
     );
 
     const results = await Promise.all(
@@ -992,9 +992,7 @@ export const listSkillsForExecution = internalAction({
   handler: async (_ctx, args) => {
     const dir = resolveSkillsDir(args.orgSlug);
     const entries = await readdirSafe(dir);
-    return entries.filter(
-      (e) => !e.startsWith('.') && !e.startsWith('@') && validateSkillSlug(e),
-    );
+    return entries.filter((e) => !e.startsWith('.') && validateSkillSlug(e));
   },
 });
 

@@ -7,6 +7,11 @@ import { isRecord, getNumber } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { getCrawlerUrl } from '../documents/generate_document_helpers';
+import {
+  isUpstreamHttpError,
+  UpstreamHttpError,
+} from '../lib/errors/upstream_http_error';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
 /**
@@ -73,6 +78,7 @@ export const extractFileMetadata = internalAction({
     storageId: v.id('_storage'),
     fileName: v.string(),
     contentType: v.string(),
+    organizationId: v.string(),
     attempt: v.optional(v.number()),
   },
   returns: v.null(),
@@ -96,6 +102,21 @@ export const extractFileMetadata = internalAction({
 
     // PDF/DOCX/PPTX: call crawler extract-metadata
     if (ext && EXTRACT_METADATA_EXTENSIONS.has(ext)) {
+      // Resolve org slug OUTSIDE the try block. Previously the lookup
+      // sat inside the catch-permanent branch — a slug miss got
+      // classified as "permanent" and stamped `visionRequired:false`,
+      // permanently disabling vision/OCR for legitimate uploads on a
+      // deleted-org race. With `OrNull` we exit cleanly without
+      // stamping a terminal marker, leaving the row's pending state
+      // alone so a subsequent ingest can re-run.
+      const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+      if (orgSlug === null) {
+        console.warn(
+          `[extractFileMetadata] org ${args.organizationId} unresolvable; skipping vision-metadata extraction for storageId=${args.storageId} (will not stamp permanent-failure marker)`,
+        );
+        return null;
+      }
+
       try {
         const fileUrl = await ctx.storage.getUrl(args.storageId);
         if (!fileUrl) {
@@ -123,14 +144,18 @@ export const extractFileMetadata = internalAction({
 
         const metadataResponse = await fetch(endpoint, {
           method: 'POST',
+          headers: { 'x-tale-org': orgSlug },
           body: formData,
           signal: AbortSignal.timeout(30_000),
         });
 
         if (!metadataResponse.ok) {
           const errorText = await metadataResponse.text().catch(() => '');
-          throw new Error(
-            `Crawler extract-metadata returned ${metadataResponse.status}: ${errorText}`,
+          throw UpstreamHttpError.fromResponse(
+            'crawler',
+            metadataResponse,
+            errorText,
+            `/api/v1/${ext}/extract-metadata`,
           );
         }
 
@@ -183,11 +208,49 @@ export const extractFileMetadata = internalAction({
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        // Default to permanent. Only the upstream `UpstreamHttpError` path
+        // gives us a positive retry signal (`retryable` set from
+        // 5xx/408/429 classification). Everything else — `orgSlugFromId`
+        // throws, malformed JSON, "Invalid response shape", blob fetch
+        // failures before we even hit the crawler — is treated as
+        // non-transient: retrying 3× burns scheduler slots without
+        // progress. The trade-off (a genuine network blip surfaces as
+        // a permanent failure instead of self-healing) is acceptable
+        // because the original deterministic-error retry storms were
+        // far more damaging.
+        const isTransient = isUpstreamHttpError(error) && error.retryable;
         console.error(
-          `[extractFileMetadata] Error for file ${args.storageId} (attempt ${attempt}): ${message}`,
+          `[extractFileMetadata] Error for file ${args.storageId} (attempt ${attempt}, transient=${isTransient}): ${message}`,
         );
 
-        if (attempt < EXTRACT_METADATA_RETRY_DELAYS.length) {
+        if (!isTransient) {
+          console.warn(
+            `[extractFileMetadata] Permanent failure for file ${args.storageId}; not retrying: ${message}`,
+          );
+          // Stamp a terminal marker so downstream consumers exit the
+          // "still extracting" state. Without this, visionRequired
+          // stayed undefined forever on a permanent failure and the
+          // UI / scannedPagesDetected gating couldn't distinguish
+          // "extraction pending" from "extraction failed". We treat
+          // permanent failure as "no vision needed" — RAG will still
+          // pick up the file via the other ingest path.
+          try {
+            await ctx.runMutation(
+              internal.file_metadata.internal_mutations
+                .updateFileVisionMetadata,
+              {
+                storageId: args.storageId,
+                scannedPagesDetected: 0,
+                visionRequired: false,
+              },
+            );
+          } catch (markerErr) {
+            console.warn(
+              `[extractFileMetadata] Failed to stamp permanent-failure marker for ${args.storageId}:`,
+              markerErr instanceof Error ? markerErr.message : markerErr,
+            );
+          }
+        } else if (attempt < EXTRACT_METADATA_RETRY_DELAYS.length) {
           const retryDelay = EXTRACT_METADATA_RETRY_DELAYS[attempt];
           await ctx.scheduler.runAfter(
             retryDelay,
@@ -196,6 +259,7 @@ export const extractFileMetadata = internalAction({
               storageId: args.storageId,
               fileName: args.fileName,
               contentType: args.contentType,
+              organizationId: args.organizationId,
               attempt: attempt + 1,
             },
           );

@@ -10,19 +10,42 @@ export interface ExecResult {
 export async function exec(
   command: string,
   args: string[],
-  options: { cwd?: string; silent?: boolean; timeout?: number } = {},
+  options: {
+    cwd?: string;
+    silent?: boolean;
+    timeout?: number;
+    /**
+     * Pipe this string into the child's stdin and close. Required for the
+     * `docker exec -i <container> bash -s` pattern used by reseed/migrate.
+     */
+    stdin?: string;
+  } = {},
 ): Promise<ExecResult> {
-  const { cwd, silent = false, timeout } = options;
+  const { cwd, silent = false, timeout, stdin } = options;
 
   if (!silent) {
     logger.debug(`Executing: ${command} ${args.join(' ')}`);
   }
 
-  const proc = Bun.spawn([command, ...args], {
-    cwd,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const proc =
+    stdin === undefined
+      ? Bun.spawn([command, ...args], {
+          cwd,
+          stdout: 'pipe',
+          stderr: 'pipe',
+        })
+      : Bun.spawn([command, ...args], {
+          cwd,
+          stdin: 'pipe',
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+
+  if (stdin !== undefined) {
+    const sink = (proc as Bun.Subprocess<'pipe', 'pipe', 'pipe'>).stdin;
+    sink.write(stdin);
+    await sink.end();
+  }
 
   const exitPromise = timeout
     ? Promise.race([

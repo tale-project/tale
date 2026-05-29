@@ -19,6 +19,7 @@ beforeAll(() => {
   _resetRagConfigForTests();
 });
 const FILE_ID = 'file-storage-123';
+const ORG_SLUG = 'test-org';
 
 const originalFetch = globalThis.fetch;
 
@@ -56,7 +57,7 @@ afterEach(() => {
 
 describe('fetchDocumentContent', () => {
   it('returns correct result shape on happy path', async () => {
-    const result = await fetchDocumentContent(FILE_ID);
+    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID);
 
     expect(result).toEqual({
       fileId: FILE_ID,
@@ -70,7 +71,7 @@ describe('fetchDocumentContent', () => {
   });
 
   it('builds URL without query params when no options provided', async () => {
-    await fetchDocumentContent(FILE_ID);
+    await fetchDocumentContent(ORG_SLUG, FILE_ID);
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
     const url = fetchCall?.[0] ?? '';
@@ -78,7 +79,7 @@ describe('fetchDocumentContent', () => {
   });
 
   it('appends chunk_start and chunk_end query params', async () => {
-    await fetchDocumentContent(FILE_ID, {
+    await fetchDocumentContent(ORG_SLUG, FILE_ID, {
       chunkStart: 3,
       chunkEnd: 8,
     });
@@ -99,7 +100,7 @@ describe('fetchDocumentContent', () => {
       }),
     );
 
-    const result = await fetchDocumentContent(FILE_ID, {
+    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID, {
       returnChunks: true,
     });
 
@@ -111,7 +112,7 @@ describe('fetchDocumentContent', () => {
   });
 
   it('omits return_chunks param when not set', async () => {
-    await fetchDocumentContent(FILE_ID);
+    await fetchDocumentContent(ORG_SLUG, FILE_ID);
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
     const url = fetchCall?.[0] ?? '';
@@ -119,7 +120,7 @@ describe('fetchDocumentContent', () => {
   });
 
   it('encodes fileId in URL', async () => {
-    await fetchDocumentContent('file/with spaces');
+    await fetchDocumentContent(ORG_SLUG, 'file/with spaces');
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
     const url = fetchCall?.[0] ?? '';
@@ -132,7 +133,7 @@ describe('fetchDocumentContent', () => {
       createRagResponse({ content: longContent, total_chars: 60_000 }),
     );
 
-    const result = await fetchDocumentContent(FILE_ID);
+    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID);
 
     expect(result.truncated).toBe(true);
     expect(result.content).toHaveLength(50_000);
@@ -145,7 +146,7 @@ describe('fetchDocumentContent', () => {
       createRagResponse({ content: exactContent, total_chars: 50_000 }),
     );
 
-    const result = await fetchDocumentContent(FILE_ID);
+    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID);
 
     expect(result.truncated).toBe(false);
     expect(result.content).toHaveLength(50_000);
@@ -154,7 +155,7 @@ describe('fetchDocumentContent', () => {
   it('handles empty content', async () => {
     mockFetchSuccess(createRagResponse({ content: '', total_chars: 0 }));
 
-    const result = await fetchDocumentContent(FILE_ID);
+    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID);
 
     expect(result.content).toBe('');
     expect(result.truncated).toBe(false);
@@ -164,7 +165,7 @@ describe('fetchDocumentContent', () => {
   it('handles null content as empty string', async () => {
     mockFetchSuccess(createRagResponse({ content: null, total_chars: 0 }));
 
-    const result = await fetchDocumentContent(FILE_ID);
+    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID);
 
     expect(result.content).toBe('');
     expect(result.truncated).toBe(false);
@@ -173,7 +174,7 @@ describe('fetchDocumentContent', () => {
   it('returns "Untitled" when RAG title is null', async () => {
     mockFetchSuccess(createRagResponse({ title: null }));
 
-    const result = await fetchDocumentContent(FILE_ID);
+    const result = await fetchDocumentContent(ORG_SLUG, FILE_ID);
 
     expect(result.name).toBe('Untitled');
   });
@@ -184,7 +185,7 @@ describe('fetchDocumentContent', () => {
       { preconnect: vi.fn() },
     );
 
-    await expect(fetchDocumentContent(FILE_ID)).rejects.toThrow(
+    await expect(fetchDocumentContent(ORG_SLUG, FILE_ID)).rejects.toThrow(
       'was not found in the knowledge base',
     );
   });
@@ -199,18 +200,28 @@ describe('fetchDocumentContent', () => {
       { preconnect: vi.fn() },
     );
 
-    await expect(fetchDocumentContent(FILE_ID)).rejects.toThrow(
-      'RAG service error (500)',
+    await expect(fetchDocumentContent(ORG_SLUG, FILE_ID)).rejects.toThrow(
+      /HTTP 500/,
     );
   });
 
-  it('includes error body text in non-ok error message', async () => {
+  it('throws an UpstreamHttpError shaped from the response on non-ok', async () => {
     globalThis.fetch = Object.assign(
       vi.fn().mockResolvedValue(new Response('Rate limited', { status: 429 })),
       { preconnect: vi.fn() },
     );
 
-    await expect(fetchDocumentContent(FILE_ID)).rejects.toThrow('Rate limited');
+    // `.message` carries the safe summary (status + endpoint); the
+    // raw "Rate limited" body now lives only on `.bodySnippet`.
+    const err = await fetchDocumentContent(ORG_SLUG, FILE_ID).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/HTTP 429|throttling/);
+    expect((err as { bodySnippet?: string }).bodySnippet).toMatch(
+      /Rate limited/,
+    );
   });
 
   it('wraps non-JSON response parse error', async () => {
@@ -224,7 +235,7 @@ describe('fetchDocumentContent', () => {
       { preconnect: vi.fn() },
     );
 
-    await expect(fetchDocumentContent(FILE_ID)).rejects.toThrow(
+    await expect(fetchDocumentContent(ORG_SLUG, FILE_ID)).rejects.toThrow(
       'Failed to parse RAG response',
     );
   });
@@ -239,7 +250,7 @@ describe('fetchDocumentContent', () => {
       { preconnect: vi.fn() },
     );
 
-    await expect(fetchDocumentContent(FILE_ID)).rejects.toThrow(
+    await expect(fetchDocumentContent(ORG_SLUG, FILE_ID)).rejects.toThrow(
       'timed out after 60s',
     );
   });
@@ -250,13 +261,13 @@ describe('fetchDocumentContent', () => {
       { preconnect: vi.fn() },
     );
 
-    await expect(fetchDocumentContent(FILE_ID)).rejects.toThrow(
+    await expect(fetchDocumentContent(ORG_SLUG, FILE_ID)).rejects.toThrow(
       'Failed to fetch',
     );
   });
 
   it('passes AbortSignal to fetch', async () => {
-    await fetchDocumentContent(FILE_ID);
+    await fetchDocumentContent(ORG_SLUG, FILE_ID);
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
     const options = fetchCall?.[1];
@@ -271,7 +282,7 @@ describe('fetchDocumentContent', () => {
       }),
     );
 
-    await fetchDocumentContent(FILE_ID, {
+    await fetchDocumentContent(ORG_SLUG, FILE_ID, {
       chunkStart: 5,
       returnChunks: true,
     });

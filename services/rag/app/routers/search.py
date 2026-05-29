@@ -2,9 +2,10 @@
 
 import time
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from loguru import logger
 
+from ..auth import require_org_slug
 from ..models import (
     GenerateRequest,
     GenerateResponse,
@@ -19,12 +20,16 @@ router = APIRouter(prefix="/api/v1", tags=["Search"])
 
 
 @router.post("/search", response_model=QueryResponse)
-async def search(request: QueryRequest):
+async def search(
+    request: QueryRequest,
+    org_slug: str = Depends(require_org_slug),
+):
     """Search the knowledge base using hybrid BM25 + vector search."""
     try:
         start_time = time.time()
 
-        results = await rag_service.search(
+        results, search_usage = await rag_service.search(
+            org_slug,
             query=request.query,
             top_k=request.top_k,
             similarity_threshold=request.similarity_threshold,
@@ -46,8 +51,9 @@ async def search(request: QueryRequest):
             for r in results
         ]
 
+        # `search_usage` is the per-call value returned alongside results
+        # — no shared singleton, no cross-request mis-attribution.
         usage = None
-        search_usage = getattr(rag_service, "last_search_usage", None)
         if search_usage:
             usage = UsageInfo(
                 input_tokens=search_usage.prompt_tokens,
@@ -73,7 +79,10 @@ async def search(request: QueryRequest):
 
 
 @router.post("/generate", response_model=GenerateResponse)
-async def generate(request: GenerateRequest):
+async def generate(
+    request: GenerateRequest,
+    org_slug: str = Depends(require_org_slug),
+):
     """Generate a response using RAG.
 
     Retrieves top 30 most relevant chunks, uses temperature 0.3
@@ -81,6 +90,7 @@ async def generate(request: GenerateRequest):
     """
     try:
         result = await rag_service.generate(
+            org_slug,
             query=request.query,
             file_ids=request.file_ids,
         )

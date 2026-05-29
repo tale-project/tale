@@ -26,6 +26,7 @@ function defaultArgs() {
     filename: 'test.txt',
     contentType: 'text/plain',
     fileId: FILE_ID,
+    orgSlug: 'default',
   };
 }
 
@@ -140,20 +141,37 @@ describe('uploadFile', () => {
     expect(calledUrl).toBe(`${RAG_URL}/api/v1/documents/upload`);
   });
 
-  it('throws on non-ok response with status info', async () => {
+  it('throws UpstreamHttpError with sanitized body snippet on non-ok response', async () => {
     mockFetchError(500, 'Internal Server Error', 'something broke');
 
-    await expect(uploadFile(defaultArgs())).rejects.toThrow(
-      'RAG service error: 500 Internal Server Error - something broke',
+    const err = await uploadFile(defaultArgs()).then(
+      () => null,
+      (e: unknown) => e,
     );
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).name).toBe('UpstreamHttpError');
+    // `.message` carries the safe summary only (the sanitized body
+    // lives on `.bodySnippet` so it does not cross the Convex client
+    // boundary as a default error toast).
+    expect((err as Error).message).toMatch(/HTTP 500/);
+    expect((err as { bodySnippet?: string }).bodySnippet).toMatch(
+      /something broke/,
+    );
+    // Retryable for 5xx — caller can decide whether to bounce.
+    expect((err as { retryable?: boolean }).retryable).toBe(true);
   });
 
-  it('throws on non-ok response without body', async () => {
+  it('throws UpstreamHttpError on non-ok response with empty body', async () => {
     mockFetchError(502, 'Bad Gateway');
 
-    await expect(uploadFile(defaultArgs())).rejects.toThrow(
-      'RAG service error: 502 Bad Gateway',
+    const err = await uploadFile(defaultArgs()).then(
+      () => null,
+      (e: unknown) => e,
     );
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).name).toBe('UpstreamHttpError');
+    expect((err as Error).message).toMatch(/HTTP 502/);
+    expect((err as { retryable?: boolean }).retryable).toBe(true);
   });
 
   it('returns correct RagUploadResult shape on success', async () => {

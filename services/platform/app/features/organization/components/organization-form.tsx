@@ -20,10 +20,35 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { MAX_ORG_SLUG_LENGTH } from '@/lib/shared/constants/org-slug';
+import { isReservedOrgSlug } from '@/lib/shared/constants/reserved-org-slugs';
 
 import { useInitializeDefaultWorkflows } from '../hooks/actions';
 
 type FormData = { name: string };
+
+/**
+ * Derive the on-disk slug from a free-form display name.
+ *
+ * Three call sites used to inline the same chain; the helper keeps the
+ * derivation rule in one place so the live preview, the Zod refine,
+ * and the submit payload can never drift.
+ *
+ * Must produce a slug that matches
+ * `services/platform/lib/shared/constants/org-slug.ts` ORG_SLUG_REGEX —
+ * see `assertValidOrgSlug`. Truncates to `MAX_ORG_SLUG_LENGTH` so a
+ * long display name doesn't mint a slug that RAG/crawler's Python
+ * validator (capped at 64 chars) would reject — that path causes
+ * total feature loss for the org with no recovery.
+ */
+function deriveOrgSlug(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, MAX_ORG_SLUG_LENGTH);
+}
 
 export function OrganizationForm() {
   const navigate = useNavigate();
@@ -35,11 +60,11 @@ export function OrganizationForm() {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
 
-  // slug is derived from name via lowercasing + replacing non-alphanumerics
-  // with hyphens; it's used as a filesystem path component (/examples/{slug}/)
-  // and must match file_io.ts ORG_SLUG_REGEX: /^[a-z0-9][a-z0-9_-]*$/.
-  // So the name must contain at least one ASCII letter or digit; pure-CJK or
-  // pure-symbol names would produce an empty slug and fail at creation.
+  // slug is derived from name via `deriveOrgSlug`; it's used as a
+  // filesystem path component (`$TALE_CONFIG_DIR/<slug>/...`) and
+  // must match the canonical ORG_SLUG_REGEX. Pure-CJK / pure-symbol
+  // names would produce an empty slug and fail at creation; the
+  // regex check below rejects them up front.
   const formSchema = useMemo(
     () =>
       z.object({
@@ -48,8 +73,11 @@ export function OrganizationForm() {
           .min(1, t('organization.companyNameRequired'))
           .regex(
             /^[A-Za-z0-9][A-Za-z0-9 _-]*$/,
-            'Use letters, digits, spaces, hyphens, and underscores only, starting with a letter or digit.',
-          ),
+            t('organization.companyNameCharacterError'),
+          )
+          .refine((name) => !isReservedOrgSlug(deriveOrgSlug(name)), {
+            message: t('organization.nameReserved'),
+          }),
       }),
     [t],
   );
@@ -63,11 +91,7 @@ export function OrganizationForm() {
   });
 
   const nameValue = form.watch('name');
-  const slugPreview = nameValue
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  const slugPreview = deriveOrgSlug(nameValue);
 
   const { mutateAsync: initializeDefaultWorkflows } =
     useInitializeDefaultWorkflows();
@@ -78,11 +102,7 @@ export function OrganizationForm() {
     }
 
     try {
-      const slug = data.name
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
+      const slug = deriveOrgSlug(data.name);
 
       const result = await authClient.organization.create({
         name: data.name.trim(),
@@ -153,7 +173,9 @@ export function OrganizationForm() {
               disabled={form.formState.isSubmitting}
               errorMessage={form.formState.errors.name?.message}
               description={
-                slugPreview ? `Identifier: ${slugPreview}` : undefined
+                slugPreview
+                  ? t('organization.identifierPreview', { slug: slugPreview })
+                  : undefined
               }
             />
             <Button

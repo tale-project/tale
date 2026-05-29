@@ -1,4 +1,5 @@
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
+import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
 import { ragFetch } from '../../../lib/helpers/rag_config';
 
 const FETCH_TIMEOUT_MS = 120_000;
@@ -107,8 +108,12 @@ function mapChangeBlock(block: RagChangeBlock): ChangeBlock {
 
 /**
  * Compare two documents by ID via the RAG service's deterministic diff endpoint.
+ *
+ * Both file_ids must belong to `orgSlug`. RAG now scopes documents by
+ * org_slug — a foreign-org file_id returns 404 (not the foreign content).
  */
 export async function fetchDocumentComparison(
+  orgSlug: string,
   baseFileId: string,
   comparisonFileId: string,
   maxChanges?: number,
@@ -127,24 +132,21 @@ export async function fetchDocumentComparison(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       timeoutMs: FETCH_TIMEOUT_MS,
+      orgSlug,
     });
 
-    if (response.status === 404) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `Document not found during comparison: ${errorText || 'unknown document'}`,
-      );
-    }
-
-    if (response.status === 400) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(`Invalid comparison request: ${errorText}`);
-    }
-
+    // All non-2xx paths now route through UpstreamHttpError so the
+    // (potentially body-embedded) upstream error text gets sanitized
+    // and truncated. The status-specific messaging is already encoded
+    // in `safeMessageFor` (404 → "returned not found", 4xx → "returned
+    // HTTP …", 5xx → "is unavailable").
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `RAG service error (${response.status}): ${errorText || 'Unknown error'}`,
+      throw UpstreamHttpError.fromResponse(
+        'rag',
+        response,
+        errorText,
+        '/api/v1/documents/compare',
       );
     }
 
@@ -200,6 +202,7 @@ export async function fetchDocumentComparisonByUrls(
   baseFileName: string,
   comparisonFileUrl: string,
   comparisonFileName: string,
+  orgSlug: string,
   maxChanges?: number,
 ): Promise<DocumentComparisonResult> {
   const [baseResponse, compResponse] = await Promise.all([
@@ -232,12 +235,16 @@ export async function fetchDocumentComparisonByUrls(
       method: 'POST',
       body: formData,
       timeoutMs: FETCH_TIMEOUT_MS,
+      orgSlug,
     });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `RAG service error (${response.status}): ${errorText || 'Unknown error'}`,
+      throw UpstreamHttpError.fromResponse(
+        'rag',
+        response,
+        errorText,
+        '/api/v1/documents/compare-files',
       );
     }
 

@@ -1,3 +1,4 @@
+import { UpstreamHttpError } from '../../../../lib/errors/upstream_http_error';
 import { ragFetch } from '../../../../lib/helpers/rag_config';
 import type { RagUploadResult } from './types';
 
@@ -9,6 +10,8 @@ export interface UploadFileArgs {
   metadata?: Record<string, unknown>;
   timeoutMs?: number;
   sync?: boolean;
+  /** Required: RAG resolves the org's provider catalog from this slug. */
+  orgSlug: string;
 }
 
 interface RagApiUploadResponse {
@@ -32,6 +35,7 @@ export async function uploadFile({
   metadata,
   timeoutMs,
   sync = false,
+  orgSlug,
 }: UploadFileArgs): Promise<RagUploadResult> {
   const effectiveTimeout =
     timeoutMs ?? (sync ? SYNC_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
@@ -53,13 +57,12 @@ export async function uploadFile({
     method: 'POST',
     body: formData,
     timeoutMs: effectiveTimeout,
+    orgSlug,
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(
-      `RAG service error: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`,
-    );
+    throw UpstreamHttpError.fromResponse('rag', response, errorText, path);
   }
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- typed response

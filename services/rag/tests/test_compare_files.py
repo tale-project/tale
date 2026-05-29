@@ -15,21 +15,49 @@ from httpx import ASGITransport, AsyncClient
 
 pytestmark = pytest.mark.asyncio
 
+TEST_ORG = "test-org"
+
 
 def _make_service():
-    """Create a RagService with all internal dependencies pre-mocked."""
-    from app.services.rag_service import RagService
+    """Create a RagService with all internal dependencies pre-mocked.
+
+    Pre-seeds the per-org client cache for `TEST_ORG` so compare_files
+    doesn't trigger the lazy-init / provider-catalog path.
+    """
+    from app.services.rag_service import RagService, _OrgClients
 
     service = RagService()
     service.initialized = True
     service._pool = MagicMock()
-    service._embedding_service = AsyncMock()
-    service._vision_client = MagicMock()
-    service._search_service = AsyncMock()
-    service._openai_client = AsyncMock()
-    service._llm_config = {}
-    service._vision_config = None
-    service._last_config_check = time.monotonic()
+    service._pinned_dims = 1536
+
+    embedding = AsyncMock()
+    embedding.dimensions = 1536
+    openai_client = AsyncMock()
+    vision_client = MagicMock()
+    search_service = AsyncMock()
+
+    service._org_clients[TEST_ORG] = _OrgClients(
+        llm_config={
+            "model": "gpt-test",
+            "embedding_model": "embed-test",
+            "api_key": "k",
+            "base_url": "http://test",
+            "embedding_api_key": "k",
+            "embedding_base_url": "http://test",
+        },
+        vision_config=None,
+        embedding_service=embedding,
+        openai_client=openai_client,
+        vision_client=vision_client,
+        search_service=search_service,
+        last_check=time.monotonic(),
+    )
+    # Back-compat aliases for tests that grab mocks off the service.
+    service._search_service = search_service
+    service._openai_client = openai_client
+    service._embedding_service = embedding
+    service._vision_client = vision_client
     return service
 
 
@@ -45,6 +73,7 @@ class TestCompareFilesService:
 
         with patch("tale_knowledge.extraction.extract_text", side_effect=mock_extract):
             result = await service.compare_files(
+                TEST_ORG,
                 b"Section 1\n\nOriginal clause.",
                 "base.txt",
                 b"Section 1\n\nModified clause.",
@@ -66,6 +95,7 @@ class TestCompareFilesService:
 
         with patch("tale_knowledge.extraction.extract_text", side_effect=mock_extract):
             result = await service.compare_files(
+                TEST_ORG,
                 content,
                 "a.txt",
                 content,
@@ -90,6 +120,7 @@ class TestCompareFilesService:
             pytest.raises(ValueError, match="No text could be extracted from base file"),
         ):
             await service.compare_files(
+                TEST_ORG,
                 b"",
                 "empty.txt",
                 b"content",
@@ -109,6 +140,7 @@ class TestCompareFilesService:
             pytest.raises(ValueError, match="No text could be extracted from comparison file"),
         ):
             await service.compare_files(
+                TEST_ORG,
                 b"content",
                 "base.txt",
                 b"",
@@ -130,6 +162,7 @@ class TestCompareFilesService:
 
         with patch("tale_knowledge.extraction.extract_text", side_effect=mock_extract):
             result = await service.compare_files(
+                TEST_ORG,
                 b"Section 1\n\nParagraph A.",
                 "base.txt",
                 b"Section 1\n\nParagraph B.",
@@ -152,6 +185,7 @@ class TestCompareFilesService:
 
         with patch("tale_knowledge.extraction.extract_text", side_effect=mock_extract):
             result = await service.compare_files(
+                TEST_ORG,
                 base.encode(),
                 "base.txt",
                 comp.encode(),
@@ -205,6 +239,7 @@ class TestCompareFilesEndpoint:
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/documents/compare-files",
+                    headers={"X-Tale-Org": TEST_ORG},
                     files={
                         "base_file": ("base.txt", b"Hello\n\nWorld", "text/plain"),
                         "comparison_file": ("comp.txt", b"Hello\n\nEarth", "text/plain"),
@@ -222,6 +257,7 @@ class TestCompareFilesEndpoint:
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/documents/compare-files",
+                    headers={"X-Tale-Org": TEST_ORG},
                     files={
                         "base_file": ("base.exe", b"binary", "application/octet-stream"),
                         "comparison_file": ("comp.txt", b"text", "text/plain"),
@@ -241,6 +277,7 @@ class TestCompareFilesEndpoint:
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/documents/compare-files",
+                    headers={"X-Tale-Org": TEST_ORG},
                     files={
                         "base_file": ("empty.pdf", b"fake-pdf", "application/pdf"),
                         "comparison_file": ("comp.pdf", b"fake-pdf", "application/pdf"),

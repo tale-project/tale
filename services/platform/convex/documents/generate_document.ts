@@ -10,6 +10,9 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
+import { UpstreamHttpError } from '../lib/errors/upstream_http_error';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import {
   buildDownloadUrl,
   buildRequestBody,
@@ -32,6 +35,7 @@ export async function generateDocument(
 
   const endpointPath = getEndpointPath(args.sourceType, args.outputFormat);
   const apiUrl = `${crawlerUrl}${endpointPath}`;
+  const orgSlug = await orgSlugFromId(ctx, args.organizationId);
 
   const requestBody = buildRequestBody(
     args.sourceType,
@@ -55,19 +59,24 @@ export async function generateDocument(
 
   const response = await fetch(apiUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-tale-org': orgSlug,
+    },
     body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    console.error('[documents.generateDocument] crawler error', {
-      status: response.status,
-      statusText: response.statusText,
+    // Route through the typed wrapper: sanitises the body snippet (no
+    // raw upstream payload in logs), classifies retryable vs permanent
+    // by status, and presents a safe message to the agent boundary
+    // without leaking the crawler's response details.
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
       errorText,
-    });
-    throw new Error(
-      `Crawler generateDocument failed: ${response.status} ${response.statusText}`,
+      endpointPath,
     );
   }
 
@@ -91,13 +100,20 @@ export async function generateDocument(
 
   if (!uploadResponse.ok) {
     const uploadErrorText = await uploadResponse.text().catch(() => '');
+    // Storage upload (Convex `_storage` via `generateUploadUrl`) is
+    // neither rag nor crawler — `UpstreamHttpError`'s service union
+    // doesn't cover it. Scrub via `sanitizeError` before logging so a
+    // signed URL or other secret in the response body can't leak to
+    // logs, then throw a generic Error with status only.
     console.error('[documents.generateDocument] upload error', {
       status: uploadResponse.status,
       statusText: uploadResponse.statusText,
-      uploadErrorText,
+      // The Convex storage response body should be terse JSON, but
+      // sanitize anyway as defense in depth.
+      errorText: sanitizeError(uploadErrorText, 400),
     });
     throw new Error(
-      `Failed to upload generated document: ${uploadResponse.status} ${uploadResponse.statusText}`,
+      `Failed to upload generated document: HTTP ${uploadResponse.status}`,
     );
   }
 

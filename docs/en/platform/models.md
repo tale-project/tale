@@ -3,9 +3,9 @@ title: Models out of the box
 description: Which providers and models a fresh Tale instance ships with — OpenRouter for chat and vision, OpenAI for voice, Vercel AI Gateway for image generation.
 ---
 
-A fresh Tale instance ships with three providers configured: OpenRouter for chat, vision, and embeddings; OpenAI for speech-to-text and text-to-speech; Vercel AI Gateway for image generation. The default agents in `examples/agents/` reach for models in one of those three buckets, and most teams stay on the defaults for weeks before swapping anything. This page lists what is shipped and links to each provider's full catalogue.
+A fresh Tale instance ships with three providers configured: OpenRouter for chat, vision, and embeddings; OpenAI for speech-to-text and text-to-speech; Vercel AI Gateway for image generation. The default agents in `examples/default/agents/` reach for models in one of those three buckets, and most teams stay on the defaults for weeks before swapping anything. This page lists what is shipped and links to each provider's full catalogue.
 
-Models drift faster than docs. The lists below are correct at the time `examples/providers/*.json` was written; the canonical truth is the JSON files, and the canonical "what is reachable today" is what the **Settings > Providers** page shows on your instance.
+Models drift faster than docs. The lists below are correct at the time `examples/default/providers/*.json` was written; the canonical truth is the JSON files, and the canonical "what is reachable today" is what the **Settings > Providers** page shows on your instance.
 
 ## The three providers
 
@@ -15,7 +15,7 @@ Models drift faster than docs. The lists below are correct at the time `examples
 | **OpenAI**            | Speech-to-text, text-to-speech | Whisper is the practical baseline for transcription; gpt-4o-mini-tts is the cheapest reliable TTS         | [platform.openai.com/docs/models](https://platform.openai.com/docs/models)     |
 | **Vercel AI Gateway** | Image generation               | One OpenAI-compatible endpoint covers FLUX, Imagen, and Nano Banana without per-vendor keys               | [vercel.com/docs/ai-gateway/models](https://vercel.com/docs/ai-gateway/models) |
 
-Every provider above is an OpenAI-compatible endpoint Tale calls over HTTPS with a bearer token. You can replace any of them with a different provider (including a local Ollama or vLLM server) by editing the matching JSON under your instance's `TALE_CONFIG_DIR/providers/`.
+Every provider above is an OpenAI-compatible endpoint Tale calls over HTTPS with a bearer token. You can replace any of them with a different provider (including a local Ollama or vLLM server) by editing the matching JSON under your instance's `TALE_CONFIG_DIR/<orgSlug>/providers/` — under the org-first layout, provider catalogs are per-org (each org's subtree holds its own `providers/` directory).
 
 ## OpenRouter — chat, vision, embeddings
 
@@ -35,7 +35,7 @@ OpenRouter is a multi-model gateway. The shipped config picks `deepseek-v4-flash
 - **Meta** — LLaMA 4 Maverick, LLaMA 4 Scout.
 - **Black Forest Labs** — FLUX.2 [max], FLUX.2 [pro], FLUX.2 [flex].
 
-The full and live catalogue lives at [openrouter.ai/models](https://openrouter.ai/models). Any model OpenRouter exposes can be added to your instance by editing the `models` array in `providers/openrouter.json` under `TALE_CONFIG_DIR`.
+The full and live catalogue lives at [openrouter.ai/models](https://openrouter.ai/models). Any model OpenRouter exposes can be added to your instance by editing the `models` array in `<orgSlug>/providers/openrouter.json` under `TALE_CONFIG_DIR` (per-org under the org-first layout).
 
 ## OpenAI — speech-to-text and text-to-speech
 
@@ -57,7 +57,7 @@ The wider catalogue is at [vercel.com/docs/ai-gateway/models](https://vercel.com
 
 ## Swapping or adding providers
 
-The three providers above are defaults, not requirements. Replace any of them with a different OpenAI-compatible endpoint by editing the JSON in `TALE_CONFIG_DIR/providers/` — point it at your own API, change the `models` array, and Tale reloads on next start. A local Ollama instance, a private vLLM cluster, or a Bedrock proxy all fit the same shape. The mechanics live under [Configuration → providers](/self-hosted/configuration/providers); the admin-UI form for the same config lives at [Providers](/platform/admin/providers).
+The three providers above are defaults, not requirements. Replace any of them with a different OpenAI-compatible endpoint by editing the JSON in `TALE_CONFIG_DIR/<orgSlug>/providers/` — point it at your own API, change the `models` array, and Tale reloads on next start. A local Ollama instance, a private vLLM cluster, or a Bedrock proxy all fit the same shape. The mechanics live under [Configuration → providers](/self-hosted/configuration/providers); the admin-UI form for the same config lives at [Providers](/platform/admin/providers).
 
 ## Where this fits
 

@@ -4,6 +4,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
 import { getCrawlerUrl } from '../documents/generate_document_helpers';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import type {
   CrawlerChunksResponse,
   CrawlerPagesResponse,
@@ -14,16 +15,27 @@ import type {
 const CRAWLER_TIMEOUT_MS = 15_000;
 const SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
+/**
+ * Wrap `fetch` with a timeout and inject the required `x-tale-org`
+ * header so every call to the crawler service routes to the correct
+ * org's provider catalog. Crawler enforces this header at the router
+ * level (`require_org_slug`); missing it returns HTTP 400.
+ */
 function fetchWithTimeout(
   url: string,
+  orgSlug: string,
   init?: RequestInit,
   timeoutMs = CRAWLER_TIMEOUT_MS,
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(url, { ...init, signal: controller.signal }).finally(() =>
-    clearTimeout(timer),
-  );
+  const mergedHeaders = new Headers(init?.headers);
+  mergedHeaders.set('x-tale-org', orgSlug);
+  return fetch(url, {
+    ...init,
+    headers: mergedHeaders,
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timer));
 }
 
 export function scanIntervalToSeconds(interval: string): number {
@@ -48,12 +60,14 @@ export function scanIntervalToSeconds(interval: string): number {
 }
 
 export async function registerDomainWithCrawler(
+  orgSlug: string,
   domain: string,
   scanInterval: string,
 ): Promise<CrawlerWebsiteInfo> {
   const crawlerUrl = getCrawlerUrl();
   const res = await fetchWithTimeout(
     `${crawlerUrl}/api/v1/websites`,
+    orgSlug,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -73,12 +87,14 @@ export async function registerDomainWithCrawler(
 }
 
 export async function updateCrawlerScanInterval(
+  orgSlug: string,
   domain: string,
   scanInterval: string,
 ): Promise<void> {
   const crawlerUrl = getCrawlerUrl();
   const res = await fetchWithTimeout(
     `${crawlerUrl}/api/v1/websites/${encodeURIComponent(domain)}`,
+    orgSlug,
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -98,11 +114,13 @@ export async function updateCrawlerScanInterval(
 }
 
 export async function deregisterDomainFromCrawler(
+  orgSlug: string,
   domain: string,
 ): Promise<void> {
   const crawlerUrl = getCrawlerUrl();
   const res = await fetchWithTimeout(
     `${crawlerUrl}/api/v1/websites/${encodeURIComponent(domain)}`,
+    orgSlug,
     { method: 'DELETE' },
   );
   if (!res.ok && res.status !== 404) {
@@ -113,11 +131,13 @@ export async function deregisterDomainFromCrawler(
 }
 
 export async function fetchWebsiteInfo(
+  orgSlug: string,
   domain: string,
 ): Promise<CrawlerWebsiteInfo | null> {
   const crawlerUrl = getCrawlerUrl();
   const res = await fetchWithTimeout(
     `${crawlerUrl}/api/v1/websites/${encodeURIComponent(domain)}`,
+    orgSlug,
   );
   if (res.ok) {
     return await res.json();
@@ -136,11 +156,13 @@ interface WebsiteForSync {
 }
 
 async function fetchHomepageMetadata(
+  orgSlug: string,
   domain: string,
 ): Promise<{ title?: string; description?: string } | null> {
   const crawlerUrl = getCrawlerUrl();
   const res = await fetchWithTimeout(
     `${crawlerUrl}/api/v1/urls/fetch`,
+    orgSlug,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -152,7 +174,15 @@ async function fetchHomepageMetadata(
     30_000,
   );
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    // Surface the failure so an operator notices that title/description
+    // stayed blank because the homepage fetch failed, not because the
+    // site genuinely has no metadata (round-3 P2 R9-P2-c).
+    console.warn(
+      `[fetchHomepageMetadata] crawler ${res.status} for ${domain} (orgSlug=${orgSlug})`,
+    );
+    return null;
+  }
 
   const data = await res.json();
   const page = data.pages?.[0];
@@ -170,9 +200,11 @@ export const fetchAndPatchHomepage = internalAction({
   args: {
     websiteId: v.id('websites'),
     domain: v.string(),
+    organizationId: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const info = await fetchHomepageMetadata(args.domain);
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+    const info = await fetchHomepageMetadata(orgSlug, args.domain);
     if (!info) return;
 
     await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
@@ -188,6 +220,7 @@ export const syncWebsiteStatuses = internalAction({
     organizationId: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
     const websites: WebsiteForSync[] = await ctx.runQuery(
       internal.websites.internal_queries.listWebsitesForSync,
       { organizationId: args.organizationId },
@@ -202,7 +235,7 @@ export const syncWebsiteStatuses = internalAction({
       }
 
       try {
-        const websiteInfo = await fetchWebsiteInfo(website.domain);
+        const websiteInfo = await fetchWebsiteInfo(orgSlug, website.domain);
 
         if (websiteInfo) {
           await ctx.runMutation(
@@ -264,10 +297,12 @@ export const registerAndSync = internalAction({
     websiteId: v.id('websites'),
     domain: v.string(),
     scanInterval: v.string(),
+    organizationId: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
     try {
-      await registerDomainWithCrawler(args.domain, args.scanInterval);
+      await registerDomainWithCrawler(orgSlug, args.domain, args.scanInterval);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(
@@ -286,22 +321,43 @@ export const registerAndSync = internalAction({
     await ctx.scheduler.runAfter(
       0,
       internal.websites.internal_actions.fetchAndPatchHomepage,
-      { websiteId: args.websiteId, domain: args.domain },
+      {
+        websiteId: args.websiteId,
+        domain: args.domain,
+        organizationId: args.organizationId,
+      },
     );
 
     // Schedule a delayed sync to pick up scan results
     await ctx.scheduler.runAfter(
       600_000,
       internal.websites.internal_actions.syncSingleWebsite,
-      { websiteId: args.websiteId, domain: args.domain },
+      {
+        websiteId: args.websiteId,
+        domain: args.domain,
+        organizationId: args.organizationId,
+      },
     );
   },
 });
 
-export const syncSingleWebsite = internalAction({
+/**
+ * Internal-action equivalent of `actions.deleteWebsite`'s body:
+ * deregister the crawler binding first, then delete the row. The REST
+ * `DELETE /api/v1/websites/:id` path delegates to this so REST and the
+ * Convex action have the same shape — without it, REST deleted the
+ * `websites` row but left the crawler with a dangling registration that
+ * would keep scanning and produce "website not found in crawler" errors
+ * if the same domain was re-added later.
+ *
+ * Caller is responsible for verifying caller membership / row
+ * ownership BEFORE invoking (REST: `withRestAuth` + the existing
+ * `organizationId !== rc.org.organizationId` check at the call site).
+ */
+export const deregisterAndDelete = internalAction({
   args: {
     websiteId: v.id('websites'),
-    domain: v.string(),
+    organizationId: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
     const website = await ctx.runQuery(
@@ -309,9 +365,42 @@ export const syncSingleWebsite = internalAction({
       { websiteId: args.websiteId },
     );
     if (!website) return;
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+    // Deregister first so a crawler-side failure surfaces to the
+    // caller (matches `actions.deleteWebsite` semantics) and the row
+    // is left in place for retry rather than orphaning the registration.
+    await deregisterDomainFromCrawler(orgSlug, website.domain);
+    await ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
+      websiteId: args.websiteId,
+    });
+  },
+});
+
+export const syncSingleWebsite = internalAction({
+  args: {
+    websiteId: v.id('websites'),
+    domain: v.string(),
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+    const website = await ctx.runQuery(
+      internal.websites.internal_queries.getWebsite,
+      { websiteId: args.websiteId },
+    );
+    if (!website) return;
+
+    // Every patch below MUST write `lastStatusSyncAt: Date.now()`.
+    // `fetchPages` debounces re-fan-out using exactly this field — if
+    // the success / error / missing branches forget to stamp it, the
+    // debounce gate stays permanently open and every subsequent
+    // `fetchPages` call schedules a fresh sync, defeating the rate-
+    // limit and reintroducing the concurrent-write race the gate was
+    // added to prevent.
+    const syncTimestamp = Date.now();
 
     try {
-      const info = await fetchWebsiteInfo(args.domain);
+      const info = await fetchWebsiteInfo(orgSlug, args.domain);
 
       if (info) {
         await ctx.runMutation(
@@ -329,6 +418,7 @@ export const syncSingleWebsite = internalAction({
             metadata: {
               ...website.metadata,
               lastSyncError: undefined,
+              lastStatusSyncAt: syncTimestamp,
             },
           },
         );
@@ -342,6 +432,7 @@ export const syncSingleWebsite = internalAction({
               ...website.metadata,
               lastSyncError:
                 'Website not found in crawler. Please delete and re-add it.',
+              lastStatusSyncAt: syncTimestamp,
             },
           },
         );
@@ -357,6 +448,7 @@ export const syncSingleWebsite = internalAction({
         metadata: {
           ...website.metadata,
           lastSyncError: message,
+          lastStatusSyncAt: syncTimestamp,
         },
       });
     }
@@ -366,16 +458,19 @@ export const syncSingleWebsite = internalAction({
 export const fetchWebsitePages = internalAction({
   args: {
     domain: v.string(),
+    organizationId: v.string(),
     offset: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
-  handler: async (_ctx, args) => {
+  handler: async (ctx, args) => {
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
     const crawlerUrl = getCrawlerUrl();
     const offset = args.offset ?? 0;
     const limit = args.limit ?? 100;
 
     const res = await fetchWithTimeout(
       `${crawlerUrl}/api/v1/pages/${encodeURIComponent(args.domain)}?offset=${offset}&limit=${limit}`,
+      orgSlug,
     );
 
     if (!res.ok) {
@@ -396,12 +491,15 @@ export const fetchPageChunks = internalAction({
   args: {
     domain: v.string(),
     url: v.string(),
+    organizationId: v.string(),
   },
-  handler: async (_ctx, args) => {
+  handler: async (ctx, args) => {
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
     const crawlerUrl = getCrawlerUrl();
 
     const res = await fetchWithTimeout(
       `${crawlerUrl}/api/v1/pages/${encodeURIComponent(args.domain)}/chunks?url=${encodeURIComponent(args.url)}`,
+      orgSlug,
     );
 
     if (!res.ok) {
@@ -421,14 +519,17 @@ export const searchWebsiteContent = internalAction({
   args: {
     domain: v.string(),
     query: v.string(),
+    organizationId: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (_ctx, args) => {
+  handler: async (ctx, args) => {
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
     const crawlerUrl = getCrawlerUrl();
     const limit = args.limit ?? 10;
 
     const res = await fetchWithTimeout(
       `${crawlerUrl}/api/v1/search/${encodeURIComponent(args.domain)}`,
+      orgSlug,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

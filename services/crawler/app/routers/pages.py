@@ -6,7 +6,26 @@ from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 
 from app.models import PageChunkItem, PageChunksResponse, PageListItem, PageListResponse
+from app.org_context import get_active_org
 from app.services.database import get_pool
+
+
+async def _require_org_membership(pool, domain: str, org_slug: str) -> None:
+    """Caller's org must have a membership on `domain`, else 404.
+
+    Routers below operate on shared chunks/website_urls tables — without
+    this gate, any authenticated request would be able to read any
+    domain's pages just by knowing the name.
+    """
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT 1 FROM website_org_memberships WHERE domain = $1 AND org_slug = $2",
+            domain,
+            org_slug,
+        )
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Website not found: {domain}")
+
 
 router = APIRouter(prefix="/api/v1/pages", tags=["Pages"])
 
@@ -22,6 +41,7 @@ async def list_pages(
     """List all crawled pages for a website with indexing status."""
     try:
         pool = get_pool()
+        await _require_org_membership(pool, domain, get_active_org())
 
         sort_columns = {
             "last_crawled_at": "wu.last_crawled_at",
@@ -104,6 +124,7 @@ async def get_page_chunks(
     """Get all indexed chunks for a specific page URL."""
     try:
         pool = get_pool()
+        await _require_org_membership(pool, domain, get_active_org())
 
         async with pool.acquire() as conn:
             rows = await conn.fetch(

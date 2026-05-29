@@ -45,6 +45,20 @@ const SECRET_PATTERNS: ReadonlyArray<RegExp> = [
   /\bgithub_pat_[A-Za-z0-9_]{40,}/g,
   // Convex deploy keys, e.g. `convex_dev_…` / `convex_prod_…`.
   /\bconvex_[a-z]+_[A-Za-z0-9_-]{20,}/g,
+  // Self-hosted Convex admin keys: `<INSTANCE>|<base64>` shape — e.g.
+  // `tale_platform|01abc…`. Mirrors the CLI redactor's `ADMIN_KEY_RE`
+  // (tools/cli/src/lib/actions/reseed-all-orgs.ts) so the convex
+  // boundary's `UpstreamHttpError.bodySnippet` scrubber and the CLI
+  // log redactor stay in lockstep.
+  /\b[Aa]dmin[\s\-_][Kk]ey\s*[:=]?\s*[A-Za-z0-9+/=._\-|]{12,}/g,
+  /--admin-key([\s=]+)\S+/g,
+  // Bare pipe-delimited self-hosted admin-key payloads when the
+  // "Admin Key" / "--admin-key" label is missing (e.g. an upstream
+  // body dump that just echoes the value). Conservative match: at
+  // least 4 chars before the pipe, 20+ after, restricted to the
+  // base64-+ instance-name charset, so unrelated JSON / URLs don't
+  // false-positive.
+  /\b[A-Za-z0-9_-]{4,}\|[A-Za-z0-9+/=._\-|]{20,}/g,
   // JWTs: three dot-separated base64url segments. Length floor guards
   // against accidentally matching version strings like `1.2.3`.
   /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,

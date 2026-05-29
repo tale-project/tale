@@ -24,7 +24,7 @@ The shipped defaults are loose; tighten per your compliance posture.
 
 ## Where you set bounds
 
-The bounds live in the operator config file, not in env vars. Edit `governance/retention-bounds.json` under `TALE_CONFIG_DIR` (defaults to `/app/data/platform-config/` inside the platform container):
+Under the org-first layout, retention bounds are **per-org**: edit `retention.json` directly inside an org's subtree under `TALE_CONFIG_DIR` (defaults to `/app/data/` inside the platform container, so the file lives at `/app/data/<org>/retention.json`, e.g. `/app/data/default/retention.json`). Each org has its own file; the `default` org's file is the template a fresh deployment picks up on first boot.
 
 ```json
 {

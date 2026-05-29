@@ -74,13 +74,15 @@ describe('serializeBrandingJson', () => {
   });
 });
 
-describe('resolveBrandingDir', () => {
-  it('returns base dir for default org', () => {
-    expect(resolveBrandingDir('default')).toBe('/tmp/test-data/branding');
+describe('resolveBrandingDir (org-first)', () => {
+  it('default org lives at <root>/default/branding/', () => {
+    expect(resolveBrandingDir('default')).toBe(
+      '/tmp/test-data/default/branding',
+    );
   });
 
-  it('returns subdirectory for named org', () => {
-    expect(resolveBrandingDir('acme')).toBe('/tmp/test-data/branding/acme');
+  it('other orgs live at <root>/<orgSlug>/branding/ (read-side is default-only today)', () => {
+    expect(resolveBrandingDir('acme')).toBe('/tmp/test-data/acme/branding');
   });
 
   it('throws for invalid org slug', () => {
@@ -89,9 +91,9 @@ describe('resolveBrandingDir', () => {
 });
 
 describe('resolveBrandingFilePath', () => {
-  it('returns branding.json path', () => {
+  it('returns branding.json path under <org>/branding/', () => {
     expect(resolveBrandingFilePath('default')).toBe(
-      '/tmp/test-data/branding/branding.json',
+      '/tmp/test-data/default/branding/branding.json',
     );
   });
 });
@@ -140,15 +142,17 @@ describe('mimeToExtension', () => {
 });
 
 describe('resolveImagesDir', () => {
-  it('returns images subdirectory', () => {
-    expect(resolveImagesDir('default')).toBe('/tmp/test-data/branding/images');
+  it('returns images subdirectory under <org>/branding/', () => {
+    expect(resolveImagesDir('default')).toBe(
+      '/tmp/test-data/default/branding/images',
+    );
   });
 });
 
 describe('resolveImagePath', () => {
   it('resolves valid image filename', () => {
     expect(resolveImagePath('default', 'logo.png')).toBe(
-      '/tmp/test-data/branding/images/logo.png',
+      '/tmp/test-data/default/branding/images/logo.png',
     );
   });
 

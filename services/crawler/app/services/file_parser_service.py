@@ -14,6 +14,7 @@ from io import BytesIO
 from typing import Any
 
 from ..config import settings
+from ..org_context import get_active_org
 
 logger = logging.getLogger(__name__)
 
@@ -221,7 +222,7 @@ class FileParserService:
                     model=model,
                     usage=acc,
                 )
-                resolved_model = model or settings.get_fast_model()
+                resolved_model = model or settings.get_fast_model(get_active_org())
 
             import fitz as _fitz
 
@@ -343,7 +344,7 @@ class FileParserService:
                     model=model,
                     usage=acc,
                 )
-                resolved_model = model or settings.get_fast_model()
+                resolved_model = model or settings.get_fast_model(get_active_org())
 
             docx_dates = _extract_ooxml_metadata(file_bytes, "docx")
 
@@ -460,7 +461,7 @@ class FileParserService:
                     model=model,
                     usage=acc,
                 )
-                resolved_model = model or settings.get_fast_model()
+                resolved_model = model or settings.get_fast_model(get_active_org())
 
             pptx_dates = _extract_ooxml_metadata(file_bytes, "pptx")
 

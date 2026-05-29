@@ -10,6 +10,7 @@ import { createDeployCommand } from './commands/deploy';
 import { createDoctorCommand } from './commands/doctor';
 import { createInitCommand } from './commands/init';
 import { createLogsCommand } from './commands/logs';
+import { createMigrateCommand } from './commands/migrate';
 import { createResetCommand } from './commands/reset';
 import { createRollbackCommand } from './commands/rollback';
 import { createStartCommand } from './commands/start';
@@ -47,5 +48,6 @@ program.addCommand(createRollbackCommand());
 program.addCommand(createResetCommand());
 program.addCommand(createCleanupCommand());
 program.addCommand(createDoctorCommand());
+program.addCommand(createMigrateCommand());
 
 await program.parseAsync();

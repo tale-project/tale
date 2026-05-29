@@ -13,7 +13,7 @@ Two routers are exported:
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 from loguru import logger
 
 from .. import __version__
@@ -87,22 +87,13 @@ async def get_config():
 
     Auth-gated via the protected router; before round-2 v15 this leaked
     deployment fingerprints (model names, host/port, chunking params)
-    to any caller with reach to the RAG port.
+    to any caller with reach to the RAG port. LLM/embedding model names
+    require an `org_slug` to resolve and are omitted here.
     """
-    try:
-        llm_config = settings.get_llm_config()
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM configuration not available",
-        ) from exc
-
     return ConfigResponse(
         host=settings.host,
         port=settings.port,
         log_level=settings.log_level,
-        openai_model=llm_config.get("model", ""),
-        openai_embedding_model=llm_config.get("embedding_model", ""),
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
         top_k=settings.top_k,

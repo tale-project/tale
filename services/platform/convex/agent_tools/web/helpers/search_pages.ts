@@ -9,6 +9,8 @@ import type { ToolCtx } from '@convex-dev/agent';
 
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
+import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import { formatWebResults } from './format_web_results';
 import { formatWebsiteSummaries } from './format_website_summaries';
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
@@ -40,8 +42,15 @@ export function isValidDomain(domain: string): boolean {
   return DOMAIN_PATTERN.test(domain);
 }
 
+// 15 s aligns with `query_web_context.ts` (10 s) at the short end and
+// stays well below the agent-runtime tool budget. A hung crawler
+// connection used to block here indefinitely (no signal/timeout) and
+// tie the entire agent step to the crawler's stall window.
+const SEARCH_TIMEOUT_MS = 15_000;
+
 async function fetchSearch(
   crawlerUrl: string,
+  orgSlug: string,
   query: string,
   domain?: string,
 ): Promise<SearchApiResponse> {
@@ -49,18 +58,36 @@ async function fetchSearch(
     ? `${crawlerUrl}/api/v1/search/${encodeURIComponent(domain)}`
     : `${crawlerUrl}/api/v1/search`;
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      query,
-      limit: DEFAULT_LIMIT,
-      similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-tale-org': orgSlug,
+      },
+      body: JSON.stringify({
+        query,
+        limit: DEFAULT_LIMIT,
+        similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
-    throw new Error(`Search API returned ${response.status}`);
+    const errorText = await response.text().catch(() => '');
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
+      errorText,
+      endpoint.replace(crawlerUrl, ''),
+    );
   }
 
   return response.json();
@@ -84,6 +111,17 @@ export async function searchPages(
   args: { query: string; domain?: string },
 ): Promise<SearchPagesResult> {
   let validDomain: string | undefined;
+
+  // When the agent supplies a `domain` that doesn't pass the shape
+  // check, surface it explicitly rather than silently dropping the
+  // filter and running a global search — the LLM thinks its filter
+  // applied and the user gets unrelated cross-domain hits.
+  if (args.domain && !isValidDomain(args.domain) && ctx.organizationId) {
+    return {
+      text: `The domain "${args.domain}" doesn't look valid. Use a bare domain like "example.com" (no protocol, no path), or omit the filter to search every website in your knowledge base.`,
+      citations: [],
+    };
+  }
 
   if (args.domain && isValidDomain(args.domain) && ctx.organizationId) {
     const website = await ctx.runQuery(
@@ -114,27 +152,46 @@ export async function searchPages(
   }
 
   const crawlerUrl = getCrawlerServiceUrl();
-  let data = await fetchSearch(crawlerUrl, args.query, validDomain);
-  let results = data.results;
-
-  // Fallback to global search if domain-scoped search returns no results
-  let domainFallback = false;
-  if ((!results || results.length === 0) && validDomain) {
-    debugLog('web:search_pages domain fallback', {
-      query: args.query,
-      domain: validDomain,
-    });
-    data = await fetchSearch(crawlerUrl, args.query);
-    results = data.results;
-    domainFallback = true;
+  if (!ctx.organizationId) {
+    throw new Error('search_pages requires organizationId in ToolCtx.');
   }
+  const orgSlug = await orgSlugFromId(ctx, ctx.organizationId);
+
+  // Wrap crawler calls so a network blip / 5xx becomes a graceful
+  // "search is unavailable" reply to the agent rather than an
+  // unhandled exception — matches fetchAndExtract's contract in the
+  // sibling helper (round-3 P2 R8-P2-a).
+  let data: Awaited<ReturnType<typeof fetchSearch>>;
+  let domainFallback = false;
+  try {
+    data = await fetchSearch(crawlerUrl, orgSlug, args.query, validDomain);
+    // Fallback to global search if domain-scoped search returns no results
+    if ((!data.results || data.results.length === 0) && validDomain) {
+      debugLog('web:search_pages domain fallback', {
+        query: args.query,
+        domain: validDomain,
+      });
+      data = await fetchSearch(crawlerUrl, orgSlug, args.query);
+      domainFallback = true;
+    }
+  } catch (err) {
+    console.warn(
+      '[web:search_pages] crawler fetchSearch failed',
+      err instanceof Error ? err.message : err,
+    );
+    return {
+      text: 'The web-search service is temporarily unavailable. Try again in a moment, or use fetch mode with a specific URL to access pages directly.',
+      citations: [],
+    };
+  }
+  const results = data.results;
 
   if (!results || results.length === 0) {
     debugLog('web:search_pages no results', { query: args.query });
 
-    const summaryText = ctx.organizationId
-      ? await formatWebsiteSummaries(ctx, ctx.organizationId)
-      : undefined;
+    // `ctx.organizationId` was already asserted truthy at line 123
+    // (the throw above), so the ternary's `: undefined` arm is dead.
+    const summaryText = await formatWebsiteSummaries(ctx, ctx.organizationId);
 
     if (summaryText) {
       return {
@@ -186,9 +243,8 @@ export async function searchPages(
   }));
 
   if (domainFallback) {
-    const summaryText = ctx.organizationId
-      ? await formatWebsiteSummaries(ctx, ctx.organizationId)
-      : undefined;
+    // ctx.organizationId is asserted truthy at line 123 — dead ternary removed.
+    const summaryText = await formatWebsiteSummaries(ctx, ctx.organizationId);
     const availableNote = summaryText
       ? `\n\nAvailable websites in the knowledge base:\n${summaryText}`
       : '';

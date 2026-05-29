@@ -5,8 +5,12 @@ export const DEV_VOLUME_NAMES = [
   'db-data',
   'db-backup',
   'rag-data',
-  // Retained for legacy migration (used by `tale migrate split-convex` to
-  // locate pre-split data). Not mounted by any container after Phase 2.
+  // Legacy: pre-0.3.0 deployments split platform and convex data; today
+  // everything lives in `convex-data`. The volume is retained as an
+  // unused stub so the detect() probe in start.ts can identify pre-0.3.0
+  // deployments and produce a coherent diff. Operators can delete it
+  // by hand once they're past the upgrade window. Do not remove this
+  // entry without coordinating with that detect() heuristic.
   'platform-data',
   'convex-data',
   'caddy-data',
@@ -18,9 +22,7 @@ export const DEV_VOLUME_NAMES = [
 // Every volume declared as `external: true` in the stateful or color compose
 // must appear here so `ensureVolumes` pre-creates it.
 export const REQUIRED_VOLUMES = [
-  // platform-data is kept for upgrade scenarios where split-convex migrates
-  // its contents into convex-data; on fresh installs it is an unused empty
-  // volume. Removing it would break detect() for pre-0.3.0 deployments.
+  // See DEV_VOLUME_NAMES for the `platform-data` rationale.
   'platform-data',
   'convex-data',
   'caddy-data',

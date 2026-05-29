@@ -8,11 +8,11 @@
  * agents/file_utils.ts and integrations/file_utils.ts but uses Markdown +
  * YAML frontmatter as the wire format (per agentskills.io spec).
  *
- * Org isolation: default org sits at `${SKILLS_DIR}/`; other orgs live
- * under `${SKILLS_DIR}/@<orgSlug>/` — same `@` prefix convention used by
- * integrations. Every resolver applies a path-traversal guard plus a
- * `verifyPathWithinBase` realpath check so symlinks planted in the bundle
- * cannot escape the skill's directory.
+ * Org isolation: every org's skills live under
+ * `${TALE_CONFIG_DIR}/<orgSlug>/skills/` — uniform org-first layout. Every
+ * resolver applies a path-traversal guard plus a `verifyPathWithinBase`
+ * realpath check so symlinks planted in the bundle cannot escape the
+ * skill's directory.
  */
 
 import { constants, lstat, open } from 'node:fs/promises';
@@ -30,7 +30,13 @@ import {
   SKILL_NAME_REGEX,
   type SkillFrontmatter,
 } from '../../lib/shared/schemas/skills';
-import { sha256, validateOrgSlug, verifyPathWithinBase } from '../lib/file_io';
+import {
+  getConfigRoot,
+  safeJoinWithinDir,
+  sha256,
+  validateOrgSlug,
+  verifyPathWithinBase,
+} from '../lib/file_io';
 
 /**
  * Names reserved by the SKILL.md frontmatter schema. Duplicated here so
@@ -94,46 +100,22 @@ export function validateSkillSlug(slug: string): boolean {
   return true;
 }
 
-function getBaseDir(): string {
-  const dir = process.env.SKILLS_DIR;
-  if (dir) return dir;
-  const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return path.join(configDir, 'skills');
-  throw new Error(
-    'Neither TALE_CONFIG_DIR nor SKILLS_DIR environment variable is set. ' +
-      'Set TALE_CONFIG_DIR in .env to the root config directory ' +
-      '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
-  );
-}
-
 /**
- * Resolve the skills directory for an organization. Default org uses the
- * base directly; every other org lives under a `@<orgSlug>/` prefix —
- * matches the convention enforced by integrations and agents.
+ * Resolve the skills directory for an organization. Org-first:
+ * `${TALE_CONFIG_DIR}/<orgSlug>/skills/`.
  */
 export function resolveSkillsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  const baseDir = getBaseDir();
-  if (orgSlug === 'default') return baseDir;
-  return path.join(baseDir, `@${orgSlug}`);
+  return path.join(getConfigRoot('skills'), orgSlug, 'skills');
 }
 
 export function resolveSkillDir(orgSlug: string, slug: string): string {
   if (!validateSkillSlug(slug)) {
     throw new Error(`Invalid skill slug: ${slug}`);
   }
-  const dir = resolveSkillsDir(orgSlug);
-  const resolved = path.resolve(dir, slug);
-  const expectedPrefix = path.resolve(dir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error(`Path traversal detected: ${slug}`);
-  }
-  return resolved;
+  return safeJoinWithinDir(resolveSkillsDir(orgSlug), slug);
 }
 
 export function resolveSkillMdPath(orgSlug: string, slug: string): string {
@@ -154,17 +136,11 @@ export function resolveSkillAssetPath(
 ): string {
   validateAssetRelPath(relPath);
   const skillDir = resolveSkillDir(orgSlug, slug);
-  const resolved = path.resolve(skillDir, relPath);
-  const expectedPrefix = path.resolve(skillDir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error(`Path traversal detected: ${relPath}`);
-  }
+  const resolved = safeJoinWithinDir(skillDir, relPath);
   // Case-fold the SKILL.md lockout — on case-insensitive filesystems (macOS
   // default, Windows) `skill.md` resolves to the same inode as `SKILL.md`
   // but a literal `===` compare would miss it.
+  const expectedPrefix = path.resolve(skillDir);
   const finalSegment = path.basename(resolved);
   if (
     path.dirname(resolved) === expectedPrefix &&

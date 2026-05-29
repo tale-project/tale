@@ -226,6 +226,18 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 200,
     period: MINUTE,
   },
+  // Per-IP throttle on the SSE-auth handshake route. Same shape as
+  // `security:tts-audio-fetch` — anonymous flooding here forces a
+  // Better Auth session-table read per request, so cost protection
+  // matters more than data protection (the route 401s on no-session).
+  // Token bucket so a freshly-logged-in user reconnecting across
+  // multiple browser tabs doesn't hit a 429 cliff.
+  'security:sse-auth': {
+    kind: 'token bucket',
+    rate: 60,
+    period: MINUTE,
+    capacity: 120,
+  },
   'security:login-ip': {
     kind: 'fixed window',
     rate: 30,

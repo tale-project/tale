@@ -18,7 +18,7 @@ Zwei Dinge sind es wert, zuerst zu bestätigen:
 
 ## Die zwei Kommandos
 
-`tale upgrade` aktualisiert das CLI-Binary selbst. Die deployte Plattform-Version stimmt mit der Version des CLI überein — diese Kopplung ist Absicht, damit das CLI, das du läufst, nicht eine Version deployen kann, die es nicht kennt.
+`tale upgrade` aktualisiert das CLI-Binary selbst. Die deployte Plattform-Version stimmt mit der Version des CLI überein — diese Kopplung ist Absicht, damit das CLI, das du ausführst, nicht eine Version deployen kann, die es nicht kennt.
 
 ```bash
 # Bewege das CLI auf das letzte Release
@@ -79,4 +79,4 @@ Minor-Versionen zu überspringen (von 0.9 auf 0.11 zu gehen) ist unterstützt, s
 
 ## Wo das hingehört
 
-Der Upgrade-Flow knüpft jede andere Operate-Seite an — Backups sind das, was ein gescheitertes Upgrade wiederherstellbar macht, Observability ist das, was dir sagt, dass die neue Farbe healthy ist, Hardening ist das, was du nach einer Major-Version neu walkst. Setzt du das CLI zum ersten Mal auf, deckt [Tale-CLI installieren](/de/self-hosted/install/cli-install) das workstationseitige Setup ab; nimmst du den Pager mitten im Rollout auf, nennt [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting) die Symptome.
+Der Upgrade-Flow knüpft jede andere Operate-Seite an — Backups sind das, was ein gescheitertes Upgrade wiederherstellbar macht, Observability ist das, was dir sagt, dass die neue Farbe healthy ist, Hardening ist das, was du nach einer Major-Version neu durchgehst. Setzt du das CLI zum ersten Mal auf, deckt [Tale-CLI installieren](/de/self-hosted/install/cli-install) das workstationseitige Setup ab; nimmst du den Pager mitten im Rollout auf, nennt [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting) die Symptome.

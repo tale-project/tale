@@ -13,12 +13,14 @@ import base64
 import contextlib
 import imghdr
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 
 from loguru import logger
 from openai import AsyncOpenAI
 
 from ...config import settings
+from ...org_context import get_active_org
 from .cache import compute_text_hash, llm_cache
 
 
@@ -76,59 +78,207 @@ Focus on: image type (photo/chart/diagram), main subject, and key visible text.
 Be extremely concise - omit minor details."""
 
 
+_CONFIG_CHECK_INTERVAL = 15  # seconds
+
+
+class _OrgVisionState:
+    __slots__ = ("client", "config", "last_check")
+
+    def __init__(
+        self,
+        client: AsyncOpenAI,
+        config: tuple,
+        last_check: float,
+    ) -> None:
+        self.client = client
+        self.config = config
+        self.last_check = last_check
+
+
+# Per-org cached AsyncOpenAI clients for vision config. Keyed by org slug
+# so two orgs' requests never share `_client` / `_client_config` (which
+# would route org B's traffic through org A's API key when within the
+# TTL — the bug this refactor fixes).
+#
+# OrderedDict for true LRU on access; bounded by `_ORG_CACHE_MAX` so a
+# typo'd-slug spray or natural org churn doesn't leak httpx connection
+# pools indefinitely (round-2 P1-25). The peer cache in
+# `embedding_service.py` uses the same pattern.
+_ORG_CACHE_MAX = 64
+_vision_states: OrderedDict[str, _OrgVisionState] = OrderedDict()
+_chat_states: OrderedDict[str, _OrgVisionState] = OrderedDict()
+
+# Track outstanding `_safe_close_client` tasks so lifespan shutdown can
+# drain them before the event loop closes. Without this set, an
+# evicted-or-rotated client sleeps for up to 300 s in a fire-and-forget
+# task; when the FastAPI lifespan exits, the loop closes underneath the
+# sleeping task, the close never fires, and httpx connection pools
+# leak (round-2 P1-26). `app/main.py` lifespan awaits this set on
+# shutdown via `drain_pending_close_tasks()`.
+_PENDING_CLOSE_TASKS: set[asyncio.Task] = set()
+
+
+def _schedule_safe_close(client: AsyncOpenAI) -> None:
+    """Fire-and-forget close with task-set bookkeeping."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop (shutdown in progress, or called from outside
+        # an event loop). The caller treats this as best-effort; just
+        # close synchronously via a fresh loop would be unsafe, so log
+        # the leak instead. The aging pool is closed when the process
+        # exits anyway.
+        logger.warning(
+            "Could not schedule client close — no running event loop; pool will leak until process exit",
+        )
+        return
+    task = loop.create_task(_safe_close_client(client))
+    _PENDING_CLOSE_TASKS.add(task)
+    task.add_done_callback(_PENDING_CLOSE_TASKS.discard)
+
+
+async def drain_pending_close_tasks() -> None:
+    """Await every still-pending `_safe_close_client` so shutdown can
+    flush the 300s grace window without the event loop closing under
+    sleeping tasks. Called from `app/main.py` lifespan teardown."""
+    if not _PENDING_CLOSE_TASKS:
+        return
+    pending = list(_PENDING_CLOSE_TASKS)
+    for t in pending:
+        t.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+
+
 async def _safe_close_client(client: AsyncOpenAI) -> None:
-    """Close an old client after a grace period for in-flight requests."""
-    await asyncio.sleep(30)
+    """Close an old client after a grace period for in-flight requests.
+
+    Grace window must cover the longest in-flight request the client
+    could be servicing. Vision requests can run up to
+    `vision_request_timeout=180s` and chat completions can run for up
+    to ~300s; 30s was too short and would tear down the httpx pool
+    while a long PDF OCR was still in flight (round-3 P2 R26-P2-b).
+
+    On cancellation (lifespan shutdown drain), close immediately
+    without waiting out the grace — the process is exiting, so
+    in-flight requests will fail regardless and the FD leak is the
+    more important concern.
+    """
+    with contextlib.suppress(asyncio.CancelledError):
+        await asyncio.sleep(300)
     try:
         await client.close()
     except Exception:
         logger.opt(exception=True).warning("Failed to close old vision client")
 
 
+def _evict_lru_if_needed(
+    states: OrderedDict[str, _OrgVisionState],
+    label: str,
+) -> None:
+    """Pop the LRU entry from `states` once it crosses `_ORG_CACHE_MAX`.
+
+    Each entry holds an `AsyncOpenAI` httpx connection pool. Without
+    this, a typo'd-slug spray or a long-running process with high org
+    churn slowly leaks file descriptors. Schedule the evicted client's
+    close after the standard grace window so any in-flight call still
+    finishes (round-2 P1-25). The scheduling helper tracks the task
+    in `_PENDING_CLOSE_TASKS` so lifespan shutdown can drain it.
+    """
+    while len(states) > _ORG_CACHE_MAX:
+        _victim_key, victim = states.popitem(last=False)
+        logger.info("Evicting LRU {} client for org '{}'", label, _victim_key)
+        _schedule_safe_close(victim.client)
+
+
+def _get_or_build_client(
+    states: OrderedDict[str, _OrgVisionState],
+    org_slug: str,
+    config_getter,
+    *,
+    timeout: float,
+    label: str,
+) -> AsyncOpenAI:
+    """Look up or build the per-org AsyncOpenAI client.
+
+    Mirrors `embedding_service.get_embedding_service` so behavior is
+    consistent across crawler services:
+      - Within TTL: return cached client without re-reading config.
+      - Config read fails: keep the existing client; never silently
+        downgrade to an empty key.
+      - Config changed: build a new client, schedule the old one to
+        close after a grace period so in-flight calls finish.
+    """
+    state = states.get(org_slug)
+    now = time.monotonic()
+    if state is not None and (now - state.last_check) < _CONFIG_CHECK_INTERVAL:
+        states.move_to_end(org_slug)
+        return state.client
+
+    try:
+        config = config_getter(org_slug)  # (base_url, api_key, model)
+    except (ValueError, OSError):
+        if state is not None:
+            logger.opt(exception=True).warning(
+                "Config read failed for org '{}', keeping current {} client",
+                org_slug,
+                label,
+            )
+            state.last_check = now
+            return state.client
+        raise
+
+    if state is not None and config == state.config:
+        state.last_check = now
+        return state.client
+
+    base_url, api_key, model = config
+
+    # Never downgrade to empty key
+    if not api_key and state is not None:
+        logger.warning(
+            "Skipping {} reload for org '{}': new config has empty API key",
+            label,
+            org_slug,
+        )
+        state.last_check = now
+        return state.client
+
+    old_client = state.client if state is not None else None
+    new_client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+    states[org_slug] = _OrgVisionState(
+        client=new_client,
+        config=config,
+        last_check=now,
+    )
+    states.move_to_end(org_slug)
+    _evict_lru_if_needed(states, label)
+
+    if old_client is not None:
+        logger.info("{} rebuilt for org '{}': model={}", label, org_slug, model)
+        _schedule_safe_close(old_client)
+    else:
+        logger.info("{} created for org '{}': model={}", label, org_slug, model)
+
+    return new_client
+
+
 class VisionClient:
-    """Async client for OpenAI Vision API calls."""
+    """Async client for OpenAI Vision API calls.
 
-    _CONFIG_CHECK_INTERVAL = 15  # seconds
-
-    def __init__(self) -> None:
-        self._client: AsyncOpenAI | None = None
-        self._client_config: tuple | None = None
-        self._last_config_check: float = 0
+    Stateless wrapper: per-org AsyncOpenAI instances live in the
+    module-level `_vision_states` dict, looked up on every call via
+    `get_active_org()`. This prevents the previous singleton from
+    handing org A's client to org B's request inside the TTL window.
+    """
 
     def _get_client(self) -> AsyncOpenAI:
-        """Get or create the OpenAI client, rebuilding if config changed."""
-        now = time.monotonic()
-        if self._client is not None and (now - self._last_config_check) < self._CONFIG_CHECK_INTERVAL:
-            return self._client
-
-        self._last_config_check = now
-        try:
-            config = settings.get_vision_config()  # (base_url, api_key, model)
-        except (ValueError, OSError):
-            if self._client is not None:
-                logger.opt(exception=True).warning("Config read failed, keeping current vision client")
-                return self._client
-            raise
-
-        if config == self._client_config and self._client is not None:
-            return self._client
-
-        base_url, api_key, _model = config
-
-        # Never downgrade to empty key
-        if not api_key and self._client is not None:
-            logger.warning("Skipping vision client reload: new config has empty API key")
-            return self._client
-
-        old = self._client
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=120.0)
-        self._client_config = config
-
-        if old is not None:
-            logger.info("Vision client rebuilt: model={}", _model)
-            with contextlib.suppress(RuntimeError):
-                asyncio.get_running_loop().create_task(_safe_close_client(old))
-        return self._client
+        return _get_or_build_client(
+            _vision_states,
+            get_active_org(),
+            settings.get_vision_config,
+            timeout=120.0,
+            label="vision client",
+        )
 
     async def ocr_image(
         self,
@@ -149,8 +299,17 @@ class VisionClient:
         if cached_result is not None:
             return cached_result
 
+        # Read the model id from the cached `_vision_states[org].config`
+        # tuple instead of `settings.get_vision_model(org)`. The latter
+        # routes through `load_providers` which is uncached — every call
+        # globs the providers dir, parses JSON, and forks `sops -d` per
+        # `.secrets.json`. Multi-page PDF OCR fires this per page, so the
+        # sops fork storm dominated. `_get_client` above already loaded
+        # the same config and stashed it on the state. (Round-2 P1-26;
+        # see `process_pages_with_llm:456` for the same pattern.)
         client = self._get_client()
-        vision_model = settings.get_vision_model()
+        org_slug = get_active_org()
+        vision_model = _vision_states[org_slug].config[2]
         extraction_prompt = prompt or OCR_PROMPT
 
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -228,8 +387,11 @@ class VisionClient:
         if cached_result is not None:
             return cached_result
 
+        # Same cached-model-id read as `ocr_image` above. See P1-26 note
+        # there for rationale (sops fork storm bypass).
         client = self._get_client()
-        vision_model = settings.get_vision_model()
+        org_slug = get_active_org()
+        vision_model = _vision_states[org_slug].config[2]
         description_prompt = prompt or DESCRIBE_PROMPT
 
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -369,13 +531,18 @@ async def process_pages_with_llm(
 
     logger.info(f"LLM processing: {total_chars} chars total, chunking at {max_chars_per_chunk} chars")
 
-    base_url, api_key, chat_model = settings.get_chat_config()
-    client = AsyncOpenAI(
-        api_key=api_key,
-        base_url=base_url,
+    org_slug = get_active_org()
+    client = _get_or_build_client(
+        _chat_states,
+        org_slug,
+        settings.get_chat_config,
         timeout=300.0,
+        label="chat client",
     )
-    resolved_model = model or chat_model
+    # `resolved_model` is read from the freshly-cached config to ensure it
+    # matches the client we just got back from the per-org cache.
+    cached_chat_model = _chat_states[org_slug].config[2]
+    resolved_model = model or cached_chat_model
     semaphore = asyncio.Semaphore(max_concurrent)
 
     chunks = _chunk_by_chars(full_text, max_chars_per_chunk)
@@ -383,8 +550,15 @@ async def process_pages_with_llm(
 
     logger.info(f"Split into {total_chunks} chunks for LLM processing")
 
+    # Resolve base_url for the cache key so a within-org provider
+    # rotation (same model id, different upstream) doesn't serve stale
+    # cached outputs from the previous provider. Round-3 P2 R26-P2-d.
+    cached_chat_base_url = str(getattr(client, "base_url", "") or "")
+
     async def process_chunk(chunk_idx: int, chunk_text: str) -> tuple[int, str]:
-        cache_key = compute_text_hash(chunk_text + "\n---\n" + user_input + "\n---\n" + resolved_model)
+        cache_key = compute_text_hash(
+            chunk_text + "\n---\n" + user_input + "\n---\n" + resolved_model + "\n---\n" + cached_chat_base_url,
+        )
         cached = llm_cache.get_llm(cache_key)
         if cached is not None:
             logger.info(f"LLM chunk {chunk_idx + 1}/{total_chunks} cache hit ({len(chunk_text)} chars)")
@@ -419,8 +593,26 @@ async def process_pages_with_llm(
                 logger.info(f"LLM chunk {chunk_idx + 1}/{total_chunks} done: {len(chunk_text)} -> {len(result)} chars")
                 return chunk_idx, result
             except Exception as e:
-                logger.warning(f"Failed to process chunk {chunk_idx + 1} with LLM: {e}")
-                return chunk_idx, chunk_text
+                # Log loud + return empty string. Previously we returned
+                # `[LLM_EXTRACTION_FAILED: ...]\n` + raw chunk_text so
+                # downstream consumers could "spot the failure", but
+                # the marker travelled into embeddings + BM25 index +
+                # search results as user-visible content. Embedding
+                # the raw fallback text was worse — the unprocessed
+                # source carries none of the structure the LLM step
+                # was supposed to extract, so search relevance for
+                # those chunks regressed silently.
+                #
+                # The empty-string return drops the chunk entirely
+                # from the merged page text; the error log here is
+                # the operator-visible signal, and the caller's
+                # cache miss (no `set_llm`) means a retry will
+                # re-attempt extraction without poisoned state.
+                logger.error(
+                    f"Failed to process chunk {chunk_idx + 1} with LLM ({type(e).__name__}: {e}); "
+                    f"dropping chunk from output (no marker injected into indexed content)",
+                )
+                return chunk_idx, ""
 
     tasks = [process_chunk(idx, text) for idx, text in chunks]
     results = await asyncio.gather(*tasks)

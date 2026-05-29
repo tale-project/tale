@@ -194,20 +194,37 @@ export function _resetRagConfigForTests(): void {
 }
 
 /**
- * Fetch against the RAG service. Sets `Authorization: Bearer ${authToken}`
- * when `RAG_AUTH_TOKEN` is configured; otherwise sends no Authorization
- * header (RAG runs open). Applies a default per-request timeout and
- * accepts a path starting with `/`.
+ * Fetch against the RAG service.
+ *
+ * Sets `Authorization: Bearer ${authToken}` when `RAG_AUTH_TOKEN` is
+ * configured; otherwise sends no Authorization header (RAG runs open).
+ *
+ * `orgSlug` is required for ALL endpoints whose service-side handler
+ * scopes by tenant. Verified against the routers at
+ * `services/rag/app/routers/documents.py` and `.../search.py`: every
+ * non-health endpoint declares `org_slug: str = Depends(require_org_slug)`
+ * — including `/documents/{file_id}/content` (read), `/documents/compare`
+ * (compare-by-id), `/documents/compare-files` (compare bytes), `/search`,
+ * `/documents/upload`, `/documents/{file_id}` DELETE. Only `/health` /
+ * `/` accept calls without the header. Callers MUST pass `orgSlug` for
+ * every other route — a missing header yields 400 from RAG.
+ *
+ * When `orgSlug` is supplied, it sets `X-Tale-Org: ${orgSlug}` and
+ * cannot be overridden via a header in `init.headers` — preventing
+ * a caller from spoofing another org's identity.
  *
  * Works in both V8 and Node Convex runtimes (uses the global `fetch`).
  *
  * @example
- *   const res = await ragFetch('/api/v1/documents/abc', { method: 'DELETE' });
- *   if (res.status === 404 || res.ok) { ...treat as success... }
+ *   const res = await ragFetch('/api/v1/search', {
+ *     method: 'POST',
+ *     body: JSON.stringify(payload),
+ *     orgSlug: 'acme',
+ *   });
  */
 export async function ragFetch(
   path: string,
-  init: RequestInit & { timeoutMs?: number } = {},
+  init: RequestInit & { timeoutMs?: number; orgSlug?: string } = {},
 ): Promise<Response> {
   const { serviceUrl, authToken } = getRagConfig();
   // The legacy `path.startsWith('http')` override branch was a future-bypass
@@ -231,11 +248,32 @@ export async function ragFetch(
   if (authToken !== undefined && !headers.has('authorization')) {
     headers.set('authorization', `Bearer ${authToken}`);
   }
+  // When supplied, always overwrite — callers must not be able to
+  // spoof another org's identity by setting the header in `init.headers`
+  // directly. When omitted, the RAG endpoint either runs org-agnostic
+  // (status/delete/content/compare-by-id) or returns 400 from its
+  // `Depends(require_org_slug)` dep (search/generate/upload/compare-files).
+  //
+  // Distinguish "caller deliberately passed empty/blank slug" (a bug —
+  // fail fast, don't silently strip the header) from "caller omitted
+  // the field entirely" (the org-agnostic endpoint path). Earlier the
+  // truthy check folded both into the same silent-omit branch.
+  if (init.orgSlug !== undefined) {
+    const trimmedSlug = init.orgSlug.trim();
+    if (!trimmedSlug) {
+      throw new Error(
+        'ragFetch: orgSlug was provided but is empty; refusing to call RAG without a valid X-Tale-Org header',
+      );
+    }
+    // Send the trimmed value (not init.orgSlug) so accidental whitespace
+    // doesn't ride into RAG's `<orgSlug>/...` filesystem lookup.
+    headers.set('x-tale-org', trimmedSlug);
+  }
 
   const timeoutMs = init.timeoutMs ?? 10_000;
   const signal = init.signal ?? AbortSignal.timeout(timeoutMs);
 
-  const { timeoutMs: _drop, ...rest } = init;
+  const { timeoutMs: _drop, orgSlug: _dropOrg, ...rest } = init;
   // `redirect: 'manual'` so a compromised RAG returning a 30x to
   // `http://169.254.169.254/...` (cloud IMDS) doesn't get auto-followed
   // past the SSRF guard. Callers handle 30x as a hard error. Round-2 v15 F1.

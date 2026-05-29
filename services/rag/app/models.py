@@ -19,13 +19,16 @@ class HealthResponse(BaseModel):
 
 
 class ConfigResponse(BaseModel):
-    """Configuration response (non-sensitive values only)."""
+    """Configuration response (non-sensitive values only).
+
+    LLM-specific fields (model name, embedding model) require an
+    `org_slug` to resolve in the multi-org world and are intentionally
+    omitted from this endpoint; query the per-org config separately.
+    """
 
     host: str
     port: int
     log_level: str
-    openai_model: str
-    openai_embedding_model: str
     chunk_size: int
     chunk_overlap: int
     top_k: int

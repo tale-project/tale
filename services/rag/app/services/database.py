@@ -111,3 +111,34 @@ async def pin_embedding_dimensions(pool: asyncpg.Pool, dimensions: int) -> None:
                 "Vector search will use sequential scan. Consider reducing dimensions.",
                 dimensions,
             )
+
+        # Round-3 P2 R20-P2-a: pin the semantic_cache query_embedding
+        # column to the same dimensions. Previously declared as plain
+        # `vector` (any-dim) and never aligned; a dim change between
+        # deploys left stale rows whose pgvector `<=>` operator threw
+        # "different vector dimensions" on every subsequent lookup,
+        # silently swallowed by the SELECT's generic exception handler.
+        # TRUNCATE on mismatch because `<=>` can't be coerced across
+        # dims — we'd otherwise still error on existing rows.
+        try:
+            cache_col_type = await conn.fetchval(
+                """
+                SELECT format_type(atttypid, atttypmod)
+                FROM pg_attribute
+                WHERE attrelid = $1::regclass AND attname = 'query_embedding'
+                """,
+                f"{SCHEMA}.semantic_cache",
+            )
+        except asyncpg.exceptions.UndefinedTableError:
+            # semantic_cache is created lazily on first use; nothing to pin yet.
+            cache_col_type = None
+        if cache_col_type is not None and cache_col_type != expected_type:
+            logger.info(
+                "Pinning {}.semantic_cache.query_embedding to vector({}); truncating stale rows",
+                SCHEMA,
+                dimensions,
+            )
+            await conn.execute(f"TRUNCATE TABLE {SCHEMA}.semantic_cache")
+            await conn.execute(
+                f"ALTER TABLE {SCHEMA}.semantic_cache ALTER COLUMN query_embedding TYPE vector({dimensions})",
+            )

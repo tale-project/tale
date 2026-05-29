@@ -1,8 +1,9 @@
 /**
  * Public V8 actions for the operator-side retention bounds proposal
- * gate. The JSON file under `$TALE_CONFIG_DIR/retention/{orgSlug}.json`
- * (and `TALE_RETENTION_*` env tightening) are no longer directives —
- * they're proposals. Cleanup uses `retentionAppliedBounds.appliedBounds`,
+ * gate. The JSON file under `$TALE_CONFIG_DIR/<orgSlug>/retention.json`
+ * (org-first layout) and `TALE_RETENTION_*` env tightening are no
+ * longer directives — they're proposals. Cleanup uses
+ * `retentionAppliedBounds.appliedBounds`,
  * which only changes when an admin clicks Apply here.
  *
  * Three actions:
@@ -68,6 +69,12 @@ async function loadOrgRetentionConfig(
  * `{category: {min, max}}` shape that goes into `retentionAppliedBounds`
  * + the hash. The full `EffectiveBoundDef` (with env-binding detail and
  * display metadata) is for the banner UI, not the snapshot.
+ *
+ * Both failure modes — operator never installed the file, AND env
+ * tightening references a category the file doesn't declare — surface
+ * as the SAME `ConvexError({code: 'RETENTION_CONFIG_MISSING'})`. Lifting
+ * the translation here keeps every caller's body straight-line — the
+ * earlier pattern had four duplicated try/catches around this call.
  */
 async function computeEffectiveAppliedBounds(
   ctx: ActionCtx,
@@ -78,10 +85,22 @@ async function computeEffectiveAppliedBounds(
     throw new ConvexError({
       code: 'RETENTION_CONFIG_MISSING',
       message:
-        'Retention config not yet installed. Copy examples/retention/default.json to $TALE_CONFIG_DIR/retention/default.json then reload.',
+        'Retention config not yet installed. Copy examples/default/retention.json to $TALE_CONFIG_DIR/default/retention.json then reload.',
     });
   }
-  const all = applyEnvTighteningAll(orgConfig);
+  let all;
+  try {
+    all = applyEnvTighteningAll(orgConfig);
+  } catch (err) {
+    if (err instanceof RetentionConfigMissingError) {
+      throw new ConvexError({
+        code: 'RETENTION_CONFIG_MISSING',
+        category: err.category,
+        message: err.message,
+      });
+    }
+    throw err;
+  }
   const out: AppliedBoundsByCategory = {};
   for (const def of all) {
     out[def.category] = { min: def.min, max: def.max };
@@ -284,19 +303,7 @@ export const getPendingBoundsProposal = action({
     });
 
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-    let proposedBounds: AppliedBoundsByCategory;
-    try {
-      proposedBounds = await computeEffectiveAppliedBounds(ctx, orgSlug);
-    } catch (err) {
-      if (err instanceof RetentionConfigMissingError) {
-        throw new ConvexError({
-          code: 'RETENTION_CONFIG_MISSING',
-          category: err.category,
-          message: err.message,
-        });
-      }
-      throw err;
-    }
+    const proposedBounds = await computeEffectiveAppliedBounds(ctx, orgSlug);
     const proposedHash = await hashAppliedBounds(proposedBounds);
 
     const applied: {
@@ -531,10 +538,15 @@ export const seedInitialBoundsInternal = internalAction({
     try {
       proposedBounds = await computeEffectiveAppliedBounds(ctx, orgSlug);
     } catch (err) {
-      if (err instanceof ConvexError) {
-        // Config-missing — operator hasn't installed the file. Log
-        // loudly so the seed retry path is obvious and bail (cleanup
-        // already skips orgs without applied rows).
+      // Seeder runs for every org during migration; orgs that haven't
+      // installed the retention config yet are expected to be skipped
+      // (cleanup already skips orgs without applied rows). Other errors
+      // are real bugs — propagate.
+      if (
+        err instanceof ConvexError &&
+        isRecord(err.data) &&
+        err.data.code === 'RETENTION_CONFIG_MISSING'
+      ) {
         console.warn(
           `[seedInitialBoundsInternal] org ${args.organizationId}: ${err.message}`,
         );

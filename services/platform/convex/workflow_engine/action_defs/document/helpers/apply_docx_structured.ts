@@ -19,6 +19,8 @@ import {
   getCrawlerUrl,
 } from '../../../../documents/generate_document_helpers';
 import { createDebugLog } from '../../../../lib/debug_log';
+import { UpstreamHttpError } from '../../../../lib/errors/upstream_http_error';
+import { orgSlugFromId } from '../../../../lib/helpers/org_slug';
 import { toId } from '../../../../lib/type_cast_helpers';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
@@ -53,9 +55,9 @@ export interface ApplyDocxStructuredArgs {
   sourceHash: string;
   modifications: Modification[];
   fileName: string;
+  organizationId: string;
   trackChanges?: boolean;
   author?: string;
-  organizationId?: string;
 }
 
 export interface ApplyDocxStructuredResult {
@@ -116,8 +118,11 @@ export async function applyDocxStructured(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300_000);
 
+  const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+
   const response = await fetch(apiUrl, {
     method: 'POST',
+    headers: { 'x-tale-org': orgSlug },
     body: formData,
     signal: controller.signal,
   });
@@ -126,8 +131,11 @@ export async function applyDocxStructured(
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    throw new Error(
-      `Crawler apply-structured failed: ${response.status} ${errorText}`,
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
+      errorText,
+      '/api/v1/docx/apply-structured',
     );
   }
 
@@ -162,8 +170,12 @@ export async function applyDocxStructured(
     ? args.fileName
     : `${args.fileName}.docx`;
 
-  // Save file metadata if organizationId is available
-  if (args.organizationId) {
+  // Save file metadata so the file shows up in the org's library.
+  // Cleanup the just-uploaded _storage blob if the metadata write
+  // fails — without this, a transient mutation failure leaves an
+  // orphan blob in the global _storage namespace with no fileMetadata
+  // pointer (round-3 P2 R10-P2-c).
+  try {
     await ctx.runMutation(
       internal.file_metadata.internal_mutations.saveFileMetadata,
       {
@@ -175,6 +187,16 @@ export async function applyDocxStructured(
         source: 'agent',
       },
     );
+  } catch (err) {
+    try {
+      await ctx.storage.delete(storageId);
+    } catch (deleteErr) {
+      console.warn(
+        `[applyDocxStructured] orphan-blob cleanup failed for ${storageId}:`,
+        deleteErr instanceof Error ? deleteErr.message : deleteErr,
+      );
+    }
+    throw err;
   }
 
   const downloadUrl = buildDownloadUrl(storageId, finalFileName);

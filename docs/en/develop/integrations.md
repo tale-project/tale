@@ -49,7 +49,7 @@ The operation surfaces on agents as a tool family the moment the org connects cr
 | MCP server    | The bridge needs to be a long-lived process — local files, a CLI you own, a system that cannot be reached from Tale's network.        |
 | Connector TS  | The REST manifest covers 80 % of the API but one operation needs response shaping the manifest cannot declare.                        |
 
-The shipped integrations under [Platform > Integrations](/platform/integrations/overview) are the catalogue of REST manifests Tale ships — read their configs in `examples/integrations/` for the patterns you will copy.
+The shipped integrations under [Platform > Integrations](/platform/integrations/overview) are the catalogue of REST manifests Tale ships — read their configs in `examples/default/integrations/` for the patterns you will copy.
 
 ## SQL adapters
 

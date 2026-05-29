@@ -34,17 +34,35 @@ export function createDeployCommand(): Command {
     )
     .option('-q, --quiet', 'Suppress container logs during deployment')
     .option(
-      '-y, --yes',
-      'Non-interactive: automatically accept any pending migrations',
+      '--override-all',
+      'After deploy, factory-reseed the builtin catalog into ALL orgs server-side ' +
+        '(preserves *.secrets.json, .history/, and uploaded branding/images/). ' +
+        'Implies --all (recreates stateful services so the new entrypoint runs).',
       false,
     )
     .option(
-      '--migrate-volumes',
-      '[deprecated] alias for --yes; will be removed in a future release',
+      '-y, --yes',
+      'Non-interactive: auto-accept destructive confirmation prompts (e.g. --override-all)',
       false,
     )
     .action(async (options) => {
       try {
+        // `--override` and `--override-all` are semantically incompatible:
+        // host push runs first, then the catalog factory reseed clobbers
+        // everything --override would have written (host push effectively
+        // becomes a no-op for non-secrets / non-history / non-branding-
+        // images). Reject the combination at parse time so operators
+        // don't reason about a silently-discarded flag.
+        if (options.override && options.overrideAll) {
+          logger.error(
+            '--override and --override-all cannot be combined: ' +
+              '--override-all factory-reseeds from the builtin catalog and ' +
+              'would clobber whatever --override just pushed. ' +
+              'Pick one: --override (push host workspace to container) ' +
+              'OR --override-all (factory-reseed all orgs server-side).',
+          );
+          process.exit(1);
+        }
         const projectDir = requireProject();
         await resolveOrAssignProjectContext(projectDir);
         const { success: envSetupSuccess, regeneratedAutoSecrets } =
@@ -58,9 +76,13 @@ export function createDeployCommand(): Command {
         // (typical: a new `SANDBOX_TOKEN` for an existing deployment),
         // force-recreate the running services so their in-memory env
         // refreshes to the new value rather than keeping the stale null.
+        // Also force-recreate on --override-all so the reseed action
+        // runs against the new binary, not a stale container that the
+        // image/config-unchanged path would have left running.
         const forceRecreate =
-          regeneratedAutoSecrets !== undefined &&
-          regeneratedAutoSecrets.length > 0;
+          (regeneratedAutoSecrets !== undefined &&
+            regeneratedAutoSecrets.length > 0) ||
+          (options.overrideAll ?? false);
         const env = loadEnv(projectDir);
 
         const version = pkg.version.includes('-dev') ? 'latest' : pkg.version;
@@ -84,22 +106,20 @@ export function createDeployCommand(): Command {
           services = serviceList as ServiceName[];
         }
 
-        if (options.migrateVolumes && !options.yes) {
-          logger.warn(
-            '--migrate-volumes is deprecated; use --yes for non-interactive migration acceptance.',
-          );
-        }
         const hostAlias = options.host ?? process.env.HOST ?? 'tale.local';
         await deploy({
           version,
-          updateStateful: options.all,
+          // --override-all implies --all so the convex container restarts
+          // with the new entrypoint + new code before the reseed action runs.
+          updateStateful: options.all || options.overrideAll,
           env,
           hostAlias,
           dryRun: options.dryRun,
           services,
           override: options.override,
+          overrideAll: options.overrideAll,
           quiet: options.quiet,
-          assumeYes: options.yes || options.migrateVolumes,
+          assumeYes: options.yes,
           forceRecreate,
         });
       } catch (err) {

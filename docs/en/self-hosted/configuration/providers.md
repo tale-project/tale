@@ -31,7 +31,7 @@ The reference is the file format on disk and the order operations follow when ad
 }
 ```
 
-The full set of fields lives in [`examples/providers/`](https://github.com/tale-project/tale/tree/main/examples/providers) — `openai.json`, `openrouter.json`, and `vercel-gateway.json` cover the three shapes you are likely to need.
+The full set of fields lives in [`examples/default/providers/`](https://github.com/tale-project/tale/tree/main/examples/default/providers) — `openai.json`, `openrouter.json`, and `vercel-gateway.json` cover the three shapes you are likely to need.
 
 ## The secrets file
 

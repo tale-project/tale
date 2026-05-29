@@ -162,7 +162,11 @@ VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8, $9, $10)"""
 
         async def _store_chunks(conn: asyncpg.Connection) -> None:
             await conn.execute(_UPSERT_WEBSITE_URL, domain, url, title, content_hash, filtered_hash)
-            await conn.execute("DELETE FROM chunks WHERE url = $1", url)
+            # Scope by domain too: chunks PK is (domain, url, chunk_index)
+            # so two different domains hosting the same URL path
+            # (e.g. `/about`) would over-delete each other's chunks
+            # without this filter.
+            await conn.execute("DELETE FROM chunks WHERE domain = $1 AND url = $2", domain, url)
             for i in range(0, len(chunk_rows), _EXECUTEMANY_BATCH_SIZE):
                 await conn.executemany(_chunk_insert, chunk_rows[i : i + _EXECUTEMANY_BATCH_SIZE])
 
@@ -250,8 +254,18 @@ VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8, $9, $10)"""
             "total_chunks": total_chunks,
         }
 
-    async def delete_page_chunks(self, url: str) -> int:
+    async def delete_page_chunks(self, url: str, domain: str) -> int:
+        # `domain` is now REQUIRED (round-3 P2 R25-P1). The previous
+        # `domain=None` branch issued `DELETE FROM chunks WHERE url=$1`
+        # which spans every domain that ever ingested the path —
+        # silently over-deleting another org's chunks on shared paths
+        # like `/about` or `/index`. No production caller relied on
+        # the omit-domain behavior; only legacy tests did.
         async with acquire_with_retry(self._pool) as conn:
-            result = await conn.execute("DELETE FROM chunks WHERE url = $1", url)
+            result = await conn.execute(
+                "DELETE FROM chunks WHERE domain = $1 AND url = $2",
+                domain,
+                url,
+            )
             count = int(result.split()[-1]) if result else 0
             return count

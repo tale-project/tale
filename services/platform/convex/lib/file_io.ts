@@ -22,7 +22,8 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
-const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
+import { isValidOrgSlug as sharedIsValidOrgSlug } from '../../lib/shared/constants/org-slug';
+
 const TIMESTAMP_REGEX = /^\d{13,}(-[a-f0-9]+)?$/;
 
 export type FileReadResult<T> =
@@ -53,6 +54,29 @@ function isFileNotFound(err: unknown): boolean {
  * "permission denied" / "I/O error" (always worth logging) without
  * duplicating the property-check ceremony.
  */
+/**
+ * Apply the providers/-style ENOENT-vs-other discrimination to a
+ * `readdir` error. ENOENT is the legitimate "directory doesn't exist
+ * yet" case — every list-domain endpoint treats it as an empty result.
+ * Any other errno (EACCES, EIO, EISDIR, …) means the operator misconfigured
+ * the volume mount or there's a real fs problem; silently returning `[]`
+ * makes the bug invisible. Log with a label so the source is identifiable
+ * in `docker logs` and surface as an empty list to the caller so the
+ * route still responds.
+ *
+ * Used to replace silent `catch {}` blocks at:
+ *  - convex/agents/file_actions.ts (listAgents, duplicateAgent, listHistory)
+ *  - convex/agents/internal_actions.ts (listAgentsInternal)
+ *  - convex/workflows/file_actions.ts (listWorkflowsInternal, getAvailableWorkflows)
+ */
+export function handleDirReadError(err: unknown, label: string): void {
+  if (errnoCode(err) === 'ENOENT') return;
+  console.warn(
+    `[${label}] readdir failed:`,
+    err instanceof Error ? err.message : err,
+  );
+}
+
 export function errnoCode(err: unknown): string | undefined {
   if (err instanceof Error && 'code' in err && typeof err.code === 'string') {
     return err.code;
@@ -70,7 +94,62 @@ export async function isSymlink(filePath: string): Promise<boolean> {
 }
 
 export function validateOrgSlug(orgSlug: string): boolean {
-  return orgSlug === 'default' || ORG_SLUG_REGEX.test(orgSlug);
+  return sharedIsValidOrgSlug(orgSlug);
+}
+
+/**
+ * Resolve the on-disk root for all org-scoped config from the
+ * `TALE_CONFIG_DIR` env var. Each domain module used to inline its own
+ * copy of this; centralizing prevents the error-message drift previous
+ * reviews caught.
+ *
+ * Optional `area` suffix is included in the error message when the env
+ * var is missing, so the operator sees which catalog they were trying
+ * to access ("agents", "providers", etc.).
+ */
+export function getConfigRoot(area?: string): string {
+  const configDir = process.env.TALE_CONFIG_DIR;
+  if (configDir) return configDir;
+  const suffix = area ? ` so ${area} can be resolved` : '';
+  throw new Error(
+    `TALE_CONFIG_DIR environment variable is not set. ` +
+      `Set it to the root config directory ` +
+      `(e.g., TALE_CONFIG_DIR=/path/to/tale/examples)${suffix}.`,
+  );
+}
+
+/**
+ * Join `name` onto `dir` and refuse anything that escapes `dir`.
+ *
+ * Catches `..`-style traversal as well as absolute-path injection.
+ * Centralized so every domain module's resolver gets the same guard
+ * with the same error shape — previous review found this block
+ * copy-pasted in 9 places.
+ *
+ * Use this for the leaf-name leg only (after the org-slug has been
+ * validated and joined). Pass a pre-validated `name` whose shape is
+ * already restricted by a per-domain regex; this helper is a
+ * defense-in-depth backstop, not the primary validator.
+ */
+export function safeJoinWithinDir(dir: string, name: string): string {
+  // Empty name resolves to `dir` itself — every callable site of this
+  // helper expects to land on a CHILD of `dir`, so an empty name is a
+  // bug at the call site (likely an unvalidated empty string from user
+  // input). Reject it explicitly rather than silently returning the
+  // parent directory's path, which would let a caller `unlink` /
+  // `rm -rf` the whole config root.
+  if (name === '') {
+    throw new Error('Path traversal detected: empty name');
+  }
+  const resolved = path.resolve(dir, name);
+  const expectedPrefix = path.resolve(dir);
+  if (
+    !resolved.startsWith(expectedPrefix + path.sep) &&
+    resolved !== expectedPrefix
+  ) {
+    throw new Error(`Path traversal detected: ${name}`);
+  }
+  return resolved;
 }
 
 export function validateTimestamp(ts: string): boolean {

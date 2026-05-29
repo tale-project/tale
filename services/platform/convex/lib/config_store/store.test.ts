@@ -28,6 +28,18 @@ afterEach(async () => {
   await rm(tmpRoot, { recursive: true, force: true });
 });
 
+// Org-first layout: each org's area file lives at
+// `<root>/<orgSlug>/<area>.json`.
+async function writeOrgAreaFile(
+  orgSlug: string,
+  area: string,
+  content: string,
+): Promise<void> {
+  const dir = path.join(tmpRoot, orgSlug);
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, `${area}.json`), content);
+}
+
 describe('createFileConfigStore', () => {
   it('read returns null for missing file', async () => {
     const store = createFileConfigStore<TestConfig>('thing', testSchema);
@@ -36,10 +48,9 @@ describe('createFileConfigStore', () => {
   });
 
   it('read parses + validates a valid file', async () => {
-    const dir = path.join(tmpRoot, 'thing');
-    await mkdir(dir, { recursive: true });
-    await writeFile(
-      path.join(dir, 'default.json'),
+    await writeOrgAreaFile(
+      'default',
+      'thing',
       JSON.stringify({ foo: 'bar', n: 42 }),
     );
     const store = createFileConfigStore<TestConfig>('thing', testSchema);
@@ -48,18 +59,15 @@ describe('createFileConfigStore', () => {
   });
 
   it('read throws on corrupted JSON', async () => {
-    const dir = path.join(tmpRoot, 'thing');
-    await mkdir(dir, { recursive: true });
-    await writeFile(path.join(dir, 'default.json'), '{ not valid json');
+    await writeOrgAreaFile('default', 'thing', '{ not valid json');
     const store = createFileConfigStore<TestConfig>('thing', testSchema);
     await expect(store.read('default')).rejects.toThrow();
   });
 
   it('read throws on schema violation', async () => {
-    const dir = path.join(tmpRoot, 'thing');
-    await mkdir(dir, { recursive: true });
-    await writeFile(
-      path.join(dir, 'default.json'),
+    await writeOrgAreaFile(
+      'default',
+      'thing',
       JSON.stringify({ foo: 123 }), // foo must be string
     );
     const store = createFileConfigStore<TestConfig>('thing', testSchema);
@@ -81,22 +89,23 @@ describe('createFileConfigStore', () => {
     ).rejects.toThrow(/Refusing to write invalid/);
   });
 
-  it('list returns slugs of present *.json files', async () => {
-    const dir = path.join(tmpRoot, 'thing');
-    await mkdir(dir, { recursive: true });
-    await writeFile(path.join(dir, 'default.json'), '{}');
-    await writeFile(path.join(dir, 'marketing.json'), '{}');
-    await writeFile(path.join(dir, 'engineering.json'), '{}');
-    // Non-json + dotfile should be ignored
-    await writeFile(path.join(dir, 'notes.txt'), 'ignored');
-    await writeFile(path.join(dir, '.history.json'), 'ignored');
+  it('list returns slugs of orgs with a <area>.json file', async () => {
+    await writeOrgAreaFile('default', 'thing', '{}');
+    await writeOrgAreaFile('marketing', 'thing', '{}');
+    await writeOrgAreaFile('engineering', 'thing', '{}');
+    // An org without the area file should not appear.
+    await mkdir(path.join(tmpRoot, 'unrelated'), { recursive: true });
+    await writeFile(path.join(tmpRoot, 'unrelated', 'other.json'), '{}');
     const store = createFileConfigStore<TestConfig>('thing', testSchema);
     const list = await store.list();
     const slugs = list.map((e) => e.orgSlug).sort();
     expect(slugs).toEqual(['default', 'engineering', 'marketing']);
   });
 
-  it('list returns empty array when area dir does not exist', async () => {
+  it('list returns empty array when config root does not exist', async () => {
+    // Stub to a non-existent path so the readdir() in list() takes the
+    // ENOENT branch.
+    await rm(tmpRoot, { recursive: true, force: true });
     const store = createFileConfigStore<TestConfig>('thing', testSchema);
     const list = await store.list();
     expect(list).toEqual([]);

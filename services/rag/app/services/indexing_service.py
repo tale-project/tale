@@ -155,6 +155,7 @@ def _extract_file_dates(
 
 async def _update_progress(
     pool: asyncpg.Pool,
+    org_slug: str,
     file_id: str,
     phase: str,
     detail: str,
@@ -164,18 +165,20 @@ async def _update_progress(
         async with acquire_with_retry(pool) as conn:
             await conn.execute(
                 f"""UPDATE {SCHEMA}.documents
-                    SET progress_phase = $2, progress_detail = $3, updated_at = NOW()
-                    WHERE file_id = $1 AND status = 'processing'""",
+                    SET progress_phase = $3, progress_detail = $4, updated_at = NOW()
+                    WHERE org_slug = $1 AND file_id = $2 AND status = 'processing'""",
+                org_slug,
                 file_id,
                 phase,
                 detail,
             )
     except Exception:
-        logger.debug("Failed to update progress for {}", file_id)
+        logger.debug("Failed to update progress for {}/{}", org_slug, file_id)
 
 
 def _make_extraction_progress_callback(
     pool: asyncpg.Pool,
+    org_slug: str,
     file_id: str,
     loop: Any,
     *,
@@ -195,7 +198,7 @@ def _make_extraction_progress_callback(
             return
         last_flush = now
         detail = f"{pages_done}/{total_pages}"
-        loop.create_task(_update_progress(pool, file_id, "extracting", detail))
+        loop.create_task(_update_progress(pool, org_slug, file_id, "extracting", detail))
 
     return on_progress
 
@@ -259,15 +262,24 @@ async def prepare_document(
 
 async def find_existing_by_hash(
     pool: asyncpg.Pool,
+    org_slug: str,
     content_hash: str,
 ) -> uuid.UUID | None:
-    """Find a completed document with the given content hash (any scope).
+    """Find a completed document with the given content hash within `org_slug`.
 
-    Returns the internal UUID (documents.id) if found, else None.
+    Cross-org content-hash dedup is intentionally disabled — if org B
+    secretly uploaded a file with the same content as one in org A, org
+    A could probe for org B's documents by hash. Returns None for any
+    match outside the caller's org.
+
+    Returns the internal UUID (documents.id) if a same-org match exists.
     """
     async with acquire_with_retry(pool) as conn:
         row = await conn.fetchrow(
-            f"SELECT id FROM {SCHEMA}.documents WHERE content_hash = $1 AND status = 'completed' LIMIT 1",
+            f"""SELECT id FROM {SCHEMA}.documents
+                WHERE org_slug = $1 AND content_hash = $2 AND status = 'completed'
+                LIMIT 1""",
+            org_slug,
             content_hash,
         )
     return row["id"] if row else None
@@ -275,6 +287,7 @@ async def find_existing_by_hash(
 
 async def clone_from_existing(
     pool: asyncpg.Pool,
+    org_slug: str,
     source_doc_id: uuid.UUID,
     file_id: str,
     filename: str,
@@ -290,7 +303,9 @@ async def clone_from_existing(
     """
     async with acquire_with_retry(pool) as conn:
         existing = await conn.fetchrow(
-            f"SELECT id, content_hash FROM {SCHEMA}.documents WHERE file_id = $1",
+            f"""SELECT id, content_hash FROM {SCHEMA}.documents
+                WHERE org_slug = $1 AND file_id = $2""",
+            org_slug,
             file_id,
         )
 
@@ -308,6 +323,7 @@ async def clone_from_existing(
         try:
             result = await _do_clone(
                 pool,
+                org_slug,
                 source_doc_id,
                 file_id,
                 filename,
@@ -333,6 +349,7 @@ async def clone_from_existing(
 
 async def _do_clone(
     pool: asyncpg.Pool,
+    org_slug: str,
     source_doc_id: uuid.UUID,
     file_id: str,
     filename: str,
@@ -344,14 +361,19 @@ async def _do_clone(
     """Clone chunks from source document in a single transaction.
 
     Uses ON CONFLICT to atomically handle concurrent writes for the same
-    file_id.  Returns None if the source document has no chunks (e.g.
-    deleted concurrently).
+    (org_slug, file_id).  Returns None if the source document has no chunks
+    (e.g. deleted concurrently). Source and target must share `org_slug` —
+    `find_existing_by_hash` is org-scoped, so a foreign-org `source_doc_id`
+    shouldn't reach here; the chunks INSERT additionally filters by
+    `org_slug` as defense-in-depth.
     """
     async with acquire_with_retry(pool) as conn, conn.transaction():
         source = await conn.fetchrow(
             f"""SELECT chunks_count, source_created_at, source_modified_at
-                FROM {SCHEMA}.documents WHERE id = $1 AND status = 'completed'""",
+                FROM {SCHEMA}.documents
+                WHERE id = $1 AND org_slug = $2 AND status = 'completed'""",
             source_doc_id,
+            org_slug,
         )
         if not source:
             return None
@@ -359,10 +381,10 @@ async def _do_clone(
         doc_row = await conn.fetchrow(
             f"""
             INSERT INTO {SCHEMA}.documents
-                (file_id, filename, content_hash, status, chunks_count,
+                (org_slug, file_id, filename, content_hash, status, chunks_count,
                  source_created_at, source_modified_at)
-            VALUES ($1, $2, $3, 'completed', $4, $5, $6)
-            ON CONFLICT (file_id, COALESCE(team_id, ''))
+            VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7)
+            ON CONFLICT (org_slug, file_id)
             DO UPDATE SET
                 filename = EXCLUDED.filename,
                 content_hash = EXCLUDED.content_hash,
@@ -376,6 +398,7 @@ async def _do_clone(
                 updated_at = NOW()
             RETURNING id, (xmax = 0) AS is_insert
             """,
+            org_slug,
             file_id,
             filename,
             content_hash,
@@ -388,25 +411,28 @@ async def _do_clone(
         # On UPDATE (not a fresh insert), remove old chunks first
         if not doc_row["is_insert"]:
             await conn.execute(
-                f"DELETE FROM {SCHEMA}.chunks WHERE document_id = $1",
+                f"DELETE FROM {SCHEMA}.chunks WHERE document_id = $1 AND org_slug = $2",
                 doc_uuid,
+                org_slug,
             )
 
         chunks_created = await conn.fetchval(
             f"""
             WITH inserted AS (
                 INSERT INTO {SCHEMA}.chunks
-                    (document_id, chunk_index, chunk_content, content_hash, embedding,
+                    (document_id, org_slug, chunk_index, chunk_content,
+                     content_hash, embedding,
                      core_content, prefix_overlap, suffix_overlap)
-                SELECT $1, chunk_index, chunk_content, content_hash, embedding,
+                SELECT $1, $2, chunk_index, chunk_content, content_hash, embedding,
                        core_content, prefix_overlap, suffix_overlap
                 FROM {SCHEMA}.chunks
-                WHERE document_id = $2
+                WHERE document_id = $3 AND org_slug = $2
                 RETURNING 1
             )
             SELECT count(*) FROM inserted
             """,
             doc_uuid,
+            org_slug,
             source_doc_id,
         )
 
@@ -429,6 +455,7 @@ async def _reindex_chunks_hnsw(pool: asyncpg.Pool) -> None:
 
 async def _do_store(
     pool: asyncpg.Pool,
+    org_slug: str,
     file_id: str,
     filename: str,
     prepared: PreparedDocument,
@@ -436,9 +463,9 @@ async def _do_store(
     """Upsert document and replace chunks in a single transaction.
 
     Uses ON CONFLICT to atomically handle concurrent writes for the same
-    file_id.  A WHERE clause on content_hash skips the update (and chunk
-    replacement) when the content hasn't changed — this is the atomic
-    equivalent of the old pre-transaction dedup SELECT.
+    (org_slug, file_id). A WHERE clause on content_hash skips the update
+    (and chunk replacement) when the content hasn't changed — this is the
+    atomic equivalent of the old pre-transaction dedup SELECT.
 
     When the WHERE filters out the update, RETURNING yields no rows —
     we treat that as "content unchanged, skip".
@@ -447,10 +474,10 @@ async def _do_store(
         doc_row = await conn.fetchrow(
             f"""
                 INSERT INTO {SCHEMA}.documents
-                    (file_id, filename, content_hash, status, chunks_count,
+                    (org_slug, file_id, filename, content_hash, status, chunks_count,
                      source_created_at, source_modified_at, ocr_applied)
-                VALUES ($1, $2, $3, 'completed', $4, $5, $6, $7)
-                ON CONFLICT (file_id, COALESCE(team_id, ''))
+                VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7, $8)
+                ON CONFLICT (org_slug, file_id)
                 DO UPDATE SET
                     filename = EXCLUDED.filename,
                     content_hash = EXCLUDED.content_hash,
@@ -466,6 +493,7 @@ async def _do_store(
                 WHERE {SCHEMA}.documents.content_hash IS DISTINCT FROM EXCLUDED.content_hash
                 RETURNING id, (xmax = 0) AS is_insert
                 """,
+            org_slug,
             file_id,
             filename,
             prepared.content_hash,
@@ -490,13 +518,15 @@ async def _do_store(
         # On UPDATE (not a fresh insert), remove old chunks first
         if not doc_row["is_insert"]:
             await conn.execute(
-                f"DELETE FROM {SCHEMA}.chunks WHERE document_id = $1",
+                f"DELETE FROM {SCHEMA}.chunks WHERE document_id = $1 AND org_slug = $2",
                 doc_uuid,
+                org_slug,
             )
 
         chunk_rows = [
             (
                 doc_uuid,
+                org_slug,
                 chunk.index,
                 chunk.content,
                 compute_content_hash(chunk.content.encode("utf-8")),
@@ -510,10 +540,10 @@ async def _do_store(
         await conn.executemany(
             f"""
                 INSERT INTO {SCHEMA}.chunks
-                    (document_id, chunk_index, chunk_content,
+                    (document_id, org_slug, chunk_index, chunk_content,
                      content_hash, embedding,
                      core_content, prefix_overlap, suffix_overlap)
-                VALUES ($1, $2, $3, $4, $5::vector, $6, $7, $8)
+                VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8, $9)
                 """,
             chunk_rows,
         )
@@ -529,6 +559,7 @@ async def _do_store(
 
 async def store_prepared_document(
     pool: asyncpg.Pool,
+    org_slug: str,
     file_id: str,
     filename: str,
     prepared: PreparedDocument,
@@ -541,7 +572,7 @@ async def store_prepared_document(
     """
     for attempt in range(2):
         try:
-            result = await _do_store(pool, file_id, filename, prepared)
+            result = await _do_store(pool, org_slug, file_id, filename, prepared)
             if result["skipped"]:
                 logger.info("Document {} content unchanged, skipping", file_id)
             else:
@@ -560,6 +591,7 @@ async def store_prepared_document(
 
 async def index_document(
     pool: asyncpg.Pool,
+    org_slug: str,
     file_id: str,
     content_bytes: bytes,
     filename: str,
@@ -573,21 +605,24 @@ async def index_document(
 ) -> dict[str, Any]:
     """Index a document: extract, chunk, embed, and store.
 
-    Attempts content-hash dedup first: if another document already has the same
-    content, clone its chunks instead of re-extracting/embedding.
+    Attempts content-hash dedup first: if another document IN THE SAME ORG
+    already has the same content, clone its chunks instead of re-extracting/
+    embedding. Cross-org dedup is intentionally not attempted (see
+    `find_existing_by_hash` docstring).
     """
     content_hash = compute_content_hash(content_bytes)
 
-    # Fast path: same file_id with unchanged content AND chunks already stored —
-    # skip immediately instead of re-extracting/embedding.
+    # Fast path: same file_id within this org with unchanged content AND
+    # chunks already stored — skip immediately instead of re-extracting.
     async with acquire_with_retry(pool) as conn:
         own_row = await conn.fetchrow(
             f"""SELECT d.content_hash,
                        (SELECT COUNT(*)
                         FROM {SCHEMA}.chunks c
-                        WHERE c.document_id = d.id) AS chunk_count
+                        WHERE c.document_id = d.id AND c.org_slug = $1) AS chunk_count
                 FROM {SCHEMA}.documents d
-                WHERE d.file_id = $1""",
+                WHERE d.org_slug = $1 AND d.file_id = $2""",
+            org_slug,
             file_id,
         )
     if own_row and own_row["content_hash"] == content_hash and own_row["chunk_count"] > 0:
@@ -603,7 +638,8 @@ async def index_document(
                         progress_phase = NULL,
                         progress_detail = NULL,
                         updated_at = NOW()
-                    WHERE file_id = $1""",
+                    WHERE org_slug = $1 AND file_id = $2""",
+                org_slug,
                 file_id,
             )
         return {
@@ -614,11 +650,12 @@ async def index_document(
             "skip_reason": "content_unchanged",
         }
 
-    source_id = await find_existing_by_hash(pool, content_hash)
+    source_id = await find_existing_by_hash(pool, org_slug, content_hash)
 
     if source_id is not None:
         result = await clone_from_existing(
             pool,
+            org_slug,
             source_id,
             file_id,
             filename,
@@ -633,9 +670,9 @@ async def index_document(
     import asyncio as _aio
 
     loop = _aio.get_running_loop()
-    extraction_cb = _make_extraction_progress_callback(pool, file_id, loop)
+    extraction_cb = _make_extraction_progress_callback(pool, org_slug, file_id, loop)
 
-    await _update_progress(pool, file_id, "extracting", "")
+    await _update_progress(pool, org_slug, file_id, "extracting", "")
 
     prepared = await prepare_document(
         content_bytes,
@@ -658,6 +695,7 @@ async def index_document(
 
     await _update_progress(
         pool,
+        org_slug,
         file_id,
         "embedding",
         f"{len(prepared.chunks)} chunks",
@@ -670,10 +708,11 @@ async def index_document(
             source_modified_at=source_modified_at or prepared.source_modified_at,
         )
 
-    await _update_progress(pool, file_id, "storing", "")
+    await _update_progress(pool, org_slug, file_id, "storing", "")
 
     return await store_prepared_document(
         pool,
+        org_slug,
         file_id,
         filename,
         prepared,

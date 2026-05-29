@@ -11,6 +11,10 @@
 
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../lib/debug_log';
+import {
+  UpstreamHttpError,
+  isUpstreamHttpError,
+} from '../../lib/errors/upstream_http_error';
 import { getRagConfig, ragFetch } from '../../lib/helpers/rag_config';
 import {
   extractCitationsFromSearchResults,
@@ -130,6 +134,13 @@ export interface RagContextResult {
 export interface RagContextOptions {
   /** File storage IDs to scope the search to */
   fileIds?: string[];
+  /**
+   * Org slug for the X-Tale-Org header. Required by the RAG service's
+   * `/api/v1/search` endpoint (it picks the org's provider catalog to
+   * embed the query). Empty / missing yields HTTP 400 from RAG and is
+   * surfaced (not silently swallowed) so the caller sees the bug.
+   */
+  orgSlug: string;
 }
 
 /**
@@ -150,8 +161,27 @@ export async function queryRagContext(
   similarityThreshold: number = DEFAULT_SIMILARITY_THRESHOLD,
   signal?: AbortSignal,
   recentMessages?: RecentMessage[],
-  options?: RagContextOptions,
+  // The type says orgSlug is required, but TS forces this parameter to
+  // be optional because all preceding params have defaults. The runtime
+  // assertion below (outside the outer try/catch) enforces it loudly.
+  options: RagContextOptions = { orgSlug: '' },
 ): Promise<RagContextResult | undefined> {
+  // Validate orgSlug up front, OUTSIDE the outer try/catch so the bug
+  // surfaces as a real throw instead of being silently swallowed by the
+  // graceful-degrade catch at the bottom of this function. A missing /
+  // blank slug is a caller misconfiguration, not a runtime RAG outage.
+  // (Round-3 P2 R7-P2-a — previously the empty-slug case hit ragFetch's
+  // throw, fell into the catch, and returned undefined as if the search
+  // had failed.)
+  if (
+    !options ||
+    typeof options.orgSlug !== 'string' ||
+    !options.orgSlug.trim()
+  ) {
+    throw new Error(
+      'queryRagContext: options.orgSlug is required and must be non-empty',
+    );
+  }
   try {
     const ragServiceUrl = getRagConfig().serviceUrl;
 
@@ -182,7 +212,7 @@ export async function queryRagContext(
         include_metadata: true,
       };
 
-      if (!options?.fileIds || options.fileIds.length === 0) {
+      if (!options.fileIds || options.fileIds.length === 0) {
         debugLog('No file IDs provided, skipping RAG query');
         // Without this, the controller fires `controller.abort()`
         // RAG_REQUEST_TIMEOUT_MS later against no in-flight fetch — a
@@ -197,18 +227,35 @@ export async function queryRagContext(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestPayload),
+        orgSlug: options.orgSlug,
         signal: fetchSignal,
       });
 
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[rag_query] RAG service error', {
+        const errorText = await response.text().catch(() => '');
+        // 4xx is a caller/config bug: missing or bad X-Tale-Org,
+        // schema-rejected query, etc. Surfacing as a thrown
+        // UpstreamHttpError gives the agent runtime a clear signal
+        // (and prevents the agent from treating "auth misconfigured"
+        // as "knowledge base is empty"). 5xx remains silent fallback
+        // — RAG outage shouldn't break chat completely.
+        if (response.status >= 400 && response.status < 500) {
+          throw UpstreamHttpError.fromResponse(
+            'rag',
+            response,
+            errorText,
+            '/api/v1/search',
+          );
+        }
+        console.error('[rag_query] RAG service unavailable', {
           status: response.status,
+          // errorText logged engineer-side only; caller gets a graceful
+          // empty-context return so chat continues without RAG.
           error: errorText,
         });
-        return undefined; // Gracefully degrade if RAG is unavailable
+        return undefined;
       }
 
       const result = await fetchJson<SearchResponse>(response);
@@ -236,6 +283,16 @@ export async function queryRagContext(
       return { text: ragContext, citations };
     } catch (fetchError) {
       clearTimeout(timeoutId);
+
+      // Caller/config bugs (4xx → `UpstreamHttpError`) MUST propagate
+      // past this graceful-degrade layer. Otherwise the explicit throw
+      // for missing `X-Tale-Org` / bad query in the `!response.ok`
+      // branch above is silently swallowed here and the agent treats
+      // "auth misconfigured" as "knowledge base is empty" — the very
+      // failure mode the upstream throw was added to prevent.
+      if (isUpstreamHttpError(fetchError)) {
+        throw fetchError;
+      }
 
       // Handle timeout specifically
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {

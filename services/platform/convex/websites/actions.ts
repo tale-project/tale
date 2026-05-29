@@ -2,8 +2,10 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { toWebsiteDomain } from './create_website';
 import {
   deregisterDomainFromCrawler,
@@ -14,6 +16,39 @@ import type {
   FetchPagesResult,
   SearchContentResult,
 } from './types';
+
+/**
+ * Resolve a websiteId, verify the caller's org membership, return both.
+ * Centralises the auth pattern that every read-side action in this file
+ * needs (deleteWebsite / updateWebsite already do it inline; fetchPages /
+ * fetchChunks / searchContent used to skip it, returning the foreign
+ * org's private content to any authenticated caller — round-2 P1-4).
+ *
+ * Uses "Website not found" for both "no row" and "wrong org" so a cross-
+ * org caller can't probe website existence by status code.
+ */
+async function loadOwnedWebsite(ctx: ActionCtx, websiteId: Id<'websites'>) {
+  const authUser = await authComponent.getAuthUser(ctx);
+  if (!authUser) throw new Error('Unauthenticated');
+
+  const website = await ctx.runQuery(
+    internal.websites.internal_queries.getWebsite,
+    { websiteId },
+  );
+  if (!website) throw new Error('Website not found');
+
+  await ctx.runQuery(
+    internal.websites.internal_queries.verifyOrganizationMembership,
+    {
+      organizationId: website.organizationId,
+      userId: authUser._id,
+      email: authUser.email,
+      name: authUser.name,
+    },
+  );
+
+  return { website, authUser };
+}
 
 export const createWebsite = action({
   args: {
@@ -56,7 +91,12 @@ export const createWebsite = action({
     await ctx.scheduler.runAfter(
       0,
       internal.websites.internal_actions.registerAndSync,
-      { websiteId, domain, scanInterval: args.scanInterval },
+      {
+        websiteId,
+        domain,
+        scanInterval: args.scanInterval,
+        organizationId: args.organizationId,
+      },
     );
 
     return websiteId;
@@ -88,8 +128,9 @@ export const deleteWebsite = action({
       },
     );
 
+    const orgSlug = await orgSlugFromId(ctx, website.organizationId);
     // Deregister from crawler first — if this fails, the user can retry
-    await deregisterDomainFromCrawler(website.domain);
+    await deregisterDomainFromCrawler(orgSlug, website.domain);
 
     await ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
       websiteId: args.websiteId,
@@ -130,8 +171,13 @@ export const updateWebsite = action({
 
     // Sync scan interval to crawler
     if (args.scanInterval && args.scanInterval !== website.scanInterval) {
+      const orgSlug = await orgSlugFromId(ctx, website.organizationId);
       try {
-        await updateCrawlerScanInterval(website.domain, args.scanInterval);
+        await updateCrawlerScanInterval(
+          orgSlug,
+          website.domain,
+          args.scanInterval,
+        );
       } catch (error) {
         if (
           error instanceof Error &&
@@ -223,26 +269,36 @@ export const fetchPages = action({
     hasMore: v.boolean(),
   }),
   handler: async (ctx, args): Promise<FetchPagesResult> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    const { website } = await loadOwnedWebsite(ctx, args.websiteId);
 
-    const website = await ctx.runQuery(
-      internal.websites.internal_queries.getWebsite,
-      { websiteId: args.websiteId },
-    );
-    if (!website) throw new Error('Website not found');
-
-    // Trigger async metadata sync from crawler
-    await ctx.scheduler.runAfter(
-      0,
-      internal.websites.internal_actions.syncSingleWebsite,
-      { websiteId: args.websiteId, domain: website.domain },
-    );
+    // Debounce the crawler sync: every fetchPages call (page view, poll,
+    // tab open) previously scheduled syncSingleWebsite unconditionally,
+    // fanning out N concurrent crawler hits + creating a last-write-wins
+    // race on the row's status field. Mirror the 1-hour throttle that
+    // syncWebsiteStatuses uses via metadata.lastStatusSyncAt (round-3 P2
+    // R9-P2-b).
+    const SYNC_DEBOUNCE_MS = 60 * 60 * 1000;
+    const lastSyncAt =
+      typeof website.metadata?.lastStatusSyncAt === 'number'
+        ? website.metadata.lastStatusSyncAt
+        : 0;
+    if (Date.now() - lastSyncAt > SYNC_DEBOUNCE_MS) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.websites.internal_actions.syncSingleWebsite,
+        {
+          websiteId: args.websiteId,
+          domain: website.domain,
+          organizationId: website.organizationId,
+        },
+      );
+    }
 
     return await ctx.runAction(
       internal.websites.internal_actions.fetchWebsitePages,
       {
         domain: website.domain,
+        organizationId: website.organizationId,
         offset: args.offset,
         limit: args.limit,
       },
@@ -256,18 +312,15 @@ export const fetchChunks = action({
     url: v.string(),
   },
   handler: async (ctx, args): Promise<FetchChunksResult> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const website = await ctx.runQuery(
-      internal.websites.internal_queries.getWebsite,
-      { websiteId: args.websiteId },
-    );
-    if (!website) throw new Error('Website not found');
+    const { website } = await loadOwnedWebsite(ctx, args.websiteId);
 
     return await ctx.runAction(
       internal.websites.internal_actions.fetchPageChunks,
-      { domain: website.domain, url: args.url },
+      {
+        domain: website.domain,
+        url: args.url,
+        organizationId: website.organizationId,
+      },
     );
   },
 });
@@ -279,18 +332,16 @@ export const searchContent = action({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<SearchContentResult> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const website = await ctx.runQuery(
-      internal.websites.internal_queries.getWebsite,
-      { websiteId: args.websiteId },
-    );
-    if (!website) throw new Error('Website not found');
+    const { website } = await loadOwnedWebsite(ctx, args.websiteId);
 
     return await ctx.runAction(
       internal.websites.internal_actions.searchWebsiteContent,
-      { domain: website.domain, query: args.query, limit: args.limit },
+      {
+        domain: website.domain,
+        query: args.query,
+        organizationId: website.organizationId,
+        limit: args.limit,
+      },
     );
   },
 });

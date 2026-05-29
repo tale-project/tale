@@ -27,6 +27,8 @@ from app.services.indexing_service import (
 
 pytestmark = pytest.mark.asyncio
 
+TEST_ORG = "test-org"
+
 
 class TestParsePdfDate:
     """PDF date format ``D:YYYYMMDDHHmmSSOHH'mm'`` parsing."""
@@ -309,6 +311,7 @@ class TestIndexDocumentDatesThreaded:
         ):
             result = await index_document(
                 pool,
+                TEST_ORG,
                 "doc-1",
                 b"content",
                 "test.pdf",
@@ -318,14 +321,14 @@ class TestIndexDocumentDatesThreaded:
 
         assert result["success"] is True
 
-        # The UPSERT query has 7 positional args:
-        # $1=file_id, $2=filename, $3=content_hash, $4=chunks_count,
-        # $5=source_created_at, $6=source_modified_at, $7=ocr_applied
+        # _do_store UPSERT now has 8 positional args (org_slug prepended):
+        # $1=org_slug, $2=file_id, $3=filename, $4=content_hash,
+        # $5=chunks_count, $6=source_created_at, $7=source_modified_at, $8=ocr_applied
         # call_args_list[0] = early-dedup check, [1] = UPSERT
         insert_call = mock_conn.fetchrow.call_args_list[1]
         args = insert_call[0]
         # args[0] is the SQL string, positional params start at args[1]
-        source_created_arg = args[5]  # $5
+        source_created_arg = args[6]  # $6
         assert source_created_arg == caller_created
 
 
@@ -368,6 +371,7 @@ class TestCloneDateOverride:
         with patch("app.services.indexing_service.acquire_with_retry", return_value=ctx):
             result = await _do_clone(
                 pool,
+                TEST_ORG,
                 source_doc_id=42,
                 file_id="clone-test",
                 filename="test.pdf",
@@ -378,13 +382,13 @@ class TestCloneDateOverride:
 
         assert result is not None
 
-        # INSERT has 6 positional args:
-        # $1=file_id, $2=filename, $3=content_hash, $4=chunks_count,
-        # $5=source_created_at, $6=source_modified_at
+        # _do_clone INSERT now has 7 positional args (org_slug prepended):
+        # $1=org_slug, $2=file_id, $3=filename, $4=content_hash,
+        # $5=chunks_count, $6=source_created_at, $7=source_modified_at
         insert_call = mock_conn.fetchrow.call_args_list[1]
         args = insert_call[0]
-        assert args[5] == caller_created
-        assert args[6] == caller_modified
+        assert args[6] == caller_created
+        assert args[7] == caller_modified
 
     async def test_clone_falls_back_to_source_dates_when_no_override(self):
         from app.services.indexing_service import _do_clone
@@ -420,6 +424,7 @@ class TestCloneDateOverride:
         with patch("app.services.indexing_service.acquire_with_retry", return_value=ctx):
             result = await _do_clone(
                 pool,
+                TEST_ORG,
                 source_doc_id=42,
                 file_id="clone-test",
                 filename="test.pdf",
@@ -430,8 +435,8 @@ class TestCloneDateOverride:
 
         insert_call = mock_conn.fetchrow.call_args_list[1]
         args = insert_call[0]
-        assert args[5] == source_created
-        assert args[6] == source_modified
+        assert args[6] == source_created
+        assert args[7] == source_modified
 
 
 class TestResponseModelDateFields:

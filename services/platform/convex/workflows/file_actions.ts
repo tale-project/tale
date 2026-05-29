@@ -12,24 +12,26 @@
 import { mkdir, readdir, rm, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import type { WorkflowJsonConfig } from '../../lib/shared/schemas/workflows';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
-import { authComponent } from '../auth';
+import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
+  errnoCode,
   generateHistoryTimestamp,
+  handleDirReadError,
   pruneHistory,
   readFileSafe,
   readJsonFile,
   readdirSafe,
+  safeJoinWithinDir,
   sha256,
   verifyPathWithinBase,
 } from '../lib/file_io';
-import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import type { WorkflowReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -42,6 +44,16 @@ import {
   validateWorkflowSlug,
   workflowSlugFromRelativePath,
 } from './file_utils';
+
+// History filenames are `${Date.now()}-${randomUUID().slice(0,8)}` — see
+// `lib/file_io.ts::generateHistoryTimestamp`. Restrict to that shape so
+// `restoreFromHistory` / `readHistoryEntry` reject anything that could probe
+// outside the per-workflow history dir even before `safeJoinWithinDir` fires.
+const HISTORY_TIMESTAMP_REGEX = /^\d{10,16}-[a-f0-9]{6,16}$/;
+
+function validateHistoryTimestamp(timestamp: string): boolean {
+  return HISTORY_TIMESTAMP_REGEX.test(timestamp);
+}
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -161,9 +173,10 @@ export const readWorkflow = action({
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<WorkflowReadResult> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     return readWorkflowFile(orgSlug, args.workflowSlug);
   },
 });
@@ -178,10 +191,10 @@ export const listWorkflows = action({
   returns: v.any(),
   // oxlint-disable-next-line typescript/no-explicit-any -- listWorkflows returns heterogeneous shapes; v.any() at API boundary
   handler: async (ctx, args): Promise<any[]> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
     const filterMode = args.filter ?? 'all';
     const dir = resolveWorkflowsDir(orgSlug);
     let entries: { name: string; parentPath: string; isDirectory: boolean }[];
@@ -272,14 +285,15 @@ export const saveWorkflowWithSnapshot = action({
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
     if (!validateWorkflowSlug(args.workflowSlug)) {
       throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const config = workflowJsonSchema.parse(args.config);
     const newContent = serializeWorkflowJson(config);
     const filePath = resolveWorkflowFilePath(orgSlug, args.workflowSlug);
@@ -319,14 +333,15 @@ export const deleteWorkflow = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
     if (!validateWorkflowSlug(args.workflowSlug)) {
       throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const filePath = resolveWorkflowFilePath(orgSlug, args.workflowSlug);
     const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
 
@@ -353,14 +368,15 @@ export const installWorkflow = action({
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    const { orgSlug, userId, email } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
     if (!validateWorkflowSlug(args.workflowSlug)) {
       throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const result = await readWorkflowFile(orgSlug, args.workflowSlug);
     if (!result.ok) {
       throw new Error(`Cannot install workflow: ${result.message}`);
@@ -369,7 +385,7 @@ export const installWorkflow = action({
     await ctx.runMutation(internal.workflows.installations.upsertInstallation, {
       organizationId: args.organizationId,
       workflowSlug: args.workflowSlug,
-      installedBy: authUser.email ?? String(authUser._id),
+      installedBy: email !== '' ? email : userId,
       contentHash: result.hash,
     });
 
@@ -384,8 +400,7 @@ export const uninstallWorkflow = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    await requireOrgMembershipById(ctx, args.organizationId);
 
     if (!validateWorkflowSlug(args.workflowSlug)) {
       throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
@@ -407,10 +422,11 @@ export const duplicateWorkflow = action({
   },
   returns: v.object({ newSlug: v.string() }),
   handler: async (ctx, args): Promise<{ newSlug: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    const { orgSlug, userId, email } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const source = await readWorkflowFile(orgSlug, args.workflowSlug);
     if (!source.ok) {
       throw new Error(`Cannot duplicate: ${source.message}`);
@@ -449,7 +465,7 @@ export const duplicateWorkflow = action({
     await ctx.runMutation(internal.workflows.installations.upsertInstallation, {
       organizationId: args.organizationId,
       workflowSlug: newSlug,
-      installedBy: authUser.email ?? String(authUser._id),
+      installedBy: email !== '' ? email : userId,
       contentHash: sha256(content),
     });
 
@@ -465,8 +481,10 @@ export const renameWorkflow = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
     if (!validateWorkflowSlug(args.oldSlug)) {
       throw new Error(`Invalid old slug: ${args.oldSlug}`);
@@ -475,7 +493,6 @@ export const renameWorkflow = action({
       throw new Error(`Invalid new slug: ${args.newSlug}`);
     }
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const oldPath = resolveWorkflowFilePath(orgSlug, args.oldSlug);
     const newPath = resolveWorkflowFilePath(orgSlug, args.newSlug);
     const baseDir = resolveWorkflowsDir(orgSlug);
@@ -486,6 +503,21 @@ export const renameWorkflow = action({
     const content = await readFileSafe(oldPath);
     if (!content) throw new Error('Workflow not found');
     parseWorkflowJson(content);
+
+    // Refuse to clobber an existing target. `atomicWrite` resolves to a
+    // rename-from-temp under the hood, which silently overwrites — without
+    // this guard, two concurrent renames or a typo could destroy the target
+    // workflow's content with no way to recover.
+    const targetExists = await stat(newPath).then(
+      () => true,
+      (err) => {
+        if (errnoCode(err) === 'ENOENT') return false;
+        throw err;
+      },
+    );
+    if (targetExists) {
+      throw new Error(`Target workflow already exists: ${args.newSlug}`);
+    }
 
     await mkdir(path.dirname(newPath), { recursive: true });
     await atomicWrite(newPath, content);
@@ -538,10 +570,15 @@ export const listHistory = action({
   },
   returns: v.any(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    if (!validateWorkflowSlug(args.workflowSlug)) {
+      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
+    }
+
     const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
     const entries = await readdirSafe(historyDir);
 
@@ -567,17 +604,20 @@ export const readHistoryEntry = action({
   },
   returns: v.any(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-    const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
-    const filePath = path.join(historyDir, `${args.timestamp}.json`);
-
-    const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(historyDir))) {
-      throw new Error('Path traversal detected');
+    if (!validateWorkflowSlug(args.workflowSlug)) {
+      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
+    if (!validateHistoryTimestamp(args.timestamp)) {
+      throw new Error(`Invalid history timestamp: ${args.timestamp}`);
+    }
+
+    const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
+    const filePath = safeJoinWithinDir(historyDir, `${args.timestamp}.json`);
 
     const content = await readFileSafe(filePath);
     if (!content) {
@@ -605,18 +645,21 @@ export const restoreFromHistory = action({
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-    const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
-    const historyPath = path.join(historyDir, `${args.timestamp}.json`);
-    const workflowPath = resolveWorkflowFilePath(orgSlug, args.workflowSlug);
-
-    const resolved = path.resolve(historyPath);
-    if (!resolved.startsWith(path.resolve(historyDir))) {
-      throw new Error('Path traversal detected');
+    if (!validateWorkflowSlug(args.workflowSlug)) {
+      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
+    if (!validateHistoryTimestamp(args.timestamp)) {
+      throw new Error(`Invalid history timestamp: ${args.timestamp}`);
+    }
+
+    const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
+    const historyPath = safeJoinWithinDir(historyDir, `${args.timestamp}.json`);
+    const workflowPath = resolveWorkflowFilePath(orgSlug, args.workflowSlug);
 
     const historyContent = await readFileSafe(historyPath);
     if (!historyContent) throw new Error('History entry not found');
@@ -705,7 +748,8 @@ export const listWorkflowsForAgent = internalAction({
     let raw;
     try {
       raw = await readdir(dir, { recursive: true, withFileTypes: true });
-    } catch {
+    } catch (err) {
+      handleDirReadError(err, 'workflows.listWorkflowsForAgent');
       return [];
     }
 
@@ -763,15 +807,35 @@ export const getAvailableWorkflows = action({
     }),
   ),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) return [];
+    // This action populates UI choices; non-members are a normal case (org
+    // switched away, just-joined) and should see an empty list rather than an
+    // error toast. Catch the auth `ConvexError` codes here and return [], but
+    // let unexpected errors propagate.
+    let orgSlug: string;
+    try {
+      ({ orgSlug } = await requireOrgMembershipById(ctx, args.organizationId));
+    } catch (err) {
+      if (err instanceof ConvexError) {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError.data is typed `any` upstream; we only read an optional `code` string
+        const data = err.data as { code?: string } | undefined;
+        const code = data?.code;
+        if (
+          code === 'UNAUTHENTICATED' ||
+          code === 'ORG_NOT_FOUND' ||
+          code === 'ORG_FORBIDDEN'
+        ) {
+          return [];
+        }
+      }
+      throw err;
+    }
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const dir = resolveWorkflowsDir(orgSlug);
     let raw;
     try {
       raw = await readdir(dir, { recursive: true, withFileTypes: true });
-    } catch {
+    } catch (err) {
+      handleDirReadError(err, 'workflows.getAvailableWorkflows');
       return [];
     }
 

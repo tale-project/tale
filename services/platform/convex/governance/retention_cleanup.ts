@@ -9,6 +9,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { ragFetch } from '../lib/helpers/rag_config';
 import type { ActiveHolds } from './legal_hold';
 import {
@@ -105,11 +106,15 @@ interface OrgPolicy {
   config: RetentionPolicyConfig;
 }
 
-async function deleteRagEntry(fileId: string, label: string): Promise<void> {
+async function deleteRagEntry(
+  orgSlug: string,
+  fileId: string,
+  label: string,
+): Promise<void> {
   try {
     const res = await ragFetch(
       `/api/v1/documents/${encodeURIComponent(fileId)}`,
-      { method: 'DELETE', timeoutMs: 10_000 },
+      { method: 'DELETE', timeoutMs: 10_000, orgSlug },
     );
     // 404 is success on DELETE — already gone.
     if (!res.ok && res.status !== 404) {
@@ -194,6 +199,15 @@ async function cleanupDocuments(
           { organizationId: org.organizationId, cutoffMs, batchSize },
         );
 
+  // Empty-batch fast path: skip the Better Auth slug lookup when nothing
+  // expired. Steady-state per-org per-tick is the common case.
+  if (passB.length === 0) return processed;
+
+  // OrNull so a deleted-org cleanup (operator removed the org row but
+  // legacy documents survived) still removes local rows; the RAG-side
+  // purge is the recoverable part (the tenant index is gone too).
+  const orgSlug = await orgSlugFromIdOrNull(ctx, org.organizationId);
+
   for (const doc of passB) {
     if (doc.createdBy && holds.userMembershipIds.has(doc.createdBy)) {
       console.info(
@@ -202,8 +216,8 @@ async function cleanupDocuments(
       continue;
     }
 
-    if (doc.fileId) {
-      await deleteRagEntry(doc.fileId, `document ${doc._id}`);
+    if (doc.fileId && orgSlug !== null) {
+      await deleteRagEntry(orgSlug, doc.fileId, `document ${doc._id}`);
     }
 
     await ctx.runMutation(
@@ -302,6 +316,10 @@ async function cleanupTempFiles(
           { organizationId: org.organizationId, source, cutoffMs, batchSize },
         );
 
+  if (passB.length === 0) return processed;
+
+  const tempOrgSlug = await orgSlugFromIdOrNull(ctx, org.organizationId);
+
   for (const file of passB) {
     if (file.uploadedBy && holds.userMembershipIds.has(file.uploadedBy)) {
       console.info(
@@ -310,7 +328,13 @@ async function cleanupTempFiles(
       continue;
     }
 
-    await deleteRagEntry(file.storageId, `temp file ${file._id}`);
+    if (tempOrgSlug !== null) {
+      await deleteRagEntry(
+        tempOrgSlug,
+        file.storageId,
+        `temp file ${file._id}`,
+      );
+    }
 
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredTempFile,
@@ -1323,6 +1347,17 @@ async function cleanupNotifications(
  *
  * `cleanupLoginAttemptsGlobal` runs unconditionally now (no per-org
  * opt-in), once per dispatcher invocation, with the fixed TTL.
+ *
+ * **Legal-hold interaction (round-3 P2 R12-P2-b)**: The global sweep
+ * intentionally does NOT cross-check `loadActiveHolds`. The tables are
+ * email-keyed and global; resolving each row's email → userId → all
+ * orgs → active holds on every sweep would re-introduce the per-org
+ * coupling the reframe deliberately removed. The trade-off (a custodian
+ * hold in org X does not protect that user's `loginAttempts` rows from
+ * the 30-day TTL) is accepted: forensics relevant to a hold live in
+ * `auditLogs`, which IS hold-gated and honors per-org retention. Document
+ * this in the data-handling runbook rather than pull operational state
+ * back into the legal-hold scope.
  */
 const LOGIN_ATTEMPTS_FIXED_TTL_DAYS = 30;
 

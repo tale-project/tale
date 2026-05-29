@@ -16,7 +16,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from tale_shared.logging import suppress_health_check_logs
@@ -178,6 +178,59 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     except Exception:
         logger.exception("Failed to cleanup crawler service")
 
+    # Drain per-org client caches so the httpx pools they hold close
+    # cleanly. Without this, graceful shutdown leaks FDs and produces
+    # noisy "Event loop is closed" tracebacks under uvicorn --reload
+    # / docker rolling restart. Each close is bounded by 10s so a
+    # hung peer can't pin shutdown. Round-3 P2 R26-P2-c.
+    async def _drain_org_caches() -> None:
+        from app.services.embedding_service import _org_states as _emb_states  # type: ignore[attr-defined]
+        from app.services.vision.openai_client import (  # type: ignore[attr-defined]
+            _chat_states,
+            _vision_states,
+            drain_pending_close_tasks,
+        )
+
+        async def _safe(close_aw):
+            try:
+                await close_aw
+            except Exception:
+                logger.opt(exception=True).warning("Failed to close per-org client during shutdown")
+
+        closes = []
+        for state in _emb_states.values():
+            closes.append(_safe(state.service.close()))
+        for state in _vision_states.values():
+            closes.append(_safe(state.client.close()))
+        for state in _chat_states.values():
+            closes.append(_safe(state.client.close()))
+        _emb_states.clear()
+        _vision_states.clear()
+        _chat_states.clear()
+        if closes:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*closes, return_exceptions=True),
+                    timeout=10,
+                )
+            except TimeoutError:
+                logger.warning("Per-org client drain did not finish within 10s; continuing")
+        # Cancel + await any outstanding `_safe_close_client` tasks
+        # left over from earlier LRU evictions / config rotations.
+        # Without this, those tasks sit in the loop sleeping out a 300s
+        # grace window and the event loop closes underneath them,
+        # leaking the httpx pool and producing "Event loop is closed"
+        # tracebacks (round-3 P2 R26-P2-c continuation).
+        try:
+            await asyncio.wait_for(drain_pending_close_tasks(), timeout=10)
+        except TimeoutError:
+            logger.warning("Pending close-task drain did not finish within 10s; continuing")
+
+    try:
+        await _drain_org_caches()
+    except Exception:
+        logger.exception("Failed to drain per-org client caches")
+
     shutdown_telemetry()
 
 
@@ -204,17 +257,25 @@ app.add_middleware(
 init_telemetry(app)
 
 
+# X-Tale-Org is required on every endpoint that touches per-org provider
+# state (vision, embedding, chat model). Apply as a router-level
+# dependency so individual handlers don't need to remember to declare it.
+# `/health` is mounted at the app level below — exempt.
+from app.org_context import require_org_slug  # noqa: E402
+
+_org_dep = [Depends(require_org_slug)]
+
 # Register routers
-app.include_router(crawler_router)
-app.include_router(websites_router)
-app.include_router(search_router)
-app.include_router(pages_router)
-app.include_router(index_router)
-app.include_router(pdf_router)
-app.include_router(image_router)
-app.include_router(docx_router)
-app.include_router(pptx_router)
-app.include_router(web_router)
+app.include_router(crawler_router, dependencies=_org_dep)
+app.include_router(websites_router, dependencies=_org_dep)
+app.include_router(search_router, dependencies=_org_dep)
+app.include_router(pages_router, dependencies=_org_dep)
+app.include_router(index_router, dependencies=_org_dep)
+app.include_router(pdf_router, dependencies=_org_dep)
+app.include_router(image_router, dependencies=_org_dep)
+app.include_router(docx_router, dependencies=_org_dep)
+app.include_router(pptx_router, dependencies=_org_dep)
+app.include_router(web_router, dependencies=_org_dep)
 
 
 @app.get("/health", response_model=HealthResponse)

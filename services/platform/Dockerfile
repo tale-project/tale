@@ -227,17 +227,22 @@ ENV NODE_ENV=production \
     DO_NOT_TRACK=1 \
     # Semantic value of the file-config parent path inside the convex
     # container. Platform forces this at push time in docker-entrypoint.sh
-    # (to tombstone any stale host-side `.env` value). Convex derives the
-    # sub-dirs (agents/workflows/integrations/providers) from it.
+    # (to tombstone any stale host-side `.env` value). Under the org-first
+    # layout, every per-domain config dir is derived as
+    # $TALE_CONFIG_DIR/<orgSlug>/<domain>/ — e.g.
+    # /app/data/default/agents/, /app/data/default/providers/, etc.
+    # The previous per-domain env vars (AGENTS_DIR, …) are no longer
+    # honored; the entrypoint actively purges them from Convex on every
+    # boot.
     TALE_CONFIG_DIR=/app/data \
     # Read-only builtin catalog baked into the convex image (see
     # services/convex/Dockerfile). Declared here because Convex Node
     # actions only see env vars that this container pushes to Convex's
     # deployment env via the entrypoint's `convex env set` loop — even
     # though the path points at files inside the *convex* container.
-    # Per-domain catalogs are derived as $TALE_CONFIG_BUILTIN_DIR/<domain>/
-    # by services/platform/convex/organizations/scaffold.ts (mirrors the
-    # $TALE_CONFIG_DIR/<domain>/ pattern used for the writable side).
+    # Per-org catalogs live at $TALE_CONFIG_BUILTIN_DIR/<orgSlug>/<domain>/;
+    # `default` is the canonical template. See
+    # services/platform/convex/organizations/scaffold.ts.
     TALE_CONFIG_BUILTIN_DIR=/app/builtin
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist

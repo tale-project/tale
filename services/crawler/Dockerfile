@@ -35,6 +35,11 @@ WORKDIR /app
 # Install uv for faster package management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+# Network resilience for PyPI: default uv timeout (~30s) is too aggressive for
+# large wheels (scipy ~34 MB, playwright/patchright ~45 MB each) on slow links.
+# Bumping to 300s prevents transient timeouts from failing the whole build.
+ENV UV_HTTP_TIMEOUT=300
+
 # Copy and install shared packages first (better layer caching)
 COPY packages/tale_shared/pyproject.toml /packages/tale_shared/pyproject.toml
 COPY packages/tale_shared/src/ /packages/tale_shared/src/

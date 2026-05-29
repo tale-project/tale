@@ -1,7 +1,9 @@
 """Hybrid search service for the RAG pipeline.
 
 BM25 full-text (pg_search) + pgvector similarity with RRF fusion.
-Scoping via file_ids. Optional semantic caching and cross-encoder re-ranking.
+Per-tenant scoping by `org_slug` (always applied), optional further
+restriction by `file_ids`. Optional semantic caching and cross-encoder
+re-ranking.
 """
 
 from __future__ import annotations
@@ -50,41 +52,49 @@ class RagSearchService:
 
     async def search(
         self,
+        org_slug: str,
         query: str,
         *,
         file_ids: list[str] | None = None,
         top_k: int = 10,
         similarity_threshold: float = 0.0,
-    ) -> list[dict[str, Any]]:
-        """Hybrid BM25 + vector search with document scoping.
+    ) -> tuple[list[dict[str, Any]], EmbeddingUsage]:
+        """Hybrid BM25 + vector search scoped to `org_slug`.
 
         Args:
+            org_slug: Tenant slug — ALWAYS used to filter `chunks.org_slug`
+                so no cross-tenant rows can match.
             query: Search query text.
-            file_ids: Optional file IDs to restrict search to.
+            file_ids: Optional file IDs to further restrict search to. The
+                org filter is independent — file_ids only narrows within
+                the org.
             top_k: Maximum number of results to return.
             similarity_threshold: Minimum cosine similarity for vector results.
                 Results below this threshold are discarded before RRF merge.
 
         Returns:
-            List of result dicts with content, score, file_id.
-            Embedding token usage available via `self.last_search_usage` after call.
+            ``(results, embedding_usage)`` — usage returned alongside the
+            results so concurrent callers can't trample each other's
+            attribution via a shared singleton.
         """
         query_embedding: list[float] | None = None
-        self.last_search_usage = EmbeddingUsage(model=self._embedding._model)
+        usage = EmbeddingUsage(model=self._embedding._model)
         try:
             t0 = time.time()
             query_result, fts_results = await asyncio.gather(
                 _timed("embed", self._embedding.embed_query_with_usage(query)),
-                _timed("fts", self._fts_search(query, file_ids, top_k * 3)),
+                _timed("fts", self._fts_search(query, org_slug, file_ids, top_k * 3)),
             )
             query_embedding = query_result.embedding
-            self.last_search_usage = query_result.usage
+            usage = query_result.usage
             logger.debug("PERF embed+FTS total: {:.1f}ms", (time.time() - t0) * 1000)
 
-            # Semantic cache: check for a cached result before vector search
+            # Semantic cache: check for a cached result before vector search.
+            # Cache is org-scoped — see SemanticCache.lookup.
             if self._semantic_cache and query_embedding:
                 cache_t0 = time.time()
                 cached = await self._semantic_cache.lookup(
+                    org_slug,
                     query_embedding,
                     threshold=settings.semantic_cache_similarity_threshold,
                 )
@@ -95,12 +105,12 @@ class RagSearchService:
                         cached_results = json.loads(cached.response_text)
                         for r in cached_results:
                             r["cached"] = True
-                        return cached_results
+                        return cached_results, usage
                     except (json.JSONDecodeError, TypeError):
                         logger.warning("Invalid cached response format, performing fresh search")
 
             vec_t0 = time.time()
-            vector_results = await self._vector_search(query_embedding, file_ids, top_k * 3)
+            vector_results = await self._vector_search(query_embedding, org_slug, file_ids, top_k * 3)
             vec_ms = (time.time() - vec_t0) * 1000
             logger.debug("PERF vector search: {:.1f}ms", vec_ms)
 
@@ -120,10 +130,10 @@ class RagSearchService:
                         top_score,
                     )
                 if pre_count > 0 and not vector_results:
-                    return []
+                    return [], usage
 
             if not fts_results and not vector_results:
-                return []
+                return [], usage
 
             merged = merge_rrf([fts_results, vector_results], top_k)
 
@@ -166,10 +176,11 @@ class RagSearchService:
                 for item in merged
             ]
 
-            # Semantic cache: store results for future lookups
+            # Semantic cache: store results for future lookups (org-scoped).
             if self._semantic_cache and query_embedding and results:
                 result_file_ids = [r["file_id"] for r in results if r.get("file_id")]
                 await self._semantic_cache.store(
+                    org_slug,
                     query,
                     query_embedding,
                     json.dumps(results, default=str),
@@ -177,14 +188,14 @@ class RagSearchService:
                     file_ids=result_file_ids,
                 )
 
-            return results
+            return results, usage
 
         except asyncpg.UndefinedTableError:
             logger.info("Tables not yet created, returning empty results")
-            return []
+            return [], usage
         except asyncpg.UndefinedColumnError:
             logger.info("Schema not ready, returning empty results")
-            return []
+            return [], usage
         except (asyncpg.InternalServerError, asyncpg.DataCorruptedError) as e:
             is_bm25 = "bm25" in str(e).lower()
             is_corruption = isinstance(e, asyncpg.DataCorruptedError)
@@ -199,8 +210,8 @@ class RagSearchService:
 
                 if query_embedding is None:
                     query_embedding = await self._embedding.embed_query(query)
-                vector_results = await self._vector_search(query_embedding, file_ids, top_k)
-                return [
+                vector_results = await self._vector_search(query_embedding, org_slug, file_ids, top_k)
+                results = [
                     {
                         "content": item.get("core_content") or item.get("chunk_content") or "",
                         "score": item["score"],
@@ -211,16 +222,37 @@ class RagSearchService:
                     }
                     for item in vector_results
                 ]
+                return results, usage
             raise
 
-    def _build_scope_clause(self, file_ids: list[str] | None, param_offset: int) -> tuple[str, list[Any]]:
-        """Build WHERE clause for document scoping."""
-        if not file_ids:
-            return "", []
+    def _build_scope_clause(
+        self,
+        org_slug: str,
+        file_ids: list[str] | None,
+        param_offset: int,
+    ) -> tuple[str, list[Any]]:
+        """Build WHERE clause for per-tenant + optional file scoping.
 
-        idx = param_offset + 1
-        clause = f" AND c.document_id IN (SELECT id FROM {SCHEMA}.documents WHERE file_id = ANY(${idx}))"
-        return clause, [file_ids]
+        `org_slug` is ALWAYS added as `AND c.org_slug = $N`. When `file_ids`
+        is non-empty, a secondary clause restricts the documents subquery
+        AND is itself org-scoped (defense in depth — even if the outer
+        chunks filter were ever bypassed by a code mistake, the inner
+        documents lookup also has org filter).
+        """
+        org_param = param_offset + 1
+        clause = f" AND c.org_slug = ${org_param}"
+        params: list[Any] = [org_slug]
+
+        if file_ids:
+            file_param = param_offset + 2
+            clause += (
+                f" AND c.document_id IN ("
+                f"SELECT id FROM {SCHEMA}.documents "
+                f"WHERE org_slug = ${org_param} AND file_id = ANY(${file_param}))"
+            )
+            params.append(file_ids)
+
+        return clause, params
 
     async def _rebuild_bm25_index(self) -> None:
         """Rebuild the BM25 index after corruption. Runs as a background task."""
@@ -235,10 +267,11 @@ class RagSearchService:
     async def _fts_search(
         self,
         query: str,
+        org_slug: str,
         file_ids: list[str] | None,
         limit: int,
     ) -> list[dict[str, Any]]:
-        tenant_clause, tenant_params = self._build_scope_clause(file_ids, 1)
+        tenant_clause, tenant_params = self._build_scope_clause(org_slug, file_ids, 1)
 
         sql = f"""
             SELECT c.id, c.chunk_content, c.core_content, c.chunk_index, c.document_id,
@@ -268,11 +301,12 @@ class RagSearchService:
     async def _vector_search(
         self,
         embedding: list[float],
+        org_slug: str,
         file_ids: list[str] | None,
         limit: int,
     ) -> list[dict[str, Any]]:
         vec_str = json.dumps(embedding)
-        tenant_clause, tenant_params = self._build_scope_clause(file_ids, 1)
+        tenant_clause, tenant_params = self._build_scope_clause(org_slug, file_ids, 1)
 
         sql = f"""
             SELECT c.id, c.chunk_content, c.core_content, c.chunk_index, c.document_id,

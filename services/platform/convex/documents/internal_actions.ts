@@ -7,6 +7,7 @@ import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
 import { ragFetch } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
@@ -21,6 +22,44 @@ function parseIsoTimestampMs(iso: string | undefined): number | undefined {
   if (!iso) return undefined;
   const ms = new Date(iso).getTime();
   return Number.isFinite(ms) ? ms : undefined;
+}
+
+/**
+ * Best-effort RAG DELETE for a stale fileId during re-index. Logs and
+ * returns; never throws. Used by `reindexDocumentInRag` after the new
+ * upload succeeds — a failure to delete the old entry leaves orphan
+ * chunks but does not regress the user-visible reindex result.
+ */
+async function deleteOldRagEntry(
+  // oxlint-disable-next-line typescript/no-explicit-any -- ActionCtx is heavy to pull in just for runQuery shape; orgSlugFromIdOrNull accepts a structural ctx
+  ctx: any,
+  organizationId: string,
+  oldFileId: string,
+  documentId: string,
+): Promise<void> {
+  const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
+  if (orgSlug === null) {
+    console.warn(
+      `[reindexDocumentInRag] org ${organizationId} unresolvable; skipping old RAG delete for oldFileId=${oldFileId} (documentId=${documentId})`,
+    );
+    return;
+  }
+  try {
+    const response = await ragFetch(
+      `/api/v1/documents/${encodeURIComponent(oldFileId)}`,
+      { method: 'DELETE', timeoutMs: 60_000, orgSlug },
+    );
+    if (!response.ok && response.status !== 404) {
+      console.warn(
+        `[reindexDocumentInRag] Failed to delete old RAG entry ${oldFileId}: ${response.status}`,
+      );
+    }
+  } catch (error) {
+    console.warn(
+      `[reindexDocumentInRag] Error deleting old RAG entry ${oldFileId}:`,
+      error,
+    );
+  }
 }
 
 const documentSourceTypeValidator = v.union(
@@ -193,7 +232,31 @@ export const checkRagDocumentStatus = internalAction({
       return null;
     }
 
+    // Resolve org slug OUTSIDE the retry-on-throw block. A missing slug
+    // (org row deleted, no slug field) is terminal — every subsequent
+    // retry would re-throw the same error and waste the scheduler
+    // budget before landing on the "max attempts" branch above. Mark
+    // the document failed in one shot instead.
+    const pollOrgSlug = await orgSlugFromIdOrNull(ctx, document.organizationId);
+    if (pollOrgSlug === null) {
+      console.warn(
+        `[checkRagDocumentStatus] org ${document.organizationId} unresolvable for document ${args.documentId}; marking ragInfo.failed (no retry)`,
+      );
+      await ctx.runMutation(
+        internal.documents.internal_mutations.updateDocumentRagInfo,
+        {
+          documentId: args.documentId,
+          ragInfo: {
+            status: 'failed',
+            error: 'Organization unresolvable (deleted or missing slug).',
+          },
+        },
+      );
+      return null;
+    }
+
     try {
+      const orgSlug = pollOrgSlug;
       const response = await ragFetch('/api/v1/documents/statuses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -201,6 +264,7 @@ export const checkRagDocumentStatus = internalAction({
           file_ids: [document.fileId],
         }),
         timeoutMs: 10_000,
+        orgSlug,
       });
 
       if (response.status === 429) {
@@ -399,11 +463,28 @@ export const deleteDocumentFromRag = internalAction({
 
     const ragKey = document.fileId;
 
+    // Resolve slug OUTSIDE the retry-on-RAG-failure path. A missing slug
+    // (org row deleted) is terminal — previously each retry re-threw
+    // here, exhausted DELETE_RETRY_DELAYS, then "Document remains in
+    // database" forever. Treat slug-missing as "RAG-side index is gone
+    // too" and proceed with the local-row delete.
+    const orgSlug = await orgSlugFromIdOrNull(ctx, document.organizationId);
+    if (orgSlug === null) {
+      console.warn(
+        `[deleteDocumentFromRag] org ${document.organizationId} unresolvable; assuming RAG index already purged and deleting local document ${args.documentId}`,
+      );
+      await ctx.runMutation(
+        internal.documents.internal_mutations.deleteDocumentById,
+        { documentId: args.documentId },
+      );
+      return null;
+    }
+
     let ragSuccess = false;
     try {
       const response = await ragFetch(
         `/api/v1/documents/${encodeURIComponent(ragKey)}`,
-        { method: 'DELETE', timeoutMs: 60_000 },
+        { method: 'DELETE', timeoutMs: 60_000, orgSlug },
       );
 
       if (response.ok) {
@@ -533,38 +614,49 @@ export const reindexDocumentInRag = internalAction({
   args: {
     documentId: v.id('documents'),
     oldFileId: v.id('_storage'),
+    /** Optional for backward compatibility with in-flight scheduled jobs.
+     * New scheduler callers always pass it; when missing we fall back
+     * to the current document's organizationId (which may have changed
+     * or been deleted — best-effort). */
+    oldOrganizationId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    // Delete old RAG entry (ignore 404 — may not have been indexed)
-    try {
-      const response = await ragFetch(
-        `/api/v1/documents/${encodeURIComponent(args.oldFileId)}`,
-        { method: 'DELETE', timeoutMs: 60_000 },
-      );
-      if (!response.ok && response.status !== 404) {
-        console.warn(
-          `[reindexDocumentInRag] Failed to delete old RAG entry ${args.oldFileId}: ${response.status}`,
-        );
-      }
-    } catch (error) {
-      console.warn(
-        `[reindexDocumentInRag] Error deleting old RAG entry ${args.oldFileId}:`,
-        error,
-      );
-    }
-
-    // Look up current document
+    // upload-then-delete order: upload the new file first; only purge
+    // `oldFileId` once the new chunks are committed. Previously the
+    // delete ran before the upload, so a failed upload left the doc
+    // with NO RAG entry (old chunks gone, new chunks never arrived) and
+    // no automatic retry. Keeping the old entry around while the new
+    // one queues means search still hits the previous revision until
+    // re-index completes, and a failed upload is recoverable by
+    // re-running this action on the same `oldFileId`.
     const document = await ctx.runQuery(
       internal.documents.internal_queries.getDocumentByIdRaw,
       { documentId: args.documentId },
     );
 
+    // No current document or no new fileId — nothing to upload. We
+    // still attempt the old-RAG delete below so chunks don't leak.
     if (!document || !document.fileId) {
+      const deleteOrgIdNoUpload =
+        args.oldOrganizationId ?? document?.organizationId ?? null;
+      if (deleteOrgIdNoUpload) {
+        await deleteOldRagEntry(
+          ctx,
+          deleteOrgIdNoUpload,
+          args.oldFileId,
+          args.documentId,
+        );
+      } else {
+        console.warn(
+          `[reindexDocumentInRag] No org context for old RAG delete; oldFileId ${args.oldFileId} may leak chunks (documentId=${args.documentId})`,
+        );
+      }
       return null;
     }
 
-    // Upload new file to RAG
+    // Upload new file to RAG FIRST.
+    let uploadSuccess = false;
     try {
       const rawResult = await ragAction.execute(
         ctx,
@@ -582,6 +674,7 @@ export const reindexDocumentInRag = internalAction({
         : false;
 
       if (success) {
+        uploadSuccess = true;
         await ctx.runMutation(
           internal.documents.internal_mutations.updateDocumentRagInfo,
           {
@@ -621,6 +714,27 @@ export const reindexDocumentInRag = internalAction({
           ragInfo: { status: 'failed', error: message },
         },
       );
+    }
+
+    // Only purge the old RAG entry once the new upload is committed.
+    // A failed upload leaves the previous chunks in place so search
+    // keeps returning the prior revision (degraded but consistent)
+    // instead of returning nothing.
+    if (uploadSuccess) {
+      const deleteOrgId =
+        args.oldOrganizationId ?? document.organizationId ?? null;
+      if (deleteOrgId) {
+        await deleteOldRagEntry(
+          ctx,
+          deleteOrgId,
+          args.oldFileId,
+          args.documentId,
+        );
+      } else {
+        console.warn(
+          `[reindexDocumentInRag] No org context for old RAG delete; oldFileId ${args.oldFileId} may leak chunks (documentId=${args.documentId})`,
+        );
+      }
     }
 
     return null;

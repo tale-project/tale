@@ -8,22 +8,28 @@ import {
   isRecord,
 } from '../../../../../lib/utils/type-guards';
 import { internalAction } from '../../../../_generated/server';
+import {
+  isUpstreamHttpError,
+  UpstreamHttpError,
+} from '../../../../lib/errors/upstream_http_error';
 import { ragFetch } from '../../../../lib/helpers/rag_config';
 import type { RagDeleteResult } from './types';
 
 export interface DeleteDocumentByIdArgs {
+  orgSlug: string;
   fileId: string;
   timeoutMs?: number;
 }
 
 /**
- * Delete document from RAG service by document ID.
+ * Delete document from RAG service by document ID, scoped to `orgSlug`.
  *
- * This calls the RAG service's DELETE endpoint with the document ID.
- * The document ID should match the ID that was used when uploading
- * the document (recordId from the platform).
+ * RAG now scopes documents by `org_slug`, so the caller's org must be
+ * passed through. A foreign-org `fileId` returns 0 deletions rather than
+ * touching another tenant's data.
  */
 export async function deleteDocumentById({
+  orgSlug,
   fileId,
   timeoutMs = 60000,
 }: DeleteDocumentByIdArgs): Promise<RagDeleteResult> {
@@ -32,7 +38,7 @@ export async function deleteDocumentById({
   try {
     const response = await ragFetch(
       `/api/v1/documents/${encodeURIComponent(fileId)}`,
-      { method: 'DELETE', timeoutMs },
+      { method: 'DELETE', timeoutMs, orgSlug },
     );
 
     // Round-2 review HIGH: 404 means the document was already deleted
@@ -54,7 +60,12 @@ export async function deleteDocumentById({
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`RAG service error: ${response.status} ${errorText}`);
+      throw UpstreamHttpError.fromResponse(
+        'rag',
+        response,
+        errorText,
+        `/api/v1/documents/${fileId}`,
+      );
     }
 
     const rawResult: unknown = await response.json();
@@ -75,6 +86,17 @@ export async function deleteDocumentById({
       timestamp: Date.now(),
     };
   } catch (error) {
+    // Retryable upstream failures (5xx / 429 / 408) must propagate so
+    // the action-level retry harness (workflow scheduler or callsite
+    // re-try loop) gets a chance to recover. Folding them into
+    // `{ success: false }` silently — as the earlier code did —
+    // converted transient unavailability into permanent failures.
+    // Non-retryable failures (4xx) and non-UpstreamHttpError throws
+    // still return the structured result so batch callers don't abort
+    // the whole loop on a single bad fileId.
+    if (isUpstreamHttpError(error) && error.retryable) {
+      throw error;
+    }
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       success: false,
@@ -96,19 +118,37 @@ export async function deleteDocumentById({
  * action with the storageIds of the chat-upload files they removed.
  * Best-effort: failures per file log but do not abort the batch.
  * Round-2 review CRITICAL #17.
+ *
+ * Now per-tenant: `orgSlug` is required so the per-org RAG namespace is
+ * targeted. All `fileIds` in a single call MUST belong to that org.
  */
 export const deleteFromRagBatch = internalAction({
   args: {
+    orgSlug: v.string(),
     fileIds: v.array(v.string()),
   },
   returns: v.null(),
   handler: async (_ctx, args) => {
     for (const fileId of args.fileIds) {
-      const result = await deleteDocumentById({ fileId });
-      if (!result.success) {
+      // Best-effort per file. `deleteDocumentById` re-throws retryable
+      // UpstreamHttpError, but in a batch context one transient 5xx
+      // should not abort cleanup of the other ids — log + move on so
+      // the next retention sweep gets to retry.
+      try {
+        const result = await deleteDocumentById({
+          orgSlug: args.orgSlug,
+          fileId,
+        });
+        if (!result.success) {
+          console.warn(
+            `[deleteFromRagBatch] delete failed for ${fileId}:`,
+            result.error ?? result.message,
+          );
+        }
+      } catch (err) {
         console.warn(
-          `[deleteFromRagBatch] delete failed for ${fileId}:`,
-          result.error ?? result.message,
+          `[deleteFromRagBatch] retryable upstream error on ${fileId}; skipping:`,
+          err instanceof Error ? err.message : String(err),
         );
       }
     }

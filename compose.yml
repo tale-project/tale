@@ -688,10 +688,11 @@ volumes:
   rag-data:
     driver: local
 
-  # Persistent storage for all platform data (Convex DB, agents, workflows, integrations)
-  # LEGACY: once `tale migrate split-convex` has run, data lives in convex-data.
-  # This volume is preserved in case users need to rollback; safe to remove
-  # manually after a successful Phase 2 upgrade.
+  # LEGACY (pre-0.3.0): platform data used to live here before the
+  # split-convex transition. Today everything lives in `convex-data`; the
+  # volume is retained as an unused stub so detect() in start.ts can
+  # identify pre-0.3.0 deployments and produce a coherent diff. Operators
+  # can delete it by hand once they're past the upgrade window.
   platform-data:
     driver: local
 

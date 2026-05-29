@@ -1,4 +1,5 @@
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
+import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
 import { ragFetch } from '../../../lib/helpers/rag_config';
 
 const MAX_CONTENT_CHARS = 50_000;
@@ -32,10 +33,15 @@ export interface FetchDocumentContentOptions {
 }
 
 /**
- * Fetch document content from the RAG service.
+ * Fetch document content from the RAG service, scoped to `orgSlug`.
  * Shared between agent tool (retrieve_document) and workflow action (document action).
+ *
+ * RAG now scopes documents by `org_slug`; a foreign-org `fileId` returns
+ * 404 (not the foreign content) which surfaces here as the documented
+ * "not found in the knowledge base" error.
  */
 export async function fetchDocumentContent(
+  orgSlug: string,
   fileId: string,
   options?: FetchDocumentContentOptions,
 ): Promise<DocumentContentResult> {
@@ -53,7 +59,10 @@ export async function fetchDocumentContent(
   const path = `/api/v1/documents/${encodeURIComponent(fileId)}/content${query ? `?${query}` : ''}`;
 
   try {
-    const response = await ragFetch(path, { timeoutMs: FETCH_TIMEOUT_MS });
+    const response = await ragFetch(path, {
+      timeoutMs: FETCH_TIMEOUT_MS,
+      orgSlug,
+    });
 
     if (response.status === 404) {
       throw new Error(
@@ -64,9 +73,7 @@ export async function fetchDocumentContent(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `RAG service error (${response.status}): ${errorText || 'Unknown error'}`,
-      );
+      throw UpstreamHttpError.fromResponse('rag', response, errorText, path);
     }
 
     let result: RagContentResponse;

@@ -13,7 +13,13 @@ import {
   agentJsonSchema,
   type SkillBindingResolvedEntry,
 } from '../../lib/shared/schemas/agents';
-import { serializeJson, sha256, validateOrgSlug } from '../lib/file_io';
+import {
+  getConfigRoot,
+  safeJoinWithinDir,
+  serializeJson,
+  sha256,
+  validateOrgSlug,
+} from '../lib/file_io';
 import { validateAgentName } from './validators';
 
 export { sha256, validateAgentName };
@@ -50,7 +56,7 @@ export interface AgentJsonConfig {
   workflows?: string[];
   /**
    * Slugs of skills available to this agent — a hard allowlist. Each slug
-   * references a `${SKILLS_DIR}/<orgSlug>/<slug>/SKILL.md` bundle. Empty or
+   * references a `${TALE_CONFIG_DIR}/<orgSlug>/skills/<slug>/SKILL.md` bundle. Empty or
    * absent means the agent has zero skills available; there is no implicit
    * "all org skills" fallback. At chat-turn start, `buildSkillContext` loads
    * only the intersection of this list with the org's actual skills; slugs
@@ -125,27 +131,11 @@ export function parseAgentJson(content: string): AgentJsonConfig {
   return result.data;
 }
 
-function getBaseDir(): string {
-  const dir = process.env.AGENTS_DIR;
-  if (dir) return dir;
-  const configDir = process.env.TALE_CONFIG_DIR;
-  if (configDir) return path.join(configDir, 'agents');
-  throw new Error(
-    'Neither TALE_CONFIG_DIR nor AGENTS_DIR environment variable is set. ' +
-      'Set TALE_CONFIG_DIR in .env to the root config directory ' +
-      '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
-  );
-}
-
 export function resolveAgentsDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
-  const baseDir = getBaseDir();
-  if (orgSlug === 'default') {
-    return baseDir;
-  }
-  return path.join(baseDir, orgSlug);
+  return path.join(getConfigRoot('agents'), orgSlug, 'agents');
 }
 
 export function resolveAgentFilePath(
@@ -155,20 +145,23 @@ export function resolveAgentFilePath(
   if (!validateAgentName(agentName)) {
     throw new Error(`Invalid agent name: ${agentName}`);
   }
-  const dir = resolveAgentsDir(orgSlug);
-  const resolved = path.resolve(dir, `${agentName}.json`);
-  const expectedPrefix = path.resolve(dir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error(`Path traversal detected: ${agentName}`);
-  }
-  return resolved;
+  return safeJoinWithinDir(resolveAgentsDir(orgSlug), `${agentName}.json`);
 }
 
 export function resolveHistoryDir(orgSlug: string, agentName: string): string {
-  return path.join(resolveAgentsDir(orgSlug), '.history', agentName);
+  // Defence-in-depth: `listHistory`, `readHistoryEntry`, and
+  // `restoreFromHistory` invoke this BEFORE any
+  // `resolveAgentFilePath`-style validation runs, so a crafted
+  // `agentName` containing `..` would otherwise traverse out of
+  // `agents/.history/`. Mirror the agent-name + safeJoin guard the
+  // other path builders already do.
+  if (!validateAgentName(agentName)) {
+    throw new Error(`Invalid agent name: ${agentName}`);
+  }
+  return safeJoinWithinDir(
+    safeJoinWithinDir(resolveAgentsDir(orgSlug), '.history'),
+    agentName,
+  );
 }
 
 export { MAX_FILE_SIZE_BYTES, MAX_HISTORY_ENTRIES };

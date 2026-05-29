@@ -4,8 +4,9 @@
  * importable from V8 mutations / queries / actions.
  *
  * Resolution order:
- *   1. **Per-org file** at `$TALE_CONFIG_DIR/retention/{orgSlug}.json`
- *      provides the baseline `{ min, max, default }` per category. The
+ *   1. **Per-org file** at `$TALE_CONFIG_DIR/<orgSlug>/retention.json`
+ *      (org-first layout) provides the baseline `{ min, max, default }`
+ *      per category. The
  *      file is the canonical source of truth (no in-code fallback).
  *      Loading the file is the caller's responsibility — Node-side
  *      callers (cleanup action) import the store directly; V8-side
@@ -316,7 +317,7 @@ export class RetentionConfigMissingError extends Error {
   readonly hint: string;
   constructor(category: RetentionCategory) {
     const hint =
-      'Copy examples/retention/default.json to $TALE_CONFIG_DIR/retention/default.json';
+      'Copy examples/default/retention.json to $TALE_CONFIG_DIR/default/retention.json';
     super(`Retention config missing for category=${category}. ${hint}`);
     this.category = category;
     this.hint = hint;

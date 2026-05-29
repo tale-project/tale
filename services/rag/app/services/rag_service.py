@@ -1,15 +1,37 @@
 """Main RAG service.
 
-Provides: add_document, search, generate, delete_document.
-All operations use the private_knowledge schema in tale_knowledge database.
+Provides: add_document, search, generate, delete_document,
+get_document_content, get_document_statuses, compare_documents,
+compare_files.
+
+All public methods take `org_slug` as their first argument so the SQL
+layer can scope by `org_slug` and the per-org LLM / embedding / vision
+clients can be loaded from THAT org's provider catalog at
+`<TALE_CONFIG_DIR>/<org>/providers/`. Per-org client state is built
+lazily and cached for `_CONFIG_CHECK_INTERVAL` seconds.
+
+Tenant isolation is enforced at the data layer: `documents` and `chunks`
+both carry an `org_slug` column (NOT NULL DEFAULT 'default') and a
+composite FK ties chunks.org_slug to documents.org_slug. Every SELECT /
+UPDATE / DELETE / INSERT filters by `org_slug`.
+
+Embedding **dimensions** are global: the underlying knowledge DB uses
+one vector column, so all orgs sharing this RAG instance must use the
+same embedding dimensions. The first org to initialize pins the value;
+subsequent orgs that disagree raise loudly rather than silently storing
+mis-dimensioned vectors. (Per-org dims would require per-org DB schemas
+— out of scope.)
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import datetime as dt
 import time
-from typing import Any
+from collections import OrderedDict
+from dataclasses import dataclass
+from typing import Any, ClassVar
 
 import asyncpg
 import httpx
@@ -47,17 +69,70 @@ SYSTEM_PROMPT = (
 
 _CONFIG_CHECK_INTERVAL = 15  # seconds
 
+# Bound the per-org-lock dict so a misbehaving caller cannot grow the
+# table without limit by spraying random slugs. Real deployments have
+# tens, not thousands, of orgs; 256 is comfortably above any realistic
+# concurrent-init fan-out while still capping memory.
+_ORG_LOCKS_MAX = 256
+
 
 _background_tasks: set[asyncio.Task[None]] = set()
 
+# When set, every pending `_safe_close` skips its remaining grace
+# window and proceeds to the close call immediately. Shutdown sets
+# this before draining so the underlying httpx pools actually close
+# even when the drain timeout fires — previously the 10s drain
+# cancelled the 30s `asyncio.sleep` mid-flight and the close
+# coroutine never ran, leaking sockets through process exit
+# (round-3 P2 R20-P2-d).
+_shutdown_event: asyncio.Event | None = None
+
+
+def _get_shutdown_event() -> asyncio.Event:
+    """Lazy-construct the per-event-loop shutdown event.
+
+    Created on first use rather than at import time so we don't grab a
+    handle to the wrong event loop in test environments that spin up
+    fresh loops per case.
+    """
+    global _shutdown_event
+    if _shutdown_event is None:
+        _shutdown_event = asyncio.Event()
+    return _shutdown_event
+
 
 async def _safe_close(coro) -> None:
-    """Close an old client after a grace period for in-flight requests."""
-    await asyncio.sleep(30)
+    """Close an old client after a grace period for in-flight requests.
+
+    The grace is interruptible: when `_shutdown_event` fires, the sleep
+    aborts early and the close runs immediately. Without this, a
+    bounded shutdown drain would cancel the `asyncio.sleep(30)` and the
+    wrapped close coroutine would never be awaited.
+    """
+    with contextlib.suppress(TimeoutError):
+        await asyncio.wait_for(_get_shutdown_event().wait(), timeout=30)
     try:
         await coro
     except Exception:
         logger.warning("Failed to close old client", exc_info=True)
+
+
+@dataclass
+class _OrgClients:
+    """Per-org cached LLM/embedding/vision clients.
+
+    Lifecycle: built lazily on first call for an org, refreshed if older
+    than `_CONFIG_CHECK_INTERVAL` AND the underlying provider config has
+    changed on disk.
+    """
+
+    llm_config: dict
+    vision_config: tuple | None
+    embedding_service: EmbeddingService
+    openai_client: AsyncOpenAI
+    vision_client: VisionClient | None
+    search_service: RagSearchService
+    last_check: float
 
 
 class RagService:
@@ -65,16 +140,45 @@ class RagService:
         self.initialized = False
         self._init_lock = asyncio.Lock()
         self._pool: asyncpg.Pool | None = None
-        self._embedding_service: EmbeddingService | None = None
-        self._vision_client: VisionClient | None = None
-        self._openai_client: AsyncOpenAI | None = None
-        self._search_service: RagSearchService | None = None
-        self._llm_config: dict | None = None
-        self._vision_config: tuple | None = None
-        self._last_config_check: float = 0
+        # Embedding dimensions are pinned globally; see module docstring.
+        # `_pin_dim_lock` serializes the first-write race between two orgs
+        # initializing concurrently (which previously each held their own
+        # per-org lock and both raced past `if _pinned_dims is None`).
+        self._pinned_dims: int | None = None
+        self._pin_dim_lock = asyncio.Lock()
+        # Per-org client cache and per-org locks (so concurrent first-calls
+        # for the same org don't both build clients). True LRU on access:
+        # `OrderedDict.move_to_end` on every cache hit; eviction pops the
+        # least-recently-used entry. The previous "FIFO" pop-iter scheme
+        # claimed to be LRU in comments but never reordered, so a busy
+        # org's lock could be evicted while still held by fiber A —
+        # fiber B then got a fresh lock and both fibers raced into
+        # `_build_or_refresh_org_clients` with `previous=None`, silently
+        # overwriting each other's client set with no `_safe_close`
+        # scheduled (round-2 P1-20).
+        self._org_clients: OrderedDict[str, _OrgClients] = OrderedDict()
+        self._org_locks: OrderedDict[str, asyncio.Lock] = OrderedDict()
+        # Set to True at the top of `shutdown`. New `_ensure_org_clients`
+        # calls raise immediately so requests landing mid-shutdown can't
+        # repopulate the cache after `clear()` and bind to a pool that's
+        # about to close (round-2 P1-19).
+        self._shutting_down: bool = False
 
     async def initialize(self) -> None:
-        """Initialize database pool, embedding service, vision client, and LLM client."""
+        """Initialize the shared database pool.
+
+        Per-org client construction is deferred until the first call for
+        that org. The DB pool is global — all orgs share one
+        knowledge-DB connection pool because the schema is global.
+
+        Re-init after a prior `shutdown()` is supported (tests, supervisor
+        restart with the same singleton). Reset `_shutting_down` and
+        clear the module-level shutdown event up front so the new
+        process state is "live" before any `_ensure_org_clients` checks
+        run — otherwise those would keep raising
+        `RuntimeError("RagService is shutting down")` forever despite
+        the pool being back.
+        """
         if self.initialized:
             return
 
@@ -82,138 +186,140 @@ class RagService:
             if self.initialized:
                 return
 
-            await self._do_initialize()
+            self._shutting_down = False
+            _get_shutdown_event().clear()
+            self._pool = await init_pool()
+            self.initialized = True
+            logger.info("RagService initialized (DB pool ready; per-org clients lazy)")
 
-    async def _do_initialize(self) -> None:
+    def _get_org_lock(self, org_slug: str) -> asyncio.Lock:
+        lock = self._org_locks.get(org_slug)
+        if lock is not None:
+            # True LRU: bump on access. Without this, eviction order is
+            # insertion order (FIFO), so a busy org's lock could be
+            # evicted while held — breaking the "shared lock per org"
+            # invariant and producing the racing-builders bug described
+            # on the OrderedDict declaration above.
+            self._org_locks.move_to_end(org_slug)
+            return lock
 
-        # Database pool
-        self._pool = await init_pool()
+        # Bounded eviction: scan for the LEAST-recently-used UNHELD lock
+        # rather than blindly popping the head. A held lock means a
+        # fiber is mid-build for that org; evicting it would create a
+        # second concurrent builder. If every entry is held (>=256 orgs
+        # all building concurrently — extremely unlikely), give up on
+        # eviction and let the dict grow by one. The next call will
+        # have more idle locks to pick from.
+        if len(self._org_locks) >= _ORG_LOCKS_MAX:
+            for victim_key in list(self._org_locks.keys()):
+                victim = self._org_locks[victim_key]
+                if not victim.locked():
+                    self._org_locks.pop(victim_key, None)
+                    break
+            # else: all locks held — accept temporary overshoot.
+        lock = asyncio.Lock()
+        self._org_locks[org_slug] = lock
+        return lock
 
-        # Embedding service
-        llm_config = settings.get_llm_config()
-        embedding_model = llm_config["embedding_model"]
-        dimensions = settings.get_embedding_dimensions()
+    async def _ensure_org_clients(self, org_slug: str) -> _OrgClients:
+        """Lazy-init or refresh an org's clients.
 
-        self._embedding_service = EmbeddingService(
+        Refresh is gated on `_CONFIG_CHECK_INTERVAL` so a busy org doesn't
+        re-read its provider files on every call.
+        """
+        if self._shutting_down:
+            raise RuntimeError("RagService is shutting down")
+        if not self.initialized:
+            await self.initialize()
+        if self._pool is None:
+            raise RuntimeError("RagService not initialized: database pool is None")
+
+        cached = self._org_clients.get(org_slug)
+        if cached is not None:
+            now = time.monotonic()
+            if (now - cached.last_check) < _CONFIG_CHECK_INTERVAL:
+                self._org_clients.move_to_end(org_slug)
+                return cached
+
+        lock = self._get_org_lock(org_slug)
+        async with lock:
+            cached = self._org_clients.get(org_slug)
+            if cached is not None:
+                now = time.monotonic()
+                if (now - cached.last_check) < _CONFIG_CHECK_INTERVAL:
+                    self._org_clients.move_to_end(org_slug)
+                    return cached
+
+            return await self._build_or_refresh_org_clients(org_slug, cached)
+
+    async def _build_or_refresh_org_clients(
+        self,
+        org_slug: str,
+        previous: _OrgClients | None,
+    ) -> _OrgClients:
+        """Construct fresh clients for org_slug, atomic-swapping if existing."""
+        assert self._pool is not None
+
+        llm_config = settings.get_llm_config(org_slug)
+        if previous is not None and llm_config == previous.llm_config:
+            # No change — refresh the timestamp and reuse.
+            previous.last_check = time.monotonic()
+            return previous
+
+        if not llm_config.get("api_key") or not llm_config.get("embedding_api_key"):
+            if previous is not None:
+                logger.warning(
+                    "Skipping LLM config reload for org '{}': empty API key",
+                    org_slug,
+                )
+                previous.last_check = time.monotonic()
+                return previous
+            raise ValueError(f"Org '{org_slug}' has empty chat or embedding API key in provider config.")
+
+        _b, _a, _m, dims = settings.get_embedding_config(org_slug)
+
+        # Serialize the first-write so two concurrent org inits don't
+        # race past `_pinned_dims is None` with different dims and both
+        # call `pin_embedding_dimensions`. Subsequent calls take the
+        # lock too but find `_pinned_dims` already set and fall through
+        # to the mismatch check.
+        async with self._pin_dim_lock:
+            if self._pinned_dims is None:
+                self._pinned_dims = dims
+                await pin_embedding_dimensions(self._pool, dims)
+                logger.info(
+                    "Pinned RAG embedding dimensions to {} (set by org '{}')",
+                    dims,
+                    org_slug,
+                )
+            elif dims != self._pinned_dims:
+                raise ValueError(
+                    f"Org '{org_slug}' embedding dimensions ({dims}) do not match the "
+                    f"pinned RAG schema dimensions ({self._pinned_dims}). All orgs "
+                    f"sharing this RAG instance must use the same embedding model "
+                    f"dimensions. Reconcile provider configs or run RAG per-org."
+                )
+
+        embedding_service = EmbeddingService(
             api_key=llm_config["embedding_api_key"],
             base_url=llm_config["embedding_base_url"],
-            model=embedding_model,
-            dimensions=dimensions,
+            model=llm_config["embedding_model"],
+            dimensions=dims,
         )
-        self._llm_config = llm_config
-
-        # Pin embedding dimensions and create HNSW index (runtime config, not a migration)
-        await pin_embedding_dimensions(self._pool, dimensions)
-
-        # Vision client (optional — only if model is configured)
-        try:
-            vision_config = settings.get_vision_config()
-            v_base_url, v_api_key, v_model = vision_config
-            self._vision_client = VisionClient(
-                api_key=v_api_key,
-                model=v_model,
-                base_url=v_base_url,
-                timeout=120.0,
-                request_timeout=float(settings.vision_request_timeout),
-                max_concurrent_pages=settings.vision_max_concurrent_pages,
-                pdf_dpi=settings.vision_pdf_dpi,
-                ocr_prompt=settings.vision_extraction_prompt,
-            )
-            self._vision_config = vision_config
-            logger.info("Vision client initialized with model: {}", v_model)
-        except ValueError:
-            logger.info("No vision model configured, Vision features disabled")
-            self._vision_client = None
-
-        # OpenAI client for generation. Explicit timeout: the SDK
-        # default is 600 s, which can hold the asyncio event loop for
-        # 10 minutes on a stuck provider endpoint and starve the DB
-        # pool. Round-2 review MEDIUM (E.4.7).
-        self._openai_client = AsyncOpenAI(
+        openai_client = AsyncOpenAI(
             api_key=llm_config["api_key"],
             base_url=llm_config["base_url"],
             timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=5.0),
         )
 
-        # Search service
-        self._search_service = RagSearchService(self._pool, self._embedding_service)
-
-        self._last_config_check = time.monotonic()
-        self.initialized = True
-        logger.info("RagService initialized")
-
-    @property
-    def embedding_service(self) -> EmbeddingService | None:
-        return self._embedding_service
-
-    def _maybe_refresh_clients(self) -> None:
-        """Check provider config freshness; rebuild clients if changed.
-
-        This method is synchronous (no await) so that all attribute swaps
-        happen atomically from asyncio's cooperative-scheduling perspective.
-        """
-        if not self.initialized:
-            return
-        now = time.monotonic()
-        if (now - self._last_config_check) < _CONFIG_CHECK_INTERVAL:
-            return
-        self._last_config_check = now
-
-        # Check chat/embedding config
-        new_llm_config = settings.get_llm_config()
-        if new_llm_config != self._llm_config:
-            if not new_llm_config.get("api_key") or not new_llm_config.get("embedding_api_key"):
-                logger.warning("Skipping LLM config reload: empty API key")
-            else:
-                new_dims = settings.get_embedding_dimensions()
-                if self._embedding_service and new_dims != self._embedding_service.dimensions:
-                    logger.error(
-                        "Embedding dimensions changed ({} -> {}). Restart required.",
-                        self._embedding_service.dimensions,
-                        new_dims,
-                    )
-                else:
-                    # Prepare new clients before swapping any state
-                    new_emb = EmbeddingService(
-                        api_key=new_llm_config["embedding_api_key"],
-                        base_url=new_llm_config["embedding_base_url"],
-                        model=new_llm_config["embedding_model"],
-                        dimensions=new_dims,
-                    )
-                    new_oai = AsyncOpenAI(
-                        api_key=new_llm_config["api_key"],
-                        base_url=new_llm_config["base_url"],
-                        timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=5.0),
-                    )
-
-                    # Swap all at once (atomic from asyncio's cooperative perspective)
-                    old_emb = self._embedding_service
-                    old_oai = self._openai_client
-                    self._embedding_service = new_emb
-                    self._openai_client = new_oai
-                    if self._pool:
-                        self._search_service = RagSearchService(self._pool, new_emb)
-                    self._llm_config = new_llm_config
-                    logger.info("RAG LLM clients refreshed: model={}", new_llm_config.get("embedding_model"))
-
-                    # Close old clients (fire-and-forget with grace period)
-                    loop = asyncio.get_running_loop()
-                    if old_emb:
-                        task = loop.create_task(_safe_close(old_emb.close()))
-                        _background_tasks.add(task)
-                        task.add_done_callback(_background_tasks.discard)
-                    if old_oai:
-                        task = loop.create_task(_safe_close(old_oai.close()))
-                        _background_tasks.add(task)
-                        task.add_done_callback(_background_tasks.discard)
-
-        # Check vision config
+        # Vision client (optional — only if the org has a vision-tagged model)
+        vision_client: VisionClient | None = None
+        vision_config: tuple | None = None
         try:
-            new_vision_config = settings.get_vision_config()
-            v_base_url, v_api_key, v_model = new_vision_config
-            if new_vision_config != self._vision_config and v_api_key:
-                old_vision = self._vision_client
-                self._vision_client = VisionClient(
+            vision_config = settings.get_vision_config(org_slug)
+            v_base_url, v_api_key, v_model = vision_config
+            if v_api_key:
+                vision_client = VisionClient(
                     api_key=v_api_key,
                     model=v_model,
                     base_url=v_base_url,
@@ -223,18 +329,86 @@ class RagService:
                     pdf_dpi=settings.vision_pdf_dpi,
                     ocr_prompt=settings.vision_extraction_prompt,
                 )
-                self._vision_config = new_vision_config
-                logger.info("RAG vision client refreshed: model={}", v_model)
-                if old_vision:
-                    loop = asyncio.get_running_loop()
-                    task = loop.create_task(_safe_close(old_vision.close()))
-                    _background_tasks.add(task)
-                    task.add_done_callback(_background_tasks.discard)
+                logger.info(
+                    "Vision client initialized for org '{}' with model {}",
+                    org_slug,
+                    v_model,
+                )
         except ValueError:
-            logger.debug("No vision model in provider config, skipping vision refresh")
+            logger.debug(
+                "No vision model configured for org '{}', Vision disabled",
+                org_slug,
+            )
+
+        search_service = RagSearchService(self._pool, embedding_service)
+
+        new_clients = _OrgClients(
+            llm_config=llm_config,
+            vision_config=vision_config,
+            embedding_service=embedding_service,
+            openai_client=openai_client,
+            vision_client=vision_client,
+            search_service=search_service,
+            last_check=time.monotonic(),
+        )
+        self._org_clients[org_slug] = new_clients
+        self._org_clients.move_to_end(org_slug)
+
+        # Cap `_org_clients` size by the same LRU bound applied to
+        # `_org_locks`. Without this, a long-running process that sees
+        # many distinct (or typo'd) slugs grows the dict without limit;
+        # each entry holds an `AsyncOpenAI` httpx pool + a vision
+        # client. Evict the LRU entry whose org isn't in the middle of
+        # being built (we hold its lock during this block, so the LRU
+        # head won't be us). Round-2 P1-20.
+        while len(self._org_clients) > _ORG_LOCKS_MAX:
+            victim_key, victim_clients = self._org_clients.popitem(last=False)
+            if victim_key == org_slug:
+                # Defensive: re-add and stop. Should not happen — the
+                # entry we just inserted was move_to_end'd above.
+                self._org_clients[victim_key] = victim_clients
+                break
+            loop = asyncio.get_running_loop()
+            for coro_target in (
+                victim_clients.embedding_service.close(),
+                victim_clients.openai_client.close(),
+            ):
+                t = loop.create_task(_safe_close(coro_target))
+                _background_tasks.add(t)
+                t.add_done_callback(_background_tasks.discard)
+            if victim_clients.vision_client is not None:
+                t = loop.create_task(_safe_close(victim_clients.vision_client.close()))
+                _background_tasks.add(t)
+                t.add_done_callback(_background_tasks.discard)
+
+        # Best-effort close of old clients after a grace period so in-flight
+        # requests on the old clients finish cleanly.
+        if previous is not None:
+            loop = asyncio.get_running_loop()
+            if previous.embedding_service is not embedding_service:
+                task = loop.create_task(_safe_close(previous.embedding_service.close()))
+                _background_tasks.add(task)
+                task.add_done_callback(_background_tasks.discard)
+            if previous.openai_client is not openai_client:
+                task = loop.create_task(_safe_close(previous.openai_client.close()))
+                _background_tasks.add(task)
+                task.add_done_callback(_background_tasks.discard)
+            if previous.vision_client is not None and previous.vision_client is not vision_client:
+                task = loop.create_task(_safe_close(previous.vision_client.close()))
+                _background_tasks.add(task)
+                task.add_done_callback(_background_tasks.discard)
+
+        logger.info(
+            "RAG clients {} for org '{}': model={}",
+            "refreshed" if previous else "initialized",
+            org_slug,
+            llm_config.get("model"),
+        )
+        return new_clients
 
     async def add_document(
         self,
+        org_slug: str,
         content: bytes,
         file_id: str,
         filename: str,
@@ -242,23 +416,20 @@ class RagService:
         source_created_at: dt.datetime | None = None,
         source_modified_at: dt.datetime | None = None,
     ) -> dict[str, Any]:
-        """Add a document to the knowledge base."""
-        if not self.initialized:
-            await self.initialize()
-        self._maybe_refresh_clients()
+        """Add a document to the knowledge base for the given org."""
+        clients = await self._ensure_org_clients(org_slug)
 
         if self._pool is None:
             raise RuntimeError("RagService not initialized: database pool is None")
-        if self._embedding_service is None:
-            raise RuntimeError("RagService not initialized: embedding service is None")
 
         return await index_document(
             self._pool,
+            org_slug,
             file_id,
             content,
             filename,
-            embedding_service=self._embedding_service,
-            vision_client=self._vision_client,
+            embedding_service=clients.embedding_service,
+            vision_client=clients.vision_client,
             chunk_size=settings.chunk_size,
             chunk_overlap=settings.chunk_overlap,
             source_created_at=source_created_at,
@@ -267,69 +438,62 @@ class RagService:
 
     async def search(
         self,
+        org_slug: str,
         query: str,
         *,
         top_k: int | None = None,
         similarity_threshold: float | None = None,
         file_ids: list[str] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Search the knowledge base using hybrid BM25 + vector search.
+    ) -> tuple[list[dict[str, Any]], Any]:
+        """Search the knowledge base scoped to `org_slug`.
 
-        Embedding token usage available via `self.last_search_usage` after call.
+        Returns a `(results, embedding_usage)` tuple — the underlying
+        `RagSearchService.search` returns the tuple directly so there's
+        no shared singleton attribution race across concurrent callers.
         """
-        if not self.initialized:
-            await self.initialize()
-        self._maybe_refresh_clients()
-
-        if self._search_service is None:
-            raise RuntimeError("RagService not initialized: search service is None")
+        clients = await self._ensure_org_clients(org_slug)
 
         effective_top_k = top_k if top_k is not None else settings.top_k
         threshold = similarity_threshold if similarity_threshold is not None else settings.similarity_threshold
 
-        results = await self._search_service.search(
+        results, usage = await clients.search_service.search(
+            org_slug,
             query,
             file_ids=file_ids,
             top_k=effective_top_k,
             similarity_threshold=threshold,
         )
 
-        self.last_search_usage = getattr(self._search_service, "last_search_usage", None)
-
         # If no results and some files are still indexing, wait and retry once
         if not results and file_ids:
-            statuses = await self.get_document_statuses(file_ids)
+            statuses = await self.get_document_statuses(org_slug, file_ids)
             has_processing = any(s is not None and s.get("status") == "processing" for s in statuses.values())
             if has_processing:
                 logger.info("No results and some files still indexing, retrying in 3s")
                 await asyncio.sleep(3)
-                results = await self._search_service.search(
+                results, usage = await clients.search_service.search(
+                    org_slug,
                     query,
                     file_ids=file_ids,
                     top_k=effective_top_k,
                     similarity_threshold=threshold,
                 )
-                self.last_search_usage = getattr(self._search_service, "last_search_usage", None)
 
-        return results
+        return results, usage
 
     async def generate(
         self,
+        org_slug: str,
         query: str,
         file_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Generate a response using RAG: search -> context assembly -> LLM."""
-        if not self.initialized:
-            await self.initialize()
-        self._maybe_refresh_clients()
-
-        if self._openai_client is None:
-            raise RuntimeError("RagService not initialized: OpenAI client is None")
+        clients = await self._ensure_org_clients(org_slug)
 
         try:
             start_time = time.time()
 
-            search_results = await self.search(query, top_k=RAG_TOP_K, file_ids=file_ids)
+            search_results, embedding_usage = await self.search(org_slug, query, top_k=RAG_TOP_K, file_ids=file_ids)
 
             if not search_results:
                 return {
@@ -363,9 +527,9 @@ class RagService:
             context = "\n\n".join(context_parts)
             user_message = f"Context:\n{context}\n\nQuestion: {query}"
 
-            llm_config = settings.get_llm_config()
+            llm_config = clients.llm_config
 
-            completion = await self._openai_client.chat.completions.create(
+            completion = await clients.openai_client.chat.completions.create(
                 model=llm_config["model"],
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -382,8 +546,10 @@ class RagService:
             processing_time = (time.time() - start_time) * 1000
             logger.info("Generation completed in {:.2f}ms", processing_time)
 
-            # Combine embedding usage (from search step) + LLM usage
-            embedding_usage = getattr(self, "last_search_usage", None)
+            # Combine embedding usage (from search step) + LLM usage.
+            # `embedding_usage` is the local var bound from `await
+            # self.search(...)` above, so this is correct under
+            # concurrent calls.
             embedding_tokens = embedding_usage.prompt_tokens if embedding_usage else 0
             llm_input = completion.usage.prompt_tokens if completion.usage else 0
             llm_output = completion.usage.completion_tokens if completion.usage else 0
@@ -409,22 +575,18 @@ class RagService:
 
     async def get_document_content(
         self,
+        org_slug: str,
         file_id: str,
         *,
         chunk_start: int = 1,
         chunk_end: int | None = None,
         return_chunks: bool = False,
     ) -> dict[str, Any] | None:
-        """Retrieve document content by reassembling stored chunks.
+        """Retrieve document content by reassembling stored chunks, scoped to org.
 
-        Args:
-            file_id: Logical file identifier.
-            chunk_start: First chunk to return (1-indexed).
-            chunk_end: Last chunk to return (1-indexed, inclusive). None = capped by MAX_CHUNK_WINDOW.
-            return_chunks: If True, include individual chunks as a list.
-
-        Returns:
-            Response dict with content and metadata, or None if not found.
+        Returns None for documents that don't exist in `org_slug` — including
+        documents that exist for a different org (no cross-tenant disclosure
+        via 200 vs 404 differential).
         """
         if not self.initialized:
             await self.initialize()
@@ -435,14 +597,15 @@ class RagService:
         if chunk_end is None:
             chunk_end = chunk_start + self.MAX_CHUNK_WINDOW - 1
 
-        where = "file_id = $1"
-        params: list[Any] = [file_id]
-
         async with acquire_with_retry(self._pool) as conn:
             doc = await conn.fetchrow(
-                f"SELECT id, file_id, filename, chunks_count, source_created_at, source_modified_at"
-                f" FROM {SCHEMA}.documents WHERE {where} LIMIT 1",
-                *params,
+                f"""SELECT id, file_id, filename, chunks_count,
+                           source_created_at, source_modified_at
+                    FROM {SCHEMA}.documents
+                    WHERE org_slug = $1 AND file_id = $2
+                    LIMIT 1""",
+                org_slug,
+                file_id,
             )
 
             if doc is None:
@@ -452,14 +615,18 @@ class RagService:
             total_chunks = doc["chunks_count"]
 
             # Convert 1-indexed API params to 0-indexed chunk_index
-            chunk_params: list[Any] = [doc_uuid, chunk_start - 1, chunk_end - 1]
-
             rows = await conn.fetch(
-                f"SELECT chunk_index, chunk_content, core_content "
-                f"FROM {SCHEMA}.chunks "
-                f"WHERE document_id = $1 AND chunk_index >= $2 AND chunk_index <= $3 "
-                f"ORDER BY chunk_index ASC",
-                *chunk_params,
+                f"""SELECT chunk_index, chunk_content, core_content
+                    FROM {SCHEMA}.chunks
+                    WHERE org_slug = $1
+                      AND document_id = $2
+                      AND chunk_index >= $3
+                      AND chunk_index <= $4
+                    ORDER BY chunk_index ASC""",
+                org_slug,
+                doc_uuid,
+                chunk_start - 1,
+                chunk_end - 1,
             )
 
         if not rows:
@@ -474,20 +641,7 @@ class RagService:
                 "source_modified_at": doc["source_modified_at"],
             }
 
-        # Reassembly: concatenate each chunk's forward-owning `core_content`
-        # span. By construction, "".join(core_content) equals the original
-        # ingested text (see tale_knowledge.chunking.splitter tests), so
-        # overlap regions between adjacent chunks appear exactly once —
-        # fixing the duplicate-content bug the old "\n\n".join(chunk_content)
-        # exhibited.
-        #
-        # Per-document reindex is atomic (see _do_store), so a document's
-        # chunks are either all migrated (core_content populated) or all
-        # legacy (core_content == ''). Mixed state within one document is
-        # not possible. Falling back to the old stitching for legacy docs
-        # preserves correctness (no lost text) with today's known
-        # duplicate-content behavior until reindex completes.
-        # The fallback + chunk_content column disappear in Phase 5.
+        # Reassembly: see chunking docs.
         all_migrated = all(row["core_content"] for row in rows)
         if all_migrated:
             combined = "".join(row["core_content"] for row in rows)
@@ -516,16 +670,14 @@ class RagService:
 
     async def get_document_statuses(
         self,
+        org_slug: str,
         file_ids: list[str],
     ) -> dict[str, dict[str, Any] | None]:
-        """Get statuses for multiple documents by file_id.
+        """Get statuses for multiple documents by file_id, scoped to org.
 
-        Returns a dict mapping file_id to status info or None if not found.
-        When a document has multiple scope rows, priority is: processing > failed > completed.
-
-        If ANY scope row is still processing, the document is considered processing.
-        This ensures reindex operations are visible even when other scope rows
-        remain completed.
+        Returns a dict mapping file_id → status info, or None for IDs that
+        don't exist in `org_slug` (including IDs that exist for a different
+        org — those return None too, to avoid cross-tenant disclosure).
         """
         if not self.initialized:
             await self.initialize()
@@ -540,7 +692,7 @@ class RagService:
                     file_id, status, error, progress_phase, progress_detail,
                     source_created_at, source_modified_at, ocr_applied
                 FROM {SCHEMA}.documents
-                WHERE file_id = ANY($1)
+                WHERE org_slug = $1 AND file_id = ANY($2)
                 ORDER BY file_id,
                     CASE status
                         WHEN 'processing' THEN 0
@@ -550,6 +702,7 @@ class RagService:
                     END,
                     updated_at DESC
                 """,
+                org_slug,
                 file_ids,
             )
 
@@ -569,9 +722,17 @@ class RagService:
 
     async def delete_document(
         self,
+        org_slug: str,
         file_id: str,
     ) -> dict[str, Any]:
-        """Delete a document and its chunks from the knowledge base."""
+        """Delete a document (and its chunks via FK CASCADE) within `org_slug`.
+
+        Scoped to `org_slug`: a foreign-org file_id will return zero
+        deletions rather than touching another tenant's data. The composite
+        FK on (document_id, org_slug) means chunks cascade automatically,
+        but we still scope the DELETE on chunks first to keep the
+        transaction explicit.
+        """
         if not self.initialized:
             await self.initialize()
 
@@ -582,7 +743,9 @@ class RagService:
 
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
-                f"SELECT id FROM {SCHEMA}.documents WHERE file_id = $1",
+                f"""SELECT id FROM {SCHEMA}.documents
+                    WHERE org_slug = $1 AND file_id = $2""",
+                org_slug,
                 file_id,
             )
 
@@ -600,11 +763,15 @@ class RagService:
 
         async with acquire_with_retry(self._pool) as conn, conn.transaction():
             await conn.execute(
-                f"DELETE FROM {SCHEMA}.chunks WHERE document_id = ANY($1)",
+                f"""DELETE FROM {SCHEMA}.chunks
+                    WHERE org_slug = $1 AND document_id = ANY($2)""",
+                org_slug,
                 ids_to_delete,
             )
             await conn.execute(
-                f"DELETE FROM {SCHEMA}.documents WHERE id = ANY($1)",
+                f"""DELETE FROM {SCHEMA}.documents
+                    WHERE org_slug = $1 AND id = ANY($2)""",
+                org_slug,
                 ids_to_delete,
             )
 
@@ -620,27 +787,28 @@ class RagService:
 
     async def compare_documents(
         self,
+        org_slug: str,
         base_file_id: str,
         comparison_file_id: str,
         *,
         max_changes: int = 500,
     ) -> dict[str, Any] | None:
-        """Compare two documents using deterministic paragraph-level diffing.
-
-        Fetches both documents in parallel. Returns structured diff with
-        change blocks, or an error dict when a document is not found.
-        """
+        """Compare two stored documents (both must belong to `org_slug`)."""
         from .diff_service import compute_diff
 
         base, comp = await asyncio.gather(
-            self.get_document_content(base_file_id),
-            self.get_document_content(comparison_file_id),
+            self.get_document_content(org_slug, base_file_id),
+            self.get_document_content(org_slug, comparison_file_id),
         )
 
         if base is None:
             return {"error": "not_found", "file_id": base_file_id, "role": "base"}
         if comp is None:
-            return {"error": "not_found", "file_id": comparison_file_id, "role": "comparison"}
+            return {
+                "error": "not_found",
+                "file_id": comparison_file_id,
+                "role": "comparison",
+            }
 
         diff_result = compute_diff(
             base["content"],
@@ -663,6 +831,7 @@ class RagService:
 
     async def compare_files(
         self,
+        org_slug: str,
         base_bytes: bytes,
         base_filename: str,
         comparison_bytes: bytes,
@@ -672,10 +841,10 @@ class RagService:
     ) -> dict[str, Any]:
         """Compare two uploaded files using deterministic paragraph-level diffing.
 
-        Extracts text directly from file bytes — no database storage or embedding.
-        Text extraction runs in parallel for both files via asyncio.gather.
+        Extracts text directly from file bytes — uses the org's vision
+        client for OCR-able formats. No database storage or embedding.
         """
-        self._maybe_refresh_clients()
+        clients = await self._ensure_org_clients(org_slug)
 
         from tale_knowledge.extraction import extract_text
 
@@ -684,8 +853,12 @@ class RagService:
         t0 = time.time()
 
         (base_text, _), (comp_text, _) = await asyncio.gather(
-            extract_text(base_bytes, base_filename, vision_client=self._vision_client),
-            extract_text(comparison_bytes, comparison_filename, vision_client=self._vision_client),
+            extract_text(base_bytes, base_filename, vision_client=clients.vision_client),
+            extract_text(
+                comparison_bytes,
+                comparison_filename,
+                vision_client=clients.vision_client,
+            ),
         )
 
         extraction_ms = (time.time() - t0) * 1000
@@ -712,8 +885,77 @@ class RagService:
 
         return result
 
+    # Bounded drain for background `_safe_close` tasks during shutdown.
+    # Each `_safe_close` sleeps 30s before its actual close call so in-
+    # flight requests on the old clients can finish; without a timeout
+    # here, a refresh-burst right before shutdown can keep the process
+    # hanging for ~30s x max-concurrent-refreshes. 10s is generous given
+    # the AsyncOpenAI / httpx pool close itself is sub-second.
+    _SHUTDOWN_DRAIN_TIMEOUT_S: ClassVar[float] = 10.0
+
     async def shutdown(self) -> None:
-        """Clean shutdown — close pool."""
+        """Clean shutdown — close pool and all per-org clients.
+
+        Order matters:
+        1. Flip `_shutting_down` so new `_ensure_org_clients` calls fail
+           fast instead of repopulating the cache and binding new clients
+           to a pool that's about to close (P1-19).
+        2. Close per-org clients; clear the cache.
+        3. Drain `_background_tasks` (the `_safe_close` coroutines that
+           were spawned for client-refresh churn) under a bounded timeout.
+        4. Close the DB pool.
+        """
+        self._shutting_down = True
+        # Wake every pending `_safe_close` so the underlying client
+        # close runs without waiting out its 30s grace — pairs with the
+        # interruptible sleep in `_safe_close` to ensure httpx pools are
+        # actually torn down before the drain timeout fires.
+        _get_shutdown_event().set()
+
+        # Best-effort close of each org's clients before tearing down the pool.
+        for org_slug, clients in list(self._org_clients.items()):
+            try:
+                await clients.embedding_service.close()
+            except Exception:
+                logger.warning(
+                    "Failed to close embedding_service for org '{}'",
+                    org_slug,
+                    exc_info=True,
+                )
+            try:
+                await clients.openai_client.close()
+            except Exception:
+                logger.warning("Failed to close openai_client for org '{}'", org_slug, exc_info=True)
+            if clients.vision_client is not None:
+                try:
+                    await clients.vision_client.close()
+                except Exception:
+                    logger.warning(
+                        "Failed to close vision_client for org '{}'",
+                        org_slug,
+                        exc_info=True,
+                    )
+        self._org_clients.clear()
+
+        # Drain pending `_safe_close` tasks so they don't keep running
+        # after the pool is closed. Bounded by `_SHUTDOWN_DRAIN_TIMEOUT_S`
+        # so a refresh burst whose 30s `asyncio.sleep` is still pending
+        # can't pin shutdown for the full grace window (P1-19).
+        if _background_tasks:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*_background_tasks, return_exceptions=True),
+                    timeout=self._SHUTDOWN_DRAIN_TIMEOUT_S,
+                )
+            except TimeoutError:
+                logger.warning(
+                    "shutdown: {} background tasks did not drain within {}s; cancelling",
+                    len(_background_tasks),
+                    self._SHUTDOWN_DRAIN_TIMEOUT_S,
+                )
+                for task in list(_background_tasks):
+                    task.cancel()
+
         await close_pool()
         self.initialized = False
 

@@ -21,14 +21,14 @@ describe('resolveOrgSlug', () => {
   it('throws when the organization is not found', async () => {
     const ctx = makeCtx(null);
     await expect(resolveOrgSlug(ctx as never, 'org_missing')).rejects.toThrow(
-      /Organization org_missing not found or missing slug/,
+      /no organization row found for id .*org_missing/,
     );
   });
 
   it('throws when the organization row is missing a slug field', async () => {
     const ctx = makeCtx({ _id: 'org_abc' });
     await expect(resolveOrgSlug(ctx as never, 'org_abc')).rejects.toThrow(
-      /Organization org_abc not found or missing slug/,
+      /organization .*org_abc.* has no slug/,
     );
   });
 });

@@ -14,6 +14,8 @@ import pytest
 
 pytestmark = pytest.mark.asyncio
 
+TEST_ORG = "test-org"
+
 
 def _make_service():
     """Create a RagService with all internal dependencies pre-mocked."""
@@ -87,7 +89,7 @@ class TestGetDocumentContent:
         mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=CHUNK_ROWS)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1")
+            result = await service.get_document_content(TEST_ORG, "doc-1")
 
         assert result is not None
         assert result["file_id"] == "doc-1"
@@ -107,7 +109,7 @@ class TestGetDocumentContent:
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1")
+            result = await service.get_document_content(TEST_ORG, "doc-1")
 
         assert result["content"] == "AAA\n\nBBB"
 
@@ -127,7 +129,7 @@ class TestGetDocumentContent:
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1")
+            result = await service.get_document_content(TEST_ORG, "doc-1")
 
         assert result["content"] == "ABCDEF"
 
@@ -136,7 +138,7 @@ class TestGetDocumentContent:
         mock_conn = _mock_conn(fetchrow_return=None)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("nonexistent")
+            result = await service.get_document_content(TEST_ORG, "nonexistent")
 
         assert result is None
 
@@ -149,7 +151,7 @@ class TestGetDocumentContent:
         mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=filtered_chunks)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1", chunk_start=2, chunk_end=3)
+            result = await service.get_document_content(TEST_ORG, "doc-1", chunk_start=2, chunk_end=3)
 
         assert result is not None
         assert result["chunk_range"] == {"start": 2, "end": 3}
@@ -163,7 +165,7 @@ class TestGetDocumentContent:
         mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=chunks)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1", chunk_start=4)
+            result = await service.get_document_content(TEST_ORG, "doc-1", chunk_start=4)
 
         assert result is not None
         assert result["chunk_range"] == {"start": 4, "end": 5}
@@ -173,7 +175,7 @@ class TestGetDocumentContent:
         mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=[])
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1", chunk_start=100)
+            result = await service.get_document_content(TEST_ORG, "doc-1", chunk_start=100)
 
         assert result is not None
         assert result["content"] == ""
@@ -187,7 +189,7 @@ class TestGetDocumentContent:
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1")
+            result = await service.get_document_content(TEST_ORG, "doc-1")
 
         assert result is not None
         assert result["content"] == "Only chunk."
@@ -199,10 +201,11 @@ class TestGetDocumentContent:
         mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=CHUNK_ROWS)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            await service.get_document_content("doc-1", chunk_start=1)
+            await service.get_document_content(TEST_ORG, "doc-1", chunk_start=1)
 
         fetch_call = mock_conn.fetch.call_args
         sql = fetch_call[0][0]
-        assert "chunk_index <= $3" in sql
-        chunk_end_param = fetch_call[0][3]
+        # org_slug at $1, document_id at $2, chunk_index >= $3, chunk_index <= $4.
+        assert "chunk_index <= $4" in sql
+        chunk_end_param = fetch_call[0][4]
         assert chunk_end_param == service.MAX_CHUNK_WINDOW - 1

@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import pkg from '../../../package.json';
@@ -16,9 +15,8 @@ import { exec } from '../docker/exec';
 import { findProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
 import { withLock } from '../state/with-lock';
-import { MIGRATIONS } from '../upgrade/registry';
-import { runPendingMigrations } from '../upgrade/runner';
 import { init } from './init';
+import { legacyLayoutPreflight } from './legacy-layout-preflight';
 
 async function assertDockerAvailable(): Promise<void> {
   try {
@@ -122,7 +120,11 @@ interface StartOptions {
   detach?: boolean;
   port?: number;
   host?: string;
-  /** Non-interactive acceptance of any pending migrations (mirrors deploy). */
+  /**
+   * Non-interactive: auto-accept the legacy-layout migration prompt
+   * when a pre-org-first project root is detected. Parallels the
+   * `--yes` flag on `tale deploy`.
+   */
   assumeYes?: boolean;
 }
 
@@ -138,83 +140,44 @@ export async function start(options: StartOptions): Promise<void> {
     }
   }
 
+  // Environment setup runs unconditionally so `tale start` after a CLI
+  // upgrade that introduces a new auto-secret (e.g. SANDBOX_TOKEN) picks
+  // it up before compose starts — matches `tale deploy` semantics so
+  // both commands give the same surface behavior.
   const envPath = join(projectDir, '.env');
-  if (!existsSync(envPath)) {
-    logger.warn('No .env file found. Running environment setup...');
-    logger.blank();
-    const { ensureEnv } = await import('../config/ensure-env');
-    const { success } = await ensureEnv({ deployDir: projectDir });
-    if (!success) {
-      throw new Error(
-        'Environment setup failed. Cannot start without .env file.',
-      );
-    }
+  const { ensureEnv } = await import('../config/ensure-env');
+  const { success: envOk } = await ensureEnv({ deployDir: projectDir });
+  if (!envOk) {
+    throw new Error(
+      `Environment setup failed. Cannot start without ${envPath}.`,
+    );
   }
+
+  // Detect legacy flat-layout dirs at the project root (`agents/`,
+  // `workflows/`, …, `retention/`). Under the org-first layout these
+  // belong under `default/<domain>/` — the platform's resolvers won't
+  // read anything at the old paths. The preflight prompts the operator
+  // (default-No) and runs `migrateConfigLayout` in place on accept; CI
+  // runs must pass `--yes`. Replaces the prior hard-fail-with-runbook
+  // shape so an upgrade flows in one command.
+  await legacyLayoutPreflight({
+    projectDir,
+    assumeYes: options.assumeYes ?? false,
+    context: 'start',
+  });
 
   await assertDockerAvailable();
 
   // Resolve project ID from tale.json before any Docker-resource naming.
-  // Auto-assign an ID for legacy projects so users don't have to run
-  // `tale upgrade` as a separate step before `tale start` works.
   await resolveOrAssignProjectContext(projectDir);
 
-  // Detect and apply any pending migrations, then ensure dev infrastructure,
-  // all under a project-scoped lock so parallel `tale start` / `tale deploy`
-  // shells can't race on docker volumes or migrations.json. The lock is
-  // released before `docker compose up` starts — holding it for the full
-  // foreground lifetime of compose would block every other tale command.
+  // Ensure dev infrastructure under a project-scoped lock so parallel
+  // `tale start` / `tale deploy` shells can't race on docker volumes.
+  // The lock is released before `docker compose up` starts — holding it
+  // for the full foreground lifetime of compose would block every other
+  // tale command.
   const devPrefix = `${getProjectId()}-dev_`;
   await withLock(projectDir, 'start', async () => {
-    const migrationResult = await runPendingMigrations(
-      MIGRATIONS,
-      { projectId: getProjectId(), projectDir },
-      {
-        context: 'start',
-        assumeYes: options.assumeYes,
-        async performStops(stops) {
-          // `stops` is the union of compose project names (e.g. legacy
-          // 'tale-dev') and individual container names (e.g.
-          // '${projectId}-dev-platform-blue'). Try each as a compose project
-          // first, then fall back to `docker stop` for container names.
-          // Failures here MUST surface — a silently-swallowed stop can let
-          // the migration copy a live volume, corrupting data.
-          for (const name of stops) {
-            const composeDown = await exec(
-              'docker',
-              ['compose', '-p', name, 'down', '--remove-orphans'],
-              { silent: true },
-            );
-            if (composeDown.success) continue;
-            const stopResult = await exec(
-              'docker',
-              ['stop', '-t', '30', name],
-              {
-                silent: true,
-              },
-            );
-            if (stopResult.success) continue;
-            // Neither channel worked. If the container genuinely doesn't
-            // exist, `docker stop` produces a specific stderr we can match;
-            // any other failure is a hard abort so we don't proceed to
-            // `cp -a` against a live volume.
-            const stderr = `${stopResult.stderr ?? ''}`.toLowerCase();
-            const looksMissing =
-              stderr.includes('no such container') ||
-              stderr.includes('not found');
-            if (!looksMissing) {
-              throw new Error(
-                `Failed to stop '${name}' before migration: ${stopResult.stderr?.trim() || 'unknown error'}`,
-              );
-            }
-          }
-        },
-      },
-    );
-    if (!migrationResult.proceed) {
-      logger.info('Aborting start until migrations are approved.');
-      process.exit(2);
-    }
-
     // Pre-create dev volumes and network with explicit project-scoped names.
     // The dev compose file references them as external, so they must exist
     // before `docker compose up`.
@@ -247,6 +210,7 @@ export async function start(options: StartOptions): Promise<void> {
     { version, registry: env.GHCR_REGISTRY },
     hostAlias,
     port,
+    { projectDir },
   );
 
   const overrideFile = findComposeOverride(projectDir);
@@ -298,10 +262,10 @@ export async function start(options: StartOptions): Promise<void> {
     }
     logger.blank();
     logger.info(
-      'Agents, workflows, integrations, and branding are bind-mounted from your project.',
+      'Per-org config (`<org>/agents/`, `<org>/workflows/`, `<org>/integrations/`, `<org>/branding/`, `<org>/providers/`, `<org>/skills/`)',
     );
     logger.info(
-      'Edits to agents/, workflows/, integrations/, and branding/ will auto-refresh the browser.',
+      'is bind-mounted from your project. Edits to those paths auto-refresh the browser.',
     );
     logger.blank();
     logger.info(`Stop with: docker compose -p ${getProjectId()}-dev down`);

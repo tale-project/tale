@@ -54,6 +54,7 @@ import {
   RECOVERY_TIMEOUT_MS,
   estimateTokens,
 } from '../context_management';
+import { orgSlugFromId } from '../helpers/org_slug';
 // Artifacts module removed — workspace context is discoverable via the
 // `file_list` tool. We keep the call sites but route them through this
 // no-op shim so the prompt-builder API surface stays intact.
@@ -703,18 +704,34 @@ export async function generateAgentResponse(
       if (accessibleFileIds.length === 0) {
         debugLog('No accessible RAG documents, skipping knowledge context');
       } else {
-        knowledgeContextPromise = queryRagContext(
-          promptMessage,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          { fileIds: accessibleFileIds },
-        );
-        debugLog('Knowledge context query started', {
-          threadId,
-          elapsedMs: Date.now() - startTime,
-        });
+        // Resolve slug defensively: a transient lookup miss (org row
+        // deleted between membership check and here, replica skew) should
+        // degrade gracefully — skip knowledge context — rather than abort
+        // the entire response generation. Matches the guardrails-resolve
+        // pattern lower in this file.
+        let orgSlug: string | undefined;
+        try {
+          orgSlug = await orgSlugFromId(ctx, organizationId);
+        } catch (err) {
+          console.warn(
+            '[generateAgentResponse] orgSlugFromId failed; skipping knowledge context',
+            err instanceof Error ? err.message : err,
+          );
+        }
+        if (orgSlug) {
+          knowledgeContextPromise = queryRagContext(
+            promptMessage,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            { fileIds: accessibleFileIds, orgSlug },
+          );
+          debugLog('Knowledge context query started', {
+            threadId,
+            elapsedMs: Date.now() - startTime,
+          });
+        }
       }
     }
 
@@ -1172,6 +1189,12 @@ export async function generateAgentResponse(
           result.text = OUTPUT_BLOCKED_SENTINEL;
           // Skip the empty-output-provider-error heuristic below: empty
           // text is now expected.
+          // Match the sibling success/catch return paths (`:580`, `:2008`,
+          // `:2011`) which all stop the abort watcher before returning.
+          // Without this the polling closure keeps issuing redundant
+          // Convex `check_cancelled` queries for up to one ABORT_POLL_INTERVAL
+          // (~1.5s) after the function has returned.
+          abortWatcher?.stop();
           return buildBlockedReturn(
             threadId,
             savedMessageId,
@@ -1262,6 +1285,9 @@ export async function generateAgentResponse(
                 blockedReason,
               );
               result.text = OUTPUT_BLOCKED_SENTINEL;
+              // Sibling parity with the mid-stream guardrails-block path
+              // and the success/catch returns — see note above.
+              abortWatcher?.stop();
               return buildBlockedReturn(
                 threadId,
                 savedMessageId,

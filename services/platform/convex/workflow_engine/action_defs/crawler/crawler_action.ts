@@ -1,6 +1,8 @@
 import { v } from 'convex/values';
 
 import { createDebugLog } from '../../../lib/debug_log';
+import { UpstreamHttpError } from '../../../lib/errors/upstream_http_error';
+import { orgSlugFromId } from '../../../lib/helpers/org_slug';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type {
   CrawlerActionParams,
@@ -51,17 +53,28 @@ export const crawlerAction: ActionDefinition<CrawlerActionParams> = {
     }),
   ),
 
-  async execute(_ctx, params) {
+  async execute(ctx, params, variables) {
     const serviceUrl = process.env.CRAWLER_URL || 'http://localhost:8002';
     const timeout = params.timeout || 1800000;
 
+    const organizationId =
+      typeof variables.organizationId === 'string'
+        ? variables.organizationId
+        : undefined;
+    if (!organizationId) {
+      throw new Error(
+        'crawler action requires organizationId in workflow _variables.',
+      );
+    }
+    const orgSlug = await orgSlugFromId(ctx, organizationId);
+
     switch (params.operation) {
       case 'discover_urls':
-        return await discoverUrls(params, serviceUrl, timeout);
+        return await discoverUrls(params, serviceUrl, orgSlug, timeout);
       case 'fetch_urls':
-        return await fetchUrls(params, serviceUrl, timeout);
+        return await fetchUrls(params, serviceUrl, orgSlug, timeout);
       case 'query_urls':
-        return await queryUrls(params, serviceUrl, timeout);
+        return await queryUrls(params, serviceUrl, orgSlug, timeout);
       default:
         throw new Error(
           `Unknown crawler operation: ${(params as { operation: string }).operation}`,
@@ -88,6 +101,7 @@ type QueryUrlsParams = Extract<
 async function discoverUrls(
   params: DiscoverUrlsParams,
   serviceUrl: string,
+  orgSlug: string,
   timeout: number,
 ): Promise<DiscoverUrlsResult> {
   let domain = params.domain;
@@ -119,6 +133,7 @@ async function discoverUrls(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'x-tale-org': orgSlug,
     },
     body: JSON.stringify(payload),
     signal: controller.signal,
@@ -127,17 +142,34 @@ async function discoverUrls(
   clearTimeout(timeoutId);
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Crawler service error (${response.status}): ${errorText}`);
+    const errorText = await response.text().catch(() => '');
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
+      errorText,
+      '/api/v1/urls/discover',
+    );
   }
 
   const result: DiscoverUrlsRawData = await response.json();
 
   if (!result.success) {
+    // Wrap as `UpstreamHttpError` (non-retryable) so the workflow retry
+    // layer can distinguish "crawler said no" from transport failures
+    // (which already throw `UpstreamHttpError`). Treating both as
+    // generic `Error` lost the structured retry signal — a transient
+    // crawler-internal error indistinguishable from a permanent one.
     const errorMessage =
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       (result as { error?: string }).error || 'Unknown error';
-    throw new Error(`URL discovery failed: ${errorMessage}`);
+    throw new UpstreamHttpError({
+      service: 'crawler',
+      endpoint: '/api/v1/urls/discover',
+      status: 200,
+      bodySnippet: `URL discovery failed: ${errorMessage}`,
+      retryable: false,
+      safeMessage: 'Crawler URL discovery failed.',
+    });
   }
 
   debugLog(
@@ -158,6 +190,7 @@ async function discoverUrls(
 async function fetchUrls(
   params: FetchUrlsParams,
   serviceUrl: string,
+  orgSlug: string,
   timeout: number,
 ): Promise<FetchUrlsResult> {
   const payload = {
@@ -175,6 +208,7 @@ async function fetchUrls(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'x-tale-org': orgSlug,
     },
     body: JSON.stringify(payload),
     signal: controller.signal,
@@ -183,8 +217,13 @@ async function fetchUrls(
   clearTimeout(timeoutId);
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Crawler service error (${response.status}): ${errorText}`);
+    const errorText = await response.text().catch(() => '');
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
+      errorText,
+      '/api/v1/urls/fetch',
+    );
   }
 
   const result: FetchUrlsData = await response.json();
@@ -193,7 +232,14 @@ async function fetchUrls(
     const errorMessage =
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       (result as { error?: string }).error || 'Unknown error';
-    throw new Error(`URL fetch failed: ${errorMessage}`);
+    throw new UpstreamHttpError({
+      service: 'crawler',
+      endpoint: '/api/v1/urls/fetch',
+      status: 200,
+      bodySnippet: `URL fetch failed: ${errorMessage}`,
+      retryable: false,
+      safeMessage: 'Crawler URL fetch failed.',
+    });
   }
 
   debugLog(
@@ -206,6 +252,7 @@ async function fetchUrls(
 async function queryUrls(
   params: QueryUrlsParams,
   serviceUrl: string,
+  orgSlug: string,
   timeout: number,
 ): Promise<QueryUrlsResult> {
   const searchParams = new URLSearchParams();
@@ -224,14 +271,22 @@ async function queryUrls(
 
   const response = await fetch(
     `${serviceUrl}/api/v1/websites/${encodeURIComponent(params.domain)}/urls?${searchParams}`,
-    { signal: controller.signal },
+    {
+      headers: { 'x-tale-org': orgSlug },
+      signal: controller.signal,
+    },
   );
 
   clearTimeout(timeoutId);
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Crawler service error (${response.status}): ${errorText}`);
+    const errorText = await response.text().catch(() => '');
+    throw UpstreamHttpError.fromResponse(
+      'crawler',
+      response,
+      errorText,
+      `/api/v1/websites/${params.domain}/urls`,
+    );
   }
 
   const result: QueryUrlsRawData = await response.json();

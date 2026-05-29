@@ -5,7 +5,7 @@ description: Third-party systems Tale can read from and write to — communicati
 
 Integrations are the bridges between Tale and the rest of your stack. Agents call them as tools, workflows trigger them at steps, and the documents pipeline pulls files from them. Each integration is a single JSON config plus a credential the org stores once; once connected, anything in Tale can use it without re-authentication. This overview names the shipped integrations grouped by what they do.
 
-The shape of an integration is the same across every entry below — an OpenAI-compatible REST surface or an OAuth2 dance, with operations declared in a JSON config under `examples/integrations/`. Custom integrations follow the same shape; you do not need a code change to add one.
+The shape of an integration is the same across every entry below — an OpenAI-compatible REST surface or an OAuth2 dance, with operations declared in a JSON config under `examples/default/integrations/`. Custom integrations follow the same shape; you do not need a code change to add one.
 
 ## How integrations differ from MCP
 
@@ -65,7 +65,7 @@ Microsoft 365 also covers identity. Connecting it under **Settings > Integration
 
 ## Adding a custom integration
 
-Custom integrations follow the same JSON shape as the ones above. Drop a config into `TALE_CONFIG_DIR/integrations/<slug>/config.json` declaring the operations, auth method, and allowed hosts; the integration appears in **Settings > Integrations** for users to connect. The shape and validation rules live alongside the shipped configs in `examples/integrations/`.
+Custom integrations follow the same JSON shape as the ones above. Drop a config into `TALE_CONFIG_DIR/<orgSlug>/integrations/<slug>/config.json` declaring the operations, auth method, and allowed hosts; under the org-first layout each org's `integrations/` subtree is independent. The integration appears in **Settings > Integrations** for users to connect. The shape and validation rules live alongside the shipped configs in `examples/default/integrations/`.
 
 For richer or self-hosted bridges, [MCP servers](/platform/integrations/mcp-servers) are the alternative surface — every MCP server you register adds its tools to the agent toolbelt with per-tool approval.
 

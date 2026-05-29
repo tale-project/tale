@@ -5,9 +5,10 @@
  * delegated to `internal.lib.config_store.actions` via `ctx.runAction`.
  *
  * Why actions and not a query:
- *   - Bounds live in `$TALE_CONFIG_DIR/retention/{orgSlug}.json`. V8
- *     queries/mutations cannot read fs and cannot await a Node action
- *     inline. Only V8 actions can `ctx.runAction(internal nodeAction)`.
+ *   - Bounds live in `$TALE_CONFIG_DIR/<orgSlug>/retention.json` under
+ *     the org-first layout. V8 queries/mutations cannot read fs and
+ *     cannot await a Node action inline. Only V8 actions can
+ *     `ctx.runAction(internal nodeAction)`.
  *   - Bounds change rarely (operator edits the file or env), so losing
  *     query reactivity is acceptable. The frontend uses TanStack Query
  *     to one-shot fetch on editor open.
@@ -119,7 +120,7 @@ export const getRetentionBoundsAction = action({
       throw new ConvexError({
         code: 'RETENTION_CONFIG_MISSING',
         message:
-          'Retention config not yet installed. Copy examples/retention/default.json to $TALE_CONFIG_DIR/retention/default.json then reload.',
+          'Retention config not yet installed. Copy examples/default/retention.json to $TALE_CONFIG_DIR/default/retention.json then reload.',
       });
     }
 
@@ -189,7 +190,7 @@ export const upsertRetentionPolicyAction = action({
       throw new ConvexError({
         code: 'RETENTION_CONFIG_MISSING',
         message:
-          'Retention config not yet installed. Copy examples/retention/default.json to $TALE_CONFIG_DIR/retention/default.json.',
+          'Retention config not yet installed. Copy examples/default/retention.json to $TALE_CONFIG_DIR/default/retention.json.',
       });
     }
     const boundsByCategory = buildBoundsByCategory(orgConfig);

@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 
 import { start } from '../../lib/actions/start';
 import * as logger from '../../utils/logger';
@@ -9,9 +9,11 @@ export function createStartCommand(): Command {
     .option('-d, --detach', 'run in background')
     .option('-p, --port <port>', 'HTTPS port to expose', '443')
     .option('--host <hostname>', 'host alias for proxy', 'tale.local')
-    .option(
-      '-y, --yes',
-      'automatically accept any pending migrations (non-interactive; required in CI/non-TTY)',
+    .addOption(
+      new Option(
+        '-y, --yes',
+        'non-interactive: auto-accept the legacy config-layout migration when detected',
+      ),
     )
     .action(
       async (opts: {

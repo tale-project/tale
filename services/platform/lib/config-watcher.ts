@@ -2,6 +2,8 @@ import { relative } from 'node:path';
 
 import chokidar from 'chokidar';
 
+import { ORG_SLUG_REGEX } from './shared/constants/org-slug';
+
 interface ConfigChangeEvent {
   type:
     | 'agents'
@@ -9,7 +11,8 @@ interface ConfigChangeEvent {
     | 'integrations'
     | 'providers'
     | 'branding'
-    | 'skills';
+    | 'skills'
+    | 'retention';
   orgSlug?: string;
   slug?: string;
 }
@@ -17,25 +20,86 @@ interface ConfigChangeEvent {
 const ATOMIC_WRITE_TMP_RE = /\.\d+\.[a-f0-9]{8}\.tmp$/;
 
 /**
- * Parse a relative path within the config directory into a structured event.
+ * Tail-debounce window for SSE invalidations: events arriving within this
+ * window for the same (type, orgSlug, slug) key collapse to a single
+ * delivery. Bulk operations (org migrations, mass `git mv`) would
+ * otherwise fan out one SSE frame per file × per connected client.
+ */
+const EMIT_DEBOUNCE_MS = 100;
+
+/**
+ * Stems allowed at `<org>/<stem>.json` (single-file-per-org configs).
+ * Must stay in lockstep with the read-side resolvers — adding a new
+ * entry here without a matching reader means the watcher emits events
+ * nothing consumes, and adding a reader without an entry here means
+ * operator edits silently never invalidate caches. Typed as an array
+ * of literal-type members so membership lookup narrows without a cast.
+ */
+type SingleFileOrgConfigStem = Extract<ConfigChangeEvent['type'], 'retention'>;
+const SINGLE_FILE_ORG_CONFIGS: ReadonlyArray<SingleFileOrgConfigStem> = [
+  'retention',
+];
+function isSingleFileOrgConfig(stem: string): stem is SingleFileOrgConfigStem {
+  return (SINGLE_FILE_ORG_CONFIGS as ReadonlyArray<string>).includes(stem);
+}
+
+/**
+ * Parse a relative path within the config directory into a structured event,
+ * under the uniform org-first layout `${TALE_CONFIG_DIR}/<orgSlug>/<domain>/...`.
  *
- * Examples:
- *   agents/my-agent.json           → { type: 'agent', slug: 'my-agent' }
- *   agents/@acme/my-agent.json     → { type: 'agent', orgSlug: 'acme', slug: 'my-agent' }
- *   workflows/general/hello.json   → { type: 'workflow', slug: 'general/hello' }
- *   workflows/@acme/hello.json     → { type: 'workflow', orgSlug: 'acme', slug: 'hello' }
- *   integrations/slack/config.json → { type: 'integration', slug: 'slack' }
- *   integrations/@acme/slack/config.json → { type: 'integration', orgSlug: 'acme', slug: 'slack' }
- *   branding/branding.json         → { type: 'branding' }
+ * Per-domain file filter (a write must match the domain's content shape;
+ * otherwise the event is dropped):
+ *   - agents / workflows / providers / branding / integrations: `.json` only
+ *   - skills: any file (`SKILL.md`, `scripts/*.py`, assets) — skill query
+ *     keys are invalidated at slug granularity, so any write under the slug
+ *     dir must emit.
+ *
+ * Examples (with `default` as one possible orgSlug):
+ *   default/agents/my-agent.json           → { type: 'agents', orgSlug: 'default', slug: 'my-agent' }
+ *   acme/agents/my-agent.json              → { type: 'agents', orgSlug: 'acme', slug: 'my-agent' }
+ *   default/workflows/general/hello.json   → { type: 'workflows', orgSlug: 'default', slug: 'general/hello' }
+ *   default/integrations/slack/config.json → { type: 'integrations', orgSlug: 'default', slug: 'slack' }
+ *   default/branding/branding.json         → { type: 'branding', orgSlug: 'default' }
+ *   default/skills/code-reviewer/SKILL.md  → { type: 'skills', orgSlug: 'default', slug: 'code-reviewer' }
+ *   default/skills/code-reviewer/scripts/x.py → { type: 'skills', orgSlug: 'default', slug: 'code-reviewer' }
+ *
+ * Returns null for paths that don't fit the `<org>/<domain>/<rest>` shape
+ * (org slug must validate; domain must be recognized; per-domain filter must
+ * pass; secret sidecars dropped).
  */
 function parseConfigChange(relativePath: string): ConfigChangeEvent | null {
+  // Secret sidecars are written by operators only; never broadcast.
+  if (relativePath.endsWith('.secrets.json')) return null;
+
   const parts = relativePath.split('/');
   if (parts.length < 2) return null;
 
-  const topDir = parts[0];
+  const orgSlug = parts[0];
+  if (!ORG_SLUG_REGEX.test(orgSlug)) return null;
 
-  if (topDir === 'branding') {
-    return { type: 'branding' };
+  // Single-file-per-org configs sit at `<org>/<stem>.json`. The allowed
+  // stems are listed in SINGLE_FILE_ORG_CONFIGS so adding a new sibling
+  // (e.g. `quota.json`) is a one-line change here AND in the read-side
+  // resolver — they must stay in lockstep. Previously hardcoded to
+  // `retention` only; any future stem silently no-op'd (round-3 P2
+  // R18-P2-d).
+  if (parts.length === 2 && parts[1].endsWith('.json')) {
+    const stem = parts[1].slice(0, -'.json'.length);
+    // `isSingleFileOrgConfig` is a type predicate so `stem` narrows to
+    // a literal that fits ConfigChangeEvent['type'] without a cast.
+    if (isSingleFileOrgConfig(stem)) {
+      return { type: stem, orgSlug, slug: stem };
+    }
+    return null;
+  }
+
+  const domain = parts[1];
+
+  if (domain === 'branding') {
+    // Branding is default-only on the read side, but still emit per-org so
+    // future per-org branding (or operator inspection) sees the event.
+    if (!relativePath.endsWith('.json')) return null;
+    return { type: 'branding', orgSlug };
   }
 
   const typeMap: Record<string, ConfigChangeEvent['type']> = {
@@ -46,46 +110,42 @@ function parseConfigChange(relativePath: string): ConfigChangeEvent | null {
     skills: 'skills',
   };
 
-  const type = typeMap[topDir];
+  const type = typeMap[domain];
   if (!type) return null;
 
-  const rest = parts.slice(1);
-  let orgSlug: string | undefined;
-
-  // If the first segment after the top dir starts with @, it's an org slug
-  if (rest[0]?.startsWith('@')) {
-    orgSlug = rest[0].slice(1);
-    rest.shift();
-  }
-
+  const rest = parts.slice(2);
   if (rest.length === 0) return null;
 
   if (type === 'agents') {
-    // agents/[@org/]name.json
+    if (!relativePath.endsWith('.json')) return null;
+    // <org>/agents/<name>.json
     const filename = rest[0];
     return { type, orgSlug, slug: filename.replace(/\.json$/, '') };
   }
 
   if (type === 'workflows') {
-    // workflows/[@org/][folder/]name.json — slug is the path without extension
+    if (!relativePath.endsWith('.json')) return null;
+    // <org>/workflows/[folder/]name.json — slug is the path without extension
     const slug = rest.join('/').replace(/\.json$/, '');
     return { type, orgSlug, slug };
   }
 
   if (type === 'integrations') {
-    // integrations/[@org/]slug/config.json
+    if (!relativePath.endsWith('.json')) return null;
+    // <org>/integrations/<slug>/config.json (or other bundle files)
     const slug = rest[0];
     return { type, orgSlug, slug };
   }
 
   if (type === 'providers') {
-    // providers/[@org/]name.json
+    if (!relativePath.endsWith('.json')) return null;
+    // <org>/providers/<name>.json
     const filename = rest[0];
     return { type, orgSlug, slug: filename.replace(/\.json$/, '') };
   }
 
   if (type === 'skills') {
-    // skills/[@org/]slug/SKILL.md (or any asset under the slug dir).
+    // <org>/skills/<slug>/SKILL.md (or any asset under the slug dir).
     // Emit at slug granularity so a write to scripts/x.py invalidates the
     // same query keys as a SKILL.md write.
     const slug = rest[0];
@@ -111,27 +171,42 @@ export function createConfigWatcher(configDir: string): ConfigWatcher {
     ],
   });
 
+  // Per-key tail debounce: collapses bursts of events for the same
+  // (type, orgSlug, slug) so a bulk operation (e.g. mass migration)
+  // doesn't fan out one SSE frame per file per connected client.
+  const pending = new Map<string, ReturnType<typeof setTimeout>>();
+
+  const emitDebounced = (event: ConfigChangeEvent) => {
+    const key = `${event.type}:${event.orgSlug ?? ''}:${event.slug ?? ''}`;
+    const existing = pending.get(key);
+    if (existing) clearTimeout(existing);
+    pending.set(
+      key,
+      setTimeout(() => {
+        pending.delete(key);
+        for (const cb of callbacks) {
+          cb(event);
+        }
+      }, EMIT_DEBOUNCE_MS),
+    );
+  };
+
   watcher.on('all', (_eventName, filePath) => {
     const rel = relative(configDir, filePath);
-
-    // Only react to JSON file changes; ignore secret sidecar files
-    if (!rel.endsWith('.json')) return;
-    if (rel.endsWith('.secrets.json')) return;
-
     const event = parseConfigChange(rel);
     if (!event) return;
-
-    for (const cb of callbacks) {
-      cb(event);
-    }
+    emitDebounced(event);
   });
 
   return {
     onChange(callback) {
       callbacks.push(callback);
     },
-    close() {
-      return watcher.close();
+    async close() {
+      // Drop any pending debounced events so we don't emit after close.
+      for (const t of pending.values()) clearTimeout(t);
+      pending.clear();
+      await watcher.close();
     },
   };
 }

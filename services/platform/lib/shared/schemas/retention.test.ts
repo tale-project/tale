@@ -96,7 +96,7 @@ describe('retentionBoundDefSchema', () => {
 });
 
 describe('retentionDefaultsConfigSchema', () => {
-  it('accepts examples/retention/default.json (every category + root envPrefix + full envNames map)', () => {
+  it('accepts examples/default/retention.json (every category + root envPrefix + full envNames map)', () => {
     // Resolve from this test's directory up to repo root, then to examples/.
     // __dirname is services/platform/lib/shared/schemas/
     const examplePath = join(
@@ -107,8 +107,8 @@ describe('retentionDefaultsConfigSchema', () => {
       '..',
       '..',
       'examples',
-      'retention',
-      'default.json',
+      'default',
+      'retention.json',
     );
     const content = readFileSync(examplePath, 'utf-8');
     const parsed = JSON.parse(content);
@@ -121,7 +121,7 @@ describe('retentionDefaultsConfigSchema', () => {
     // Strict drift check: factory file declares every category and the
     // root `_metadata.envNames` map covers every (category × field)
     // pair (16 × 3 = 48 entries). Adding a new category to
-    // RETENTION_CATEGORIES without updating examples/retention/default.json
+    // RETENTION_CATEGORIES without updating examples/default/retention.json
     // fails one of these assertions loudly.
     expect(typeof parsed._metadata?.envPrefix).toBe('string');
     expect(parsed._metadata.envPrefix.length).toBeGreaterThan(0);

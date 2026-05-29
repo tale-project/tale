@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { stringify } from 'yaml';
@@ -17,14 +17,22 @@ import type { ComposeConfig, ServiceConfig } from '../types';
 import { DEV_VOLUME_NAMES } from './constants';
 
 const DEV_COLOR = 'blue' as const;
-/** Project-root subdirs that `tale init` populates from embedded examples. */
-const HOST_CONFIG_DIRS = [
+/** Domain dirs that the org-first layout uses under `<projectDir>/<org>/`. */
+const HOST_DOMAIN_DIRS = [
   'agents',
   'workflows',
   'integrations',
   'branding',
   'providers',
+  'skills',
 ] as const;
+/** Org-slug regex aligned with services/platform/lib/shared/constants/org-slug.ts
+ *  and tools/cli/src/lib/actions/deploy.ts (round-3 P1 cap of 64 chars).
+ *  Refuses dotfiles and any non-org-shaped dir at the project root
+ *  (`.tale`, `.git`, etc.). Single source of truth lives in the platform
+ *  package; duplicated here because the CLI binary doesn't import convex
+ *  sources at runtime. */
+const ORG_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 interface DevComposeOptions {
   /** Project root, used to verify host bind-mount sources exist before
@@ -33,23 +41,59 @@ interface DevComposeOptions {
   projectDir?: string;
 }
 
-/** Return host bind-mount fragments (e.g. './agents:/app/data/agents{ro}')
- *  only for directories that actually exist on the host, with one warning
- *  per missing directory so the operator can fix it without docker emitting
- *  a confusing 'no such file or directory' error. */
+/** Discover org subdirectories (`<projectDir>/<org>/`) by enumerating the
+ *  project root. Every direct subdir whose name matches the org-slug regex
+ *  is an org. `tale init` always creates at least `default/`. */
+function findOrgDirs(projectDir: string): string[] {
+  let entries: string[];
+  try {
+    entries = readdirSync(projectDir);
+  } catch {
+    return [];
+  }
+  const orgs: string[] = [];
+  for (const name of entries) {
+    if (!ORG_SLUG_RE.test(name)) continue;
+    let stats: ReturnType<typeof statSync>;
+    try {
+      stats = statSync(join(projectDir, name));
+    } catch {
+      continue;
+    }
+    if (!stats.isDirectory()) continue;
+    orgs.push(name);
+  }
+  return orgs;
+}
+
+/** Return host bind-mount fragments for the org-first layout.
+ *
+ *  For each org `<root>/<org>/`, emits one mount per domain dir that
+ *  actually exists: `./<org>/<domain>:<containerBase>/<org>/<domain>{ro}`.
+ *  Missing per-domain dirs are skipped silently (operators don't have to
+ *  populate every domain), but a `tale init` workspace with no org dirs
+ *  at all logs a single warning. */
 function existingHostMounts(
   projectDir: string,
   containerBase: string,
   suffix = '',
 ): string[] {
+  const orgs = findOrgDirs(projectDir);
+  if (orgs.length === 0) {
+    logger.warn(
+      `No org directories found under ${projectDir}. Container will fall back to convex-data volume contents — host edits will not hot-reload.`,
+    );
+    return [];
+  }
   const mounts: string[] = [];
-  for (const dir of HOST_CONFIG_DIRS) {
-    if (existsSync(join(projectDir, dir))) {
-      mounts.push(`./${dir}:${containerBase}/${dir}${suffix}`);
-    } else {
-      logger.warn(
-        `Skipping host bind mount for ./${dir} (directory not found in project root). Container will fall back to convex-data volume contents.`,
-      );
+  for (const org of orgs) {
+    for (const domain of HOST_DOMAIN_DIRS) {
+      const src = join(projectDir, org, domain);
+      if (existsSync(src)) {
+        mounts.push(
+          `./${org}/${domain}:${containerBase}/${org}/${domain}${suffix}`,
+        );
+      }
     }
   }
   return mounts;
@@ -106,19 +150,18 @@ export function generateDevCompose(
     convex: { condition: 'service_healthy' },
   };
 
-  const providersBindMount = existsSync(join(projectDir, 'providers'))
-    ? './providers:/app/platform-config/providers:ro'
-    : null;
-
-  // RAG/crawler need convex-data:/app/platform-config:ro for non-provider
-  // config (integrations, branding, …). The providers bind mount is a more
-  // specific path and shadows just providers/ for host-edit hot reload.
+  // RAG/crawler need convex-data:/app/platform-config:ro for per-org
+  // provider config (and integrations, branding, …). The org-first
+  // layout has paths like `default/providers/foo.json`, all under one
+  // root, so the previous standalone `./providers:/app/platform-config/providers:ro`
+  // shadow is no longer needed — the per-org bind mounts below cover
+  // host-edit hot reload for every org's provider catalog.
   const rag = createRagService(config, DEV_COLOR);
   rag.container_name = `${getProjectId()}-rag`;
   rag.volumes = [
     'rag-data:/app/data',
     'convex-data:/app/platform-config:ro',
-    ...(providersBindMount ? [providersBindMount] : []),
+    ...existingHostMounts(projectDir, '/app/platform-config', ':ro'),
   ];
 
   const crawler = createCrawlerService(config, DEV_COLOR);
@@ -126,7 +169,7 @@ export function generateDevCompose(
   crawler.volumes = [
     'crawler-data:/app/data',
     'convex-data:/app/platform-config:ro',
-    ...(providersBindMount ? [providersBindMount] : []),
+    ...existingHostMounts(projectDir, '/app/platform-config', ':ro'),
   ];
 
   const proxy = createProxyService(config, hostAlias);
