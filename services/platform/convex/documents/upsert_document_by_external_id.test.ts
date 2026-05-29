@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { MutationCtx } from '../../_generated/server';
-import { upsertDocumentByExternalId } from '../upsert_document_by_external_id';
+import type { MutationCtx } from '../_generated/server';
+import { upsertDocumentByExternalId } from './upsert_document_by_external_id';
 
 interface MockDoc {
   _id: string;

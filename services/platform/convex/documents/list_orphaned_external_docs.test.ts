@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { listOrphanedExternalDocs } from '../list_orphaned_external_docs';
+import { listOrphanedExternalDocs } from './list_orphaned_external_docs';
 
 interface MockDoc {
   _id: string;

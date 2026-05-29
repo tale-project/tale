@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { QueryCtx } from '../../_generated/server';
-import { findFolderByPath } from '../find_folder_by_path';
+import type { QueryCtx } from '../_generated/server';
+import { findFolderByPath } from './find_folder_by_path';
 
 interface MockFolder {
   _id: string;
