@@ -21,11 +21,17 @@ import { readProject } from '../project/read-project';
 import type { Checksums } from '../project/types';
 import { writeProject } from '../project/write-project';
 import { generateAllRules } from '../rules/generators';
+import { legacyLayoutPreflight } from './legacy-layout-preflight';
 
 interface UpdateOptions {
   force?: boolean;
   dryRun?: boolean;
   skipHeader?: boolean;
+  /**
+   * Non-interactive: auto-accept the legacy-layout migration prompt
+   * when a pre-org-first project root is detected.
+   */
+  assumeYes?: boolean;
 }
 
 interface UpdateSummary {
@@ -50,6 +56,20 @@ export async function update(options: UpdateOptions): Promise<void> {
 
   logger.info(`Current version: ${project.cliVersion}`);
   logger.info(`Target version:  ${pkg.version}`);
+
+  // If the project is on the pre-org-first layout, migrate now (before
+  // we write any new `default/<domain>/...` files). Without this gate
+  // `tale update` happily lays the new tree down next to the legacy
+  // dirs, and the subsequent `tale start` then refuses to boot — a
+  // user-visible deadlock. The preflight prompts in interactive runs
+  // and requires `--yes` in non-TTY contexts.
+  if (!options.dryRun) {
+    await legacyLayoutPreflight({
+      projectDir,
+      assumeYes: options.assumeYes ?? false,
+      context: 'update',
+    });
+  }
 
   // Legacy projects (pre-ID) get an ID auto-assigned here. We also attempt
   // volume migration immediately, but the migration function itself defers

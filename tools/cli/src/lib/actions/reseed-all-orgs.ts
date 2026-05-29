@@ -93,10 +93,23 @@ HOME=/home/app timeout ${RESEED_TIMEOUT_S} bunx convex run \\
  * up to the first `|`, leaving the secret payload after it in the
  * logged stream (round-3 P1-adjacent secret leak).
  */
-const ADMIN_KEY_RE = /\b([Aa]dmin\s+[Kk]ey)\s*:?\s*[A-Za-z0-9+/=._\-|]{12,}/g;
+const ADMIN_KEY_RE =
+  /\b([Aa]dmin[\s\-_][Kk]ey)\s*[:=]?\s*[A-Za-z0-9+/=._\-|]{12,}/g;
+
+/**
+ * Catch the hyphenated argv form (`--admin-key <value>`) used by
+ * `bunx convex run --admin-key …`. The `[Aa]dmin\s+[Kk]ey` shape
+ * above requires whitespace between "Admin" and "Key" and so misses
+ * `--admin-key`. Without this second pattern, a future Convex CLI
+ * diagnostic line echoing its argv would slip the secret past the
+ * redactor and into the logger.
+ */
+const ADMIN_KEY_ARG_RE = /--admin-key([\s=]+)\S+/g;
 
 export function redactAdminKey(text: string): string {
-  return text.replace(ADMIN_KEY_RE, '$1: <redacted>');
+  return text
+    .replace(ADMIN_KEY_RE, '$1: <redacted>')
+    .replace(ADMIN_KEY_ARG_RE, '--admin-key$1<redacted>');
 }
 
 const CONFIRM_MESSAGE =
@@ -163,6 +176,23 @@ export async function reseedAllOrgsFromBuiltin(
 ): Promise<void> {
   const { dryRun, assumeYes } = options;
 
+  // Dry-run gate sits BEFORE the destructive confirm prompt + the
+  // platform-container lookup. Otherwise `tale deploy --override-all
+  // --dry-run` would (a) still ask the operator to confirm a
+  // destructive-shape operation that won't run, and (b) hard-throw
+  // on hosts where no platform container is up yet — defeating the
+  // point of a dry-run preview.
+  if (dryRun) {
+    logger.blank();
+    logger.info(
+      '[DRY-RUN] Would run reseed script against the platform container:',
+    );
+    for (const line of RESEED_SCRIPT.split('\n')) {
+      logger.info(`  ${line}`);
+    }
+    return;
+  }
+
   // Gate non-interactive callers behind --yes to avoid silent abort in CI.
   const isTty = Boolean(process.stdin.isTTY);
   if (!assumeYes && !isTty) {
@@ -179,17 +209,6 @@ export async function reseedAllOrgsFromBuiltin(
   }
 
   const container = await findPlatformContainer();
-
-  if (dryRun) {
-    logger.blank();
-    logger.info('[DRY-RUN] Would run:');
-    logger.info(`  docker exec -i ${container} bash -s <<'EOF'`);
-    for (const line of RESEED_SCRIPT.split('\n')) {
-      logger.info(`  ${line}`);
-    }
-    logger.info(`  EOF`);
-    return;
-  }
 
   logger.blank();
   logger.step('Reseeding builtin catalog into all registered orgs...');

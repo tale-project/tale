@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import pkg from '../../../package.json';
@@ -16,8 +15,8 @@ import { exec } from '../docker/exec';
 import { findProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
 import { withLock } from '../state/with-lock';
-import { LEGACY_DOMAIN_DIR_NAMES } from './deploy';
 import { init } from './init';
+import { legacyLayoutPreflight } from './legacy-layout-preflight';
 
 async function assertDockerAvailable(): Promise<void> {
   try {
@@ -121,6 +120,12 @@ interface StartOptions {
   detach?: boolean;
   port?: number;
   host?: string;
+  /**
+   * Non-interactive: auto-accept the legacy-layout migration prompt
+   * when a pre-org-first project root is detected. Parallels the
+   * `--yes` flag on `tale deploy`.
+   */
+  assumeYes?: boolean;
 }
 
 export async function start(options: StartOptions): Promise<void> {
@@ -151,23 +156,15 @@ export async function start(options: StartOptions): Promise<void> {
   // Detect legacy flat-layout dirs at the project root (`agents/`,
   // `workflows/`, …, `retention/`). Under the org-first layout these
   // belong under `default/<domain>/` — the platform's resolvers won't
-  // read anything at the old paths. Same constant + same hard-fail as
-  // `tale deploy`: both commands either accept or refuse the layout
-  // identically. (Earlier this file warn-and-proceeded, which let a
-  // project pass `tale start` but fail `tale deploy`.)
-  const legacyDirsFound = [...LEGACY_DOMAIN_DIR_NAMES].filter((d) =>
-    existsSync(join(projectDir, d)),
-  );
-  if (legacyDirsFound.length > 0) {
-    throw new Error(
-      `Legacy flat layout detected at project root: ${legacyDirsFound
-        .map((d) => `${d}/`)
-        .join(', ')}\n` +
-        '  The org-first layout expects these under `default/<domain>/` (or another org subtree).\n' +
-        '  Migrate with: `tale migrate config-layout` then `tale deploy --override-all -y`.\n' +
-        '  See docs/en/self-hosted/operate/upgrades.md for the full runbook.',
-    );
-  }
+  // read anything at the old paths. The preflight prompts the operator
+  // (default-No) and runs `migrateConfigLayout` in place on accept; CI
+  // runs must pass `--yes`. Replaces the prior hard-fail-with-runbook
+  // shape so an upgrade flows in one command.
+  await legacyLayoutPreflight({
+    projectDir,
+    assumeYes: options.assumeYes ?? false,
+    context: 'start',
+  });
 
   await assertDockerAvailable();
 

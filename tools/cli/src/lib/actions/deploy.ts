@@ -34,6 +34,7 @@ import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
+import { legacyLayoutPreflight } from './legacy-layout-preflight';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 
 async function ensureInfrastructure(
@@ -145,24 +146,19 @@ export async function deploy(options: DeployOptions): Promise<void> {
       const prefix = dryRun ? '[DRY-RUN] ' : '';
       logger.header(`${prefix}Deploying Tale ${version}`);
 
-      // Auto-migration framework removed — `tale migrate config-layout` is
-      // the only opt-in, manually-run migration now. Fail fast on the
-      // pre-refactor flat layout — but ONLY when the operator is actually
-      // pushing host config (`--override` or `--override-all`). Plain
-      // `tale deploy` (container rotation, image pull only) has no host-
-      // push hazard, so trapping operators with legacy artifacts on a
-      // no-op deploy was over-broad. The host-push code path at
-      // syncProjectFiles enforces the same check where it matters
-      // (round-2 P1-32).
+      // Detect-and-migrate on legacy flat layout. Only gates host
+      // pushes (`--override` / `--override-all`) — a plain container-
+      // rotation deploy has no host-config dependency. The preflight
+      // prompts (default-No) and runs `migrateConfigLayout` in place
+      // on accept; CI / `--yes` migrates without prompting. Replaces
+      // the prior hard-fail-with-runbook flow so legacy projects can
+      // be upgraded in one command.
       if (options.override || options.overrideAll) {
-        const { legacyDirs } = await findOrgDirs(env.DEPLOY_DIR);
-        if (legacyDirs.length > 0) {
-          throw new Error(
-            `Legacy flat layout detected at project root (${legacyDirs.join(', ')}/). ` +
-              `Run 'tale migrate config-layout' then 'tale deploy --override-all -y' ` +
-              `(see docs/self-hosted/operate/upgrades.md).`,
-          );
-        }
+        await legacyLayoutPreflight({
+          projectDir: env.DEPLOY_DIR,
+          assumeYes: options.assumeYes ?? false,
+          context: 'deploy',
+        });
       }
 
       // Check if this is a first-time deployment
@@ -801,11 +797,16 @@ async function syncProjectFiles(
       `/app/data/`,
     ]);
     if (!chownResult.success) {
-      // Ownership fix failure isn't necessarily a push failure (files
-      // landed, just wrong owner), but warn loudly — the app user won't
-      // be able to write to its own data tree.
-      logger.warn(
-        `Failed to fix ownership on /app/data: ${chownResult.stderr}`,
+      // Hard fail: files landed but the app user can't write them.
+      // Printing `Overrode N orgs!` while the volume is root-owned
+      // sent operators into a debugging maze when later writes failed
+      // silently inside the container. The push is recoverable — they
+      // can re-run --override after fixing the cause — but a quiet
+      // wrong-perms state is not.
+      throw new Error(
+        `Failed to fix ownership on /app/data after push: ${chownResult.stderr?.trim() ?? '(no stderr)'}. ` +
+          `The push completed but files are root-owned and the app user can't write to them. ` +
+          `Re-run --override after addressing the cause.`,
       );
     }
 
