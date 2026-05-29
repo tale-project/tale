@@ -25,14 +25,6 @@ interface ManifestEntry {
   frontmatter: Record<string, string | boolean>;
 }
 
-// Vite replaces `import.meta.env.SSR` with a literal so the unused glob branch
-// is dead-code-eliminated. SSR keeps an eager raw glob so `entry-server.tsx`
-// can render every page synchronously during prerender. The client uses a lazy
-// glob: each markdown file is its own dynamic chunk, fetched only when that
-// page is viewed (resolved in the route loader via `ensureDocBody`) — instead
-// of eagerly downloading the entire content tree on first load.
-const SSR = (import.meta as ImportMeta & { env: { SSR?: boolean } }).env.SSR;
-
 const ALL_LOCALE_SET: ReadonlySet<string> = new Set(ALL_LOCALES);
 
 function isLocale(value: string): value is Locale {
@@ -77,26 +69,22 @@ function keyFromPath(path: string): string | null {
   return isLocale(locale) ? `${locale}:${slug}` : null;
 }
 
-// Body sources keyed by `locale:slug`. Only one branch ships per build.
-const eagerBodies = new Map<string, string>();
-const lazyBodies = new Map<string, () => Promise<string>>();
-if (SSR) {
-  const raw: Record<string, string> = import.meta.glob(
-    '../../../../docs/**/*.{md,mdx}',
-    { query: '?raw', import: 'default', eager: true },
-  );
-  for (const [path, content] of Object.entries(raw)) {
-    const key = keyFromPath(path);
-    if (key) eagerBodies.set(key, content);
-  }
-} else {
+// Per-page body loaders keyed by `locale:slug`. A LAZY glob: each markdown file
+// is its own dynamic chunk, fetched only when `ensureDocBody` is called for
+// that page from the route loader. This MUST stay lazy: an eager glob compiles
+// to hoisted static imports that run on module load (pulling the whole content
+// tree) regardless of any SSR guard — and dev has no dead-code elimination to
+// drop the unused branch. SSR is fine too: `router.load()` awaits the loader,
+// so the dynamic import resolves before the page renders during prerender.
+const bodyLoaders = new Map<string, () => Promise<string>>();
+{
   const lazy = import.meta.glob('../../../../docs/**/*.{md,mdx}', {
     query: '?raw',
     import: 'default',
   }) as unknown as Record<string, () => Promise<string>>;
   for (const [path, load] of Object.entries(lazy)) {
     const key = keyFromPath(path);
-    if (key) lazyBodies.set(key, load);
+    if (key) bodyLoaders.set(key, load);
   }
 }
 
@@ -139,9 +127,9 @@ function resolveKey(locale: Locale, slug: string): string | null {
 
 /**
  * Load a single page's body into the cache. Call from a route loader so the
- * body is ready before the page component renders: SSR resolves it
- * synchronously from the eager glob; the client awaits one dynamic import.
- * Idempotent, and a no-op for a missing page.
+ * body is ready before the page component renders (SSR awaits it during
+ * prerender; the client awaits one dynamic import on navigation). Idempotent,
+ * and a no-op for a missing page.
  */
 export async function ensureDocBody(
   locale: Locale,
@@ -149,12 +137,7 @@ export async function ensureDocBody(
 ): Promise<void> {
   const key = resolveKey(locale, slug);
   if (!key || bodyCache.has(key)) return;
-  if (SSR) {
-    const raw = eagerBodies.get(key);
-    if (raw !== undefined) bodyCache.set(key, parseFrontmatter(raw).content);
-    return;
-  }
-  const load = lazyBodies.get(key);
+  const load = bodyLoaders.get(key);
   if (!load) return;
   const raw = await load();
   bodyCache.set(key, parseFrontmatter(raw).content);
