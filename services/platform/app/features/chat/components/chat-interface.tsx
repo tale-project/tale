@@ -15,7 +15,6 @@ import {
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
@@ -35,26 +34,13 @@ import { useListProviders } from '../../settings/providers/hooks/queries';
 import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
 import {
-  useStreamingTools,
-  type StreamingToolCall,
-} from '../context/streaming-tool-context';
-import {
   useEditAndBranch,
-  useCreateArenaThreadB,
   useForkOwnThread,
   useUnarchiveThread,
 } from '../hooks/mutations';
-import {
-  useChatAgents,
-  useDocumentWriteApprovals,
-  useHumanInputRequests,
-  useIntegrationApprovals,
-  useLocationRequests,
-  useThreadStatus,
-  useWorkflowCreationApprovals,
-  useWorkflowRunApprovals,
-  useWorkflowUpdateApprovals,
-} from '../hooks/queries';
+import { useChatAgents, useThreadStatus } from '../hooks/queries';
+import { useArenaThreadSetup } from '../hooks/use-arena-thread-setup';
+import { useChatScroll } from '../hooks/use-chat-scroll';
 import { useChatVideoLinks } from '../hooks/use-chat-video-links';
 import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
@@ -62,11 +48,14 @@ import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
 import { useFileTranscriptionStatus } from '../hooks/use-file-transcription-status';
 import { useMergedChatItems } from '../hooks/use-merged-chat-items';
 import { useMessageProcessing } from '../hooks/use-message-processing';
+import { useModelFallbackAutoSwitch } from '../hooks/use-model-fallback-auto-switch';
 import { usePendingMessages } from '../hooks/use-pending-messages';
 import { useIsSendPending, clearSendPending } from '../hooks/use-pending-send';
 import { usePersistedAttachments } from '../hooks/use-persisted-attachments';
 import { useSendMessage } from '../hooks/use-send-message';
 import { useStopGenerating } from '../hooks/use-stop-generating';
+import { useStreamingToolBridge } from '../hooks/use-streaming-tool-bridge';
+import { useThreadApprovals } from '../hooks/use-thread-approvals';
 import { useThreadImages } from '../hooks/use-thread-images';
 import { useUserContext } from '../hooks/use-user-context';
 import type { FileAttachment } from '../types';
@@ -74,6 +63,7 @@ import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
+import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
 import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
 import { MessagesSkeleton } from './messages-skeleton';
@@ -135,75 +125,10 @@ export function ChatInterface({
   } = useChatLayout();
 
   const arenaContext = useArenaModeOptional();
-
-  // Restore arena thread pair when re-enabling arena mode on an existing arena thread
   const isArenaMode = arenaContext?.isArenaMode ?? false;
 
-  // Idempotent: ensure Thread B exists for the current thread.
-  // If an arena pair already exists, returns the existing Thread B ID.
-  // If not, creates Thread B and copies message history from Thread A.
-  const { mutateAsync: createArenaThreadB } = useCreateArenaThreadB();
-  const creatingThreadBRef = useRef(false);
-  const arenaSetupThreadRef = useRef<string | null>(null);
-
-  // Reset setup ref when arena mode is turned off, so re-enabling triggers setup again
-  useEffect(() => {
-    if (!isArenaMode) {
-      arenaSetupThreadRef.current = null;
-    }
-  }, [isArenaMode]);
-
-  // When arena mode is enabled on an existing thread, eagerly set Thread A
-  // and create a fresh Thread B with the current message history snapshot.
-  useEffect(() => {
-    if (!arenaContext || !isArenaMode || !threadId) return;
-    // Already set up for this thread
-    if (arenaSetupThreadRef.current === threadId) return;
-    arenaSetupThreadRef.current = threadId;
-
-    console.log(
-      `[arena-setup] threadId=${threadId} arenaThreadIdA=${arenaContext.arenaThreadIdA} arenaThreadIdB=${arenaContext.arenaThreadIdB}`,
-    );
-    arenaContext.setArenaThreadIdA(threadId);
-
-    // Skip if Thread B was already created (e.g. by use-send-message's
-    // new-chat arena path which creates both threads during send).
-    if (arenaContext.arenaThreadIdB) {
-      console.log(
-        `[arena-setup] Thread B already exists: ${arenaContext.arenaThreadIdB}, skipping creation`,
-      );
-      return;
-    }
-
-    // Create fresh Thread B (always new — history may have changed since last arena session)
-    if (!creatingThreadBRef.current) {
-      console.log(`[arena-setup] Creating Thread B for threadIdA=${threadId}`);
-      creatingThreadBRef.current = true;
-      void createArenaThreadB({ threadIdA: threadId, organizationId })
-        .then((threadIdB) => {
-          console.log(`[arena-setup] Thread B created: ${threadIdB}`);
-          arenaContext.setArenaThreadIdB(threadIdB);
-        })
-        .catch((error) => {
-          console.error('Failed to create arena thread B:', error);
-        })
-        .finally(() => {
-          creatingThreadBRef.current = false;
-        });
-    }
-  }, [arenaContext, isArenaMode, threadId, createArenaThreadB, organizationId]);
-
-  // Reset arena mode when navigating FROM a thread back to new chat.
-  // Track whether we previously had a threadId to avoid disabling
-  // arena mode when the user enables it on the new chat page.
-  const prevThreadIdRef = useRef(threadId);
-  useEffect(() => {
-    const hadThread = prevThreadIdRef.current;
-    prevThreadIdRef.current = threadId;
-    if (hadThread && !threadId && arenaContext?.isArenaMode) {
-      arenaContext.exitArenaMode();
-    }
-  }, [threadId, arenaContext]);
+  // Arena thread-pair lifecycle (create Thread B, exit-on-new-chat). See hook.
+  useArenaThreadSetup({ organizationId, threadId });
 
   const { activeBranchThreadId } = useBranchContext();
   // Use the active branch thread for data loading, but keep URL threadId for drafts/routing
@@ -216,7 +141,6 @@ export function ChatInterface({
     chatDraftKey(user?.userId, organizationId, threadId),
     '',
   );
-  const [showScrollButton, setShowScrollButton] = useState(false);
   const [savePromptData, setSavePromptData] = useState<{
     messageId: string;
     content: string;
@@ -283,35 +207,9 @@ export function ChatInterface({
     activeMessage,
   } = useMessageProcessing(dataThreadId);
 
-  // Push the active message's streaming tool calls into the StreamingToolContext
-  // so the canvas pane can render live `file_write` content as the LLM types it.
-  const { setActive: setActiveStreamingTools } = useStreamingTools();
-  useEffect(() => {
-    if (!activeMessage?.parts) {
-      setActiveStreamingTools([]);
-      return;
-    }
-    const next: StreamingToolCall[] = [];
-    for (const p of activeMessage.parts) {
-      if (!p.type?.startsWith('tool-')) continue;
-      const toolName = p.type.slice(5);
-      if (toolName !== 'file_write') continue;
-      const state = 'state' in p ? p.state : undefined;
-      if (state !== 'input-streaming' && state !== 'input-available') continue;
-      const rawInput =
-        'input' in p && typeof p.input === 'string'
-          ? p.input
-          : 'input' in p && p.input !== undefined
-            ? JSON.stringify(p.input)
-            : '';
-      const toolCallId =
-        'toolCallId' in p && typeof p.toolCallId === 'string'
-          ? p.toolCallId
-          : `${activeMessage.id}-${toolName}`;
-      next.push({ toolCallId, toolName, rawInput, state });
-    }
-    setActiveStreamingTools(next);
-  }, [activeMessage, setActiveStreamingTools]);
+  // Bridge the active message's live `file_write` tool calls into the
+  // StreamingToolContext for the canvas pane. See hook.
+  useStreamingToolBridge(activeMessage);
 
   // Merge with pending messages from context for optimistic UI.
   // In arena mode, ArenaColumns handle their own pending messages —
@@ -397,35 +295,18 @@ export function ChatInterface({
   const { mutate: unarchiveThread, isPending: isUnarchiving } =
     useUnarchiveThread();
 
-  // Approvals
-  const { approvals: integrationApprovals } = useIntegrationApprovals(
-    organizationId,
-    dataThreadId,
-  );
-  const { approvals: workflowCreationApprovals } = useWorkflowCreationApprovals(
-    organizationId,
-    dataThreadId,
-  );
-  const { approvals: workflowUpdateApprovals } = useWorkflowUpdateApprovals(
-    organizationId,
-    dataThreadId,
-  );
-  const { approvals: workflowRunApprovals } = useWorkflowRunApprovals(
-    organizationId,
-    dataThreadId,
-  );
-  const { requests: humanInputRequests } = useHumanInputRequests(
-    organizationId,
-    dataThreadId,
-  );
-  const { requests: locationRequests } = useLocationRequests(
-    organizationId,
-    dataThreadId,
-  );
-  const { approvals: documentWriteApprovals } = useDocumentWriteApprovals(
-    organizationId,
-    dataThreadId,
-  );
+  // Approvals — single org-wide subscription partitioned into typed buckets
+  // in one pass (see use-thread-approvals.ts). Replaces seven hooks that each
+  // re-filtered the same list.
+  const {
+    integrationApprovals,
+    workflowCreationApprovals,
+    workflowUpdateApprovals,
+    workflowRunApprovals,
+    humanInputRequests,
+    locationRequests,
+    documentWriteApprovals,
+  } = useThreadApprovals(organizationId, dataThreadId);
 
   // Merge messages with approvals and human input requests
   const { messages: mergedMessages, activeApproval } = useMergedChatItems({
@@ -482,227 +363,37 @@ export function ChatInterface({
     }
   }, [isLoading, resetCancelled]);
 
-  // Auto-switch model selector after a successful fallback.
-  // Watches messages reactively: when a [MODEL_FALLBACK] "retrying with X"
-  // message is followed by a successful assistant response, update the
-  // selector so future messages use the working model.
-  const lastProcessedFallbackRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!effectiveAgent?.name || !messages.length) return;
-
-    // Find the latest MODEL_FALLBACK "retrying with" message
-    const fallbackMsg = messages
-      .toReversed()
-      .find(
-        (msg) =>
-          msg.role === 'system' &&
-          msg.content?.includes('[MODEL_FALLBACK]') &&
-          msg.content?.includes('retrying with'),
-      );
-    if (
-      !fallbackMsg?.content ||
-      fallbackMsg.id === lastProcessedFallbackRef.current
-    )
-      return;
-
-    // Only switch after a successful assistant message appears after the fallback
-    const fallbackIdx = messages.findIndex((msg) => msg.id === fallbackMsg.id);
-    const hasSuccessAfter = messages
-      .slice(fallbackIdx + 1)
-      .some((msg) => msg.role === 'assistant');
-    if (!hasSuccessAfter) return;
-
-    lastProcessedFallbackRef.current = fallbackMsg.id;
-
-    // Extract target model: "X failed — retrying with <model>."
-    // Greedy match up to the trailing period to handle dots in model
-    // names (e.g. "moonshotai/kimi-k2.5").
-    const match = fallbackMsg.content.match(/retrying with (.+)\./);
-    if (!match) return;
-
-    const successfulModel = match[1];
-    const currentSelected = selectedModelOverrides[effectiveAgent.name];
-    if (successfulModel && successfulModel !== currentSelected) {
-      setSelectedModelOverride(effectiveAgent.name, successfulModel);
-    }
-  }, [
+  // Auto-switch the model selector after a successful fallback. See hook.
+  useModelFallbackAutoSwitch({
     messages,
-    effectiveAgent?.name,
+    agentName: effectiveAgent?.name,
+    isLoading,
     selectedModelOverrides,
     setSelectedModelOverride,
-  ]);
-
-  // Scroll utility (no auto-follow — ChatGPT-style)
-  const { containerRef, contentRef, scrollToBottom, isAtBottom } =
-    useAutoScroll({ threshold: 100 });
+  });
 
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
 
-  // Scroll intent ref: 'smooth' on send, 'instant' on thread init, null when idle.
-  const scrollingToBottomBehaviorRef = useRef<ScrollBehavior | null>(null);
-  // Direction-based escape: track scroll position and programmatic scrolls
-  const lastScrollTopRef = useRef(0);
-  const programmaticScrollRef = useRef(false);
-
-  // Scroll + resize handler — handles intentional scrolls and scroll button visibility.
-  useEffect(() => {
-    const container = containerRef.current;
-    const content = contentRef.current;
-    if (!container || !content) return undefined;
-
-    const onContentChange = () => {
-      // During branch switch: override all scroll behavior with saved position
-      if (branchScrollSaveRef.current !== null) {
-        container.scrollTop = branchScrollSaveRef.current;
-        setShowScrollButton(!isAtBottom());
-        return;
-      }
-      const scrollBehavior = scrollingToBottomBehaviorRef.current;
-      if (scrollBehavior) {
-        programmaticScrollRef.current = true;
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: scrollBehavior,
-        });
-      } else if (isAtBottom()) {
-        programmaticScrollRef.current = true;
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: 'instant',
-        });
-      }
-      setShowScrollButton(!isAtBottom());
-    };
-
-    const onScroll = () => {
-      const currentTop = container.scrollTop;
-      const prevTop = lastScrollTopRef.current;
-      lastScrollTopRef.current = currentTop;
-
-      const ref = scrollingToBottomBehaviorRef.current;
-      if (ref) {
-        if (!programmaticScrollRef.current && currentTop < prevTop) {
-          // User scrolled UP while auto-follow is active → escape
-          scrollingToBottomBehaviorRef.current = null;
-        } else if (ref === 'smooth' && isAtBottom()) {
-          // Smooth scroll reached bottom → downgrade to instant
-          // so future content-growth corrections are instantaneous
-          scrollingToBottomBehaviorRef.current = 'instant';
-        }
-      }
-
-      programmaticScrollRef.current = false;
-      setShowScrollButton(!isAtBottom());
-    };
-
-    const resizeObserver = new ResizeObserver(onContentChange);
-    resizeObserver.observe(content);
-
-    const mutationObserver = new MutationObserver((mutations) => {
-      const hasRelevant = mutations.some(
-        (mut) => mut.type !== 'attributes' || mut.attributeName !== 'style',
-      );
-      if (hasRelevant) onContentChange();
-    });
-    mutationObserver.observe(content, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-    });
-
-    container.addEventListener('scroll', onScroll, { passive: true });
-    onContentChange();
-
-    return () => {
-      resizeObserver.disconnect();
-      mutationObserver.disconnect();
-      container.removeEventListener('scroll', onScroll);
-    };
-  }, [containerRef, contentRef, isAtBottom, arenaContext?.isArenaMode]);
-
-  // Clear scroll intent when streaming ends — covers the case where
-  // the ref stayed as 'instant' throughout the entire streaming session.
-  const prevIsLoadingRef = useRef(isLoading);
-  useEffect(() => {
-    if (prevIsLoadingRef.current && !isLoading) {
-      scrollingToBottomBehaviorRef.current = null;
-    }
-    prevIsLoadingRef.current = isLoading;
-  }, [isLoading]);
-
-  // Scroll to bottom on thread initial load.
-  const scrolledForThreadRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!threadId || messages.length === 0) return;
-    if (scrolledForThreadRef.current === threadId) return;
-
-    scrolledForThreadRef.current = threadId;
-    scrollingToBottomBehaviorRef.current = 'instant';
-
-    containerRef.current?.scrollTo({
-      top: containerRef.current.scrollHeight,
-      behavior: 'instant',
-    });
-  }, [threadId, messages.length, containerRef]);
-
-  // Preserve scroll position during branch switches.
-  // Save scrollTop synchronously during render when dataThreadId changes.
-  // The saved value is kept and restored on every onContentChange call
-  // until cleared by a timeout (to handle multiple ResizeObserver fires).
-  const branchScrollSaveRef = useRef<number | null>(null);
-  const branchScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const prevDataThreadIdRef = useRef(dataThreadId);
-  if (
-    prevDataThreadIdRef.current !== dataThreadId &&
-    prevDataThreadIdRef.current !== undefined
-  ) {
-    // Skip scroll preservation for edit-and-branch — we want scroll-to-bottom
-    // so the edited message and incoming AI response are visible.
-    if (!pendingMessage?.editedMessageId) {
-      branchScrollSaveRef.current = containerRef.current?.scrollTop ?? null;
-      // Clear after content settles
-      if (branchScrollTimerRef.current)
-        clearTimeout(branchScrollTimerRef.current);
-      branchScrollTimerRef.current = setTimeout(() => {
-        branchScrollSaveRef.current = null;
-        branchScrollTimerRef.current = null;
-      }, 2000);
-    } else {
-      // Clear any stale scroll position from a prior branch switch so
-      // onContentChange doesn't override the intended scroll-to-bottom.
-      branchScrollSaveRef.current = null;
-      if (branchScrollTimerRef.current) {
-        clearTimeout(branchScrollTimerRef.current);
-        branchScrollTimerRef.current = null;
-      }
-    }
-  }
-  prevDataThreadIdRef.current = dataThreadId;
-
-  // Load-more scroll preservation: keep viewport stable when older messages prepend
-  const handleLoadMore = useCallback(
-    (count: number) => {
-      const container = containerRef.current;
-      if (!container) {
-        loadMore(count);
-        return;
-      }
-
-      const prevScrollHeight = container.scrollHeight;
-      const observer = new MutationObserver(() => {
-        observer.disconnect();
-        container.scrollTop += container.scrollHeight - prevScrollHeight;
-      });
-      observer.observe(container, { childList: true, subtree: true });
-      loadMore(count);
-
-      // Safety timeout to disconnect if no mutation fires
-      setTimeout(() => observer.disconnect(), 2000);
-    },
-    [containerRef, loadMore],
-  );
+  // Scroll state machine: auto-follow (ChatGPT-style), branch-switch
+  // preservation, thread-init scroll, streaming-end intent clear, and
+  // load-more prepend preservation. `scrollIntentRef` is shared with
+  // `useSendMessage` and the edit-and-branch handler below. See hook.
+  const {
+    containerRef,
+    contentRef,
+    scrollToBottom,
+    showScrollButton,
+    scrollIntentRef,
+    handleLoadMore,
+  } = useChatScroll({
+    threadId,
+    dataThreadId,
+    messagesLength: messages.length,
+    isLoading,
+    isArenaMode,
+    pendingEditedMessageId: pendingMessage?.editedMessageId,
+    loadMore,
+  });
 
   const userContext = useUserContext();
   const teamFilter = useOptionalTeamFilter();
@@ -747,7 +438,7 @@ export function ChatInterface({
     // link sends specifically (those have an extra `await
     // bindCompletedJobsToMessage` round-trip; plain text and image
     // attachments don't, which is why they always worked).
-    scrollIntentRef: scrollingToBottomBehaviorRef,
+    scrollIntentRef,
     // Restore the composer chips on send-failure paths inside
     // `useSendMessage` (bind throw, precheck-block, chatWithAgent throw).
     // Mirrors the `setInputValue(draftSnapshot)` rollback we do here
@@ -882,7 +573,7 @@ export function ChatInterface({
       setEditingMessage(null);
 
       // Scroll to bottom so the edited message + incoming AI response are visible
-      scrollingToBottomBehaviorRef.current = 'smooth';
+      scrollIntentRef.current = 'smooth';
 
       const result = await editAndBranchAction({
         sourceThreadId: dataThreadId,
@@ -907,6 +598,7 @@ export function ChatInterface({
       editAndBranchAction,
       selectNewBranch,
       setPendingMessage,
+      scrollIntentRef,
     ],
   );
 
@@ -1017,59 +709,66 @@ export function ChatInterface({
           {showExitingSkeleton && <MessagesSkeleton />}
 
           {showMessages && (
-            <ChatMessages
-              items={mergedMessages}
-              threadId={dataThreadId}
+            <ChatMessagesErrorBoundary
               organizationId={organizationId}
-              canLoadMore={canLoadMore}
-              isLoadingMore={isLoadingMore}
-              loadMore={handleLoadMore}
-              activeMessage={activeMessage}
-              isLoading={isLoading}
-              lastUserMessageRef={lastUserMessageRef}
-              containerRef={containerRef}
-              activeApproval={activeApproval}
-              forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
-              lastForkedMessageOrder={
-                forkInfo?.lastForkedMessageOrder ?? undefined
-              }
-              forkedAt={forkInfo?.forkedAt ?? undefined}
-              forkedFromShare={forkInfo?.forkedFromShare}
-              onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
-              onSendFollowUp={
-                isArchived || readOnly ? undefined : handleSendFollowUp
-              }
-              onSendMessage={
-                isArchived || readOnly ? undefined : handleSendMessageDirect
-              }
-              onEditMessage={
-                isArchived || readOnly ? undefined : handleEditClick
-              }
-              onForkAtMessage={
-                isArchived || readOnly ? undefined : handleForkAtMessage
-              }
-              onSavePrompt={(messageId, content) =>
-                setSavePromptData({ messageId, content })
-              }
-              onUnsavePrompt={handleUnsavePrompt}
-              savedMessageMap={savedMessageMap}
-              onRetry={isArchived || readOnly ? undefined : handleRetry}
-              editingMessageId={
-                isArchived || readOnly ? undefined : editingMessage?.id
-              }
-              editingMessageContent={
-                isArchived || readOnly ? undefined : editingMessage?.content
-              }
-              onEditSubmit={
-                isArchived || readOnly ? undefined : handleEditSubmit
-              }
-              onEditCancel={
-                isArchived || readOnly
-                  ? undefined
-                  : () => setEditingMessage(null)
-              }
-              hideFeedback={isArchived}
-            />
+              threadId={dataThreadId}
+            >
+              <ChatMessages
+                items={mergedMessages}
+                threadId={dataThreadId}
+                organizationId={organizationId}
+                canLoadMore={canLoadMore}
+                isLoadingMore={isLoadingMore}
+                loadMore={handleLoadMore}
+                activeMessage={activeMessage}
+                isLoading={isLoading}
+                lastUserMessageRef={lastUserMessageRef}
+                containerRef={containerRef}
+                activeApproval={activeApproval}
+                forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
+                lastForkedMessageOrder={
+                  forkInfo?.lastForkedMessageOrder ?? undefined
+                }
+                forkedAt={forkInfo?.forkedAt ?? undefined}
+                forkedFromShare={forkInfo?.forkedFromShare}
+                onHumanInputResponseSubmitted={
+                  handleHumanInputResponseSubmitted
+                }
+                onSendFollowUp={
+                  isArchived || readOnly ? undefined : handleSendFollowUp
+                }
+                onSendMessage={
+                  isArchived || readOnly ? undefined : handleSendMessageDirect
+                }
+                onEditMessage={
+                  isArchived || readOnly ? undefined : handleEditClick
+                }
+                onForkAtMessage={
+                  isArchived || readOnly ? undefined : handleForkAtMessage
+                }
+                onSavePrompt={(messageId, content) =>
+                  setSavePromptData({ messageId, content })
+                }
+                onUnsavePrompt={handleUnsavePrompt}
+                savedMessageMap={savedMessageMap}
+                onRetry={isArchived || readOnly ? undefined : handleRetry}
+                editingMessageId={
+                  isArchived || readOnly ? undefined : editingMessage?.id
+                }
+                editingMessageContent={
+                  isArchived || readOnly ? undefined : editingMessage?.content
+                }
+                onEditSubmit={
+                  isArchived || readOnly ? undefined : handleEditSubmit
+                }
+                onEditCancel={
+                  isArchived || readOnly
+                    ? undefined
+                    : () => setEditingMessage(null)
+                }
+                hideFeedback={isArchived}
+              />
+            </ChatMessagesErrorBoundary>
           )}
         </div>
       )}

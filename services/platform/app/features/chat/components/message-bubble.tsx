@@ -217,7 +217,14 @@ function MessageBubbleComponent({
   const contentRef = useRef<HTMLDivElement | null>(null);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { metadata } = useMessageMetadata(message.id, message.threadId);
+  // Only assistant messages consume metadata (blockedReason gates on
+  // assistant role below; citations render only for `!isUser`). Skipping the
+  // subscription for user messages halves the per-message query count in a
+  // typical thread. `MessageInfoDialog` already tolerates undefined metadata.
+  const { metadata } = useMessageMetadata(
+    message.role === 'assistant' ? message.id : null,
+    message.threadId,
+  );
   const { citations, hasCitations } = useCitations(metadata?.citations);
   // Guardrails block: when the pipeline tombstoned this message we replace
   // the entire content area with <BlockedNotice/> so reasoning, tool calls,
@@ -742,6 +749,40 @@ function MessageBubbleComponent({
   );
 }
 
+/**
+ * Value-compare attachments by fileId (their stable identity). The message
+ * list rebuilds `attachments`/`fileParts` arrays with fresh references on every
+ * streamed token (use-message-processing.ts re-maps the whole list), so a
+ * reference check would re-render every attachment-bearing bubble on each tick.
+ * A length + per-item identity check keeps those bubbles stable while still
+ * catching genuine attachment changes.
+ */
+function sameAttachments(
+  a: Message['attachments'],
+  b: Message['attachments'],
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].fileId !== b[i].fileId) return false;
+  }
+  return true;
+}
+
+function sameFileParts(
+  a: Message['fileParts'],
+  b: Message['fileParts'],
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].url !== b[i].url) return false;
+  }
+  return true;
+}
+
 export const MessageBubble = memo(
   MessageBubbleComponent,
   (prevProps, nextProps) => {
@@ -751,8 +792,11 @@ export const MessageBubble = memo(
       prevProps.message.isStreaming === nextProps.message.isStreaming &&
       prevProps.message.isAborted === nextProps.message.isAborted &&
       prevProps.message.isFailed === nextProps.message.isFailed &&
-      prevProps.message.attachments === nextProps.message.attachments &&
-      prevProps.message.fileParts === nextProps.message.fileParts &&
+      sameAttachments(
+        prevProps.message.attachments,
+        nextProps.message.attachments,
+      ) &&
+      sameFileParts(prevProps.message.fileParts, nextProps.message.fileParts) &&
       prevProps.message.threadId === nextProps.message.threadId &&
       prevProps.className === nextProps.className &&
       prevProps.organizationId === nextProps.organizationId &&

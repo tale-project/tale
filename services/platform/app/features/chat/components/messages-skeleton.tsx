@@ -13,7 +13,10 @@ const rows: Array<{ role: 'user' | 'assistant'; widths: string[] }> = [
 export function MessagesSkeleton() {
   const { t } = useT('chat');
   return (
-    <div className="flex w-full max-w-(--chat-max-width) flex-col gap-6 self-center">
+    // `mx-auto` + `pt-6` mirror the real message list wrapper
+    // (chat-messages.tsx) so the first row sits where real content starts and
+    // the skeleton→messages swap doesn't shift the viewport vertically.
+    <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-6 pt-6">
       {rows.map((row, rowIdx) => (
         <div
           key={rowIdx}

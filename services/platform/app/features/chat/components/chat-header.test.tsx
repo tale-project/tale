@@ -21,8 +21,10 @@ vi.mock('./chat-history-sidebar', () => ({
   ChatHistorySidebar: () => <div data-testid="chat-history-sidebar" />,
 }));
 
-vi.mock('./chat-search-dialog', () => ({
-  ChatSearchDialog: () => null,
+// Stub the threads source so the header's SearchCommand doesn't reach Convex
+// (the source hook calls `useThreads`, which needs a ConvexProvider).
+vi.mock('./threads-search-source', () => ({
+  createThreadsSearchSource: () => () => ({ results: [], status: 'idle' }),
 }));
 
 vi.mock('@/app/components/layout/adaptive-header', () => ({

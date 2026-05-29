@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 import { cn } from '@/lib/utils/cn';
@@ -96,7 +96,7 @@ function splitParagraphsPreservingFences(content: string): string[] {
  * block-level units and survive being wrapped in a `<div>`. ChatGPT
  * itself doesn't ship sentence-level highlight.
  */
-export function AssistantMessageContent({
+function AssistantMessageContentComponent({
   text,
   isStreaming,
   onSendFollowUp,
@@ -338,3 +338,22 @@ export function AssistantMessageContent({
     </>
   );
 }
+
+/**
+ * Memoized so a parent (MessageBubble) re-render with unchanged props doesn't
+ * re-run the paragraph-split / spotlight work. Internal voice subscriptions
+ * (useVoiceChunks / useActivePlaybackForMessage) still drive their own updates;
+ * memo only blocks redundant parent-driven renders. `onSendFollowUp` is stable
+ * (a useCallback from chat-interface) so a reference check is sufficient.
+ */
+export const AssistantMessageContent = memo(
+  AssistantMessageContentComponent,
+  (prevProps, nextProps) =>
+    prevProps.text === nextProps.text &&
+    prevProps.isStreaming === nextProps.isStreaming &&
+    prevProps.voiceModeEnabled === nextProps.voiceModeEnabled &&
+    prevProps.isFreshSinceMount === nextProps.isFreshSinceMount &&
+    prevProps.messageId === nextProps.messageId &&
+    prevProps.threadId === nextProps.threadId &&
+    prevProps.onSendFollowUp === nextProps.onSendFollowUp,
+);

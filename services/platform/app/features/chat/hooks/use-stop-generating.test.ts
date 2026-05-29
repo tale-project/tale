@@ -188,6 +188,30 @@ describe('useStopGenerating — edge cases', () => {
     expect(mockConsumeFrozenDisplayLength).toHaveBeenCalledOnce();
   });
 
+  it('recovers when cancelGeneration rejects: unfreezes and lets the user retry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockMutateAsync.mockRejectedValueOnce(new Error('Network error'));
+
+    const { result } = renderHook(() =>
+      useStopGenerating({ threadId: 'thread-1' }),
+    );
+
+    await act(async () => {
+      result.current.stopGenerating();
+      await Promise.resolve();
+    });
+
+    // The failed stop never reached the server: the global freeze is cleared so
+    // the UI doesn't stay frozen with no recovery path.
+    expect(mockResetGlobalFreeze).toHaveBeenCalled();
+
+    // The optimistic cancelled flag is reset too, so a retry fires the mutation
+    // again rather than being swallowed by the duplicate-call guard.
+    mockMutateAsync.mockResolvedValueOnce(null);
+    act(() => result.current.stopGenerating());
+    expect(mockMutateAsync).toHaveBeenCalledTimes(2);
+  });
+
   it('resetCancelled is idempotent (calling multiple times is safe)', () => {
     const { result } = renderHook(() =>
       useStopGenerating({ threadId: 'thread-1' }),

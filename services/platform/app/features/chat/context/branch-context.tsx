@@ -148,8 +148,11 @@ export function BranchProvider({
           }
           setBranchSelections(selections);
         }
-      } catch {
-        // ignore invalid JSON
+      } catch (err) {
+        console.warn(
+          '[branch-context] ignoring invalid persisted branch selections JSON',
+          err,
+        );
       }
       initializedRef.current = true;
     }

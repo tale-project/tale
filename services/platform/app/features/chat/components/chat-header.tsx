@@ -2,6 +2,11 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import {
+  SearchCommand,
+  type SearchCommandLabels,
+  type SearchResult,
+} from '@tale/ui/search';
 import { useNavigate } from '@tanstack/react-router';
 import {
   Clock,
@@ -18,15 +23,17 @@ import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
+import { useFormatDate } from '@/app/hooks/use-format-date';
+import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useVoiceModeEffective } from '../hooks/use-voice-output';
 import { ChatHistorySidebar } from './chat-history-sidebar';
-import { ChatSearchDialog } from './chat-search-dialog';
 import { ExportChatDialog } from './export-chat-dialog';
 import { ShareChatDialog } from './share-chat-dialog';
 import { useThreadVoiceOutputCheckboxItem } from './thread-voice-output-switch';
+import { createThreadsSearchSource } from './threads-search-source';
 interface ChatHeaderProps {
   organizationId: string;
   threadId?: string;
@@ -42,8 +49,46 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
   const [isMac, setIsMac] = useState(false);
 
   const { t: tChat } = useT('chat');
+  const { t: tDialogs } = useT('dialogs');
+  const { formatDateHeader } = useFormatDate();
+  const teamFilter = useOptionalTeamFilter();
+  const selectedTeamId = teamFilter?.selectedTeamId ?? undefined;
 
   const voiceMode = useVoiceModeEffective(threadId);
+
+  // Chat search now runs on the shared `@tale/ui` SearchCommand, backed by a
+  // threads source. Chat-specific copy comes from the `dialogs.searchChat`
+  // keys; the rest of the chrome resolves from the shared `search` namespace.
+  const threadsSource = useMemo(
+    () =>
+      createThreadsSearchSource({
+        organizationId,
+        teamId: selectedTeamId,
+        untitledLabel: tDialogs('searchChat.untitledChat'),
+        formatGroup: (creationTime) => formatDateHeader(new Date(creationTime)),
+      }),
+    [organizationId, selectedTeamId, tDialogs, formatDateHeader],
+  );
+
+  const searchLabels = useMemo<Partial<SearchCommandLabels>>(
+    () => ({
+      title: tDialogs('searchChat.title'),
+      placeholder: tDialogs('searchChat.placeholder'),
+      loading: tDialogs('searchChat.loading'),
+      noResultsTitle: tDialogs('searchChat.noResults'),
+    }),
+    [tDialogs],
+  );
+
+  const handleSelectThread = useCallback(
+    (result: SearchResult) => {
+      void navigate({
+        to: '/dashboard/$id/chat/$threadId',
+        params: { id: organizationId, threadId: result.id },
+      });
+    },
+    [navigate, organizationId],
+  );
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -320,10 +365,15 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
         </div>
       </AdaptiveHeaderRoot>
 
-      <ChatSearchDialog
-        isOpen={isSearchOpen}
+      <SearchCommand
+        open={isSearchOpen}
         onOpenChange={setIsSearchOpen}
-        organizationId={organizationId}
+        source={threadsSource}
+        labels={searchLabels}
+        getGroupLabel={(key) => key}
+        recentsStorageKey="tale.platform.chat.recentSearches.v1"
+        minQueryLength={1}
+        onSelect={handleSelectThread}
       />
 
       {threadId && (

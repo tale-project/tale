@@ -51,8 +51,15 @@ export function useStopGenerating({
     const displayedLength = consumeFrozenDisplayLength();
 
     // 4. Fire backend mutation to abort active streams and truncate
-    //    the message to match what the user saw.
-    void cancelGeneration({ threadId, displayedLength });
+    //    the message to match what the user saw. If it fails the stop never
+    //    reached the server — unfreeze and clear the optimistic cancelled flag
+    //    so the UI doesn't stay frozen and the user can retry, rather than
+    //    leaving a permanently-frozen message with no recovery path.
+    void cancelGeneration({ threadId, displayedLength }).catch((err) => {
+      console.error('[use-stop-generating] cancelGeneration failed:', err);
+      resetGlobalFreeze();
+      cancelledRef.current = false;
+    });
   }, [threadId, cancelGeneration]);
 
   const resetCancelled = useCallback(() => {
