@@ -8,7 +8,7 @@ import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
 import { classifyError } from '../lib/error_classification';
-import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import type { ResolvedModelData } from '../providers/resolve_model';
 import { resolveTranscriptionModel } from '../providers/resolve_model';
 import { uploadFile } from '../workflow_engine/action_defs/rag/helpers/upload_file_direct';
@@ -286,6 +286,14 @@ export const transcribeAudio = internalAction({
     const requestId = `transcribe-${args.storageId}-${Date.now()}`;
     const startedAt = Date.now();
 
+    // Resolve org slug ONCE up front and reuse on both the cached-path
+    // RAG index (≈ L404) and the post-Whisper RAG index (≈ L570).
+    // Previously each call site re-queried Better Auth, and a transient
+    // adapter failure on the SECOND lookup would bubble out into the
+    // outer catch — classifying as a transcription failure and re-
+    // queueing a fresh Whisper run on already-completed work.
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+
     let compressed: CompressedAudio | undefined;
     let chunked:
       | { chunks: AudioChunk[]; cleanup: () => Promise<void> }
@@ -401,16 +409,21 @@ export const transcribeAudio = internalAction({
           // transcript was cached from). Duplicates content in RAG but
           // keeps per-upload citation identity correct; embeddings cost
           // is tiny compared to the Whisper call we just skipped.
-          const cachedOrgSlug = await orgSlugFromId(ctx, args.organizationId);
-          await indexTranscriptToRag(ctx, {
-            storageId: args.storageId,
-            fileName: args.fileName,
-            audioContentType: args.contentType,
-            transcript: cached.transcript ?? '',
-            chunkCount: 0,
-            requestId,
-            orgSlug: cachedOrgSlug,
-          });
+          if (orgSlug !== null) {
+            await indexTranscriptToRag(ctx, {
+              storageId: args.storageId,
+              fileName: args.fileName,
+              audioContentType: args.contentType,
+              transcript: cached.transcript ?? '',
+              chunkCount: 0,
+              requestId,
+              orgSlug,
+            });
+          } else {
+            console.warn(
+              `[transcribeAudio] org ${args.organizationId} unresolvable; transcript saved to fileMetadata but not indexed to RAG (cache path, storageId=${args.storageId})`,
+            );
+          }
           return null;
         }
       }
@@ -567,16 +580,21 @@ export const transcribeAudio = internalAction({
         );
       }
 
-      const indexOrgSlug = await orgSlugFromId(ctx, args.organizationId);
-      await indexTranscriptToRag(ctx, {
-        storageId: args.storageId,
-        fileName: args.fileName,
-        audioContentType: args.contentType,
-        transcript: fullTranscript,
-        chunkCount: chunks.length,
-        requestId,
-        orgSlug: indexOrgSlug,
-      });
+      if (orgSlug !== null) {
+        await indexTranscriptToRag(ctx, {
+          storageId: args.storageId,
+          fileName: args.fileName,
+          audioContentType: args.contentType,
+          transcript: fullTranscript,
+          chunkCount: chunks.length,
+          requestId,
+          orgSlug,
+        });
+      } else {
+        console.warn(
+          `[transcribeAudio] org ${args.organizationId} unresolvable; transcript saved to fileMetadata but not indexed to RAG (storageId=${args.storageId})`,
+        );
+      }
 
       return null;
     } catch (error) {

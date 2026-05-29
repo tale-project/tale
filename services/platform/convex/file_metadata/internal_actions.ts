@@ -11,7 +11,7 @@ import {
   isUpstreamHttpError,
   UpstreamHttpError,
 } from '../lib/errors/upstream_http_error';
-import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
 /**
@@ -102,6 +102,21 @@ export const extractFileMetadata = internalAction({
 
     // PDF/DOCX/PPTX: call crawler extract-metadata
     if (ext && EXTRACT_METADATA_EXTENSIONS.has(ext)) {
+      // Resolve org slug OUTSIDE the try block. Previously the lookup
+      // sat inside the catch-permanent branch — a slug miss got
+      // classified as "permanent" and stamped `visionRequired:false`,
+      // permanently disabling vision/OCR for legitimate uploads on a
+      // deleted-org race. With `OrNull` we exit cleanly without
+      // stamping a terminal marker, leaving the row's pending state
+      // alone so a subsequent ingest can re-run.
+      const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+      if (orgSlug === null) {
+        console.warn(
+          `[extractFileMetadata] org ${args.organizationId} unresolvable; skipping vision-metadata extraction for storageId=${args.storageId} (will not stamp permanent-failure marker)`,
+        );
+        return null;
+      }
+
       try {
         const fileUrl = await ctx.storage.getUrl(args.storageId);
         if (!fileUrl) {
@@ -123,7 +138,6 @@ export const extractFileMetadata = internalAction({
         const fileBlob = await fileResponse.blob();
         const crawlerUrl = getCrawlerUrl();
         const endpoint = `${crawlerUrl}/api/v1/${ext}/extract-metadata`;
-        const orgSlug = await orgSlugFromId(ctx, args.organizationId);
 
         const formData = new FormData();
         formData.append('file', fileBlob, args.fileName);

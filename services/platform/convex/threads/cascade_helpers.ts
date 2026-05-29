@@ -33,7 +33,7 @@ import type { MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import type { ActiveHolds } from '../governance/legal_hold';
 import { loadActiveHolds } from '../governance/legal_hold';
-import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { parseSubThreadIds } from './delete_chat_thread';
 
 // Audit actions emitted by this file. Keep grep-able:
@@ -317,49 +317,55 @@ export async function cascadeDeleteThreadChildren(
         q.eq('organizationId', organizationId).eq('threadId', threadId),
       )
       .take(PAGE_SIZE);
-    // Resolve slug BEFORE the delete loop. Previously the lookup ran
-    // after every storage.delete + db.delete had committed; if it threw
-    // (org row deleted mid-cascade, replica skew), the DB tx rolls back
-    // so fileMetadata rows reappear, but `ctx.storage.delete` is out-
-    // of-band and NOT rolled back — the blob is gone AND no RAG purge
-    // was scheduled. Resolve first so a slug-lookup failure aborts the
-    // loop before any destructive op runs.
-    let orgSlug: string;
-    try {
-      orgSlug = await orgSlugFromId(ctx, organizationId);
-    } catch (error) {
-      console.warn(
-        `[cascadeDeleteThreadChildren] orgSlugFromId failed for ${organizationId}; deferring file cascade:`,
-        error instanceof Error ? error.message : error,
-      );
-      // Signal "not done" so the caller retries. The fileMetadata page
-      // is still present so a re-run will find it.
-      return { done: false, remaining: 1 };
-    }
-    const ragPurgeStorageIds: string[] = [];
-    for (const fileMeta of filesPage) {
-      try {
-        await ctx.storage.delete(fileMeta.storageId);
-      } catch (error) {
+    // Empty-page fast path: no files to cascade for this thread, skip
+    // the (relatively expensive) Better Auth slug lookup. Common case
+    // for chat-upload-less threads.
+    if (filesPage.length > 0) {
+      // Resolve slug BEFORE the delete loop. Previously the lookup ran
+      // after every storage.delete + db.delete had committed; if it
+      // threw, the DB tx rolls back so fileMetadata rows reappear but
+      // `ctx.storage.delete` is out-of-band and NOT rolled back.
+      // Resolving first means a slug-lookup failure aborts the loop
+      // before any destructive op runs.
+      //
+      // We use `orgSlugFromIdOrNull` so a TERMINAL miss (org row gone,
+      // missing slug — both unrecoverable) drops only the RAG-side
+      // purge; the local fileMetadata rows + `_storage` blobs are
+      // still cleaned and the cascade reports `done`. Previously a
+      // throw here returned `{done:false, remaining:1}` forever, the
+      // retention sweep's MAX_ATTEMPTS budget would exhaust, and the
+      // orphan rows + blobs accumulated indefinitely.
+      const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
+      if (orgSlug === null) {
         console.warn(
-          `[cascadeDeleteThreadChildren] storage.delete failed for ${String(fileMeta.storageId)}:`,
-          error instanceof Error ? error.message : error,
+          `[cascadeDeleteThreadChildren] org ${organizationId} unresolvable (deleted/missing slug); cleaning local fileMetadata + storage but skipping RAG purge`,
         );
       }
-      ragPurgeStorageIds.push(String(fileMeta.storageId));
-      filesPageStorageIds.push(String(fileMeta.storageId));
-      await ctx.db.delete(fileMeta._id);
-    }
-    if (ragPurgeStorageIds.length > 0) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.workflow_engine.action_defs.rag.helpers.delete_document
-          .deleteFromRagBatch,
-        { orgSlug, fileIds: ragPurgeStorageIds },
-      );
-    }
-    if (filesPage.length === PAGE_SIZE) {
-      return { done: false, remaining: 1 };
+      const ragPurgeStorageIds: string[] = [];
+      for (const fileMeta of filesPage) {
+        try {
+          await ctx.storage.delete(fileMeta.storageId);
+        } catch (error) {
+          console.warn(
+            `[cascadeDeleteThreadChildren] storage.delete failed for ${String(fileMeta.storageId)}:`,
+            error instanceof Error ? error.message : error,
+          );
+        }
+        ragPurgeStorageIds.push(String(fileMeta.storageId));
+        filesPageStorageIds.push(String(fileMeta.storageId));
+        await ctx.db.delete(fileMeta._id);
+      }
+      if (orgSlug !== null && ragPurgeStorageIds.length > 0) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.workflow_engine.action_defs.rag.helpers.delete_document
+            .deleteFromRagBatch,
+          { orgSlug, fileIds: ragPurgeStorageIds },
+        );
+      }
+      if (filesPage.length === PAGE_SIZE) {
+        return { done: false, remaining: 1 };
+      }
     }
   }
 

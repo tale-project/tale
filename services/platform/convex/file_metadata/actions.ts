@@ -6,7 +6,7 @@ import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
-import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { ragFetch } from '../lib/helpers/rag_config';
 
 /**
@@ -73,8 +73,23 @@ export const checkFileRagStatuses = action({
     const STALE_QUEUE_MS = 90_000;
 
     const mergedStatuses: Record<string, unknown> = {};
+    // Track storageIds whose org bucket queried RAG SUCCESSFULLY. Only
+    // these are eligible for the post-loop `expireStaleRagQueue` sweep —
+    // without this guard, a transient RAG outage in one org's request
+    // (or that org's slug going missing) made the loop `continue`, the
+    // org's storageIds never landed in `mergedStatuses`, and the sweep
+    // permanently marked them `failed` ("RAG service did not receive
+    // the upload") even though the uploads were healthy. Cross-org
+    // failure propagation.
+    const eligibleForStaleSweep = new Set<string>();
     for (const [organizationId, storageIds] of orgIdsToFiles) {
-      const orgSlug = await orgSlugFromId(ctx, organizationId);
+      const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
+      if (orgSlug === null) {
+        console.warn(
+          `[checkFileRagStatuses] org ${organizationId} unresolvable; skipping status fetch (its storageIds will NOT be marked failed)`,
+        );
+        continue;
+      }
       try {
         const response = await ragFetch('/api/v1/documents/statuses', {
           method: 'POST',
@@ -92,6 +107,7 @@ export const checkFileRagStatuses = action({
         const body: unknown = await response.json();
         if (!isRecord(body) || !isRecord(body.statuses)) continue;
         Object.assign(mergedStatuses, body.statuses);
+        for (const id of storageIds) eligibleForStaleSweep.add(id);
       } catch (error) {
         console.warn(
           `[checkFileRagStatuses] Failed to fetch statuses for org ${orgSlug}:`,
@@ -106,10 +122,12 @@ export const checkFileRagStatuses = action({
     for (const storageId of allAuthorizedStorageIds) {
       const docStatus = statuses[storageId];
       if (!isRecord(docStatus)) {
-        await ctx.runMutation(
-          internal.file_metadata.internal_mutations.expireStaleRagQueue,
-          { storageId, staleAfterMs: STALE_QUEUE_MS },
-        );
+        if (eligibleForStaleSweep.has(storageId)) {
+          await ctx.runMutation(
+            internal.file_metadata.internal_mutations.expireStaleRagQueue,
+            { storageId, staleAfterMs: STALE_QUEUE_MS },
+          );
+        }
         continue;
       }
 

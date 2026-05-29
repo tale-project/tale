@@ -9,7 +9,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
-import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { ragFetch } from '../lib/helpers/rag_config';
 import type { ActiveHolds } from './legal_hold';
 import {
@@ -199,7 +199,14 @@ async function cleanupDocuments(
           { organizationId: org.organizationId, cutoffMs, batchSize },
         );
 
-  const orgSlug = await orgSlugFromId(ctx, org.organizationId);
+  // Empty-batch fast path: skip the Better Auth slug lookup when nothing
+  // expired. Steady-state per-org per-tick is the common case.
+  if (passB.length === 0) return processed;
+
+  // OrNull so a deleted-org cleanup (operator removed the org row but
+  // legacy documents survived) still removes local rows; the RAG-side
+  // purge is the recoverable part (the tenant index is gone too).
+  const orgSlug = await orgSlugFromIdOrNull(ctx, org.organizationId);
 
   for (const doc of passB) {
     if (doc.createdBy && holds.userMembershipIds.has(doc.createdBy)) {
@@ -209,7 +216,7 @@ async function cleanupDocuments(
       continue;
     }
 
-    if (doc.fileId) {
+    if (doc.fileId && orgSlug !== null) {
       await deleteRagEntry(orgSlug, doc.fileId, `document ${doc._id}`);
     }
 
@@ -309,7 +316,9 @@ async function cleanupTempFiles(
           { organizationId: org.organizationId, source, cutoffMs, batchSize },
         );
 
-  const tempOrgSlug = await orgSlugFromId(ctx, org.organizationId);
+  if (passB.length === 0) return processed;
+
+  const tempOrgSlug = await orgSlugFromIdOrNull(ctx, org.organizationId);
 
   for (const file of passB) {
     if (file.uploadedBy && holds.userMembershipIds.has(file.uploadedBy)) {
@@ -319,7 +328,13 @@ async function cleanupTempFiles(
       continue;
     }
 
-    await deleteRagEntry(tempOrgSlug, file.storageId, `temp file ${file._id}`);
+    if (tempOrgSlug !== null) {
+      await deleteRagEntry(
+        tempOrgSlug,
+        file.storageId,
+        `temp file ${file._id}`,
+      );
+    }
 
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredTempFile,

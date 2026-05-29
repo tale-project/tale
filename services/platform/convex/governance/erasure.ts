@@ -62,7 +62,7 @@ import {
 import * as ApprovalsHelpers from '../approvals/helpers';
 import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
-import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { hashEmailForAudit } from '../lib/helpers/pii_hash';
 import { ragFetch } from '../lib/helpers/rag_config';
 import { rateLimiter } from '../lib/rate_limiter';
@@ -125,6 +125,20 @@ async function subjectIsMemberOfOtherActiveOrgs(
     if (typeof r.organizationId !== 'string') continue;
     if (r.organizationId === excludeOrgId) continue;
     if (typeof r.role === 'string' && r.role === 'disabled') continue;
+    return true;
+  }
+  // 256-cap silent fail-open guard. If the membership query came back
+  // full, we can't tell whether the 257th-and-beyond row is the only
+  // non-excluded, non-disabled sibling — so fail CLOSED (treat as "yes,
+  // member of other active orgs") rather than wipe global throttle /
+  // 2FA counters under a subject who happens to belong to many orgs.
+  // The sibling 256-cap site in `http.ts:349` warns on truncation;
+  // mirror that here for parity.
+  if (rows.length >= 256) {
+    console.warn(
+      '[subjectIsMemberOfOtherActiveOrgs] hit 256-membership soft cap for userId ' +
+        `${userId}; returning fail-closed (assume member of other active orgs)`,
+    );
     return true;
   }
   return false;
@@ -1800,25 +1814,36 @@ export const processErasureRequest = internalAction({
       documentsSkippedByHold = docResult.skippedByHold;
       // RAG is per-org; resolve once and reuse for all per-file DELETEs in
       // this erasure pass (subject is bound to a single organizationId).
-      const ragOrgSlug = await orgSlugFromId(ctx, state.organizationId);
-      for (const fileId of docResult.fileIds) {
-        try {
-          const res = await ragFetch(
-            `/api/v1/documents/${encodeURIComponent(fileId)}`,
-            { method: 'DELETE', timeoutMs: 10_000, orgSlug: ragOrgSlug },
-          );
-          if (res.ok || res.status === 404) {
-            ragDocumentsRemoved += 1;
-          } else {
+      // OrNull so a deleted-org subject (operator removed the org row but
+      // the erasure request was already in flight) still drives the DB-
+      // side cascade below; the RAG-side purge is the recoverable part
+      // (no per-tenant index to clean once the org is gone).
+      const ragOrgSlug = await orgSlugFromIdOrNull(ctx, state.organizationId);
+      if (ragOrgSlug === null) {
+        console.warn(
+          `[gdprErasure] org ${state.organizationId} unresolvable; skipping RAG-side fan-out for this erasure pass (DB-side cascade still runs)`,
+        );
+      }
+      if (ragOrgSlug !== null) {
+        for (const fileId of docResult.fileIds) {
+          try {
+            const res = await ragFetch(
+              `/api/v1/documents/${encodeURIComponent(fileId)}`,
+              { method: 'DELETE', timeoutMs: 10_000, orgSlug: ragOrgSlug },
+            );
+            if (res.ok || res.status === 404) {
+              ragDocumentsRemoved += 1;
+            } else {
+              console.warn(
+                `[gdprErasure] RAG DELETE returned ${res.status} for fileId=${fileId}`,
+              );
+            }
+          } catch (error) {
             console.warn(
-              `[gdprErasure] RAG DELETE returned ${res.status} for fileId=${fileId}`,
+              `[gdprErasure] RAG DELETE failed for fileId=${fileId}:`,
+              error,
             );
           }
-        } catch (error) {
-          console.warn(
-            `[gdprErasure] RAG DELETE failed for fileId=${fileId}:`,
-            error,
-          );
         }
       }
 
@@ -1861,25 +1886,27 @@ export const processErasureRequest = internalAction({
       // alongside the DB row + the `_storage` blob.
       // `perCategory.fileMetadata` already typed as `FileMetadataCounts`
       // which declares `ragPurgeStorageIds?: string[]` — no cast needed.
-      for (const storageId of perCategory.fileMetadata.ragPurgeStorageIds ??
-        []) {
-        try {
-          const res = await ragFetch(
-            `/api/v1/documents/${encodeURIComponent(storageId)}`,
-            { method: 'DELETE', timeoutMs: 10_000, orgSlug: ragOrgSlug },
-          );
-          if (res.ok || res.status === 404) {
-            ragDocumentsRemoved += 1;
-          } else {
+      if (ragOrgSlug !== null) {
+        for (const storageId of perCategory.fileMetadata.ragPurgeStorageIds ??
+          []) {
+          try {
+            const res = await ragFetch(
+              `/api/v1/documents/${encodeURIComponent(storageId)}`,
+              { method: 'DELETE', timeoutMs: 10_000, orgSlug: ragOrgSlug },
+            );
+            if (res.ok || res.status === 404) {
+              ragDocumentsRemoved += 1;
+            } else {
+              console.warn(
+                `[gdprErasure] RAG DELETE returned ${res.status} for chat-upload storageId=${storageId}`,
+              );
+            }
+          } catch (error) {
             console.warn(
-              `[gdprErasure] RAG DELETE returned ${res.status} for chat-upload storageId=${storageId}`,
+              `[gdprErasure] RAG DELETE failed for chat-upload storageId=${storageId}:`,
+              error,
             );
           }
-        } catch (error) {
-          console.warn(
-            `[gdprErasure] RAG DELETE failed for chat-upload storageId=${storageId}:`,
-            error,
-          );
         }
       }
       // videoLinkJobs are erased here, AFTER fileMetadata, so the
@@ -1896,24 +1923,27 @@ export const processErasureRequest = internalAction({
           userId: state.targetUserId,
         },
       );
-      for (const storageId of perCategory.videoLinks.ragPurgeStorageIds ?? []) {
-        try {
-          const res = await ragFetch(
-            `/api/v1/documents/${encodeURIComponent(storageId)}`,
-            { method: 'DELETE', timeoutMs: 10_000, orgSlug: ragOrgSlug },
-          );
-          if (res.ok || res.status === 404) {
-            ragDocumentsRemoved += 1;
-          } else {
+      if (ragOrgSlug !== null) {
+        for (const storageId of perCategory.videoLinks.ragPurgeStorageIds ??
+          []) {
+          try {
+            const res = await ragFetch(
+              `/api/v1/documents/${encodeURIComponent(storageId)}`,
+              { method: 'DELETE', timeoutMs: 10_000, orgSlug: ragOrgSlug },
+            );
+            if (res.ok || res.status === 404) {
+              ragDocumentsRemoved += 1;
+            } else {
+              console.warn(
+                `[gdprErasure] RAG DELETE returned ${res.status} for video-link storageId=${storageId}`,
+              );
+            }
+          } catch (error) {
             console.warn(
-              `[gdprErasure] RAG DELETE returned ${res.status} for video-link storageId=${storageId}`,
+              `[gdprErasure] RAG DELETE failed for video-link storageId=${storageId}:`,
+              error instanceof Error ? error.message : error,
             );
           }
-        } catch (error) {
-          console.warn(
-            `[gdprErasure] RAG DELETE failed for video-link storageId=${storageId}:`,
-            error instanceof Error ? error.message : error,
-          );
         }
       }
       perCategory.usageLedger = await ctx.runMutation(
