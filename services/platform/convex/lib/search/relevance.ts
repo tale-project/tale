@@ -19,24 +19,49 @@ function fieldText(value: unknown): string | undefined {
   return undefined;
 }
 
-/** True when the row matches `lowerTerm` on any configured field. */
-export function rowMatches<T extends TableNames>(
-  row: Doc<T>,
+/** Split a lowercased query into whitespace-delimited tokens. Multi-token
+ *  queries match with AND semantics — every token must hit some field — so
+ *  "john acme" finds "John" at "Acme Corp" rather than a literal "john acme". */
+function tokenize(lowerTerm: string): string[] {
+  return lowerTerm.split(/\s+/).filter(Boolean);
+}
+
+/** True when any punctuation/whitespace-delimited word in `text` starts with
+ *  `token`. This is the signal that ranks "ann" → "Anna Lee" (word start) above
+ *  "Brianna" (mid-word substring). */
+function wordStartsWith(text: string, token: string): boolean {
+  return text
+    .split(/[^\p{L}\p{N}]+/u)
+    .some((word) => word.length > 0 && word.startsWith(token));
+}
+
+/** Per-field strength of one token, strongest first: 4 exact field, 3 field-
+ *  prefix, 2 word-prefix, 1 substring, 0 none. */
+function fieldTier(text: string | undefined, token: string): number {
+  if (!text) return 0;
+  if (text === token) return 4;
+  if (text.startsWith(token)) return 3;
+  if (wordStartsWith(text, token)) return 2;
+  if (text.includes(token)) return 1;
+  return 0;
+}
+
+/** True when one token hits any configured field — a text/array substring, or
+ *  an id field exactly (raw, case-sensitive) or by substring. */
+function tokenHitsRow<T extends TableNames>(
+  record: Record<string, unknown>,
   strategy: SearchStrategy<T>,
-  lowerTerm: string,
+  token: string,
   rawTerm: string,
 ): boolean {
-  if (!lowerTerm) return true;
-  const record = row as Record<string, unknown>;
-
   for (const field of strategy.textFields) {
-    if (fieldText(record[field])?.includes(lowerTerm)) return true;
+    if (fieldText(record[field])?.includes(token)) return true;
   }
   for (const field of strategy.arrayTextFields ?? []) {
     const arr = record[field];
     if (
       Array.isArray(arr) &&
-      arr.some((el) => fieldText(el)?.includes(lowerTerm))
+      arr.some((el) => fieldText(el)?.includes(token))
     ) {
       return true;
     }
@@ -45,29 +70,76 @@ export function rowMatches<T extends TableNames>(
     const value = record[field];
     if (typeof value !== 'string' && typeof value !== 'number') continue;
     const text = value.toString();
-    if (text === rawTerm || text.toLowerCase().includes(lowerTerm)) return true;
+    if (text === rawTerm || text.toLowerCase().includes(token)) return true;
   }
   return false;
 }
 
-/** Rank a single row: exact field match (2) > prefix (1) > substring (0),
- *  taking the strongest signal across `textFields`. Matches via `idFields` or
- *  `arrayTextFields` aren't ranked here — they land in the substring tier (0)
- *  by design, so a name prefix outranks an incidental id/array hit. */
+/**
+ * True when the row matches the query. Multi-token queries use AND semantics:
+ * every whitespace-delimited token must hit some configured field, so a row is
+ * reachable by any combination of its searchable fields ("john acme" → first
+ * name + company) rather than only by a literal substring of the whole query.
+ */
+export function rowMatches<T extends TableNames>(
+  row: Doc<T>,
+  strategy: SearchStrategy<T>,
+  lowerTerm: string,
+  rawTerm: string,
+): boolean {
+  const tokens = tokenize(lowerTerm);
+  if (tokens.length === 0) return true;
+  const record = row as Record<string, unknown>;
+  return tokens.every((token) =>
+    tokenHitsRow(record, strategy, token, rawTerm),
+  );
+}
+
+/** A whole-query exact id match is the strongest possible signal — it dominates
+ *  any combination of text-field matches. */
+const EXACT_ID_SCORE = 10_000;
+
+/**
+ * Relevance score for a row. Sums each token's best signal across `textFields`,
+ * where a stronger match tier (exact > field-prefix > word-prefix > substring)
+ * dominates and, on a tie, an earlier (higher-priority) field wins — so a hit on
+ * `name` outranks the same hit on `email`. An exact id match short-circuits to
+ * the top. Pure and page-local.
+ */
 function rowScore<T extends TableNames>(
   row: Doc<T>,
   strategy: SearchStrategy<T>,
   lowerTerm: string,
 ): number {
+  const tokens = tokenize(lowerTerm);
+  if (tokens.length === 0) return 0;
   const record = row as Record<string, unknown>;
-  let best = 0;
-  for (const field of strategy.textFields) {
-    const text = fieldText(record[field]);
-    if (!text) continue;
-    if (text === lowerTerm) return 2;
-    if (text.startsWith(lowerTerm)) best = Math.max(best, 1);
+
+  for (const field of strategy.idFields ?? []) {
+    const value = record[field];
+    if (
+      (typeof value === 'string' || typeof value === 'number') &&
+      value.toString().toLowerCase() === lowerTerm
+    ) {
+      return EXACT_ID_SCORE;
+    }
   }
-  return best;
+
+  const fieldCount = strategy.textFields.length;
+  let total = 0;
+  for (const token of tokens) {
+    let bestForToken = 0;
+    strategy.textFields.forEach((field, index) => {
+      const tier = fieldTier(fieldText(record[field]), token);
+      if (tier === 0) return;
+      // Tier dominates; the field-priority weight (earlier field = higher) only
+      // breaks ties between equal tiers.
+      const weight = fieldCount - index;
+      bestForToken = Math.max(bestForToken, tier * (fieldCount + 1) + weight);
+    });
+    total += bestForToken;
+  }
+  return total;
 }
 
 /**

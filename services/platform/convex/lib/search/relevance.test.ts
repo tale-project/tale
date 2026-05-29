@@ -57,6 +57,14 @@ describe('rowMatches', () => {
     expect(match(customer({ name: 'x', externalId: 4242 }), '99')).toBe(false);
   });
 
+  it('requires every token to match across fields (multi-token AND)', () => {
+    const row = customer({ name: 'John Doe', email: 'john@acme.io' });
+    // 'john' hits the name, 'acme' hits the email — both present → match.
+    expect(match(row, 'john acme')).toBe(true);
+    // 'paris' hits no configured field → the whole query fails.
+    expect(match(row, 'john paris')).toBe(false);
+  });
+
   it('matches everything for an empty term', () => {
     expect(match(customer({ name: 'anything' }), '')).toBe(true);
   });
@@ -90,5 +98,50 @@ describe('scoreAndSort', () => {
     ];
     const ordered = scoreAndSort(rows, customersSearchStrategy, 'config');
     expect(ordered.map((r) => r._id)).toEqual(['new', 'old']);
+  });
+
+  it('ranks a word-prefix match above a mid-word substring', () => {
+    const rows = [
+      customer({ _id: 'mid', name: 'Brianna Smith', _creationTime: 9 }),
+      customer({ _id: 'word', name: 'Anna Lee', _creationTime: 1 }),
+    ];
+    // "anna" starts a word; "brianna" only contains "ann" mid-word — relevance
+    // wins over recency even though the mid-word row is newer.
+    const ordered = scoreAndSort(rows, customersSearchStrategy, 'ann');
+    expect(ordered.map((r) => r._id)).toEqual(['word', 'mid']);
+  });
+
+  it('ranks a name hit above an equal-strength email hit', () => {
+    const rows = [
+      customer({
+        _id: 'email',
+        name: 'Zeta',
+        email: 'z.acme@x.io',
+        _creationTime: 9,
+      }),
+      customer({
+        _id: 'name',
+        name: 'My Acme',
+        email: 'z@x.io',
+        _creationTime: 1,
+      }),
+    ];
+    // Both match "acme" as a word-prefix; the higher-priority `name` field wins.
+    const ordered = scoreAndSort(rows, customersSearchStrategy, 'acme');
+    expect(ordered.map((r) => r._id)).toEqual(['name', 'email']);
+  });
+
+  it('ranks an exact id match above a strong name match', () => {
+    const rows = [
+      customer({ _id: 'name', name: 'CUST-7 Industries', _creationTime: 9 }),
+      customer({
+        _id: 'id',
+        name: 'Other',
+        externalId: 'CUST-7',
+        _creationTime: 1,
+      }),
+    ];
+    const ordered = scoreAndSort(rows, customersSearchStrategy, 'cust-7');
+    expect(ordered.map((r) => r._id)).toEqual(['id', 'name']);
   });
 });
