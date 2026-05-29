@@ -637,7 +637,7 @@ export const uploadDocumentToRag = internalAction({
           fileName: document.title,
           contentType: document.mimeType,
         },
-        {},
+        { organizationId: document.organizationId },
       );
       const resultRec = isRecord(rawResult) ? rawResult : undefined;
       const success = resultRec
@@ -776,7 +776,7 @@ export const reindexDocumentInRag = internalAction({
           fileName: document.title,
           contentType: document.mimeType,
         },
-        {},
+        { organizationId: document.organizationId },
       );
       const resultRec = isRecord(rawResult) ? rawResult : undefined;
       const success = resultRec
