@@ -625,6 +625,20 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
                 : Promise.resolve(undefined),
             ]);
 
+            // Cross-tenant gate: `getByStorageId` is a global `by_storageId`
+            // index lookup with no org filter, so a workflow caller can
+            // supply a foreign-org `_storage` id and read back its
+            // `fileName` unless we gate on `fileMetadata.organizationId`.
+            // The sibling branches `extract_docx_structured` /
+            // `apply_docx_structured` already enforce this via
+            // `verifyStorageIdsBelongToOrg` — mirror that gate here.
+            const ownedMetadata =
+              fileMetadata &&
+              organizationId &&
+              fileMetadata.organizationId === organizationId
+                ? fileMetadata
+                : null;
+
             // Drop the docs-row if the caller doesn't have access to its
             // team. fileMetadata + base name still surface so workflow
             // steps that only need fileName don't break — but team-
@@ -654,7 +668,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
 
             return {
               fileId,
-              fileName: fileMetadata?.fileName ?? 'Unknown',
+              fileName: ownedMetadata?.fileName ?? 'Unknown',
               sourceCreatedAt: visibleDocument?.sourceCreatedAt,
               sourceModifiedAt: visibleDocument?.sourceModifiedAt,
               lastModified,

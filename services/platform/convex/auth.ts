@@ -597,13 +597,27 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
               });
             }
 
-            // Refuse reserved slugs ("default") that the platform pins
-            // global resources to (branding, retention defaults).
-            // Without this, an open-signup user could claim "default"
-            // before the platform seed runs and inherit branding-admin.
-            // Exception: the platform's own first-run seed creates
-            // `default` when no orgs exist yet — let that one through.
+            // Refuse reserved slugs ("default", "agents", "branding",
+            // "providers", "retention", "skills", "workflows",
+            // "integrations") — the platform pins on-disk and DB
+            // resources to these names. Without this, an open-signup
+            // user could claim e.g. "branding" before the platform's
+            // first-run seed runs and lock the operator out.
+            //
+            // Narrow first-run bypass: ONLY `default` is auto-claimed
+            // by the platform on first signup; the other reserved
+            // slugs have no legitimate "user wants this on a fresh
+            // deploy" path. A wider bypass (any reserved slug when
+            // anyOrg.length === 0) would let a racing first user claim
+            // e.g. `providers` before the operator creates `default`,
+            // wedging the deployment in `findOrgDirs`' legacy-artifact
+            // trap.
             if (isReservedOrgSlug(normalizedSlug)) {
+              if (normalizedSlug !== 'default') {
+                throw new APIError('BAD_REQUEST', {
+                  message: `Organization slug "${normalizedSlug}" is reserved by the platform.`,
+                });
+              }
               const anyOrg = await ctx.runQuery(
                 components.betterAuth.adapter.findMany,
                 {
