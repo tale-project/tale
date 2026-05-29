@@ -13,6 +13,7 @@ import { listAllContent } from './walk-content';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = resolve(SCRIPT_DIR, '..', 'public');
+const CONTENT_DIR = resolve(SCRIPT_DIR, '..', 'app', 'content');
 
 async function main() {
   const records = await listAllContent();
@@ -30,6 +31,32 @@ async function main() {
     await writeFile(out, JSON.stringify(index));
     process.stdout.write(`built search index ${locale}: ${docs.length} docs\n`);
   }
+
+  // Frontmatter-only manifest: every page's title/icon/etc. keyed by
+  // `locale:slug`. `lib/content/loader.ts` imports this synchronously so the
+  // sidebar/nav/breadcrumbs resolve titles without loading a single page body
+  // — bodies are fetched lazily, per page, in the route loader.
+  const manifest: Record<
+    string,
+    {
+      slug: string;
+      locale: string;
+      frontmatter: Record<string, string | boolean>;
+    }
+  > = {};
+  for (const record of records) {
+    manifest[`${record.locale}:${record.slug}`] = {
+      slug: record.slug,
+      locale: record.locale,
+      frontmatter: record.frontmatter,
+    };
+  }
+  await mkdir(CONTENT_DIR, { recursive: true });
+  await writeFile(
+    resolve(CONTENT_DIR, 'frontmatter.json'),
+    JSON.stringify(manifest, null, 2) + '\n',
+  );
+  process.stdout.write(`built frontmatter manifest: ${records.length} pages\n`);
 }
 
 function toSearchDoc(record: {

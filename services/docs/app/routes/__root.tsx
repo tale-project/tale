@@ -6,20 +6,29 @@ import {
   Outlet,
   useRouterState,
 } from '@tanstack/react-router';
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 import { DocsFooter } from '@/app/components/docs/docs-footer';
 import { DocsHeader } from '@/app/components/docs/docs-header';
 import { DocsSidebar } from '@/app/components/docs/docs-sidebar';
 import { ScrollToTop } from '@/app/components/docs/scroll-to-top';
 import { SwUpdateBanner } from '@/app/components/docs/sw-update-banner';
-import { SearchDialog } from '@/app/features/search/dialog';
 import { useT } from '@/lib/i18n/client';
 import {
   detectInitialLocale,
   resolveRegionalLocale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
+
+// Lazy-loaded: the search palette (framer-motion + the @tale/ui search module +
+// MiniSearch) is only needed once the user opens search (⌘K), so keep it off
+// the initial route bundle. Mounted on first open and kept mounted thereafter
+// so its open/close animation still runs.
+const SearchDialog = lazy(() =>
+  import('@/app/features/search/dialog').then((m) => ({
+    default: m.SearchDialog,
+  })),
+);
 
 function isSpecialEndpoint(pathname: string): boolean {
   return (
@@ -55,6 +64,12 @@ const SECTION_TO_NAV_KEY: Record<string, string> = {
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [searchOpen, setSearchOpen] = useState(false);
+  // Mount the lazy SearchDialog on first open and keep it mounted so its
+  // close animation can still play.
+  const [searchMounted, setSearchMounted] = useState(false);
+  useEffect(() => {
+    if (searchOpen) setSearchMounted(true);
+  }, [searchOpen]);
   const locale = localeFromPathname(pathname);
   const { resolvedTheme } = useTheme();
   const { t: tNav } = useT('nav');
@@ -119,12 +134,16 @@ function RootLayout() {
       <DocsFooter />
       <ScrollToTop />
       <SwUpdateBanner />
-      <SearchDialog
-        locale={locale}
-        open={searchOpen}
-        onOpenChange={setSearchOpen}
-        sectionLabel={sectionLabel}
-      />
+      {searchMounted ? (
+        <Suspense fallback={null}>
+          <SearchDialog
+            locale={locale}
+            open={searchOpen}
+            onOpenChange={setSearchOpen}
+            sectionLabel={sectionLabel}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }
