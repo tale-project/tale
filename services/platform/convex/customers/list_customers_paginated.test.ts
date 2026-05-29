@@ -160,3 +160,116 @@ describe('listCustomersPaginated', () => {
     expect(builder.paginate).toHaveBeenCalledWith(opts);
   });
 });
+
+describe('listCustomersPaginated — backend search', () => {
+  const opts = DEFAULT_PAGINATION_OPTS;
+
+  it('filters the page to term matches over name/email and orders by relevance', async () => {
+    const docs = [
+      { _id: 'sub', name: 'My Acme config', _creationTime: 3 },
+      { _id: 'exact', name: 'Acme', _creationTime: 1 },
+      { _id: 'email', name: 'Initech', email: 'ops@acme.io', _creationTime: 2 },
+      { _id: 'miss', name: 'Globex', _creationTime: 4 },
+    ];
+    const { ctx } = createMockQueryBuilder(docs);
+
+    const result = await listCustomersPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: opts,
+      organizationId: 'org_1',
+      search: 'acme',
+    });
+
+    // 'Globex' is dropped; exact name match ranks first, then the two
+    // substring hits break the tie by creation time (newest first).
+    expect(result.page.map((r) => r._id)).toEqual(['exact', 'sub', 'email']);
+  });
+
+  it('excludes soft-deleted rows (activeOnly strategy)', async () => {
+    const docs = [
+      { _id: 'live', name: 'Acme', _creationTime: 2 },
+      {
+        _id: 'trashed',
+        name: 'Acme Holdings',
+        _creationTime: 3,
+        lifecycleStatus: 'trashed',
+      },
+    ];
+    const { ctx } = createMockQueryBuilder(docs);
+
+    const result = await listCustomersPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: opts,
+      organizationId: 'org_1',
+      search: 'acme',
+    });
+
+    expect(result.page.map((r) => r._id)).toEqual(['live']);
+  });
+
+  it('applies status/source/locale as a post-match access filter', async () => {
+    const docs = [
+      { _id: 'active', name: 'Acme', status: 'active', _creationTime: 2 },
+      { _id: 'churned', name: 'Acme Inc', status: 'churned', _creationTime: 3 },
+    ];
+    const { ctx } = createMockQueryBuilder(docs);
+
+    const result = await listCustomersPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: opts,
+      organizationId: 'org_1',
+      search: 'acme',
+      status: 'active',
+    });
+
+    expect(result.page.map((r) => r._id)).toEqual(['active']);
+  });
+
+  it('matches a numeric externalId exactly', async () => {
+    const docs = [
+      { _id: 'num', name: 'X', externalId: 4242, _creationTime: 1 },
+      { _id: 'other', name: 'Y', externalId: 99, _creationTime: 2 },
+    ];
+    const { ctx } = createMockQueryBuilder(docs);
+
+    const result = await listCustomersPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: opts,
+      organizationId: 'org_1',
+      search: '4242',
+    });
+
+    expect(result.page.map((r) => r._id)).toEqual(['num']);
+  });
+
+  it('returns an empty page but preserves the pagination envelope when nothing matches', async () => {
+    const docs = [{ _id: 'a', name: 'Globex', _creationTime: 1 }];
+    const { ctx, paginateResult } = createMockQueryBuilder(docs);
+
+    const result = await listCustomersPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: opts,
+      organizationId: 'org_1',
+      search: 'zzz',
+    });
+
+    // Contract: the page is filtered to empty while isDone/continueCursor pass
+    // through untouched, so the client can auto-advance to the next slice.
+    expect(result.page).toEqual([]);
+    expect(result.isDone).toBe(paginateResult.isDone);
+    expect(result.continueCursor).toBe(paginateResult.continueCursor);
+  });
+
+  it('scans the org-scoped index (facets become post-filters, not index dispatch)', async () => {
+    const { ctx, builder } = createMockQueryBuilder([
+      { _id: 'a', name: 'Acme', status: 'active', _creationTime: 1 },
+    ]);
+
+    await listCustomersPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: opts,
+      organizationId: 'org_1',
+      search: 'acme',
+      status: 'active',
+    });
+
+    expect(builder.withIndex).toHaveBeenCalledWith(
+      'by_organizationId',
+      expect.any(Function),
+    );
+  });
+});
