@@ -1,6 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
 
-export interface LockInfo {
+interface LockInfo {
   scope: 'exclusive' | 'shared';
   type: 'write';
   ownerXml: string; // raw inner XML — clients pass-through this for display
@@ -11,7 +11,7 @@ export interface LockInfo {
 // from anchoring a multi-KB blob in our `webdavLocks` row indefinitely.
 const MAX_OWNER_XML_LEN = 4096;
 
-export type OwnerExtractError =
+type OwnerExtractError =
   | { kind: 'doctype' }
   | { kind: 'entity' }
   | { kind: 'cdata' };

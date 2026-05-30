@@ -2,7 +2,7 @@ import { ConvexHttpClient } from 'convex/browser';
 
 import type { WebDAVCtx } from './types';
 
-export interface MakeWebdavCtxOptions {
+interface MakeWebdavCtxOptions {
   // CONVEX_URL — the backend API origin (port :3210 self-hosted). The
   // ConvexHttpClient talks to this directly: its query/mutation/action calls
   // POST to /api/*, which is served ONLY by the backend, NOT the :3211

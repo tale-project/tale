@@ -13,15 +13,15 @@ import type { WebDAVCtx, WebDAVRequest } from '../types';
 // Same shape `handler.ts:getHmacSecret()` expects: 32+ chars of hex.
 // Fixed value (not random) so the same precomputed HMAC works across
 // every test run.
-export const TEST_HMAC_KEY =
+const TEST_HMAC_KEY =
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
-export const TEST_ORG_SLUG = 'myorg';
+const TEST_ORG_SLUG = 'myorg';
 export const TEST_ORG_ID = 'org_test_123';
 export const TEST_USER_ID = 'user_test_123';
-export const TEST_APP_PASSWORD_ID = 'app_pass_test_123';
-export const TEST_USERNAME = 'webdav-user';
-export const TEST_PASSWORD = 'app-pass-1234-5678-90ab';
+const TEST_APP_PASSWORD_ID = 'app_pass_test_123';
+const TEST_USERNAME = 'webdav-user';
+const TEST_PASSWORD = 'app-pass-1234-5678-90ab';
 
 export function setupHmacEnv(): void {
   process.env.WEBDAV_APP_PASSWORD_HMAC_KEY = TEST_HMAC_KEY;
@@ -30,9 +30,9 @@ export function setupHmacEnv(): void {
 // Per-test stub registry. Each entry maps a Convex function name
 // (e.g. "webdav/tree_queries:resolvePath") to a handler that takes the
 // args object and returns the desired result (or throws).
-export type StubHandler = (args: unknown) => unknown;
+type StubHandler = (args: unknown) => unknown;
 
-export interface StubOverrides {
+interface StubOverrides {
   queries?: Record<string, StubHandler>;
   mutations?: Record<string, StubHandler>;
 }
@@ -143,7 +143,7 @@ export function makeRequest(opts: MakeRequestOptions): WebDAVRequest {
   };
 }
 
-export function basicAuth(user: string, pass: string): string {
+function basicAuth(user: string, pass: string): string {
   const utf8 = new TextEncoder().encode(`${user}:${pass}`);
   // btoa requires a binary string; round-trip through char codes.
   let binary = '';

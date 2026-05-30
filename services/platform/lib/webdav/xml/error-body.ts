@@ -15,7 +15,7 @@
 
 import { escapeXml } from './escape';
 
-export interface DavErrorOptions {
+interface DavErrorOptions {
   precondition: string;
   hrefs?: string[];
 }

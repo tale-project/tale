@@ -3,7 +3,7 @@
 
 import { escapeXml, safeOwnerEmit } from './escape';
 
-export interface LockResponseInput {
+interface LockResponseInput {
   scope: 'exclusive' | 'shared';
   ownerXml: string;
   depth: '0' | 'infinity';

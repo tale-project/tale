@@ -10,7 +10,7 @@ import type {
 import { buildDavError, DAV_ERROR_HEADERS } from './xml/error-body';
 import { type IfHeaderClause, parseIfHeader } from './xml/lock-request';
 
-export type LockCheckResult =
+type LockCheckResult =
   | { ok: true }
   | {
       ok: false;
@@ -32,7 +32,7 @@ export type LockCheckResult =
 // §9.10.4/§7.4: a write lock on a collection (even Depth 0) governs its
 // membership. Pure content overwrite of an existing member changes no
 // membership, so callers leave this false there to avoid over-enforcing.
-export interface LockScanOpts {
+interface LockScanOpts {
   directParentDepth0?: boolean;
   // Current ETag of the Request-URI resource. Lets the If: header's `[etag]`
   // conditions be evaluated (RFC 4918 §10.4.4). Pass it for conditional writes
@@ -51,22 +51,6 @@ export async function checkResourceLock(
 ): Promise<LockCheckResult> {
   const candidates = enumerateLockPaths(parsed, opts);
   return await runLockCheck(req, ctx, auth, candidates, opts.resourceEtag);
-}
-
-// Used by MKCOL, MOVE source, MOVE dest, COPY dest. Skips the leaf path
-// (creating-/non-existing-resource case) and only inspects ancestors —
-// where a depth=infinity lock would propagate to a child write. The
-// leaf's own lock doesn't apply: we're locking something that doesn't
-// exist yet, or the operation explicitly targets the parent.
-export async function checkResourceLockOnParents(
-  req: WebDAVRequest,
-  ctx: WebDAVCtx,
-  auth: AuthContext,
-  parsed: Pick<ParsedPath, 'namespace' | 'segments'>,
-  opts: LockScanOpts = {},
-): Promise<LockCheckResult> {
-  const parents = enumerateAncestorPaths(parsed, opts);
-  return await runLockCheck(req, ctx, auth, parents, opts.resourceEtag);
 }
 
 // RFC 4918 §9.6.1 / §9.9: DELETE/MOVE of a COLLECTION must fail with 423
@@ -258,11 +242,11 @@ function enumerateLockPaths(
   return out;
 }
 
-// Ancestor walk only — used by checkResourceLockOnParents. Walks from
-// the most-specific parent to /<namespace> root. By default every ancestor
-// is honored only at depth=infinity; with `directParentDepth0` the immediate
-// parent is also honored at depth 0 (membership-changing ops — see
-// LockScanOpts).
+// Ancestor walk only — used by enumerateLockPaths to append ancestors after
+// the leaf. Walks from the most-specific parent to /<namespace> root. By
+// default every ancestor is honored only at depth=infinity; with
+// `directParentDepth0` the immediate parent is also honored at depth 0
+// (membership-changing ops — see LockScanOpts).
 function enumerateAncestorPaths(
   parsed: Pick<ParsedPath, 'namespace' | 'segments'>,
   opts: LockScanOpts = {},

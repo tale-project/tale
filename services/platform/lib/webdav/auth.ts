@@ -1,6 +1,11 @@
 import { anyApi } from 'convex/server';
 
-import type { AuthContext, WebDAVCtx, WebDAVRequest } from './types';
+import {
+  WEBDAV_MAX_AUTH_HEADER,
+  type AuthContext,
+  type WebDAVCtx,
+  type WebDAVRequest,
+} from './types';
 
 // MIRROR OF convex/webdav/helpers.ts — keep these in sync. The Convex
 // isolate cannot import from lib/, so the `hexToBytes` / `encodeText` /
@@ -16,7 +21,7 @@ import type { AuthContext, WebDAVCtx, WebDAVRequest } from './types';
 // surfaced as `status: 403, reason: 'rate limited'` to preserve the
 // existing switch shape; widening to 429 requires a handler.ts change
 // (out of scope for this commit — see plan section D.3 owner).
-export type AuthResult =
+type AuthResult =
   | { ok: true; auth: AuthContext }
   | { ok: false; status: 401 | 403; reason: string };
 
@@ -25,17 +30,14 @@ interface ParseBasicResult {
   password: string;
 }
 
-// RFC 7230 doesn't fix a max header size — we choose 4 KB as a generous
-// upper bound. A correctly-formed Basic header with UTF-8 user/pass is
-// well under 1 KB; anything larger is malformed or an attempt to push
-// expensive base64 decoding work into the auth fast-path. Treat as
-// "missing" (401) — don't 400, since browsers would surface that as a
-// hard failure rather than retrying with credentials.
-const MAX_AUTHORIZATION_HEADER_LENGTH = 4096;
-
 function parseBasicHeader(header: string | null): ParseBasicResult | null {
   if (!header) return null;
-  if (header.length > MAX_AUTHORIZATION_HEADER_LENGTH) return null;
+  // A correctly-formed Basic header with UTF-8 user/pass is well under 1 KB;
+  // anything past WEBDAV_MAX_AUTH_HEADER is malformed or an attempt to push
+  // expensive base64 decoding work into the auth fast-path. Treat as
+  // "missing" (401) — don't 400, since browsers would surface that as a
+  // hard failure rather than retrying with credentials.
+  if (header.length > WEBDAV_MAX_AUTH_HEADER) return null;
   if (!header.toLowerCase().startsWith('basic ')) return null;
   const b64 = header.slice(6).trim();
   // atob is ASCII — we have to manually map the resulting binary string

@@ -23,8 +23,6 @@ export default {
       ],
       project: ['**/*.{ts,tsx}'],
       ignoreDependencies: [
-        // Inlined by vitest as a string in `server.deps.inline` (vitest.config.ts) — not a direct import.
-        'convex-test',
         // Listed in `optimizeDeps.include` in vite.config.ts as a string literal so vite prebundles it;
         // consumed transitively via @tale/ui components, never imported by name from platform code.
         '@radix-ui/react-slot',
