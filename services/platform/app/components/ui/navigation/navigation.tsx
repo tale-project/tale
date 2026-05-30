@@ -33,9 +33,10 @@ function NavigationItem({ item }: { item: NavItem }) {
   const ability = useAbility();
   const { accentColor } = useBrandingContext();
 
-  const isActive =
-    isPathMatch(item.href, pathname) ||
-    item.subItems?.some((subItem) => isPathMatch(subItem.href, pathname));
+  const isActive = item.isActivePath
+    ? item.isActivePath(pathname)
+    : isPathMatch(item.href, pathname) ||
+      item.subItems?.some((subItem) => isPathMatch(subItem.href, pathname));
 
   if (item.can && !ability.can(item.can[0], item.can[1])) {
     return null;
@@ -124,7 +125,7 @@ export interface NavigationProps {
 
 export function Navigation({ organizationId }: NavigationProps) {
   const { t: tCommon } = useT('common');
-  const navigationItems = useNavigationItems(organizationId);
+  const { primary, pinned } = useNavigationItems(organizationId);
 
   return (
     <NavigationMenu
@@ -142,13 +143,18 @@ export function Navigation({ organizationId }: NavigationProps) {
       </div>
       <div className="mx-1 min-h-0 flex-1 overflow-y-auto py-4">
         <NavigationMenuList className="block space-y-2 space-x-0">
-          {navigationItems.map((item) => (
+          {primary.map((item) => (
             <NavigationItem key={item.href} item={item} />
           ))}
         </NavigationMenuList>
       </div>
       <div className="flex flex-shrink-0 flex-col items-center gap-2 py-3">
         <NotificationBell organizationId={organizationId} />
+        <NavigationMenuList className="block space-y-2 space-x-0">
+          {pinned.map((item) => (
+            <NavigationItem key={item.href} item={item} />
+          ))}
+        </NavigationMenuList>
         <UserButton />
       </div>
     </NavigationMenu>

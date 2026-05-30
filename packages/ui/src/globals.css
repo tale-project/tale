@@ -262,8 +262,20 @@
     --tw-shadow-color: rgb(255 255 255 / 0.06);
   }
 
+  /* `html`/`body` use `100vh` (the LARGE viewport) so the page can draw into
+     the iOS home-indicator band. By default iOS standalone reports
+     `innerHeight` as the SMALL viewport (excluding ~34px of home-indicator
+     zone), but the window iOS actually renders is the larger size. With
+     `height:100%` on body, the page would stop ~34px short of the screen
+     bottom, leaving an empty band the user perceives as "extra space below
+     the bottom nav." Pinning to `100vh` lets the shell fill the full window;
+     components that need home-indicator clearance still opt in via
+     `pb-(--safe-bottom)`. `#root` keeps `100%` so it chains from body. */
   html,
-  body,
+  body {
+    height: 100vh;
+  }
+
   #root {
     height: 100%;
   }

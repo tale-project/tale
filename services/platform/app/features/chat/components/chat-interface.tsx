@@ -1126,73 +1126,75 @@ export function ChatInterface({
           </div>
         ) : (
           <FileUpload.Root>
-            {isImageGenAgent && threadImages.length > 0 && (
-              <div className="mx-auto w-full max-w-(--chat-max-width)">
-                <EditingBanner
-                  threadImages={threadImages}
-                  currentModelSupportsEdit={currentModelSupportsEdit}
-                  currentModelLabel={currentModelLabel}
-                />
-              </div>
-            )}
-            <ChatInput
-              className="mx-auto w-full max-w-(--chat-max-width)"
-              placeholder={
-                isImageGenAgent
-                  ? activeEditingImage && currentModelSupportsEdit
-                    ? t('imageEdit.placeholder')
-                    : t('imageEdit.placeholderCreate')
-                  : t('placeholder')
-              }
-              value={inputValue}
-              onChange={setInputValue}
-              onSendMessage={handleSendMessage}
-              onStopGenerating={isGenerating ? stopGenerating : undefined}
-              isLoading={isLoading}
-              disabled={hasNoAgents || hasActiveApproval}
-              disabledReason={
-                hasNoAgents
-                  ? 'no-agents'
-                  : hasActiveApproval
-                    ? 'pending-approval'
+            <div className="px-3">
+              {isImageGenAgent && threadImages.length > 0 && (
+                <div className="mx-auto w-full max-w-(--chat-max-width)">
+                  <EditingBanner
+                    threadImages={threadImages}
+                    currentModelSupportsEdit={currentModelSupportsEdit}
+                    currentModelLabel={currentModelLabel}
+                  />
+                </div>
+              )}
+              <ChatInput
+                className="mx-auto w-full max-w-(--chat-max-width)"
+                placeholder={
+                  isImageGenAgent
+                    ? activeEditingImage && currentModelSupportsEdit
+                      ? t('imageEdit.placeholder')
+                      : t('imageEdit.placeholderCreate')
+                    : t('placeholder')
+                }
+                value={inputValue}
+                onChange={setInputValue}
+                onSendMessage={handleSendMessage}
+                onStopGenerating={isGenerating ? stopGenerating : undefined}
+                isLoading={isLoading}
+                disabled={hasNoAgents || hasActiveApproval}
+                disabledReason={
+                  hasNoAgents
+                    ? 'no-agents'
+                    : hasActiveApproval
+                      ? 'pending-approval'
+                      : undefined
+                }
+                organizationId={organizationId}
+                attachments={attachments}
+                uploadingFiles={uploadingFiles}
+                uploadFiles={uploadFiles}
+                removeAttachment={removeAttachment}
+                clearAttachments={clearAttachments}
+                fileUploadDisabled={fileUploadDisabled}
+                isIndexing={isIndexing}
+                indexingStatuses={indexingStatuses}
+                isTranscribing={isTranscribing || isTranscriptionQueryLoading}
+                transcriptionStatuses={transcriptionStatuses}
+                hasFailedAudioJobs={hasFailedAudioJobs}
+                retryAudioTranscription={retryAttachmentTranscription}
+                videoLinkJobs={videoLinkJobs}
+                isProcessingVideo={isProcessingVideo}
+                hasFailedVideoJobs={hasFailedVideoJobs}
+                ingestVideoUrlsFromText={ingestVideoUrlsFromText}
+                cancelVideoJob={cancelVideoJob}
+                retryVideoJob={retryVideoJob}
+                sendBlocked={
+                  isImageGenAgent &&
+                  !!activeEditingImage &&
+                  !currentModelSupportsEdit
+                }
+                sendBlockedReason={
+                  isImageGenAgent &&
+                  !!activeEditingImage &&
+                  !currentModelSupportsEdit
+                    ? t('imageEdit.modelCannotEdit')
                     : undefined
-              }
-              organizationId={organizationId}
-              attachments={attachments}
-              uploadingFiles={uploadingFiles}
-              uploadFiles={uploadFiles}
-              removeAttachment={removeAttachment}
-              clearAttachments={clearAttachments}
-              fileUploadDisabled={fileUploadDisabled}
-              isIndexing={isIndexing}
-              indexingStatuses={indexingStatuses}
-              isTranscribing={isTranscribing || isTranscriptionQueryLoading}
-              transcriptionStatuses={transcriptionStatuses}
-              hasFailedAudioJobs={hasFailedAudioJobs}
-              retryAudioTranscription={retryAttachmentTranscription}
-              videoLinkJobs={videoLinkJobs}
-              isProcessingVideo={isProcessingVideo}
-              hasFailedVideoJobs={hasFailedVideoJobs}
-              ingestVideoUrlsFromText={ingestVideoUrlsFromText}
-              cancelVideoJob={cancelVideoJob}
-              retryVideoJob={retryVideoJob}
-              sendBlocked={
-                isImageGenAgent &&
-                !!activeEditingImage &&
-                !currentModelSupportsEdit
-              }
-              sendBlockedReason={
-                isImageGenAgent &&
-                !!activeEditingImage &&
-                !currentModelSupportsEdit
-                  ? t('imageEdit.modelCannotEdit')
-                  : undefined
-              }
-              onSavePrompt={(content) =>
-                setSavePromptData({ messageId: '', content })
-              }
-              onOpenPromptLibrary={() => setPromptLibraryOpen(true)}
-            />
+                }
+                onSavePrompt={(content) =>
+                  setSavePromptData({ messageId: '', content })
+                }
+                onOpenPromptLibrary={() => setPromptLibraryOpen(true)}
+              />
+            </div>
           </FileUpload.Root>
         )}
       </PanelFooter>

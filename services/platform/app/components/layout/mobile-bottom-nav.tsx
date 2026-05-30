@@ -2,12 +2,26 @@
 
 import { BottomTabBar, type BottomTabBarItem } from '@tale/ui/bottom-tab-bar';
 import { useLocation, useNavigate } from '@tanstack/react-router';
-import { Bot, BrainIcon, Folder, Inbox, MessageCircle } from 'lucide-react';
-import { useMemo } from 'react';
+import {
+  Bot,
+  BrainIcon,
+  Building2,
+  Folder,
+  Inbox,
+  MessageCircle,
+  MoreHorizontal,
+  Settings as SettingsIcon,
+  Workflow,
+  type LucideIcon,
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
+import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useDisplayMode } from '@/app/hooks/use-display-mode';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 export interface MobileBottomNavProps {
   organizationId: string;
@@ -16,11 +30,37 @@ export interface MobileBottomNavProps {
 interface PrimaryTab {
   key: string;
   label: string;
-  icon: BottomTabBarItem['icon'];
+  icon: LucideIcon;
   to: string;
   /** Path prefix used to compute `active`. */
   activePrefix: string;
   /** Optional CASL gate. */
+  gate?: () => boolean;
+  /** Render with featured styling (always-on pill, larger icon). */
+  featured?: boolean;
+}
+
+const PERSONAL_SETTINGS_SEGMENTS = new Set([
+  'personal',
+  'account',
+  'personalization',
+]);
+
+function isPersonalSettingsRoute(pathname: string, organizationId: string) {
+  const base = `/dashboard/${organizationId}/settings/`;
+  if (!pathname.startsWith(base)) return false;
+  const next = pathname.slice(base.length).split('/')[0];
+  return PERSONAL_SETTINGS_SEGMENTS.has(next);
+}
+
+interface OverflowItem {
+  key: string;
+  label: string;
+  icon: LucideIcon;
+  to: string;
+  activePrefix: string;
+  /** Optional override for the default `activePrefix` startsWith check. */
+  isActive?: (pathname: string) => boolean;
   gate?: () => boolean;
 }
 
@@ -29,6 +69,10 @@ interface PrimaryTab {
  * on `md+` viewports — desktop continues to use the sidebar. Lives alongside
  * (not inside) the hamburger drawer so secondary navigation (org switcher,
  * account, sub-routes) stays available without crowding the tab bar.
+ *
+ * Layout: four nav destinations flank a centered, featured Chat tab. A "More"
+ * tab opens a bottom sheet listing the destinations that don't fit (Knowledge,
+ * Automations) — the standard iOS overflow pattern.
  */
 export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const navigate = useNavigate();
@@ -37,16 +81,16 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const { accentColor } = useBrandingContext();
   const { t: tNav } = useT('navigation');
   const { t: tProjects } = useT('projects');
+  const [moreOpen, setMoreOpen] = useState(false);
+  const { isStandalone, isMobileSafari } = useDisplayMode();
+  // Mobile Safari doesn't expose its bottom toolbar via safe-area-inset, so
+  // `pb-(--safe-bottom)` resolves to 0 and the tab bar collides with the
+  // toolbar. Reserve extra clearance only in that case — installed PWAs and
+  // other browsers already get correct insets.
+  const needsSafariBottomClearance = isMobileSafari && !isStandalone;
 
   const tabs = useMemo<PrimaryTab[]>(
     () => [
-      {
-        key: 'chat',
-        label: tNav('chatWithAI'),
-        icon: MessageCircle,
-        to: `/dashboard/${organizationId}/chat`,
-        activePrefix: `/dashboard/${organizationId}/chat`,
-      },
       {
         key: 'projects',
         label: tProjects('title'),
@@ -63,6 +107,14 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         activePrefix: `/dashboard/${organizationId}/conversations`,
       },
       {
+        key: 'chat',
+        label: tNav('chatWithAI'),
+        icon: MessageCircle,
+        to: `/dashboard/${organizationId}/chat`,
+        activePrefix: `/dashboard/${organizationId}/chat`,
+        featured: true,
+      },
+      {
         key: 'agents',
         label: tNav('agents'),
         icon: Bot,
@@ -70,6 +122,12 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         activePrefix: `/dashboard/${organizationId}/agents`,
         gate: () => ability.can('write', 'agents'),
       },
+    ],
+    [ability, organizationId, tNav, tProjects],
+  );
+
+  const overflow = useMemo<OverflowItem[]>(
+    () => [
       {
         key: 'knowledge',
         label: tNav('knowledge'),
@@ -77,32 +135,119 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         to: `/dashboard/${organizationId}/documents`,
         activePrefix: `/dashboard/${organizationId}/documents`,
       },
+      {
+        key: 'automations',
+        label: tNav('automations'),
+        icon: Workflow,
+        to: `/dashboard/${organizationId}/automations`,
+        activePrefix: `/dashboard/${organizationId}/automations`,
+      },
+      {
+        key: 'user-settings',
+        label: tNav('userSettings'),
+        icon: SettingsIcon,
+        to: `/dashboard/${organizationId}/settings/personal`,
+        activePrefix: `/dashboard/${organizationId}/settings/personal`,
+        isActive: (p) => isPersonalSettingsRoute(p, organizationId),
+      },
+      {
+        key: 'org-settings',
+        label: tNav('orgSettings'),
+        icon: Building2,
+        to: `/dashboard/${organizationId}/settings`,
+        activePrefix: `/dashboard/${organizationId}/settings`,
+        isActive: (p) => {
+          const base = `/dashboard/${organizationId}/settings`;
+          if (p !== base && !p.startsWith(`${base}/`)) return false;
+          return !isPersonalSettingsRoute(p, organizationId);
+        },
+      },
     ],
-    [ability, organizationId, tNav, tProjects],
+    [organizationId, tNav],
   );
 
+  const pathname = location.pathname;
+  const isPathActive = (prefix: string) =>
+    pathname === prefix || pathname.startsWith(`${prefix}/`);
+  const matchesOverflowItem = (item: OverflowItem) =>
+    item.isActive ? item.isActive(pathname) : isPathActive(item.activePrefix);
+  const moreActive = overflow.some(matchesOverflowItem);
+
   const items = useMemo<BottomTabBarItem[]>(() => {
-    const pathname = location.pathname;
-    return tabs
+    const primary: BottomTabBarItem[] = tabs
       .filter((tab) => (tab.gate ? tab.gate() : true))
       .map((tab) => {
-        const active =
-          pathname === tab.activePrefix ||
-          pathname.startsWith(`${tab.activePrefix}/`);
+        const active = isPathActive(tab.activePrefix);
         return {
           key: tab.key,
           label: tab.label,
           icon: tab.icon,
           active,
+          featured: tab.featured,
           accentColor: active && accentColor ? accentColor : undefined,
           onSelect: () => {
             void navigate({ to: tab.to });
           },
         };
       });
-  }, [tabs, location.pathname, navigate, accentColor]);
+    primary.push({
+      key: 'more',
+      label: tNav('more'),
+      icon: MoreHorizontal,
+      active: moreActive,
+      accentColor: moreActive && accentColor ? accentColor : undefined,
+      onSelect: () => setMoreOpen(true),
+    });
+    return primary;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- isPathActive closes over `pathname`, which is the trigger
+  }, [tabs, pathname, navigate, accentColor, moreActive, tNav]);
 
   return (
-    <BottomTabBar items={items} ariaLabel={tNav('aria.primaryNavigation')} />
+    <>
+      <BottomTabBar
+        items={items}
+        ariaLabel={tNav('aria.primaryNavigation')}
+        className={cn(needsSafariBottomClearance && 'pb-12')}
+      />
+      <Sheet
+        open={moreOpen}
+        onOpenChange={setMoreOpen}
+        side="bottom"
+        title={tNav('more')}
+        description={tNav('aria.primaryNavigation')}
+        className="h-auto! max-h-[60vh] rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
+      >
+        <ul className="flex flex-col gap-1">
+          {overflow.map((item) => {
+            const Icon = item.icon;
+            const active = matchesOverflowItem(item);
+            return (
+              <li key={item.key}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    void navigate({ to: item.to });
+                  }}
+                  className={cn(
+                    'group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors',
+                    'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+                    active
+                      ? 'bg-muted text-foreground'
+                      : 'hover:bg-muted/60 text-foreground',
+                  )}
+                >
+                  <Icon
+                    className="text-muted-foreground group-hover:text-foreground size-5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </Sheet>
+    </>
   );
 }
