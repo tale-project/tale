@@ -35,7 +35,40 @@ export function makeWebdavCtx(opts: MakeWebdavCtxOptions): WebDAVCtx {
   return {
     convex: client,
     storageBaseUrl: opts.convexSiteUrl ?? deriveSiteUrl(opts.convexUrl),
+    convexApiUrl: opts.convexUrl.replace(/\/$/, ''),
   };
+}
+
+/**
+ * Re-home a Convex-returned storage URL onto a reachable backend origin.
+ *
+ * `ctx.storage.generateUploadUrl()` / `getUrl()` bake in the backend's
+ * *self-reported* origin — `http://127.0.0.1:3210` on self-hosted. That is the
+ * platform container's own loopback in docker compose, where Convex is a
+ * separate container reachable as `http://convex:3210` (CONVEX_URL). The browser
+ * path solves this with `toPublicUrl()` (route through Caddy), but the WebDAV
+ * server runs ON the internal network and should hit the backend directly by
+ * service name — the same origin its ConvexHttpClient already uses.
+ *
+ * Swaps only protocol+host; path and query (the upload/blob token) are
+ * preserved. Idempotent when the origins already match (the dev case, where
+ * CONVEX_URL is also 127.0.0.1:3210). Returns the input unchanged when either
+ * value isn't a parseable absolute URL — let the subsequent `fetch` surface a
+ * real connection error rather than mangling the string.
+ */
+export function rewriteStorageOrigin(
+  storageUrl: string,
+  backendUrl: string,
+): string {
+  try {
+    const target = new URL(backendUrl);
+    const u = new URL(storageUrl);
+    u.protocol = target.protocol;
+    u.host = target.host;
+    return u.toString();
+  } catch {
+    return storageUrl;
+  }
 }
 
 function deriveSiteUrl(convexUrl: string): string {

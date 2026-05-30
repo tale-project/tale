@@ -121,6 +121,13 @@ export interface WebDAVCtx {
   // Token used to call /storage from the platform server (same as the
   // Convex deployment URL — bearer auth not required for /storage since
   // the storageId itself is hard to guess).
+
+  // Backend API origin (CONVEX_URL, :3210). `ctx.storage.generateUploadUrl()`
+  // / `getUrl()` return URLs carrying the backend's *self-reported* origin
+  // (`http://127.0.0.1:3210` self-hosted), which is unreachable from inside the
+  // platform container (Convex is a separate container, `http://convex:3210`).
+  // PUT/GET re-home those URLs onto this origin via `rewriteStorageOrigin`.
+  convexApiUrl: string;
 }
 
 export interface ParsedPath {

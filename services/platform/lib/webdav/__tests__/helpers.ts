@@ -107,6 +107,7 @@ export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
   return {
     convex: fakeConvex,
     storageBaseUrl: 'http://localhost:3211',
+    convexApiUrl: 'http://localhost:3210',
   };
 }
 

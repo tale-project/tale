@@ -1,5 +1,6 @@
 import { anyApi } from 'convex/server';
 
+import { rewriteStorageOrigin } from '../ctx';
 import type {
   AuthContext,
   ParsedPath,
@@ -312,7 +313,13 @@ export async function handleGet(
 
   let upstream: Response | null = null;
   if (typeof directUrl === 'string' && directUrl.length > 0) {
-    upstream = await fetchBlob(directUrl, 'direct');
+    // getUrl() bakes in the backend's self-origin (127.0.0.1:3210 self-hosted),
+    // unreachable from this container; re-home onto the reachable backend
+    // origin so the fast streaming path works in compose (no :3211 fallback).
+    upstream = await fetchBlob(
+      rewriteStorageOrigin(directUrl, ctx.convexApiUrl),
+      'direct',
+    );
   }
   if (!upstream) {
     const proxyUrl = `${ctx.storageBaseUrl}/storage?id=${encodeURIComponent(doc.fileId)}`;

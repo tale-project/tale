@@ -1,5 +1,6 @@
 import { anyApi } from 'convex/server';
 
+import { rewriteStorageOrigin } from '../ctx';
 import { convexErrorCode } from '../errors';
 import { checkResourceLock } from '../locks';
 import {
@@ -110,10 +111,21 @@ export async function handlePut(
   // Two-step upload:
   // 1) Ask Convex for a presigned URL
   // 2) Stream the bytes to that URL — returns { storageId }
-  const uploadUrl = await ctx.convex.mutation(
+  // Convex returns the URL with its self-reported origin (127.0.0.1:3210
+  // self-hosted), unreachable from this container; re-home it onto the
+  // reachable backend origin (CONVEX_URL) before fetching. See ctx.ts.
+  const rawUploadUrl: unknown = await ctx.convex.mutation(
     anyApi.webdav.tree_mutations.generateWebdavUploadUrl,
     {},
   );
+  if (typeof rawUploadUrl !== 'string') {
+    console.error(
+      '[webdav] PUT generateWebdavUploadUrl returned non-string',
+      rawUploadUrl,
+    );
+    return { status: 502, headers: {}, body: 'Upload URL unavailable' };
+  }
+  const uploadUrl = rewriteStorageOrigin(rawUploadUrl, ctx.convexApiUrl);
 
   // Wrap the body in a counter so we can fail the request if the
   // client sent more bytes than Content-Length (or no Content-Length)
