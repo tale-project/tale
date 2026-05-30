@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { resolveFileType } from '../../lib/shared/file-types';
+import { isTextBasedFile } from '../../lib/utils/text-file-types';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -94,7 +95,21 @@ export const ingestPutBlob = internalMutation({
     // from the filename extension exactly as the web upload path does
     // (documents/mutations.createDocumentFromUpload) so both ingestion
     // routes converge on the same canonical type.
-    const resolvedContentType = resolveFileType(fileName, args.contentType);
+    let resolvedContentType = resolveFileType(fileName, args.contentType);
+    // resolveFileType only maps the binary document/image formats; text
+    // files (markdown, source, config, logs) fall through to whatever
+    // generic type the client sent. Classify those by name and label them
+    // text/plain so they get a real text icon too. Scoped to WebDAV ingest
+    // on purpose: the web Documents upload allowlist accepts only .txt among
+    // text files, so widening the shared resolveFileType would also widen
+    // that allowlist.
+    if (
+      (resolvedContentType === 'application/octet-stream' ||
+        resolvedContentType === '') &&
+      isTextBasedFile(fileName)
+    ) {
+      resolvedContentType = 'text/plain';
+    }
 
     // RFC 4918 §9.7.1: a PUT may not auto-vivify intermediate
     // collections. If any ancestor is missing the request 409s.

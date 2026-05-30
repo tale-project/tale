@@ -231,4 +231,25 @@ describe('webdav tree_mutations.ingestPutBlob content-type derivation (convex-te
     const { mimeType } = await ingest(t, 'photo.png', 'image/png');
     expect(mimeType).toBe('image/png');
   });
+
+  it('labels a text file (.md) as text/plain instead of octet-stream', async () => {
+    const t = convexTest(schema, modules);
+    const { mimeType, contentType } = await ingest(
+      t,
+      'practice.md',
+      'application/octet-stream',
+    );
+    expect(mimeType).toBe('text/plain');
+    expect(contentType).toBe('text/plain');
+  });
+
+  it('leaves an unknown binary extension as octet-stream', async () => {
+    const t = convexTest(schema, modules);
+    const { mimeType } = await ingest(
+      t,
+      'firmware.bin',
+      'application/octet-stream',
+    );
+    expect(mimeType).toBe('application/octet-stream');
+  });
 });
