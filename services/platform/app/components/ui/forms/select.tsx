@@ -2,6 +2,8 @@
 
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { Description } from '@tale/ui/description';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { cva } from 'class-variance-authority';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ComponentPropsWithoutRef, ComponentRef, ReactNode } from 'react';
@@ -93,9 +95,15 @@ interface SelectProps extends Omit<
   sideOffset?: number;
   /** Size of the select */
   size?: 'default' | 'sm' | 'lg';
+  /** Accessible name forwarded to the combobox trigger button. */
+  'aria-label'?: string;
+  /** Id of an element labelling the combobox trigger button. */
+  'aria-labelledby'?: string;
 }
 
-export const Select = forwardRef<
+// Plain control — the real Radix combobox trigger + content (+ optional
+// label/description). No skeleton logic of its own.
+const SelectBase = forwardRef<
   ComponentRef<typeof SelectPrimitive.Trigger>,
   SelectProps
 >(
@@ -117,6 +125,11 @@ export const Select = forwardRef<
       value,
       defaultValue,
       onValueChange,
+      // Pulled out of `...props` (which spreads onto the non-DOM Radix `Root`)
+      // so they land on the actual combobox `Trigger` button — without this an
+      // unlabelled inline Select has no accessible name (axe `button-name`).
+      'aria-label': ariaLabel,
+      'aria-labelledby': ariaLabelledBy,
       ...props
     },
     ref,
@@ -124,6 +137,11 @@ export const Select = forwardRef<
     const generatedId = useId();
     const id = providedId ?? generatedId;
     const descriptionId = `${id}-description`;
+    const labelId = `${id}-label`;
+    // A Radix trigger is a <button>, so a `<label htmlFor>` does NOT name it.
+    // Point the trigger at the rendered label via aria-labelledby (unless the
+    // caller supplied an explicit name), so labelled selects have a name.
+    const resolvedLabelledBy = ariaLabelledBy ?? (label ? labelId : undefined);
 
     const trigger = (
       <SelectPrimitive.Root
@@ -138,6 +156,8 @@ export const Select = forwardRef<
           id={id}
           className={cn(selectTriggerClasses({ size, error }), className)}
           aria-invalid={error}
+          aria-label={ariaLabel}
+          aria-labelledby={resolvedLabelledBy}
           aria-describedby={description ? descriptionId : undefined}
         >
           <SelectPrimitive.Value placeholder={placeholder} />
@@ -201,7 +221,7 @@ export const Select = forwardRef<
     return (
       <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
         {label && (
-          <Label htmlFor={id} required={required} error={error}>
+          <Label id={labelId} htmlFor={id} required={required} error={error}>
             {label}
           </Label>
         )}
@@ -215,4 +235,26 @@ export const Select = forwardRef<
     );
   },
 );
+SelectBase.displayName = 'SelectBase';
+
+/**
+ * Skeleton-aware Select. Inside a `<Skeletonize loading>` it masks the plain
+ * control by rendering it inside a `<SkeletonBox>` — laid out invisibly to set
+ * the exact trigger size, pulse overlay on top — so the skeleton can never
+ * drift from the live control.
+ */
+export const Select = forwardRef<
+  ComponentRef<typeof SelectPrimitive.Trigger>,
+  SelectProps
+>((props, ref) => {
+  const loading = useSkeleton();
+  if (loading) {
+    return (
+      <SkeletonBox>
+        <SelectBase {...props} ref={ref} />
+      </SkeletonBox>
+    );
+  }
+  return <SelectBase {...props} ref={ref} />;
+});
 Select.displayName = 'Select';

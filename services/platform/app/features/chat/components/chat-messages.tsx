@@ -1,6 +1,5 @@
 'use client';
 
-import type { UIMessage } from '@convex-dev/agent/react';
 import { Button } from '@tale/ui/button';
 import { useQuery } from 'convex/react';
 import { AlertTriangle, Loader2, CheckCircle2, Lock } from 'lucide-react';
@@ -8,6 +7,7 @@ import {
   useId,
   useMemo,
   useRef,
+  useState,
   useLayoutEffect,
   useEffect,
   type RefObject,
@@ -16,19 +16,41 @@ import {
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import { useBranchContext } from '../context/branch-context';
 import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { usePersonalizationActiveForThread } from '../hooks/use-personalization-active';
 import { VoiceOutputProvider } from '../hooks/voice-output-context';
+import { hasThoughtSteps } from '../utils/build-thought-timeline';
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
 import { InlineEditInput } from './inline-edit-input';
 import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
-import { ThinkingAnimation } from './thinking-animation';
+import { ThinkingIndicator } from './thought-timeline';
+import { VirtualizedChatMessageList } from './virtualized-chat-message-list';
 import { VoiceOutputAnnouncer } from './voice-output-announcer';
+
+/**
+ * Opt-in flag for the experimental windowed (virtualized) message list. Off by
+ * default — the proven non-virtualized path (with the min-height anchor +
+ * content-visibility) ships to everyone. Flip in the browser console with
+ * `localStorage.tale_virtualized_messages = '1'` (then reload) to validate.
+ * Read once at mount so it can't flip mid-session and break the virtualizer.
+ */
+function useVirtualizedMessagesFlag(): boolean {
+  const [enabled] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.localStorage.getItem('tale_virtualized_messages') === '1';
+    } catch {
+      return false;
+    }
+  });
+  return enabled;
+}
 
 /**
  * Compute the response area min-height so that scrolling to bottom
@@ -49,6 +71,19 @@ const TOP_INSET = 16;
  * naturally, no artificial white gap below the message.
  */
 const CLAMP_THRESHOLD = 160; // ~10em
+
+/**
+ * Native "virtualization-lite": history messages (everything before the
+ * current turn) skip layout & paint while off-screen, so a long thread doesn't
+ * pay to render hundreds of bubbles. `contain-intrinsic-size: auto <estimate>`
+ * supplies a placeholder height and remembers each bubble's real size after its
+ * first render, so scrollbar/position stay stable. Applied ONLY to history —
+ * the active turn (last user message + streaming response) stays fully
+ * rendered so the min-height/anchor measurement is exact. Unsupported browsers
+ * (older Safari/Firefox) just render normally — pure progressive enhancement.
+ */
+const HISTORY_CONTENT_VISIBILITY =
+  '[content-visibility:auto] [contain-intrinsic-size:auto_200px]';
 
 function computeResponseMinHeight(
   container: HTMLElement,
@@ -94,7 +129,6 @@ interface ChatMessagesProps {
   canLoadMore: boolean;
   isLoadingMore: boolean;
   loadMore: (numItems: number) => void;
-  activeMessage: UIMessage | undefined;
   isLoading: boolean;
   lastUserMessageRef: RefObject<HTMLDivElement | null>;
   containerRef: RefObject<HTMLDivElement | null>;
@@ -142,7 +176,6 @@ export function ChatMessages({
   canLoadMore,
   isLoadingMore,
   loadMore,
-  activeMessage,
   isLoading,
   lastUserMessageRef,
   containerRef,
@@ -169,6 +202,7 @@ export function ChatMessages({
 }: ChatMessagesProps) {
   const { t } = useT('chat');
   const messageHistoryLabelId = useId();
+  const useVirtual = useVirtualizedMessagesFlag();
   const { branches, activeBranchThreadId } = useBranchContext();
   const editInputScrollRef = useRef<HTMLDivElement>(null);
 
@@ -374,7 +408,7 @@ export function ChatMessages({
     return orders;
   }, [branches, activeBranchThreadId]);
 
-  const renderMessage = (item: ChatItem) => {
+  const renderMessage = (item: ChatItem, isHistory: boolean) => {
     if (item.type !== 'message') return null;
 
     const message = item.data;
@@ -424,11 +458,16 @@ export function ChatMessages({
     const hasAttachments =
       (message.attachments && message.attachments.length > 0) ||
       (message.fileParts && message.fileParts.length > 0);
+    // Assistant messages with reasoning/tool activity render early so the live
+    // thought-process timeline is visible before any answer text arrives.
+    const messageHasThoughtSteps =
+      message.role !== 'user' && hasThoughtSteps(message.parts);
     const shouldShow =
       message.role === 'user' ||
       hasContent ||
       hasAttachments ||
-      message.isAborted;
+      message.isAborted ||
+      messageHasThoughtSteps;
 
     if (!shouldShow) return null;
 
@@ -459,8 +498,16 @@ export function ChatMessages({
     return (
       <div
         key={reactKey}
+        // Stable anchor for load-more prepend scroll preservation (use-chat-scroll
+        // restores a visible message's position rather than a scrollHeight delta).
+        data-message-key={reactKey}
         ref={isLastUserMessage ? lastUserMessageRef : undefined}
-        className={isLastUserMessage ? 'scroll-mt-6' : undefined}
+        className={cn(
+          isLastUserMessage && 'scroll-mt-6',
+          // Off-screen history skips layout/paint (see constant). Never applied
+          // to the last user message or the active response area.
+          isHistory && !isLastUserMessage && HISTORY_CONTENT_VISIBILITY,
+        )}
       >
         {isEditing && onEditSubmit && onEditCancel ? (
           <div className="flex justify-end" ref={editInputScrollRef}>
@@ -577,7 +624,13 @@ export function ChatMessages({
     ) : null;
 
   const renderItemWithDivider = (item: ChatItem, idx: number) => {
-    const rendered = renderMessage(item);
+    // "History" = before the current turn's user message. Those bubbles get
+    // content-visibility so off-screen history doesn't pay layout/paint — but
+    // NOT in virtualized mode, where the virtualizer already windows the DOM
+    // and content-visibility would make off-screen-but-overscanned items
+    // mis-measure.
+    const isHistory = !useVirtual && lastUserIdx >= 0 && idx < lastUserIdx;
+    const rendered = renderMessage(item, isHistory);
     if (idx === forkDividerAfterIdx) {
       return (
         <div key={`divider-wrap-${idx}`}>
@@ -592,6 +645,88 @@ export function ChatMessages({
   const beforeItems = lastUserIdx >= 0 ? items.slice(0, lastUserIdx) : items;
   const lastUserItem = lastUserIdx >= 0 ? items[lastUserIdx] : null;
   const afterItems = lastUserIdx >= 0 ? items.slice(lastUserIdx + 1) : [];
+
+  // True once an assistant bubble for this turn renders something (answer text,
+  // attachments, an abort/fail notice, or a thought-process timeline). Gates
+  // the post-send "Thinking…" fallback so it only fills the gap between send
+  // and the assistant message appearing — the in-bubble timeline takes over
+  // the moment reasoning or tools arrive.
+  const hasRenderableAssistantResponse = afterItems.some(
+    (it) =>
+      it.type === 'message' &&
+      it.data.role === 'assistant' &&
+      (!!it.data.content ||
+        it.data.isAborted ||
+        it.data.isFailed ||
+        hasThoughtSteps(it.data.parts)),
+  );
+
+  // Shared between the virtualized and non-virtualized paths.
+  const loadMoreHeader =
+    canLoadMore || isLoadingMore ? (
+      <div className="flex justify-center py-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => loadMore(50)}
+          disabled={isLoadingMore}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          {isLoadingMore ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {t('history.loading')}
+            </>
+          ) : (
+            t('loadOlderMessages')
+          )}
+        </Button>
+      </div>
+    ) : null;
+
+  const responseFooter = (
+    <>
+      {/* Post-send gap affordance: shown only until the assistant message
+          appears with its in-bubble thought-process timeline. */}
+      {isLoading && !hasRenderableAssistantResponse && (
+        <ThinkingIndicator className="px-4 py-3" />
+      )}
+      {activeApproval && (
+        <ApprovalCardRenderer
+          item={activeApproval}
+          organizationId={organizationId}
+          onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
+          onSendMessage={onSendMessage}
+        />
+      )}
+    </>
+  );
+
+  if (useVirtual) {
+    return (
+      <VoiceOutputProvider threadId={threadId}>
+        <VoiceOutputAnnouncer />
+        <VirtualizedChatMessageList
+          items={items}
+          containerRef={containerRef}
+          renderItem={renderItemWithDivider}
+          labelId={messageHistoryLabelId}
+          header={
+            <>
+              <h2 id={messageHistoryLabelId} className="sr-only">
+                {t('aria.messageHistory')}
+              </h2>
+              {loadMoreHeader}
+              <div className="h-6" aria-hidden="true" />
+            </>
+          }
+          footer={
+            <div className="flex flex-col gap-3 pb-2">{responseFooter}</div>
+          }
+        />
+      </VoiceOutputProvider>
+    );
+  }
 
   return (
     <VoiceOutputProvider threadId={threadId}>
@@ -609,26 +744,7 @@ export function ChatMessages({
           {t('aria.messageHistory')}
         </h2>
         <div className="flex flex-col gap-3 pt-6">
-          {(canLoadMore || isLoadingMore) && (
-            <div className="flex justify-center py-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => loadMore(50)}
-                disabled={isLoadingMore}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                {isLoadingMore ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t('history.loading')}
-                  </>
-                ) : (
-                  t('loadOlderMessages')
-                )}
-              </Button>
-            </div>
-          )}
+          {loadMoreHeader}
 
           {/* Messages before the last user message */}
           <div className="flex flex-col gap-3">
@@ -648,21 +764,7 @@ export function ChatMessages({
             {afterItems.map((item, i) =>
               renderItemWithDivider(item, lastUserIdx + 1 + i),
             )}
-
-            <div>
-              {isLoading && (
-                <ThinkingAnimation streamingMessage={activeMessage} />
-              )}
-            </div>
-
-            {activeApproval && (
-              <ApprovalCardRenderer
-                item={activeApproval}
-                organizationId={organizationId}
-                onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
-                onSendMessage={onSendMessage}
-              />
-            )}
+            {responseFooter}
           </div>
         </div>
       </div>

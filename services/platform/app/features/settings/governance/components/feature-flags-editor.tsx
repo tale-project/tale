@@ -3,7 +3,8 @@
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -281,6 +282,257 @@ function RuleDialog({
   );
 }
 
+/** Placeholder rows shown while the table data loads (see the View). */
+const PLACEHOLDER_ROW_COUNT = 3;
+/** Column count — single source for the empty-state `colSpan` and the
+ *  per-cell placeholder rows so they can never drift from the header. */
+const COLUMN_COUNT = 7;
+
+interface FeatureFlagsEditorViewProps {
+  rules: FeatureFlagRule[];
+  cannotManage: boolean;
+  resolveTarget: (rule: FeatureFlagRule) => string;
+  onAddRule: () => void;
+  onEditRule: (index: number) => void;
+  onRemoveRule: (index: number) => void;
+  // Dialog wiring (owned by the container, rendered here so the live and
+  // skeletonized trees are the SAME element tree).
+  dialogOpen: boolean;
+  onDialogOpenChange: (open: boolean) => void;
+  dialogRule: FeatureFlagRule;
+  dialogTitle: string;
+  onDialogSave: (rule: FeatureFlagRule) => void;
+  memberOptions: { value: string; label: string; description?: string }[];
+  teamOptions: { value: string; label: string }[];
+  deletingIndex: number | null;
+  onDeletingIndexChange: (index: number | null) => void;
+  onConfirmRemove: () => void;
+}
+
+/**
+ * Plain presentational view — no data/state hooks of its own. Rendered both
+ * live (by the container) and as its own skeleton (the container wraps it in
+ * `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
+ * cannot drift. The table renders fixed PLACEHOLDER rows while loading so an
+ * empty `<tbody>` never reads as "no rules" during load; the real empty-state
+ * only shows once loaded with zero rules.
+ */
+export function FeatureFlagsEditorView({
+  rules,
+  cannotManage,
+  resolveTarget,
+  onAddRule,
+  onEditRule,
+  onRemoveRule,
+  dialogOpen,
+  onDialogOpenChange,
+  dialogRule,
+  dialogTitle,
+  onDialogSave,
+  memberOptions,
+  teamOptions,
+  deletingIndex,
+  onDeletingIndexChange,
+  onConfirmRemove,
+}: FeatureFlagsEditorViewProps) {
+  const { t } = useT('governance');
+  const loading = useSkeleton();
+
+  return (
+    <PageSection
+      title={t('featureFlags.title')}
+      description={t('featureFlags.description')}
+      action={
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={onAddRule}
+          disabled={cannotManage}
+        >
+          <Plus className="mr-1.5 size-4" />
+          {t('featureFlags.addRule')}
+        </Button>
+      }
+    >
+      <div className="border-border overflow-hidden rounded-lg border">
+        <div className="overflow-x-auto">
+          <table
+            className="w-full text-sm"
+            aria-label={t('featureFlags.title')}
+          >
+            <caption className="sr-only">{t('featureFlags.title')}</caption>
+            <thead className="bg-muted/50">
+              <tr className="border-border border-b">
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-left font-medium"
+                >
+                  {t('featureFlags.scope')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-left font-medium"
+                >
+                  {t('featureFlags.target')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-center font-medium"
+                >
+                  {t('featureFlags.webSearch')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-center font-medium"
+                >
+                  {t('featureFlags.codeExecution')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-center font-medium"
+                >
+                  {t('featureFlags.fileUpload')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-right font-medium"
+                >
+                  {t('featureFlags.maxContextTokens')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-right font-medium"
+                >
+                  {t('featureFlags.actions')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                Array.from({ length: PLACEHOLDER_ROW_COUNT }).map((_, i) => (
+                  <tr
+                    key={`placeholder-${i}`}
+                    className="border-border border-b last:border-b-0"
+                  >
+                    <td className="px-3 py-2">
+                      <SkeletonText width="4rem" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <SkeletonText width="6rem" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <SkeletonBox className="mx-auto size-4 rounded-sm" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <SkeletonBox className="mx-auto size-4 rounded-sm" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <SkeletonBox className="mx-auto size-4 rounded-sm" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <SkeletonText width="3.5rem" className="ml-auto" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <HStack gap={1} justify="end">
+                        <SkeletonBox className="size-8 rounded-md" />
+                        <SkeletonBox className="size-8 rounded-md" />
+                      </HStack>
+                    </td>
+                  </tr>
+                ))
+              ) : rules.length > 0 ? (
+                rules.map((rule, index) => (
+                  <tr
+                    key={index}
+                    className="border-border border-b last:border-b-0"
+                  >
+                    <td className="px-3 py-2 capitalize">{rule.scope}</td>
+                    <td className="px-3 py-2">{resolveTarget(rule)}</td>
+                    <td className="px-3 py-2 text-center">
+                      {rule.webSearch === false ? '✘' : '✔'}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {rule.codeExecution === false ? '✘' : '✔'}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {rule.fileUpload === false ? '✘' : '✔'}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {rule.maxContextTokens != null
+                        ? formatNumber(rule.maxContextTokens)
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <HStack gap={1} justify="end">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onEditRule(index)}
+                          disabled={cannotManage}
+                          aria-label={`${t('featureFlags.editRule')} ${index + 1}`}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onRemoveRule(index)}
+                          disabled={cannotManage}
+                          aria-label={`${t('featureFlags.deleteRule')} ${index + 1}`}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </HStack>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={COLUMN_COUNT} className="p-0">
+                    <RulesTableEmptyState
+                      icon={SlidersHorizontal}
+                      title={t('featureFlags.noRulesTitle')}
+                      description={t('featureFlags.noRulesDescription')}
+                    />
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <RuleDialog
+        open={dialogOpen}
+        onOpenChange={onDialogOpenChange}
+        rule={dialogRule}
+        onSave={onDialogSave}
+        title={dialogTitle}
+        cannotManage={cannotManage}
+        memberOptions={memberOptions}
+        teamOptions={teamOptions}
+      />
+
+      <ConfirmDialog
+        open={deletingIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) onDeletingIndexChange(null);
+        }}
+        title={t('featureFlags.removeRuleConfirmTitle')}
+        description={t('featureFlags.removeRuleConfirmDescription')}
+        confirmText={t('featureFlags.removeRuleConfirmAction')}
+        variant="destructive"
+        onConfirm={onConfirmRemove}
+      />
+    </PageSection>
+  );
+}
+
+// =============================================================================
+// Container — owns data fetching, rules state, dialog state, and save/toast
+// wiring. Wraps the plain view in `<Skeletonize>` so the same tree renders the
+// skeleton while the policy loads.
+// =============================================================================
 export function FeatureFlagsEditor({
   organizationId,
 }: FeatureFlagsEditorProps) {
@@ -426,183 +678,30 @@ export function FeatureFlagsEditor({
     [memberOptions, teamOptions, t],
   );
 
-  const skeleton = (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-4 w-96 max-w-full" />
-        </div>
-        <Skeleton className="h-8 w-20 shrink-0 rounded-md" />
-      </div>
-      <div className="border-border overflow-hidden rounded-lg border">
-        <Skeleton className="h-60 w-full rounded-none" />
-      </div>
-    </div>
-  );
-
-  if (isLoading) {
-    return <div aria-busy="true">{skeleton}</div>;
-  }
-
   return (
-    <PageSection
-      title={t('featureFlags.title')}
-      description={t('featureFlags.description')}
-      action={
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={openAddDialog}
-          disabled={cannotManage}
-        >
-          <Plus className="mr-1.5 size-4" />
-          {t('featureFlags.addRule')}
-        </Button>
-      }
-    >
-      <div className="border-border overflow-hidden rounded-lg border">
-        <div className="overflow-x-auto">
-          <table
-            className="w-full text-sm"
-            aria-label={t('featureFlags.title')}
-          >
-            <caption className="sr-only">{t('featureFlags.title')}</caption>
-            <thead className="bg-muted/50">
-              <tr className="border-border border-b">
-                <th
-                  scope="col"
-                  className="text-muted-foreground px-3 py-2 text-left font-medium"
-                >
-                  {t('featureFlags.scope')}
-                </th>
-                <th
-                  scope="col"
-                  className="text-muted-foreground px-3 py-2 text-left font-medium"
-                >
-                  {t('featureFlags.target')}
-                </th>
-                <th
-                  scope="col"
-                  className="text-muted-foreground px-3 py-2 text-center font-medium"
-                >
-                  {t('featureFlags.webSearch')}
-                </th>
-                <th
-                  scope="col"
-                  className="text-muted-foreground px-3 py-2 text-center font-medium"
-                >
-                  {t('featureFlags.codeExecution')}
-                </th>
-                <th
-                  scope="col"
-                  className="text-muted-foreground px-3 py-2 text-center font-medium"
-                >
-                  {t('featureFlags.fileUpload')}
-                </th>
-                <th
-                  scope="col"
-                  className="text-muted-foreground px-3 py-2 text-right font-medium"
-                >
-                  {t('featureFlags.maxContextTokens')}
-                </th>
-                <th
-                  scope="col"
-                  className="text-muted-foreground px-3 py-2 text-right font-medium"
-                >
-                  {t('featureFlags.actions')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rules.length > 0 ? (
-                rules.map((rule, index) => (
-                  <tr
-                    key={index}
-                    className="border-border border-b last:border-b-0"
-                  >
-                    <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                    <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                    <td className="px-3 py-2 text-center">
-                      {rule.webSearch === false ? '✘' : '✔'}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      {rule.codeExecution === false ? '✘' : '✔'}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      {rule.fileUpload === false ? '✘' : '✔'}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {rule.maxContextTokens != null
-                        ? formatNumber(rule.maxContextTokens)
-                        : '—'}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <HStack gap={1} justify="end">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(index)}
-                          disabled={cannotManage}
-                          aria-label={`${t('featureFlags.editRule')} ${index + 1}`}
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeletingIndex(index)}
-                          disabled={cannotManage}
-                          aria-label={`${t('featureFlags.deleteRule')} ${index + 1}`}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </HStack>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="p-0">
-                    <RulesTableEmptyState
-                      icon={SlidersHorizontal}
-                      title={t('featureFlags.noRulesTitle')}
-                      description={t('featureFlags.noRulesDescription')}
-                    />
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <RuleDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        rule={dialogRule}
-        onSave={handleDialogSave}
-        title={
+    <Skeletonize loading={isLoading} label={t('featureFlags.title')}>
+      <FeatureFlagsEditorView
+        rules={rules}
+        cannotManage={cannotManage}
+        resolveTarget={resolveTarget}
+        onAddRule={openAddDialog}
+        onEditRule={openEditDialog}
+        onRemoveRule={setDeletingIndex}
+        dialogOpen={dialogOpen}
+        onDialogOpenChange={setDialogOpen}
+        dialogRule={dialogRule}
+        dialogTitle={
           editingIndex === null
             ? t('featureFlags.addRule')
             : t('featureFlags.editRule')
         }
-        cannotManage={cannotManage}
+        onDialogSave={handleDialogSave}
         memberOptions={memberOptions}
         teamOptions={teamOptions}
+        deletingIndex={deletingIndex}
+        onDeletingIndexChange={setDeletingIndex}
+        onConfirmRemove={confirmRemoveRule}
       />
-
-      <ConfirmDialog
-        open={deletingIndex !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeletingIndex(null);
-        }}
-        title={t('featureFlags.removeRuleConfirmTitle')}
-        description={t('featureFlags.removeRuleConfirmDescription')}
-        confirmText={t('featureFlags.removeRuleConfirmAction')}
-        variant="destructive"
-        onConfirm={confirmRemoveRule}
-      />
-    </PageSection>
+    </Skeletonize>
   );
 }

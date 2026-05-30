@@ -1,0 +1,46 @@
+import type { ReasoningLexicon } from '../types';
+
+export const fi: ReasoningLexicon = {
+  locale: 'fi',
+  name: 'Finnish',
+  boundaryMode: 'word',
+  hardVerbs: [
+    'analysoi',
+    'todista',
+    'korjaa',
+    'optimoi',
+    'suunnittele',
+    'toteuta',
+    'vertaa',
+    'päättele',
+    'algoritmi',
+  ],
+  easyVerbs: [
+    'käännä',
+    'tiivistä',
+    'muotoile uudelleen',
+    'kirjoita uudelleen',
+    'lyhennä',
+    'muotoile',
+  ],
+  trivialAcks: [
+    'hei',
+    'moi',
+    'terve',
+    'kiitos',
+    'ok',
+    'kyllä',
+    'ei',
+    'ole hyvä',
+  ],
+  creativeVerbs: ['kirjoita', 'tarina', 'runo', 'kuvittele', 'keksi', 'laulu'],
+  analyticalVerbs: [
+    'laske',
+    'todista',
+    'korjaa',
+    'poimi',
+    'luokittele',
+    'ratkaise',
+    'varmista',
+  ],
+};

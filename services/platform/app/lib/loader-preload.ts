@@ -2,6 +2,8 @@ import { convexQuery } from '@convex-dev/react-query';
 import type { FunctionArgs, FunctionReference } from 'convex/server';
 
 import type { RouterContext } from '@/app/router';
+import { api } from '@/convex/_generated/api';
+import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
 
 type QueryArgs<Func extends FunctionReference<'query'>> =
   keyof FunctionArgs<Func> extends never
@@ -23,4 +25,31 @@ export function ensureConvexQuery<Func extends FunctionReference<'query'>>(
   ...[args]: QueryArgs<Func>
 ) {
   return context.queryClient.ensureQueryData(convexQuery(func, args ?? {}));
+}
+
+type GovernancePolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];
+
+/**
+ * Warm every governance policy a settings page reads, in parallel, from its
+ * route `loader`. Each is a bounded single-row `getPolicy` read, so awaiting
+ * the lot costs ~one round-trip on the already-open socket — and in exchange
+ * the page's skeleton-aware editors render their REAL content on first paint
+ * (no skeleton flash, no staggered reveal). The `RouteProgressBar` covers the
+ * brief loader wait. Always `.catch` at the call site so a transient/auth
+ * error never fails the transition — the editors' own loading + access checks
+ * still render correctly.
+ */
+export function ensureGovernancePolicies(
+  context: RouterContext,
+  organizationId: string,
+  policyTypes: readonly GovernancePolicyType[],
+) {
+  return Promise.all(
+    policyTypes.map((policyType) =>
+      ensureConvexQuery(context, api.governance.queries.getPolicy, {
+        organizationId,
+        policyType,
+      }),
+    ),
+  );
 }

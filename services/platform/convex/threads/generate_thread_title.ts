@@ -14,6 +14,7 @@ import { v } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { reasoningProviderOptionsFor } from '../lib/agent_response/reasoning/build_reasoning_options';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 
@@ -54,7 +55,13 @@ export const generateThreadTitle = internalAction({
           });
 
         const generator = createTitleGenerator(languageModel);
-        const callProviderOptions = buildCallProviderOptions(modelData);
+        // Title generation is mechanical — force minimal reasoning so a
+        // reasoning-capable model doesn't deliberate over a one-line title.
+        const callProviderOptions = reasoningProviderOptionsFor(
+          modelData,
+          buildCallProviderOptions(modelData),
+          { kind: 'utility' },
+        );
         const userId = `thread-title-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 9)}`;

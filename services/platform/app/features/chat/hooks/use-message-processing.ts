@@ -73,6 +73,9 @@ export interface ChatMessage {
   error?: string;
   systemMessageDisplay?: SystemMessageDisplay;
   systemMessageBody?: string;
+  /** Raw UIMessage parts (reasoning + tool calls) for the thought-process
+   *  timeline. Present on assistant messages; undefined elsewhere. */
+  parts?: UIMessage['parts'];
 }
 
 interface UseMessageProcessingResult {
@@ -341,6 +344,12 @@ export function useMessageProcessing(
             m.role === 'assistant' && m.status === 'failed' && !m.text?.trim(),
           isFailed:
             m.role === 'assistant' && m.status === 'failed' && !!m.text?.trim(),
+          // Carry reasoning/tool parts on assistant messages for the
+          // thought-process timeline. User messages don't have a timeline.
+          parts:
+            m.role === 'assistant' && Array.isArray(m.parts)
+              ? m.parts
+              : undefined,
           error:
             messageErrors?.[m.id] ??
             // UIMessage.id is the first message in a group, but the error
@@ -416,6 +425,13 @@ export function useMessageProcessing(
           break;
         }
       }
+    }
+
+    // Fast path (the common case, hit on every streamed token): there are no
+    // file-only tool messages to hide or merge this turn, so the filter+map
+    // rebuild below would just clone the array unchanged. Skip it.
+    if (fileOnlyKeys.size === 0 && activeTurnOrder == null) {
+      return result;
     }
 
     // Pass 2: rebuild without file-only messages, merging extra parts immutably.

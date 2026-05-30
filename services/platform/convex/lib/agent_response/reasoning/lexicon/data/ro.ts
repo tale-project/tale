@@ -1,0 +1,45 @@
+import type { ReasoningLexicon } from '../types';
+
+export const ro: ReasoningLexicon = {
+  locale: 'ro',
+  name: 'Romanian',
+  boundaryMode: 'word',
+  hardVerbs: [
+    'analizează',
+    'demonstrează',
+    'depanează',
+    'optimizează',
+    'proiectează',
+    'implementează',
+    'compară',
+    'raționează',
+    'algoritm',
+  ],
+  easyVerbs: [
+    'tradu',
+    'rezumă',
+    'reformulează',
+    'rescrie',
+    'scurtează',
+    'formatează',
+  ],
+  trivialAcks: ['salut', 'bună', 'mulțumesc', 'ok', 'da', 'nu', 'te rog'],
+  creativeVerbs: [
+    'scrie',
+    'poveste',
+    'poem',
+    'imaginează',
+    'inventează',
+    'cântec',
+    'creativ',
+  ],
+  analyticalVerbs: [
+    'calculează',
+    'demonstrează',
+    'depanează',
+    'extrage',
+    'clasifică',
+    'rezolvă',
+    'verifică',
+  ],
+};

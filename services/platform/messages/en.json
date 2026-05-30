@@ -770,16 +770,17 @@
       "body": "This response was blocked by your organization's content policy."
     },
     "thinking": {
-      "default": "Thinking",
-      "searching": "Searching \"{query}\"",
       "reading": "Reading {hostname}",
       "searchingKnowledgeBase": "Searching knowledge base for \"{query}\"",
-      "searchingMultiple": "Searching {queries}",
-      "searchingMore": "Searching {first}, {second} and {count} more",
-      "multipleTools": "{first} and {second}",
-      "multipleToolsMore": "{first}, {second} and {count} more",
-      "and": "and",
-      "delegating": "Asking {agent}"
+      "delegating": "Asking {agent}",
+      "redacted": "Thought about this privately"
+    },
+    "thoughtProcess": {
+      "thinking": "Thinking",
+      "summary": "Thought for {seconds}s · used {tools, plural, one {# tool} other {# tools}}",
+      "summaryNoTools": "Thought for {seconds}s",
+      "summaryUnknownDuration": "Used {tools, plural, one {# tool} other {# tools}}",
+      "summaryReasoningOnly": "Showed its reasoning"
     },
     "tools": {
       "customerRead": "Reading customer data",

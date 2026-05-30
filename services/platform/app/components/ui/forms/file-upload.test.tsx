@@ -1,3 +1,4 @@
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
@@ -169,6 +170,38 @@ describe('FileUpload', () => {
         </FileUpload.Root>,
       );
       expect(screen.getByRole('alert')).toBeInTheDocument();
+    });
+  });
+
+  describe('skeleton mode', () => {
+    it('masks the drop zone while loading', () => {
+      render(
+        <Skeletonize loading>
+          <FileUpload.Root>
+            <FileUpload.DropZone onFilesSelected={vi.fn()} aria-label="Upload">
+              <p>Drop files here</p>
+            </FileUpload.DropZone>
+          </FileUpload.Root>
+        </Skeletonize>,
+      );
+      // The real control is laid out invisibly inside an aria-hidden
+      // SkeletonBox, so the interactive drop zone (role=group) and its hidden
+      // file input are not exposed to the accessibility tree while masked.
+      expect(screen.queryByRole('group')).not.toBeInTheDocument();
+    });
+
+    it('renders the real drop zone when not loading', () => {
+      const { container } = render(
+        <Skeletonize loading={false}>
+          <FileUpload.Root>
+            <FileUpload.DropZone onFilesSelected={vi.fn()} aria-label="Upload">
+              <p>Drop files here</p>
+            </FileUpload.DropZone>
+          </FileUpload.Root>
+        </Skeletonize>,
+      );
+      expect(screen.getByRole('group')).toBeInTheDocument();
+      expect(container.querySelector('input[type="file"]')).not.toBeNull();
     });
   });
 });

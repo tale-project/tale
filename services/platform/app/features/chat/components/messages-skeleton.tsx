@@ -1,4 +1,4 @@
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -13,24 +13,30 @@ const rows: Array<{ role: 'user' | 'assistant'; widths: string[] }> = [
 export function MessagesSkeleton() {
   const { t } = useT('chat');
   return (
-    // `mx-auto` + `pt-6` mirror the real message list wrapper
-    // (chat-messages.tsx) so the first row sits where real content starts and
-    // the skeleton→messages swap doesn't shift the viewport vertically.
-    <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-6 pt-6">
+    // `mx-auto` + `pt-6` + `gap-3` mirror the real message list wrapper
+    // (chat-messages.tsx uses `flex flex-col gap-3 pt-6`) so the first row sits
+    // where real content starts and the skeleton→messages swap doesn't shift
+    // the viewport vertically.
+    //
+    // A SINGLE role="status" on the wrapper announces "Loading" once; the bars
+    // are decorative `SkeletonBox` (aria-hidden) so a screen reader doesn't hear
+    // the label repeated per bar.
+    <div
+      role="status"
+      className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-3 pt-6"
+    >
+      <span className="sr-only">{t('skeleton.loadingMessage')}</span>
       {rows.map((row, rowIdx) => (
         <div
           key={rowIdx}
+          aria-hidden="true"
           className={cn(
             'flex flex-col gap-2',
             row.role === 'user' ? 'items-end' : 'items-start',
           )}
         >
           {row.widths.map((w, i) => (
-            <Skeleton
-              key={i}
-              className={cn('h-4', w)}
-              label={t('skeleton.loadingMessage')}
-            />
+            <SkeletonBox key={i} className={cn('h-4', w)} />
           ))}
         </div>
       ))}

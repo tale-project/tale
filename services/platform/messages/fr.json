@@ -771,16 +771,17 @@
       "body": "Cette réponse a été bloquée par la politique de contenu de ton organisation."
     },
     "thinking": {
-      "default": "Réflexion",
-      "searching": "Recherche de \"{query}\"",
       "reading": "Lecture de {hostname}",
       "searchingKnowledgeBase": "Recherche dans la base de connaissances pour \"{query}\"",
-      "searchingMultiple": "Recherche de {queries}",
-      "searchingMore": "Recherche de {first}, {second} et {count} autres",
-      "multipleTools": "{first} et {second}",
-      "multipleToolsMore": "{first}, {second} et {count} autres",
-      "and": "et",
-      "delegating": "Demande à {agent}"
+      "delegating": "Demande à {agent}",
+      "redacted": "A réfléchi en privé"
+    },
+    "thoughtProcess": {
+      "thinking": "Réflexion",
+      "summary": "A réfléchi {seconds} s · {tools, plural, one {# outil utilisé} other {# outils utilisés}}",
+      "summaryNoTools": "A réfléchi {seconds} s",
+      "summaryUnknownDuration": "{tools, plural, one {# outil utilisé} other {# outils utilisés}}",
+      "summaryReasoningOnly": "A montré son raisonnement"
     },
     "tools": {
       "customerRead": "Lecture des données client",

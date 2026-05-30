@@ -3,8 +3,11 @@ import { Check, Minus } from 'lucide-react';
 import { type ComponentPropsWithoutRef, forwardRef } from 'react';
 
 import { cn } from '../../lib/cn';
+import { SkeletonBox } from '../feedback/skeleton';
+import { useSkeleton } from '../feedback/skeleton-context';
 
-export const Checkbox = forwardRef<
+// Plain control — the real checkbox. No skeleton logic of its own.
+const CheckboxBase = forwardRef<
   HTMLButtonElement,
   ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
 >(({ className, ...props }, ref) => (
@@ -26,4 +29,25 @@ export const Checkbox = forwardRef<
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
 ));
+CheckboxBase.displayName = 'CheckboxBase';
+
+/**
+ * Skeleton-aware Checkbox. Inside a `<Skeletonize loading>` it masks the plain
+ * control by rendering it inside a `<SkeletonBox>` — laid out invisibly to set
+ * the exact size, pulse overlay on top — so the skeleton can never drift.
+ */
+export const Checkbox = forwardRef<
+  HTMLButtonElement,
+  ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
+>((props, ref) => {
+  const loading = useSkeleton();
+  if (loading) {
+    return (
+      <SkeletonBox>
+        <CheckboxBase {...props} ref={ref} />
+      </SkeletonBox>
+    );
+  }
+  return <CheckboxBase {...props} ref={ref} />;
+});
 Checkbox.displayName = 'Checkbox';

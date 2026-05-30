@@ -3,6 +3,7 @@ import { Agent } from '@convex-dev/agent';
 
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
+import { reasoningProviderOptionsFor } from '../lib/agent_response/reasoning/build_reasoning_options';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import type { ResolvedModelData } from '../providers/resolve_model';
 
@@ -40,8 +41,13 @@ export async function improveMessage(
       args.languageModel,
       args.instruction,
     );
+    // Mechanical rewrite — force minimal reasoning on reasoning-capable models.
     const callProviderOptions = args.modelData
-      ? buildCallProviderOptions(args.modelData)
+      ? reasoningProviderOptionsFor(
+          args.modelData,
+          buildCallProviderOptions(args.modelData),
+          { kind: 'utility' },
+        )
       : undefined;
     const userId = `improve-msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 

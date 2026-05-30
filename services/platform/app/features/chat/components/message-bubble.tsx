@@ -42,6 +42,7 @@ import {
   useVoiceModeEffective,
   useVoiceOutputChunker,
 } from '../hooks/use-voice-output';
+import { hasThoughtSteps } from '../utils/build-thought-timeline';
 import { injectCitationTags } from '../utils/inject-citation-tags';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
 import { AssistantMessageContent } from './assistant-message-content';
@@ -58,6 +59,7 @@ import type { Message } from './message-bubble/types';
 import { MessageFeedback } from './message-feedback';
 import { MessageInfoDialog } from './message-info-dialog';
 import { SourceCards } from './source-cards';
+import { ThoughtTimeline } from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
 export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
@@ -221,7 +223,7 @@ function MessageBubbleComponent({
   // assistant role below; citations render only for `!isUser`). Skipping the
   // subscription for user messages halves the per-message query count in a
   // typical thread. `MessageInfoDialog` already tolerates undefined metadata.
-  const { metadata } = useMessageMetadata(
+  const { metadata, isLoading: isMetadataLoading } = useMessageMetadata(
     message.role === 'assistant' ? message.id : null,
     message.threadId,
   );
@@ -232,6 +234,12 @@ function MessageBubbleComponent({
   // streamed before stopStream() fired.
   const blockedReason = metadata?.blockedReason;
   const isBlocked = !!blockedReason && message.role === 'assistant';
+  // While the metadata subscription is still loading for an assistant message,
+  // `blockedReason` is unknown — treat the blocked state as indeterminate so we
+  // don't flash reasoning/tool steps (or answer text) for a guardrails-blocked
+  // message before <BlockedNotice/> can swap in. Flips false the instant the
+  // query resolves, so a normal message's content isn't withheld.
+  const metadataPending = message.role === 'assistant' && isMetadataLoading;
 
   // Image-generation agents show a ↻ Edit button on assistant image parts.
   const { agent: effectiveAgentForEdit } = useEffectiveAgent(
@@ -265,13 +273,30 @@ function MessageBubbleComponent({
   const galleryImages = useMessageGallery(message);
 
   const displayContent = message.content ?? '';
-  // Only normalize pipes for assistant messages (markdown table rendering);
-  // user messages must be rendered verbatim to preserve content integrity.
-  const normalizedContent = displayContent.replace(/\|\|+/g, '|');
-  // Inject citation tags for known citation numbers so [N] renders as interactive components
+  // Thought-process timeline (assistant only): reasoning + tool activity from
+  // the message parts. Drives bubble padding so an empty-but-thinking bubble
+  // still has chrome. Hidden for guardrails-blocked messages. Use the cheap
+  // predicate here — ThoughtTimeline builds the full step list itself, so a
+  // full build here would just be a wasted second pass every render.
+  // `!metadataPending` withholds reasoning until we know the message isn't
+  // guardrails-blocked, so a blocked message's raw chain-of-thought can't flash
+  // before <BlockedNotice/> resolves. (A live streaming message has no metadata
+  // doc yet, so its query resolves to null immediately → not pending → live
+  // reasoning shows normally.)
+  const showTimeline =
+    !isUser && !isBlocked && !metadataPending && hasThoughtSteps(message.parts);
+  // Normalize pipes (markdown table rendering) + inject citation tags so [N]
+  // renders as interactive components. Folded into one memo keyed on the raw
+  // content so the regex passes don't re-run on render churn that doesn't
+  // change the text (e.g. parts/streaming-flag updates). User messages are
+  // rendered verbatim elsewhere to preserve content integrity.
   const assistantContent = useMemo(
-    () => injectCitationTags(normalizedContent, citationNumbers),
-    [normalizedContent, citationNumbers],
+    () =>
+      injectCitationTags(
+        displayContent.replace(/\|\|+/g, '|'),
+        citationNumbers,
+      ),
+    [displayContent, citationNumbers],
   );
 
   // Map each filePart/attachment to its gallery index (-1 for non-images)
@@ -362,9 +387,20 @@ function MessageBubbleComponent({
           isUser
             ? 'bg-muted text-foreground max-w-xs lg:max-w-md'
             : 'text-foreground bg-background w-full min-w-0',
-          (displayContent || message.isAborted || isBlocked) && 'px-4 py-3',
+          (displayContent || message.isAborted || isBlocked || showTimeline) &&
+            'px-4 py-3',
         )}
       >
+        {/* Thought process (reasoning + tools): above the answer, persists
+            collapsed in history. Hidden for guardrails-blocked messages. */}
+        {showTimeline && (
+          <ThoughtTimeline
+            parts={message.parts}
+            isStreaming={!!isAssistantStreaming}
+            hasAnswerStarted={!!displayContent}
+            durationMs={metadata?.timeToFirstTokenMs ?? metadata?.durationMs}
+          />
+        )}
         {isBlocked && blockedReason ? (
           <BlockedNotice
             code={blockedReason.code}
@@ -783,6 +819,39 @@ function sameFileParts(
   return true;
 }
 
+/**
+ * Structural compare of UIMessage parts for the thought-process timeline. The
+ * message list rebuilds `parts` with fresh references on every streamed token,
+ * so a reference check would never re-render — but a deep check would re-render
+ * every bubble per tick. Compare length + per-part identity (type, state,
+ * text length, toolCallId): enough to catch reasoning growth and tool
+ * state transitions without churning unrelated bubbles.
+ */
+function isPartRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
+}
+
+function sameParts(a: Message['parts'], b: Message['parts']): boolean {
+  if (a === b) return true;
+  if (!a || !b) return a === b;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const pa = a[i];
+    const pb = b[i];
+    if (!isPartRecord(pa) || !isPartRecord(pb)) {
+      if (pa !== pb) return false;
+      continue;
+    }
+    if (pa.type !== pb.type) return false;
+    if (pa.state !== pb.state) return false;
+    if (pa.toolCallId !== pb.toolCallId) return false;
+    const ta = typeof pa.text === 'string' ? pa.text.length : 0;
+    const tb = typeof pb.text === 'string' ? pb.text.length : 0;
+    if (ta !== tb) return false;
+  }
+  return true;
+}
+
 export const MessageBubble = memo(
   MessageBubbleComponent,
   (prevProps, nextProps) => {
@@ -797,6 +866,7 @@ export const MessageBubble = memo(
         nextProps.message.attachments,
       ) &&
       sameFileParts(prevProps.message.fileParts, nextProps.message.fileParts) &&
+      sameParts(prevProps.message.parts, nextProps.message.parts) &&
       prevProps.message.threadId === nextProps.message.threadId &&
       prevProps.className === nextProps.className &&
       prevProps.organizationId === nextProps.organizationId &&

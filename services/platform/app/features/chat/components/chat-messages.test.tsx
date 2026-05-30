@@ -30,8 +30,9 @@ vi.mock('./message-bubble', () => ({
   }) => <div data-testid={`message-${message.role}`}>{message.content}</div>,
 }));
 
-vi.mock('./thinking-animation', () => ({
-  ThinkingAnimation: () => <div data-testid="thinking" />,
+vi.mock('./thought-timeline', () => ({
+  ThinkingIndicator: () => <div data-testid="thinking" />,
+  ThoughtTimeline: () => <div data-testid="thought-timeline" />,
 }));
 
 vi.mock('./approval-card-renderer', () => ({
@@ -79,7 +80,6 @@ const defaultProps = {
   canLoadMore: false,
   isLoadingMore: false,
   loadMore: vi.fn(),
-  activeMessage: undefined,
   isLoading: false,
   lastUserMessageRef: createRef<HTMLDivElement>(),
   containerRef: createRef<HTMLDivElement>(),
@@ -182,6 +182,46 @@ describe('ChatMessages', () => {
       render(<ChatMessages {...defaultProps} items={[toItem(abortedMsg)]} />);
 
       expect(screen.getByTestId('message-assistant')).toBeInTheDocument();
+    });
+  });
+
+  describe('off-screen history performance (content-visibility)', () => {
+    it('applies content-visibility to history but not the active turn', () => {
+      const history = createMessage({
+        id: 'h',
+        role: 'assistant',
+        content: 'old answer',
+      });
+      const user = createMessage({
+        id: 'u',
+        role: 'user',
+        content: 'current question',
+      });
+      const response = createMessage({
+        id: 'r',
+        role: 'assistant',
+        content: 'new answer',
+      });
+
+      render(
+        <ChatMessages
+          {...defaultProps}
+          items={[toItem(history), toItem(user), toItem(response)]}
+        />,
+      );
+
+      // History (before the current turn's user message) opts into
+      // content-visibility so it skips layout/paint while off-screen.
+      expect(screen.getByText('old answer').parentElement?.className).toContain(
+        'content-visibility',
+      );
+      // The active turn stays fully rendered for accurate scroll measurement.
+      expect(
+        screen.getByText('current question').parentElement?.className ?? '',
+      ).not.toContain('content-visibility');
+      expect(
+        screen.getByText('new answer').parentElement?.className ?? '',
+      ).not.toContain('content-visibility');
     });
   });
 });

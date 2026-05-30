@@ -2,10 +2,11 @@
 
 import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Pencil } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -13,11 +14,14 @@ import {
   retentionPolicyConfigSchema,
   type RetentionPolicyConfig,
 } from '@/lib/shared/schemas/governance';
+import type { RetentionCategory } from '@/lib/shared/schemas/retention';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useGovernancePolicy } from '../hooks/queries';
+import type { CategoryBounds } from '../hooks/use-retention-bounds';
 import { useRetentionBounds } from '../hooks/use-retention-bounds';
 import { RetentionBoundsProposalBanner } from './retention-bounds-proposal-banner';
+import { WIRE_MAPPING } from './retention-categories';
 import { RetentionEditDrawer } from './retention-edit-drawer';
 import { RetentionPendingBanner } from './retention-pending-banner';
 import { RetentionPolicySummary } from './retention-policy-summary';
@@ -35,46 +39,82 @@ function parseRetentionConfig(policy: unknown): RetentionPolicyConfig {
   return { documentsRetentionDays: 90 };
 }
 
-function skeletonRow(): ReactNode {
+/**
+ * Masked stand-in for `RetentionPolicySummary` shown while the policy loads.
+ * Mirrors its bordered card + one `<dl>` row per category (driven by the same
+ * `WIRE_MAPPING` the real summary maps over, so the masked and loaded row
+ * counts can never drift) + the grace row + a block reserving the timeline's
+ * height. Decorative — the enclosing `<Skeletonize>` owns the one status
+ * announcement, so the rows here are plain masked text.
+ */
+function RetentionSummarySkeleton() {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex flex-col gap-1">
-        <Skeleton className="h-5 w-44" />
-        <Skeleton className="h-4 w-72 max-w-full" />
+    <div className="border-border flex flex-col gap-4 rounded-lg border p-4">
+      <dl className="space-y-1 text-sm">
+        {WIRE_MAPPING.map((wire) => (
+          <div key={wire.id} className="flex gap-2">
+            <dt className="w-44 shrink-0">
+              <SkeletonText width="8rem" />
+            </dt>
+            <dd>
+              <SkeletonText width="4rem" />
+            </dd>
+          </div>
+        ))}
+        <div className="flex gap-2 pt-1">
+          <dt className="w-44 shrink-0">
+            <SkeletonText width="9rem" />
+          </dt>
+          <dd>
+            <SkeletonText width="2rem" />
+          </dd>
+        </div>
+      </dl>
+      <div className="border-border/50 border-t pt-4">
+        {/* Reserve the three-step timeline's height so swapping to the live
+            summary doesn't shift the rest of the page. */}
+        <SkeletonBox className="h-12 w-full" />
       </div>
-      <Skeleton className="h-8 w-24 rounded-md" />
     </div>
   );
 }
 
-export function RetentionEditor({ organizationId }: RetentionEditorProps) {
+interface RetentionEditorViewProps {
+  organizationId: string;
+  config: RetentionPolicyConfig;
+  bounds: Map<RetentionCategory, CategoryBounds>;
+  retentionDisabled: boolean;
+  cannotManage: boolean;
+  drawerOpen: boolean;
+  onDrawerOpenChange: (open: boolean) => void;
+}
+
+/**
+ * Plain presentational view — no data/state hooks of its own. Rendered both
+ * live (by the container) and as its own skeleton (the container wraps it in
+ * `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
+ * cannot drift.
+ *
+ * The conditional banners (`RetentionBoundsProposalBanner`,
+ * `RetentionPendingBanner`) mount only when their async reads return data —
+ * which never happens during the initial skeleton pass, so they render nothing
+ * while loading. They stay ABOVE the summary in source order, so any later
+ * mount only nudges layout below them. While loading, the summary region shows
+ * `RetentionSummarySkeleton` (same card + row count) so the block reserves its
+ * real height; the Edit action button auto-masks via `<Skeletonize>`.
+ */
+export function RetentionEditorView({
+  organizationId,
+  config,
+  bounds,
+  retentionDisabled,
+  cannotManage,
+  drawerOpen,
+  onDrawerOpenChange,
+}: RetentionEditorViewProps) {
   const { t } = useT('governance');
   const { t: tCommon } = useT('common');
-  const ability = useAbility();
-
-  const { data: policy, isLoading } = useGovernancePolicy(
-    organizationId,
-    'retention_policy',
-  );
-  const { bounds, retentionDisabled } = useRetentionBounds(organizationId);
-
-  const savedConfig = useMemo(
-    () => parseRetentionConfig(policy?.config),
-    [policy],
-  );
-
-  const cannotManage = ability.cannot('write', 'orgSettings');
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
-  if (isLoading) {
-    return (
-      <div aria-busy="true" className="flex flex-col gap-6">
-        {skeletonRow()}
-        {skeletonRow()}
-        {skeletonRow()}
-      </div>
-    );
-  }
+  const loading = useSkeleton();
 
   return (
     <PageSection
@@ -89,7 +129,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
           size="sm"
           icon={Pencil}
           disabled={cannotManage}
-          onClick={() => setDrawerOpen(true)}
+          onClick={() => onDrawerOpenChange(true)}
         >
           {tCommon('actions.edit')}
         </Button>
@@ -109,16 +149,61 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
       <RetentionBoundsProposalBanner organizationId={organizationId} />
       <RetentionPendingBanner organizationId={organizationId} />
 
-      <RetentionPolicySummary config={savedConfig} bounds={bounds} />
+      {loading ? (
+        <RetentionSummarySkeleton />
+      ) : (
+        <RetentionPolicySummary config={config} bounds={bounds} />
+      )}
 
       <RetentionEditDrawer
         open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        savedConfig={savedConfig}
+        onOpenChange={onDrawerOpenChange}
+        savedConfig={config}
         bounds={bounds}
         organizationId={organizationId}
         cannotManage={cannotManage}
       />
     </PageSection>
+  );
+}
+
+// =============================================================================
+// Container — owns data fetching (policy + bounds), the drawer open state, and
+// the loading state. Wraps the plain view in `<Skeletonize>` so the same tree
+// renders the skeleton while the policy loads.
+// =============================================================================
+export function RetentionEditor({ organizationId }: RetentionEditorProps) {
+  const { t } = useT('governance');
+  const ability = useAbility();
+
+  const { data: policy, isLoading } = useGovernancePolicy(
+    organizationId,
+    'retention_policy',
+  );
+  const { bounds, retentionDisabled } = useRetentionBounds(organizationId);
+
+  const savedConfig = useMemo(
+    () => parseRetentionConfig(policy?.config),
+    [policy],
+  );
+
+  const cannotManage = ability.cannot('write', 'orgSettings');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  return (
+    <Skeletonize
+      loading={isLoading}
+      label={t('retentionPolicy.title', 'Retention policy')}
+    >
+      <RetentionEditorView
+        organizationId={organizationId}
+        config={savedConfig}
+        bounds={bounds}
+        retentionDisabled={retentionDisabled}
+        cannotManage={cannotManage}
+        drawerOpen={drawerOpen}
+        onDrawerOpenChange={setDrawerOpen}
+      />
+    </Skeletonize>
   );
 }

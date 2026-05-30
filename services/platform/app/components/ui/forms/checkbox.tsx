@@ -2,6 +2,8 @@
 
 import * as CheckboxPrimitive from '@radix-ui/react-checkbox';
 import { Description } from '@tale/ui/description';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Check, Minus } from 'lucide-react';
 import * as React from 'react';
 
@@ -17,7 +19,9 @@ interface CheckboxProps extends React.ComponentPropsWithoutRef<
   required?: boolean;
 }
 
-export const Checkbox = React.forwardRef<
+// Plain control — the real checkbox (+ optional label/description). No skeleton
+// logic of its own.
+const CheckboxBase = React.forwardRef<
   React.ComponentRef<typeof CheckboxPrimitive.Root>,
   CheckboxProps
 >(
@@ -111,4 +115,25 @@ export const Checkbox = React.forwardRef<
     );
   },
 );
+CheckboxBase.displayName = 'CheckboxBase';
+
+/**
+ * Skeleton-aware Checkbox. Inside a `<Skeletonize loading>` it masks the plain
+ * control by rendering it inside a `<SkeletonBox>` — laid out invisibly to set
+ * the exact size, pulse overlay on top — so the skeleton can never drift.
+ */
+export const Checkbox = React.forwardRef<
+  React.ComponentRef<typeof CheckboxPrimitive.Root>,
+  CheckboxProps
+>((props, ref) => {
+  const loading = useSkeleton();
+  if (loading) {
+    return (
+      <SkeletonBox>
+        <CheckboxBase {...props} ref={ref} />
+      </SkeletonBox>
+    );
+  }
+  return <CheckboxBase {...props} ref={ref} />;
+});
 Checkbox.displayName = CheckboxPrimitive.Root.displayName;

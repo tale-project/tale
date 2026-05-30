@@ -5,6 +5,8 @@ import { Loader2, type LucideIcon } from 'lucide-react';
 import * as React from 'react';
 
 import { cn } from '../../lib/cn';
+import { SkeletonBox } from '../feedback/skeleton';
+import { useSkeleton } from '../feedback/skeleton-context';
 
 export const buttonVariants = cva(
   'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 active:scale-[0.97] active:duration-75 motion-reduce:active:scale-100 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100 leading-none ring-offset-background cursor-pointer',
@@ -58,7 +60,8 @@ export interface ButtonProps
   collapseLabel?: boolean;
 }
 
-export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+// Plain control — the real button. No skeleton logic of its own.
+const ButtonBase = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
       className,
@@ -124,6 +127,27 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {content}
       </Comp>
     );
+  },
+);
+ButtonBase.displayName = 'ButtonBase';
+
+/**
+ * Skeleton-aware Button. Inside a `<Skeletonize loading>` it masks the real
+ * button by rendering it inside a `<SkeletonBox>` (laid out invisibly to set
+ * the exact size, pulse overlay on top), so it never shifts when its
+ * surrounding form swaps from skeleton → live.
+ */
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  (props, ref) => {
+    const loading = useSkeleton();
+    if (loading) {
+      return (
+        <SkeletonBox className={cn(props.fullWidth && 'w-full')}>
+          <ButtonBase {...props} ref={ref} />
+        </SkeletonBox>
+      );
+    }
+    return <ButtonBase {...props} ref={ref} />;
   },
 );
 Button.displayName = 'Button';

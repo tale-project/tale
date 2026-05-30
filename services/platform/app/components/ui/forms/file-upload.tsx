@@ -1,6 +1,8 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { ImagePlus, Info } from 'lucide-react';
 import {
@@ -139,7 +141,9 @@ interface DropZoneProps {
   'aria-label'?: string;
 }
 
-function DropZone({
+// Plain control — the real interactive drop zone (+ hidden file input). No
+// skeleton logic of its own.
+function DropZoneBase({
   children,
   className,
   onFilesSelected,
@@ -271,6 +275,23 @@ function DropZone({
       )}
     </div>
   );
+}
+
+/**
+ * Skeleton-aware DropZone. Inside a `<Skeletonize loading>` it masks the plain
+ * control by rendering it inside a `<SkeletonBox>` — laid out invisibly to set
+ * the exact size, pulse overlay on top — so the skeleton can never drift.
+ */
+function DropZone(props: DropZoneProps) {
+  const loading = useSkeleton();
+  if (loading) {
+    return (
+      <SkeletonBox>
+        <DropZoneBase {...props} />
+      </SkeletonBox>
+    );
+  }
+  return <DropZoneBase {...props} />;
 }
 
 interface OverlayProps {

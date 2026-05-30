@@ -3,7 +3,8 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { Copy, Info, ShieldAlert } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -66,19 +67,28 @@ function StatusCard({
   icon: Icon,
 }: StatusCardProps) {
   const { t: tCommon } = useT('common');
+  // Inside a loading `<Skeletonize>` the enabled/disabled state and the detail
+  // strings aren't known yet, so render the icon + a masked details block
+  // (instead of misleadingly flashing the "Disabled" badge). The title /
+  // description are static and always render their real text.
+  const loading = useSkeleton();
   return (
     <div className="border-border rounded-lg border p-4">
       <div className="mb-2 flex items-center gap-2">
         <Icon
           className={
-            enabled ? 'size-4 text-emerald-600' : 'text-muted-foreground size-4'
+            enabled && !loading
+              ? 'size-4 text-emerald-600'
+              : 'text-muted-foreground size-4'
           }
           aria-hidden
         />
         <div className="font-medium">{title}</div>
       </div>
       <div className="text-muted-foreground mb-3 text-xs">{description}</div>
-      {enabled ? (
+      {loading ? (
+        <SkeletonText lines={3} className="text-xs" />
+      ) : enabled ? (
         <ul className="text-xs">
           {details.map((detail) => (
             <li key={detail} className="py-0.5">
@@ -131,46 +141,8 @@ export function GuardrailsOverview({
     return map;
   }, [chatFilterConfig]);
 
-  if (piiLoading || chatFilterLoading || moderationLoading) {
-    return (
-      <PageSection
-        title={t('guardrailsOverview.title')}
-        description={t('guardrailsOverview.description')}
-      >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="border-border rounded-lg border p-4">
-              <div className="mb-2 flex items-center gap-2">
-                <Skeleton className="size-4 rounded-sm" />
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="ml-auto size-4 rounded-full" />
-              </div>
-              <Skeleton className="mb-3 h-3 w-full" />
-              <div className="space-y-1.5">
-                <Skeleton className="h-3 w-5/6" />
-                <Skeleton className="h-3 w-2/3" />
-                <Skeleton className="h-3 w-3/4" />
-              </div>
-            </div>
-          ))}
-        </div>
+  const isLoading = piiLoading || chatFilterLoading || moderationLoading;
 
-        <section className="mt-8">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-1.5">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="h-3 w-64" />
-            </div>
-            <div className="flex gap-2">
-              <Skeleton className="h-9 w-32 rounded-md" />
-              <Skeleton className="h-9 w-32 rounded-md" />
-            </div>
-          </div>
-          <Skeleton className="h-48 w-full rounded-lg" />
-        </section>
-      </PageSection>
-    );
-  }
   const chatFilterDetails: string[] = chatFilterEnabled
     ? [
         t('guardrailsOverview.statusCards.contentSafety.appliesTo', {
@@ -227,6 +199,51 @@ export function GuardrailsOverview({
       ]
     : [];
 
+  return (
+    <Skeletonize loading={isLoading} label={t('guardrailsOverview.title')}>
+      <GuardrailsOverviewView
+        organizationId={organizationId}
+        chatFilterEnabled={chatFilterEnabled}
+        chatFilterDetails={chatFilterDetails}
+        piiEnabled={piiEnabled}
+        piiDetails={piiDetails}
+        moderationEnabled={moderationEnabled}
+        moderationDetails={moderationDetails}
+        chatFilterLabels={chatFilterLabels}
+      />
+    </Skeletonize>
+  );
+}
+
+// =============================================================================
+// Plain presentational view — no data/state hooks of its own. Renders the real
+// layout from injected enabled flags + detail strings. Rendered both live (by
+// the container) and as its own skeleton (the container wraps it in
+// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
+// cannot drift. Each `StatusCard` reads `useSkeleton()` to mask its details
+// block while loading; the static card titles/descriptions stay real text.
+// `RecentEvents` owns an independent read and skeletonizes its own table rows.
+// =============================================================================
+function GuardrailsOverviewView({
+  organizationId,
+  chatFilterEnabled,
+  chatFilterDetails,
+  piiEnabled,
+  piiDetails,
+  moderationEnabled,
+  moderationDetails,
+  chatFilterLabels,
+}: {
+  organizationId: string;
+  chatFilterEnabled: boolean;
+  chatFilterDetails: string[];
+  piiEnabled: boolean;
+  piiDetails: string[];
+  moderationEnabled: boolean;
+  moderationDetails: string[];
+  chatFilterLabels: Map<string, string>;
+}) {
+  const { t } = useT('governance');
   return (
     <PageSection
       title={t('guardrailsOverview.title')}
@@ -327,6 +344,7 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
         </div>
         <div className="flex gap-2">
           <Select
+            aria-label={t('guardrailsOverview.recentEvents.columnFilter')}
             value={filterName}
             onValueChange={(v) => {
               if (
@@ -358,6 +376,7 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
             ]}
           />
           <Select
+            aria-label={t('guardrailsOverview.recentEvents.columnKind')}
             value={kind}
             onValueChange={(v) => {
               if (
@@ -396,14 +415,20 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
         </div>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-48 w-full" />
-      ) : !events || events.length === 0 ? (
+      {!isLoading && (!events || events.length === 0) ? (
+        // Real empty-state only once the read has settled with zero rows.
         <div className="border-border text-muted-foreground rounded-lg border p-6 text-center text-sm">
           {t('guardrailsOverview.recentEvents.empty')}
         </div>
       ) : (
-        <div className="border-border overflow-x-auto rounded-lg border">
+        // While loading, render the SAME table shell with placeholder rows
+        // (wrapped in `<Skeletonize>` so the masked cells announce "Loading"
+        // once) instead of an empty grid or a single magic-height block.
+        <Skeletonize
+          loading={isLoading}
+          label={t('guardrailsOverview.recentEvents.title')}
+          className="border-border overflow-x-auto rounded-lg border"
+        >
           <table className="w-full text-sm">
             <thead>
               <tr className="border-border bg-muted/40 text-muted-foreground border-b text-left text-xs">
@@ -428,65 +453,78 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
               </tr>
             </thead>
             <tbody>
-              {events.map((event) => {
-                const typedEvent = event as RecentEvent;
-                return (
-                  <tr
-                    key={typedEvent._id}
-                    className="border-border hover:bg-muted/30 cursor-pointer border-t transition-colors"
-                    tabIndex={0}
-                    aria-label={t(
-                      'guardrailsOverview.recentEvents.viewEventAria',
-                      { id: typedEvent._id },
-                    )}
-                    onClick={() => setSelectedEvent(typedEvent)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setSelectedEvent(typedEvent);
-                      }
-                    }}
-                  >
-                    <td
-                      className="px-3 py-2 whitespace-nowrap"
-                      title={formatDate(
-                        new Date(typedEvent.createdAt),
-                        'medium',
-                      )}
-                    >
-                      {formatDate(new Date(typedEvent.createdAt), 'relative')}
-                    </td>
-                    <td className="px-3 py-2">
-                      {filterNameLabel(typedEvent.filterName, t)}
-                    </td>
-                    <td className="px-3 py-2 capitalize">
-                      {typedEvent.direction}
-                    </td>
-                    <td className="px-3 py-2">
-                      <KindBadge kind={typedEvent.kind} />
-                    </td>
-                    <td className="px-3 py-2">
-                      {typedEvent.categoryIds.length === 0 ? (
-                        <span className="text-muted-foreground">—</span>
-                      ) : (
-                        <span className="text-xs">
-                          {resolveCategoryLabels(
-                            typedEvent.filterName,
-                            typedEvent.categoryIds,
-                            chatFilterLabels,
-                          ).join(', ')}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {typedEvent.matchCount ?? 0}
-                    </td>
-                  </tr>
-                );
-              })}
+              {isLoading
+                ? Array.from({ length: 3 }).map((_, i) => (
+                    <tr key={i} className="border-border border-t">
+                      {Array.from({ length: 6 }).map((__, j) => (
+                        <td key={j} className="px-3 py-2">
+                          <SkeletonText className="text-sm" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                : (events ?? []).map((event) => {
+                    const typedEvent = event as RecentEvent;
+                    return (
+                      <tr
+                        key={typedEvent._id}
+                        className="border-border hover:bg-muted/30 cursor-pointer border-t transition-colors"
+                        tabIndex={0}
+                        aria-label={t(
+                          'guardrailsOverview.recentEvents.viewEventAria',
+                          { id: typedEvent._id },
+                        )}
+                        onClick={() => setSelectedEvent(typedEvent)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setSelectedEvent(typedEvent);
+                          }
+                        }}
+                      >
+                        <td
+                          className="px-3 py-2 whitespace-nowrap"
+                          title={formatDate(
+                            new Date(typedEvent.createdAt),
+                            'medium',
+                          )}
+                        >
+                          {formatDate(
+                            new Date(typedEvent.createdAt),
+                            'relative',
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {filterNameLabel(typedEvent.filterName, t)}
+                        </td>
+                        <td className="px-3 py-2 capitalize">
+                          {typedEvent.direction}
+                        </td>
+                        <td className="px-3 py-2">
+                          <KindBadge kind={typedEvent.kind} />
+                        </td>
+                        <td className="px-3 py-2">
+                          {typedEvent.categoryIds.length === 0 ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <span className="text-xs">
+                              {resolveCategoryLabels(
+                                typedEvent.filterName,
+                                typedEvent.categoryIds,
+                                chatFilterLabels,
+                              ).join(', ')}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {typedEvent.matchCount ?? 0}
+                        </td>
+                      </tr>
+                    );
+                  })}
             </tbody>
           </table>
-        </div>
+        </Skeletonize>
       )}
 
       <EventDetailSheet

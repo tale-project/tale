@@ -29,6 +29,7 @@ If unsure, default to **yes**. Reviewer time is cheaper than stale docs.
 Paste this into the PR description. Empty boxes get rejected.
 
 - [ ] Ran `bun run check` (format, lint, typecheck, all tests).
+- [ ] No hand-rolled skeletons or magic `h-[…]` on skeletons — loading uses `<Skeletonize>` + skeleton-aware leaves (see React section) — or N/A.
 - [ ] Updated `services/platform/messages/{en,de,fr}.json` — or N/A.
 - [ ] Updated `/docs/{en,de,fr}/` for every user-visible change — or N/A.
 - [ ] Every touched docs page has a real opening (≥ 2 sentences of prose) and a real closing (a recap paragraph, not a bare `## Next` stub). See the [`docs`](.agents/docs/AGENTS.md) skill for the bar. The opening/closing/loanword tests in [`services/docs/tests/`](services/docs/tests/) flag failures.
@@ -90,6 +91,7 @@ Security is a first pass, not a clean-up step. During every change, check the OW
 - **Storybook is part of the component.** New UI primitives in `components/ui/` ship with a story covering every variant, size, and key state.
 - **Reach for `useMemo`, `useCallback`, `memo` only when the profile justifies it.** Don't reach for `useEffect` either — most needs are better served by derived state, event handlers, or the router.
 - **CVA for named variants** (`variant`, `size`, `tone`); a conditional `cn()` for boolean states (`isActive`, `hasError`).
+- **Loading states are centralized — never hand-roll a skeleton.** Split a stateful component into a plain presentational part + a container that owns the hooks/data, and wrap the plain part in `<Skeletonize loading={isLoading}>` (`@tale/ui/skeleton-context`). The skeleton-aware leaves (`Input`, `Textarea`, `Switch`, `Select`, `Checkbox`, `Button`, `Badge`, …) mask themselves to their exact size, so the skeleton can't drift from the content. Use `SkeletonBox`/`SkeletonText` (`@tale/ui/skeleton`) only for placeholder table rows. Never render the bare `<Skeleton>` primitive or put a magic `h-[…]` height on a skeleton inside a feature component — both are enforced by `governance/components/skeleton-conventions.test.ts`. Warm the data in the route `loader` (`ensureGovernancePolicies` / `ensureConvexQuery`) so navigations skip the skeleton entirely.
 
 ## Convex
 

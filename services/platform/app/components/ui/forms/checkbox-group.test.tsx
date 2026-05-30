@@ -1,3 +1,4 @@
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
@@ -243,6 +244,40 @@ describe('CheckboxGroup', () => {
         />,
       );
       expect(screen.getByRole('group')).toHaveAttribute('aria-describedby');
+    });
+  });
+
+  describe('skeleton mode', () => {
+    it('masks the checkboxes (composed Checkbox) while loading', () => {
+      render(
+        <Skeletonize loading>
+          <CheckboxGroup
+            value={[]}
+            options={[
+              { value: 'a', label: 'Option A' },
+              { value: 'b', label: 'Option B' },
+            ]}
+          />
+        </Skeletonize>,
+      );
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+      // Static option labels stay real.
+      expect(screen.getByText('Option A')).toBeInTheDocument();
+    });
+
+    it('renders the real checkboxes when not loading', () => {
+      render(
+        <Skeletonize loading={false}>
+          <CheckboxGroup
+            value={[]}
+            options={[
+              { value: 'a', label: 'Option A' },
+              { value: 'b', label: 'Option B' },
+            ]}
+          />
+        </Skeletonize>,
+      );
+      expect(screen.getAllByRole('checkbox')).toHaveLength(2);
     });
   });
 });

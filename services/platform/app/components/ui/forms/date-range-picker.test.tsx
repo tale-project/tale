@@ -1,7 +1,8 @@
-import { describe, it, vi } from 'vitest';
+import { Skeletonize } from '@tale/ui/skeleton-context';
+import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
-import { render } from '@/test/utils/render';
+import { render, screen } from '@/test/utils/render';
 
 import { DatePickerWithRange } from './date-range-picker';
 
@@ -38,6 +39,29 @@ describe('DatePickerWithRange', () => {
         />,
       );
       await checkAccessibility(container, a11yOptions);
+    });
+  });
+
+  describe('skeleton mode', () => {
+    it('masks the picker trigger while loading', () => {
+      render(
+        <Skeletonize loading>
+          <DatePickerWithRange onChange={vi.fn()} label="Date range" />
+        </Skeletonize>,
+      );
+      // The react-datepicker trigger buttons are replaced by the mask.
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+      // The static label stays real.
+      expect(screen.getByText('Date range')).toBeInTheDocument();
+    });
+
+    it('renders the real picker trigger when not loading', () => {
+      render(
+        <Skeletonize loading={false}>
+          <DatePickerWithRange onChange={vi.fn()} label="Date range" />
+        </Skeletonize>,
+      );
+      expect(screen.getAllByRole('button').length).toBeGreaterThan(0);
     });
   });
 });

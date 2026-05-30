@@ -770,16 +770,17 @@
       "body": "Diese Antwort wurde durch die Inhaltsrichtlinie deiner Organisation blockiert."
     },
     "thinking": {
-      "default": "Denkt nach",
-      "searching": "Sucht nach \"{query}\"",
       "reading": "Liest {hostname}",
       "searchingKnowledgeBase": "Durchsucht die Wissensdatenbank nach \"{query}\"",
-      "searchingMultiple": "Sucht nach {queries}",
-      "searchingMore": "Sucht nach {first}, {second} und {count} weiteren",
-      "multipleTools": "{first} und {second}",
-      "multipleToolsMore": "{first}, {second} und {count} weitere",
-      "and": "und",
-      "delegating": "Fragt {agent}"
+      "delegating": "Fragt {agent}",
+      "redacted": "Hat intern nachgedacht"
+    },
+    "thoughtProcess": {
+      "thinking": "Denkt nach",
+      "summary": "{seconds} s nachgedacht · {tools, plural, one {# Werkzeug} other {# Werkzeuge}} verwendet",
+      "summaryNoTools": "{seconds} s nachgedacht",
+      "summaryUnknownDuration": "{tools, plural, one {# Werkzeug} other {# Werkzeuge}} verwendet",
+      "summaryReasoningOnly": "Hat den Gedankengang gezeigt"
     },
     "tools": {
       "customerRead": "Kundendaten werden gelesen",

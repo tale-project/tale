@@ -22,6 +22,7 @@
     "./badge": "./src/components/feedback/badge.tsx",
     "./spinner": "./src/components/feedback/spinner.tsx",
     "./skeleton": "./src/components/feedback/skeleton.tsx",
+    "./skeleton-context": "./src/components/feedback/skeleton-context.tsx",
     "./status-indicator": "./src/components/feedback/status-indicator.tsx",
     "./toast": "./src/components/feedback/toast.tsx",
     "./accordion": "./src/components/feedback/accordion.tsx",

@@ -3,9 +3,9 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -213,6 +213,97 @@ interface ModerationProviderConfigProps {
   organizationId: string;
 }
 
+type CustomCategoryShape = 'array' | 'record_of_bool' | 'record_of_score';
+
+interface ModerationDraft {
+  enabled: boolean;
+  appliesToInput: boolean;
+  appliesToOutput: boolean;
+  url: string;
+  headers: HeaderRow[];
+  requestTemplate: string;
+  timeoutMs: string;
+  responseShape: ModerationResponseShape['type'];
+  customFlaggedPath: string;
+  customCategoriesPath: string;
+  customCategoryShape: CustomCategoryShape;
+  failInput: 'open' | 'closed';
+  failOutput: 'open' | 'closed';
+  mappings: ModerationCategoryMapping[];
+}
+
+const DEFAULT_DRAFT: ModerationDraft = {
+  enabled: false,
+  appliesToInput: true,
+  appliesToOutput: false,
+  url: '',
+  headers: [],
+  requestTemplate: '',
+  timeoutMs: '3000',
+  responseShape: 'openai_moderation',
+  customFlaggedPath: '',
+  customCategoriesPath: '',
+  customCategoryShape: 'record_of_bool',
+  failInput: 'open',
+  failOutput: 'closed',
+  mappings: [],
+};
+
+type ModerationPolicy = ReturnType<typeof useGovernancePolicy>['data'];
+
+/**
+ * Derive the editor draft from the persisted policy. Returns the defaults
+ * (so the masked-during-load view still has a valid shape to render) when
+ * there's no policy yet or the stored config fails schema validation.
+ */
+function deriveDraft(policy: ModerationPolicy): ModerationDraft {
+  if (!policy) return DEFAULT_DRAFT;
+  const parsed = moderationProviderConfigSchema.safeParse(policy.config);
+  if (!parsed.success) return DEFAULT_DRAFT;
+  const config = parsed.data;
+  const shape = config.responseShape;
+  return {
+    enabled: policy.enabled ?? config.enabled ?? false,
+    appliesToInput: config.appliesTo?.includes('input') ?? true,
+    appliesToOutput: config.appliesTo?.includes('output') ?? false,
+    url: config.endpoint?.url ?? '',
+    headers: Object.entries(config.endpoint?.headers ?? {}).map(
+      ([key, value]) => ({ key, value }),
+    ),
+    requestTemplate: config.endpoint?.requestTemplate ?? '',
+    timeoutMs: String(config.endpoint?.timeoutMs ?? 3000),
+    responseShape: shape?.type ?? 'openai_moderation',
+    customFlaggedPath:
+      shape?.type === 'custom_jsonpath' ? (shape.flaggedPath ?? '') : '',
+    customCategoriesPath:
+      shape?.type === 'custom_jsonpath' ? (shape.categoriesPath ?? '') : '',
+    customCategoryShape:
+      shape?.type === 'custom_jsonpath'
+        ? shape.categoryShape
+        : 'record_of_bool',
+    failInput: config.failBehavior?.input ?? 'open',
+    failOutput: config.failBehavior?.output ?? 'closed',
+    mappings: config.categoryMappings ?? [],
+  };
+}
+
+// =============================================================================
+// Container — owns data fetching, local edit state, save/toast wiring, and the
+// loading state. Wraps the plain `ModerationProviderConfigForm` in
+// `<Skeletonize>` so the same tree renders the skeleton (the hand-rolled
+// loading `PageSection` with magic-height `Skeleton` boxes is gone — the
+// skeleton-aware `<Switch>` masks itself to its real track height).
+//
+// All draft fields are seeded LAZILY from the (possibly already-warm) policy so
+// the first render shows real values — replacing the post-mount
+// `useEffect`/`initializedRef` swap that flashed defaults for a frame on warm
+// navigations. A one-time render-time sync still adopts a cold read once it
+// lands (pre-commit → no flicker); after that, edits are client-owned and the
+// optimistic upsert keeps the server read in step.
+//
+// NOTE: exported as `ModerationProviderConfigView` because the guardrails route
+// already imports that name as the entry point — keep it stable.
+// =============================================================================
 export function ModerationProviderConfigView({
   organizationId,
 }: ModerationProviderConfigProps) {
@@ -226,23 +317,39 @@ export function ModerationProviderConfigView({
   );
   const upsertMutation = useUpsertGovernancePolicy();
 
-  const [enabled, setEnabled] = useState(false);
-  const [appliesToInput, setAppliesToInput] = useState(true);
-  const [appliesToOutput, setAppliesToOutput] = useState(false);
-  const [url, setUrl] = useState('');
-  const [headers, setHeaders] = useState<HeaderRow[]>([]);
-  const [requestTemplate, setRequestTemplate] = useState('');
-  const [timeoutMs, setTimeoutMs] = useState('3000');
-  const [responseShape, setResponseShape] =
-    useState<ModerationResponseShape['type']>('openai_moderation');
-  const [customFlaggedPath, setCustomFlaggedPath] = useState('');
-  const [customCategoriesPath, setCustomCategoriesPath] = useState('');
-  const [customCategoryShape, setCustomCategoryShape] = useState<
-    'array' | 'record_of_bool' | 'record_of_score'
-  >('record_of_bool');
-  const [failInput, setFailInput] = useState<'open' | 'closed'>('open');
-  const [failOutput, setFailOutput] = useState<'open' | 'closed'>('closed');
-  const [mappings, setMappings] = useState<ModerationCategoryMapping[]>([]);
+  const initial = useMemo(() => deriveDraft(policy), [policy]);
+
+  const [enabled, setEnabled] = useState(initial.enabled);
+  const [appliesToInput, setAppliesToInput] = useState(initial.appliesToInput);
+  const [appliesToOutput, setAppliesToOutput] = useState(
+    initial.appliesToOutput,
+  );
+  const [url, setUrl] = useState(initial.url);
+  const [headers, setHeaders] = useState<HeaderRow[]>(initial.headers);
+  const [requestTemplate, setRequestTemplate] = useState(
+    initial.requestTemplate,
+  );
+  const [timeoutMs, setTimeoutMs] = useState(initial.timeoutMs);
+  const [responseShape, setResponseShape] = useState<
+    ModerationResponseShape['type']
+  >(initial.responseShape);
+  const [customFlaggedPath, setCustomFlaggedPath] = useState(
+    initial.customFlaggedPath,
+  );
+  const [customCategoriesPath, setCustomCategoriesPath] = useState(
+    initial.customCategoriesPath,
+  );
+  const [customCategoryShape, setCustomCategoryShape] =
+    useState<CustomCategoryShape>(initial.customCategoryShape);
+  const [failInput, setFailInput] = useState<'open' | 'closed'>(
+    initial.failInput,
+  );
+  const [failOutput, setFailOutput] = useState<'open' | 'closed'>(
+    initial.failOutput,
+  );
+  const [mappings, setMappings] = useState<ModerationCategoryMapping[]>(
+    initial.mappings,
+  );
 
   const [endpointDialogOpen, setEndpointDialogOpen] = useState(false);
   const [deletingMappingIndex, setDeletingMappingIndex] = useState<
@@ -253,35 +360,27 @@ export function ModerationProviderConfigView({
   >(null);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
-  const initializedRef = useRef(false);
 
-  if (!isLoading && !initializedRef.current && policy) {
-    initializedRef.current = true;
-    const parsed = moderationProviderConfigSchema.safeParse(policy.config);
-    if (parsed.success) {
-      const config = parsed.data;
-      setEnabled(policy.enabled ?? config.enabled ?? false);
-      setAppliesToInput(config.appliesTo?.includes('input') ?? true);
-      setAppliesToOutput(config.appliesTo?.includes('output') ?? false);
-      setUrl(config.endpoint?.url ?? '');
-      setHeaders(
-        Object.entries(config.endpoint?.headers ?? {}).map(([key, value]) => ({
-          key,
-          value,
-        })),
-      );
-      setRequestTemplate(config.endpoint?.requestTemplate ?? '');
-      setTimeoutMs(String(config.endpoint?.timeoutMs ?? 3000));
-      setResponseShape(config.responseShape?.type ?? 'openai_moderation');
-      if (config.responseShape?.type === 'custom_jsonpath') {
-        setCustomFlaggedPath(config.responseShape.flaggedPath ?? '');
-        setCustomCategoriesPath(config.responseShape.categoriesPath ?? '');
-        setCustomCategoryShape(config.responseShape.categoryShape);
-      }
-      setFailInput(config.failBehavior?.input ?? 'open');
-      setFailOutput(config.failBehavior?.output ?? 'closed');
-      setMappings(config.categoryMappings ?? []);
-    }
+  // One-time sync for the cold-load case: the lazy seeds above ran against an
+  // absent policy, so adopt the real config the first render it lands. Runs
+  // pre-commit, so no default→real flash; afterwards edits stay client-owned.
+  const syncedRef = useRef(policy != null);
+  if (!syncedRef.current && policy != null) {
+    syncedRef.current = true;
+    setEnabled(initial.enabled);
+    setAppliesToInput(initial.appliesToInput);
+    setAppliesToOutput(initial.appliesToOutput);
+    setUrl(initial.url);
+    setHeaders(initial.headers);
+    setRequestTemplate(initial.requestTemplate);
+    setTimeoutMs(initial.timeoutMs);
+    setResponseShape(initial.responseShape);
+    setCustomFlaggedPath(initial.customFlaggedPath);
+    setCustomCategoriesPath(initial.customCategoriesPath);
+    setCustomCategoryShape(initial.customCategoryShape);
+    setFailInput(initial.failInput);
+    setFailOutput(initial.failOutput);
+    setMappings(initial.mappings);
   }
 
   /**
@@ -556,22 +655,6 @@ export function ModerationProviderConfigView({
     [buildConfig, mappings, saveWith],
   );
 
-  if (isLoading) {
-    return (
-      <PageSection
-        title={t('moderationProvider.title')}
-        description={t('moderationProvider.description')}
-        action={<Skeleton className="h-[1.15rem] w-8 rounded-full" />}
-      >
-        <div className="flex flex-col gap-4">
-          <Skeleton className="h-10 w-full max-w-sm" />
-          <Skeleton className="h-10 w-full max-w-sm" />
-          <Skeleton className="h-64 w-full rounded-md" />
-        </div>
-      </PageSection>
-    );
-  }
-
   const endpointDraft: EndpointDraft = {
     url,
     headers,
@@ -583,6 +666,134 @@ export function ModerationProviderConfigView({
   };
 
   return (
+    <Skeletonize loading={isLoading} label={t('moderationProvider.title')}>
+      <ModerationProviderConfigForm
+        organizationId={organizationId}
+        enabled={enabled}
+        appliesToInput={appliesToInput}
+        appliesToOutput={appliesToOutput}
+        url={url}
+        headers={headers}
+        timeoutMs={timeoutMs}
+        responseShape={responseShape}
+        customCategoriesPath={customCategoriesPath}
+        failInput={failInput}
+        failOutput={failOutput}
+        mappings={mappings}
+        endpointDraft={endpointDraft}
+        endpointDialogOpen={endpointDialogOpen}
+        mappingEditorIndex={mappingEditorIndex}
+        deletingMappingIndex={deletingMappingIndex}
+        cannotManage={cannotManage}
+        onToggleEnabled={handleToggleEnabled}
+        onAppliesToInput={handleAppliesToInput}
+        onAppliesToOutput={handleAppliesToOutput}
+        onFailInputChange={handleFailInputChange}
+        onFailOutputChange={handleFailOutputChange}
+        onApplyPreset={handleApplyPreset}
+        onResponseShapeChange={handleResponseShapeChange}
+        onOpenEndpointDialog={() => setEndpointDialogOpen(true)}
+        onCloseEndpointDialog={() => setEndpointDialogOpen(false)}
+        onSaveEndpoint={handleSaveEndpoint}
+        onAddMapping={() => setMappingEditorIndex('new')}
+        onEditMapping={(index) => setMappingEditorIndex(index)}
+        onCloseMappingEditor={() => setMappingEditorIndex(null)}
+        onSaveMapping={handleSaveMapping}
+        onRequestDeleteMapping={(index) => setDeletingMappingIndex(index)}
+        onCloseDeleteMapping={() => setDeletingMappingIndex(null)}
+        onConfirmDeleteMapping={handleDeleteMapping}
+      />
+    </Skeletonize>
+  );
+}
+
+// =============================================================================
+// Plain presentational form — no data/state hooks of its own. Renders the real
+// layout from injected values + change callbacks. Rendered both live (by the
+// container) and as its own skeleton (the container wraps it in
+// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
+// cannot drift. The skeleton-aware `<Switch>` masks itself to its natural track
+// height while loading. (`ApiKeyPanel`/`TestConnectionPanel` own their own data
+// hooks and only mount once enabled, so they never render in the skeleton.)
+// =============================================================================
+interface ModerationProviderConfigFormProps {
+  organizationId: string;
+  enabled: boolean;
+  appliesToInput: boolean;
+  appliesToOutput: boolean;
+  url: string;
+  headers: HeaderRow[];
+  timeoutMs: string;
+  responseShape: ModerationResponseShape['type'];
+  customCategoriesPath: string;
+  failInput: 'open' | 'closed';
+  failOutput: 'open' | 'closed';
+  mappings: ModerationCategoryMapping[];
+  endpointDraft: EndpointDraft;
+  endpointDialogOpen: boolean;
+  mappingEditorIndex: number | 'new' | null;
+  deletingMappingIndex: number | null;
+  cannotManage: boolean;
+  onToggleEnabled: (checked: boolean) => void;
+  onAppliesToInput: (checked: boolean) => void;
+  onAppliesToOutput: (checked: boolean) => void;
+  onFailInputChange: (value: 'open' | 'closed') => void;
+  onFailOutputChange: (value: 'open' | 'closed') => void;
+  onApplyPreset: (preset: ModerationPreset) => void;
+  onResponseShapeChange: (value: ModerationResponseShape['type']) => void;
+  onOpenEndpointDialog: () => void;
+  onCloseEndpointDialog: () => void;
+  onSaveEndpoint: (draft: EndpointDraft) => void;
+  onAddMapping: () => void;
+  onEditMapping: (index: number) => void;
+  onCloseMappingEditor: () => void;
+  onSaveMapping: (
+    index: number | 'new',
+    draft: ModerationCategoryMapping,
+  ) => void;
+  onRequestDeleteMapping: (index: number) => void;
+  onCloseDeleteMapping: () => void;
+  onConfirmDeleteMapping: (index: number) => void;
+}
+
+function ModerationProviderConfigForm({
+  organizationId,
+  enabled,
+  appliesToInput,
+  appliesToOutput,
+  url,
+  headers,
+  timeoutMs,
+  responseShape,
+  customCategoriesPath,
+  failInput,
+  failOutput,
+  mappings,
+  endpointDraft,
+  endpointDialogOpen,
+  mappingEditorIndex,
+  deletingMappingIndex,
+  cannotManage,
+  onToggleEnabled,
+  onAppliesToInput,
+  onAppliesToOutput,
+  onFailInputChange,
+  onFailOutputChange,
+  onApplyPreset,
+  onResponseShapeChange,
+  onOpenEndpointDialog,
+  onCloseEndpointDialog,
+  onSaveEndpoint,
+  onAddMapping,
+  onEditMapping,
+  onCloseMappingEditor,
+  onSaveMapping,
+  onRequestDeleteMapping,
+  onCloseDeleteMapping,
+  onConfirmDeleteMapping,
+}: ModerationProviderConfigFormProps) {
+  const { t } = useT('governance');
+  return (
     <PageSection
       title={t('moderationProvider.title')}
       description={t('moderationProvider.description', {
@@ -593,7 +804,7 @@ export function ModerationProviderConfigView({
           label={t('moderationProvider.enableLabel')}
           checked={enabled}
           disabled={cannotManage}
-          onCheckedChange={handleToggleEnabled}
+          onCheckedChange={onToggleEnabled}
         />
       }
     >
@@ -613,7 +824,7 @@ export function ModerationProviderConfigView({
                   type="checkbox"
                   checked={appliesToInput}
                   disabled={cannotManage}
-                  onChange={(e) => handleAppliesToInput(e.target.checked)}
+                  onChange={(e) => onAppliesToInput(e.target.checked)}
                 />
                 <span>{t('moderationProvider.userInput')}</span>
               </label>
@@ -622,7 +833,7 @@ export function ModerationProviderConfigView({
                   type="checkbox"
                   checked={appliesToOutput}
                   disabled={cannotManage}
-                  onChange={(e) => handleAppliesToOutput(e.target.checked)}
+                  onChange={(e) => onAppliesToOutput(e.target.checked)}
                 />
                 <span>{t('moderationProvider.modelOutput')}</span>
               </label>
@@ -642,8 +853,7 @@ export function ModerationProviderConfigView({
                   value={failInput}
                   disabled={cannotManage}
                   onValueChange={(v) => {
-                    if (v === 'open' || v === 'closed')
-                      handleFailInputChange(v);
+                    if (v === 'open' || v === 'closed') onFailInputChange(v);
                   }}
                   options={[
                     { value: 'open', label: t('moderationProvider.failOpen') },
@@ -662,8 +872,7 @@ export function ModerationProviderConfigView({
                   value={failOutput}
                   disabled={cannotManage}
                   onValueChange={(v) => {
-                    if (v === 'open' || v === 'closed')
-                      handleFailOutputChange(v);
+                    if (v === 'open' || v === 'closed') onFailOutputChange(v);
                   }}
                   options={[
                     { value: 'open', label: t('moderationProvider.failOpen') },
@@ -693,7 +902,7 @@ export function ModerationProviderConfigView({
                     variant={active ? 'primary' : 'secondary'}
                     size="sm"
                     disabled={cannotManage}
-                    onClick={() => handleApplyPreset(preset)}
+                    onClick={() => onApplyPreset(preset)}
                   >
                     {label}
                   </Button>
@@ -705,7 +914,7 @@ export function ModerationProviderConfigView({
                 }
                 size="sm"
                 disabled={cannotManage}
-                onClick={() => handleResponseShapeChange('custom_jsonpath')}
+                onClick={() => onResponseShapeChange('custom_jsonpath')}
               >
                 {responseShape === 'custom_jsonpath'
                   ? `✓ ${t('moderationProvider.presetCustomJsonPathActive')}`
@@ -735,7 +944,7 @@ export function ModerationProviderConfigView({
                 headers.filter((h) => h.key.trim().length > 0).length
               }
               timeoutMs={timeoutMs}
-              onEdit={() => setEndpointDialogOpen(true)}
+              onEdit={onOpenEndpointDialog}
               disabled={cannotManage}
             />
           </FormSection>
@@ -753,8 +962,8 @@ export function ModerationProviderConfigView({
             <MappingList
               mappings={mappings}
               disabled={cannotManage}
-              onAdd={() => setMappingEditorIndex('new')}
-              onEdit={(index) => setMappingEditorIndex(index)}
+              onAdd={onAddMapping}
+              onEdit={onEditMapping}
             />
           </FormSection>
 
@@ -768,8 +977,8 @@ export function ModerationProviderConfigView({
               open={endpointDialogOpen}
               initial={endpointDraft}
               responseShape={responseShape}
-              onCancel={() => setEndpointDialogOpen(false)}
-              onSave={handleSaveEndpoint}
+              onCancel={onCloseEndpointDialog}
+              onSave={onSaveEndpoint}
             />
           )}
 
@@ -781,14 +990,14 @@ export function ModerationProviderConfigView({
                   ? undefined
                   : mappings[mappingEditorIndex]
               }
-              onCancel={() => setMappingEditorIndex(null)}
-              onSave={(draft) => handleSaveMapping(mappingEditorIndex, draft)}
+              onCancel={onCloseMappingEditor}
+              onSave={(draft) => onSaveMapping(mappingEditorIndex, draft)}
               onDelete={
                 mappingEditorIndex === 'new'
                   ? undefined
                   : () => {
                       if (typeof mappingEditorIndex === 'number') {
-                        setDeletingMappingIndex(mappingEditorIndex);
+                        onRequestDeleteMapping(mappingEditorIndex);
                       }
                     }
               }
@@ -798,7 +1007,7 @@ export function ModerationProviderConfigView({
           <ConfirmDialog
             open={deletingMappingIndex !== null}
             onOpenChange={(open) => {
-              if (!open) setDeletingMappingIndex(null);
+              if (!open) onCloseDeleteMapping();
             }}
             title={t('moderationProvider.deleteMappingConfirmTitle')}
             description={t(
@@ -808,8 +1017,8 @@ export function ModerationProviderConfigView({
             variant="destructive"
             onConfirm={() => {
               if (deletingMappingIndex !== null) {
-                handleDeleteMapping(deletingMappingIndex);
-                setDeletingMappingIndex(null);
+                onConfirmDeleteMapping(deletingMappingIndex);
+                onCloseDeleteMapping();
               }
             }}
           />

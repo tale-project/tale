@@ -1,0 +1,47 @@
+import type { ReasoningLexicon } from '../types';
+
+export const sk: ReasoningLexicon = {
+  locale: 'sk',
+  name: 'Slovak',
+  boundaryMode: 'word',
+  hardVerbs: [
+    'analyzuj',
+    'dokáž',
+    'debuguj',
+    'optimalizuj',
+    'navrhni',
+    'implementuj',
+    'porovnaj',
+    'zdôvodni',
+    'algoritmus',
+  ],
+  easyVerbs: ['prelož', 'zhrň', 'preformuluj', 'prepíš', 'skráť', 'naformátuj'],
+  trivialAcks: [
+    'ahoj',
+    'čau',
+    'vďaka',
+    'ďakujem',
+    'ok',
+    'áno',
+    'nie',
+    'prosím',
+  ],
+  creativeVerbs: [
+    'napíš',
+    'príbeh',
+    'báseň',
+    'vymysli',
+    'vytvor',
+    'pieseň',
+    'kreatívny',
+  ],
+  analyticalVerbs: [
+    'vypočítaj',
+    'dokáž',
+    'debuguj',
+    'extrahuj',
+    'klasifikuj',
+    'vyrieš',
+    'over',
+  ],
+};

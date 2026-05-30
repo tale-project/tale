@@ -27,4 +27,8 @@ export interface Message {
   attachments?: FileAttachment[];
   fileParts?: FilePart[];
   threadId?: string;
+  /** Raw UIMessage parts (reasoning + tool calls), used to render the
+   *  thought-process timeline. Typed loosely to avoid coupling the message
+   *  shape to the agent SDK's wide part union; the timeline narrows defensively. */
+  parts?: readonly unknown[];
 }

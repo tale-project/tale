@@ -132,23 +132,44 @@ function ThreadGate({
     threadId && !isJustCreated ? { threadId, organizationId } : 'skip',
   );
 
-  // No threadId or just-created thread → render immediately. BranchProvider
-  // is mounted up in ChatLayoutContent, so we don't need to wrap here.
-  if (!threadId || isJustCreated) {
+  // Once we've rendered ChatInterface for any thread this session, keep it
+  // mounted across thread→thread switches instead of swapping to the loading
+  // skeleton while getThreadStatus does its round-trip. That full-component
+  // swap (interface → skeleton → interface) was the flicker/layout-shift on
+  // switching chats. Message queries are auth-checked server-side, so the
+  // optimistic render is safe; an unauthorized thread still resolves to the
+  // not-found branch below. Only a cold first paint / deep link shows the
+  // skeleton. (Ref mutation during render is intentional and idempotent.)
+  const hasRenderedInterfaceRef = useRef(false);
+
+  const renderInterface = (readOnly?: boolean) => {
+    hasRenderedInterfaceRef.current = true;
     return (
       <Suspense fallback={<ChatSkeleton />}>
         <ChatInterface
           key={`chat-${newChatCount}`}
           organizationId={organizationId}
           threadId={threadId}
+          readOnly={readOnly}
         />
       </Suspense>
     );
+  };
+
+  // No threadId or just-created thread → render immediately. BranchProvider
+  // is mounted up in ChatLayoutContent, so we don't need to wrap here.
+  if (!threadId || isJustCreated) {
+    return renderInterface();
   }
 
-  // Still loading
+  // Still loading ownership: skeleton only on a cold first paint; otherwise
+  // keep the current interface mounted for a smooth switch.
   if (threadStatus === undefined) {
-    return <ThreadLoadingSkeleton />;
+    return hasRenderedInterfaceRef.current ? (
+      renderInterface()
+    ) : (
+      <ThreadLoadingSkeleton />
+    );
   }
 
   // Loaded but thread not found / not authorized
@@ -173,28 +194,11 @@ function ThreadGate({
 
   // Shared read-only access for non-owner org members
   if (threadStatus === 'shared-readonly') {
-    return (
-      <Suspense fallback={<ChatSkeleton />}>
-        <ChatInterface
-          key={`chat-${newChatCount}`}
-          organizationId={organizationId}
-          threadId={threadId}
-          readOnly
-        />
-      </Suspense>
-    );
+    return renderInterface(true);
   }
 
   // Thread is accessible — render ChatInterface
-  return (
-    <Suspense fallback={<ChatSkeleton />}>
-      <ChatInterface
-        key={`chat-${newChatCount}`}
-        organizationId={organizationId}
-        threadId={threadId}
-      />
-    </Suspense>
-  );
+  return renderInterface();
 }
 
 function ChatLayoutContent({ organizationId }: { organizationId: string }) {

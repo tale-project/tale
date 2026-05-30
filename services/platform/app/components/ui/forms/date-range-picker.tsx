@@ -3,6 +3,8 @@
 import { Button } from '@tale/ui/button';
 import { Description } from '@tale/ui/description';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import {
   format,
@@ -263,7 +265,9 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
 );
 CustomInput.displayName = 'CustomInput';
 
-export function DatePickerWithRange({
+// Plain control — the real date-range trigger (date button + preset dropdown)
+// and calendar (+ optional label/description/errors). No skeleton logic.
+function DatePickerWithRangeBase({
   className,
   onChange,
   defaultDate,
@@ -437,4 +441,22 @@ export function DatePickerWithRange({
       )}
     </div>
   );
+}
+
+/**
+ * Skeleton-aware DatePickerWithRange. Inside a `<Skeletonize loading>` it masks
+ * the plain control by rendering it inside a `<SkeletonBox>` — laid out
+ * invisibly to set the exact size, pulse overlay on top — so the skeleton can
+ * never drift.
+ */
+export function DatePickerWithRange(props: DatePickerWithRangeProps) {
+  const loading = useSkeleton();
+  if (loading) {
+    return (
+      <SkeletonBox>
+        <DatePickerWithRangeBase {...props} />
+      </SkeletonBox>
+    );
+  }
+  return <DatePickerWithRangeBase {...props} />;
 }

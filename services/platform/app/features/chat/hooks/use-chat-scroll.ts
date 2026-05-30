@@ -26,6 +26,39 @@ interface UseChatScrollParams {
   loadMore: (count: number) => void;
 }
 
+/**
+ * Minimum upward scroll (px) that counts as a deliberate "escape" from the
+ * stick-to-bottom lock. A small dead-zone so sub-pixel/anchoring jitter or a
+ * trackpad micro-movement during streaming doesn't accidentally stop the
+ * auto-follow. A real scroll-up moves far more than this.
+ */
+const SCROLL_UP_ESCAPE_THRESHOLD_PX = 4;
+
+/**
+ * Pure decision for the stick-to-bottom latch on a scroll event. Ported from
+ * use-stick-to-bottom's algorithm:
+ *  - a deliberate upward scroll (> threshold) that is NOT caused by content
+ *    shrinking is a user escape → stop following;
+ *  - reaching the bottom re-engages following;
+ *  - otherwise the latch is unchanged.
+ * Exported for unit testing — the hook wires it to live scroll events.
+ */
+export function resolveStickToBottom(opts: {
+  sticking: boolean;
+  currentTop: number;
+  prevTop: number;
+  currentHeight: number;
+  prevHeight: number;
+  atBottom: boolean;
+}): boolean {
+  const shrank = opts.currentHeight < opts.prevHeight;
+  const scrolledUp =
+    opts.prevTop - opts.currentTop > SCROLL_UP_ESCAPE_THRESHOLD_PX;
+  if (scrolledUp && !shrank) return false; // deliberate user scroll-up
+  if (opts.atBottom) return true; // returned to / reached bottom
+  return opts.sticking;
+}
+
 export interface ChatScroll {
   containerRef: RefObject<HTMLDivElement | null>;
   contentRef: RefObject<HTMLDivElement | null>;
@@ -62,17 +95,29 @@ export function useChatScroll({
   pendingEditedMessageId,
   loadMore,
 }: UseChatScrollParams): ChatScroll {
-  // Scroll utility (no auto-follow — ChatGPT-style)
-  const { containerRef, contentRef, scrollToBottom, isAtBottom } =
-    useAutoScroll({ threshold: 100 });
+  // Scroll utility — refs + isAtBottom. We own the follow logic below.
+  const { containerRef, contentRef, isAtBottom } = useAutoScroll({
+    threshold: 100,
+  });
 
   const [showScrollButton, setShowScrollButton] = useState(false);
 
-  // Scroll intent ref: 'smooth' on send, 'instant' on thread init, null when idle.
+  // Forced scroll-to-bottom signal: 'smooth' on send, 'instant' on thread
+  // init, null when idle. Written externally by useSendMessage (its
+  // `scrollIntentRef` prop) right before each setPendingMessage; read by the
+  // scroll machine to force-follow even if the user had scrolled away.
   const scrollingToBottomBehaviorRef = useRef<ScrollBehavior | null>(null);
-  // Direction-based escape: track scroll position and programmatic scrolls
+  // Stick-to-bottom latch (ported from use-stick-to-bottom's algorithm): we
+  // auto-follow content growth only while this is true. The user "escapes" it
+  // by scrolling UP and re-engages by returning to the bottom. Crucially, our
+  // own programmatic scrolls only ever move DOWN, so an upward scroll is
+  // unambiguously the user — no fragile programmatic-vs-user flag needed.
+  const stickToBottomRef = useRef(true);
+  // Track scrollTop + scrollHeight across scroll events so a scrollTop drop
+  // caused by content SHRINKING (browser clamps scrollTop) isn't misread as a
+  // user scroll-up (which would falsely escape the lock).
   const lastScrollTopRef = useRef(0);
-  const programmaticScrollRef = useRef(false);
+  const lastScrollHeightRef = useRef(0);
 
   // Branch-switch scroll preservation refs. Declared before the observer
   // effect because `onContentChange` closes over `branchScrollSaveRef`.
@@ -87,6 +132,10 @@ export function useChatScroll({
     const content = contentRef.current;
     if (!container || !content) return undefined;
 
+    const scrollToBottomNow = (behavior: ScrollBehavior) => {
+      container.scrollTo({ top: container.scrollHeight, behavior });
+    };
+
     const onContentChange = () => {
       // During branch switch: override all scroll behavior with saved position
       if (branchScrollSaveRef.current !== null) {
@@ -94,42 +143,60 @@ export function useChatScroll({
         setShowScrollButton(!isAtBottom());
         return;
       }
-      const scrollBehavior = scrollingToBottomBehaviorRef.current;
-      if (scrollBehavior) {
-        programmaticScrollRef.current = true;
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: scrollBehavior,
-        });
-      } else if (isAtBottom()) {
-        programmaticScrollRef.current = true;
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: 'instant',
-        });
+      const forced = scrollingToBottomBehaviorRef.current;
+      if (forced) {
+        // Send / thread-init: force-follow regardless of the latch, and
+        // re-engage it. A 'smooth' forced scroll stays armed until it reaches
+        // the bottom (consumed in onScroll); 'instant' is one-shot.
+        stickToBottomRef.current = true;
+        scrollToBottomNow(forced);
+        if (forced === 'instant') scrollingToBottomBehaviorRef.current = null;
+      } else if (stickToBottomRef.current) {
+        // Normal content growth while following: pin to bottom instantly.
+        scrollToBottomNow('instant');
       }
-      setShowScrollButton(!isAtBottom());
+      // Show the button whenever we're NOT actively following — including the
+      // dead zone where the user escaped with a small scroll-up but is still
+      // within the 100px "at bottom" band (otherwise follow is off with no
+      // affordance to get back).
+      setShowScrollButton(!stickToBottomRef.current || !isAtBottom());
     };
 
     const onScroll = () => {
       const currentTop = container.scrollTop;
+      const currentHeight = container.scrollHeight;
       const prevTop = lastScrollTopRef.current;
+      const prevHeight = lastScrollHeightRef.current;
       lastScrollTopRef.current = currentTop;
+      lastScrollHeightRef.current = currentHeight;
+      const atBottom = isAtBottom();
 
-      const ref = scrollingToBottomBehaviorRef.current;
-      if (ref) {
-        if (!programmaticScrollRef.current && currentTop < prevTop) {
-          // User scrolled UP while auto-follow is active → escape
-          scrollingToBottomBehaviorRef.current = null;
-        } else if (ref === 'smooth' && isAtBottom()) {
-          // Smooth scroll reached bottom → downgrade to instant
-          // so future content-growth corrections are instantaneous
-          scrollingToBottomBehaviorRef.current = 'instant';
-        }
+      const wasSticking = stickToBottomRef.current;
+      const nextSticking = resolveStickToBottom({
+        sticking: wasSticking,
+        currentTop,
+        prevTop,
+        currentHeight,
+        prevHeight,
+        atBottom,
+      });
+      stickToBottomRef.current = nextSticking;
+
+      if (!nextSticking && wasSticking) {
+        // Just escaped → cancel any forced (send/init) follow too.
+        scrollingToBottomBehaviorRef.current = null;
+      } else if (
+        nextSticking &&
+        atBottom &&
+        scrollingToBottomBehaviorRef.current === 'smooth'
+      ) {
+        // Forced-smooth scroll has reached the bottom — consume it so future
+        // content growth follows instantly via the latch.
+        scrollingToBottomBehaviorRef.current = null;
       }
-
-      programmaticScrollRef.current = false;
-      setShowScrollButton(!isAtBottom());
+      // Button tracks the follow latch (not just the at-bottom band) so a small
+      // escape scroll within the band still surfaces the affordance.
+      setShowScrollButton(!nextSticking || !atBottom);
     };
 
     const resizeObserver = new ResizeObserver(onContentChange);
@@ -148,6 +215,10 @@ export function useChatScroll({
     });
 
     container.addEventListener('scroll', onScroll, { passive: true });
+    // Seed scroll tracking so the first real scroll event compares against the
+    // current position/height, not 0 (which would spuriously read as growth).
+    lastScrollTopRef.current = container.scrollTop;
+    lastScrollHeightRef.current = container.scrollHeight;
     onContentChange();
 
     return () => {
@@ -206,6 +277,18 @@ export function useChatScroll({
       branchScrollTimerRef.current = setTimeout(() => {
         branchScrollSaveRef.current = null;
         branchScrollTimerRef.current = null;
+        // Reconcile the follow latch to where the view actually ended up. The
+        // override held scrollTop at the saved (often non-bottom) position, so
+        // the latch could still read `true` from before the switch — without
+        // this, the next content tick (e.g. a still-streaming branch) would
+        // snap to the bottom. Re-seed the scroll trackers too so the next
+        // onScroll diff is correct.
+        const c = containerRef.current;
+        if (c) {
+          stickToBottomRef.current = isAtBottom();
+          lastScrollTopRef.current = c.scrollTop;
+          lastScrollHeightRef.current = c.scrollHeight;
+        }
       }, 2000);
     } else {
       // Clear any stale scroll position from a prior branch switch so
@@ -219,7 +302,14 @@ export function useChatScroll({
   }
   prevDataThreadIdRef.current = dataThreadId;
 
-  // Load-more scroll preservation: keep viewport stable when older messages prepend
+  // Load-more scroll preservation: keep the viewport visually stable when older
+  // messages prepend. We anchor to the topmost currently-VISIBLE message and
+  // restore its on-screen position after the prepend, measured in a rAF so
+  // layout has settled. Anchoring to a visible element is immune to the
+  // intrinsic-size estimates that `content-visibility` reports for the
+  // off-screen prepended bubbles — a raw scrollHeight delta would use those
+  // (~200px) estimates and drift the viewport. Falls back to the delta if no
+  // anchor is found.
   const handleLoadMore = useCallback(
     (count: number) => {
       const container = containerRef.current;
@@ -228,19 +318,65 @@ export function useChatScroll({
         return;
       }
 
+      const containerTop = container.getBoundingClientRect().top;
+      let anchorKey: string | null = null;
+      let anchorOffset = 0;
+      for (const row of container.querySelectorAll<HTMLElement>(
+        '[data-message-key]',
+      )) {
+        const r = row.getBoundingClientRect();
+        if (r.bottom > containerTop) {
+          anchorKey = row.getAttribute('data-message-key');
+          anchorOffset = r.top - containerTop;
+          break;
+        }
+      }
       const prevScrollHeight = container.scrollHeight;
+
+      const applyCorrection = () => {
+        if (anchorKey) {
+          const el = container.querySelector<HTMLElement>(
+            `[data-message-key="${CSS.escape(anchorKey)}"]`,
+          );
+          if (el) {
+            const newOffset =
+              el.getBoundingClientRect().top -
+              container.getBoundingClientRect().top;
+            container.scrollTop += newOffset - anchorOffset;
+            return;
+          }
+        }
+        // Fallback: raw scrollHeight delta (anchor not found).
+        container.scrollTop += container.scrollHeight - prevScrollHeight;
+      };
+
+      let rafId = 0;
       const observer = new MutationObserver(() => {
         observer.disconnect();
-        container.scrollTop += container.scrollHeight - prevScrollHeight;
+        // Defer to after layout flush so heights/positions are settled.
+        rafId = requestAnimationFrame(applyCorrection);
       });
       observer.observe(container, { childList: true, subtree: true });
       loadMore(count);
 
-      // Safety timeout to disconnect if no mutation fires
-      setTimeout(() => observer.disconnect(), 2000);
+      // Safety timeout: stop observing and cancel any pending correction.
+      setTimeout(() => {
+        observer.disconnect();
+        if (rafId) cancelAnimationFrame(rafId);
+      }, 2000);
     },
     [containerRef, loadMore],
   );
+
+  // Scroll-to-bottom button: re-engage the follow latch and smoothly land at
+  // the bottom. Arming the forced ref keeps it following as content settles.
+  const scrollToBottom = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    stickToBottomRef.current = true;
+    scrollingToBottomBehaviorRef.current = 'smooth';
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+  }, [containerRef]);
 
   return {
     containerRef,

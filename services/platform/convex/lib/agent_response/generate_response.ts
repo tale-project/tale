@@ -75,6 +75,7 @@ import {
   buildUserPersonalization,
   type UserPersonalization,
 } from './build_user_personalization';
+import { buildReasoningOptions } from './reasoning/build_reasoning_options';
 
 const OUTPUT_BLOCKED_SENTINEL = '[blocked by content policy]';
 
@@ -415,6 +416,9 @@ export async function generateAgentResponse(
     toolsSummary,
     personalizationMode,
     providerOptions,
+    convexToolNames,
+    modelMaxOutputTokens,
+    reasoningCapability,
   } = config;
   const {
     ctx,
@@ -482,6 +486,7 @@ export async function generateAgentResponse(
     usage?: GenerateResponseResult['usage'];
     finishReason?: string;
     response?: { modelId?: string };
+    reasoning?: string;
   } = {};
 
   try {
@@ -643,6 +648,7 @@ export async function generateAgentResponse(
               model: actualModel,
               provider,
               usage: result.usage,
+              reasoning: result.reasoning,
               durationMs,
               contextWindow: cancelContextWindow,
               contextStats: cancelContextStats,
@@ -798,6 +804,8 @@ export async function generateAgentResponse(
       webContextResult,
       userPersonalization,
       projectInstructionsBlock,
+      reasoningStateRow,
+      reasoningProfile,
     ] = await Promise.all([
       knowledgeContextPromise ?? Promise.resolve(undefined),
       webContextPromise ?? Promise.resolve(undefined),
@@ -809,7 +817,38 @@ export async function generateAgentResponse(
           tokens: 0,
         }),
       projectInstructionsPromise,
+      // Adaptive Reasoning Governor (Layer C): fetch the thread's learned
+      // reasoning state alongside the other context queries so it adds no
+      // serial latency. Degrades to the cold-start prior if the lookup fails.
+      ctx
+        .runQuery(internal.threads.internal_queries.getThreadMetadata, {
+          threadId,
+        })
+        .catch((err: unknown) => {
+          console.warn(
+            '[reasoning] getThreadMetadata failed; using cold-start prior',
+            err instanceof Error ? err.message : err,
+          );
+          return null;
+        }),
+      // Inherited cross-thread profile (per org + model) for warm-starting a
+      // fresh thread. Also parallel, also best-effort.
+      organizationId
+        ? ctx
+            .runQuery(internal.threads.internal_queries.getReasoningProfile, {
+              organizationId,
+              scopeKey: model,
+            })
+            .catch((err: unknown) => {
+              console.warn(
+                '[reasoning] getReasoningProfile failed; no warm start',
+                err instanceof Error ? err.message : err,
+              );
+              return null;
+            })
+        : Promise.resolve(null),
     ]);
+    const reasoningState = reasoningStateRow?.reasoningState ?? undefined;
 
     if (knowledgeContextResult) {
       debugLog('Knowledge context injected', {
@@ -933,6 +972,45 @@ export async function generateAgentResponse(
 
     const promptToSend = hookPromptContent ?? promptMessage;
 
+    // Adaptive Reasoning Governor: decide how hard the model should think this
+    // turn (difficulty prior → online controller, gated and translated by the
+    // model's capability) and merge the resulting knob into providerOptions.
+    // Computed once and reused across the stream / generate / continue /
+    // recovery calls below. Requires the resolved providerName (`provider`) to
+    // namespace the overlay; without it we pass the base options through.
+    const reasoningDecision = provider
+      ? buildReasoningOptions({
+          modelData: {
+            providerName: provider,
+            modelId: model,
+            maxOutputTokens: modelMaxOutputTokens,
+            reasoning: reasoningCapability,
+          },
+          baseProviderOptions: providerOptions,
+          signals: {
+            kind: enableStreaming ? 'chat' : 'subagent',
+            promptText: promptMessage,
+            hasAttachments: (args.attachments?.length ?? 0) > 0,
+            hasRagContext: Boolean(
+              knowledgeContextResult?.text ?? hookData?.ragContext,
+            ),
+            hasWebContext: Boolean(webContextResult?.text),
+            toolCount: convexToolNames?.length ?? 0,
+            maxSteps: args.maxSteps,
+            agentType,
+            historyMessageCount: structuredThreadContext?.stats.messageCount,
+          },
+          state: reasoningState,
+          profile: reasoningProfile ?? undefined,
+        })
+      : undefined;
+    const reasoningProviderOptions =
+      reasoningDecision?.providerOptions ?? providerOptions;
+    // Governed default temperature (creativity-scaled), unless the caller set
+    // one explicitly or the model's active reasoning knob forbids it.
+    const effectiveTemperature =
+      generationParams?.temperature ?? reasoningDecision?.temperature;
+
     // Resolve template variables (e.g. {{organization.name}}, {{current_time}})
     const resolvedInstructions = instructions
       ? await resolveTemplateVariables(ctx, instructions, {
@@ -998,6 +1076,9 @@ export async function generateAgentResponse(
       model,
       enableStreaming,
       promptMessageId,
+      reasoningTier: reasoningDecision?.tier,
+      reasoningApplied: reasoningDecision?.applied ?? false,
+      reasoningBudgetTokens: reasoningDecision?.budgetTokens,
       system: summarizeForLog(systemPrompt),
       prompt: summarizeForLog(promptToSend),
       effectiveTimeoutMs,
@@ -1101,8 +1182,8 @@ export async function generateAgentResponse(
             ...(outputTransform !== null && {
               experimental_transform: outputTransform,
             }),
-            ...(generationParams?.temperature != null && {
-              temperature: generationParams.temperature,
+            ...(effectiveTemperature != null && {
+              temperature: effectiveTemperature,
             }),
             ...(generationParams?.maxTokens != null && {
               maxTokens: generationParams.maxTokens,
@@ -1119,7 +1200,9 @@ export async function generateAgentResponse(
             ...(generationParams?.stopSequences != null && {
               stopSequences: generationParams.stopSequences,
             }),
-            ...(providerOptions ? { providerOptions } : {}),
+            ...(reasoningProviderOptions
+              ? { providerOptions: reasoningProviderOptions }
+              : {}),
             onChunk: ({ chunk }: { chunk: { type: string } }) => {
               if (firstTokenTime === null && chunk.type === 'text-delta') {
                 firstTokenTime = Date.now();
@@ -1148,6 +1231,7 @@ export async function generateAgentResponse(
           streamUsage,
           streamFinishReason,
           streamResponse,
+          streamReasoning,
         ] = await withTimeout(
           Promise.all([
             streamResult.text,
@@ -1155,6 +1239,10 @@ export async function generateAgentResponse(
             streamResult.usage,
             streamResult.finishReason,
             streamResult.response,
+            // Reasoning ("thinking") text the model emitted before its answer.
+            // Resolves to undefined for non-reasoning models. Awaited inside
+            // the same timeout so a stalled provider can't hang the turn.
+            streamResult.reasoningText,
           ]),
           effectiveTimeoutMs,
           abortController,
@@ -1171,6 +1259,7 @@ export async function generateAgentResponse(
           usage: streamUsage,
           finishReason: streamFinishReason,
           response: streamResponse,
+          reasoning: streamReasoning,
         };
 
         // Guardrails mid-stream block: transform flipped state.blocked and
@@ -1332,8 +1421,8 @@ export async function generateAgentResponse(
               prompt: promptToSend,
               abortSignal: abortController.signal,
               ...(promptMessageId ? { promptMessageId } : {}),
-              ...(generationParams?.temperature != null && {
-                temperature: generationParams.temperature,
+              ...(effectiveTemperature != null && {
+                temperature: effectiveTemperature,
               }),
               ...(generationParams?.maxTokens != null && {
                 maxTokens: generationParams.maxTokens,
@@ -1350,7 +1439,9 @@ export async function generateAgentResponse(
               ...(generationParams?.stopSequences != null && {
                 stopSequences: generationParams.stopSequences,
               }),
-              ...(providerOptions ? { providerOptions } : {}),
+              ...(reasoningProviderOptions
+                ? { providerOptions: reasoningProviderOptions }
+                : {}),
             },
             {
               contextOptions: {
@@ -1379,6 +1470,7 @@ export async function generateAgentResponse(
           usage: generateResult.usage,
           finishReason: generateResult.finishReason,
           response: generateResult.response,
+          reasoning: generateResult.reasoningText,
         };
 
         // Post-generation abort check
@@ -1535,7 +1627,9 @@ export async function generateAgentResponse(
                   ...(generationParams?.maxTokens != null && {
                     maxTokens: generationParams.maxTokens,
                   }),
-                  ...(providerOptions ? { providerOptions } : {}),
+                  ...(reasoningProviderOptions
+                    ? { providerOptions: reasoningProviderOptions }
+                    : {}),
                 },
                 {
                   contextOptions: {
@@ -1562,6 +1656,7 @@ export async function generateAgentResponse(
               usage: mergeUsage(result.usage, continueResult.usage),
               finishReason: continueResult.finishReason,
               response: result.response,
+              reasoning: continueResult.reasoningText ?? result.reasoning,
             };
 
             // Update the "Retrying…" system message now that retry succeeded
@@ -1729,7 +1824,9 @@ export async function generateAgentResponse(
                     ? `The previous attempt to respond timed out. Based on any available context and tool results, provide a helpful response to: ${promptMessage}`
                     : 'The previous attempt timed out. Based on the conversation and any available tool results, provide a summary response.',
                   abortSignal: recoveryAbortController.signal,
-                  ...(providerOptions ? { providerOptions } : {}),
+                  ...(reasoningProviderOptions
+                    ? { providerOptions: reasoningProviderOptions }
+                    : {}),
                 },
                 {
                   contextOptions: {
@@ -1756,6 +1853,7 @@ export async function generateAgentResponse(
               usage: recoveryResult.usage,
               finishReason: 'timeout-recovery',
               response: recoveryResult.response,
+              reasoning: recoveryResult.reasoningText ?? result.reasoning,
             };
 
             debugLog('Timeout recovery completed', {
@@ -1939,6 +2037,7 @@ export async function generateAgentResponse(
       text: result.text || '',
       usage: result.usage,
       finishReason: result.finishReason,
+      reasoning: result.reasoning,
       durationMs,
       timeToFirstTokenMs,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
@@ -1999,6 +2098,7 @@ export async function generateAgentResponse(
             model: actualModel,
             provider,
             usage: responseResult.usage,
+            reasoning: responseResult.reasoning,
             durationMs,
             timeToFirstTokenMs,
             toolCalls: responseResult.toolCalls,
@@ -2020,6 +2120,56 @@ export async function generateAgentResponse(
               responseResult.text,
               !!cancelled,
             )
+          : Promise.resolve(),
+        // Adaptive Reasoning Governor (Layer C): fold this turn's outcome into
+        // the thread's learned state so the next turn converges toward the
+        // model's revealed need. Only when the model is actually steerable.
+        reasoningDecision?.applied
+          ? ctx
+              .runMutation(
+                internal.threads.internal_mutations.updateThreadReasoningState,
+                {
+                  threadId,
+                  difficultyClass: reasoningDecision.difficultyClass,
+                  budgetTokens: reasoningDecision.budgetTokens,
+                  selfTruncates: reasoningDecision.selfTruncates ?? false,
+                  reasoningTokens: responseResult.usage?.reasoningTokens,
+                  finishReason: responseResult.finishReason,
+                  retried: didRetry,
+                },
+              )
+              .catch((reasoningErr: unknown) =>
+                console.warn(
+                  '[reasoning] thread state update failed:',
+                  reasoningErr instanceof Error
+                    ? reasoningErr.message
+                    : reasoningErr,
+                ),
+              )
+          : Promise.resolve(),
+        // Also fold the outcome into the cross-thread profile (per org + model)
+        // so future threads — and the stateless API path — warm-start from it.
+        reasoningDecision?.applied && organizationId
+          ? ctx
+              .runMutation(
+                internal.threads.internal_mutations.updateReasoningProfile,
+                {
+                  organizationId,
+                  scopeKey: model,
+                  difficultyClass: reasoningDecision.difficultyClass,
+                  budgetTokens: reasoningDecision.budgetTokens,
+                  selfTruncates: reasoningDecision.selfTruncates ?? false,
+                  reasoningTokens: responseResult.usage?.reasoningTokens,
+                  finishReason: responseResult.finishReason,
+                  retried: didRetry,
+                },
+              )
+              .catch((profileErr: unknown) =>
+                console.warn(
+                  '[reasoning] profile update failed:',
+                  profileErr instanceof Error ? profileErr.message : profileErr,
+                ),
+              )
           : Promise.resolve(),
       ]);
     } catch (postProcessError) {
@@ -2311,6 +2461,7 @@ export async function generateAgentResponse(
             model: result.response?.modelId ?? model,
             provider,
             usage: result.usage,
+            reasoning: result.reasoning,
             durationMs,
             timeToFirstTokenMs: firstTokenTime
               ? firstTokenTime - startTime

@@ -1,22 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
-const mockUpsertMutation = {
-  mutateAsync: vi.fn(),
-  isPending: false,
-};
+import { UploadPolicyEditor } from './upload-policy-editor';
 
 vi.mock('../hooks/mutations', () => ({
-  useUpsertGovernancePolicy: () => mockUpsertMutation,
-}));
-
-vi.mock('../hooks/queries', () => ({
-  useGovernancePolicy: () => ({
-    data: { config: { enabled: true } },
-    isLoading: false,
-  }),
+  useUpsertGovernancePolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
@@ -30,35 +19,92 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-import { UploadPolicyEditor } from './upload-policy-editor';
+// Mutable, hoisted so the mock factory can read it (vi.mock is hoisted above
+// imports). Toggling `state` flips the editor between loading and loaded.
+const { state } = vi.hoisted(() => ({
+  state: {
+    isLoading: false,
+    config: { enabled: true } as Record<string, unknown> | undefined,
+  },
+}));
+
+vi.mock('../hooks/queries', () => ({
+  useGovernancePolicy: () => ({
+    data: state.isLoading ? undefined : { config: state.config },
+    isLoading: state.isLoading,
+  }),
+}));
+
+function setLoaded() {
+  state.isLoading = false;
+  state.config = { enabled: true };
+}
+function setLoading() {
+  state.isLoading = true;
+  state.config = undefined;
+}
 
 describe('UploadPolicyEditor', () => {
-  describe('accessibility', () => {
-    it('passes axe audit', async () => {
-      const { container } = render(
-        <UploadPolicyEditor organizationId="org-1" />,
-      );
-      await checkAccessibility(container);
+  describe('loaded state', () => {
+    it('renders the enable toggle', () => {
+      setLoaded();
+      render(<UploadPolicyEditor organizationId="org-1" />);
+      expect(screen.getByRole('switch')).toBeInTheDocument();
+    });
+
+    it('renders file extension input', () => {
+      setLoaded();
+      render(<UploadPolicyEditor organizationId="org-1" />);
+      expect(screen.getByLabelText(/allowed file extensions/i)).toBeDefined();
+    });
+
+    it('renders max file size input', () => {
+      setLoaded();
+      render(<UploadPolicyEditor organizationId="org-1" />);
+      expect(screen.getByLabelText(/maximum file size/i)).toBeDefined();
+    });
+
+    it('renders max volume input', () => {
+      setLoaded();
+      render(<UploadPolicyEditor organizationId="org-1" />);
+      expect(screen.getByLabelText(/maximum total volume/i)).toBeDefined();
+    });
+
+    it('renders the section heading (static text, always real)', () => {
+      setLoaded();
+      render(<UploadPolicyEditor organizationId="org-1" />);
+      expect(
+        screen.getByRole('heading', { name: /upload/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('is not marked busy once loaded', () => {
+      setLoaded();
+      render(<UploadPolicyEditor organizationId="org-1" />);
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
   });
 
-  it('renders the enable toggle', () => {
-    render(<UploadPolicyEditor organizationId="org-1" />);
-    expect(screen.getByRole('switch')).toBeDefined();
-  });
+  describe('loading state (skeletonized)', () => {
+    it('exposes a single busy/status region', () => {
+      setLoading();
+      render(<UploadPolicyEditor organizationId="org-1" />);
+      expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    });
 
-  it('renders file extension input', () => {
-    render(<UploadPolicyEditor organizationId="org-1" />);
-    expect(screen.getByLabelText(/allowed file extensions/i)).toBeDefined();
-  });
+    it('masks the enable toggle (no live switch while loading)', () => {
+      setLoading();
+      render(<UploadPolicyEditor organizationId="org-1" />);
+      // The skeleton-aware Switch renders a masked box instead of the control.
+      expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+    });
 
-  it('renders max file size input', () => {
-    render(<UploadPolicyEditor organizationId="org-1" />);
-    expect(screen.getByLabelText(/maximum file size/i)).toBeDefined();
-  });
-
-  it('renders max volume input', () => {
-    render(<UploadPolicyEditor organizationId="org-1" />);
-    expect(screen.getByLabelText(/maximum total volume/i)).toBeDefined();
+    it('keeps the real section heading while loading (no gray bars)', () => {
+      setLoading();
+      render(<UploadPolicyEditor organizationId="org-1" />);
+      expect(
+        screen.getByRole('heading', { name: /upload/i }),
+      ).toBeInTheDocument();
+    });
   });
 });

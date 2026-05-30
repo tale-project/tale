@@ -1,7 +1,7 @@
 'use client';
 
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -26,6 +26,49 @@ function readEnabled(raw: unknown): boolean {
   return isRecord(raw) && raw['enabled'] === true;
 }
 
+// =============================================================================
+// Plain presentational view — no data/state hooks of its own. Renders the real
+// `PageSection` + skeleton-aware `Switch`. Rendered both live (by the
+// container) and as its own skeleton (the container wraps it in
+// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree. The
+// skeleton-aware `<Switch>` masks itself to its exact track size while loading.
+// =============================================================================
+function PersonalizationPolicyToggleView({
+  titleKey,
+  descriptionKey,
+  enabled,
+  disabled,
+  onToggleEnabled,
+}: {
+  titleKey: string;
+  descriptionKey: string;
+  enabled: boolean;
+  disabled: boolean;
+  onToggleEnabled: (checked: boolean) => void;
+}) {
+  const { t } = useT('governance');
+
+  return (
+    <PageSection
+      title={t(titleKey)}
+      description={t(descriptionKey)}
+      action={
+        <Switch
+          label={t('personalization.enabledLabel')}
+          checked={enabled}
+          onCheckedChange={onToggleEnabled}
+          disabled={disabled}
+        />
+      }
+    />
+  );
+}
+
+// =============================================================================
+// Container — owns data fetching, the local toggle state, save/toast wiring,
+// and the loading state. Wraps the plain view in `<Skeletonize>` so the same
+// tree renders the skeleton.
+// =============================================================================
 function PersonalizationPolicyToggle({
   organizationId,
   policyType,
@@ -77,34 +120,16 @@ function PersonalizationPolicyToggle({
     [organizationId, policyType, upsertMutation, toast, t],
   );
 
-  if (isLoading) {
-    return (
-      <div aria-busy="true" className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-4 w-96 max-w-full" />
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <Skeleton className="h-3.5 w-14" />
-          <Skeleton className="h-[1.15rem] w-8 rounded-full" />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <PageSection
-      title={t(titleKey)}
-      description={t(descriptionKey)}
-      action={
-        <Switch
-          label={t('personalization.enabledLabel')}
-          checked={enabled}
-          onCheckedChange={handleToggleEnabled}
-          disabled={cannotManage || upsertMutation.isPending}
-        />
-      }
-    />
+    <Skeletonize loading={isLoading} label={t(titleKey)}>
+      <PersonalizationPolicyToggleView
+        titleKey={titleKey}
+        descriptionKey={descriptionKey}
+        enabled={enabled}
+        disabled={cannotManage || upsertMutation.isPending}
+        onToggleEnabled={handleToggleEnabled}
+      />
+    </Skeletonize>
   );
 }
 

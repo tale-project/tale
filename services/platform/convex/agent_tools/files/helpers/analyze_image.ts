@@ -14,6 +14,7 @@ import { components } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 import { imageAnalysisCache } from '../../../lib/action_cache';
+import { reasoningProviderOptionsFor } from '../../../lib/agent_response/reasoning/build_reasoning_options';
 import { createDebugLog } from '../../../lib/debug_log';
 import { buildCallProviderOptions } from '../../../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../../../providers/failover';
@@ -101,7 +102,6 @@ export async function analyzeImage(
     });
 
     const visionAgent = createVisionAgent(languageModel);
-    const callProviderOptions = buildCallProviderOptions(modelData);
 
     // Create a temporary thread for this analysis
     const thread = await ctx.runMutation(
@@ -115,6 +115,14 @@ export async function analyzeImage(
     const prompt =
       question ||
       'Describe this image in detail, extracting all visible text and information.';
+
+    // Scale reasoning to the question and the image rather than always running
+    // the vision model at the provider default.
+    const callProviderOptions = reasoningProviderOptionsFor(
+      modelData,
+      buildCallProviderOptions(modelData),
+      { kind: 'chat', promptText: prompt, hasAttachments: true },
+    );
 
     let result;
     try {

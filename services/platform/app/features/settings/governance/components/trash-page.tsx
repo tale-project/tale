@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { Undo2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -196,20 +196,20 @@ export function TrashPage({ organizationId }: Props) {
       {isFirstPageLoading ? (
         <div className="border-border overflow-hidden rounded-md border">
           <div className="bg-muted/40 border-border flex items-center gap-3 border-b px-3 py-2">
-            <Skeleton className="h-3.5 w-16" />
-            <Skeleton className="h-3.5 w-24" />
-            <Skeleton className="h-3.5 w-20" />
-            <Skeleton className="h-3.5 w-16" />
-            <Skeleton className="ml-auto h-3.5 w-20" />
+            <SkeletonBox className="h-3.5 w-16" />
+            <SkeletonBox className="h-3.5 w-24" />
+            <SkeletonBox className="h-3.5 w-20" />
+            <SkeletonBox className="h-3.5 w-16" />
+            <SkeletonBox className="ml-auto h-3.5 w-20" />
           </div>
           <div className="divide-border divide-y">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-3 py-2">
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-3 w-32" />
-                <Skeleton className="h-3 w-24" />
-                <Skeleton className="h-5 w-16 rounded" />
-                <Skeleton className="ml-auto h-8 w-20 rounded-md" />
+                <SkeletonBox className="h-3 w-16" />
+                <SkeletonBox className="h-3 w-32" />
+                <SkeletonBox className="h-3 w-24" />
+                <SkeletonBox className="h-5 w-16 rounded" />
+                <SkeletonBox className="ml-auto h-8 w-20 rounded-md" />
               </div>
             ))}
           </div>

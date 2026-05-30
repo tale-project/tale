@@ -1,7 +1,8 @@
 'use client';
 
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -34,6 +35,85 @@ const DEFAULT_VALUE: PiiConfigPanelValue = {
   customPatterns: [],
 };
 
+type PiiPolicy = ReturnType<typeof useGovernancePolicy>['data'];
+
+function deriveValue(policy: PiiPolicy): PiiConfigPanelValue {
+  if (!policy) return DEFAULT_VALUE;
+  return {
+    mode: policy.config?.mode ?? 'tokenize',
+    enabledPatterns: policy.config?.enabledPatterns ?? [],
+    customPatterns: policy.config?.customPatterns ?? [],
+  };
+}
+
+// =============================================================================
+// Plain presentational view — no data/state hooks of its own. Renders the real
+// layout from injected `enabled`/`value` + change callbacks. Rendered both live
+// (by the container) and as its own skeleton (the container wraps it in
+// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
+// cannot drift. The skeleton-aware `<Switch>` masks itself to its exact track
+// height while loading; the lazy panel only mounts once PII is enabled.
+// =============================================================================
+export function PiiConfigView({
+  enabled,
+  value,
+  disabled,
+  pending,
+  onEnabledChange,
+  onPanelChange,
+}: {
+  enabled: boolean;
+  value: PiiConfigPanelValue;
+  disabled: boolean;
+  pending: boolean;
+  onEnabledChange: (checked: boolean) => void;
+  onPanelChange: (next: PiiConfigPanelValue) => void;
+}) {
+  const { t } = useT('governance');
+
+  return (
+    <PageSection
+      title={t('pii.title')}
+      description={t('pii.description')}
+      action={
+        <Switch
+          label={t('pii.enableLabel')}
+          checked={enabled}
+          onCheckedChange={onEnabledChange}
+          disabled={disabled || pending}
+        />
+      }
+    >
+      {enabled && (
+        // The lazy chunk's size is genuinely unknown, so a fixed-height
+        // `SkeletonBox` is the honest placeholder until it hydrates.
+        <Suspense fallback={<SkeletonBox className="h-64 w-full" />}>
+          <PiiConfigPanel
+            value={value}
+            onChange={onPanelChange}
+            disabled={disabled}
+            detectionLocales="*"
+          />
+        </Suspense>
+      )}
+    </PageSection>
+  );
+}
+
+// =============================================================================
+// Container — owns data fetching, local edit state, save/toast wiring, and the
+// loading state. Wraps the plain view in `<Skeletonize>` so the same tree
+// renders the skeleton.
+//
+// Local state is seeded LAZILY from the (possibly already-warm) policy so the
+// very first render shows the real values — there is no post-mount
+// `useEffect`/`initializedRef` swap that used to flash the skeleton (or default
+// values) for one frame on a warm navigation. A one-time render-time sync still
+// picks up a cold read once it lands; it runs in the same render the data
+// arrives, so the committed DOM is correct with no flicker. Subsequent edits
+// stay client-owned (the upsert mutation patches the `getPolicy` read
+// optimistically), so the panel never flickers on each save round-trip.
+// =============================================================================
 export function PiiConfig({ organizationId }: PiiConfigProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
@@ -45,25 +125,22 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   );
   const upsertMutation = useUpsertGovernancePolicy();
 
-  const [enabled, setEnabled] = useState(false);
-  const [value, setValue] = useState(DEFAULT_VALUE);
+  const [enabled, setEnabled] = useState(() => policy?.enabled ?? false);
+  const [value, setValue] = useState<PiiConfigPanelValue>(() =>
+    deriveValue(policy),
+  );
 
   const cannotManage = ability.cannot('write', 'orgSettings');
-  const initializedRef = useRef(false);
 
-  // Sync from server data once loaded (render-time to avoid flicker).
-  // Subsequent edits stay client-owned so the panel doesn't flicker on
-  // each save round-trip.
-  if (!isLoading && !initializedRef.current) {
-    initializedRef.current = true;
-    if (policy) {
-      setEnabled(policy.enabled ?? false);
-      setValue({
-        mode: policy.config?.mode ?? 'tokenize',
-        enabledPatterns: policy.config?.enabledPatterns ?? [],
-        customPatterns: policy.config?.customPatterns ?? [],
-      });
-    }
+  // One-time sync for the cold-load case: when `policy` first lands the lazy
+  // seed above ran against `undefined`, so adopt the real values. This sets
+  // state during the render the data arrives — pre-commit — so it never
+  // produces a visible default→real flash. After this, edits are client-owned.
+  const syncedRef = useRef(policy != null);
+  if (!syncedRef.current && policy != null) {
+    syncedRef.current = true;
+    setEnabled(policy.enabled ?? false);
+    setValue(deriveValue(policy));
   }
 
   const persistConfig = useCallback(
@@ -118,46 +195,16 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     [persistConfig],
   );
 
-  if (isLoading || !initializedRef.current) {
-    return (
-      <div aria-busy="true" className="flex flex-col gap-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <Skeleton className="h-6 w-32" />
-            <Skeleton className="h-4 w-80 max-w-full" />
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            <Skeleton className="h-3.5 w-14" />
-            <Skeleton className="h-[1.15rem] w-8 rounded-full" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <PageSection
-      title={t('pii.title')}
-      description={t('pii.description')}
-      action={
-        <Switch
-          label={t('pii.enableLabel')}
-          checked={enabled}
-          onCheckedChange={handleEnabledChange}
-          disabled={cannotManage || upsertMutation.isPending}
-        />
-      }
-    >
-      {enabled && (
-        <Suspense fallback={<Skeleton className="h-64 w-full rounded-md" />}>
-          <PiiConfigPanel
-            value={value}
-            onChange={handlePanelChange}
-            disabled={cannotManage}
-            detectionLocales="*"
-          />
-        </Suspense>
-      )}
-    </PageSection>
+    <Skeletonize loading={isLoading} label={t('pii.title')}>
+      <PiiConfigView
+        enabled={enabled}
+        value={value}
+        disabled={cannotManage}
+        pending={upsertMutation.isPending}
+        onEnabledChange={handleEnabledChange}
+        onPanelChange={handlePanelChange}
+      />
+    </Skeletonize>
   );
 }

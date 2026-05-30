@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { AlertTriangle, Ban, Lock } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -23,6 +23,16 @@ import { useDsarPolicyForUi } from '../hooks/queries';
 interface DsarPolicyEditorProps {
   organizationId: string;
 }
+
+type DsarPolicyData = NonNullable<
+  ReturnType<typeof useDsarPolicyForUi>['data']
+>;
+
+type DsarPendingFields = {
+  coolingOffHours: boolean;
+  requireDualApproval: boolean;
+  dailyLimitPerAdmin: boolean;
+};
 
 /**
  * Auto-save on blur, with two safeguards above the prior commit:
@@ -167,51 +177,95 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
     }
   }, [cancelMutation, organizationId, toast, t]);
 
-  if (isLoading || !data) {
-    return (
-      <PageSection
-        title={t('dsarPolicy.title')}
-        description={t('dsarPolicy.description')}
-      >
-        <div className="flex max-w-2xl flex-col gap-4">
-          <Skeleton className="h-8 w-full rounded-md" />
-          <Skeleton className="h-8 w-full rounded-md" />
-          <Skeleton className="h-8 w-full rounded-md" />
-        </div>
-      </PageSection>
-    );
-  }
-
   // While a pending weakening is staged, lock every input — the
   // backend refuses any new propose with `pendingChangeExists`, so a
   // user clicking should never reach a write. The visible disabled
-  // styling makes that explicit.
-  const hasPending = data.pending !== null;
+  // styling makes that explicit. While loading there's no `data`, so the
+  // fields are read-only and the skeleton-aware `<Input>`/`<Switch>` mask
+  // themselves inside `<Skeletonize>`.
+  const hasPending = data?.pending != null;
   const readOnly =
-    !data.callerIsOwner ||
+    !data?.callerIsOwner ||
     hasPending ||
     proposeMutation.isPending ||
     cancelMutation.isPending;
-  const pendingFields = {
+  const pendingFields: DsarPendingFields = {
     coolingOffHours:
-      data.pending !== null &&
+      data?.pending != null &&
       data.pending.config.coolingOffHours !== data.config.coolingOffHours,
     requireDualApproval:
-      data.pending !== null &&
+      data?.pending != null &&
       data.pending.config.requireDualApproval !==
         data.config.requireDualApproval,
     dailyLimitPerAdmin:
-      data.pending !== null &&
+      data?.pending != null &&
       data.pending.config.dailyLimitPerAdmin !== data.config.dailyLimitPerAdmin,
   };
 
+  return (
+    <Skeletonize loading={isLoading || !data} label={t('dsarPolicy.title')}>
+      <DsarPolicyEditorView
+        data={data}
+        coolingOffHours={coolingOffHours}
+        dailyLimitPerAdmin={dailyLimitPerAdmin}
+        readOnly={readOnly}
+        pendingFields={pendingFields}
+        cancelDisabled={cancelMutation.isPending}
+        onCoolingOffHoursChange={setCoolingOffHours}
+        onCoolingOffHoursCommit={commitCoolingOffHours}
+        onDailyLimitChange={setDailyLimitPerAdmin}
+        onDailyLimitCommit={commitDailyLimit}
+        onDualApprovalToggle={handleDualApprovalToggle}
+        onCancelPending={() => void handleCancelPending()}
+      />
+    </Skeletonize>
+  );
+}
+
+// =============================================================================
+// Plain presentational view — no data/state hooks of its own. Renders the real
+// layout from injected draft values + change callbacks. Rendered both live (by
+// the container) and as its own skeleton (the container wraps it in
+// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
+// cannot drift. The skeleton-aware `<Input>`/`<Switch>` mask themselves to
+// their natural height while loading; the owner notice + pending banner are
+// only meaningful once `data` is present, so they stay hidden in the skeleton.
+// =============================================================================
+function DsarPolicyEditorView({
+  data,
+  coolingOffHours,
+  dailyLimitPerAdmin,
+  readOnly,
+  pendingFields,
+  cancelDisabled,
+  onCoolingOffHoursChange,
+  onCoolingOffHoursCommit,
+  onDailyLimitChange,
+  onDailyLimitCommit,
+  onDualApprovalToggle,
+  onCancelPending,
+}: {
+  data: DsarPolicyData | undefined;
+  coolingOffHours: string;
+  dailyLimitPerAdmin: string;
+  readOnly: boolean;
+  pendingFields: DsarPendingFields;
+  cancelDisabled: boolean;
+  onCoolingOffHoursChange: (value: string) => void;
+  onCoolingOffHoursCommit: () => void;
+  onDailyLimitChange: (value: string) => void;
+  onDailyLimitCommit: () => void;
+  onDualApprovalToggle: (next: boolean) => void;
+  onCancelPending: () => void;
+}) {
+  const { t } = useT('governance');
   return (
     <PageSection
       title={t('dsarPolicy.title')}
       description={t('dsarPolicy.description')}
     >
       <div className="flex max-w-2xl flex-col gap-5">
-        {!data.callerIsOwner && (
+        {data && !data.callerIsOwner && (
           <div
             role="status"
             className="border-border bg-muted/30 flex items-start gap-2 rounded-md border p-3 text-sm"
@@ -226,12 +280,12 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
           </div>
         )}
 
-        {data.pending && (
+        {data?.pending && (
           <PendingChangeBanner
             current={data.config}
             pending={data.pending}
-            onCancel={() => void handleCancelPending()}
-            cancelDisabled={cancelMutation.isPending}
+            onCancel={onCancelPending}
+            cancelDisabled={cancelDisabled}
           />
         )}
 
@@ -245,8 +299,8 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
             label={t('dsarPolicy.coolingOffHours.label')}
             description={t('dsarPolicy.coolingOffHours.description')}
             value={coolingOffHours}
-            onChange={(e) => setCoolingOffHours(e.target.value)}
-            onBlur={commitCoolingOffHours}
+            onChange={(e) => onCoolingOffHoursChange(e.target.value)}
+            onBlur={onCoolingOffHoursCommit}
             disabled={readOnly}
           />
         </PendingFieldWrap>
@@ -262,8 +316,8 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
               </Text>
             </div>
             <Switch
-              checked={data.config.requireDualApproval}
-              onCheckedChange={handleDualApprovalToggle}
+              checked={data?.config.requireDualApproval ?? false}
+              onCheckedChange={onDualApprovalToggle}
               disabled={readOnly}
               aria-label={t('dsarPolicy.requireDualApproval.label')}
             />
@@ -280,8 +334,8 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
             label={t('dsarPolicy.dailyLimitPerAdmin.label')}
             description={t('dsarPolicy.dailyLimitPerAdmin.description')}
             value={dailyLimitPerAdmin}
-            onChange={(e) => setDailyLimitPerAdmin(e.target.value)}
-            onBlur={commitDailyLimit}
+            onChange={(e) => onDailyLimitChange(e.target.value)}
+            onBlur={onDailyLimitCommit}
             disabled={readOnly}
           />
         </PendingFieldWrap>

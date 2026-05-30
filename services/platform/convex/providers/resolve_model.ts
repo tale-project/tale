@@ -15,6 +15,7 @@ import type {
 } from '@ai-sdk/provider';
 import { wrapLanguageModel } from 'ai';
 
+import type { ReasoningCapabilityConfig } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 
@@ -60,6 +61,12 @@ export interface ResolvedModelData {
    * the deny-list strip before handing it to streamText/generateText.
    */
   providerOptions?: Record<string, unknown>;
+  /**
+   * Operator-declared reasoning capability for the Adaptive Reasoning Governor.
+   * Optional override; the governor falls back to a built-in curated model-id
+   * table when absent. See `lib/agent_response/reasoning/capability.ts`.
+   */
+  reasoning?: ReasoningCapabilityConfig;
 }
 
 interface ResolvedLanguageModel {

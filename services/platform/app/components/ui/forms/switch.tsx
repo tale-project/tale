@@ -2,6 +2,8 @@
 
 import * as SwitchPrimitive from '@radix-ui/react-switch';
 import { Description } from '@tale/ui/description';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import {
   forwardRef,
   ComponentRef,
@@ -21,7 +23,16 @@ interface SwitchProps extends ComponentPropsWithoutRef<
   description?: ReactNode;
 }
 
-export const Switch = forwardRef<
+/**
+ * Single source of the switch track dimensions. Shared by the live Radix
+ * control — replaces the ~10 hand-copied `h-[1.15rem] w-8` skeletons across
+ * governance editors.
+ */
+export const SWITCH_TRACK_DIMENSIONS = 'h-[1.15rem] w-8';
+
+// Plain control — the real Radix switch (+ optional label/description). No
+// skeleton logic of its own.
+const SwitchBase = forwardRef<
   ComponentRef<typeof SwitchPrimitive.Root>,
   SwitchProps
 >(
@@ -39,7 +50,8 @@ export const Switch = forwardRef<
         id={id}
         data-slot="switch"
         className={cn(
-          'peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-border focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-border/80 inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
+          'peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-border focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-border/80 inline-flex shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
+          SWITCH_TRACK_DIMENSIONS,
           className,
         )}
         required={required}
@@ -91,4 +103,25 @@ export const Switch = forwardRef<
     );
   },
 );
+SwitchBase.displayName = 'SwitchBase';
+
+/**
+ * Skeleton-aware Switch. Inside a `<Skeletonize loading>` it masks the plain
+ * control by rendering it inside a `<SkeletonBox>` — laid out invisibly to set
+ * the exact size, pulse overlay on top — so the skeleton can never drift.
+ */
+export const Switch = forwardRef<
+  ComponentRef<typeof SwitchPrimitive.Root>,
+  SwitchProps
+>((props, ref) => {
+  const loading = useSkeleton();
+  if (loading) {
+    return (
+      <SkeletonBox>
+        <SwitchBase {...props} ref={ref} />
+      </SkeletonBox>
+    );
+  }
+  return <SwitchBase {...props} ref={ref} />;
+});
 Switch.displayName = SwitchPrimitive.Root.displayName;

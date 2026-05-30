@@ -1,7 +1,8 @@
-import { describe, it, vi } from 'vitest';
+import { Skeletonize } from '@tale/ui/skeleton-context';
+import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
-import { render } from '@/test/utils/render';
+import { render, screen } from '@/test/utils/render';
 
 import { JsonInput } from './json-input';
 
@@ -44,6 +45,39 @@ describe('JsonInput', () => {
         />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  describe('skeleton mode', () => {
+    it('masks the editor body while loading', () => {
+      render(
+        <Skeletonize loading>
+          <JsonInput
+            value='{"key": "value"}'
+            onChange={vi.fn()}
+            label="JSON data"
+          />
+        </Skeletonize>,
+      );
+      // The real control is laid out invisibly inside an aria-hidden
+      // SkeletonBox, so the editor's interactive controls (the toolbar
+      // button) are not exposed to the accessibility tree while masked.
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+      // The static label stays real.
+      expect(screen.getByText('JSON data')).toBeInTheDocument();
+    });
+
+    it('renders the real viewer when not loading', () => {
+      render(
+        <Skeletonize loading={false}>
+          <JsonInput
+            value='{"key": "value"}'
+            onChange={vi.fn()}
+            label="JSON data"
+          />
+        </Skeletonize>,
+      );
+      expect(screen.getByTestId('json-viewer')).toBeInTheDocument();
     });
   });
 });

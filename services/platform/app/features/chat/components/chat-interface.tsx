@@ -720,7 +720,6 @@ export function ChatInterface({
                 canLoadMore={canLoadMore}
                 isLoadingMore={isLoadingMore}
                 loadMore={handleLoadMore}
-                activeMessage={activeMessage}
                 isLoading={isLoading}
                 lastUserMessageRef={lastUserMessageRef}
                 containerRef={containerRef}

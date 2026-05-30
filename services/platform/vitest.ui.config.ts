@@ -10,6 +10,18 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     pool: 'threads',
+    // Cap concurrency: each test file holds a heavy jsdom + axe + React heap,
+    // and worker threads share the process V8 old-space, so an unbounded pool
+    // pushes the large UI suite toward "JS heap out of memory". (`maxWorkers`
+    // is top-level in Vitest 4; `poolOptions` was removed.)
+    maxWorkers: 2,
+    // jsdom logs "Not implemented: getComputedStyle … pseudo-elements" on every
+    // axe pseudo-element probe — thousands per run. Vitest buffers captured
+    // console output, so dropping this known-noise keeps the buffer small.
+    onConsoleLog(log) {
+      if (log.includes('Not implemented:')) return false;
+      return undefined;
+    },
     setupFiles: ['./test/setup-ui.ts'],
     include: [
       'app/components/**/*.test.{ts,tsx}',

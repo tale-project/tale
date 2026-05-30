@@ -2,6 +2,8 @@
 
 import { Button } from '@tale/ui/button';
 import { Description } from '@tale/ui/description';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
 import { Code2, Info, Save, X } from 'lucide-react';
@@ -277,7 +279,9 @@ interface JsonInputProps {
   id?: string;
 }
 
-export function JsonInput({
+// Plain control — the real JSON viewer/editor body (+ toolbar, label,
+// description, errors). No skeleton logic of its own.
+function JsonInputBase({
   value,
   onChange,
   disabled = false,
@@ -551,4 +555,21 @@ export function JsonInput({
       )}
     </div>
   );
+}
+
+/**
+ * Skeleton-aware JsonInput. Inside a `<Skeletonize loading>` it masks the plain
+ * control by rendering it inside a `<SkeletonBox>` — laid out invisibly to set
+ * the exact size, pulse overlay on top — so the skeleton can never drift.
+ */
+export function JsonInput(props: JsonInputProps) {
+  const loading = useSkeleton();
+  if (loading) {
+    return (
+      <SkeletonBox>
+        <JsonInputBase {...props} />
+      </SkeletonBox>
+    );
+  }
+  return <JsonInputBase {...props} />;
 }

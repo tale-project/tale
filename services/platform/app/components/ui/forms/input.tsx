@@ -1,6 +1,8 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Eye, EyeOff, Info, XCircle } from 'lucide-react';
 import {
@@ -51,7 +53,9 @@ type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
     wrapperClassName?: string;
   };
 
-export const Input = forwardRef<HTMLInputElement, BaseProps>(
+// Plain control — the real input field (+ optional label/description/toggle).
+// No skeleton logic of its own.
+const InputBase = forwardRef<HTMLInputElement, BaseProps>(
   (
     {
       className,
@@ -224,4 +228,22 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
     );
   },
 );
+InputBase.displayName = 'InputBase';
+
+/**
+ * Skeleton-aware Input. Inside a `<Skeletonize loading>` it masks the plain
+ * control by rendering it inside a `<SkeletonBox>` (laid out invisibly to set
+ * the exact size, pulse overlay on top) — no sizing math, no drift.
+ */
+export const Input = forwardRef<HTMLInputElement, BaseProps>((props, ref) => {
+  const loading = useSkeleton();
+  if (loading) {
+    return (
+      <SkeletonBox>
+        <InputBase {...props} ref={ref} />
+      </SkeletonBox>
+    );
+  }
+  return <InputBase {...props} ref={ref} />;
+});
 Input.displayName = 'Input';

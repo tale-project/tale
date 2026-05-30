@@ -2,6 +2,8 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
 
 import { cn } from '../../lib/cn';
+import { SkeletonBox } from './skeleton';
+import { useSkeleton } from './skeleton-context';
 
 export const badgeVariants = cva(
   'inline-flex items-center rounded-md text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 whitespace-nowrap overflow-hidden border-transparent text-primary-muted hover:bg-primary-foreground/10 px-2.5 py-1 text-secondary',
@@ -47,7 +49,8 @@ export interface BadgeProps
   children: React.ReactNode;
 }
 
-export function Badge({
+// Plain control — the real badge. No skeleton logic of its own.
+function BadgeBase({
   className,
   variant,
   icon: Icon,
@@ -72,4 +75,20 @@ export function Badge({
       </span>
     </div>
   );
+}
+
+/**
+ * Skeleton-aware Badge. Inside a `<Skeletonize loading>` it masks the real
+ * badge by rendering it inside a `<SkeletonBox>` at its exact footprint.
+ */
+export function Badge(props: BadgeProps) {
+  const loading = useSkeleton();
+  if (loading) {
+    return (
+      <SkeletonBox className="inline-block">
+        <BadgeBase {...props} />
+      </SkeletonBox>
+    );
+  }
+  return <BadgeBase {...props} />;
 }

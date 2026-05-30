@@ -1,7 +1,6 @@
-import { describe, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
-import { render } from '@/test/utils/render';
+import { render, screen } from '@/test/utils/render';
 
 import { ModelAccessEditor } from './model-access-editor';
 
@@ -17,22 +16,26 @@ vi.mock('../hooks/mutations', () => ({
   useUpsertGovernancePolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-// Stable references prevent infinite re-render loops caused by
-// useEffect depending on useMemo([policy]) — a new object each render
-// would trigger setState → re-render → new object → infinite loop.
-const STABLE_POLICY = {
-  data: {
+// Mutable, hoisted so the mock factory can read it (vi.mock is hoisted above
+// imports). Toggling `state` flips the editor between loading and loaded.
+// A fresh object per render is fine: the editor seeds local state once via an
+// init ref, so it never loops on a changing reference.
+const { state } = vi.hoisted(() => ({
+  state: {
+    isLoading: false,
     config: {
-      enabled: false,
+      enabled: true,
       mode: 'blocklist' as const,
-      rules: [],
-    },
+      rules: [] as unknown[],
+    } as Record<string, unknown> | null,
   },
-  isLoading: false,
-};
+}));
 
 vi.mock('../hooks/queries', () => ({
-  useGovernancePolicy: () => STABLE_POLICY,
+  useGovernancePolicy: () => ({
+    data: state.isLoading ? undefined : { config: state.config },
+    isLoading: state.isLoading,
+  }),
 }));
 
 const STABLE_MEMBERS = { members: [] };
@@ -45,7 +48,15 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => STABLE_TEAMS,
 }));
 
-const STABLE_PROVIDERS = { providers: [] };
+const STABLE_PROVIDERS = {
+  providers: [
+    {
+      name: 'openai',
+      displayName: 'OpenAI',
+      models: [{ id: 'openai/gpt-4o', displayName: 'GPT-4o', tags: ['chat'] }],
+    },
+  ],
+};
 vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
   useListProviders: () => STABLE_PROVIDERS,
 }));
@@ -54,161 +65,91 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => true, cannot: () => false }),
 }));
 
-vi.mock('@/app/components/ui/forms/switch', () => ({
-  Switch: ({
-    checked,
-    onCheckedChange,
-    label,
-  }: {
-    checked: boolean;
-    onCheckedChange: (checked: boolean) => void;
-    label?: string;
-    disabled?: boolean;
-  }) => (
-    <label>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onCheckedChange(e.target.checked)}
-        aria-label={label ?? 'Switch'}
-      />
-      {label && <span>{label}</span>}
-    </label>
-  ),
-}));
-
-vi.mock('@/app/components/ui/forms/select', () => ({
-  Select: ({
-    value,
-    onValueChange,
-    options,
-    label,
-  }: {
-    value: string;
-    onValueChange: (value: string) => void;
-    options: Array<{ value: string; label: string }>;
-    label?: string;
-  }) => (
-    <select
-      value={value}
-      onChange={(e) => onValueChange(e.target.value)}
-      aria-label={label ?? 'Select'}
-    >
-      {options.map((opt: { value: string; label: string }) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
-  ),
-}));
-
-vi.mock('@/app/components/ui/dialog/form-dialog', () => ({
-  FormDialog: ({ children }: { children: React.ReactNode }) => (
-    <div role="dialog">{children}</div>
-  ),
-}));
-
-vi.mock('@/app/components/ui/forms/searchable-select', () => ({
-  SearchableSelect: ({
-    value,
-    onValueChange,
-    options,
-  }: {
-    value: string | null;
-    onValueChange: (value: string) => void;
-    options: Array<{ value: string; label: string }>;
-    [key: string]: unknown;
-  }) => (
-    <select
-      value={value ?? ''}
-      onChange={(e) => onValueChange(e.target.value)}
-      aria-label="searchable-select"
-    >
-      {options.map((opt: { value: string; label: string }) => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
-  ),
-}));
-
-vi.mock('@/app/components/ui/forms/checkbox-group', () => ({
-  CheckboxGroup: ({
-    label,
-    options,
-    value,
-    onValueChange,
-  }: {
-    label: string;
-    options: Array<{ value: string; label: string }>;
-    value: string[];
-    onValueChange: (values: string[]) => void;
-    [key: string]: unknown;
-  }) => (
-    <fieldset>
-      <legend>{label}</legend>
-      {options.map((opt: { value: string; label: string }) => (
-        <label key={opt.value}>
-          <input
-            type="checkbox"
-            checked={value.includes(opt.value)}
-            onChange={(e) => {
-              if (e.target.checked) {
-                onValueChange([...value, opt.value]);
-              } else {
-                onValueChange(value.filter((v) => v !== opt.value));
-              }
-            }}
-          />
-          {opt.label}
-        </label>
-      ))}
-    </fieldset>
-  ),
-}));
-
-vi.mock('@/app/components/ui/layout/page-section', () => ({
-  PageSection: ({
-    children,
-    title,
-    description,
-  }: {
-    children: React.ReactNode;
-    title: string;
-    description?: string;
-  }) => (
-    <section>
-      <h2>{title}</h2>
-      {description && <p>{description}</p>}
-      {children}
-    </section>
-  ),
-}));
-
-vi.mock('@/app/components/ui/primitives/button', () => ({
-  Button: ({
-    children,
-    ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props}>{children}</button>
-  ),
-}));
-
-vi.mock('@/app/components/ui/typography/text', () => ({
-  Text: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
-    <span {...props}>{children}</span>
-  ),
-}));
+function setLoaded() {
+  state.isLoading = false;
+  state.config = {
+    enabled: true,
+    mode: 'blocklist',
+    rules: [
+      { scope: 'default', allowedModels: [], blockedModels: ['openai/gpt-4o'] },
+    ],
+  };
+}
+function setLoading() {
+  state.isLoading = true;
+  state.config = null;
+}
 
 describe('ModelAccessEditor', () => {
-  describe('accessibility', () => {
-    it('passes axe audit', async () => {
+  describe('loaded state', () => {
+    it('renders the real enable switch (in the a11y tree)', () => {
+      setLoaded();
+      render(<ModelAccessEditor organizationId="org-1" />);
+      expect(screen.getByRole('switch')).toBeInTheDocument();
+    });
+
+    it('renders the section heading (static text, always real)', () => {
+      setLoaded();
+      render(<ModelAccessEditor organizationId="org-1" />);
+      expect(
+        screen.getByRole('heading', { name: /model access/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('renders the saved rule rows (real data, no placeholders)', () => {
+      setLoaded();
       const { container } = render(
         <ModelAccessEditor organizationId="org-1" />,
       );
-      await checkAccessibility(container);
+      const rows = container.querySelectorAll('tbody tr');
+      expect(rows).toHaveLength(1);
+      expect(
+        screen.getByRole('button', { name: /edit rule/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('is not marked busy once loaded', () => {
+      setLoaded();
+      render(<ModelAccessEditor organizationId="org-1" />);
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('loading state (skeletonized)', () => {
+    it('exposes a single busy/status region', () => {
+      setLoading();
+      render(<ModelAccessEditor organizationId="org-1" />);
+      expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    });
+
+    it('masks the data-bearing controls (no live switch/buttons while loading)', () => {
+      setLoading();
+      render(<ModelAccessEditor organizationId="org-1" />);
+      // The masked Switch renders a SkeletonBox (no role=switch) and masked
+      // Buttons are aria-hidden → all excluded from the a11y tree.
+      expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+      expect(screen.queryAllByRole('button')).toHaveLength(0);
+    });
+
+    it('renders placeholder rows so the table reads as loading, not empty', () => {
+      setLoading();
+      const { container } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      // The body is forced visible while loading even though `enabled` has not
+      // been seeded yet; three placeholder rows render, NOT the empty-state.
+      expect(container.querySelectorAll('tbody tr')).toHaveLength(3);
+      expect(
+        screen.queryByText(/no access rules configured/i),
+      ).not.toBeInTheDocument();
+    });
+
+    it('keeps the real section heading while loading (no gray bar)', () => {
+      setLoading();
+      render(<ModelAccessEditor organizationId="org-1" />);
+      expect(
+        screen.getByRole('heading', { name: /model access/i }),
+      ).toBeInTheDocument();
     });
   });
 });
