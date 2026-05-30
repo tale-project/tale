@@ -152,18 +152,24 @@ describe('AgentSelector', () => {
     mockEffectiveAgentLoading = true;
     render(<AgentSelector organizationId="org-1" />);
 
-    // No "Assistant" / "Default agent" flash while we wait. Trigger button
-    // stays mounted but disabled, with a skeleton in place of the label.
-    expect(screen.queryByText('Default agent')).not.toBeInTheDocument();
+    // Granular masking: the real label stays mounted (so the footprint is
+    // stable) but is wrapped in a `<SkeletonBox>` that covers it with a pulse
+    // overlay while loading — there's no visual "Default agent" flash even
+    // though the text node remains in the DOM (aria-hidden).
+    const label = screen.getByText('Default agent');
+    expect(label.closest('[aria-hidden="true"]')).not.toBeNull();
     const trigger = screen.getByRole('button', { name: 'Select agent' });
     expect(trigger).toBeDisabled();
     // Trigger keeps its leading + trailing icons so the width footprint is
     // stable across loading and loaded states.
     expect(trigger.querySelectorAll('svg')).toHaveLength(2);
-    // Skeleton renders in place of the label, with dimensions matching the
-    // actual label height to avoid vertical jitter on resolve.
+    // The loading region is announced once via role="status"; the masked label
+    // sits under a pulse overlay. Granular masking auto-sizes the overlay to the
+    // label (no fixed skeleton dimensions), so assert the overlay is present
+    // rather than brittle width/height classes.
     const skeleton = within(trigger).getByRole('status');
-    expect(skeleton).toHaveClass('h-3.5', 'w-20');
+    expect(skeleton).toBeInTheDocument();
+    expect(trigger.querySelector('.animate-pulse')).not.toBeNull();
     // Trigger has a min-width pin (from `sm` up) so loading→loaded never
     // reflows for the common label range. Mobile drops the pin so the
     // composer toolbar fits — see the source comment in agent-selector.tsx.
