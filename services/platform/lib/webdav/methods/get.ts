@@ -164,6 +164,27 @@ function parseHttpDate(s: string | null): number | null {
   return Number.isFinite(t) ? Math.floor(t / 1000) : null;
 }
 
+// RFC 7233 §3.2: an If-Range value is either an entity-tag or an HTTP-date.
+// The Range is honored only if it matches the current representation. ETags
+// use strong comparison (a weak validator like our `W/"size-mtime"` must not
+// satisfy If-Range — strong comparison fails and we fall back to a full 200,
+// which is the safe outcome). Exported for unit testing.
+export function ifRangeMatches(
+  header: string,
+  etag: string,
+  lastModified: Date,
+): boolean {
+  const trimmed = header.trim();
+  if (trimmed.startsWith('"') || trimmed.startsWith('W/')) {
+    // Strong comparison: both sides must be strong and byte-identical.
+    if (trimmed.startsWith('W/') || etag.startsWith('W/')) return false;
+    return trimmed === etag;
+  }
+  const since = Date.parse(trimmed);
+  if (!Number.isFinite(since)) return false;
+  return Math.floor(lastModified.getTime() / 1000) <= Math.floor(since / 1000);
+}
+
 export async function handleGet(
   ctx: WebDAVCtx,
   auth: AuthContext,
@@ -228,7 +249,15 @@ export async function handleGet(
   }
 
   const size = typeof doc.size === 'number' ? doc.size : 0;
-  const rangeHeader = req?.headers.get('range') ?? null;
+  let rangeHeader = req?.headers.get('range') ?? null;
+  // RFC 7233 §3.2: If-Range guards the Range. Only honor the Range when the
+  // validator still matches the current representation; otherwise the client's
+  // cached partial is stale and we MUST return the full 200, not a 206 of
+  // mismatched bytes (which would silently corrupt a resumed download).
+  const ifRange = req?.headers.get('if-range') ?? null;
+  if (rangeHeader && ifRange && !ifRangeMatches(ifRange, etag, lastModified)) {
+    rangeHeader = null;
+  }
   const rangeParsed = parseRangeHeader(rangeHeader, size);
   if (rangeParsed === 'unsatisfiable') {
     return {

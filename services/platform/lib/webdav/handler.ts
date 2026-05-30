@@ -1,6 +1,7 @@
 import { anyApi } from 'convex/server';
 
 import { buildUnauthorizedResponse, verifyBasicAuthForDav } from './auth';
+import { WEBDAV_HMAC_KEY_MIN_LENGTH } from './hmac-key';
 import { handleDelete } from './methods/delete';
 import { handleGet } from './methods/get';
 import { handleLock } from './methods/lock';
@@ -31,9 +32,17 @@ let cachedHmacSecret: string | null = null;
 function getHmacSecret(): string {
   if (cachedHmacSecret) return cachedHmacSecret;
   const raw = process.env.WEBDAV_APP_PASSWORD_HMAC_KEY;
-  if (!raw || raw.length < 32) {
+  // Match the create-path / boot rule exactly (>= 64 hex chars): the key the
+  // create mutation HASHES with and the key we VERIFY with must be the same
+  // shape, and hmacHash → hexToBytes requires valid hex. A 32-char or non-hex
+  // key would pass here but fail at hash time — reject it up front.
+  if (
+    !raw ||
+    raw.length < WEBDAV_HMAC_KEY_MIN_LENGTH ||
+    !/^[0-9a-f]+$/i.test(raw)
+  ) {
     throw new Error(
-      "WEBDAV_APP_PASSWORD_HMAC_KEY is unset or too short. Set via 'convex env set WEBDAV_APP_PASSWORD_HMAC_KEY=$(openssl rand -hex 32)' and mirror to platform env via docker-entrypoint.",
+      `WEBDAV_APP_PASSWORD_HMAC_KEY is unset, too short (need >= ${WEBDAV_HMAC_KEY_MIN_LENGTH} hex chars), or non-hex. Set via 'convex env set WEBDAV_APP_PASSWORD_HMAC_KEY=$(openssl rand -hex 32)' and mirror to platform env via docker-entrypoint.`,
     );
   }
   cachedHmacSecret = raw;

@@ -246,6 +246,7 @@ import type * as customers_update_customer from "../customers/update_customer.js
 import type * as customers_update_customer_metadata from "../customers/update_customer_metadata.js";
 import type * as customers_update_customers from "../customers/update_customers.js";
 import type * as customers_validators from "../customers/validators.js";
+import type * as documents__helpers from "../documents/_helpers.js";
 import type * as documents_actions from "../documents/actions.js";
 import type * as documents_check_membership from "../documents/check_membership.js";
 import type * as documents_compare_documents from "../documents/compare_documents.js";
@@ -907,6 +908,7 @@ import type * as video_links_ytdlp from "../video_links/ytdlp.js";
 import type * as webdav_app_password_mutations from "../webdav/app_password_mutations.js";
 import type * as webdav_app_password_queries from "../webdav/app_password_queries.js";
 import type * as webdav_helpers from "../webdav/helpers.js";
+import type * as webdav_hold_guard from "../webdav/hold_guard.js";
 import type * as webdav_lock_mutations from "../webdav/lock_mutations.js";
 import type * as webdav_lock_queries from "../webdav/lock_queries.js";
 import type * as webdav_org_queries from "../webdav/org_queries.js";
@@ -1416,6 +1418,7 @@ declare const fullApi: ApiFromModules<{
   "customers/update_customer_metadata": typeof customers_update_customer_metadata;
   "customers/update_customers": typeof customers_update_customers;
   "customers/validators": typeof customers_validators;
+  "documents/_helpers": typeof documents__helpers;
   "documents/actions": typeof documents_actions;
   "documents/check_membership": typeof documents_check_membership;
   "documents/compare_documents": typeof documents_compare_documents;
@@ -2077,6 +2080,7 @@ declare const fullApi: ApiFromModules<{
   "webdav/app_password_mutations": typeof webdav_app_password_mutations;
   "webdav/app_password_queries": typeof webdav_app_password_queries;
   "webdav/helpers": typeof webdav_helpers;
+  "webdav/hold_guard": typeof webdav_hold_guard;
   "webdav/lock_mutations": typeof webdav_lock_mutations;
   "webdav/lock_queries": typeof webdav_lock_queries;
   "webdav/org_queries": typeof webdav_org_queries;

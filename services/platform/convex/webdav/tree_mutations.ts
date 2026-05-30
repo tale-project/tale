@@ -9,6 +9,10 @@ import { extractExtension } from '../documents/extract_extension';
 import { findFolderByPath } from '../folders/find_folder_by_path';
 import { MAX_FOLDER_DEPTH } from '../folders/mutations';
 import { buildFolderPath } from '../folders/queries';
+import {
+  assertWebdavDocNotHeld,
+  assertWebdavFolderTreeNotHeld,
+} from './hold_guard';
 
 const WEBDAV_SOURCE_PROVIDER = 'webdav';
 
@@ -110,6 +114,14 @@ export const ingestPutBlob = internalMutation({
         (d.lifecycleStatus ?? 'active') === 'active',
     );
 
+    // Legal-hold gate on overwrite: a held document must not be content-
+    // replaced. Assert BEFORE saveFileMetadata so a held overwrite never
+    // registers metadata or schedules a RAG re-index. On throw the PUT handler
+    // reclaims the already-uploaded orphan blob (deleteWebdavBlob).
+    if (existing) {
+      await assertWebdavDocNotHeld(ctx, args.organizationId, existing);
+    }
+
     // Always write fileMetadata first — saveFileMetadata schedules the
     // RAG upload as a side effect, so this single call handles both the
     // raw blob registration and indexing.
@@ -151,7 +163,7 @@ export const ingestPutBlob = internalMutation({
       // Done inline because we have no eraseStorageBlob action; the
       // operations are O(1) so they don't blow the mutation budget.
       if (oldFileId && oldFileId !== args.storageId) {
-        await purgeOldBlob(ctx, oldFileId);
+        await purgeOldBlob(ctx, args.organizationId, oldFileId);
       }
       return { created: false, documentId: existing._id };
     }
@@ -210,6 +222,15 @@ export const mkcol = internalMutation({
     const name = nfc(args.name);
     const parentSegments = args.parentSegments.map(nfc);
 
+    // Depth cap, mirroring createFolder (folders/mutations.ts). The new folder
+    // would nest at parentSegments.length + 1. Reject past MAX_FOLDER_DEPTH so
+    // folders never nest deeper than the recursive delete/copy/cycle-check
+    // helpers can traverse — otherwise such folders become un-deletable,
+    // un-movable, and un-copyable (every attempt 409s).
+    if (parentSegments.length + 1 > MAX_FOLDER_DEPTH) {
+      throw new ConvexError({ code: 'CONFLICT' });
+    }
+
     // RFC 4918 §9.3.1: parent must already exist (when there are parents).
     let parentId: Id<'folders'> | undefined = undefined;
     if (parentSegments.length > 0) {
@@ -222,16 +243,16 @@ export const mkcol = internalMutation({
       parentId = found;
     }
 
-    // RFC 4918 §9.3.1: 405 if the resource already exists.
-    const existing = await ctx.db
-      .query('folders')
-      .withIndex('by_org_parent_name', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('parentId', parentId)
-          .eq('name', name),
-      )
-      .first();
+    // RFC 4918 §9.3.1: 405 if a resource already exists at the Request-URI.
+    // findCollision checks BOTH folders and documents — a folders-only check
+    // would let MKCOL silently shadow an existing document of the same name,
+    // making that document permanently unreachable via GET/PUT/DELETE/MOVE.
+    const existing = await findCollision(
+      ctx,
+      args.organizationId,
+      parentId ?? null,
+      name,
+    );
     if (existing) throw new ConvexError({ code: 'METHOD_NOT_ALLOWED' });
 
     const id = await ctx.db.insert('folders', {
@@ -350,6 +371,19 @@ export const moveResource = internalMutation({
         name: destName,
         parentId: destFolderId,
       });
+      // Reparenting/renaming a folder changes the ABSOLUTE path of every
+      // descendant document, so their denormalized folderPath is now stale and
+      // (for integration-sourced docs) their external bindings point at a tree
+      // they've left. Recompute folderPath and detach synced docs for the whole
+      // subtree, mirroring the per-document branch above — otherwise the
+      // external-sync reconcile (which matches on folderPath / folderPathPrefix)
+      // mis-matches the relocated subtree and re-creates duplicates.
+      await fixupMovedFolderDescendants(
+        ctx,
+        args.organizationId,
+        args.src.id,
+        0,
+      );
     }
 
     // Drop lock rows at the old path (and below for folder moves).
@@ -474,6 +508,9 @@ async function softDeleteDocumentInner(
     throw new ConvexError({ code: 'NOT_FOUND' });
   }
   if ((doc.lifecycleStatus ?? 'active') !== 'active') return;
+  // Legal-hold gate: DELETE / MOVE-overwrite / COPY-overwrite all route a
+  // single doc through here. Refuse if the org or the doc's author is held.
+  await assertWebdavDocNotHeld(ctx, organizationId, doc);
   await ctx.db.patch(documentId, {
     lifecycleStatus: 'trashed',
     statusChangedAt: Date.now(),
@@ -528,6 +565,12 @@ async function cascadeDeleteFolderRecursive(
   folderId: Id<'folders'>,
   depth: number = 0,
 ): Promise<void> {
+  // Legal-hold pre-walk: assert the ENTIRE subtree is releasable before
+  // trashing anything (atomicity — never half-delete a tree). Runs once at the
+  // root; the recursion below does the actual trashing.
+  if (depth === 0) {
+    await assertWebdavFolderTreeNotHeld(ctx, organizationId, folderId);
+  }
   if (depth > MAX_FOLDER_DEPTH) {
     throw new ConvexError({ code: 'CONFLICT' });
   }
@@ -693,10 +736,69 @@ async function purgeLocksAtAndBelow(
   }
 }
 
+// After a folder MOVE/rename, recompute folderPath for every descendant
+// document and detach integration-sourced docs (mirrors moveResource's
+// document branch). Bounded by MAX_FOLDER_DEPTH. buildFolderPath walks the
+// parentId chain to the root; since the moved folder's parentId was already
+// repatched before this runs, it yields the NEW absolute path at each level.
+async function fixupMovedFolderDescendants(
+  ctx: MutationCtx,
+  organizationId: string,
+  folderId: Id<'folders'>,
+  depth: number,
+): Promise<void> {
+  if (depth > MAX_FOLDER_DEPTH) {
+    throw new ConvexError({ code: 'CONFLICT' });
+  }
+  const folderPath = await buildFolderPath(ctx, folderId);
+  const docs = await ctx.db
+    .query('documents')
+    .withIndex('by_organizationId_and_folderId', (q) =>
+      q.eq('organizationId', organizationId).eq('folderId', folderId),
+    )
+    .collect();
+  for (const d of docs) {
+    if ((d.lifecycleStatus ?? 'active') !== 'active') continue;
+    const patch: Record<string, unknown> = { folderPath };
+    if (d.sourceProvider && SYNC_SOURCE_PROVIDERS.has(d.sourceProvider)) {
+      patch.sourceProvider = undefined;
+      patch.externalItemId = undefined;
+      patch.driveId = undefined;
+    }
+    await ctx.db.patch(d._id, patch);
+  }
+  const childFolders = await ctx.db
+    .query('folders')
+    .withIndex('by_org_parent_name', (q) =>
+      q.eq('organizationId', organizationId).eq('parentId', folderId),
+    )
+    .collect();
+  for (const cf of childFolders) {
+    await fixupMovedFolderDescendants(ctx, organizationId, cf._id, depth + 1);
+  }
+}
+
 async function purgeOldBlob(
   ctx: MutationCtx,
+  organizationId: string,
   oldFileId: Id<'_storage'>,
 ): Promise<void> {
+  // Refcount guard. COPY shares the source doc's storageId (createDocument is
+  // called with fileId: src.fileId — Convex _storage is content-addressed), so
+  // one blob can back multiple active documents. Deleting it on a PUT-overwrite
+  // would destroy a COPY's bytes out from under it. Skip BOTH the
+  // fileMetadata-trash and the storage.delete when any OTHER active document
+  // still references this blob. (The doc being overwritten was already
+  // repatched to the new storageId before this runs, so it is not in this set.)
+  const refs = await ctx.db
+    .query('documents')
+    .withIndex('by_organizationId_and_fileId', (q) =>
+      q.eq('organizationId', organizationId).eq('fileId', oldFileId),
+    )
+    .collect();
+  if (refs.some((d) => (d.lifecycleStatus ?? 'active') === 'active')) {
+    return;
+  }
   // Mark the corresponding fileMetadata row trashed so retention
   // sweeps don't try to re-index it; then delete the blob. Order
   // matters — if storage.delete fails we still want the metadata in a
@@ -717,6 +819,11 @@ async function purgeOldBlob(
     await ctx.db.patch(meta._id, {
       lifecycleStatus: 'trashed',
       statusChangedAt: Date.now(),
+      // Detach the stale documentId link. The overwrite already linked a NEW
+      // fileMetadata row to this documentId; getByDocumentId does an unfiltered
+      // .first() on by_organizationId_and_documentId, so leaving the old
+      // (trashed) row linked lets it shadow the active row.
+      documentId: undefined,
     });
   }
   try {

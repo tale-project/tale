@@ -5930,9 +5930,7 @@
       "labelLabel": "Libellé",
       "labelPlaceholder": "p. ex. MacBook Finder",
       "submit": "Générer",
-      "generate": "Générer un mot de passe applicatif",
       "error": "Impossible de créer le mot de passe applicatif",
-      "errorGeneric": "Impossible de générer le mot de passe applicatif",
       "savedTitle": "Sauvegarde ce mot de passe — il ne sera plus affiché.",
       "copy": "Copier",
       "dismiss": "Je l'ai sauvegardé"

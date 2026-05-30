@@ -1,7 +1,7 @@
 import { anyApi } from 'convex/server';
 
 import { convexErrorCode } from '../errors';
-import { checkResourceLockOnParents } from '../locks';
+import { checkResourceLock } from '../locks';
 import {
   WEBDAV_MAX_XML_BODY,
   type AuthContext,
@@ -38,15 +38,18 @@ export async function handleMkcol(
     return { status: 415, headers: {}, body: 'MKCOL body not supported' };
   }
 
-  // RFC §9.10.4 / §7.4: a depth=infinity lock on an ancestor must
-  // forbid creating new children inside the locked tree without the
-  // lock token in the If: header.
-  const parentLock = await checkResourceLockOnParents(req, ctx, auth, parsed);
-  if (!parentLock.ok) {
+  // Lock enforcement (RFC 4918 §7.4 / §9.10.4): a depth=infinity lock on an
+  // ancestor forbids creating children inside the locked tree, AND an
+  // exact-path lock on this unmapped URL (a lock-null name reservation, §7.3)
+  // forbids another principal from MKCOL-ing it without the token.
+  // checkResourceLock covers BOTH (leaf at any depth + ancestors at infinity);
+  // checkResourceLockOnParents would skip the leaf and miss the reservation.
+  const lockResult = await checkResourceLock(req, ctx, auth, parsed);
+  if (!lockResult.ok) {
     return {
-      status: parentLock.status,
-      headers: parentLock.headers,
-      body: parentLock.body,
+      status: lockResult.status,
+      headers: lockResult.headers,
+      body: lockResult.body,
     };
   }
 

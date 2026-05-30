@@ -103,18 +103,30 @@ async function doMoveOrCopy(
 
   const overwrite = (req.headers.get('overwrite') ?? 'T').toUpperCase() !== 'F';
 
-  // Lock check on source.
-  const srcLock = await checkResourceLock(req, ctx, auth, parsed);
-  if (!srcLock.ok) {
-    return { status: srcLock.status, headers: {}, body: srcLock.reason };
+  // Source lock: ONLY MOVE needs it. MOVE removes the source, so a lock on it
+  // must be satisfied (RFC 4918 §9.9.4). COPY does not modify the source, so
+  // per §9.8.5 it MUST NOT require the source lock token — enforcing it here
+  // wrongly blocked copying out of a locked tree.
+  if (op === 'MOVE') {
+    const srcLock = await checkResourceLock(req, ctx, auth, parsed);
+    if (!srcLock.ok) {
+      return {
+        status: srcLock.status,
+        headers: srcLock.headers,
+        body: srcLock.body,
+      };
+    }
   }
   // Destination lock — required for BOTH MOVE and COPY: with Overwrite: T
   // (the default) either can destroy a locked destination, so the token
-  // must be submitted (RFC 4918 §9.8.5 / §9.9.4). COPY previously skipped
-  // this, silently overwriting a locked target.
+  // must be submitted (RFC 4918 §9.8.5 / §9.9.4).
   const dstLock = await checkResourceLock(req, ctx, auth, destParsed);
   if (!dstLock.ok) {
-    return { status: dstLock.status, headers: {}, body: dstLock.reason };
+    return {
+      status: dstLock.status,
+      headers: dstLock.headers,
+      body: dstLock.body,
+    };
   }
   if (op === 'MOVE') {
     // MOVE removes the source subtree — any locked internal member blocks
@@ -208,6 +220,16 @@ async function doMoveOrCopy(
     };
   } catch (err) {
     const code = convexErrorCode(err);
+    if (code === 'LEGAL_HOLD_ACTIVE') {
+      // Overwrite trashed a held destination (MOVE/COPY over an existing
+      // doc/folder) — refuse. 403, not 423: 423 implies a retriable WebDAV
+      // lock token, but a legal hold is not client-clearable.
+      return {
+        status: 403,
+        headers: {},
+        body: 'Destination is under legal hold',
+      };
+    }
     if (code === 'CONFLICT') {
       // CONFLICT covers self-move, move-into-descendant, missing
       // destination parent, and existing-without-overwrite. Map to

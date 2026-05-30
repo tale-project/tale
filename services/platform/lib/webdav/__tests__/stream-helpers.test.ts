@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeETag,
   ifNoneMatchMatches,
+  ifRangeMatches,
   parseRangeHeader,
 } from '../methods/get';
 import { wrapWithCap } from '../methods/put';
@@ -34,6 +35,39 @@ async function readAll(
   }
   return out;
 }
+
+describe('ifRangeMatches', () => {
+  const lastModified = new Date('2026-01-01T00:00:00Z');
+
+  it('matches a strong ETag that equals the current strong validator', () => {
+    expect(ifRangeMatches('"abc123"', '"abc123"', lastModified)).toBe(true);
+  });
+
+  it('does not match a different strong ETag (stale → serve full 200)', () => {
+    expect(ifRangeMatches('"old"', '"abc123"', lastModified)).toBe(false);
+  });
+
+  it('never matches when either side is a weak validator (RFC 7233 strong comparison)', () => {
+    expect(ifRangeMatches('W/"abc"', 'W/"abc"', lastModified)).toBe(false);
+    expect(ifRangeMatches('"abc"', 'W/"abc"', lastModified)).toBe(false);
+    expect(ifRangeMatches('W/"abc"', '"abc"', lastModified)).toBe(false);
+  });
+
+  it('matches an HTTP-date >= Last-Modified, rejects an older date', () => {
+    expect(
+      ifRangeMatches('Thu, 01 Jan 2026 00:00:00 GMT', '"x"', lastModified),
+    ).toBe(true);
+    expect(
+      ifRangeMatches('Wed, 31 Dec 2025 00:00:00 GMT', '"x"', lastModified),
+    ).toBe(false);
+  });
+
+  it('rejects an unparseable If-Range value', () => {
+    expect(ifRangeMatches('not-a-date-or-etag', '"x"', lastModified)).toBe(
+      false,
+    );
+  });
+});
 
 describe('parseRangeHeader', () => {
   it('parses a closed range', () => {

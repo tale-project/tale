@@ -57,7 +57,15 @@ export async function nodeAdapter(
   const ac = new AbortController();
   const abort = () => ac.abort();
   req.on('aborted', abort);
-  req.on('close', abort);
+  // 'close' on an http.IncomingMessage fires on NORMAL completion too (as soon
+  // as the request body is fully received) — not only on client disconnect.
+  // An unconditional abort here cancels the in-flight upstream upload of every
+  // healthy PUT, returning a spurious 499. `req.complete` is true once the full
+  // body has arrived, so only a PREMATURE close (complete === false) is a real
+  // disconnect worth propagating.
+  req.on('close', () => {
+    if (!req.complete) ac.abort();
+  });
 
   // Hold a single stream reference so readBytes can drain it lazily.
   // Once consumed it can't be replayed — readBytes caches the buffer.

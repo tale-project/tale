@@ -151,3 +151,80 @@ describe('WebDAV lock enforcement (locks.ts runLockCheck)', () => {
     expect(res.status).toBe(204);
   });
 });
+
+// Lock-null name reservation (RFC 4918 §7.3 / §6.4): a LOCK on an unmapped URL
+// must be honored by a later create at that EXACT path. These guard the fix
+// that made PUT/MKCOL run the leaf lock check on the create path (previously
+// gated on resolved.exists, so the reservation was silently ignored).
+describe('WebDAV lock-null reservation enforcement', () => {
+  it('MKCOL over an exact-path lock without the token → 423', async () => {
+    const ctx = makeStubCtx({
+      queries: {
+        'webdav/lock_queries:findLockForPath': lockAt('/documents/reserved'),
+      },
+    });
+    const res = await dispatch(
+      makeRequest({
+        method: 'MKCOL',
+        pathname: '/dav/myorg/documents/reserved',
+        authenticated: true,
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(423);
+  });
+
+  it('PUT (creating a new resource) over an exact-path lock without the token → 423', async () => {
+    const ctx = makeStubCtx({
+      queries: {
+        'webdav/lock_queries:findLockForPath': lockAt('/documents/reserved'),
+        // lock-null: the resource does not exist as a row yet.
+        'webdav/tree_queries:resolvePath': () => ({ exists: false }),
+      },
+    });
+    const res = await dispatch(
+      makeRequest({
+        method: 'PUT',
+        pathname: '/dav/myorg/documents/reserved',
+        authenticated: true,
+        headers: { 'content-length': '3' },
+        body: 'abc',
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(423);
+  });
+});
+
+// COPY must NOT require the source lock token (RFC 4918 §9.8.5) — it does not
+// modify the source. Only the destination lock matters. Guards the fix that
+// made the source-lock check MOVE-only.
+describe('WebDAV COPY source-lock relaxation', () => {
+  it('COPY with a locked SOURCE but unlocked destination proceeds', async () => {
+    const ctx = makeStubCtx({
+      queries: {
+        // Source is locked; destination /documents/dst is not.
+        'webdav/lock_queries:findLockForPath': lockAt('/documents/src'),
+        'webdav/tree_queries:resolvePath': () => ({
+          exists: true,
+          kind: 'document',
+          documentId: 'doc_1',
+        }),
+      },
+      mutations: {
+        'webdav/tree_mutations:copyResource': () => ({ created: true }),
+      },
+    });
+    const res = await dispatch(
+      makeRequest({
+        method: 'COPY',
+        pathname: '/dav/myorg/documents/src',
+        authenticated: true,
+        headers: { destination: '/dav/myorg/documents/dst' },
+      }),
+      ctx,
+    );
+    // Old behavior 423 (blocked on source lock); fixed behavior 201.
+    expect(res.status).toBe(201);
+  });
+});

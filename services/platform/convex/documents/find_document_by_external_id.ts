@@ -35,6 +35,14 @@ export async function findDocumentByExternalId(
   const folderIdScope = args.folderId;
   const prefix = args.folderPathPrefix;
 
+  // NOTE: intentionally does NOT filter on lifecycleStatus (unlike the agent /
+  // public read paths that use isActiveDocument). This backs the external-sync
+  // reconcile/upsert keyed by externalItemId. If we hid a trashed-but-same-id
+  // row here, the upsert's "existing" lookup would return null and the next
+  // sync sweep would RE-CREATE the document the user just trashed (resurrection
+  // / duplicate rows). Returning the trashed row lets reconcile update it in
+  // place. Read surfaces that must hide trashed docs do so at their own call
+  // site, not in this shared sync-key lookup.
   // The expected match count for these scopes is at most 1 in normal usage,
   // so a small in-memory filter is fine.
   for await (const doc of candidates) {

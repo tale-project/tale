@@ -82,7 +82,12 @@ export const listCollection = internalQuery({
         : sorted;
       return {
         folders: [],
-        documents: slice.map(documentRowToMeta),
+        // Join fileMetadata so Depth:1 children carry size + contentType,
+        // letting PROPFIND emit getcontentlength (directory views otherwise
+        // show no file sizes). Bounded by the MAX_CHILDREN_PER_PROPFIND slice.
+        documents: await Promise.all(
+          slice.map((d) => joinDocumentMetadata(ctx, d)),
+        ),
         truncated,
       };
     }
@@ -141,7 +146,9 @@ export const listCollection = internalQuery({
         name: f.name,
         creationTime: f._creationTime,
       })),
-      documents: docSlice.map(documentRowToMeta),
+      documents: await Promise.all(
+        docSlice.map((d) => joinDocumentMetadata(ctx, d)),
+      ),
       truncated,
     };
   },

@@ -55,17 +55,21 @@ export async function handlePut(
     },
   );
 
-  // Lock check on overwrite — fresh PUT on a non-existent path needs no
-  // lock (caller can't lock something that doesn't exist).
-  if (resolved.exists && resolved.kind === 'document') {
-    const lockResult = await checkResourceLock(req, ctx, auth, parsed);
-    if (!lockResult.ok) {
-      return {
-        status: lockResult.status,
-        headers: {},
-        body: lockResult.reason,
-      };
-    }
+  // Lock enforcement applies to BOTH overwrite and create:
+  //  - overwriting an existing locked document (RFC 4918 §9.7 / §6.4),
+  //  - an exact-path lock on an unmapped URL (lock-null reservation, §7.3) —
+  //    another principal LOCKed this name; the write needs the token,
+  //  - a depth=infinity lock on an ancestor collection (§7.4).
+  // checkResourceLock enumerates the leaf (any depth) + ancestors (infinity),
+  // so one call covers all three. The previous code gated on resolved.exists
+  // and therefore skipped every lock check on a fresh PUT.
+  const lockResult = await checkResourceLock(req, ctx, auth, parsed);
+  if (!lockResult.ok) {
+    return {
+      status: lockResult.status,
+      headers: lockResult.headers,
+      body: lockResult.body,
+    };
   }
   if (resolved.exists && resolved.kind !== 'document') {
     // RFC 4918 §9.7.2: same 405 as PUT-on-collection by URL shape.
@@ -176,6 +180,16 @@ export async function handlePut(
         console.warn('[webdav] PUT orphan-blob cleanup failed', e),
       );
     const code = convexErrorCode(err);
+    if (code === 'LEGAL_HOLD_ACTIVE') {
+      // Overwrite of a held document — refuse. 403, not 423 (a legal hold is
+      // not a client-clearable WebDAV lock). The orphan blob was reclaimed
+      // above.
+      return {
+        status: 403,
+        headers: {},
+        body: 'Document is under legal hold',
+      };
+    }
     if (code === 'CONFLICT') {
       // Missing parent collection — RFC 4918 §9.7.1.
       return {

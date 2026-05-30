@@ -5,6 +5,7 @@
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { toId } from '../lib/type_cast_helpers';
+import { isActiveDocument } from './_helpers';
 
 export async function findDocumentByFileId(
   ctx: QueryCtx,
@@ -13,7 +14,7 @@ export async function findDocumentByFileId(
     fileId: string;
   },
 ): Promise<Doc<'documents'> | null> {
-  return await ctx.db
+  const doc = await ctx.db
     .query('documents')
     .withIndex('by_organizationId_and_fileId', (q) =>
       q
@@ -21,4 +22,8 @@ export async function findDocumentByFileId(
         .eq('fileId', toId<'_storage'>(args.fileId)),
     )
     .first();
+  // A trashed/expired doc (e.g. WebDAV DELETE leaves the row + blob live) must
+  // not resolve by fileId for agent retrieval / workflow access — treat as
+  // absent. Callers already handle null.
+  return doc && isActiveDocument(doc) ? doc : null;
 }

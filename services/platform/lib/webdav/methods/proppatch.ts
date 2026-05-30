@@ -95,11 +95,20 @@ export async function handleProppatch(
 
   const propstats: string[] = [];
 
+  // RFC 4918 §9.2: PROPPATCH is atomic — if ANY instruction fails, none are
+  // applied and the others MUST report 424 Failed Dependency. So when a
+  // protected (live) prop forces a 403, the dead props that would otherwise
+  // have been accepted report 424 instead of 200. (We persist nothing either
+  // way, so "nothing applied" already holds.)
   if (deadProps.length > 0) {
+    const status =
+      liveProps.length > 0
+        ? 'HTTP/1.1 424 Failed Dependency'
+        : 'HTTP/1.1 200 OK';
     propstats.push(
       `    <D:propstat>
       <D:prop>${deadProps.map((p) => `<D:${escapeXml(p)}/>`).join('')}</D:prop>
-      <D:status>HTTP/1.1 200 OK</D:status>
+      <D:status>${status}</D:status>
     </D:propstat>`,
     );
   }

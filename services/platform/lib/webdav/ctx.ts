@@ -3,19 +3,28 @@ import { ConvexHttpClient } from 'convex/browser';
 import type { WebDAVCtx } from './types';
 
 export interface MakeWebdavCtxOptions {
-  // CONVEX_URL — the WebSocket-side hostname. We derive the HTTP-side
-  // (port :3211 by convention) from it for both blob fetches and
-  // ConvexHttpClient. Override individually if your topology differs.
+  // CONVEX_URL — the backend API origin (port :3210 self-hosted). The
+  // ConvexHttpClient talks to this directly: its query/mutation/action calls
+  // POST to /api/*, which is served ONLY by the backend, NOT the :3211
+  // HTTP-actions site proxy. We derive the site origin from it for the blob
+  // proxy only (see storageBaseUrl). Override individually if your topology
+  // differs.
   convexUrl: string;
-  // Optional explicit HTTP-actions URL. Falls back to convexUrl with
-  // port rewritten 3210 → 3211 (the docker compose convention).
+  // Optional explicit HTTP-actions (site) URL used for the /storage blob
+  // proxy. Falls back to convexUrl with port rewritten 3210 → 3211 (the
+  // docker compose convention).
   convexSiteUrl?: string;
   adminKey: string;
 }
 
 export function makeWebdavCtx(opts: MakeWebdavCtxOptions): WebDAVCtx {
-  const siteUrl = opts.convexSiteUrl ?? deriveSiteUrl(opts.convexUrl);
-  const client = new ConvexHttpClient(siteUrl);
+  // The client MUST point at the backend (convexUrl, :3210) — query()/
+  // mutation()/action() hit /api/query|mutation|action, which the :3211 site
+  // proxy does not serve (it forwards to /http httpActions). Mirror the
+  // working reference in services/platform/reset-owner.ts:31 which builds the
+  // client straight from CONVEX_URL. Only the /storage blob proxy
+  // (storageBaseUrl, used by methods/get.ts) lives on the :3211 site origin.
+  const client = new ConvexHttpClient(opts.convexUrl);
   // setAdminAuth is @internal in convex types but present at runtime;
   // mirror the pattern in services/platform/reset-owner.ts:33.
   // oxlint-disable-next-line no-unsafe-type-assertion
@@ -25,7 +34,7 @@ export function makeWebdavCtx(opts: MakeWebdavCtxOptions): WebDAVCtx {
   setAdminAuth.call(client, opts.adminKey);
   return {
     convex: client,
-    storageBaseUrl: siteUrl,
+    storageBaseUrl: opts.convexSiteUrl ?? deriveSiteUrl(opts.convexUrl),
   };
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { safeOwnerEmit } from './escape';
+import { escapeXml, safeOwnerEmit } from './escape';
 import {
   isOwnerExtractError,
   parseIfHeader,
@@ -314,9 +314,40 @@ describe('parseIfHeader (structured)', () => {
   });
 });
 
+describe('escapeXml', () => {
+  it('escapes the five XML entities', () => {
+    expect(escapeXml(`<a href="x">&'</a>`)).toBe(
+      '&lt;a href=&quot;x&quot;&gt;&amp;&apos;&lt;/a&gt;',
+    );
+  });
+
+  it('strips XML-1.0-illegal C0 control chars but keeps tab/LF/CR', () => {
+    const input = 'rep\u0000o\u0008rt\u001fx';
+    expect(escapeXml(input)).toBe('reportx');
+    // Legal whitespace controls survive untouched.
+    expect(escapeXml('a\tb\nc\rd')).toBe('a\tb\nc\rd');
+  });
+
+  it('strips the U+FFFE/U+FFFF non-characters', () => {
+    expect(escapeXml('a\uFFFEb\uFFFFc')).toBe('abc');
+  });
+
+  it('yields a well-formed element even when the source had a control byte', () => {
+    // A doc title with a NUL must not corrupt the surrounding markup.
+    const body = `<D:displayname>${escapeXml('foo\u0000bar')}</D:displayname>`;
+    expect(body).toBe('<D:displayname>foobar</D:displayname>');
+  });
+});
+
 describe('safeOwnerEmit', () => {
   it('wraps non-empty owner in CDATA', () => {
     expect(safeOwnerEmit('me')).toBe('<D:owner><![CDATA[me]]></D:owner>');
+  });
+
+  it('strips XML-illegal control chars before CDATA-wrapping', () => {
+    expect(safeOwnerEmit('o\u0001wner')).toBe(
+      '<D:owner><![CDATA[owner]]></D:owner>',
+    );
   });
 
   it('returns empty string for empty input', () => {

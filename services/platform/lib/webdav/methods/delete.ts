@@ -1,5 +1,6 @@
 import { anyApi } from 'convex/server';
 
+import { convexErrorCode } from '../errors';
 import { checkCollectionDescendantLocks, checkResourceLock } from '../locks';
 import { lockKeyFromParsed } from '../paths';
 import type {
@@ -40,35 +41,47 @@ export async function handleDelete(
     return { status: 404, headers: {}, body: 'Not found' };
   }
 
-  if (resolved.kind === 'document') {
-    await ctx.convex.mutation(anyApi.webdav.tree_mutations.softDeleteDocument, {
-      organizationId: auth.organizationId,
-      documentId: resolved.documentId,
-    });
-  } else if (resolved.kind === 'folder') {
-    // RFC 4918 §9.6.1: deleting a collection must fail if any internal
-    // member is locked without the token. checkResourceLock above only
-    // covered the collection + ancestors.
-    const descendantLock = await checkCollectionDescendantLocks(
-      req,
-      ctx,
-      auth,
-      parsed,
-    );
-    if (!descendantLock.ok) {
-      return {
-        status: descendantLock.status,
-        headers: descendantLock.headers,
-        body: descendantLock.body,
-      };
+  try {
+    if (resolved.kind === 'document') {
+      await ctx.convex.mutation(
+        anyApi.webdav.tree_mutations.softDeleteDocument,
+        {
+          organizationId: auth.organizationId,
+          documentId: resolved.documentId,
+        },
+      );
+    } else if (resolved.kind === 'folder') {
+      // RFC 4918 §9.6.1: deleting a collection must fail if any internal
+      // member is locked without the token. checkResourceLock above only
+      // covered the collection + ancestors.
+      const descendantLock = await checkCollectionDescendantLocks(
+        req,
+        ctx,
+        auth,
+        parsed,
+      );
+      if (!descendantLock.ok) {
+        return {
+          status: descendantLock.status,
+          headers: descendantLock.headers,
+          body: descendantLock.body,
+        };
+      }
+      await ctx.convex.mutation(
+        anyApi.webdav.tree_mutations.deleteFolderCascade,
+        {
+          organizationId: auth.organizationId,
+          folderId: resolved.folderId,
+        },
+      );
     }
-    await ctx.convex.mutation(
-      anyApi.webdav.tree_mutations.deleteFolderCascade,
-      {
-        organizationId: auth.organizationId,
-        folderId: resolved.folderId,
-      },
-    );
+  } catch (err) {
+    if (convexErrorCode(err) === 'LEGAL_HOLD_ACTIVE') {
+      // The org or a descendant doc's author is on a legal hold — refuse.
+      // 403, not 423 (a legal hold is not a client-clearable WebDAV lock).
+      return { status: 403, headers: {}, body: 'Resource is under legal hold' };
+    }
+    throw err;
   }
 
   // Removing a resource removes its locks (RFC 4918 §9.6.1) — drop the

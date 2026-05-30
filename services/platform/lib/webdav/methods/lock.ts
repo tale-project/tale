@@ -85,9 +85,24 @@ export async function handleLock(
         if (!existing || existing.organizationId !== auth.organizationId) {
           continue;
         }
+        // RFC 4918 §6.4: only the lock owner may refresh. §9.10.2: the token
+        // must apply to the Request-URI. Without these checks any same-org user
+        // who learns a token could refresh another user's lock, and a token
+        // could be refreshed against an unrelated path. Non-matching tokens
+        // fall through to the 412 below.
+        if (
+          existing.ownerUserId !== auth.userId ||
+          existing.resourcePath !== lockKeyFromParsed(parsed)
+        ) {
+          continue;
+        }
         const refreshed = await ctx.convex.mutation(
           anyApi.webdav.lock_mutations.refreshLock,
-          { lockToken: token, timeoutMs: timeoutSec * 1000 },
+          {
+            lockToken: token,
+            ownerUserId: auth.userId,
+            timeoutMs: timeoutSec * 1000,
+          },
         );
         // RFC §9.10.5: echo the stored ownerXml / scope / depth from
         // the original LOCK request, not whatever the refresh client

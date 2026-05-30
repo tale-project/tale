@@ -5929,9 +5929,7 @@
       "labelLabel": "Label",
       "labelPlaceholder": "e.g. MacBook Finder",
       "submit": "Generate",
-      "generate": "Generate app-password",
       "error": "Failed to create app-password",
-      "errorGeneric": "Could not generate app-password",
       "savedTitle": "Save this password — it will not be shown again.",
       "copy": "Copy",
       "dismiss": "I have saved it"

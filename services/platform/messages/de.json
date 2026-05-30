@@ -5929,9 +5929,7 @@
       "labelLabel": "Bezeichnung",
       "labelPlaceholder": "z. B. MacBook Finder",
       "submit": "Erzeugen",
-      "generate": "App-Passwort erzeugen",
       "error": "App-Passwort konnte nicht erstellt werden",
-      "errorGeneric": "App-Passwort konnte nicht erzeugt werden",
       "savedTitle": "Speichere dieses Passwort — es wird nicht erneut angezeigt.",
       "copy": "Kopieren",
       "dismiss": "Ich habe es gespeichert"

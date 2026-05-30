@@ -1,6 +1,7 @@
 import type { QueryCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
+import { isActiveDocument } from './_helpers';
 
 /**
  * Get all document IDs accessible to a user within an organization.
@@ -27,6 +28,9 @@ export async function getAccessibleDocumentIds(
     );
 
   for await (const doc of query) {
+    // Trashed/expired docs (e.g. via WebDAV DELETE) must not be retrievable by
+    // agents — this helper gates document_retrieve's access check.
+    if (!isActiveDocument(doc)) continue;
     if (hasTeamAccess(doc, teamSet)) {
       ids.push(doc._id);
     }

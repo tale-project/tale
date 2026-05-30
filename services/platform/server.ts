@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +14,10 @@ import {
 import { createConfigWatcher } from './lib/config-watcher';
 import { fetchAdapter as webdavFetchAdapter } from './lib/webdav/adapters/fetch';
 import { makeWebdavCtx } from './lib/webdav/ctx';
+import {
+  ensureWebdavHmacKey,
+  WEBDAV_HMAC_KEY_MIN_LENGTH,
+} from './lib/webdav/hmac-key';
 import { WEBDAV_METHODS } from './lib/webdav/types';
 import {
   buildStatusFeed,
@@ -545,18 +548,11 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
   // we want the raw bytes through. Skip the middleware on this path.
   const webdavAdminKey = process.env.ADMIN_KEY ?? '';
   // Dev parity: `docker-entrypoint.sh` derives this deterministically from
-  // INSTANCE_SECRET in prod; mirror the derivation here so `bun dev` works
-  // without an explicit operator step. An explicit env var always wins —
-  // operators rotating the HMAC key set it directly in .env.local.
-  if (
-    !process.env.WEBDAV_APP_PASSWORD_HMAC_KEY &&
-    process.env.INSTANCE_SECRET
-  ) {
-    process.env.WEBDAV_APP_PASSWORD_HMAC_KEY = createHash('sha256')
-      .update(`${process.env.INSTANCE_SECRET}:webdav-hmac:v1`)
-      .digest('hex');
-  }
-  const webdavHmacKey = process.env.WEBDAV_APP_PASSWORD_HMAC_KEY ?? '';
+  // INSTANCE_SECRET in prod; ensureWebdavHmacKey mirrors that derivation so
+  // `bun dev` works without an explicit operator step. An explicit env var
+  // always wins — operators rotating the HMAC key set it directly in
+  // .env.local.
+  const webdavHmacKey = ensureWebdavHmacKey() ?? '';
   const webdavConvexUrl = process.env.CONVEX_URL ?? 'http://convex:3210';
   // Boot-time visibility into the two preconditions for /dav/*. We log
   // and continue instead of throwing so the rest of the platform serves
@@ -567,9 +563,9 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       '[webdav] ADMIN_KEY unset — /dav/* will 500. Set via docker-entrypoint (prod) or .env.local (dev).',
     );
   }
-  if (!webdavHmacKey || webdavHmacKey.length < 64) {
+  if (!webdavHmacKey || webdavHmacKey.length < WEBDAV_HMAC_KEY_MIN_LENGTH) {
     console.warn(
-      '[webdav] WEBDAV_APP_PASSWORD_HMAC_KEY unset or too short (need 64 hex chars) — /dav/* will 500.',
+      `[webdav] WEBDAV_APP_PASSWORD_HMAC_KEY unset or too short (need ${WEBDAV_HMAC_KEY_MIN_LENGTH} hex chars) — /dav/* will 500.`,
     );
   }
   let webdavCtx: ReturnType<typeof makeWebdavCtx> | null = null;

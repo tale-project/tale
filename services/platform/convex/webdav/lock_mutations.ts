@@ -40,22 +40,31 @@ export const createLock = internalMutation({
   },
   async handler(ctx, args) {
     const path = canonicalResourcePath(args.resourcePath);
+    const now = Date.now();
 
-    // Per-app-password rate limit. Counts live AND expired rows — a
-    // client that creates 200 locks and never UNLOCKs is the exact
-    // case we want to throttle, and stale rows get evicted lazily on
-    // read elsewhere. RATE_LIMITED → handler returns 503.
+    // Per-app-password lock cap (a flood guard, not a brute-force window).
+    // Opportunistically evict THIS app-password's expired rows, then count
+    // only live locks — otherwise a client that legitimately churns many
+    // short-lived locks stays permanently wedged at 503 until each stale path
+    // happens to be re-read or the password is revoked (the by_expiresAt index
+    // has no GC sweep). RATE_LIMITED → handler returns 503.
     const heldByPassword = await ctx.db
       .query('webdavLocks')
       .withIndex('by_appPasswordId', (q) =>
         q.eq('appPasswordId', args.appPasswordId),
       )
       .collect();
-    if (heldByPassword.length >= MAX_LOCKS_PER_APP_PASSWORD) {
+    let liveCount = 0;
+    for (const row of heldByPassword) {
+      if (row.expiresAt <= now) {
+        await ctx.db.delete(row._id);
+      } else {
+        liveCount++;
+      }
+    }
+    if (liveCount >= MAX_LOCKS_PER_APP_PASSWORD) {
       throw new ConvexError({ code: 'RATE_LIMITED' });
     }
-
-    const now = Date.now();
 
     // Re-check at write time. Two clients racing for an exclusive lock
     // could both pass the lookup; whichever inserts first wins, the
@@ -136,6 +145,10 @@ export const createLock = internalMutation({
 export const refreshLock = internalMutation({
   args: {
     lockToken: v.string(),
+    // RFC 4918 §6.4: only the lock owner may refresh. Defense in depth — the
+    // handler also pre-checks, but gating here means the mutation can't be
+    // misused to extend another principal's lock.
+    ownerUserId: v.string(),
     timeoutMs: v.number(),
   },
   async handler(ctx, args) {
@@ -148,6 +161,9 @@ export const refreshLock = internalMutation({
       // Stale — clients are supposed to re-LOCK rather than refresh.
       await ctx.db.delete(row._id);
       throw new ConvexError({ code: 'NOT_FOUND' });
+    }
+    if (row.ownerUserId !== args.ownerUserId) {
+      throw new ConvexError({ code: 'FORBIDDEN' });
     }
     const timeoutMs = Math.min(args.timeoutMs, MAX_LOCK_TIMEOUT_MS);
     const newExpiresAt = Date.now() + timeoutMs;
