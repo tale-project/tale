@@ -7,6 +7,7 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack } from '@tale/ui/layout';
 import { Separator } from '@tale/ui/separator';
+import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { Download, X, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
@@ -27,6 +28,7 @@ import { formatBytes } from '@/lib/utils/format/number';
 import type { Document } from '../hooks/queries';
 import { useDocuments } from '../hooks/queries';
 import { DocumentPreview } from './document-preview';
+import { PreviewPaneSkeleton } from './preview-pane';
 import { RagStatusBadge } from './rag-status-badge';
 
 interface DocumentPreviewDialogProps {
@@ -167,6 +169,29 @@ function DetailsSidebar({ doc }: { doc: Document }) {
   );
 }
 
+/**
+ * Loading placeholder for `DetailsSidebar` — same `w-[220px]` fixed width and
+ * stacked-row rhythm, so the metadata column doesn't appear and shove the
+ * preview pane sideways once the document resolves.
+ */
+function DetailsSidebarSkeleton() {
+  const { t } = useT('documents');
+  return (
+    <aside
+      aria-hidden="true"
+      className="flex w-[220px] shrink-0 flex-col gap-3 overflow-hidden"
+      aria-label={t('preview.sidebar.document')}
+    >
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex flex-col gap-1">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+      ))}
+    </aside>
+  );
+}
+
 export function DocumentPreviewDialog({
   open,
   onOpenChange,
@@ -279,10 +304,17 @@ export function DocumentPreviewDialog({
       }
     >
       {isLoading && (
-        <div className="grid flex-1 place-items-center p-6">
-          <Text as="div" variant="muted">
-            {t('preview.loading')}
-          </Text>
+        // Same two-column shell as the loaded state (preview pane + metadata
+        // sidebar) so the document swaps in without the layout jumping from a
+        // centered text line to a full split view.
+        <div className="flex h-full min-h-0 gap-5 px-5 pb-5">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <PreviewPaneSkeleton />
+          </div>
+          {/* The metadata sidebar only renders when a `documentId` resolves to
+              a doc; gate the placeholder the same way so the citation-card
+              (fileId-only) path isn't given a column it never fills. */}
+          {documentId && <DetailsSidebarSkeleton />}
         </div>
       )}
       {!isLoading && !resolvedUrl && open && (

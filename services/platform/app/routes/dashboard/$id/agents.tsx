@@ -30,9 +30,11 @@ function AgentsLayout() {
     shouldThrow: false,
   });
 
-  if (abilityLoading) return null;
-
-  if (ability.cannot('write', 'agents')) {
+  // Access is only knowable once the ability has loaded. Until then render the
+  // SAME PageLayout chrome (the header doesn't depend on the ability) so it
+  // never pops in — only the Outlet is held back. The detail route owns its own
+  // header, so this layout shows none on the detail page in either state.
+  if (!abilityLoading && ability.cannot('write', 'agents')) {
     return <AccessDenied message={tAccessDenied('agents')} />;
   }
 
@@ -47,7 +49,7 @@ function AgentsLayout() {
         ) : undefined
       }
     >
-      <Outlet />
+      {!abilityLoading && <Outlet />}
     </PageLayout>
   );
 }

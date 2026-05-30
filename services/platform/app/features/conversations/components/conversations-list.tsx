@@ -3,7 +3,6 @@
 import { Badge } from '@tale/ui/badge';
 import { Heading } from '@tale/ui/heading';
 import { Center, HStack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { decode } from 'he';
 import { ClipboardList, Inbox, Loader2, Mail, Sparkles } from 'lucide-react';
@@ -17,6 +16,7 @@ import { cn } from '@/lib/utils/cn';
 import { isKeyOf } from '@/lib/utils/type-guards';
 
 import type { Conversation } from '../types';
+import { ConversationsListSkeleton } from './conversations-skeleton';
 
 // Get the last message content and truncate if necessary
 const getLastMessagePreview = (conversation: Conversation): string => {
@@ -156,38 +156,6 @@ const categoryConfig = {
     icon: ClipboardList,
   },
 };
-
-function ConversationsListSkeleton() {
-  return (
-    <div className="divide-border divide-y border-b">
-      {Array.from({ length: 12 }).map((_, i) => (
-        <div key={i} className="p-4">
-          <div className="flex items-start gap-3">
-            <div className="mt-1 flex items-center">
-              <div className="border-muted bg-background size-4 rounded border-2" />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="mb-1.5 flex items-start justify-between">
-                <Skeleton className="h-4 w-2/3" />
-                <Skeleton className="ml-4 h-3 w-12" />
-              </div>
-
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <Skeleton className="h-4 w-full" />
-              </div>
-
-              <div className="flex gap-2">
-                {i % 3 === 0 && <Skeleton className="h-5 w-16 rounded-full" />}
-                {i % 2 === 0 && <Skeleton className="h-5 w-20 rounded-full" />}
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 interface ConversationRowProps {
   conversation: Conversation;

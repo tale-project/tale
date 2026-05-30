@@ -168,7 +168,9 @@ function SourceCardsComponent({ citations, organizationId }: SourceCardsProps) {
       : sourceList;
 
   return (
-    <div className="mt-1.5">
+    // Gentle fade-in when the block mounts at stream end (opacity-only, no
+    // layout shift; self-neutralizes under prefers-reduced-motion).
+    <div className="animate-content-in mt-1.5">
       <div className="flex flex-wrap gap-1.5 pb-1">
         {visibleSources.map((source) => (
           <SourceCard

@@ -7,7 +7,8 @@ import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import {
   AlertTriangle,
@@ -22,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-guide';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
@@ -158,109 +160,231 @@ export function ProviderDetailDrawer({
   );
 }
 
-function ProviderDetailSkeleton() {
+/**
+ * Section header used by both the real sections and the skeleton — the
+ * skeleton renders the REAL section titles (known at load time, they read
+ * better than gray bars per the skeletonization convention) and masks only the
+ * action buttons, so the header row keeps its exact height.
+ */
+function SkeletonSectionHeader({
+  title,
+  description,
+  actions,
+}: {
+  title: string;
+  description?: string;
+  actions: React.ReactNode;
+}) {
   return (
-    <Stack gap={6}>
-      <Stack gap={2}>
-        <HStack justify="between" align="center">
-          <Skeleton className="h-5 w-16" />
-          <Skeleton className="h-8 w-20" />
-        </HStack>
-        <Card contentClassName="p-0">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <HStack
-              key={i}
-              gap={4}
-              align="start"
-              className={cn('px-4 py-2.5', i < 2 && 'border-b')}
-            >
-              <Skeleton className="h-4 w-28 shrink-0" />
-              <Skeleton className="h-4 w-48" />
-            </HStack>
-          ))}
-        </Card>
+    <HStack justify="between" align={description ? 'start' : 'center'}>
+      <Stack gap={1} className="min-w-0">
+        <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+          {title}
+        </Text>
+        {description && (
+          <Text className="text-muted-foreground text-[13px]">
+            {description}
+          </Text>
+        )}
       </Stack>
+      {actions}
+    </HStack>
+  );
+}
 
-      <Stack gap={2}>
-        <HStack justify="between" align="center">
-          <Skeleton className="h-5 w-16" />
-          <HStack gap={1} align="center">
-            <Skeleton className="h-8 w-28" />
-            <Skeleton className="h-8 w-24" />
-          </HStack>
-        </HStack>
-        <Card contentClassName="p-0">
-          <HStack gap={4} align="center" className="px-4 py-2.5">
-            <Skeleton className="h-5 w-24 rounded-full" />
-            <Skeleton className="h-4 w-32" />
-          </HStack>
-        </Card>
-      </Stack>
+/** A skeleton `InfoRow` — real label, masked value — matching `InfoRow`'s
+ *  `px-4 py-2.5` row metrics so the card height equals the live card's. */
+function SkeletonInfoRow({
+  label,
+  valueWidth,
+  isLast,
+}: {
+  label: string;
+  valueWidth: string;
+  isLast?: boolean;
+}) {
+  return (
+    <HStack
+      gap={4}
+      align="center"
+      className={cn('px-4 py-2.5', !isLast && 'border-b')}
+    >
+      <Text variant="muted" className="w-32 shrink-0 text-sm font-normal">
+        {label}
+      </Text>
+      <SkeletonText width={valueWidth} className="text-sm" />
+    </HStack>
+  );
+}
 
-      <Stack gap={2}>
-        <HStack justify="between" align="start">
-          <Stack gap={1} className="min-w-0">
-            <Skeleton className="h-5 w-32" />
-            <Skeleton className="h-4 w-64" />
-          </Stack>
-          <Skeleton className="h-8 w-20" />
-        </HStack>
-        <Card contentClassName="p-0">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <HStack
-              key={i}
-              gap={4}
-              align="start"
-              className={cn('px-4 py-2.5', i < 4 && 'border-b')}
-            >
-              <Skeleton className="h-4 w-28 shrink-0" />
-              <Skeleton className="h-4 w-32" />
-            </HStack>
-          ))}
-        </Card>
-      </Stack>
+/**
+ * Loading state for the provider detail drawer. Rendered inside
+ * `<Skeletonize>` and built from the SAME section/`Card`/`InfoRow` structure as
+ * `ProviderDetailBody`, so the masked tree has the live tree's exact heights
+ * (no drift between skeleton and content). Real section titles and row labels
+ * stay visible; only the data-dependent values and action buttons mask.
+ */
+function ProviderDetailSkeleton() {
+  const { t } = useT('settings');
+  const ghostButton = (
+    <Button variant="ghost" size="sm" disabled>
+      <Pencil className="mr-1 size-3.5" />
+      {t('providers.editGeneral')}
+    </Button>
+  );
 
-      <Stack gap={2}>
-        <HStack justify="between" align="center">
-          <Skeleton className="h-5 w-48" />
-          <Skeleton className="h-8 w-20" />
-        </HStack>
-        <Skeleton className="h-9 w-full rounded-lg" />
-        <Card contentClassName="p-5">
-          <Skeleton className="h-4 w-64" />
-        </Card>
-      </Stack>
+  return (
+    <Skeletonize loading label={t('providers.details')}>
+      <Stack gap={6}>
+        {/* General */}
+        <Stack gap={2}>
+          <SkeletonSectionHeader
+            title={t('providers.general')}
+            actions={ghostButton}
+          />
+          <Card contentClassName="p-0">
+            <SkeletonInfoRow
+              label={t('providers.displayName')}
+              valueWidth="8rem"
+            />
+            <SkeletonInfoRow
+              label={t('providers.description_field')}
+              valueWidth="12rem"
+            />
+            <SkeletonInfoRow
+              label={t('providers.baseUrl')}
+              valueWidth="10rem"
+              isLast
+            />
+          </Card>
+        </Stack>
 
-      <Stack gap={3}>
-        <HStack justify="between" align="center">
-          <Skeleton className="h-5 w-16" />
-          <HStack gap={1} align="center">
-            <Skeleton className="h-8 w-28" />
-            <Skeleton className="h-8 w-24" />
-          </HStack>
-        </HStack>
-        <div className="overflow-hidden rounded-xl border">
-          <div className="border-border border-b px-3 py-2">
-            <Skeleton className="h-6 w-full" />
-          </div>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <HStack
-              key={i}
-              justify="between"
-              align="center"
-              gap={4}
-              className={cn('px-4 py-2.5', i < 3 && 'border-border border-b')}
-            >
-              <HStack gap={3} align="center">
-                <Skeleton className="size-4 rounded" />
-                <Skeleton className="h-4 w-40" />
+        {/* API key */}
+        <Stack gap={2}>
+          <SkeletonSectionHeader
+            title={t('providers.apiKey')}
+            actions={
+              <HStack gap={1} align="center">
+                <Button variant="ghost" size="sm" disabled>
+                  <Zap className="mr-1 size-3.5" />
+                  {t('providers.testConnection')}
+                </Button>
+                <Button variant="ghost" size="sm" disabled>
+                  <Pencil className="mr-1 size-3.5" />
+                  {t('providers.editKey')}
+                </Button>
               </HStack>
-              <Skeleton className="h-5 w-14 rounded-full" />
+            }
+          />
+          <Card contentClassName="p-0">
+            <HStack gap={4} align="center" className="flex-wrap px-4 py-2.5">
+              <Badge variant="green" dot>
+                {t('providers.apiKeyConfigured')}
+              </Badge>
+              <SkeletonText width="8rem" className="font-mono text-sm" />
             </HStack>
-          ))}
-        </div>
+          </Card>
+        </Stack>
+
+        {/* Default models */}
+        <Stack gap={2}>
+          <SkeletonSectionHeader
+            title={t('providers.defaultModels')}
+            description={t('providers.defaultModelsDescription')}
+            actions={
+              <Button variant="ghost" size="sm" disabled>
+                <Pencil className="mr-1 size-3.5" />
+                {t('providers.editDefaults')}
+              </Button>
+            }
+          />
+          <Card contentClassName="p-0">
+            <SkeletonInfoRow label={t('providers.tagChat')} valueWidth="9rem" />
+            <SkeletonInfoRow
+              label={t('providers.tagVision')}
+              valueWidth="9rem"
+            />
+            <SkeletonInfoRow
+              label={t('providers.tagEmbedding')}
+              valueWidth="9rem"
+            />
+            <SkeletonInfoRow
+              label={t('providers.tagImageGeneration')}
+              valueWidth="9rem"
+            />
+            <SkeletonInfoRow
+              label={t('providers.tagTranscription')}
+              valueWidth="9rem"
+              isLast
+            />
+          </Card>
+        </Stack>
+
+        {/* Provider options */}
+        <Stack gap={2}>
+          <SkeletonSectionHeader
+            title={t('providers.providerOptions.providerLevelTitle')}
+            actions={
+              <Button variant="ghost" size="sm" disabled>
+                <Pencil className="mr-1 size-3.5" />
+                {t('providers.editGeneral')}
+              </Button>
+            }
+          />
+          <CollapsibleGuide
+            label={t('providers.providerOptions.guideLabel')}
+            content={t('providers.providerOptions.providerLevelDescription')}
+          />
+          <Card contentClassName="px-4 py-2.5">
+            <SkeletonText width="10rem" className="text-[13px]" />
+          </Card>
+        </Stack>
+
+        {/* Models */}
+        <Stack gap={3}>
+          <SkeletonSectionHeader
+            title={t('providers.models')}
+            actions={
+              <HStack gap={1} align="center">
+                <Button variant="ghost" size="sm" disabled>
+                  <RefreshCw className="mr-1 size-3.5" />
+                  {t('providers.fetchModels')}
+                </Button>
+                <Button variant="ghost" size="sm" disabled>
+                  <Plus className="mr-1 size-3.5" />
+                  {t('providers.addModelShort')}
+                </Button>
+              </HStack>
+            }
+          />
+          <div className="overflow-hidden rounded-xl border">
+            <div className="border-border border-b px-3 py-2.5">
+              <SkeletonBox className="h-6 w-full" />
+            </div>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <HStack
+                key={i}
+                justify="between"
+                align="center"
+                gap={4}
+                className={cn('px-4 py-2.5', i < 3 && 'border-border border-b')}
+              >
+                <HStack gap={3} align="center" className="min-w-0">
+                  <SkeletonBox className="size-4 rounded" />
+                  <SkeletonText width="10rem" className="text-[13px]" />
+                </HStack>
+                <Badge
+                  variant="outline"
+                  className="bg-muted text-muted-foreground border-transparent px-1.5 py-0.5 text-[11px]"
+                >
+                  {modelTagLabel('chat', t)}
+                </Badge>
+              </HStack>
+            ))}
+          </div>
+        </Stack>
       </Stack>
-    </Stack>
+    </Skeletonize>
   );
 }
 

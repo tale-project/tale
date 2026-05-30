@@ -15,7 +15,10 @@ import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
 import { MessagesSkeleton } from '@/app/features/chat/components/messages-skeleton';
-import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
+import {
+  SharedChatView,
+  SharedChatViewSkeleton,
+} from '@/app/features/chat/components/shared-chat-view';
 import { WelcomeContentSkeleton } from '@/app/features/chat/components/welcome-content-skeleton';
 import { BranchProvider } from '@/app/features/chat/context/branch-context';
 import {
@@ -62,12 +65,18 @@ function ChatInputSkeleton() {
     // mt-auto mirrors ChatInterface's PanelFooter pinning so the composer
     // sits at the bottom without relying on a flex-1 sibling. Harmless
     // inside ChatSkeleton where the sibling already consumes all space.
+    // The border container, textarea min-height, and toolbar-row height
+    // mirror ChatInput's real composer (chat-input.tsx) so the skeleton→
+    // composer swap doesn't shift the message area vertically.
     <PanelFooter className="mt-auto">
       <div className="mx-auto w-full max-w-(--chat-max-width)">
         <div className="bg-background border-border sm:border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-xl border px-3 pt-3 sm:rounded-2xl sm:px-5 sm:pt-4">
           <Skeleton className="h-[72px] w-full bg-transparent sm:h-[100px]" />
-          <div className="flex items-center pb-3">
-            <Skeleton className="h-5 w-5 rounded" />
+          {/* Mirrors the real toolbar HStack (`gap-2 pb-3`, `size-icon`
+              controls ≈ h-9) so the composer footprint matches. */}
+          <div className="flex items-center justify-between gap-2 pb-3">
+            <Skeleton className="size-9 rounded-md bg-transparent" />
+            <Skeleton className="size-9 rounded-full bg-transparent" />
           </div>
         </div>
       </div>
@@ -78,7 +87,10 @@ function ChatInputSkeleton() {
 function ChatSkeleton() {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="flex flex-1 flex-col items-center justify-center overflow-y-visible p-4 sm:p-8">
+      {/* `p-4 sm:p-6` + `flex-1 items-center justify-center` mirror
+          ChatInterface's welcome content wrapper so the welcome heading sits
+          in the same spot before/after load (chat-interface.tsx). */}
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-visible p-4 sm:p-6">
         <WelcomeContentSkeleton />
       </div>
       <ChatInputSkeleton />
@@ -240,17 +252,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
     return (
       <PageLayout className="bg-background h-full overflow-hidden">
         <LayoutErrorBoundary organizationId={organizationId}>
-          <Suspense
-            fallback={
-              <div className="flex h-full flex-col items-center p-8">
-                <div className="w-full max-w-(--chat-max-width) space-y-4">
-                  <Skeleton className="h-8 w-48" />
-                  <Skeleton className="h-24 w-full" />
-                  <Skeleton className="h-24 w-3/4" />
-                </div>
-              </div>
-            }
-          >
+          <Suspense fallback={<SharedChatViewSkeleton />}>
             <SharedChatView
               organizationId={organizationId}
               shareToken={shareToken}

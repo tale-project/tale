@@ -139,7 +139,13 @@ export function useChatScroll({
     const onContentChange = () => {
       // During branch switch: override all scroll behavior with saved position
       if (branchScrollSaveRef.current !== null) {
-        container.scrollTop = branchScrollSaveRef.current;
+        // Explicit 'instant' — the container has `scroll-behavior: smooth`
+        // (chat-interface), so a raw `scrollTop =` would ANIMATE toward the
+        // saved position on every ResizeObserver tick → a visible wobble.
+        container.scrollTo({
+          top: branchScrollSaveRef.current,
+          behavior: 'instant',
+        });
         setShowScrollButton(!isAtBottom());
         return;
       }
@@ -319,11 +325,12 @@ export function useChatScroll({
       }
 
       const containerTop = container.getBoundingClientRect().top;
+      const rows =
+        container.querySelectorAll<HTMLElement>('[data-message-key]');
+      const prevRowCount = rows.length;
       let anchorKey: string | null = null;
       let anchorOffset = 0;
-      for (const row of container.querySelectorAll<HTMLElement>(
-        '[data-message-key]',
-      )) {
+      for (const row of rows) {
         const r = row.getBoundingClientRect();
         if (r.bottom > containerTop) {
           anchorKey = row.getAttribute('data-message-key');
@@ -334,6 +341,8 @@ export function useChatScroll({
       const prevScrollHeight = container.scrollHeight;
 
       const applyCorrection = () => {
+        // Explicit 'instant' — `scroll-behavior: smooth` on the container would
+        // otherwise ANIMATE this position-restore and visibly slide the viewport.
         if (anchorKey) {
           const el = container.querySelector<HTMLElement>(
             `[data-message-key="${CSS.escape(anchorKey)}"]`,
@@ -342,16 +351,33 @@ export function useChatScroll({
             const newOffset =
               el.getBoundingClientRect().top -
               container.getBoundingClientRect().top;
-            container.scrollTop += newOffset - anchorOffset;
+            container.scrollTo({
+              top: container.scrollTop + (newOffset - anchorOffset),
+              behavior: 'instant',
+            });
             return;
           }
         }
         // Fallback: raw scrollHeight delta (anchor not found).
-        container.scrollTop += container.scrollHeight - prevScrollHeight;
+        container.scrollTo({
+          top:
+            container.scrollTop + (container.scrollHeight - prevScrollHeight),
+          behavior: 'instant',
+        });
       };
 
       let rafId = 0;
       const observer = new MutationObserver(() => {
+        // Fire only once the prepend actually lands (row count grows). A
+        // streaming token mutates the existing bubble's markdown subtree without
+        // adding a [data-message-key] row, so it must NOT trigger the one-shot
+        // correction early (which would no-op, then miss the real prepend).
+        if (
+          container.querySelectorAll('[data-message-key]').length <=
+          prevRowCount
+        ) {
+          return;
+        }
         observer.disconnect();
         // Defer to after layout flush so heights/positions are settled.
         rafId = requestAnimationFrame(applyCorrection);

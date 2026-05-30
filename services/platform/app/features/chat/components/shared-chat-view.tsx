@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
+import { Skeleton, SkeletonBox } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { GitFork, ArrowLeft, Loader2 } from 'lucide-react';
@@ -13,6 +14,7 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import { useForkAndChat, useForkThread } from '../hooks/mutations';
 import { useChatAgents } from '../hooks/queries';
@@ -24,6 +26,71 @@ import { MessageBubble } from './message-bubble';
 interface SharedChatViewProps {
   organizationId: string;
   shareToken: string;
+}
+
+/**
+ * Loading frame for the shared-chat surface. Mirrors `SharedChatView`'s real
+ * structure — the `h-13` header bar, the centered `max-w-(--chat-max-width)`
+ * message column (`p-4 sm:p-6`, `pt-6`, `gap-3`), and the pinned composer —
+ * so the lazy-load / query-load swap into the real view doesn't shift layout.
+ * Used both as the route Suspense fallback and while the shared-thread query
+ * resolves (so there is no blank `null` flash between the two).
+ */
+export function SharedChatViewSkeleton() {
+  return (
+    <div className="flex h-full flex-col" role="status" aria-busy="true">
+      <div className="border-border flex h-13 items-center justify-between border-b px-5">
+        <div className="flex items-center gap-3">
+          <SkeletonBox className="size-9 rounded-md" />
+          <div className="flex flex-col gap-1">
+            <SkeletonBox className="h-4 w-40" />
+            <SkeletonBox className="h-3 w-24" />
+          </div>
+        </div>
+        <SkeletonBox className="h-9 w-28 rounded-md" />
+      </div>
+
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="flex flex-col overflow-y-visible p-4 sm:p-6">
+          <div
+            className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-3 pt-6"
+            aria-hidden="true"
+          >
+            {[
+              { align: 'end', widths: ['w-40'] },
+              { align: 'start', widths: ['w-full', 'w-5/6', 'w-2/3'] },
+              { align: 'end', widths: ['w-56'] },
+              { align: 'start', widths: ['w-full', 'w-4/5'] },
+            ].map((row, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'flex flex-col gap-2',
+                  row.align === 'end' ? 'items-end' : 'items-start',
+                )}
+              >
+                {row.widths.map((w, j) => (
+                  <SkeletonBox key={j} className={cn('h-4', w)} />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <PanelFooter className="mt-auto">
+          <div className="mx-auto w-full max-w-(--chat-max-width)">
+            <div className="bg-background border-border sm:border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-xl border px-3 pt-3 sm:rounded-2xl sm:px-5 sm:pt-4">
+              <Skeleton className="h-[72px] w-full bg-transparent sm:h-[100px]" />
+              <div className="flex items-center justify-between gap-2 pb-3">
+                <Skeleton className="size-9 rounded-md bg-transparent" />
+                <Skeleton className="size-9 rounded-full bg-transparent" />
+              </div>
+            </div>
+          </div>
+        </PanelFooter>
+      </div>
+    </div>
+  );
 }
 
 export function SharedChatView({
@@ -125,7 +192,7 @@ export function SharedChatView({
   }, [navigate, organizationId]);
 
   if (isLoading) {
-    return null;
+    return <SharedChatViewSkeleton />;
   }
 
   if (!sharedThread) {

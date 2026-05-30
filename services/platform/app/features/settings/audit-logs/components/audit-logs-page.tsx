@@ -9,7 +9,6 @@ import { useCallback, useMemo } from 'react';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
-import { AuditLogsPageSkeleton } from '@/app/features/settings/audit-logs/components/audit-logs-page-skeleton';
 import { BlockCountersTable } from '@/app/features/settings/audit-logs/components/block-counters-table';
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
@@ -127,11 +126,11 @@ export function AuditLogsPage({
     [organizationId, category, exportAction],
   );
 
-  if (abilityLoading) {
-    return <AuditLogsPageSkeleton />;
-  }
-
-  if (ability.cannot('read', 'orgSettings')) {
+  // Access is only knowable once the ability has loaded; until then the real
+  // page (with its self-skeletonizing DataTable) stands in — no denied-flash on
+  // warm entry, and no separate skeleton whose tab strip / column widths could
+  // drift from the real pill `Tabs` + `DataTable`.
+  if (!abilityLoading && ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={tAccess('organization')} />;
   }
 

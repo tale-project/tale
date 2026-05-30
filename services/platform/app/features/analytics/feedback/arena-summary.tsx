@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useTranslation } from 'react-i18next';
 
@@ -26,8 +28,12 @@ type ArenaSummaryCell = {
 export function ArenaSummary({ byVerdict, total }: ArenaSummaryProps) {
   const { t: tAnalytics } = useT('analytics');
   const { i18n } = useTranslation();
+  const loading = useSkeleton();
 
-  if (total === 0) return null;
+  // Loaded-and-empty: no arena votes → nothing to summarize. While LOADING we
+  // still render the full card (masked) so it reserves its height and doesn't
+  // pop in once stats arrive (`total` is 0 during load too).
+  if (!loading && total === 0) return null;
 
   const cells: ArenaSummaryCell[] = [
     {
@@ -58,7 +64,11 @@ export function ArenaSummary({ byVerdict, total }: ArenaSummaryProps) {
               {tAnalytics(`feedback.arena.cells.${cell.key}`)}
             </Text>
             <Text className="text-foreground font-mono text-2xl font-semibold">
-              {formatNumber(cell.count, i18n.language)}
+              {loading ? (
+                <SkeletonBox className="my-0.5 h-7 w-16" />
+              ) : (
+                formatNumber(cell.count, i18n.language)
+              )}
             </Text>
           </div>
         ))}

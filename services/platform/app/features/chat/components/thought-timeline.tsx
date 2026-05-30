@@ -13,7 +13,7 @@ import {
   TriangleAlert,
   Wrench,
 } from 'lucide-react';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 import { useT } from '@/lib/i18n/client';
@@ -197,35 +197,44 @@ export function ThoughtTimeline({
 
   const timeline = useMemo(() => buildThoughtTimeline(parts), [parts]);
 
-  // "Live" = the turn is still thinking and hasn't started answering yet.
-  // Driven by the STABLE message-level `isStreaming` (OR active parts, which
-  // covers a tool turn that never streamed text) so multi-step turns stay
-  // expanded across the gaps between steps instead of flickering open/closed.
-  // It collapses to a summary only once the answer text begins (Claude-style)
-  // or the turn finishes — both monotonic, so no oscillation.
-  const live = (isStreaming || timeline.isStreaming) && !hasAnswerStarted;
+  // `active` = the message is still streaming. Use the message-level signal
+  // ONLY — it's the authoritative whole-turn flag (latched true through
+  // tool/inter-step gaps in use-message-processing), so the step list stays
+  // open for the ENTIRE stream (constant height, no mid-write shift) and
+  // collapses once the turn ends. We deliberately do NOT OR in
+  // `timeline.isStreaming`: an aborted/errored turn can leave a tool part stuck
+  // at `input-available`, which would otherwise keep `active` true forever on a
+  // finished history message (spinner spinning, never collapses).
+  const active = isStreaming;
+  // `thinking` = active and the answer hasn't started → pulsing "Thinking…"
+  // header. Once the answer streams it becomes a static header (same height, so
+  // the swap doesn't shift anything) while the steps stay expanded.
+  const thinking = active && !hasAnswerStarted;
 
-  // After thinking completes, collapsed by default; the user can expand.
+  // Collapsed by default after the turn ends; the user can expand. Forced open
+  // while active so the height is constant during the whole stream.
   const [userToggled, setUserToggled] = useState<boolean | null>(null);
-  const expanded = live ? true : (userToggled ?? false);
+  const expanded = active ? true : (userToggled ?? false);
 
   // Live "thinking duration" fallback before metadata lands. Captured across
-  // the LIVE window (first thought → thinking done / answer starts), so it
-  // approximates metadata.timeToFirstTokenMs rather than the full message
-  // duration — keeping the "Thought for Ns" summary stable when metadata
-  // arrives and replaces it.
+  // the thinking window (first thought → answer starts), so it approximates
+  // metadata.timeToFirstTokenMs rather than the full message duration —
+  // keeping the "Thought for Ns" summary stable when metadata replaces it.
   const startRef = useRef<number | null>(null);
-  const prevLiveRef = useRef(live);
+  const prevThinkingRef = useRef(thinking);
   const [liveDurationMs, setLiveDurationMs] = useState<number | null>(null);
-  useEffect(() => {
-    if (live && startRef.current === null) {
+  // useLayoutEffect (not useEffect): captures the duration BEFORE paint so the
+  // static summary header renders "Thought for Ns" in the first frame after the
+  // answer starts, instead of painting one frame of "Used N tools" then swapping.
+  useLayoutEffect(() => {
+    if (thinking && startRef.current === null) {
       startRef.current = Date.now();
     }
-    if (prevLiveRef.current && !live && startRef.current !== null) {
+    if (prevThinkingRef.current && !thinking && startRef.current !== null) {
       setLiveDurationMs(Date.now() - startRef.current);
     }
-    prevLiveRef.current = live;
-  }, [live]);
+    prevThinkingRef.current = thinking;
+  }, [thinking]);
 
   // No reasoning or tool activity → render no chrome (plain answer).
   if (timeline.steps.length === 0) return null;
@@ -285,61 +294,43 @@ export function ThoughtTimeline({
     </ul>
   );
 
-  // The step list is shown while live (streaming) or when the user expands the
-  // collapsed summary. Kept in a single AnimatePresence across the live→summary
-  // transition so the collapse (first answer token / turn end) animates height
-  // to 0 smoothly instead of snapping shut. Critically there is NO `animate`
-  // height during life — the box keeps its natural height while steps stream
-  // in, so growth stays shift-free (and isn't clipped); only the EXIT collapses.
-  const stepsVisible = live || expanded;
-  const collapsible = prefersReducedMotion ? (
-    stepsVisible ? (
-      <div key="steps">{stepList}</div>
-    ) : null
-  ) : (
-    <AnimatePresence initial={false}>
-      {stepsVisible && (
-        <m.div
-          key="steps"
-          exit={{ height: 0, opacity: 0 }}
-          style={{ overflow: 'hidden' }}
-          transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-        >
-          {stepList}
-        </m.div>
-      )}
-    </AnimatePresence>
-  );
-
   return (
     <div className="mb-3">
-      {live ? (
-        <>
-          <ThinkingIndicator />
-          {collapsible}
-        </>
+      {thinking ? (
+        // Thinking, no answer yet: pulsing live header.
+        <ThinkingIndicator />
+      ) : active ? (
+        // Answering (or tools still resolving) but thinking done: a STATIC,
+        // same-height header. The steps stay expanded and at a constant height
+        // so the streaming answer below them never shifts.
+        <div className="text-muted-foreground flex items-center gap-1.5 text-sm font-medium">
+          <Brain className="size-4" aria-hidden="true" />
+          <span>{summaryText}</span>
+        </div>
       ) : (
-        <>
-          <button
-            type="button"
-            onClick={() => setUserToggled(!expanded)}
-            aria-expanded={expanded}
-            aria-controls={stepsId}
-            className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm transition-colors"
-          >
-            <ChevronRight
-              className={cn(
-                'size-3.5 transition-transform',
-                expanded && 'rotate-90',
-              )}
-              aria-hidden="true"
-            />
-            <Brain className="size-3.5" aria-hidden="true" />
-            <span>{summaryText}</span>
-          </button>
-          {collapsible}
-        </>
+        // Turn finished: collapsible summary (collapsed by default, persists).
+        <button
+          type="button"
+          onClick={() => setUserToggled(!expanded)}
+          aria-expanded={expanded}
+          aria-controls={stepsId}
+          className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm transition-colors"
+        >
+          <ChevronRight
+            className={cn(
+              'size-3.5 transition-transform',
+              expanded && 'rotate-90',
+            )}
+            aria-hidden="true"
+          />
+          <Brain className="size-3.5" aria-hidden="true" />
+          <span>{summaryText}</span>
+        </button>
       )}
+      {/* Steps render instantly (no height animation): expanded for the entire
+          active turn — constant height, no mid-write shift — then collapsed once
+          the turn ends. The single collapse happens after the answer is done. */}
+      {expanded && stepList}
     </div>
   );
 }

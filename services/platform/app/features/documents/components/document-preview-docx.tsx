@@ -1,5 +1,6 @@
 'use client';
 
+import { Skeleton } from '@tale/ui/skeleton';
 import { useCallback } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -52,9 +53,10 @@ export function DocumentPreviewDocx({ url }: DocumentPreviewDocxProps) {
   return (
     <PreviewPane>
       {isLoading && (
-        <div className="mt-4 text-center text-gray-500">
-          {t('preview.loading')}
-        </div>
+        <Skeleton
+          className="mx-auto aspect-[1/1.4] w-full max-w-2xl rounded-lg"
+          label={t('preview.loading')}
+        />
       )}
       {!isLoading && error && (
         <div className="mt-4 text-center text-red-500">

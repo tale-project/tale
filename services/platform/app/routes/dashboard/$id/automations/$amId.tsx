@@ -58,6 +58,9 @@ export const Route = createFileRoute('/dashboard/$id/automations/$amId')({
   component: AutomationDetailLayout,
 });
 
+// Mirrors `AutomationStep`'s card: same `w-[18.75rem]` width, border, padding,
+// icon size, two text lines, and trailing type badge — so swapping the real
+// nodes in doesn't reflow the canvas.
 function StepCardSkeleton({ className }: { className?: string }) {
   return (
     <div
@@ -84,9 +87,21 @@ function ConnectorLine() {
   );
 }
 
+/**
+ * Canvas-only skeleton. Matches `AutomationSteps`' outer wrapper
+ * (`relative flex w-full flex-1 justify-stretch overflow-auto`) and inner
+ * `bg-background flex-[1_1_0]` pane, then mirrors the dotted background,
+ * a vertical chain of step cards, the bottom-right minimap (default 192×128),
+ * and the bottom-center 4-button toolbar — so the live ReactFlow swaps in
+ * without the canvas, minimap, or toolbar moving.
+ *
+ * Used both as the route-level loading body (wrapped to reserve the AI panel)
+ * and as the lazy `<AutomationSteps>` Suspense fallback (where the panel is
+ * already mounted), so the chunk load is invisible.
+ */
 function AutomationStepsSkeleton() {
   return (
-    <div className="flex size-full max-h-full flex-1 justify-stretch">
+    <div className="relative flex w-full flex-1 justify-stretch overflow-auto">
       <div className="bg-background relative min-h-0 flex-[1_1_0]">
         <div
           className="absolute inset-0 opacity-20"
@@ -106,7 +121,7 @@ function AutomationStepsSkeleton() {
           </div>
         </Center>
         <div className="absolute right-4 bottom-4">
-          <Skeleton className="h-[128px] w-[192px] rounded-lg" />
+          <Skeleton className="border-border h-[128px] w-[192px] rounded-lg border shadow-sm" />
         </div>
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
           <div className="ring-border bg-background flex items-center gap-2 rounded-lg p-1 shadow-sm ring-1">
@@ -116,6 +131,51 @@ function AutomationStepsSkeleton() {
             <Skeleton className="size-8 rounded-md" />
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Placeholder for the AI assistant side panel, which mounts open by default
+ * (`isAIChatOpen` starts `true`) at its initial 384px width once the workflow
+ * loads. Reserving the same fixed-width bordered column during loading stops
+ * the canvas from shrinking sideways when the real panel appears. Hidden on
+ * mobile, where the live panel overlays instead of taking layout space.
+ */
+function AutomationAIPanelSkeleton() {
+  return (
+    <aside
+      aria-hidden="true"
+      style={{ width: 384 }}
+      className="bg-background border-border hidden min-h-0 shrink-0 flex-col border-l md:flex"
+    >
+      <div className="border-border flex shrink-0 items-center gap-3 border-b p-3">
+        <Skeleton className="size-8 rounded-lg" />
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="ml-auto size-8 rounded-md" />
+      </div>
+    </aside>
+  );
+}
+
+/**
+ * Placeholder for the second header row (`AutomationNavigation` → its
+ * `TabNavigation`), which only mounts once the workflow config resolves.
+ * Matches the strip's `min-h-12 border-b px-4` so the body doesn't jump down
+ * when the real tabs appear, and stands in the trailing assistant/history
+ * actions.
+ */
+function AutomationTabsSkeleton() {
+  return (
+    <div className="border-border flex min-h-12 shrink-0 flex-nowrap items-center gap-4 border-b px-4">
+      <Skeleton className="h-4 w-14" />
+      <Skeleton className="h-4 w-20" />
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="h-4 w-16" />
+      <div className="ml-auto flex items-center gap-2">
+        <Skeleton className="size-8 rounded-md" />
+        <Skeleton className="h-8 w-20 rounded-md" />
       </div>
     </div>
   );
@@ -167,23 +227,33 @@ function AutomationDetailLayout() {
     return (
       <PageLayout
         header={
-          <AdaptiveHeaderRoot standalone={false} className="gap-2">
-            <Heading level={1} size="base" truncate>
-              <Link
-                to="/dashboard/$id/automations"
-                params={{ id: organizationId }}
-                className="text-muted-foreground hidden cursor-pointer md:inline"
-              >
-                {t('title')}&nbsp;&nbsp;
-              </Link>
-              <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-              <Skeleton className="inline-block h-4 w-32 align-middle" />
-            </Heading>
-          </AdaptiveHeaderRoot>
+          <>
+            <AdaptiveHeaderRoot standalone={false} className="gap-2">
+              <Heading level={1} size="base" truncate>
+                <Link
+                  to="/dashboard/$id/automations"
+                  params={{ id: organizationId }}
+                  className="text-muted-foreground hidden cursor-pointer md:inline"
+                >
+                  {t('title')}&nbsp;&nbsp;
+                </Link>
+                <span className="hidden md:inline">/&nbsp;&nbsp;</span>
+                <Skeleton className="inline-block h-4 w-32 align-middle" />
+              </Heading>
+            </AdaptiveHeaderRoot>
+            <AutomationTabsSkeleton />
+          </>
         }
         organizationId={organizationId}
       >
-        <AutomationStepsSkeleton />
+        {/* Mirror the loaded body: canvas column + reserved AI panel, so the
+            real layout swaps in without a horizontal/vertical jump. */}
+        <div className="relative flex min-h-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+            <AutomationStepsSkeleton />
+          </div>
+          <AutomationAIPanelSkeleton />
+        </div>
       </PageLayout>
     );
   }

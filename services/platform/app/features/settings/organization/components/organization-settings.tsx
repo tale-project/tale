@@ -1,8 +1,10 @@
 'use client';
 
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 
+import { AccessDenied } from '@/app/components/layout/access-denied';
 import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import {
   useFormEditor,
@@ -11,22 +13,26 @@ import {
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { SUPPORTED_AGENT_LOCALES } from '@/lib/shared/constants/agents';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 
-interface OrganizationSettingsProps {
-  organization: { _id: string; name: string; metadata?: unknown } | null;
-}
+type Organization = { _id: string; name: string; metadata?: unknown } | null;
 
 interface OrganizationFormData {
   name: string;
   defaultLocale: string;
 }
+
+type OrganizationController = ReturnType<
+  typeof useFormEditor<OrganizationFormData>
+>;
 
 function parseMetadata(metadata: unknown): {
   defaultLocale?: string;
@@ -46,20 +52,29 @@ function parseMetadata(metadata: unknown): {
   return parsed as { defaultLocale?: string; [key: string]: unknown };
 }
 
-export function OrganizationSettings({
+// =============================================================================
+// Plain presentational view — renders the real `SettingsPage narrow` layout
+// from an injected controller. Rendered both live and (wrapped in
+// `<Skeletonize>`) as its own skeleton, so the skeleton inherits the exact
+// `narrow` centering and section structure — it can't drift horizontally or
+// vertically from the loaded content.
+// =============================================================================
+export function OrganizationSettingsView({
+  controller,
   organization,
-}: OrganizationSettingsProps) {
+  onSave,
+}: {
+  controller: OrganizationController;
+  organization: Organization;
+  onSave: (values: OrganizationFormData) => Promise<void>;
+}) {
   const { t: tSettings } = useT('settings');
   const { t: tNav } = useT('navigation');
-  const { t: tToast } = useT('toast');
   const { t: tGlobal } = useT('global');
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
 
-  const existingMetadata = useMemo(
-    () => parseMetadata(organization?.metadata),
-    [organization?.metadata],
-  );
+  const { form, isLoading, isSaving } = controller;
+  const { handleSubmit, register, setValue, watch } = form;
+  const defaultLocale = watch('defaultLocale');
 
   const localeOptions = useMemo(
     () =>
@@ -68,6 +83,83 @@ export function OrganizationSettings({
         label: tGlobal(`languages.${locale}`),
       })),
     [tGlobal],
+  );
+
+  return (
+    <SettingsPage
+      title={tNav('organization')}
+      description={tSettings('menu.organization.description')}
+      narrow
+    >
+      <SettingsSection
+        title={tSettings('organization.detailsTitle')}
+        description={tSettings('organization.detailsDescription')}
+      >
+        <Form
+          id="organization-form"
+          onSubmit={handleSubmit((values) => onSave(values))}
+        >
+          <fieldset disabled={isLoading} className="contents space-y-4">
+            <Input
+              id="org-name"
+              label={tSettings('organization.title')}
+              {...register('name')}
+              wrapperClassName="max-w-sm"
+            />
+            <Select
+              id="default-locale"
+              label={tSettings('organization.defaultLocale')}
+              value={defaultLocale}
+              onValueChange={(value) =>
+                setValue('defaultLocale', value, { shouldDirty: true })
+              }
+              disabled={isSaving || isLoading}
+              options={localeOptions}
+              wrapperClassName="max-w-sm"
+            />
+          </fieldset>
+        </Form>
+      </SettingsSection>
+
+      <SettingsSection
+        title={tSettings('organization.identifiersTitle')}
+        description={tSettings('organization.identifiersDescription')}
+      >
+        <CopyableField
+          label={tSettings('organization.organizationId')}
+          description={tSettings('organization.organizationIdDescription')}
+          value={organization?._id ?? ''}
+          copyAriaLabel={tSettings('organization.copyOrganizationId')}
+          className="max-w-sm"
+        />
+      </SettingsSection>
+    </SettingsPage>
+  );
+}
+
+// =============================================================================
+// Container — owns data fetching, the form controller, save/toast wiring, the
+// access check, and the loading state. Wraps the view in `<Skeletonize>` so
+// the same centered tree renders the skeleton (no horizontal shift on load).
+// =============================================================================
+export function OrganizationSettings({
+  organizationId,
+}: {
+  organizationId: string;
+}) {
+  const { t: tAccessDenied } = useT('accessDenied');
+  const { t: tToast } = useT('toast');
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const ability = useAbility();
+  const abilityLoading = useAbilityLoading();
+  const { data: organization, isLoading: isOrgLoading } =
+    useOrganization(organizationId);
+
+  const existingMetadata = useMemo(
+    () => parseMetadata(organization?.metadata),
+    [organization?.metadata],
   );
 
   const initialData = useMemo<OrganizationFormData | undefined>(() => {
@@ -117,60 +209,19 @@ export function OrganizationSettings({
 
   useRegisterActiveEditor(editor);
 
-  const { form, isLoading } = editor;
-  const { handleSubmit, register, setValue, watch } = form;
-  const defaultLocale = watch('defaultLocale');
+  // Access is only knowable once the ability has loaded; until then the
+  // skeleton stands in (no denied-flash on warm entry).
+  if (!abilityLoading && ability.cannot('read', 'orgSettings')) {
+    return <AccessDenied message={tAccessDenied('organization')} />;
+  }
 
   return (
-    <SettingsPage
-      title={tNav('organization')}
-      description={tSettings('menu.organization.description')}
-      narrow
-    >
-      <SettingsSection
-        title={tSettings('organization.detailsTitle')}
-        description={tSettings('organization.detailsDescription')}
-      >
-        <Form
-          id="organization-form"
-          onSubmit={handleSubmit((values) => save(values))}
-        >
-          <fieldset disabled={isLoading} className="contents space-y-4">
-            <Input
-              id="org-name"
-              label={tSettings('organization.title')}
-              {...register('name')}
-              wrapperClassName="max-w-sm"
-            />
-            <Select
-              id="default-locale"
-              label={tSettings('organization.defaultLocale')}
-              value={defaultLocale}
-              onValueChange={(value) =>
-                setValue('defaultLocale', value, { shouldDirty: true })
-              }
-              disabled={editor.isSaving || isLoading}
-              options={localeOptions}
-              wrapperClassName="max-w-sm"
-            />
-          </fieldset>
-        </Form>
-      </SettingsSection>
-
-      {organization && (
-        <SettingsSection
-          title={tSettings('organization.identifiersTitle')}
-          description={tSettings('organization.identifiersDescription')}
-        >
-          <CopyableField
-            label={tSettings('organization.organizationId')}
-            description={tSettings('organization.organizationIdDescription')}
-            value={organization._id}
-            copyAriaLabel={tSettings('organization.copyOrganizationId')}
-            className="max-w-sm"
-          />
-        </SettingsSection>
-      )}
-    </SettingsPage>
+    <Skeletonize loading={abilityLoading || isOrgLoading}>
+      <OrganizationSettingsView
+        controller={editor}
+        organization={organization ?? null}
+        onSave={save}
+      />
+    </Skeletonize>
   );
 }

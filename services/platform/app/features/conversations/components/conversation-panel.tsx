@@ -3,7 +3,6 @@
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Center, Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import {
   AlertTriangleIcon,
@@ -34,7 +33,7 @@ import {
 } from '../hooks/mutations';
 import { useConversationWithMessages } from '../hooks/queries';
 import { ConversationHeader } from './conversation-header';
-import { ConversationHeaderSkeleton } from './conversations-skeleton';
+import { ConversationPanelSkeleton } from './conversations-skeleton';
 import { Message } from './message';
 
 const MessageEditor = lazyComponent(
@@ -281,53 +280,9 @@ export function ConversationPanel({
   }
 
   if (isLoading) {
-    return (
-      <div
-        ref={containerRef}
-        className="relative flex flex-[1_1_0] flex-col overflow-y-auto"
-      >
-        <ConversationHeaderSkeleton />
-
-        <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-6">
-          <Stack gap={4} className="mb-8">
-            <div className="flex justify-start">
-              <div className="relative">
-                <Skeleton className="h-24 w-96 rounded-2xl" />
-                <Skeleton className="mt-1 h-3 w-20" />
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <div className="relative mb-6">
-                <Skeleton className="h-20 w-80 rounded-2xl" />
-              </div>
-            </div>
-
-            <div className="flex justify-start">
-              <div className="relative">
-                <Skeleton className="h-16 w-72 rounded-2xl" />
-                <Skeleton className="mt-1 h-3 w-20" />
-              </div>
-            </div>
-          </Stack>
-        </div>
-
-        {tabStatus && tabStatus !== 'open' ? (
-          <PanelFooter>
-            <div className="border-border bg-muted/30 flex items-center justify-center gap-3 border-t px-8 py-3">
-              <Skeleton className="h-4 w-48" />
-              <Skeleton className="h-8 w-36 rounded-md" />
-            </div>
-          </PanelFooter>
-        ) : (
-          <PanelFooter className="px-4 py-3">
-            <div className="mx-auto w-full max-w-3xl">
-              <Skeleton className="h-32 w-full rounded-xl" />
-            </div>
-          </PanelFooter>
-        )}
-      </div>
-    );
+    // Single source of truth — matches the loaded panel's wrapper, header,
+    // message padding and footer exactly (see conversations-skeleton.tsx).
+    return <ConversationPanelSkeleton status={tabStatus} />;
   }
 
   if (!conversation) {

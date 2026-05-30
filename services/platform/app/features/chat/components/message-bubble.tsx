@@ -276,15 +276,24 @@ function MessageBubbleComponent({
   // Thought-process timeline (assistant only): reasoning + tool activity from
   // the message parts. Drives bubble padding so an empty-but-thinking bubble
   // still has chrome. Hidden for guardrails-blocked messages. Use the cheap
-  // predicate here — ThoughtTimeline builds the full step list itself, so a
-  // full build here would just be a wasted second pass every render.
-  // `!metadataPending` withholds reasoning until we know the message isn't
+  // predicate here — ThoughtTimeline builds the full step list itself.
+  //
+  // The metadata gate withholds reasoning until we know the message isn't
   // guardrails-blocked, so a blocked message's raw chain-of-thought can't flash
-  // before <BlockedNotice/> resolves. (A live streaming message has no metadata
-  // doc yet, so its query resolves to null immediately → not pending → live
-  // reasoning shows normally.)
+  // before <BlockedNotice/> resolves. But the metadata query is genuinely
+  // `isLoading` for a round-trip BOTH on a fresh streaming message (no doc yet)
+  // and right after completion (the streaming `stream:<id>` row swaps to the
+  // persisted `_id`, recreating a cold query key). So gate only when NOT
+  // streaming, and latch "already shown" so the timeline doesn't blink out
+  // across that post-stream id swap. A genuinely-blocked message never streams
+  // and never shows the timeline this mount, so it stays suppressed → no flash.
+  const timelineShownRef = useRef(false);
   const showTimeline =
-    !isUser && !isBlocked && !metadataPending && hasThoughtSteps(message.parts);
+    !isUser &&
+    !isBlocked &&
+    hasThoughtSteps(message.parts) &&
+    (isAssistantStreaming || !metadataPending || timelineShownRef.current);
+  if (showTimeline) timelineShownRef.current = true;
   // Normalize pipes (markdown table rendering) + inject citation tags so [N]
   // renders as interactive components. Folded into one memo keyed on the raw
   // content so the regex passes don't re-run on render churn that doesn't
@@ -612,14 +621,65 @@ function MessageBubbleComponent({
         {!isUser &&
           !isAssistantStreaming &&
           (!!displayContent ||
-            (message.fileParts && message.fileParts.length > 0)) &&
-          (!hideFeedback && organizationId && message.threadId ? (
-            <MessageFeedback
-              messageId={message.id}
-              threadId={message.threadId}
-              organizationId={organizationId}
-              before={
-                <>
+            (message.fileParts && message.fileParts.length > 0)) && (
+            // Fade the post-answer toolbar in (opacity-only, no layout shift)
+            // so it doesn't snap into existence the instant streaming ends.
+            <div className="animate-content-in">
+              {!hideFeedback && organizationId && message.threadId ? (
+                <MessageFeedback
+                  messageId={message.id}
+                  threadId={message.threadId}
+                  organizationId={organizationId}
+                  before={
+                    <>
+                      <Tooltip
+                        content={
+                          isCopied ? t('actions.copied') : t('actions.copy')
+                        }
+                        side="bottom"
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="p-1"
+                          onClick={handleCopy}
+                        >
+                          {isCopied ? (
+                            <CheckIcon className="text-success size-4" />
+                          ) : (
+                            <CopyIcon className="size-4" />
+                          )}
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content={t('actions.showInfo')} side="bottom">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="p-1"
+                          onClick={handleInfoClick}
+                        >
+                          <Info className="size-4" />
+                        </Button>
+                      </Tooltip>
+                    </>
+                  }
+                  after={
+                    onFork ? (
+                      <Tooltip content={tChat('forkChat')} side="bottom">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="p-1"
+                          onClick={handleForkClick}
+                        >
+                          <GitFork className="size-4" />
+                        </Button>
+                      </Tooltip>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                <div className="flex items-start gap-1 pt-2">
                   <Tooltip
                     content={isCopied ? t('actions.copied') : t('actions.copy')}
                     side="bottom"
@@ -647,66 +707,22 @@ function MessageBubbleComponent({
                       <Info className="size-4" />
                     </Button>
                   </Tooltip>
-                </>
-              }
-              after={
-                onFork ? (
-                  <Tooltip content={tChat('forkChat')} side="bottom">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="p-1"
-                      onClick={handleForkClick}
-                    >
-                      <GitFork className="size-4" />
-                    </Button>
-                  </Tooltip>
-                ) : undefined
-              }
-            />
-          ) : (
-            <div className="flex items-start gap-1 pt-2">
-              <Tooltip
-                content={isCopied ? t('actions.copied') : t('actions.copy')}
-                side="bottom"
-              >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="p-1"
-                  onClick={handleCopy}
-                >
-                  {isCopied ? (
-                    <CheckIcon className="text-success size-4" />
-                  ) : (
-                    <CopyIcon className="size-4" />
+                  {onFork && (
+                    <Tooltip content={tChat('forkChat')} side="bottom">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="p-1"
+                        onClick={handleForkClick}
+                      >
+                        <GitFork className="size-4" />
+                      </Button>
+                    </Tooltip>
                   )}
-                </Button>
-              </Tooltip>
-              <Tooltip content={t('actions.showInfo')} side="bottom">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="p-1"
-                  onClick={handleInfoClick}
-                >
-                  <Info className="size-4" />
-                </Button>
-              </Tooltip>
-              {onFork && (
-                <Tooltip content={tChat('forkChat')} side="bottom">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="p-1"
-                    onClick={handleForkClick}
-                  >
-                    <GitFork className="size-4" />
-                  </Button>
-                </Tooltip>
+                </div>
               )}
             </div>
-          ))}
+          )}
 
         {galleryImages.length > 0 && (
           <ImagePreviewDialog

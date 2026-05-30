@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
 
@@ -53,8 +53,9 @@ export function Skeletonize({
   label = 'Loading content',
   className,
 }: SkeletonizeProps) {
+  const value = useMemo(() => ({ loading }), [loading]);
   return (
-    <SkeletonContext.Provider value={{ loading }}>
+    <SkeletonContext.Provider value={value}>
       <div
         role={loading ? 'status' : undefined}
         aria-busy={loading || undefined}

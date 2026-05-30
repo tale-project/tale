@@ -289,6 +289,12 @@ export function ChatMessages({
   // Tracks the pending key so the last user message keeps a stable React key
   // across the pending→real swap (prevents DOM teardown/rebuild flicker).
   const prevPendingKeyRef = useRef<string | null>(null);
+  // Maps a real message key → the pending key it replaced, so the bubble keeps
+  // that key PERMANENTLY (not just while it's the last user message). Without
+  // this the key reverts on the next send → an unnecessary remount; and a
+  // dangling prevPendingKeyRef could bleed a thread-A key onto thread-B's last
+  // user message. Reset on thread switch (below).
+  const pendingToRealKeyRef = useRef(new Map<string, string>());
 
   // Min-height computation: set before paint so the response area fills the
   // viewport below the user message. Scrolling is handled by ChatInterface's
@@ -369,6 +375,11 @@ export function ChatMessages({
   useEffect(() => {
     if (snapshotThreadIdRef.current !== threadId) {
       initialMessageIdsRef.current = null;
+      // Reset key-stabilization state too, or a prior thread's pending key
+      // could be reused as another thread's last-user-message key (DOM/state
+      // bleed across threads, since ChatMessages stays mounted on switch).
+      prevPendingKeyRef.current = null;
+      pendingToRealKeyRef.current.clear();
       snapshotThreadIdRef.current = threadId;
     }
     if (initialMessageIdsRef.current === null && items.length > 0) {
@@ -460,28 +471,40 @@ export function ChatMessages({
       (message.fileParts && message.fileParts.length > 0);
     // Assistant messages with reasoning/tool activity render early so the live
     // thought-process timeline is visible before any answer text arrives.
-    const messageHasThoughtSteps =
-      message.role !== 'user' && hasThoughtSteps(message.parts);
+    // `hasThoughtSteps` is LAST so the cheap boolean checks short-circuit first
+    // — it scans the parts array, and ChatMessages re-renders every streamed
+    // token, so we skip that scan for any message already shown via content.
     const shouldShow =
       message.role === 'user' ||
       hasContent ||
       hasAttachments ||
       message.isAborted ||
-      messageHasThoughtSteps;
+      hasThoughtSteps(message.parts);
 
     if (!shouldShow) return null;
 
     const isLastUserMessage = message.key === lastUserMessageKey;
 
-    // Stable key for the last user message: keep the pending key across
-    // the pending→real swap so React updates in place (no DOM teardown).
+    // Stable key across the pending→real swap so React updates in place (no DOM
+    // teardown). When the last user message's real key first appears, record
+    // realKey→pendingKey ONCE; then resolve every message's key through the map
+    // so the bubble keeps its pending key PERMANENTLY (it doesn't revert on the
+    // next send → no later remount). In virtualized mode we use the raw key so
+    // the inner React key always matches the virtualizer's wrapper key.
     let reactKey = message.key;
-    if (isLastUserMessage) {
-      if (message.key.startsWith('pending-')) {
-        prevPendingKeyRef.current = message.key;
-      } else if (prevPendingKeyRef.current) {
-        reactKey = prevPendingKeyRef.current;
+    if (!useVirtual) {
+      if (isLastUserMessage) {
+        if (message.key.startsWith('pending-')) {
+          prevPendingKeyRef.current = message.key;
+        } else if (prevPendingKeyRef.current) {
+          pendingToRealKeyRef.current.set(
+            message.key,
+            prevPendingKeyRef.current,
+          );
+          prevPendingKeyRef.current = null;
+        }
       }
+      reactKey = pendingToRealKeyRef.current.get(message.key) ?? message.key;
     }
 
     const isUserMessage = message.role === 'user';

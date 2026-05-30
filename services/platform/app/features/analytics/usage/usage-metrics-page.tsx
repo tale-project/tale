@@ -3,7 +3,9 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import type { FunctionReturnType } from 'convex/server';
 import { X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -15,7 +17,6 @@ import { useT } from '@/lib/i18n/client';
 import { TopAgentsTable } from './top-agents-table';
 import { TopModelsTable } from './top-models-table';
 import { TopVoiceModelsTable } from './top-voice-models-table';
-import { UsageMetricsPageSkeleton } from './usage-metrics-page-skeleton';
 import { UsageSummaryCards } from './usage-summary-cards';
 import {
   UsageTrendChart,
@@ -28,27 +29,58 @@ export interface UsageMetricsPageProps {
   organizationId: string;
 }
 
-export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
+type UsageMetricsData =
+  | FunctionReturnType<typeof api.governance.queries.getOrgUsageMetrics>
+  | undefined;
+
+interface UsageMetricsPageViewProps {
+  organizationId: string;
+  /** Resolved metrics payload; `undefined` while loading (masked by the
+   *  enclosing `<Skeletonize>` — cards/chart/tables stand in at full height). */
+  data: UsageMetricsData;
+  isLoading: boolean;
+  periodDays: 7 | 30 | 90;
+  granularity: UsageGranularity;
+  metric: UsageMetric;
+  agentSlug: string | undefined;
+  model: string | undefined;
+  provider: string | undefined;
+  onPeriod: (v: string) => void;
+  onGranularity: (v: string) => void;
+  onMetric: (v: string) => void;
+  onSelectAgent: (slug: string | undefined) => void;
+  onSelectModel: (model: string | undefined) => void;
+  onSelectProvider: (provider: string | undefined) => void;
+  onClearAll: () => void;
+}
+
+// =============================================================================
+// Plain presentational view — no data hooks. Rendered both live (by the
+// container) and as its own skeleton (wrapped in `<Skeletonize>`), so the
+// loading and loaded layouts are the SAME tree and cannot drift. The
+// skeleton-aware leaves (Select, Badge, Button) auto-mask; the summary cards
+// mask their numeric values; the chart reserves its `h-72` plot; the four
+// DataTables render skeleton rows from `isLoading`.
+// =============================================================================
+export function UsageMetricsPageView({
+  organizationId,
+  data,
+  isLoading,
+  periodDays,
+  granularity,
+  metric,
+  agentSlug,
+  model,
+  provider,
+  onPeriod,
+  onGranularity,
+  onMetric,
+  onSelectAgent,
+  onSelectModel,
+  onSelectProvider,
+  onClearAll,
+}: UsageMetricsPageViewProps) {
   const { t } = useT('analytics');
-
-  const [periodDays, setPeriodDays] = useState<7 | 30 | 90>(30);
-  const [granularity, setGranularity] = useState<UsageGranularity>('daily');
-  const [metric, setMetric] = useState<UsageMetric>('tokens');
-  const [agentSlug, setAgentSlug] = useState<string | undefined>(undefined);
-  const [model, setModel] = useState<string | undefined>(undefined);
-  const [provider, setProvider] = useState<string | undefined>(undefined);
-
-  const { data, isLoading } = useConvexQuery(
-    api.governance.queries.getOrgUsageMetrics,
-    {
-      organizationId,
-      periodDays,
-      granularity,
-      agentSlug,
-      model,
-      provider,
-    },
-  );
 
   const periodOptions = useMemo(
     () => [
@@ -82,34 +114,8 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
   const topVoiceModels = data?.topVoiceModels ?? [];
   const users = data?.users ?? [];
 
-  const handlePeriod = useCallback((v: string) => {
-    if (v === '7') setPeriodDays(7);
-    else if (v === '90') setPeriodDays(90);
-    else setPeriodDays(30);
-  }, []);
-  const handleGranularity = useCallback((v: string) => {
-    if (v === 'daily' || v === 'weekly' || v === 'monthly') {
-      setGranularity(v);
-    }
-  }, []);
-  const handleMetric = useCallback((v: string) => {
-    if (v === 'requests' || v === 'tokens' || v === 'cost') {
-      setMetric(v);
-    }
-  }, []);
-
-  const clearAll = useCallback(() => {
-    setAgentSlug(undefined);
-    setModel(undefined);
-    setProvider(undefined);
-  }, []);
-
   const hasFilters =
     agentSlug !== undefined || model !== undefined || provider !== undefined;
-
-  if (isLoading) {
-    return <UsageMetricsPageSkeleton />;
-  }
 
   return (
     <Stack gap={6}>
@@ -125,7 +131,7 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
             <Select
               options={periodOptions}
               value={String(periodDays)}
-              onValueChange={handlePeriod}
+              onValueChange={onPeriod}
               size="sm"
               aria-label={t('usage.period.label')}
             />
@@ -134,7 +140,7 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
             <Select
               options={granularityOptions}
               value={granularity}
-              onValueChange={handleGranularity}
+              onValueChange={onGranularity}
               size="sm"
               aria-label={t('usage.granularity.label')}
             />
@@ -143,7 +149,7 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
             <Select
               options={metricOptions}
               value={metric}
-              onValueChange={handleMetric}
+              onValueChange={onMetric}
               size="sm"
               aria-label={t('usage.metric.label')}
             />
@@ -157,7 +163,7 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
             <Badge
               variant="outline"
               className="cursor-pointer"
-              onClick={() => setAgentSlug(undefined)}
+              onClick={() => onSelectAgent(undefined)}
             >
               {t('usage.filterChips.agent', { value: agentSlug })}
               <X className="ml-1 size-3" />
@@ -167,7 +173,7 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
             <Badge
               variant="outline"
               className="cursor-pointer"
-              onClick={() => setModel(undefined)}
+              onClick={() => onSelectModel(undefined)}
             >
               {t('usage.filterChips.model', { value: model })}
               <X className="ml-1 size-3" />
@@ -177,13 +183,13 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
             <Badge
               variant="outline"
               className="cursor-pointer"
-              onClick={() => setProvider(undefined)}
+              onClick={() => onSelectProvider(undefined)}
             >
               {t('usage.filterChips.provider', { value: provider })}
               <X className="ml-1 size-3" />
             </Badge>
           ) : null}
-          <Button variant="ghost" size="sm" onClick={clearAll}>
+          <Button variant="ghost" size="sm" onClick={onClearAll}>
             {t('usage.filterChips.clear')}
           </Button>
         </HStack>
@@ -211,23 +217,96 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
       <TopAgentsTable
         rows={topAgents}
         isLoading={isLoading}
-        onSelectAgent={setAgentSlug}
+        onSelectAgent={onSelectAgent}
         organizationId={organizationId}
       />
 
       <TopModelsTable
         rows={topModels}
         isLoading={isLoading}
-        onSelectModel={setModel}
+        onSelectModel={onSelectModel}
       />
 
       <TopVoiceModelsTable
         rows={topVoiceModels}
         isLoading={isLoading}
-        onSelectModel={setModel}
+        onSelectModel={onSelectModel}
       />
 
       <UsersTable rows={users} isLoading={isLoading} />
     </Stack>
+  );
+}
+
+// =============================================================================
+// Container — owns the filter/period state and the metrics query. Wraps the
+// plain view in `<Skeletonize>` so the same tree renders the skeleton while
+// the metrics load (no separate skeleton file to drift from the real layout).
+// =============================================================================
+export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
+  const { t } = useT('analytics');
+
+  const [periodDays, setPeriodDays] = useState<7 | 30 | 90>(30);
+  const [granularity, setGranularity] = useState<UsageGranularity>('daily');
+  const [metric, setMetric] = useState<UsageMetric>('tokens');
+  const [agentSlug, setAgentSlug] = useState<string | undefined>(undefined);
+  const [model, setModel] = useState<string | undefined>(undefined);
+  const [provider, setProvider] = useState<string | undefined>(undefined);
+
+  const { data, isLoading } = useConvexQuery(
+    api.governance.queries.getOrgUsageMetrics,
+    {
+      organizationId,
+      periodDays,
+      granularity,
+      agentSlug,
+      model,
+      provider,
+    },
+  );
+
+  const handlePeriod = useCallback((v: string) => {
+    if (v === '7') setPeriodDays(7);
+    else if (v === '90') setPeriodDays(90);
+    else setPeriodDays(30);
+  }, []);
+  const handleGranularity = useCallback((v: string) => {
+    if (v === 'daily' || v === 'weekly' || v === 'monthly') {
+      setGranularity(v);
+    }
+  }, []);
+  const handleMetric = useCallback((v: string) => {
+    if (v === 'requests' || v === 'tokens' || v === 'cost') {
+      setMetric(v);
+    }
+  }, []);
+
+  const clearAll = useCallback(() => {
+    setAgentSlug(undefined);
+    setModel(undefined);
+    setProvider(undefined);
+  }, []);
+
+  return (
+    <Skeletonize loading={isLoading} label={t('usage.title')}>
+      <UsageMetricsPageView
+        organizationId={organizationId}
+        data={data}
+        isLoading={isLoading}
+        periodDays={periodDays}
+        granularity={granularity}
+        metric={metric}
+        agentSlug={agentSlug}
+        model={model}
+        provider={provider}
+        onPeriod={handlePeriod}
+        onGranularity={handleGranularity}
+        onMetric={handleMetric}
+        onSelectAgent={setAgentSlug}
+        onSelectModel={setModel}
+        onSelectProvider={setProvider}
+        onClearAll={clearAll}
+      />
+    </Skeletonize>
   );
 }

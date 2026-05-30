@@ -126,9 +126,7 @@ export function ChatFilterConfigView({
   const [preferNonStreaming, setPreferNonStreaming] = useState(
     initial.preferNonStreaming,
   );
-  const [categories, setCategories] = useState<ChatFilterCategory[]>(
-    initial.categories,
-  );
+  const [categories, setCategories] = useState(initial.categories);
 
   const [editorIndex, setEditorIndex] = useState<number | 'new' | null>(null);
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);

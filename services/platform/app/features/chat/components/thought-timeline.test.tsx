@@ -117,21 +117,38 @@ describe('ThoughtTimeline', () => {
     expect(screen.getByText('thought A')).toBeInTheDocument();
   });
 
-  it('collapses to a summary once the answer text starts streaming', () => {
+  it('keeps steps expanded under a static header while the answer streams (no mid-write collapse)', () => {
     render(
       <ThoughtTimeline
-        parts={[reasoning('thinking'), tool('web', 'output-available')]}
+        parts={[reasoning('my reasoning'), tool('web', 'output-available')]}
         isStreaming
         hasAnswerStarted
         durationMs={4000}
       />,
     );
-    // Live thinking header is gone; summary button is shown instead.
+    // Pulsing "Thinking…" header is gone once the answer starts...
     expect(screen.queryByText('Thinking')).not.toBeInTheDocument();
+    // ...replaced by a STATIC summary header (not yet the collapse button),
+    // so its height doesn't change while the answer writes...
+    expect(screen.getByText(/Thought for 4s/)).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    // ...and the steps stay EXPANDED so the streaming answer below never shifts.
+    expect(screen.getByText('my reasoning')).toBeInTheDocument();
+  });
+
+  it('collapses to a button summary once the turn fully ends', () => {
+    render(
+      <ThoughtTimeline
+        parts={[reasoning('my reasoning'), tool('web', 'output-available')]}
+        isStreaming={false}
+        durationMs={4000}
+      />,
+    );
+    // Turn done → collapsible button, steps hidden by default.
     expect(
       screen.getByRole('button', { name: /Thought for 4s/ }),
     ).toBeInTheDocument();
-    expect(screen.queryByText('thinking')).not.toBeInTheDocument();
+    expect(screen.queryByText('my reasoning')).not.toBeInTheDocument();
   });
 
   it('collapses to a summary after streaming and expands on click', async () => {

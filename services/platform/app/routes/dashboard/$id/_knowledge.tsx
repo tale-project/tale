@@ -27,9 +27,11 @@ function KnowledgeLayout() {
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
 
-  if (abilityLoading) return null;
-
-  if (ability.cannot('read', 'knowledgeRead')) {
+  // Access is only knowable once the ability has loaded. Until then render the
+  // SAME chrome (header title + knowledge nav, neither of which depends on the
+  // ability) so it never pops in — only the content area is held empty. The
+  // child tables own their own loading shape once the Outlet mounts.
+  if (!abilityLoading && ability.cannot('read', 'knowledgeRead')) {
     return <AccessDenied message={tAccess('knowledge')} />;
   }
 
@@ -46,7 +48,7 @@ function KnowledgeLayout() {
       organizationId={organizationId}
     >
       <ContentArea className="min-h-0 flex-1 py-4">
-        <Outlet />
+        {!abilityLoading && <Outlet />}
       </ContentArea>
     </PageLayout>
   );

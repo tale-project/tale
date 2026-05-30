@@ -2,7 +2,15 @@
 
 import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import {
@@ -46,6 +54,20 @@ interface BrandingFormProps {
   branding?: BrandingData;
   onPreviewChange: (data: BrandingPreviewData) => void;
   onSaved?: () => void;
+}
+
+/**
+ * Masks a non-skeleton-aware control (color picker / image upload) to its
+ * exact footprint while a parent `<Skeletonize>` is loading. Outside any
+ * `<Skeletonize>` (e.g. the form's own unit tests) `useSkeleton()` is `false`,
+ * so the real control renders unchanged.
+ */
+function MaskWhileLoading({ children }: { children: ReactNode }) {
+  const loading = useSkeleton();
+  if (loading) {
+    return <SkeletonBox>{children}</SkeletonBox>;
+  }
+  return <>{children}</>;
 }
 
 export function BrandingForm({
@@ -227,19 +249,21 @@ export function BrandingForm({
             label={t('branding.logo')}
             description={t('branding.logoDescription')}
           >
-            <ImageUploadField
-              currentUrl={branding?.logoUrl}
-              imageType="logo"
-              onUpload={(filename) => {
-                setValue('logoFilename', filename, { shouldDirty: true });
-              }}
-              onRemove={() => {
-                setValue('logoFilename', '', { shouldDirty: true });
-              }}
-              onPreviewUrlChange={setLogoPreviewUrl}
-              size="md"
-              ariaLabel={t('branding.uploadLogo')}
-            />
+            <MaskWhileLoading>
+              <ImageUploadField
+                currentUrl={branding?.logoUrl}
+                imageType="logo"
+                onUpload={(filename) => {
+                  setValue('logoFilename', filename, { shouldDirty: true });
+                }}
+                onRemove={() => {
+                  setValue('logoFilename', '', { shouldDirty: true });
+                }}
+                onPreviewUrlChange={setLogoPreviewUrl}
+                size="md"
+                ariaLabel={t('branding.uploadLogo')}
+              />
+            </MaskWhileLoading>
           </SettingsRow>
 
           <SettingsRow
@@ -247,39 +271,43 @@ export function BrandingForm({
             description={t('branding.faviconDescription')}
           >
             <HStack gap={2}>
-              <ImageUploadField
-                currentUrl={branding?.faviconLightUrl}
-                imageType="favicon-light"
-                onUpload={(filename) => {
-                  setValue('faviconLightFilename', filename, {
-                    shouldDirty: true,
-                  });
-                }}
-                onRemove={() => {
-                  setValue('faviconLightFilename', '', {
-                    shouldDirty: true,
-                  });
-                }}
-                onPreviewUrlChange={setFaviconPreviewUrl}
-                label={t('branding.light')}
-                ariaLabel={`${t('branding.uploadFavicon')} (${t('branding.light')})`}
-              />
-              <ImageUploadField
-                currentUrl={branding?.faviconDarkUrl}
-                imageType="favicon-dark"
-                onUpload={(filename) => {
-                  setValue('faviconDarkFilename', filename, {
-                    shouldDirty: true,
-                  });
-                }}
-                onRemove={() => {
-                  setValue('faviconDarkFilename', '', {
-                    shouldDirty: true,
-                  });
-                }}
-                label={t('branding.dark')}
-                ariaLabel={`${t('branding.uploadFavicon')} (${t('branding.dark')})`}
-              />
+              <MaskWhileLoading>
+                <ImageUploadField
+                  currentUrl={branding?.faviconLightUrl}
+                  imageType="favicon-light"
+                  onUpload={(filename) => {
+                    setValue('faviconLightFilename', filename, {
+                      shouldDirty: true,
+                    });
+                  }}
+                  onRemove={() => {
+                    setValue('faviconLightFilename', '', {
+                      shouldDirty: true,
+                    });
+                  }}
+                  onPreviewUrlChange={setFaviconPreviewUrl}
+                  label={t('branding.light')}
+                  ariaLabel={`${t('branding.uploadFavicon')} (${t('branding.light')})`}
+                />
+              </MaskWhileLoading>
+              <MaskWhileLoading>
+                <ImageUploadField
+                  currentUrl={branding?.faviconDarkUrl}
+                  imageType="favicon-dark"
+                  onUpload={(filename) => {
+                    setValue('faviconDarkFilename', filename, {
+                      shouldDirty: true,
+                    });
+                  }}
+                  onRemove={() => {
+                    setValue('faviconDarkFilename', '', {
+                      shouldDirty: true,
+                    });
+                  }}
+                  label={t('branding.dark')}
+                  ariaLabel={`${t('branding.uploadFavicon')} (${t('branding.dark')})`}
+                />
+              </MaskWhileLoading>
             </HStack>
           </SettingsRow>
 

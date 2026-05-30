@@ -568,30 +568,30 @@ export function useStreamBuffer({
           !globalFrozen &&
           (isStreamingRef.current || wasStreamingRef.current)
         ) {
-          const text = targetTextRef.current;
+          const fullText = targetTextRef.current;
           let newDisplayed = Math.min(
             displayedLengthRef.current + catchUpChars,
-            text.length,
+            fullText.length,
           );
           // The animate loop never lands mid-construct, but this fast catch-up
           // bypasses it — so re-apply the same guards before committing, or the
           // jump can land between a surrogate pair (broken emoji / U+FFFD) or
           // inside link/fence markup (raw-syntax flash).
-          if (newDisplayed < text.length && newDisplayed > 0) {
-            const code = text.charCodeAt(newDisplayed - 1);
+          if (newDisplayed < fullText.length && newDisplayed > 0) {
+            const code = fullText.charCodeAt(newDisplayed - 1);
             if (code >= 0xd800 && code <= 0xdbff) {
-              newDisplayed = Math.min(newDisplayed + 1, text.length);
+              newDisplayed = Math.min(newDisplayed + 1, fullText.length);
             }
           }
           const streaming = isStreamingRef.current;
           newDisplayed = Math.min(
-            findSyntaxSkipEnd(text, newDisplayed),
-            text.length,
+            findSyntaxSkipEnd(fullText, newDisplayed),
+            fullText.length,
           );
           if (
-            newDisplayed < text.length &&
-            (isAmbiguousPartialLine(text, newDisplayed, streaming) ||
-              isAtTrailingEmptyMarker(text, newDisplayed, streaming))
+            newDisplayed < fullText.length &&
+            (isAmbiguousPartialLine(fullText, newDisplayed, streaming) ||
+              isAtTrailingEmptyMarker(fullText, newDisplayed, streaming))
           ) {
             // Would land on an ambiguous partial line — hold at the previous
             // safe position and let the guarded animate loop reveal the rest.

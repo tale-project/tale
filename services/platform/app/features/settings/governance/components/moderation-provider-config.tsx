@@ -325,7 +325,7 @@ export function ModerationProviderConfigView({
     initial.appliesToOutput,
   );
   const [url, setUrl] = useState(initial.url);
-  const [headers, setHeaders] = useState<HeaderRow[]>(initial.headers);
+  const [headers, setHeaders] = useState(initial.headers);
   const [requestTemplate, setRequestTemplate] = useState(
     initial.requestTemplate,
   );
@@ -347,9 +347,7 @@ export function ModerationProviderConfigView({
   const [failOutput, setFailOutput] = useState<'open' | 'closed'>(
     initial.failOutput,
   );
-  const [mappings, setMappings] = useState<ModerationCategoryMapping[]>(
-    initial.mappings,
-  );
+  const [mappings, setMappings] = useState(initial.mappings);
 
   const [endpointDialogOpen, setEndpointDialogOpen] = useState(false);
   const [deletingMappingIndex, setDeletingMappingIndex] = useState<

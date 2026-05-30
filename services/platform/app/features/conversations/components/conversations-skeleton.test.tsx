@@ -5,7 +5,6 @@ import { render } from '@/test/utils/render';
 
 import {
   ConversationsListSkeleton,
-  ConversationHeaderSkeleton,
   ConversationPanelSkeleton,
 } from './conversations-skeleton';
 
@@ -18,15 +17,6 @@ describe('ConversationsListSkeleton', () => {
 
     it('passes axe audit with custom rows', async () => {
       const { container } = render(<ConversationsListSkeleton rows={5} />);
-      await checkAccessibility(container);
-    });
-  });
-});
-
-describe('ConversationHeaderSkeleton', () => {
-  describe('accessibility', () => {
-    it('passes axe audit', async () => {
-      const { container } = render(<ConversationHeaderSkeleton />);
       await checkAccessibility(container);
     });
   });

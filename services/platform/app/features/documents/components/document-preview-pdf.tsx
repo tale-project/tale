@@ -1,6 +1,7 @@
 'use client';
 
 import { HStack } from '@tale/ui/layout';
+import { Skeleton } from '@tale/ui/skeleton';
 import {
   ChevronUp,
   ChevronDown,
@@ -339,9 +340,13 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
           />
         </div>
         {!state.pdfDoc && (
-          <div className="mt-4 text-center text-gray-500">
-            {t('preview.loading')}
-          </div>
+          // Document-shaped pulse matching the rendered page footprint, so the
+          // first painted page swaps in without the pane jumping from a
+          // centered text line to a full document.
+          <Skeleton
+            className="absolute inset-6 mx-auto aspect-[1/1.4] h-auto w-full max-w-2xl rounded-lg"
+            label={t('preview.loading')}
+          />
         )}
       </PreviewPane>
       {/* Floating toolbar pinned to the bottom of the visible pane (draggable) */}

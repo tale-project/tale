@@ -1,5 +1,6 @@
 'use client';
 
+import { Skeleton } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
 import { useCallback, useEffect, useState } from 'react';
@@ -61,9 +62,10 @@ export function DocumentPreviewText({
   return (
     <PreviewPane>
       {isLoading && (
-        <Text as="div" variant="muted" align="center" className="mt-4">
-          {t('preview.loading')}
-        </Text>
+        <Skeleton
+          className="mx-auto aspect-[1/1.3] w-full max-w-4xl rounded-lg"
+          label={t('preview.loading')}
+        />
       )}
       {!isLoading && error && (
         <Text as="div" variant="error" align="center" className="mt-4">

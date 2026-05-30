@@ -1,3 +1,5 @@
+import { Skeleton } from '@tale/ui/skeleton';
+
 import { cn } from '@/lib/utils/cn';
 
 interface PreviewPaneProps {
@@ -15,5 +17,23 @@ export function PreviewPane({ children, className }: PreviewPaneProps) {
     >
       {children}
     </div>
+  );
+}
+
+/**
+ * Loading placeholder for any preview that renders inside `PreviewPane`.
+ *
+ * Renders the REAL `PreviewPane` shell (same `bg-muted rounded-lg`, padding,
+ * and `flex-1` footprint) with a centered document-shaped pulse inside, so the
+ * lazy-loaded preview swaps in without the panel resizing or moving. Used both
+ * as the `lazyComponent` Suspense fallback (chunk download) and while a
+ * preview fetches its own content (PDF/DOCX/XLSX/text), so there is a single
+ * stable surface across both phases — no `Center`+small-box → full-panel jump.
+ */
+export function PreviewPaneSkeleton() {
+  return (
+    <PreviewPane>
+      <Skeleton className="mx-auto aspect-[1/1.4] w-full max-w-2xl rounded-lg" />
+    </PreviewPane>
   );
 }

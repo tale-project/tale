@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Info } from 'lucide-react';
 
@@ -21,6 +23,7 @@ interface StatCellProps {
 }
 
 function StatCell({ label, value, tooltip }: StatCellProps) {
+  const loading = useSkeleton();
   const labelNode = (
     <Text className="text-muted-foreground text-sm">
       {label}
@@ -41,8 +44,11 @@ function StatCell({ label, value, tooltip }: StatCellProps) {
       ) : (
         labelNode
       )}
+      {/* The metric value arrives async — mask it to its natural line box
+          (font-mono text-2xl) so the card height is identical loading vs
+          loaded and the number doesn't flash from a placeholder 0. */}
       <Text className="text-foreground font-mono text-2xl font-semibold">
-        {value}
+        {loading ? <SkeletonBox className="my-0.5 h-7 w-20" /> : value}
       </Text>
     </div>
   );
