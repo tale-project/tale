@@ -18,7 +18,7 @@ import type {
   WebDAVRequest,
   WebDAVResponse,
 } from './types';
-import { WEBDAV_METHODS } from './types';
+import { WEBDAV_METHODS, WebDAVBodyTooLarge } from './types';
 
 function isWebdavMethod(s: string): s is WebDAVMethod {
   return (WEBDAV_METHODS as readonly string[]).includes(s);
@@ -92,34 +92,45 @@ export async function dispatch(
   }
   const auth = authResult.auth;
 
-  switch (method) {
-    case 'PROPFIND':
-      return handlePropfind(req, ctx, auth, parsed);
-    case 'PROPPATCH':
-      return handleProppatch(req, ctx, auth, parsed);
-    case 'GET':
-      return handleGet(ctx, auth, parsed, false, req);
-    case 'HEAD':
-      return handleGet(ctx, auth, parsed, true, req);
-    case 'PUT':
-      return handlePut(req, ctx, auth, parsed);
-    case 'DELETE':
-      return handleDelete(req, ctx, auth, parsed);
-    case 'MKCOL':
-      return handleMkcol(req, ctx, auth, parsed);
-    case 'MOVE':
-      return handleMove(req, ctx, auth, parsed);
-    case 'COPY':
-      return handleCopy(req, ctx, auth, parsed);
-    case 'LOCK':
-      return handleLock(req, ctx, auth, parsed);
-    case 'UNLOCK':
-      return handleUnlock(req, ctx, auth);
-    default:
-      return {
-        status: 405,
-        headers: { Allow: WEBDAV_METHODS.join(', ') },
-        body: 'Method not allowed',
-      };
+  // Await each handler inside the try so a WebDAVBodyTooLarge thrown
+  // while reading an XML/PUT body (the adapters throw it past the per-
+  // method caps) is caught here and mapped to 413, regardless of which
+  // method raised it. Anything else re-throws to the adapter's 500 path.
+  try {
+    switch (method) {
+      case 'PROPFIND':
+        return await handlePropfind(req, ctx, auth, parsed);
+      case 'PROPPATCH':
+        return await handleProppatch(req, ctx, auth, parsed);
+      case 'GET':
+        return await handleGet(ctx, auth, parsed, false, req);
+      case 'HEAD':
+        return await handleGet(ctx, auth, parsed, true, req);
+      case 'PUT':
+        return await handlePut(req, ctx, auth, parsed);
+      case 'DELETE':
+        return await handleDelete(req, ctx, auth, parsed);
+      case 'MKCOL':
+        return await handleMkcol(req, ctx, auth, parsed);
+      case 'MOVE':
+        return await handleMove(req, ctx, auth, parsed);
+      case 'COPY':
+        return await handleCopy(req, ctx, auth, parsed);
+      case 'LOCK':
+        return await handleLock(req, ctx, auth, parsed);
+      case 'UNLOCK':
+        return await handleUnlock(req, ctx, auth);
+      default:
+        return {
+          status: 405,
+          headers: { Allow: WEBDAV_METHODS.join(', ') },
+          body: 'Method not allowed',
+        };
+    }
+  } catch (err) {
+    if (err instanceof WebDAVBodyTooLarge) {
+      return { status: 413, headers: {}, body: 'Request body too large' };
+    }
+    throw err;
   }
 }

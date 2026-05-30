@@ -4,6 +4,7 @@ import { convexErrorCode } from '../errors';
 import { checkResourceLock } from '../locks';
 import {
   WEBDAV_MAX_PUT_BYTES,
+  WebDAVBodyTooLarge,
   type AuthContext,
   type ParsedPath,
   type WebDAVCtx,
@@ -164,6 +165,16 @@ export async function handlePut(
       body: null,
     };
   } catch (err) {
+    // ingestPutBlob is transactional: on any throw, no documents /
+    // fileMetadata row references the already-uploaded blob, so reclaim it
+    // to avoid a permanent _storage leak (a missing-parent PUT is a common
+    // sync-client race). Fire-and-forget — the client still gets the real
+    // error below.
+    void ctx.convex
+      .mutation(anyApi.webdav.tree_mutations.deleteWebdavBlob, { storageId })
+      .catch((e: unknown) =>
+        console.warn('[webdav] PUT orphan-blob cleanup failed', e),
+      );
     const code = convexErrorCode(err);
     if (code === 'CONFLICT') {
       // Missing parent collection — RFC 4918 §9.7.1.
@@ -225,7 +236,18 @@ function extractReason(err: unknown): string | null {
 // Wraps a request body stream with a running byte counter that aborts
 // the upload if the cumulative size exceeds `cap`. Returns the stream
 // and a sizeOf() closure callers can read once upload completes.
-function wrapWithCap(
+//
+// Pull-based on purpose: the wrapped stream reads from the client ONLY
+// when its downstream consumer (the upload `fetch` to Convex /storage)
+// pulls. A `start(controller)` + `while(true)` loop would drain the
+// entire client upload into this stream's internal queue regardless of
+// how slowly Convex ingests it, buffering up to `cap` bytes (default
+// 5 GB) in platform RAM per PUT — N concurrent slow-ingest PUTs would
+// OOM the process. `pull` restores end-to-end backpressure: at most one
+// chunk is in flight beyond what the consumer has accepted.
+//
+// Exported for unit testing (backpressure + cap behaviour).
+export function wrapWithCap(
   body: ReadableStream<Uint8Array> | null,
   cap: number,
 ): {
@@ -234,28 +256,41 @@ function wrapWithCap(
 } {
   if (!body) return { body: null, sizeOf: () => 0 };
   let total = 0;
+  const reader = body.getReader();
   const wrapped = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const reader = body.getReader();
+    async pull(controller) {
       try {
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (!value) continue;
-          total += value.byteLength;
-          if (total > cap) {
-            controller.error(new Error('WebDAVBodyTooLarge: PUT exceeded cap'));
-            return;
-          }
-          controller.enqueue(value);
+        let chunk = await reader.read();
+        // Skip zero-length chunks without enqueuing (keeps backpressure
+        // granular at one real chunk per pull).
+        while (!chunk.done && (!chunk.value || chunk.value.byteLength === 0)) {
+          chunk = await reader.read();
         }
-        controller.close();
+        if (chunk.done) {
+          controller.close();
+          reader.releaseLock();
+          return;
+        }
+        total += chunk.value.byteLength;
+        if (total > cap) {
+          // Named error (this.name === 'WebDAVBodyTooLarge') so put.ts's
+          // extractReason() maps it to 413, not the generic 502.
+          const tooLarge = new WebDAVBodyTooLarge(cap);
+          controller.error(tooLarge);
+          // Stop reading the oversized upload from the client.
+          await reader.cancel(tooLarge).catch(() => {});
+          return;
+        }
+        controller.enqueue(chunk.value);
       } catch (err) {
         controller.error(err);
-      } finally {
         reader.releaseLock();
       }
+    },
+    cancel(reason) {
+      // Downstream aborted (client disconnect / upload failure) — stop
+      // pulling from the client so bandwidth isn't wasted end to end.
+      return reader.cancel(reason);
     },
   });
   return { body: wrapped, sizeOf: () => total };

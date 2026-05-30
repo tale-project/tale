@@ -1191,7 +1191,7 @@ describe('Cross-org auth boundary', () => {
 
   it('Valid org + invalid password → 401', async () => {
     const ctx = makeStubCtx({
-      mutations: {
+      queries: {
         // Empty candidate list mimics "no prefix match" — any password
         // not matching our seeded credential lands here.
         'webdav/app_password_queries:findCandidatesByPrefix': () => [],

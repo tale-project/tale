@@ -1,6 +1,7 @@
 import { anyApi } from 'convex/server';
 
-import { checkResourceLock } from '../locks';
+import { checkCollectionDescendantLocks, checkResourceLock } from '../locks';
+import { lockKeyFromParsed } from '../paths';
 import type {
   AuthContext,
   ParsedPath,
@@ -45,6 +46,22 @@ export async function handleDelete(
       documentId: resolved.documentId,
     });
   } else if (resolved.kind === 'folder') {
+    // RFC 4918 §9.6.1: deleting a collection must fail if any internal
+    // member is locked without the token. checkResourceLock above only
+    // covered the collection + ancestors.
+    const descendantLock = await checkCollectionDescendantLocks(
+      req,
+      ctx,
+      auth,
+      parsed,
+    );
+    if (!descendantLock.ok) {
+      return {
+        status: descendantLock.status,
+        headers: descendantLock.headers,
+        body: descendantLock.body,
+      };
+    }
     await ctx.convex.mutation(
       anyApi.webdav.tree_mutations.deleteFolderCascade,
       {
@@ -53,5 +70,18 @@ export async function handleDelete(
       },
     );
   }
+
+  // Removing a resource removes its locks (RFC 4918 §9.6.1) — drop the
+  // lock row(s) for this path and any descendants so a stale lock can't
+  // 423 a later recreate of the same name.
+  await ctx.convex
+    .mutation(anyApi.webdav.lock_mutations.deleteLocksUnderPath, {
+      organizationId: auth.organizationId,
+      resourcePath: lockKeyFromParsed(parsed),
+    })
+    .catch((err: unknown) =>
+      console.warn('[webdav] DELETE lock cleanup failed', err),
+    );
+
   return { status: 204, headers: {}, body: null };
 }

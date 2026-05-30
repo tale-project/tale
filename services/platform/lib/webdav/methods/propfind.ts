@@ -1,12 +1,14 @@
 import { anyApi } from 'convex/server';
 
 import { buildDavPath, lockKeyFromParsed } from '../paths';
-import type {
-  AuthContext,
-  ParsedPath,
-  WebDAVCtx,
-  WebDAVRequest,
-  WebDAVResponse,
+import {
+  WEBDAV_MAX_XML_BODY,
+  WebDAVBodyTooLarge,
+  type AuthContext,
+  type ParsedPath,
+  type WebDAVCtx,
+  type WebDAVRequest,
+  type WebDAVResponse,
 } from '../types';
 import { parsePropfindBody } from '../xml/propfind-request';
 import {
@@ -14,6 +16,7 @@ import {
   buildMultiStatus,
   type ResourceProps,
 } from '../xml/propfind-response';
+import { computeETag } from './get';
 
 // Hard cap on the number of children we'll annotate with lock data per
 // PROPFIND. Lock lookup is one Convex query per resource (no batch
@@ -52,8 +55,11 @@ export async function handlePropfind(
   // Finder default and resolves to allprop inside parsePropfindBody.
   let bodyText = '';
   try {
-    bodyText = await req.readText();
+    bodyText = await req.readText(WEBDAV_MAX_XML_BODY);
   } catch (err) {
+    // An over-cap body must surface as 413 (dispatch maps it), not be
+    // silently treated as an empty/allprop request.
+    if (err instanceof WebDAVBodyTooLarge) throw err;
     console.warn('[webdav] propfind body read failed', err);
     bodyText = '';
   }
@@ -283,14 +289,10 @@ function documentToProps(
 ): ResourceProps {
   const title = doc.title ?? '(untitled)';
   const segments = parsed.segments.length > 0 ? parsed.segments : [title];
-  // ETag fallback: prefer the content-addressed sha256 written by
-  // ingestPutBlob. When it's missing (legacy doc, or PUT path didn't
-  // run yet) emit a weak ETag derived from size + mtime. We
-  // deliberately do NOT fall back to `_id` — an opaque id changes
-  // nothing about the bytes, so conditional GETs would never validate.
-  const sizeBasis = doc.size ?? 0;
-  const mtimeBasis = doc.sourceModifiedAt ?? doc.creationTime ?? 0;
-  const etag = doc.contentHash ?? `W/"${sizeBasis}-${mtimeBasis}"`;
+  // Use the exact same validator GET emits (quotes + `W/` marker
+  // included) so DAV:getetag and the GET ETag header never diverge. The
+  // previous local fallback double-quoted the weak form into `"W/"…""`.
+  const etag = computeETag(doc);
   return {
     href: buildDavPath({
       orgSlug,

@@ -13,6 +13,8 @@
 //     (getetag, getcontentlength, ...).
 //   - propfind-finite-depth: 403 — PROPFIND Depth: infinity refused.
 
+import { escapeXml } from './escape';
+
 export interface DavErrorOptions {
   precondition: string;
   hrefs?: string[];
@@ -32,12 +34,3 @@ export function buildDavError(options: DavErrorOptions): string {
 export const DAV_ERROR_HEADERS = {
   'Content-Type': 'application/xml; charset=utf-8',
 } as const;
-
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}

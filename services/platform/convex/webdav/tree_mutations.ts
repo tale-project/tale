@@ -41,6 +41,23 @@ export const generateWebdavUploadUrl = internalMutation({
   },
 });
 
+// Reclaim an uploaded blob whose ingest failed. PUT streams the body to
+// _storage BEFORE ingestPutBlob runs its preconditions (missing parent →
+// 409, invalid path → 400). ingestPutBlob is transactional, so on a throw
+// no documents/fileMetadata row references the blob — and the retention
+// sweep only enumerates fileMetadata rows, so the blob would leak forever.
+// The PUT handler calls this from its ingest catch. Idempotent.
+export const deleteWebdavBlob = internalMutation({
+  args: { storageId: v.id('_storage') },
+  async handler(ctx, args) {
+    try {
+      await ctx.storage.delete(args.storageId);
+    } catch (err) {
+      console.warn('[webdav] deleteWebdavBlob failed', err);
+    }
+  },
+});
+
 // PUT entry point. Hono has already written the blob to _storage and
 // holds the storageId; this mutation either creates or replaces the
 // document row. Returns { created: true } / { created: false } so the
@@ -684,6 +701,14 @@ async function purgeOldBlob(
   // sweeps don't try to re-index it; then delete the blob. Order
   // matters — if storage.delete fails we still want the metadata in a
   // sensible state.
+  //
+  // NOTE: the RAG vector entries for the replaced blob are NOT unindexed
+  // here — the platform has no remove-from-RAG action on any delete path
+  // (uploadFileToRag has no counterpart). This is not a retrieval leak:
+  // the document row now points at the NEW storageId, and agent retrieval
+  // scope (getAgentScopedFileIds) returns only current, active fileIds, so
+  // the orphaned vectors are never surfaced. They are dead weight in the
+  // vector store until a system-wide RAG-GC is added (tracked separately).
   const meta = await ctx.db
     .query('fileMetadata')
     .withIndex('by_storageId', (q) => q.eq('storageId', oldFileId))

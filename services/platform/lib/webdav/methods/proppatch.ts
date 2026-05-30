@@ -3,13 +3,15 @@ import { XMLParser } from 'fast-xml-parser';
 
 import { checkResourceLock } from '../locks';
 import { buildDavPath } from '../paths';
-import type {
-  AuthContext,
-  ParsedPath,
-  WebDAVCtx,
-  WebDAVRequest,
-  WebDAVResponse,
+import {
+  WEBDAV_MAX_XML_BODY,
+  type AuthContext,
+  type ParsedPath,
+  type WebDAVCtx,
+  type WebDAVRequest,
+  type WebDAVResponse,
 } from '../types';
+import { escapeXml } from '../xml/escape';
 
 // v1 dead-prop policy: store nothing, but echo a per-prop 200 OK for
 // non-live props the client tried to set. This is the "lying-200"
@@ -70,7 +72,7 @@ export async function handleProppatch(
     };
   }
 
-  const bodyText = await req.readText();
+  const bodyText = await req.readText(WEBDAV_MAX_XML_BODY);
   const propNames = extractPropNames(bodyText);
 
   const liveProps: string[] = [];
@@ -179,15 +181,6 @@ function extractPropNames(body: string): string[] {
     }
   }
   return Array.from(out);
-}
-
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
 
 function isRecord(x: unknown): x is Record<string, unknown> {

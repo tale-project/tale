@@ -92,6 +92,7 @@ Sperren leben in ihrer eigenen Convex-Tabelle, gekeyt mit `(organizationId, reso
 - `405` — GET auf eine Sammlung; MKCOL auf existierendem Pfad; Root-MKCOL
 - `409` — MKCOL wenn Eltern nicht existiert; PUT auf einen Sammlungs-Pfad
 - `412` — `If`-Token-Mismatch
+- `413` — PUT-Body über dem Größenlimit, oder ein XML-Request-Body (PROPFIND / PROPPATCH / MKCOL / LOCK) über 64 KB
 - `415` — MKCOL mit nicht-leerem XML-Body (extended MKCOL nicht implementiert)
 - `423` — Schreiben auf einem gesperrten Pfad ohne passendes `If`
 - `502` — Cross-Host- oder Cross-Org-`Destination`; Storage-Proxy-Fetch fehlgeschlagen
@@ -108,7 +109,8 @@ Der Server bewirbt `DAV: 1, 2` in der OPTIONS-Antwort.
 
 - `Depth: infinity` auf PROPFIND wird mit `403` abgelehnt.
 - `Timeout: Second-N` auf LOCK wird auf `[1, 3600]` begrenzt.
-- Die PUT-Body-Größe ist durch das Upload-URL-Limit des Convex-Speichers der Plattform begrenzt. Der Plattform-Server leitet den Body an eine Convex-Presigned-URL; das Limit ist, was dein selbst gehostetes Convex erzwingt. Für unbegrenztes Streaming kannst du den Import über die REST-API erwägen.
+- Die PUT-Body-Größe ist standardmäßig auf **5 GB** begrenzt (`413` bei Überschreitung), erzwungen sowohl am Reverse-Proxy als auch im Plattform-Server. Betreiber können das Limit über die Umgebungsvariable `WEBDAV_MAX_PUT_BYTES` anpassen. Der Body wird an eine Convex-Presigned-URL gestreamt, ohne dass ein großer Upload im Plattform-Speicher gepuffert wird.
+- XML-Request-Bodys (PROPFIND / PROPPATCH / MKCOL / LOCK) sind auf **64 KB** begrenzt (`413` bei Überschreitung) — diese Envelopes sind per Design winzig.
 - App-Passwörter werden mit HMAC-SHA256 gehasht; das Geheimnis taucht nach dem Create-Call in keiner Antwort mehr auf.
 - `lastUsedAt` wird höchstens einmal pro Minute pro App-Passwort gepatcht, um Write-Storms auf belebten Mounts zu vermeiden.
 

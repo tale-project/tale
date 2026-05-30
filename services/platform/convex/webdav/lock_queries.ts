@@ -38,6 +38,35 @@ export const findLockForPath = internalQuery({
   },
 });
 
+// All UNEXPIRED locks strictly under a collection path (`path/…`). Used
+// to enforce RFC 4918 §9.6.1/§9.9: DELETE/MOVE of a collection must fail
+// 423 if any internal member is locked without the token submitted. The
+// per-resource findLockForPath only covers the target + ancestors, not
+// descendants — this prefix scan fills that gap. '\uffff' bounds the
+// prefix range (resource paths are percent-encoded ASCII).
+export const findLocksUnderPath = internalQuery({
+  args: {
+    organizationId: v.string(),
+    resourcePath: v.string(),
+  },
+  async handler(ctx, args) {
+    const path = canonicalResourcePath(args.resourcePath);
+    const now = Date.now();
+    const rows = await ctx.db
+      .query('webdavLocks')
+      .withIndex('by_organization_resource', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .gte('resourcePath', path + '/')
+          .lt('resourcePath', path + '/\uffff'),
+      )
+      .collect();
+    return rows
+      .filter((r) => r.expiresAt > now)
+      .map((r) => ({ resourcePath: r.resourcePath, lockToken: r.lockToken }));
+  },
+});
+
 // Lookup by wire token. Used by UNLOCK to verify the supplied
 // Lock-Token header before deleting, AND by LOCK refresh to echo the
 // stored ownerXml / scope / depth back to the client (RFC §9.10.5).

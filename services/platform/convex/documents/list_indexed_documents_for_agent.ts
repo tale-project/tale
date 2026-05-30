@@ -16,6 +16,7 @@
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import { isActiveDocument } from './_helpers';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 500;
@@ -124,6 +125,10 @@ export async function listIndexedDocumentsForAgent(
 
     for (const doc of result.page) {
       if (!hasFileId(doc)) continue;
+      // Exclude trashed/soft-deleted docs (e.g. WebDAV DELETE) from the
+      // agent's indexed-document listing — the `indexed` index doesn't
+      // filter lifecycle status.
+      if (!isActiveDocument(doc)) continue;
 
       const fileId = String(doc.fileId);
       const isMatch =

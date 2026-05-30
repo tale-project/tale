@@ -1,8 +1,8 @@
 import { anyApi } from 'convex/server';
 
 import { convexErrorCode } from '../errors';
-import { checkResourceLock } from '../locks';
-import { buildDavPath, parseDavPath } from '../paths';
+import { checkCollectionDescendantLocks, checkResourceLock } from '../locks';
+import { buildDavPath, lockKeyFromParsed, parseDavPath } from '../paths';
 import type {
   AuthContext,
   ParsedPath,
@@ -103,16 +103,34 @@ async function doMoveOrCopy(
 
   const overwrite = (req.headers.get('overwrite') ?? 'T').toUpperCase() !== 'F';
 
-  // Lock check on source (and destination if MOVE — destination loses
-  // its lock too via collision delete).
+  // Lock check on source.
   const srcLock = await checkResourceLock(req, ctx, auth, parsed);
   if (!srcLock.ok) {
     return { status: srcLock.status, headers: {}, body: srcLock.reason };
   }
+  // Destination lock — required for BOTH MOVE and COPY: with Overwrite: T
+  // (the default) either can destroy a locked destination, so the token
+  // must be submitted (RFC 4918 §9.8.5 / §9.9.4). COPY previously skipped
+  // this, silently overwriting a locked target.
+  const dstLock = await checkResourceLock(req, ctx, auth, destParsed);
+  if (!dstLock.ok) {
+    return { status: dstLock.status, headers: {}, body: dstLock.reason };
+  }
   if (op === 'MOVE') {
-    const dstLock = await checkResourceLock(req, ctx, auth, destParsed);
-    if (!dstLock.ok) {
-      return { status: dstLock.status, headers: {}, body: dstLock.reason };
+    // MOVE removes the source subtree — any locked internal member blocks
+    // it (RFC 4918 §9.9). No-op for a document source (no descendants).
+    const srcDescLock = await checkCollectionDescendantLocks(
+      req,
+      ctx,
+      auth,
+      parsed,
+    );
+    if (!srcDescLock.ok) {
+      return {
+        status: srcDescLock.status,
+        headers: srcDescLock.headers,
+        body: srcDescLock.body,
+      };
     }
   }
 
@@ -158,6 +176,22 @@ async function doMoveOrCopy(
         : anyApi.webdav.tree_mutations.copyResource,
       mutationArgs,
     );
+
+    // The source path no longer exists after a MOVE — drop its lock
+    // row(s) and any under it so a stale lock can't 423 a later recreate
+    // (RFC 4918 §9.9: MOVE relocates the resource and its locks don't
+    // follow in v1). COPY leaves the source intact, so nothing to clean.
+    if (op === 'MOVE') {
+      await ctx.convex
+        .mutation(anyApi.webdav.lock_mutations.deleteLocksUnderPath, {
+          organizationId: auth.organizationId,
+          resourcePath: lockKeyFromParsed(parsed),
+        })
+        .catch((err: unknown) =>
+          console.warn('[webdav] MOVE lock cleanup failed', err),
+        );
+    }
+
     const headers: Record<string, string> = {};
     if (result.created) {
       headers['Location'] = buildDavPath({

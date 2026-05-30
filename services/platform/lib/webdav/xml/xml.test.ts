@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { safeOwnerEmit } from './escape';
 import {
   isOwnerExtractError,
   parseIfHeader,
@@ -7,7 +8,7 @@ import {
   parseLockBody,
   parseTimeoutHeader,
 } from './lock-request';
-import { buildLockResponse, safeOwnerEmit } from './lock-response';
+import { buildLockResponse } from './lock-response';
 import { parsePropfindBody } from './propfind-request';
 import { buildMultiStatus } from './propfind-response';
 
@@ -86,7 +87,9 @@ describe('buildMultiStatus', () => {
         creationDate: new Date(),
         contentLength: 1234,
         contentType: 'text/plain',
-        etag: 'abc123',
+        // etag is the COMPLETE validator (computeETag includes the quotes);
+        // buildMultiStatus emits it verbatim so it matches the GET header.
+        etag: '"abc123"',
       },
     ]);
     expect(xml).toContain('<D:getcontentlength>1234</D:getcontentlength>');

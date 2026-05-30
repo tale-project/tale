@@ -2,12 +2,13 @@ import { anyApi } from 'convex/server';
 
 import { convexErrorCode } from '../errors';
 import { buildDavPath, lockKeyFromParsed } from '../paths';
-import type {
-  AuthContext,
-  ParsedPath,
-  WebDAVCtx,
-  WebDAVRequest,
-  WebDAVResponse,
+import {
+  WEBDAV_MAX_XML_BODY,
+  type AuthContext,
+  type ParsedPath,
+  type WebDAVCtx,
+  type WebDAVRequest,
+  type WebDAVResponse,
 } from '../types';
 import { buildDavError, DAV_ERROR_HEADERS } from '../xml/error-body';
 import {
@@ -51,7 +52,7 @@ export async function handleLock(
     }
   }
 
-  const body = await req.readText();
+  const body = await req.readText(WEBDAV_MAX_XML_BODY);
   const lockBodyResult = parseLockBody(body);
   if (isOwnerExtractError(lockBodyResult)) {
     return {

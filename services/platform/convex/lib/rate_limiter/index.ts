@@ -243,17 +243,28 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 30,
     period: MINUTE,
   },
-  // Per-org failed-auth throttle on the WebDAV Basic-auth lookup. Each /dav/*
-  // request consumes one token regardless of whether the supplied password
-  // matches — capping the rate at which an attacker can probe app-password
-  // candidates against a known org. Fixed-window matches `security:login-ip`
-  // shape; 100/min/org is high enough that legitimate clients (Finder
-  // mounting, rclone batch ops) never hit it, low enough that a brute-force
-  // loop is starved.
-  'webdav:auth-attempt': {
-    kind: 'fixed window',
-    rate: 100,
+  // Per-IP throttle on FAILED WebDAV Basic-auth attempts. Charged ONLY on
+  // a missing/mismatched credential (never on success), so a legitimate
+  // Finder/rclone mount that fires many authenticated requests never
+  // depletes it. Keyed by client IP (X-Forwarded-For), so an attacker is
+  // throttled by their own source and cannot lock a victim org out — the
+  // failure mode of the previous per-org design. Token bucket gives a
+  // small retry burst; steady-state probing settles at 20/min/IP.
+  'webdav:auth-fail-ip': {
+    kind: 'token bucket',
+    rate: 20,
     period: MINUTE,
+    capacity: 40,
+  },
+  // Per-org backstop on failed WebDAV auth — bounds distributed probing
+  // from many IPs against a known org slug. Set high so it never trips on
+  // legitimate traffic (successful auths are not charged); it exists to
+  // starve a botnet, not real clients.
+  'webdav:auth-fail-org': {
+    kind: 'token bucket',
+    rate: 300,
+    period: MINUTE,
+    capacity: 600,
   },
   // Per-org cap on app-password minting. Each row is a HTTP-Basic credential
   // with PAT-equivalent reach; a runaway create loop (compromised admin

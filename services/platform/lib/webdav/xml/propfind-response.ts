@@ -16,6 +16,7 @@
 // otherwise lockdiscovery is emitted as an empty element (the RFC-MUST
 // answer for "no lock"). <D:supportedlock> is always emitted unchanged.
 
+import { escapeXml, safeOwnerEmit } from './escape';
 import type { PropfindRequest } from './propfind-request';
 
 export interface ActiveLockInfo {
@@ -194,7 +195,10 @@ function renderPropValue(name: LiveProp, r: ResourceProps): string {
     case 'getcontenttype':
       return `<D:getcontenttype>${escapeXml(r.contentType ?? 'application/octet-stream')}</D:getcontenttype>`;
     case 'getetag':
-      return `<D:getetag>"${escapeXml(r.etag ?? '')}"</D:getetag>`;
+      // r.etag is the complete validator from computeETag (already quoted,
+      // `W/`-prefixed for weak). Emit verbatim so it matches the GET ETag
+      // header byte-for-byte — do NOT re-wrap in quotes.
+      return `<D:getetag>${r.etag ?? ''}</D:getetag>`;
     case 'supportedlock':
       return SUPPORTED_LOCK_XML;
     case 'lockdiscovery':
@@ -224,13 +228,13 @@ function renderLockDiscovery(r: ResourceProps): string {
     // consistent shape.
     return '<D:lockdiscovery/>';
   }
-  // Owner: the stored ownerXml is opaque client-provided markup; we
-  // preserve it verbatim inside <D:owner>. Lock parsing already caps
-  // ownerXml size and (in phase C.1) sanitizes it for XXE / DOCTYPE.
-  const ownerBlock =
-    lock.ownerXml.trim().length > 0
-      ? `<D:owner>${lock.ownerXml}</D:owner>`
-      : '';
+  // Owner: the stored ownerXml is opaque client-provided markup. It MUST
+  // go through safeOwnerEmit (CDATA-wrapped, ]]> neutralized) — the same
+  // emitter the LOCK response uses. Emitting it raw makes the entire
+  // multistatus non-well-formed on a bare `&`/`<` and allows a stored
+  // element-injection (a LOCK owner of `x</D:prop><D:injected/>` would
+  // otherwise reshape every PROPFIND of the locked resource).
+  const ownerBlock = safeOwnerEmit(lock.ownerXml);
   const rootHref = escapeXml(lock.lockRootHref ?? r.href);
   return `<D:lockdiscovery>
         <D:activelock>
@@ -252,13 +256,4 @@ function renderEmptyProp(name: string): string {
   const safe = name.replace(/[^a-zA-Z0-9_:-]/g, '');
   if (safe.length === 0) return '';
   return `<D:${safe}/>`;
-}
-
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }

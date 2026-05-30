@@ -2,12 +2,13 @@ import { anyApi } from 'convex/server';
 
 import { convexErrorCode } from '../errors';
 import { checkResourceLockOnParents } from '../locks';
-import type {
-  AuthContext,
-  ParsedPath,
-  WebDAVCtx,
-  WebDAVRequest,
-  WebDAVResponse,
+import {
+  WEBDAV_MAX_XML_BODY,
+  type AuthContext,
+  type ParsedPath,
+  type WebDAVCtx,
+  type WebDAVRequest,
+  type WebDAVResponse,
 } from '../types';
 
 export async function handleMkcol(
@@ -32,7 +33,7 @@ export async function handleMkcol(
   // that we ignore would mislead clients into thinking their custom
   // properties were stored. We don't gate on Content-Type because a
   // misconfigured client may omit it; the body itself is the signal.
-  const body = await req.readText();
+  const body = await req.readText(WEBDAV_MAX_XML_BODY);
   if (body.length > 0) {
     return { status: 415, headers: {}, body: 'MKCOL body not supported' };
   }

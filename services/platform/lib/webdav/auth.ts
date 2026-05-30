@@ -124,7 +124,13 @@ function bytesToHex(bytes: Uint8Array): string {
   return s;
 }
 
-async function hmacHash(plaintext: string, secretHex: string): Promise<string> {
+// Exported for the cross-module parity test (auth-parity.test.ts), which
+// pins this against the convex/webdav/helpers.ts duplicate. Not part of
+// the public auth surface otherwise.
+export async function hmacHash(
+  plaintext: string,
+  secretHex: string,
+): Promise<string> {
   const key = await crypto.subtle.importKey(
     'raw',
     hexToBytes(secretHex),
@@ -136,7 +142,8 @@ async function hmacHash(plaintext: string, secretHex: string): Promise<string> {
   return bytesToHex(new Uint8Array(sig));
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
+// Exported for the cross-module parity test (see hmacHash above).
+export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) {
@@ -167,50 +174,67 @@ export async function verifyBasicAuthForDav(
 ): Promise<AuthResult> {
   const parsed = parseBasicHeader(req.headers.get('authorization'));
   if (!parsed) {
+    // No credentials at all — this is the client's first probe to elicit
+    // the WWW-Authenticate challenge, which every legitimate mount does.
+    // Do NOT charge the throttle here, or we'd penalize every real client.
     return { ok: false, status: 401, reason: 'Missing Basic auth' };
   }
+
+  const clientIp =
+    req.clientIp && req.clientIp.length > 0 ? req.clientIp : 'unknown';
+  // Charge a single failed attempt against the per-IP (+ per-org backstop)
+  // throttle and report whether the caller is now rate-limited. Called
+  // ONLY on a failed/absent credential match — successful auths charge
+  // nothing, so legitimate clients never deplete the bucket.
+  const chargeFailure = async (organizationId: string): Promise<boolean> => {
+    try {
+      await ctx.convex.mutation(
+        anyApi.webdav.app_password_queries.chargeWebdavAuthFailure,
+        { organizationId, clientIp },
+      );
+      return false;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('RATE_LIMITED')) {
+        console.warn('[webdav] auth rate-limited', { orgSlug, clientIp });
+        return true;
+      }
+      // Limiter infra error — fail open so a limiter outage can't lock
+      // every client out, but log it for visibility.
+      console.warn('[webdav] auth-failure charge errored', err);
+      return false;
+    }
+  };
 
   // First resolve orgSlug → organizationId. Without an org we can't
   // even look up the candidate rows by prefix.
   const orgRow = await deps.resolveOrgAndMembership(orgSlug, '');
   if (!orgRow) {
+    // Throttle org-slug enumeration by IP (no org id yet → IP bucket only).
+    if (await chargeFailure('')) {
+      return { ok: false, status: 403, reason: 'rate limited' };
+    }
     // 401 (not 404) — never confirm or deny org existence to anon callers.
     return { ok: false, status: 401, reason: 'Invalid org' };
   }
 
   const prefix = parsed.password.slice(0, 4);
-  let rawCandidates: unknown;
-  try {
-    // findCandidatesByPrefix is an internalMutation (not Query): it
-    // consumes a `webdav:auth-attempt` rate-limit token per call to
-    // cap brute-force probing per org. The limiter component requires
-    // mutation context to decrement, hence the mutation kind.
-    rawCandidates = await ctx.convex.mutation(
-      anyApi.webdav.app_password_queries.findCandidatesByPrefix,
-      {
-        organizationId: orgRow.organizationId,
-        prefix,
-      },
-    );
-  } catch (err) {
-    // ConvexError({ code: 'RATE_LIMITED' }) surfaces as a thrown Error
-    // on the HttpClient — match by message substring (the underlying
-    // ConvexError data isn't preserved across the wire as a discrete
-    // type for HttpClient calls).
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('RATE_LIMITED')) {
-      console.warn('[webdav] auth rate-limited', { orgSlug });
-      // Surface as 403 (not the semantically-correct 429) because the
-      // current handler hard-maps non-401 to 403; widening that to a
-      // proper 429 is owned by the dispatch-error refactor. The reason
-      // is generic on the wire — internal log captures specifics.
-      return { ok: false, status: 403, reason: 'forbidden' };
-    }
-    throw err;
-  }
+  // findCandidatesByPrefix is a read-only internalQuery — it consumes no
+  // rate-limit token. Throttling is charged below, only on a failed
+  // match, so successful auths never deplete the bucket.
+  const rawCandidates = await ctx.convex.query(
+    anyApi.webdav.app_password_queries.findCandidatesByPrefix,
+    {
+      organizationId: orgRow.organizationId,
+      prefix,
+    },
+  );
   const candidates = parseCandidates(rawCandidates);
 
   if (candidates.length === 0) {
+    if (await chargeFailure(orgRow.organizationId)) {
+      return { ok: false, status: 403, reason: 'rate limited' };
+    }
     return { ok: false, status: 401, reason: 'Invalid credentials' };
   }
 
@@ -223,6 +247,9 @@ export async function verifyBasicAuthForDav(
     }
   }
   if (!matched) {
+    if (await chargeFailure(orgRow.organizationId)) {
+      return { ok: false, status: 403, reason: 'rate limited' };
+    }
     return { ok: false, status: 401, reason: 'Invalid credentials' };
   }
 

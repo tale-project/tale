@@ -1,4 +1,5 @@
 import type { QueryCtx } from '../_generated/server';
+import { isActiveDocument } from './_helpers';
 
 /**
  * Get RAG-indexed file storage IDs scoped to a agent's knowledge config.
@@ -58,6 +59,11 @@ export async function getAgentScopedFileIds(
 
   for await (const doc of query) {
     if (!doc.fileId) continue;
+    // Skip trashed/soft-deleted docs (e.g. WebDAV DELETE) — they must not
+    // remain in agent RAG retrieval scope. The `indexed` index doesn't
+    // filter lifecycle, so an out-of-scope deleted file would otherwise
+    // still be retrievable by the agent.
+    if (!isActiveDocument(doc)) continue;
 
     const fileId = String(doc.fileId);
     if (fileIdSet.has(fileId)) continue;

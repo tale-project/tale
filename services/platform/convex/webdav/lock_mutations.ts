@@ -13,6 +13,19 @@ const MAX_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour cap
 // fewer collection-level locks instead.
 const MAX_LOCKS_PER_APP_PASSWORD = 200;
 
+// Proper ancestors of a canonical lock path, most-specific first. e.g.
+// '/documents/foo/bar.txt' → ['/documents/foo', '/documents']. The
+// namespace root itself ('/documents') is included; the synthetic '/'
+// root is not (no lock is ever created there).
+function ancestorPaths(path: string): string[] {
+  const parts = path.split('/'); // ['', 'documents', 'foo', 'bar.txt']
+  const out: string[] = [];
+  for (let i = parts.length - 1; i > 1; i--) {
+    out.push(parts.slice(0, i).join('/'));
+  }
+  return out;
+}
+
 export const createLock = internalMutation({
   args: {
     organizationId: v.string(),
@@ -42,6 +55,8 @@ export const createLock = internalMutation({
       throw new ConvexError({ code: 'RATE_LIMITED' });
     }
 
+    const now = Date.now();
+
     // Re-check at write time. Two clients racing for an exclusive lock
     // could both pass the lookup; whichever inserts first wins, the
     // other gets 423.
@@ -51,12 +66,53 @@ export const createLock = internalMutation({
         q.eq('organizationId', args.organizationId).eq('resourcePath', path),
       )
       .first();
-    if (existing && existing.expiresAt > Date.now()) {
+    if (existing && existing.expiresAt > now) {
       throw new ConvexError({ code: 'LOCKED' });
     }
     if (existing) await ctx.db.delete(existing._id);
 
+    // RFC 4918 §6.1 (MUST): a depth-infinity lock on an ANCESTOR locks the
+    // whole subtree, so a new lock on a descendant must be refused with
+    // 423. The exact-path check above misses this because it only looks at
+    // `path` itself. Walk each ancestor and reject if any holds an
+    // unexpired depth-infinity lock. (v1 advertises exclusive write locks
+    // only, so any such ancestor lock conflicts.)
+    for (const ancestor of ancestorPaths(path)) {
+      const anc = await ctx.db
+        .query('webdavLocks')
+        .withIndex('by_organization_resource', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('resourcePath', ancestor),
+        )
+        .first();
+      if (anc && anc.depth === 'infinity' && anc.expiresAt > now) {
+        throw new ConvexError({ code: 'LOCKED' });
+      }
+    }
+
+    // RFC 4918 §7.4 (explicit MUST): a new depth-infinity lock must not be
+    // granted over a subtree that already contains a lock. Prefix-scan for
+    // any unexpired lock strictly under `path/`. '\uffff' bounds the prefix
+    // range; resource paths are percent-encoded ASCII so nothing sorts
+    // above it.
+    if (args.depth === 'infinity') {
+      const descendants = await ctx.db
+        .query('webdavLocks')
+        .withIndex('by_organization_resource', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .gte('resourcePath', path + '/')
+            .lt('resourcePath', path + '/\uffff'),
+        )
+        .collect();
+      if (descendants.some((d) => d.expiresAt > now)) {
+        throw new ConvexError({ code: 'LOCKED' });
+      }
+    }
+
     const timeoutMs = Math.min(args.timeoutMs, MAX_LOCK_TIMEOUT_MS);
+    const expiresAt = now + timeoutMs;
     const id = await ctx.db.insert('webdavLocks', {
       organizationId: args.organizationId,
       resourcePath: path,
@@ -66,9 +122,9 @@ export const createLock = internalMutation({
       scope: args.scope,
       ownerUserId: args.ownerUserId,
       appPasswordId: args.appPasswordId,
-      expiresAt: Date.now() + timeoutMs,
+      expiresAt,
     });
-    return { _id: id, expiresAt: Date.now() + timeoutMs };
+    return { _id: id, expiresAt };
   },
 });
 
@@ -145,6 +201,38 @@ export const releaseLock = internalMutation({
       throw new ConvexError({ code: 'FORBIDDEN' });
     }
     await ctx.db.delete(row._id);
+  },
+});
+
+// Delete the lock at `resourcePath` AND every lock under `resourcePath/`.
+// Called after a successful DELETE/MOVE so a stale lock row can't 423 a
+// later recreate of the same path (RFC 4918 §9.6.1: removing a resource
+// removes its locks). '\uffff' bounds the prefix range.
+export const deleteLocksUnderPath = internalMutation({
+  args: {
+    organizationId: v.string(),
+    resourcePath: v.string(),
+  },
+  async handler(ctx, args) {
+    const path = canonicalResourcePath(args.resourcePath);
+    const self = await ctx.db
+      .query('webdavLocks')
+      .withIndex('by_organization_resource', (q) =>
+        q.eq('organizationId', args.organizationId).eq('resourcePath', path),
+      )
+      .collect();
+    const under = await ctx.db
+      .query('webdavLocks')
+      .withIndex('by_organization_resource', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .gte('resourcePath', path + '/')
+          .lt('resourcePath', path + '/\uffff'),
+      )
+      .collect();
+    for (const row of [...self, ...under]) {
+      await ctx.db.delete(row._id);
+    }
   },
 });
 

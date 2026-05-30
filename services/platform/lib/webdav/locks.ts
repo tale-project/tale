@@ -51,6 +51,53 @@ export async function checkResourceLockOnParents(
   return await runLockCheck(req, ctx, auth, parents);
 }
 
+// RFC 4918 §9.6.1 / §9.9: DELETE/MOVE of a COLLECTION must fail with 423
+// if any internal member holds a lock the request doesn't satisfy. The
+// per-resource checkResourceLock only inspects the target + ancestors,
+// never descendants — this prefix-scans the subtree and 423s on the first
+// member lock whose token wasn't submitted in the If: header.
+export async function checkCollectionDescendantLocks(
+  req: WebDAVRequest,
+  ctx: WebDAVCtx,
+  auth: AuthContext,
+  parsed: Pick<ParsedPath, 'namespace' | 'segments'>,
+): Promise<LockCheckResult> {
+  const clauses = parseIfHeader(req.headers.get('if'));
+  const raw: unknown = await ctx.convex.query(
+    anyApi.webdav.lock_queries.findLocksUnderPath,
+    {
+      organizationId: auth.organizationId,
+      resourcePath: lockKeyFromParsed(parsed),
+    },
+  );
+  // Narrow each entry via `in` checks (no type assertions) — the query
+  // result crosses the ConvexHttpClient boundary as `unknown`.
+  const entries: unknown[] = Array.isArray(raw) ? raw : [];
+  for (const entry of entries) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    if (!('lockToken' in entry)) continue;
+    const token: unknown = entry.lockToken;
+    if (typeof token !== 'string') continue;
+    const rp: unknown =
+      'resourcePath' in entry ? entry.resourcePath : undefined;
+    const resourcePath =
+      typeof rp === 'string' ? rp : lockKeyFromParsed(parsed);
+    if (clauseSatisfiesToken(clauses, token)) continue;
+    // A member is locked and its token wasn't submitted.
+    return {
+      ok: false,
+      status: 423,
+      reason: 'A member resource is locked',
+      body: buildDavError({
+        precondition: 'lock-token-submitted',
+        hrefs: [resourcePath],
+      }),
+      headers: { ...DAV_ERROR_HEADERS },
+    };
+  }
+  return { ok: true };
+}
+
 async function runLockCheck(
   req: WebDAVRequest,
   ctx: WebDAVCtx,

@@ -119,6 +119,10 @@ function isValidOrgSlug(s: string): boolean {
 // real files named e.g. "Aux materials.pdf".
 function isValidSegment(s: string): boolean {
   if (s.length === 0 || s.length > 255) return false;
+  // Whitespace-only names (e.g. " ") are degenerate: invisible in every
+  // client, and they collide indistinguishably in a listing. Reject them
+  // (a name with internal spaces like "my file.txt" is still fine).
+  if (s.trim().length === 0) return false;
   if (s === '.' || s === '..') return false;
   if (s.includes('/') || s.includes('\\')) return false;
   // eslint-disable-next-line no-control-regex

@@ -25,7 +25,17 @@ interface DocumentForResponse {
 // so PROPFIND, GET, HEAD, and Convex GC all converge on the same identity.
 // Never falls back to `_id` (immutable) — that would let a stale cache
 // satisfy conditional requests after an in-place overwrite.
-export function computeETag(doc: DocumentForResponse): string {
+//
+// Returns the COMPLETE validator including quotes / the `W/` weak marker.
+// PROPFIND must emit this verbatim (not re-quote it) so DAV:getetag and
+// the GET ETag header are byte-identical — hence the narrow param type so
+// the propfind handler can reuse it.
+export function computeETag(doc: {
+  contentHash?: string | null;
+  size?: number | null;
+  sourceModifiedAt?: number | null;
+  creationTime?: number | null;
+}): string {
   if (doc.contentHash) return `"${doc.contentHash}"`;
   const size = typeof doc.size === 'number' ? doc.size : 0;
   const mtime = doc.sourceModifiedAt ?? doc.creationTime ?? 0;
@@ -62,7 +72,13 @@ function buildContentDisposition(doc: DocumentForResponse): string {
   const ascii =
     filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_') || 'document';
   const encoded = encodeURIComponent(filename);
-  return `inline; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+  // `attachment`, not `inline`: /dav GET drops CSP (DAV bodies are raw
+  // blobs, not HTML), so an uploaded .html served inline would execute as
+  // a same-origin document in a browser (stored XSS). Forcing download
+  // neutralizes that; nosniff + X-Frame-Options: DENY (set by secureForDav)
+  // close the rest. WebDAV clients (Finder, rclone) ignore this header and
+  // read the body regardless, so mounted-drive UX is unaffected.
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
 interface ParsedRange {
@@ -75,7 +91,9 @@ interface ParsedRange {
 // for one get a full 200 back, which is RFC-compliant. Returns `null` for
 // unparseable input (caller ignores Range), or `'unsatisfiable'` for
 // well-formed-but-out-of-bounds requests (caller returns 416).
-function parseRangeHeader(
+// Exported for unit testing (the streamed GET paths are otherwise
+// excluded from the integration suite).
+export function parseRangeHeader(
   header: string | null,
   size: number,
 ): ParsedRange | 'unsatisfiable' | null {
@@ -129,7 +147,8 @@ function buildResponseHeaders(
 }
 
 // RFC 7232 §3.1: `If-None-Match: *` matches any current representation.
-function ifNoneMatchMatches(header: string, etag: string): boolean {
+// Exported for unit testing — see parseRangeHeader.
+export function ifNoneMatchMatches(header: string, etag: string): boolean {
   const trimmed = header.trim();
   if (trimmed === '*') return true;
   // Compare with weak-comparison semantics: strip the optional `W/` prefix
@@ -222,29 +241,55 @@ export async function handleGet(
     };
   }
 
-  // Proxy stream the blob through Convex `/storage`. Going through the
-  // existing route (not direct ctx.storage.get — we're outside Convex)
-  // means we inherit its sanitation + rate limiting.
-  const blobUrl = `${ctx.storageBaseUrl}/storage?id=${encodeURIComponent(doc.fileId)}`;
   const upstreamHeaders: Record<string, string> = {};
   if (rangeParsed) {
     upstreamHeaders['Range'] = `bytes=${rangeParsed.start}-${rangeParsed.end}`;
   }
-  const upstream = await fetch(blobUrl, {
-    headers: upstreamHeaders,
-    // Forward client aborts to Convex so a cancelled download doesn't
-    // keep streaming bytes platform-side.
-    signal:
-      req && 'signal' in req
-        ? (req as { signal?: AbortSignal }).signal
-        : undefined,
-  });
-  if (!upstream.ok && upstream.status !== 206) {
-    console.warn('[webdav] GET storage proxy failed', upstream.status);
-    return { status: 502, headers: {}, body: 'Storage fetch failed' };
+  const signal =
+    req && 'signal' in req
+      ? (req as { signal?: AbortSignal }).signal
+      : undefined;
+
+  const fetchBlob = async (
+    url: string,
+    label: string,
+  ): Promise<Response | null> => {
+    try {
+      const r = await fetch(url, { headers: upstreamHeaders, signal });
+      if ((r.ok || r.status === 206) && r.body) return r;
+      // Drain so the connection can be reused, then signal failure.
+      await r.body?.cancel().catch(() => {});
+      console.warn(`[webdav] GET blob fetch (${label}) status ${r.status}`);
+      return null;
+    } catch (err) {
+      console.warn(`[webdav] GET blob fetch (${label}) threw`, err);
+      return null;
+    }
+  };
+
+  // Prefer Convex's native file-serving URL: it streams and supports Range
+  // WITHOUT loading the blob into a V8 isolate, so large downloads work.
+  // The /storage httpAction (ctx.storage.get) buffers the whole blob in the
+  // isolate and caps at its memory limit — keep it only as a fallback for
+  // deployments where the direct URL isn't reachable from this process.
+  const directUrl: unknown = await ctx.convex
+    .query(anyApi.webdav.tree_queries.getWebdavBlobUrl, {
+      storageId: doc.fileId,
+    })
+    .catch((err: unknown) => {
+      console.warn('[webdav] GET getWebdavBlobUrl failed', err);
+      return null;
+    });
+
+  let upstream: Response | null = null;
+  if (typeof directUrl === 'string' && directUrl.length > 0) {
+    upstream = await fetchBlob(directUrl, 'direct');
   }
-  if (!upstream.body) {
-    console.warn('[webdav] GET storage proxy returned empty body');
+  if (!upstream) {
+    const proxyUrl = `${ctx.storageBaseUrl}/storage?id=${encodeURIComponent(doc.fileId)}`;
+    upstream = await fetchBlob(proxyUrl, 'proxy');
+  }
+  if (!upstream || !upstream.body) {
     return { status: 502, headers: {}, body: 'Storage fetch failed' };
   }
 

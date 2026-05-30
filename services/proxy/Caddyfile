@@ -230,7 +230,16 @@
 		request_body {
 			max_size 5GB
 		}
-		reverse_proxy platform:3000
+		reverse_proxy platform:3000 {
+			# Forward the real client IP. The WebDAV failed-auth throttle
+			# keys its per-IP bucket on the first X-Forwarded-For hop, so an
+			# attacker is rate-limited by their own source rather than locking
+			# out a whole org. Without this the platform sees only Caddy's IP.
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
 	}
 
 	# ============================================================================

@@ -92,6 +92,7 @@ Les verrous vivent dans leur propre table Convex, indexés par `(organizationId,
 - `405` — GET sur une collection ; MKCOL sur un chemin existant ; MKCOL racine
 - `409` — MKCOL quand le parent n’existe pas ; PUT sur un chemin de collection
 - `412` — non-correspondance de jeton `If`
+- `413` — corps PUT au-delà de la limite de taille, ou un corps XML (PROPFIND / PROPPATCH / MKCOL / LOCK) au-delà de 64 Ko
 - `415` — MKCOL avec corps XML non vide (extended MKCOL non implémenté)
 - `423` — écriture tentée sur un chemin verrouillé sans `If` correspondant
 - `502` — `Destination` cross-host ou cross-org ; fetch proxy stockage échoué
@@ -108,7 +109,8 @@ Le serveur annonce `DAV: 1, 2` dans la réponse OPTIONS.
 
 - `Depth: infinity` sur PROPFIND est rejeté avec `403`.
 - `Timeout: Second-N` sur LOCK est borné à `[1, 3600]`.
-- La taille du corps PUT est bornée par la limite de l’URL d’upload du stockage Convex. Le serveur de plateforme transfère le corps vers une URL pré-signée Convex ; la limite est celle qu’impose ton déploiement Convex auto-hébergé. Pour du streaming illimité, envisage l’import via l’API REST.
+- La taille du corps PUT est plafonnée à **5 Go** par défaut (`413` au-delà), appliquée à la fois au reverse-proxy et dans le serveur de plateforme. Les opérateurs peuvent l’ajuster via la variable d’environnement `WEBDAV_MAX_PUT_BYTES`. Le corps est streamé vers une URL pré-signée Convex sans qu’un gros upload soit mis en mémoire tampon côté plateforme.
+- Les corps XML (PROPFIND / PROPPATCH / MKCOL / LOCK) sont plafonnés à **64 Ko** (`413` au-delà) — ces enveloppes sont minuscules par conception.
 - Les mots de passe applicatifs sont hachés avec HMAC-SHA256 ; le secret n’apparaît dans aucune réponse après l’appel de création.
 - `lastUsedAt` est patché au plus une fois par minute par mot de passe applicatif pour éviter les write-storms sur les montages actifs.
 

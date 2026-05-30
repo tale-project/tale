@@ -22,6 +22,14 @@ const BODY_BEARING_METHODS = new Set([
   'PROPFIND',
 ]);
 
+// First hop of X-Forwarded-For (rate-limit bucket key, not a security
+// boundary). Mirrors the Hono adapter's helper.
+function firstForwardedFor(xff: string | null): string | undefined {
+  if (!xff) return undefined;
+  const first = xff.split(',')[0]?.trim();
+  return first && first.length > 0 ? first : undefined;
+}
+
 // Vite Connect adapter. Node's http req/res are pre-Fetch-API — we
 // adapt to the same WebDAVRequest the Hono adapter delivers, then write
 // the response back through Node's stream API.
@@ -72,6 +80,11 @@ export async function nodeAdapter(
     headers,
     body,
     signal: ac.signal,
+    // In dev there's no Caddy in front, so fall back to the socket peer.
+    clientIp:
+      firstForwardedFor(headers.get('x-forwarded-for')) ??
+      req.socket?.remoteAddress ??
+      undefined,
     async readBytes(maxBytes?: number) {
       if (cachedBytes) return cachedBytes;
       if (typeof maxBytes === 'number') {

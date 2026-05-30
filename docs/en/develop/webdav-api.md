@@ -92,6 +92,7 @@ Locks live in their own Convex table, keyed by `(organizationId, resourcePath)`.
 - `405` — GET on a collection; MKCOL on existing path; root MKCOL
 - `409` — MKCOL when parent does not exist; PUT to a collection path
 - `412` — `If` token mismatch
+- `413` — PUT body over the size cap, or an XML request body (PROPFIND / PROPPATCH / MKCOL / LOCK) over 64 KB
 - `415` — MKCOL with non-empty XML body (extended MKCOL not implemented)
 - `423` — write attempted on a locked path without matching `If`
 - `502` — cross-host or cross-org `Destination`; storage proxy fetch failed
@@ -108,7 +109,8 @@ The server advertises `DAV: 1, 2` in the OPTIONS response.
 
 - `Depth: infinity` on PROPFIND is rejected with `403`.
 - `Timeout: Second-N` on LOCK is clamped to `[1, 3600]`.
-- PUT body size is bounded by the platform's Convex storage upload-URL limit. The platform server forwards the body to a Convex presigned URL; the limit is whatever your self-hosted Convex deployment enforces. For unbounded streaming, consider importing through the REST API instead.
+- PUT body size is capped at **5 GB** by default (`413` once exceeded), enforced both at the reverse proxy and in the platform server. Operators can raise or lower it with the `WEBDAV_MAX_PUT_BYTES` environment variable. The body is streamed to a Convex presigned URL with backpressure, so a large upload does not buffer in platform memory.
+- XML request bodies (PROPFIND / PROPPATCH / MKCOL / LOCK) are capped at **64 KB** (`413` once exceeded) — these envelopes are tiny by design.
 - App-passwords are hashed with HMAC-SHA256; the secret never appears in any response after the create call.
 - `lastUsedAt` is patched at most once per minute per app-password to avoid write storms on busy mounts.
 

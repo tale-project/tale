@@ -56,11 +56,9 @@ export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
       }
       return null;
     },
-    ...overrides.queries,
-  };
-  const mutations: Record<string, StubHandler> = {
-    // Default findCandidatesByPrefix returns the one valid candidate
-    // whose hashed password matches our test password.
+    // findCandidatesByPrefix is a read-only internalQuery (auth.ts calls
+    // ctx.convex.query). Default returns the one valid candidate whose
+    // hashed password matches our test password.
     'webdav/app_password_queries:findCandidatesByPrefix': async () => {
       return [
         {
@@ -70,7 +68,18 @@ export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
         },
       ];
     },
+    // No descendant locks by default (DELETE/MOVE of a collection).
+    'webdav/lock_queries:findLocksUnderPath': () => [],
+    ...overrides.queries,
+  };
+  const mutations: Record<string, StubHandler> = {
+    // Failed-auth throttle charge — default to "not rate limited" (null).
+    // Override to throw ConvexError({ code: 'RATE_LIMITED' }) to exercise
+    // the throttled path.
+    'webdav/app_password_queries:chargeWebdavAuthFailure': () => null,
     'webdav/app_password_mutations:recordAppPasswordUse': () => null,
+    // Lock cleanup after DELETE/MOVE — no-op in tests.
+    'webdav/lock_mutations:deleteLocksUnderPath': () => null,
     ...overrides.mutations,
   };
 

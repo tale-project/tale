@@ -13,6 +13,20 @@ import { findFolderByPath } from '../folders/find_folder_by_path';
 // `X-NC-Paginate` cursor for clients that need full enumeration.
 export const MAX_CHILDREN_PER_PROPFIND = 1000;
 
+// Direct, streamable URL for a stored blob. Convex's native file-serving
+// endpoint streams and supports HTTP Range WITHOUT loading the blob into a
+// V8 isolate — unlike the /storage httpAction (ctx.storage.get), which
+// buffers the whole blob in isolate memory and fails for files beyond the
+// isolate limit. WebDAV GET prefers this URL so large downloads work, and
+// falls back to the /storage proxy when it's null/unreachable. Returns
+// null if the blob is gone.
+export const getWebdavBlobUrl = internalQuery({
+  args: { storageId: v.id('_storage') },
+  async handler(ctx, args) {
+    return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
 // Path segments → either a folder id, a document id, or "not found".
 // "root" is represented as folderId = null. Used by every method handler
 // (PROPFIND/GET/PUT/DELETE/...) to map a WebDAV URL to backing rows.
@@ -246,18 +260,13 @@ async function resolvePathInner(
         creationTime: folder._creationTime,
       };
     }
-    const doc = await ctx.db
-      .query('documents')
-      .withIndex('by_organizationId_and_folderId', (q) =>
-        q.eq('organizationId', organizationId).eq('folderId', undefined),
-      )
-      .collect();
-    const match = doc.find(
-      (d) =>
-        (d.title ?? '') === onlyName &&
-        (d.lifecycleStatus ?? 'active') === 'active',
+    const docId = await resolveLeafDocument(
+      ctx,
+      organizationId,
+      undefined,
+      onlyName,
     );
-    if (match) return { kind: 'document', documentId: match._id, exists: true };
+    if (docId) return { kind: 'document', documentId: docId, exists: true };
     return { kind: 'not_found', exists: false };
   }
 
@@ -290,19 +299,56 @@ async function resolvePathInner(
   }
 
   // Then child document
-  const childDocs = await ctx.db
-    .query('documents')
-    .withIndex('by_organizationId_and_folderId', (q) =>
-      q.eq('organizationId', organizationId).eq('folderId', parentFolderId),
-    )
-    .collect();
-  const matchDoc = childDocs.find(
-    (d) =>
-      (d.title ?? '') === leafName &&
-      (d.lifecycleStatus ?? 'active') === 'active',
+  const docId = await resolveLeafDocument(
+    ctx,
+    organizationId,
+    parentFolderId,
+    leafName,
   );
-  if (matchDoc) {
-    return { kind: 'document', documentId: matchDoc._id, exists: true };
+  if (docId) {
+    return { kind: 'document', documentId: docId, exists: true };
   }
   return { kind: 'not_found', exists: false };
+}
+
+// Resolve a leaf segment to an active document in a folder. Matches by
+// title first; if that fails, decodes the `<title>_<docId>` form PROPFIND
+// uses to disambiguate same-title siblings (see methods/propfind.ts) so
+// the deduped href round-trips back to the right document instead of
+// 404ing. Without this, two siblings sharing a title become un-openable
+// and un-deletable through their listed URLs.
+async function resolveLeafDocument(
+  ctx: QueryCtx,
+  organizationId: string,
+  folderId: Id<'folders'> | undefined,
+  leafName: string,
+): Promise<Id<'documents'> | null> {
+  const docs = await ctx.db
+    .query('documents')
+    .withIndex('by_organizationId_and_folderId', (q) =>
+      q.eq('organizationId', organizationId).eq('folderId', folderId),
+    )
+    .collect();
+  const active = docs.filter(
+    (d) => (d.lifecycleStatus ?? 'active') === 'active',
+  );
+  const exact = active.find((d) => (d.title ?? '') === leafName);
+  if (exact) return exact._id;
+
+  // `<title>_<docId>` disambiguation. The docId is the final `_`-delimited
+  // token (Convex ids contain no underscores); the title may itself
+  // contain underscores, so split on the LAST one and verify both halves.
+  const underscore = leafName.lastIndexOf('_');
+  if (underscore > 0) {
+    const titlePrefix = leafName.slice(0, underscore);
+    const idPart = leafName.slice(underscore + 1);
+    const normalized = ctx.db.normalizeId('documents', idPart);
+    if (normalized) {
+      const byId = active.find(
+        (d) => d._id === normalized && (d.title ?? '') === titlePrefix,
+      );
+      if (byId) return byId._id;
+    }
+  }
+  return null;
 }

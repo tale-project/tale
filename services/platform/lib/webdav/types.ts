@@ -64,6 +64,11 @@ export interface WebDAVRequest {
   // `fetch` calls so a cancelled PUT or GET stops bandwidth burn end
   // to end.
   signal?: AbortSignal;
+  // Client IP (first hop of X-Forwarded-For, set by Caddy on /dav/*; the
+  // socket peer in dev). Used to key the failed-auth rate limiter so one
+  // attacker IP can't lock a victim org out. Undefined when unavailable
+  // (auth falls back to a shared 'unknown' bucket).
+  clientIp?: string;
   // Where to read the body as text/bytes when the handler needs it.
   // Stays lazy so GET/PROPFIND with no body don't allocate. `maxBytes`
   // bounds the buffered size — exceeded reads throw so the dispatcher
