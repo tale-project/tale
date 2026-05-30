@@ -217,7 +217,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         description={tNav('aria.primaryNavigation')}
         className="h-auto! max-h-[60vh] rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
       >
-        <ul className="flex flex-col gap-1">
+        <ul role="list" className="flex flex-col gap-1">
           {overflow.map((item) => {
             const Icon = item.icon;
             const active = matchesOverflowItem(item);

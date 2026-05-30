@@ -5,7 +5,12 @@ import { useEffect, useState } from 'react';
 interface DisplayMode {
   /** App is running as an installed PWA (any platform). */
   isStandalone: boolean;
-  /** User-agent is Mobile Safari on iOS/iPadOS (and not in standalone mode). */
+  /**
+   * User-agent is Mobile Safari on iOS/iPadOS. This is a pure UA check —
+   * standalone mode is reported separately via `isStandalone`. Callers that
+   * care about the browser shell (e.g. its bottom toolbar) should gate on
+   * `isMobileSafari && !isStandalone`.
+   */
   isMobileSafari: boolean;
 }
 
