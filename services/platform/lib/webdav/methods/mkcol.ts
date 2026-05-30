@@ -44,7 +44,11 @@ export async function handleMkcol(
   // forbids another principal from MKCOL-ing it without the token.
   // checkResourceLock covers BOTH (leaf at any depth + ancestors at infinity);
   // checkResourceLockOnParents would skip the leaf and miss the reservation.
-  const lockResult = await checkResourceLock(req, ctx, auth, parsed);
+  const lockResult = await checkResourceLock(req, ctx, auth, parsed, {
+    // MKCOL adds a new member to the parent collection — a depth-0 lock on the
+    // direct parent must block it too (RFC 4918 §9.10.4).
+    directParentDepth0: true,
+  });
   if (!lockResult.ok) {
     return {
       status: lockResult.status,

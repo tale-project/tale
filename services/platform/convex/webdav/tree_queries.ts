@@ -66,20 +66,26 @@ export const listCollection = internalQuery({
   },
   async handler(ctx, args) {
     if (args.namespace === '.trash') {
-      // Flat trash listing.
-      const docs = await ctx.db
+      // Flat trash listing. Bounded with .take: the org-wide trash set is
+      // unbounded and a .collect() of it would blow Convex's 32k-row / 16 MiB
+      // single-query read ceiling (documents carry an inline `content` string,
+      // so the byte limit can bind well before 32k rows). The
+      // by_organizationId_and_lifecycleStatus index already orders by
+      // _creationTime asc within the trashed bucket, so .take() yields the
+      // oldest MAX_CHILDREN+1 — no in-memory sort needed.
+      const taken = await ctx.db
         .query('documents')
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
           q
             .eq('organizationId', args.organizationId)
             .eq('lifecycleStatus', 'trashed'),
         )
-        .collect();
-      const sorted = docs.sort((a, b) => a._creationTime - b._creationTime);
-      const truncated = sorted.length > MAX_CHILDREN_PER_PROPFIND;
+        .order('asc')
+        .take(MAX_CHILDREN_PER_PROPFIND + 1);
+      const truncated = taken.length > MAX_CHILDREN_PER_PROPFIND;
       const slice = truncated
-        ? sorted.slice(0, MAX_CHILDREN_PER_PROPFIND)
-        : sorted;
+        ? taken.slice(0, MAX_CHILDREN_PER_PROPFIND)
+        : taken;
       return {
         folders: [],
         // Join fileMetadata so Depth:1 children carry size + contentType,
@@ -100,6 +106,11 @@ export const listCollection = internalQuery({
       )
       .collect();
 
+    // Bounded with .take: a very large flat folder would otherwise blow the
+    // single-query read ceiling. by_organizationId_and_folderId orders by
+    // _creationTime asc (org+folderId fixed), so .take() yields the oldest
+    // MAX_CHILDREN+1. We filter trashed in memory afterward — taking +1 lets
+    // us still detect truncation when the folder is exactly at the cap.
     const rawDocs = await ctx.db
       .query('documents')
       .withIndex('by_organizationId_and_folderId', (q) =>
@@ -107,23 +118,23 @@ export const listCollection = internalQuery({
           .eq('organizationId', args.organizationId)
           .eq('folderId', args.folderId ?? undefined),
       )
-      .collect();
+      .order('asc')
+      .take(MAX_CHILDREN_PER_PROPFIND + 1);
+    const docsHitReadCap = rawDocs.length > MAX_CHILDREN_PER_PROPFIND;
     const docs = rawDocs.filter(
       (d) => (d.lifecycleStatus ?? 'active') === 'active',
     );
 
-    // Sort folders + documents independently by _creationTime asc, then
-    // cap the COMBINED count at MAX_CHILDREN_PER_PROPFIND. Folders win
-    // ties since collections are usually fewer and clients lean on them
-    // for tree expansion; truncating leaf docs is the safer failure
-    // mode than hiding subfolders.
-    const sortedFolders = folders.sort(
-      (a, b) => a._creationTime - b._creationTime,
-    );
-    const sortedDocs = docs.sort((a, b) => a._creationTime - b._creationTime);
+    // Cap the COMBINED count at MAX_CHILDREN_PER_PROPFIND. Folders win the cap
+    // since collections are usually fewer and clients lean on them for tree
+    // expansion; truncating leaf docs is the safer failure mode than hiding
+    // subfolders. Child order is not RFC-significant (clients re-sort): folders
+    // arrive name-ordered (the index), docs _creationTime-ordered (.take).
+    const sortedFolders = folders;
+    const sortedDocs = docs;
 
     const total = sortedFolders.length + sortedDocs.length;
-    const truncated = total > MAX_CHILDREN_PER_PROPFIND;
+    const truncated = total > MAX_CHILDREN_PER_PROPFIND || docsHitReadCap;
 
     let folderSlice = sortedFolders;
     let docSlice = sortedDocs;
@@ -330,31 +341,42 @@ async function resolveLeafDocument(
   folderId: Id<'folders'> | undefined,
   leafName: string,
 ): Promise<Id<'documents'> | null> {
-  const docs = await ctx.db
+  // Exact title match, indexed by (org, title) and filtered to this folder —
+  // avoids scanning the whole folder (which would blow the read ceiling on a
+  // large flat folder). Same-title docs in one org are few in practice.
+  const titleMatches = await ctx.db
     .query('documents')
-    .withIndex('by_organizationId_and_folderId', (q) =>
-      q.eq('organizationId', organizationId).eq('folderId', folderId),
+    .withIndex('by_organizationId_and_title', (q) =>
+      q.eq('organizationId', organizationId).eq('title', leafName),
     )
     .collect();
-  const active = docs.filter(
-    (d) => (d.lifecycleStatus ?? 'active') === 'active',
+  const exact = titleMatches.find(
+    (d) =>
+      (d.folderId ?? undefined) === folderId &&
+      (d.lifecycleStatus ?? 'active') === 'active',
   );
-  const exact = active.find((d) => (d.title ?? '') === leafName);
   if (exact) return exact._id;
 
   // `<title>_<docId>` disambiguation. The docId is the final `_`-delimited
   // token (Convex ids contain no underscores); the title may itself
   // contain underscores, so split on the LAST one and verify both halves.
+  // Resolve the id directly (a single get) rather than re-scanning the folder.
   const underscore = leafName.lastIndexOf('_');
   if (underscore > 0) {
     const titlePrefix = leafName.slice(0, underscore);
     const idPart = leafName.slice(underscore + 1);
     const normalized = ctx.db.normalizeId('documents', idPart);
     if (normalized) {
-      const byId = active.find(
-        (d) => d._id === normalized && (d.title ?? '') === titlePrefix,
-      );
-      if (byId) return byId._id;
+      const doc = await ctx.db.get(normalized);
+      if (
+        doc &&
+        doc.organizationId === organizationId &&
+        (doc.folderId ?? undefined) === folderId &&
+        (doc.lifecycleStatus ?? 'active') === 'active' &&
+        (doc.title ?? '') === titlePrefix
+      ) {
+        return doc._id;
+      }
     }
   }
   return null;

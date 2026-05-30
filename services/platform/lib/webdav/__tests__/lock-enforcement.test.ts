@@ -130,10 +130,33 @@ describe('WebDAV lock enforcement (locks.ts runLockCheck)', () => {
     expect(res.status).toBe(423);
   });
 
-  it('a depth-0 lock on an ancestor does NOT block a child DELETE', async () => {
+  it('a depth-0 lock on the DIRECT PARENT blocks a child DELETE (RFC §9.10.4) → 423', async () => {
+    // DELETE removes child.txt from /documents/folder, mutating the parent's
+    // member set — a depth-0 lock on that parent must block it.
     const ctx = makeStubCtx({
       queries: {
         'webdav/lock_queries:findLockForPath': lockAt('/documents/folder', {
+          depth: '0',
+        }),
+      },
+    });
+    const res = await dispatch(
+      makeRequest({
+        method: 'DELETE',
+        pathname: '/dav/myorg/documents/folder/child.txt',
+        authenticated: true,
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(423);
+  });
+
+  it('a depth-0 lock on a GRANDPARENT does NOT block a child DELETE → 204', async () => {
+    // /documents is the grandparent of child.txt; a depth-0 lock there governs
+    // only /documents' own membership, not a nested descendant.
+    const ctx = makeStubCtx({
+      queries: {
+        'webdav/lock_queries:findLockForPath': lockAt('/documents', {
           depth: '0',
         }),
         ...docResolve,
@@ -226,5 +249,43 @@ describe('WebDAV COPY source-lock relaxation', () => {
     );
     // Old behavior 423 (blocked on source lock); fixed behavior 201.
     expect(res.status).toBe(201);
+  });
+});
+
+// If: header conditions within a List are AND-ed (RFC 4918 §10.4.3) and `[etag]`
+// terms are evaluated against the resource ETag (§10.4.4). Guards the fix where
+// a correct lock token plus a NON-matching [etag] used to wrongly satisfy the
+// lock (the etag was ignored).
+describe('WebDAV If: header ETag/AND evaluation', () => {
+  it('PUT overwrite with matching token but NON-matching [etag] → 412', async () => {
+    const ctx = makeStubCtx({
+      queries: {
+        'webdav/lock_queries:findLockForPath': lockAt('/documents/locked.txt'),
+        'webdav/tree_queries:resolvePath': () => ({
+          exists: true,
+          kind: 'document',
+          documentId: 'doc_1',
+        }),
+        // computeETag(contentHash) => "real-hash"
+        'webdav/tree_queries:getDocumentProps': () => ({
+          contentHash: 'real-hash',
+        }),
+      },
+    });
+    const res = await dispatch(
+      makeRequest({
+        method: 'PUT',
+        pathname: '/dav/myorg/documents/locked.txt',
+        authenticated: true,
+        headers: {
+          'content-length': '3',
+          if: `(<opaquelocktoken:${LOCK_TOKEN}> ["wrong-hash"])`,
+        },
+        body: 'abc',
+      }),
+      ctx,
+    );
+    // Token matches but the AND-ed etag does not → precondition failed.
+    expect(res.status).toBe(412);
   });
 });

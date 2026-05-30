@@ -101,16 +101,19 @@ export const ingestPutBlob = internalMutation({
       folderId = found;
     }
 
-    // Find existing doc by (folderId, title) — overwrite case
-    const candidates = await ctx.db
+    // Find the existing doc to overwrite by exact (org, title), filtered to
+    // this folder + active in memory. Indexing by title (not scanning the
+    // whole folder) keeps a large flat folder from blowing the single-query
+    // read ceiling.
+    const titleMatches = await ctx.db
       .query('documents')
-      .withIndex('by_organizationId_and_folderId', (q) =>
-        q.eq('organizationId', args.organizationId).eq('folderId', folderId),
+      .withIndex('by_organizationId_and_title', (q) =>
+        q.eq('organizationId', args.organizationId).eq('title', fileName),
       )
       .collect();
-    const existing = candidates.find(
+    const existing = titleMatches.find(
       (d) =>
-        (d.title ?? '') === fileName &&
+        (d.folderId ?? undefined) === folderId &&
         (d.lifecycleStatus ?? 'active') === 'active',
     );
 
@@ -543,17 +546,19 @@ async function findCollision(
     .first();
   if (folder) return { kind: 'folder', id: folder._id };
 
-  const docs = await ctx.db
+  // Query by exact (org, title) and filter to this folder in memory, rather
+  // than scanning the entire folder: a large flat folder would blow Convex's
+  // single-query read ceiling. Same-title docs in one org are few in practice.
+  const titleMatches = await ctx.db
     .query('documents')
-    .withIndex('by_organizationId_and_folderId', (q) =>
-      q
-        .eq('organizationId', organizationId)
-        .eq('folderId', parentFolderId ?? undefined),
+    .withIndex('by_organizationId_and_title', (q) =>
+      q.eq('organizationId', organizationId).eq('title', name),
     )
     .collect();
-  const doc = docs.find(
+  const doc = titleMatches.find(
     (d) =>
-      (d.title ?? '') === name && (d.lifecycleStatus ?? 'active') === 'active',
+      (d.folderId ?? undefined) === (parentFolderId ?? undefined) &&
+      (d.lifecycleStatus ?? 'active') === 'active',
   );
   if (doc) return { kind: 'document', id: doc._id };
   return null;

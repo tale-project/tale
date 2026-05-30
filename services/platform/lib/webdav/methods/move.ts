@@ -108,7 +108,11 @@ async function doMoveOrCopy(
   // per §9.8.5 it MUST NOT require the source lock token — enforcing it here
   // wrongly blocked copying out of a locked tree.
   if (op === 'MOVE') {
-    const srcLock = await checkResourceLock(req, ctx, auth, parsed);
+    const srcLock = await checkResourceLock(req, ctx, auth, parsed, {
+      // MOVE removes the source from its parent collection, so a depth-0 lock
+      // on the source's direct parent must block it too (RFC 4918 §9.10.4).
+      directParentDepth0: true,
+    });
     if (!srcLock.ok) {
       return {
         status: srcLock.status,

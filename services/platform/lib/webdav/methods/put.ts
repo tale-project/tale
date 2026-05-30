@@ -11,6 +11,7 @@ import {
   type WebDAVRequest,
   type WebDAVResponse,
 } from '../types';
+import { computeETag } from './get';
 
 const ALLOW_ON_COLLECTION =
   'OPTIONS, PROPFIND, DELETE, MOVE, COPY, PROPPATCH, LOCK';
@@ -55,6 +56,26 @@ export async function handlePut(
     },
   );
 
+  // If the client sent an `[etag]` precondition in the If: header, resolve the
+  // target's current ETag so the lock check can evaluate it (RFC 4918 §10.4.4
+  // — optimistic concurrency on a locked overwrite). The `[` only appears for
+  // entity-tag terms, so this gates the extra query to the rare conditional
+  // case.
+  let resourceEtag: string | undefined;
+  const ifHeader = req.headers.get('if');
+  if (
+    resolved.exists &&
+    resolved.kind === 'document' &&
+    ifHeader !== null &&
+    ifHeader.includes('[')
+  ) {
+    const props = await ctx.convex.query(
+      anyApi.webdav.tree_queries.getDocumentProps,
+      { organizationId: auth.organizationId, documentId: resolved.documentId },
+    );
+    if (props) resourceEtag = computeETag(props);
+  }
+
   // Lock enforcement applies to BOTH overwrite and create:
   //  - overwriting an existing locked document (RFC 4918 §9.7 / §6.4),
   //  - an exact-path lock on an unmapped URL (lock-null reservation, §7.3) —
@@ -63,7 +84,13 @@ export async function handlePut(
   // checkResourceLock enumerates the leaf (any depth) + ancestors (infinity),
   // so one call covers all three. The previous code gated on resolved.exists
   // and therefore skipped every lock check on a fresh PUT.
-  const lockResult = await checkResourceLock(req, ctx, auth, parsed);
+  const lockResult = await checkResourceLock(req, ctx, auth, parsed, {
+    // A fresh PUT adds a new member to the parent collection, so a depth-0 lock
+    // on the direct parent blocks it (RFC 4918 §9.10.4). Overwriting an
+    // existing document changes no membership, so leave it false there.
+    directParentDepth0: !resolved.exists,
+    resourceEtag,
+  });
   if (!lockResult.ok) {
     return {
       status: lockResult.status,

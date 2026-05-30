@@ -24,9 +24,17 @@ export async function handleDelete(
     return { status: 403, headers: {}, body: 'Cannot delete the root' };
   }
 
-  const lockResult = await checkResourceLock(req, ctx, auth, parsed);
+  // DELETE removes the leaf from its parent collection, so a depth-0 lock on
+  // the direct parent must also block it (RFC 4918 §9.10.4).
+  const lockResult = await checkResourceLock(req, ctx, auth, parsed, {
+    directParentDepth0: true,
+  });
   if (!lockResult.ok) {
-    return { status: lockResult.status, headers: {}, body: lockResult.reason };
+    return {
+      status: lockResult.status,
+      headers: lockResult.headers,
+      body: lockResult.body,
+    };
   }
 
   const resolved = await ctx.convex.query(
