@@ -159,35 +159,29 @@ function DashboardLayout() {
     }
   }, [status, navigate]);
 
-  // Gate the entire child tree behind a confirmed-access answer. Until
-  // memberContext resolves with status === 'ok', do NOT render the layout
-  // chrome or Outlet. Child routes (chat, agents, …) mount Convex
-  // subscriptions on mount; several use convex/react's useQuery, which
-  // *throws* to React on UnauthorizedError. If the user lands on a deleted
-  // or unauthorized org URL, those throws hit the inner LayoutErrorBoundary
-  // and surface "Something went wrong" before this layout has a chance to
-  // bail out. Showing a centred spinner while the access check is in flight
-  // also avoids a brief chrome flash on cold loads.
-  if (!hasRole) {
-    if (memberContext && status !== 'ok') {
-      return (
-        <FullPageCenter>
-          {status === 'not_found' ? (
-            <AccessDenied
-              title={tNotFound('notFound.title')}
-              message={t('workspaceNotFound')}
-            />
-          ) : (
-            <AccessDenied
-              message={t(isDisabled ? 'disabled' : 'noMembership')}
-            />
-          )}
-        </FullPageCenter>
-      );
-    }
-    return <DashboardShellFrame />;
+  // Access resolved but denied → full-page message. Don't mount layout chrome
+  // that would leak Convex subscriptions.
+  if (!hasRole && memberContext && status !== 'ok') {
+    return (
+      <FullPageCenter>
+        {status === 'not_found' ? (
+          <AccessDenied
+            title={tNotFound('notFound.title')}
+            message={t('workspaceNotFound')}
+          />
+        ) : (
+          <AccessDenied message={t(isDisabled ? 'disabled' : 'noMembership')} />
+        )}
+      </FullPageCenter>
+    );
   }
 
+  // One real shell. The static frame renders immediately; the access-dependent
+  // regions (side nav, mobile nav, banners, Outlet) each gate on `hasRole`
+  // individually so they load in independently once access resolves. Until
+  // then we must NOT mount the Convex-subscribing children — chat/agents/… use
+  // convex/react's useQuery, which *throws* UnauthorizedError on mount — so
+  // each region shows a masked placeholder in place of its real component.
   return (
     <AbilityContext.Provider value={ability}>
       <AbilityLoadingContext.Provider value={isLoading}>
@@ -204,7 +198,11 @@ function DashboardLayout() {
                 </header>
 
                 <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
-                  <Navigation organizationId={organizationId} />
+                  {hasRole ? (
+                    <Navigation organizationId={organizationId} />
+                  ) : (
+                    <NavRailPlaceholder />
+                  )}
                 </div>
 
                 <main
@@ -220,21 +218,23 @@ function DashboardLayout() {
                     />
                   )}
                   {hasRole && <ChangelogToastTrigger />}
-                  {isSwitching ? (
-                    <FullPageCenter>
-                      <VStack gap={3} align="center">
-                        <Spinner
-                          size="lg"
-                          label={tSettings('organization.switchingLabel')}
-                        />
-                        <Text variant="muted" className="text-sm">
-                          {tSettings('organization.switching')}
-                        </Text>
-                      </VStack>
-                    </FullPageCenter>
-                  ) : (
-                    <Outlet />
-                  )}
+                  {hasRole ? (
+                    isSwitching ? (
+                      <FullPageCenter>
+                        <VStack gap={3} align="center">
+                          <Spinner
+                            size="lg"
+                            label={tSettings('organization.switchingLabel')}
+                          />
+                          <Text variant="muted" className="text-sm">
+                            {tSettings('organization.switching')}
+                          </Text>
+                        </VStack>
+                      </FullPageCenter>
+                    ) : (
+                      <Outlet />
+                    )
+                  ) : null}
                 </main>
                 {hasRole && <MobileBottomNav organizationId={organizationId} />}
               </div>
@@ -246,54 +246,64 @@ function DashboardLayout() {
   );
 }
 
-// Dashboard chrome rendered while auth + member context resolve. Mirrors the
-// resolved layout's outer frame exactly (same `h-dvh` lock, mobile top/bottom
-// bars, desktop side-nav geometry) so the real chrome slots in without reflow
-// once access is known. Wrapped in `<Skeletonize loading>` so the nav leaves
-// mask themselves; the middle nav column is an empty `flex-1` spacer because
-// the real (CASL-gated) item count isn't known until auth resolves.
-export function DashboardShellFrame() {
+// Masked desktop side-nav rail shown while access resolves (the CASL-gated item
+// count isn't known yet, so the middle is an empty spacer). Mirrors the real
+// Navigation rail geometry so it slots in without reflow.
+function NavRailPlaceholder() {
   return (
     <Skeletonize loading>
-      <div className="flex h-dvh w-full flex-col overflow-hidden md:flex-row">
-        {/* Mobile top bar */}
-        <div className="bg-background border-border flex items-center gap-2 border-b p-2 pt-[calc(var(--safe-top)+0.75rem)] md:hidden">
+      <div className="border-border flex h-full flex-col">
+        <div className="flex flex-shrink-0 items-center justify-center py-3">
+          <SkeletonBox>
+            <div className="size-8" />
+          </SkeletonBox>
+        </div>
+        <div className="mx-1 min-h-0 flex-1 overflow-y-auto py-4" />
+        <div className="flex flex-shrink-0 flex-col items-center gap-2 py-3">
+          <SkeletonCircle>
+            <div className="size-9" />
+          </SkeletonCircle>
+          <SkeletonCircle>
+            <div className="size-9" />
+          </SkeletonCircle>
+          <SkeletonCircle>
+            <div className="size-9" />
+          </SkeletonCircle>
+        </div>
+      </div>
+    </Skeletonize>
+  );
+}
+
+// Full-frame dashboard chrome for the redirect routes (`/dashboard`,
+// `/dashboard/create-organization`) that have no Outlet/nav of their own and
+// just need the shell to show while they resolve which org to route to.
+// Mirrors the resolved layout's outer frame so the real chrome slots in without
+// reflow.
+export function DashboardShellFrame() {
+  return (
+    <div className="flex h-dvh w-full flex-col overflow-hidden md:flex-row">
+      {/* Mobile top bar */}
+      <div className="bg-background border-border flex items-center gap-2 border-b p-2 pt-[calc(var(--safe-top)+0.75rem)] md:hidden">
+        <Skeletonize loading>
           <SkeletonBox>
             <div className="size-8" />
           </SkeletonBox>
           <SkeletonBox>
             <div className="h-4 w-32" />
           </SkeletonBox>
-        </div>
-
-        {/* Desktop side nav */}
-        <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
-          <div className="border-border flex h-full flex-col">
-            <div className="flex flex-shrink-0 items-center justify-center py-3">
-              <SkeletonBox>
-                <div className="size-8" />
-              </SkeletonBox>
-            </div>
-            <div className="mx-1 min-h-0 flex-1 overflow-y-auto py-4" />
-            <div className="flex flex-shrink-0 flex-col items-center gap-2 py-3">
-              <SkeletonCircle>
-                <div className="size-9" />
-              </SkeletonCircle>
-              <SkeletonCircle>
-                <div className="size-9" />
-              </SkeletonCircle>
-              <SkeletonCircle>
-                <div className="size-9" />
-              </SkeletonCircle>
-            </div>
-          </div>
-        </div>
-
-        <main className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l" />
-
-        {/* Mobile bottom-nav placeholder */}
-        <div className="bg-background border-border flex min-h-12 border-t pb-(--safe-bottom) md:hidden" />
+        </Skeletonize>
       </div>
-    </Skeletonize>
+
+      {/* Desktop side nav */}
+      <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
+        <NavRailPlaceholder />
+      </div>
+
+      <main className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l" />
+
+      {/* Mobile bottom-nav placeholder */}
+      <div className="bg-background border-border flex min-h-12 border-t pb-(--safe-bottom) md:hidden" />
+    </div>
   );
 }
