@@ -260,7 +260,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
       </div>
 
       <AdaptiveHeaderRoot className="md:hidden">
-        <div className="flex flex-1 justify-end">
+        <div className="flex flex-1 justify-start">
           <Button
             size="icon"
             variant="ghost"

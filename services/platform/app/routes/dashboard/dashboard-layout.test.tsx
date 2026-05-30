@@ -3,9 +3,9 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// jsdom doesn't ship ResizeObserver; `MobileBottomNav` uses it to publish the
-// nav's measured height as a CSS var. Stub before the layout (and its mobile
-// subtree) mount.
+// jsdom doesn't ship ResizeObserver; Radix primitives (popovers, sheets,
+// tooltips) pulled in by the layout's children depend on it. Stub before any
+// component mounts.
 class MockResizeObserver {
   observe = vi.fn();
   unobserve = vi.fn();
@@ -122,12 +122,20 @@ vi.mock('@/app/components/layout/adaptive-header', () => ({
   AdaptiveHeaderSlot: () => null,
 }));
 
-vi.mock('@/app/components/ui/navigation/mobile-navigation', () => ({
-  MobileNavigation: () => null,
-}));
-
 vi.mock('@/app/components/ui/navigation/navigation', () => ({
   Navigation: () => null,
+}));
+
+vi.mock('@/app/components/user-button', () => ({
+  UserButton: () => null,
+}));
+
+vi.mock('@/app/components/layout/mobile-bottom-nav', () => ({
+  MobileBottomNav: () => null,
+}));
+
+vi.mock('@/app/components/layout/mobile-back-button', () => ({
+  MobileBackButton: () => null,
 }));
 
 vi.mock('@/app/hooks/use-team-filter', () => ({
@@ -268,7 +276,7 @@ describe('DashboardLayout', () => {
       replace: true,
     });
     // Until redirect commits, the AccessDenied fallback is shown without
-    // layout chrome (no outlet, no Navigation/MobileNavigation subscriptions).
+    // layout chrome (no outlet, no Navigation subscriptions).
     expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
   });
 

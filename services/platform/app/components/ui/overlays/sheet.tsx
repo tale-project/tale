@@ -18,17 +18,34 @@ import { useResizable } from '@/app/hooks/use-resizable';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+// Safe-area padding is layered into the design `p-6` via per-edge calc() so
+// the panel's content clears the iOS notch / home indicator / rounded corners
+// in standalone PWAs. `env(safe-area-inset-*)` resolves to 0 on browsers
+// without `viewport-fit=cover`, leaving a flat 1.5rem on desktop.
+//
+// The base only applies safe-area padding to the two axes that always touch a
+// viewport edge for ANY sheet variant (left + right). The cross-axis padding
+// is applied per `side`: only the edges where the panel actually meets a
+// viewport boundary get the inset. A `side="bottom"` sheet, for example, does
+// not abut the status bar, so adding `--safe-top` there is wasted space — in
+// mobile Safari (non-standalone) it shows up as a noticeable ~50px gap at the
+// top of the sheet content.
+//
+// Consumers that pass `p-0` (custom layouts that manage their own padding)
+// will twMerge-strip these per-side rules — those layouts must apply
+// `pt-(--safe-top)` etc. on their own inner content. The chat-history
+// sidebar and settings drawer panels follow that pattern.
 const sheetVariants = cva(
-  'fixed z-50 gap-4 overflow-y-auto bg-background p-6 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out',
+  'fixed z-50 gap-4 overflow-y-auto bg-background p-6 pr-[calc(1.5rem+var(--safe-right))] pl-[calc(1.5rem+var(--safe-left))] shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out',
   {
     variants: {
       side: {
-        top: 'inset-x-0 top-0 h-full sm:h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top',
+        top: 'inset-x-0 top-0 h-full sm:h-auto border-b pt-[calc(1.5rem+var(--safe-top))] data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top',
         bottom:
-          'inset-x-0 bottom-0 h-full sm:h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
-        left: 'inset-y-0 left-0 h-full w-full sm:w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm',
+          'inset-x-0 bottom-0 h-full sm:h-auto border-t pb-[calc(1.5rem+var(--safe-bottom))] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
+        left: 'inset-y-0 left-0 h-full w-full sm:w-3/4 border-r pt-[calc(1.5rem+var(--safe-top))] pb-[calc(1.5rem+var(--safe-bottom))] data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm',
         right:
-          'inset-y-0 right-0 h-full w-full sm:w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm',
+          'inset-y-0 right-0 h-full w-full sm:w-3/4 border-l pt-[calc(1.5rem+var(--safe-top))] pb-[calc(1.5rem+var(--safe-bottom))] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm',
       },
       size: {
         sm: '',
@@ -228,7 +245,16 @@ export function Sheet({
           {children}
           {!hideClose && (
             <DialogPrimitive.Close
-              className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:pointer-events-none"
+              className={cn(
+                'ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:pointer-events-none',
+                // Only add safe-area offsets on the edges this side abuts —
+                // matches the per-side padding logic in `sheetVariants`.
+                side === 'bottom'
+                  ? 'top-4 right-[calc(1rem+var(--safe-right))]'
+                  : side === 'left'
+                    ? 'top-[calc(1rem+var(--safe-top))] right-4'
+                    : 'top-[calc(1rem+var(--safe-top))] right-[calc(1rem+var(--safe-right))]',
+              )}
               asChild
             >
               <SheetCloseButton />

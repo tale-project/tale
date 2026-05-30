@@ -280,7 +280,13 @@ export function ChatHistorySidebar({
   return (
     <div
       className={cn(
+        // Safe-area insets are added on top of the design padding so the
+        // sidebar's first row clears the iOS notch and the last row clears
+        // the home indicator when this sidebar is mounted inside a
+        // full-height mobile Sheet (which passes `p-0`, opting out of the
+        // Sheet primitive's own safe-area padding).
         'flex flex-[1_1_0] flex-col overflow-hidden px-2.5 py-3.5',
+        'pt-[calc(0.875rem+var(--safe-top))] pb-[calc(0.875rem+var(--safe-bottom))] pl-[calc(0.625rem+var(--safe-left))]',
         className,
       )}
       {...restProps}

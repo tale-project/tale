@@ -19,7 +19,6 @@ import {
   UsersRound,
   Languages,
   Building2,
-  Settings as SettingsIcon,
   Download,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -283,39 +282,6 @@ export function UserButton({
           },
         ]);
       }
-
-      // Settings entry points — split between user-scoped settings (account,
-      // personalization) and organization-scoped settings (everything else).
-      // Use `onClick` + `navigate()` instead of `href` so TanStack Router
-      // does client-side navigation; an `<a href>` would full-reload.
-      groups.push([
-        {
-          type: 'item',
-          label: tNav('userSettings'),
-          icon: SettingsIcon,
-          onClick: () => {
-            void navigate({
-              to: '/dashboard/$id/settings/personal',
-              params: { id: organizationId },
-            });
-            onNavigate?.();
-          },
-          className: 'py-2.5',
-        },
-        {
-          type: 'item',
-          label: tNav('orgSettings'),
-          icon: Building2,
-          onClick: () => {
-            void navigate({
-              to: '/dashboard/$id/settings',
-              params: { id: organizationId },
-            });
-            onNavigate?.();
-          },
-          className: 'py-2.5',
-        },
-      ]);
     }
 
     groups.push([

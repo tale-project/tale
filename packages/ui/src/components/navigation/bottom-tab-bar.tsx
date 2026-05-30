@@ -23,6 +23,12 @@ export interface BottomTabBarItem {
    * on the active state. When absent, the active state uses the muted token.
    */
   accentColor?: string;
+  /**
+   * Mark a single item as the bar's primary action. Renders with a permanent
+   * pill background (even when inactive) and a slightly larger icon, so the
+   * center slot reads as "the main thing" without breaking tab-bar layout.
+   */
+  featured?: boolean;
 }
 
 export interface BottomTabBarProps extends Omit<
@@ -37,10 +43,10 @@ export interface BottomTabBarProps extends Omit<
 /**
  * In-flow bottom tab bar primitive. Renders 2-5 items as a row of equally-sized
  * touch targets (44×44 min). Honors `env(safe-area-inset-bottom)` (via the
- * `--safe-bottom` token) so the bar clears the iOS home indicator. Designed to
- * be the last child of a `h-dvh` flex-column app shell so the content area
- * shrinks to exactly the space above it — no JS height measurement. Hidden on
- * `md+` viewports — desktop uses a sidebar.
+ * `--safe-bottom` token) so the buttons clear the iOS home-indicator gesture
+ * zone. Designed to be the last child of a flex-column app shell sized to the
+ * viewport (`h-full` / `h-dvh`). Hidden on `md+` viewports — desktop uses a
+ * sidebar.
  *
  * The bar has no router knowledge: callers pass `onSelect` per item and wire
  * navigation themselves (e.g. via `useNavigate()`).
@@ -71,10 +77,11 @@ interface BottomTabBarButtonProps {
 
 function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
   const Icon = item.icon;
+  const showPill = item.active || item.featured;
   const activeStyle =
     item.active && item.accentColor ? { color: item.accentColor } : undefined;
   const pillStyle =
-    item.active && item.accentColor
+    showPill && item.accentColor
       ? { backgroundColor: `${item.accentColor}1f` }
       : undefined;
   return (
@@ -96,11 +103,14 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
       <span
         className={cn(
           'relative inline-flex h-7 min-w-12 items-center justify-center rounded-full px-3 transition-colors',
-          item.active && !item.accentColor && 'bg-muted',
+          showPill && !item.accentColor && 'bg-muted',
         )}
         style={pillStyle}
       >
-        <Icon className="size-5" aria-hidden="true" />
+        <Icon
+          className={cn('size-5', item.featured && 'size-6')}
+          aria-hidden="true"
+        />
         {item.badge !== undefined && (
           <>
             <span
@@ -116,7 +126,7 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
           </>
         )}
       </span>
-      <span className="line-clamp-2 max-w-full text-center leading-tight text-balance wrap-break-word">
+      <span className="w-full truncate text-center text-[10px] leading-tight">
         {item.label}
       </span>
     </button>

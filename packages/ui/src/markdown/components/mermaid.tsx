@@ -500,7 +500,7 @@ export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
   if (isFullscreen) {
     return (
       <div
-        className="bg-bg-base/95 supports-backdrop-filter:bg-bg-base/85 fixed inset-0 z-50 flex flex-col p-4 backdrop-blur"
+        className="bg-bg-base/95 supports-backdrop-filter:bg-bg-base/85 fixed inset-0 z-50 flex flex-col p-4 pt-[calc(1rem+var(--safe-top))] pr-[calc(1rem+var(--safe-right))] pb-[calc(1rem+var(--safe-bottom))] pl-[calc(1rem+var(--safe-left))] backdrop-blur"
         role="dialog"
         aria-modal="true"
         aria-label="Mermaid diagram (fullscreen)"

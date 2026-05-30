@@ -13,10 +13,11 @@ import {
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
 import { DashboardShellSkeleton } from '@/app/components/layout/dashboard-shell-skeleton';
+import { MobileBackButton } from '@/app/components/layout/mobile-back-button';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { DirtyBlockerProvider } from '@/app/components/ui/editor';
-import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
+import { UserButton } from '@/app/components/user-button';
 import {
   AbilityContext,
   AbilityLoadingContext,
@@ -181,11 +182,14 @@ function DashboardLayout() {
         <TeamFilterProvider organizationId={organizationId}>
           <DirtyBlockerProvider>
             <AdaptiveHeaderProvider>
-              <div className="flex h-dvh w-full flex-col overflow-hidden md:flex-row">
-                <div className="bg-background border-border flex items-center gap-2 border-b p-2 pt-[calc(var(--safe-top)+0.75rem)] md:hidden">
-                  <MobileNavigation organizationId={organizationId} />
-                  <AdaptiveHeaderSlot />
-                </div>
+              <div className="flex h-full w-full flex-col overflow-hidden md:flex-row">
+                <header className="bg-background border-border flex items-center gap-2 border-b px-4 pt-(--safe-top) pb-2 md:hidden">
+                  <MobileBackButton organizationId={organizationId} />
+                  <div className="min-w-0 flex-1">
+                    <AdaptiveHeaderSlot />
+                  </div>
+                  <UserButton align="end" />
+                </header>
 
                 <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
                   <Navigation organizationId={organizationId} />

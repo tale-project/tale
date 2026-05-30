@@ -21,7 +21,7 @@ function AuthLayout() {
       align="stretch"
       className="bg-background text-foreground min-h-dvh"
     >
-      <div className="px-4 pt-8 pb-16 sm:px-8 md:pb-32">
+      <div className="pt-[calc(2rem+var(--safe-top))] pr-[calc(1rem+var(--safe-right))] pb-16 pl-[calc(1rem+var(--safe-left))] sm:pr-[calc(2rem+var(--safe-right))] sm:pl-[calc(2rem+var(--safe-left))] md:pb-32">
         <LogoLink href="/" />
       </div>
       <main id="main-content">
