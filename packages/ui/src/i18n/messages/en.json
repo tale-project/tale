@@ -2,6 +2,9 @@
   "languageSwitcher": {
     "ariaLabel": "Switch language"
   },
+  "skeleton": {
+    "loading": "Loading content"
+  },
   "themeSwitcher": {
     "ariaLabel": "Switch theme",
     "light": "Light",

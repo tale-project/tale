@@ -7,7 +7,8 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack } from '@tale/ui/layout';
 import { Separator } from '@tale/ui/separator';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Download, X, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
@@ -58,7 +59,20 @@ function SidebarRow({
   );
 }
 
-function DetailsSidebar({ doc }: { doc: Document }) {
+// Masked placeholder values rendered while the metadata is still loading, so
+// the sidebar renders its real row structure with masked leaves rather than a
+// separate skeleton component.
+const PLACEHOLDER_NAME = 'Document name.pdf';
+const PLACEHOLDER_SIZE = 0;
+
+function DetailsSidebar({
+  doc,
+  loading,
+}: {
+  /** Undefined while the metadata is still loading; rows render masked. */
+  doc?: Document;
+  loading?: boolean;
+}) {
   const { t } = useT('documents');
   const { formatDate } = useFormatDate();
   const { locale } = useLocale();
@@ -67,11 +81,11 @@ function DetailsSidebar({ doc }: { doc: Document }) {
   const { data: legalHold } = useLegalHoldByTarget({
     organizationId: organizationId ?? undefined,
     targetType: 'document',
-    targetId: doc.id,
+    targetId: doc?.id,
   });
 
   const teamNames = useMemo(() => {
-    const ids = doc.teamIds ?? [];
+    const ids = doc?.teamIds ?? [];
     if (ids.length === 0 || !teams) return [];
     return ids
       .map(
@@ -80,7 +94,7 @@ function DetailsSidebar({ doc }: { doc: Document }) {
             ?.name,
       )
       .filter(Boolean);
-  }, [doc.teamIds, teams]);
+  }, [doc?.teamIds, teams]);
 
   const sourceLabel = useMemo(() => {
     const labels: Record<string, string> = {
@@ -88,107 +102,98 @@ function DetailsSidebar({ doc }: { doc: Document }) {
       onedrive: t('preview.sidebar.sourceOnedrive'),
       sharepoint: t('preview.sidebar.sourceSharepoint'),
     };
-    return labels[doc.sourceProvider ?? 'upload'] ?? doc.sourceProvider;
-  }, [doc.sourceProvider, t]);
+    return labels[doc?.sourceProvider ?? 'upload'] ?? doc?.sourceProvider;
+  }, [doc?.sourceProvider, t]);
 
   const modifiedDate = useMemo(() => {
-    if (!doc.lastModified) return undefined;
+    if (!doc?.lastModified) return undefined;
     return formatDate(new Date(doc.lastModified), 'short');
-  }, [doc.lastModified, formatDate]);
+  }, [doc?.lastModified, formatDate]);
 
   return (
-    <aside
-      className="flex w-[220px] shrink-0 flex-col gap-3 overflow-y-auto"
-      aria-label={t('preview.sidebar.document')}
+    <Skeletonize
+      loading={loading ?? false}
+      label={t('preview.sidebar.document')}
+      className="contents"
     >
-      <SidebarRow label={t('preview.sidebar.document')}>
-        <HStack gap={2} className="items-center">
-          <DocumentIcon fileName={doc.name ?? ''} className="w-4" />
-          <span className="truncate">{doc.name}</span>
-        </HStack>
-      </SidebarRow>
-
-      {doc.size != null && (
-        <SidebarRow label={t('preview.sidebar.size')}>
-          {formatBytes(doc.size, locale)}
+      <aside
+        className="flex w-[220px] shrink-0 flex-col gap-3 overflow-y-auto"
+        aria-label={t('preview.sidebar.document')}
+      >
+        <SidebarRow label={t('preview.sidebar.document')}>
+          <HStack gap={2} className="items-center">
+            <DocumentIcon fileName={doc?.name ?? ''} className="w-4" />
+            <span className="truncate">
+              <SkeletonBox>{doc?.name ?? PLACEHOLDER_NAME}</SkeletonBox>
+            </span>
+          </HStack>
         </SidebarRow>
-      )}
 
-      <SidebarRow label={t('preview.sidebar.source')}>{sourceLabel}</SidebarRow>
-
-      <Separator />
-
-      <SidebarRow label={t('preview.sidebar.ragStatus')}>
-        <HStack gap={2} className="flex-wrap items-center">
-          <RagStatusBadge
-            status={doc.ragStatus}
-            indexedAt={doc.ragIndexedAt}
-            error={doc.ragError}
-            documentId={doc.id}
-          />
-          <LegalHoldBadge hold={legalHold} />
-        </HStack>
-      </SidebarRow>
-
-      {doc.scannedPagesDetected != null && doc.scannedPagesDetected > 0 && (
-        <SidebarRow label={t('preview.sidebar.imagePages')}>
-          {String(doc.scannedPagesDetected)}
-          {doc.ragStatus === 'completed' && doc.ocrApplied != null && (
-            <Text variant="label-sm" className="text-muted-foreground">
-              {doc.ocrApplied
-                ? t('ocr.processingWithOcr')
-                : t('ocr.unavailable')}
-            </Text>
-          )}
-        </SidebarRow>
-      )}
-
-      <Separator />
-
-      {teamNames.length > 0 && (
-        <SidebarRow label={t('preview.sidebar.teams')}>
-          {teamNames.join(', ')}
-        </SidebarRow>
-      )}
-
-      {doc.createdByName && (
-        <SidebarRow label={t('preview.sidebar.uploadedBy')}>
-          {doc.createdByName}
-        </SidebarRow>
-      )}
-
-      {modifiedDate && (
-        <>
-          <Separator />
-          <SidebarRow label={t('preview.sidebar.modified')}>
-            {modifiedDate}
+        {loading || doc?.size != null ? (
+          <SidebarRow label={t('preview.sidebar.size')}>
+            <SkeletonBox>
+              {formatBytes(doc?.size ?? PLACEHOLDER_SIZE, locale)}
+            </SkeletonBox>
           </SidebarRow>
-        </>
-      )}
-    </aside>
-  );
-}
+        ) : null}
 
-/**
- * Loading placeholder for `DetailsSidebar` — same `w-[220px]` fixed width and
- * stacked-row rhythm, so the metadata column doesn't appear and shove the
- * preview pane sideways once the document resolves.
- */
-function DetailsSidebarSkeleton() {
-  const { t } = useT('documents');
-  return (
-    <aside
-      aria-hidden="true"
-      className="flex w-[220px] shrink-0 flex-col gap-3 overflow-hidden"
-      aria-label={t('preview.sidebar.document')}
-    >
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex flex-col gap-1">
-          <Skeleton className="h-3 w-16" />
-          <Skeleton className="h-4 w-32" />
-        </div>
-      ))}
-    </aside>
+        <SidebarRow label={t('preview.sidebar.source')}>
+          <SkeletonBox>{sourceLabel}</SkeletonBox>
+        </SidebarRow>
+
+        <Separator />
+
+        <SidebarRow label={t('preview.sidebar.ragStatus')}>
+          <HStack gap={2} className="flex-wrap items-center">
+            <SkeletonBox>
+              <RagStatusBadge
+                status={doc?.ragStatus}
+                indexedAt={doc?.ragIndexedAt}
+                error={doc?.ragError}
+                documentId={doc?.id}
+              />
+            </SkeletonBox>
+            <LegalHoldBadge hold={legalHold} />
+          </HStack>
+        </SidebarRow>
+
+        {doc?.scannedPagesDetected != null && doc.scannedPagesDetected > 0 && (
+          <SidebarRow label={t('preview.sidebar.imagePages')}>
+            {String(doc.scannedPagesDetected)}
+            {doc.ragStatus === 'completed' && doc.ocrApplied != null && (
+              <Text variant="label-sm" className="text-muted-foreground">
+                {doc.ocrApplied
+                  ? t('ocr.processingWithOcr')
+                  : t('ocr.unavailable')}
+              </Text>
+            )}
+          </SidebarRow>
+        )}
+
+        <Separator />
+
+        {teamNames.length > 0 && (
+          <SidebarRow label={t('preview.sidebar.teams')}>
+            {teamNames.join(', ')}
+          </SidebarRow>
+        )}
+
+        {doc?.createdByName && (
+          <SidebarRow label={t('preview.sidebar.uploadedBy')}>
+            {doc.createdByName}
+          </SidebarRow>
+        )}
+
+        {modifiedDate && (
+          <>
+            <Separator />
+            <SidebarRow label={t('preview.sidebar.modified')}>
+              {modifiedDate}
+            </SidebarRow>
+          </>
+        )}
+      </aside>
+    </Skeletonize>
   );
 }
 
@@ -303,33 +308,30 @@ export function DocumentPreviewDialog({
         </div>
       }
     >
-      {isLoading && (
-        // Same two-column shell as the loaded state (preview pane + metadata
-        // sidebar) so the document swaps in without the layout jumping from a
-        // centered text line to a full split view.
-        <div className="flex h-full min-h-0 gap-5 px-5 pb-5">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <PreviewPaneSkeleton />
-          </div>
-          {/* The metadata sidebar only renders when a `documentId` resolves to
-              a doc; gate the placeholder the same way so the citation-card
-              (fileId-only) path isn't given a column it never fills. */}
-          {documentId && <DetailsSidebarSkeleton />}
-        </div>
-      )}
-      {!isLoading && !resolvedUrl && open && (
+      {!isLoading && !resolvedUrl && open ? (
         <div className="grid flex-1 place-items-center p-6">
           <Text as="div" variant="error">
             {t('preview.failedToLoad')}
           </Text>
         </div>
-      )}
-      {!isLoading && resolvedUrl && (
+      ) : (
+        // Single two-column shell (preview pane + metadata sidebar) for both the
+        // loading and loaded states, so the document swaps in without the
+        // layout jumping. The preview pane keeps the lazy/inflight
+        // `PreviewPaneSkeleton` fallback until a URL resolves; the sidebar
+        // renders its real structure with masked leaves while loading.
         <div className="flex h-full min-h-0 gap-5 px-5 pb-5">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <DocumentPreview url={resolvedUrl} fileName={displayName} />
+            {resolvedUrl ? (
+              <DocumentPreview url={resolvedUrl} fileName={displayName} />
+            ) : (
+              <PreviewPaneSkeleton />
+            )}
           </div>
-          {doc && <DetailsSidebar doc={doc} />}
+          {/* The metadata sidebar only renders when a `documentId` is in play;
+              gate it the same way so the citation-card (fileId-only) path isn't
+              given a column it never fills. */}
+          {documentId && <DetailsSidebar doc={doc} loading={isLoading} />}
         </div>
       )}
     </Dialog>

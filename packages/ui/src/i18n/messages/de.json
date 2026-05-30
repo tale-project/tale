@@ -2,6 +2,9 @@
   "languageSwitcher": {
     "ariaLabel": "Sprache wechseln"
   },
+  "skeleton": {
+    "loading": "Inhalt wird geladen"
+  },
   "themeSwitcher": {
     "ariaLabel": "Design wechseln",
     "light": "Hell",

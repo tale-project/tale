@@ -1,8 +1,10 @@
 import { Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute } from '@tanstack/react-router';
-import { Suspense, lazy, useMemo } from 'react';
+import { lazy, useMemo } from 'react';
 
+import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { seo } from '@/lib/utils/seo';
 
@@ -19,16 +21,30 @@ export const Route = createFileRoute('/docs')({
 
 function SwaggerSkeleton() {
   return (
-    <ContentArea variant="page" gap={4} className="p-8">
-      <Skeleton className="h-10 w-full max-w-md" />
-      <Skeleton className="h-8 w-3/4" />
-      <Stack gap={2}>
-        <Skeleton className="h-6 w-1/2" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
-      </Stack>
-    </ContentArea>
+    <Skeletonize loading className="contents">
+      <ContentArea variant="page" gap={4} className="p-8">
+        <SkeletonBox>
+          <div className="h-10 w-full max-w-md" />
+        </SkeletonBox>
+        <SkeletonBox>
+          <div className="h-8 w-3/4" />
+        </SkeletonBox>
+        <Stack gap={2}>
+          <SkeletonBox>
+            <div className="h-6 w-1/2" />
+          </SkeletonBox>
+          <SkeletonBox fullWidth>
+            <div className="h-24 w-full" />
+          </SkeletonBox>
+          <SkeletonBox fullWidth>
+            <div className="h-24 w-full" />
+          </SkeletonBox>
+          <SkeletonBox fullWidth>
+            <div className="h-24 w-full" />
+          </SkeletonBox>
+        </Stack>
+      </ContentArea>
+    </Skeletonize>
   );
 }
 
@@ -70,9 +86,9 @@ function ApiDocsPage() {
   return (
     <div className="bg-background min-h-dvh" onClickCapture={handleClick}>
       <main className="swagger-ui-standalone">
-        <Suspense fallback={<SwaggerSkeleton />}>
+        <SuspenseBoundary fallback={<SwaggerSkeleton />}>
           <SwaggerUI {...swaggerConfig} />
-        </Suspense>
+        </SuspenseBoundary>
       </main>
 
       <style>{`

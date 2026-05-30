@@ -98,7 +98,9 @@ export function UsageTrendChart({
           arrives — the bordered card + title stay put, so no shift. */}
       <div className="h-72 w-full">
         {loading ? (
-          <SkeletonBox className="h-full w-full" />
+          <SkeletonBox fullWidth>
+            <div className="h-72 w-full" />
+          </SkeletonBox>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart

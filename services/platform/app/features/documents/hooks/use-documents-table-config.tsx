@@ -1,7 +1,8 @@
 'use client';
 
 import { HStack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
@@ -199,7 +200,13 @@ export function useDocumentsTableConfig({
             );
           }
           if (isLoadingTeams) {
-            return <Skeleton className="h-5 w-20" />;
+            return (
+              <Skeletonize loading className="contents">
+                <SkeletonBox>
+                  <div className="h-5 w-20" />
+                </SkeletonBox>
+              </Skeletonize>
+            );
           }
           const MAX_VISIBLE = 2;
           const names = teamIds

@@ -186,7 +186,9 @@ function EmailField({ email }: { email: string }) {
     <div className="flex max-w-sm flex-col gap-1.5">
       <Label>{tSettings('account.profile.email')}</Label>
       {loading ? (
-        <SkeletonText width="12rem" className="text-base leading-normal" />
+        <div className="w-48 text-base leading-normal">
+          <SkeletonText />
+        </div>
       ) : (
         <Text as="span" variant="body">
           {email}

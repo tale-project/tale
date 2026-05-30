@@ -9,7 +9,8 @@
  */
 
 import { Button } from '@tale/ui/button';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { memo, useMemo } from 'react';
 
@@ -61,7 +62,11 @@ export const NextStepsSection = memo(
             </Button>
           ))}
           {isStreaming && (
-            <Skeleton className="h-7 w-28" label={t('structured.nextSteps')} />
+            <Skeletonize loading label={t('structured.nextSteps')}>
+              <SkeletonBox>
+                <div className="h-7 w-28" />
+              </SkeletonBox>
+            </Skeletonize>
           )}
         </div>
       </section>

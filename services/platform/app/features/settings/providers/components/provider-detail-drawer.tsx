@@ -7,7 +7,7 @@ import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import {
@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-guide';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
@@ -35,7 +34,10 @@ import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { modelTagLiterals } from '@/lib/shared/schemas/providers';
+import {
+  modelTagLiterals,
+  type ProviderJson,
+} from '@/lib/shared/schemas/providers';
 import { cn } from '@/lib/utils/cn';
 
 import {
@@ -70,6 +72,31 @@ interface ProviderDetailDrawerProps {
   providerName: string;
 }
 
+/**
+ * Stand-in config used to mount the REAL `ProviderConfigProvider` +
+ * `ProviderDetailBody` while the live config is still loading. Per the
+ * skeleton cardinal rule we never render a separate skeleton tree: the real
+ * sections render against this placeholder and their dynamic value leaves mask
+ * themselves via `<SkeletonBox>`/`<SkeletonText>` inside `<Skeletonize loading>`.
+ * The placeholder strings only set the masked leaves' natural size; they are
+ * never visible (the pulse overlay covers them) and never submitted (every
+ * editing control is disabled/non-interactive while masked).
+ */
+const PLACEHOLDER_PROVIDER_CONFIG: ProviderJson = {
+  displayName: 'Provider name',
+  description: 'Provider description',
+  baseUrl: 'https://api.example.com',
+  providerOptions: {},
+  // A few rows so the masked models list reads like the real one. `tags`
+  // carries 'chat' so each row renders (and masks) a capability badge.
+  models: Array.from({ length: 4 }, (_, i) => ({
+    id: `placeholder-model-${i}`,
+    displayName: 'Model name',
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 'chat' is a valid modelTagLiterals member; placeholder is never validated/persisted
+    tags: ['chat'] as Array<(typeof modelTagLiterals)[number]>,
+  })),
+};
+
 export function ProviderDetailDrawer({
   open,
   onOpenChange,
@@ -87,6 +114,10 @@ export function ProviderDetailDrawer({
     providerName,
     { enabled },
   );
+
+  // Narrow the discriminated read result so `config`/`hash`/`maskedModelKeys`
+  // are reachable; `undefined` while loading or on the not-found branch.
+  const okData = data?.ok ? data : undefined;
 
   const errorData = readConvexErrorData(secretError);
   const encryptedNoKey = errorData?.code === 'PROVIDER_SECRET_ENCRYPTED_NO_KEY';
@@ -132,259 +163,38 @@ export function ProviderDetailDrawer({
           </div>
         )}
 
-        {isLoading ? (
-          <ProviderDetailSkeleton />
-        ) : !data?.ok ? (
+        {!isLoading && !data?.ok ? (
           <Stack gap={4}>
             <Text variant="muted">
               {t('providers.providerNotFound', { name: providerName })}
             </Text>
           </Stack>
         ) : (
-          <ProviderConfigProvider
-            organizationId={organizationId}
-            providerName={providerName}
-            initialConfig={data.config}
-            initialHash={data.hash}
-          >
-            <ProviderDetailBody
+          // ONE tree, always. While loading we mount the real
+          // ProviderConfigProvider + ProviderDetailBody against a placeholder
+          // config and let <Skeletonize loading> mask each dynamic value in
+          // place — no separate skeleton tree. `key` remounts the provider
+          // when the real config arrives so its initial-state seeds correctly.
+          <Skeletonize loading={isLoading} label={t('providers.details')}>
+            <ProviderConfigProvider
+              key={isLoading ? 'loading' : 'loaded'}
               organizationId={organizationId}
               providerName={providerName}
-              maskedKey={maskedKey ?? null}
-              maskedModelKeys={data.maskedModelKeys ?? {}}
-            />
-          </ProviderConfigProvider>
+              initialConfig={okData?.config ?? PLACEHOLDER_PROVIDER_CONFIG}
+              initialHash={okData?.hash}
+            >
+              <ProviderDetailBody
+                organizationId={organizationId}
+                providerName={providerName}
+                maskedKey={maskedKey ?? null}
+                maskedModelKeys={okData?.maskedModelKeys ?? {}}
+                isLoading={isLoading}
+              />
+            </ProviderConfigProvider>
+          </Skeletonize>
         )}
       </div>
     </Sheet>
-  );
-}
-
-/**
- * Section header used by both the real sections and the skeleton — the
- * skeleton renders the REAL section titles (known at load time, they read
- * better than gray bars per the skeletonization convention) and masks only the
- * action buttons, so the header row keeps its exact height.
- */
-function SkeletonSectionHeader({
-  title,
-  description,
-  actions,
-}: {
-  title: string;
-  description?: string;
-  actions: React.ReactNode;
-}) {
-  return (
-    <HStack justify="between" align={description ? 'start' : 'center'}>
-      <Stack gap={1} className="min-w-0">
-        <Text className="text-[15px] font-semibold tracking-[-0.01em]">
-          {title}
-        </Text>
-        {description && (
-          <Text className="text-muted-foreground text-[13px]">
-            {description}
-          </Text>
-        )}
-      </Stack>
-      {actions}
-    </HStack>
-  );
-}
-
-/** A skeleton `InfoRow` — real label, masked value — matching `InfoRow`'s
- *  `px-4 py-2.5` row metrics so the card height equals the live card's. */
-function SkeletonInfoRow({
-  label,
-  valueWidth,
-  isLast,
-}: {
-  label: string;
-  valueWidth: string;
-  isLast?: boolean;
-}) {
-  return (
-    <HStack
-      gap={4}
-      align="center"
-      className={cn('px-4 py-2.5', !isLast && 'border-b')}
-    >
-      <Text variant="muted" className="w-32 shrink-0 text-sm font-normal">
-        {label}
-      </Text>
-      <SkeletonText width={valueWidth} className="text-sm" />
-    </HStack>
-  );
-}
-
-/**
- * Loading state for the provider detail drawer. Rendered inside
- * `<Skeletonize>` and built from the SAME section/`Card`/`InfoRow` structure as
- * `ProviderDetailBody`, so the masked tree has the live tree's exact heights
- * (no drift between skeleton and content). Real section titles and row labels
- * stay visible; only the data-dependent values and action buttons mask.
- */
-function ProviderDetailSkeleton() {
-  const { t } = useT('settings');
-  const ghostButton = (
-    <Button variant="ghost" size="sm" disabled>
-      <Pencil className="mr-1 size-3.5" />
-      {t('providers.editGeneral')}
-    </Button>
-  );
-
-  return (
-    <Skeletonize loading label={t('providers.details')}>
-      <Stack gap={6}>
-        {/* General */}
-        <Stack gap={2}>
-          <SkeletonSectionHeader
-            title={t('providers.general')}
-            actions={ghostButton}
-          />
-          <Card contentClassName="p-0">
-            <SkeletonInfoRow
-              label={t('providers.displayName')}
-              valueWidth="8rem"
-            />
-            <SkeletonInfoRow
-              label={t('providers.description_field')}
-              valueWidth="12rem"
-            />
-            <SkeletonInfoRow
-              label={t('providers.baseUrl')}
-              valueWidth="10rem"
-              isLast
-            />
-          </Card>
-        </Stack>
-
-        {/* API key */}
-        <Stack gap={2}>
-          <SkeletonSectionHeader
-            title={t('providers.apiKey')}
-            actions={
-              <HStack gap={1} align="center">
-                <Button variant="ghost" size="sm" disabled>
-                  <Zap className="mr-1 size-3.5" />
-                  {t('providers.testConnection')}
-                </Button>
-                <Button variant="ghost" size="sm" disabled>
-                  <Pencil className="mr-1 size-3.5" />
-                  {t('providers.editKey')}
-                </Button>
-              </HStack>
-            }
-          />
-          <Card contentClassName="p-0">
-            <HStack gap={4} align="center" className="flex-wrap px-4 py-2.5">
-              <Badge variant="green" dot>
-                {t('providers.apiKeyConfigured')}
-              </Badge>
-              <SkeletonText width="8rem" className="font-mono text-sm" />
-            </HStack>
-          </Card>
-        </Stack>
-
-        {/* Default models */}
-        <Stack gap={2}>
-          <SkeletonSectionHeader
-            title={t('providers.defaultModels')}
-            description={t('providers.defaultModelsDescription')}
-            actions={
-              <Button variant="ghost" size="sm" disabled>
-                <Pencil className="mr-1 size-3.5" />
-                {t('providers.editDefaults')}
-              </Button>
-            }
-          />
-          <Card contentClassName="p-0">
-            <SkeletonInfoRow label={t('providers.tagChat')} valueWidth="9rem" />
-            <SkeletonInfoRow
-              label={t('providers.tagVision')}
-              valueWidth="9rem"
-            />
-            <SkeletonInfoRow
-              label={t('providers.tagEmbedding')}
-              valueWidth="9rem"
-            />
-            <SkeletonInfoRow
-              label={t('providers.tagImageGeneration')}
-              valueWidth="9rem"
-            />
-            <SkeletonInfoRow
-              label={t('providers.tagTranscription')}
-              valueWidth="9rem"
-              isLast
-            />
-          </Card>
-        </Stack>
-
-        {/* Provider options */}
-        <Stack gap={2}>
-          <SkeletonSectionHeader
-            title={t('providers.providerOptions.providerLevelTitle')}
-            actions={
-              <Button variant="ghost" size="sm" disabled>
-                <Pencil className="mr-1 size-3.5" />
-                {t('providers.editGeneral')}
-              </Button>
-            }
-          />
-          <CollapsibleGuide
-            label={t('providers.providerOptions.guideLabel')}
-            content={t('providers.providerOptions.providerLevelDescription')}
-          />
-          <Card contentClassName="px-4 py-2.5">
-            <SkeletonText width="10rem" className="text-[13px]" />
-          </Card>
-        </Stack>
-
-        {/* Models */}
-        <Stack gap={3}>
-          <SkeletonSectionHeader
-            title={t('providers.models')}
-            actions={
-              <HStack gap={1} align="center">
-                <Button variant="ghost" size="sm" disabled>
-                  <RefreshCw className="mr-1 size-3.5" />
-                  {t('providers.fetchModels')}
-                </Button>
-                <Button variant="ghost" size="sm" disabled>
-                  <Plus className="mr-1 size-3.5" />
-                  {t('providers.addModelShort')}
-                </Button>
-              </HStack>
-            }
-          />
-          <div className="overflow-hidden rounded-xl border">
-            <div className="border-border border-b px-3 py-2.5">
-              <SkeletonBox className="h-6 w-full" />
-            </div>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <HStack
-                key={i}
-                justify="between"
-                align="center"
-                gap={4}
-                className={cn('px-4 py-2.5', i < 3 && 'border-border border-b')}
-              >
-                <HStack gap={3} align="center" className="min-w-0">
-                  <SkeletonBox className="size-4 rounded" />
-                  <SkeletonText width="10rem" className="text-[13px]" />
-                </HStack>
-                <Badge
-                  variant="outline"
-                  className="bg-muted text-muted-foreground border-transparent px-1.5 py-0.5 text-[11px]"
-                >
-                  {modelTagLabel('chat', t)}
-                </Badge>
-              </HStack>
-            ))}
-          </div>
-        </Stack>
-      </Stack>
-    </Skeletonize>
   );
 }
 
@@ -393,11 +203,13 @@ function ProviderDetailBody({
   providerName,
   maskedKey,
   maskedModelKeys,
+  isLoading,
 }: {
   organizationId: string;
   providerName: string;
   maskedKey: string | null;
   maskedModelKeys: Record<string, string>;
+  isLoading: boolean;
 }) {
   return (
     <Stack gap={6}>
@@ -409,6 +221,7 @@ function ProviderDetailBody({
         organizationId={organizationId}
         providerName={providerName}
         maskedKey={maskedKey}
+        isLoading={isLoading}
       />
       <DefaultModelsSection
         organizationId={organizationId}
@@ -419,6 +232,7 @@ function ProviderDetailBody({
         organizationId={organizationId}
         providerName={providerName}
         maskedModelKeys={maskedModelKeys}
+        isLoading={isLoading}
       />
     </Stack>
   );
@@ -480,13 +294,13 @@ function GeneralSection({
       </HStack>
       <Card contentClassName="p-0">
         <InfoRow label={t('providers.displayName')}>
-          {config.displayName}
+          <SkeletonBox>{config.displayName}</SkeletonBox>
         </InfoRow>
         <InfoRow label={t('providers.description_field')} muted>
-          {config.description || '—'}
+          <SkeletonBox>{config.description || '—'}</SkeletonBox>
         </InfoRow>
         <InfoRow label={t('providers.baseUrl')} muted isLast>
-          {config.baseUrl}
+          <SkeletonBox>{config.baseUrl}</SkeletonBox>
         </InfoRow>
       </Card>
 
@@ -540,19 +354,27 @@ function DefaultModelsSection({
         </HStack>
         <Card contentClassName="p-0">
           <InfoRow label={t('providers.tagChat')}>
-            {modelDisplayName(config.defaults?.chat)}
+            <SkeletonBox>{modelDisplayName(config.defaults?.chat)}</SkeletonBox>
           </InfoRow>
           <InfoRow label={t('providers.tagVision')}>
-            {modelDisplayName(config.defaults?.vision)}
+            <SkeletonBox>
+              {modelDisplayName(config.defaults?.vision)}
+            </SkeletonBox>
           </InfoRow>
           <InfoRow label={t('providers.tagEmbedding')}>
-            {modelDisplayName(config.defaults?.embedding)}
+            <SkeletonBox>
+              {modelDisplayName(config.defaults?.embedding)}
+            </SkeletonBox>
           </InfoRow>
           <InfoRow label={t('providers.tagImageGeneration')}>
-            {modelDisplayName(config.defaults?.['image-generation'])}
+            <SkeletonBox>
+              {modelDisplayName(config.defaults?.['image-generation'])}
+            </SkeletonBox>
           </InfoRow>
           <InfoRow label={t('providers.tagTranscription')} isLast>
-            {modelDisplayName(config.defaults?.transcription)}
+            <SkeletonBox>
+              {modelDisplayName(config.defaults?.transcription)}
+            </SkeletonBox>
           </InfoRow>
         </Card>
       </Stack>
@@ -608,14 +430,19 @@ function ApiKeySection({
   organizationId,
   providerName,
   maskedKey,
+  isLoading,
 }: {
   organizationId: string;
   providerName: string;
   maskedKey: string | null;
+  isLoading: boolean;
 }) {
   const { t } = useT('settings');
   const { t: tAccessDenied } = useT('accessDenied');
-  const hasSecret = maskedKey != null;
+  // While loading we don't yet know whether a key exists; render the
+  // "configured" chrome with a placeholder value so the masked row has its
+  // natural size (the pulse covers the placeholder text).
+  const hasSecret = isLoading || maskedKey != null;
   const saveSecret = useSaveProviderSecret();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
@@ -718,11 +545,13 @@ function ApiKeySection({
         <Card contentClassName="p-0">
           {hasSecret ? (
             <HStack gap={4} align="center" className="flex-wrap px-4 py-2.5">
-              <Badge variant="green" dot>
-                {t('providers.apiKeyConfigured')}
-              </Badge>
+              <SkeletonBox>
+                <Badge variant="green" dot>
+                  {t('providers.apiKeyConfigured')}
+                </Badge>
+              </SkeletonBox>
               <Text className="text-muted-foreground font-mono text-sm">
-                {maskedKey}
+                <SkeletonBox>{maskedKey ?? 'sk-••••••••••••'}</SkeletonBox>
               </Text>
             </HStack>
           ) : (
@@ -836,10 +665,12 @@ function ModelsSection({
   organizationId,
   providerName,
   maskedModelKeys,
+  isLoading,
 }: {
   organizationId: string;
   providerName: string;
   maskedModelKeys: Record<string, string>;
+  isLoading: boolean;
 }) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -1312,38 +1143,44 @@ function ModelsSection({
                     )}
                   >
                     <HStack gap={3} align="center" className="min-w-0">
-                      <Checkbox
-                        checked={isConfigured}
-                        onCheckedChange={(checked) => {
-                          if (checked === true && !isConfigured) {
-                            setConfirmAddModel(row.id);
-                          } else if (
-                            checked === false &&
-                            isConfigured &&
-                            row.configuredIndex != null
-                          ) {
-                            setDeleteIndex(row.configuredIndex);
+                      <SkeletonBox>
+                        <Checkbox
+                          checked={isConfigured}
+                          onCheckedChange={(checked) => {
+                            if (checked === true && !isConfigured) {
+                              setConfirmAddModel(row.id);
+                            } else if (
+                              checked === false &&
+                              isConfigured &&
+                              row.configuredIndex != null
+                            ) {
+                              setDeleteIndex(row.configuredIndex);
+                            }
+                          }}
+                          aria-label={
+                            isConfigured
+                              ? t('providers.removeModel')
+                              : t('providers.addModel')
                           }
-                        }}
-                        aria-label={
-                          isConfigured
-                            ? t('providers.removeModel')
-                            : t('providers.addModel')
-                        }
-                      />
+                        />
+                      </SkeletonBox>
                       <Text className="truncate text-[13px] font-medium">
-                        {model?.displayName ?? row.id}
+                        <SkeletonBox>
+                          {model?.displayName ?? row.id}
+                        </SkeletonBox>
                       </Text>
                     </HStack>
                     <HStack gap={3} align="center" className="shrink-0">
                       {isConfigured && primaryTag && (
                         <HStack gap={1} align="center">
-                          <Badge
-                            variant="outline"
-                            className="bg-muted text-muted-foreground border-transparent px-1.5 py-0.5 text-[11px]"
-                          >
-                            {modelTagLabel(primaryTag, t)}
-                          </Badge>
+                          <SkeletonBox>
+                            <Badge
+                              variant="outline"
+                              className="bg-muted text-muted-foreground border-transparent px-1.5 py-0.5 text-[11px]"
+                            >
+                              {modelTagLabel(primaryTag, t)}
+                            </Badge>
+                          </SkeletonBox>
                           {overflowCount > 0 && (
                             <Tooltip
                               content={restTags
@@ -1360,24 +1197,28 @@ function ModelsSection({
                           )}
                         </HStack>
                       )}
-                      {isConfigured && row.configuredIndex != null && (
-                        <IconButton
-                          icon={Pencil}
-                          aria-label={t('providers.editModel')}
-                          variant="ghost"
-                          className="text-muted-foreground hover:text-foreground size-7"
-                          onClick={() => openEditDialog(row.configuredIndex)}
-                        />
-                      )}
-                      {isManual && row.configuredIndex != null && (
-                        <IconButton
-                          icon={Trash2}
-                          aria-label={t('providers.removeModel')}
-                          variant="ghost"
-                          className="text-muted-foreground hover:text-destructive size-7"
-                          onClick={() => setDeleteIndex(row.configuredIndex)}
-                        />
-                      )}
+                      {!isLoading &&
+                        isConfigured &&
+                        row.configuredIndex != null && (
+                          <IconButton
+                            icon={Pencil}
+                            aria-label={t('providers.editModel')}
+                            variant="ghost"
+                            className="text-muted-foreground hover:text-foreground size-7"
+                            onClick={() => openEditDialog(row.configuredIndex)}
+                          />
+                        )}
+                      {!isLoading &&
+                        isManual &&
+                        row.configuredIndex != null && (
+                          <IconButton
+                            icon={Trash2}
+                            aria-label={t('providers.removeModel')}
+                            variant="ghost"
+                            className="text-muted-foreground hover:text-destructive size-7"
+                            onClick={() => setDeleteIndex(row.configuredIndex)}
+                          />
+                        )}
                     </HStack>
                   </HStack>
                 );

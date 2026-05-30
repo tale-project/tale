@@ -1,4 +1,5 @@
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 
 import { cn } from '@/lib/utils/cn';
 
@@ -32,8 +33,12 @@ export function PreviewPane({ children, className }: PreviewPaneProps) {
  */
 export function PreviewPaneSkeleton() {
   return (
-    <PreviewPane>
-      <Skeleton className="mx-auto aspect-[1/1.4] w-full max-w-2xl rounded-lg" />
-    </PreviewPane>
+    <Skeletonize loading className="contents">
+      <PreviewPane>
+        <SkeletonBox>
+          <div className="mx-auto aspect-[1/1.4] w-full max-w-2xl" />
+        </SkeletonBox>
+      </PreviewPane>
+    </Skeletonize>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useNavigate } from '@tanstack/react-router';
 import { Bot, ChevronDown, Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -130,11 +131,14 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
             disabled={isAgentLoading}
           >
             <Bot className="size-3.5" aria-hidden="true" />
-            {isAgentLoading ? (
-              <Skeleton className="h-3.5 w-20" />
-            ) : (
-              <span>{currentLabel}</span>
-            )}
+            <Skeletonize
+              loading={isAgentLoading}
+              label={t('agentSelector.label')}
+            >
+              <SkeletonBox>
+                <span>{currentLabel}</span>
+              </SkeletonBox>
+            </Skeletonize>
             <ChevronDown className="size-3" aria-hidden="true" />
           </Button>
         }

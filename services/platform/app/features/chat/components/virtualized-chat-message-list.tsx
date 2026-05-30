@@ -98,13 +98,19 @@ export function VirtualizedChatMessageList({
     },
     scrollMargin,
   });
-  // Cede ALL scrollTop control to useChatScroll. react-virtual's resize path
-  // would otherwise call container.scrollTo to "preserve" position on above-
-  // viewport size changes (prepend, history measuring, streaming-past-top),
-  // fighting useChatScroll's load-more anchor + stick-to-bottom on the SAME
-  // element. This predicate is read off the instance (not an option), so it
-  // must be assigned here; returning false keeps measurement but never scrolls.
-  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false;
+  // We deliberately DO NOT override shouldAdjustScrollPositionOnItemSizeChange.
+  // virtual-core's built-in default — `itemStart < scrollOffset +
+  // scrollAdjustments && scrollDirection !== 'backward'` — only compensates for
+  // ABOVE-viewport items and only when the user is NOT scrolling up, via a
+  // RELATIVE scrollAdjustments delta. That is exactly the anti-jump behavior we
+  // want when an off-screen-above row gets its first real measurement
+  // (replacing the 140px estimate) while the user has scrolled up to read
+  // history. It does NOT collide with useChatScroll: stick-to-bottom pins via
+  // container.scrollTo(scrollHeight) gated on stickToBottomRef (false after a
+  // scroll-up), and the load-more anchor is gated on row-count growth (a
+  // same-row remeasure doesn't trigger it). Forcing the predicate to false (a
+  // prior approach) removed this compensation and reintroduced viewport jumps
+  // on scroll-up during lazy measurement.
 
   const virtualItems = virtualizer.getVirtualItems();
 
@@ -144,7 +150,10 @@ export function VirtualizedChatMessageList({
           </div>
         ))}
       </div>
-      <div aria-live="polite">{footer}</div>
+      {/* The footer composes its OWN scoped aria-live region around just the
+          thinking affordance (see ChatMessages). We must NOT wrap it again here
+          or the approval card's internal live region would nest inside ours. */}
+      {footer}
     </div>
   );
 }

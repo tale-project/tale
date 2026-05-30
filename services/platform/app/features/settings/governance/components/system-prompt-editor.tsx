@@ -2,6 +2,7 @@
 
 import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
+import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
@@ -29,100 +30,12 @@ interface SystemPromptForm {
 const MAX_CHARS = 10_000;
 const FORM_ID = 'governance-system-prompt-form';
 
-type SystemPromptController = ReturnType<
-  typeof useFormEditor<SystemPromptForm>
->;
-
 // =============================================================================
-// Plain presentational view — no data/state hooks of its own. Renders the real
-// layout from an injected form `controller`. Rendered both live (by the
-// container) and as its own skeleton (the container wraps it in
-// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
-// cannot drift. The skeleton-aware `<Textarea>` masks itself to its exact
-// `rows={4}` height while loading.
-// =============================================================================
-export function SystemPromptEditorView({
-  controller,
-  onSave,
-}: {
-  controller: SystemPromptController;
-  onSave: (values: SystemPromptForm) => Promise<void>;
-}) {
-  const { t } = useT('governance');
-  const {
-    register,
-    handleSubmit,
-    watch,
-    formState: { errors },
-  } = controller.form;
-  const prefixValue = watch('mandatoryPrefixPrompt') ?? '';
-  const suffixValue = watch('mandatorySuffixPrompt') ?? '';
-
-  return (
-    <PageSection
-      title={t('systemPrompt.title')}
-      description={t('systemPrompt.description')}
-    >
-      <form id={FORM_ID} onSubmit={handleSubmit(onSave)}>
-        <fieldset disabled={controller.isLoading} className="contents">
-          <Stack gap={6} className="max-w-2xl">
-            <FormSection
-              label={t('systemPrompt.prefixLabel')}
-              description={t('systemPrompt.prefixDescription')}
-            >
-              <Textarea
-                placeholder={t('systemPrompt.prefixPlaceholder')}
-                rows={4}
-                aria-label={t('systemPrompt.prefixLabel')}
-                errorMessage={errors.mandatoryPrefixPrompt?.message}
-                {...register('mandatoryPrefixPrompt')}
-              />
-              <Text variant="muted" className="text-xs">
-                {t('systemPrompt.charCount', {
-                  count: prefixValue.length,
-                  max: MAX_CHARS,
-                })}
-              </Text>
-            </FormSection>
-
-            <FormSection
-              label={t('systemPrompt.suffixLabel')}
-              description={t('systemPrompt.suffixDescription')}
-            >
-              <Textarea
-                placeholder={t('systemPrompt.suffixPlaceholder')}
-                rows={4}
-                aria-label={t('systemPrompt.suffixLabel')}
-                errorMessage={errors.mandatorySuffixPrompt?.message}
-                {...register('mandatorySuffixPrompt')}
-              />
-              <Text variant="muted" className="text-xs">
-                {t('systemPrompt.charCount', {
-                  count: suffixValue.length,
-                  max: MAX_CHARS,
-                })}
-              </Text>
-            </FormSection>
-
-            <HStack justify="end">
-              <EditorActions
-                controller={controller}
-                formId={FORM_ID}
-                entityKind="governance_system_prompt"
-              />
-            </HStack>
-          </Stack>
-        </fieldset>
-      </form>
-    </PageSection>
-  );
-}
-
-// =============================================================================
-// Container — owns data fetching, the form controller, save/toast wiring, and
-// the loading state. Wraps the plain view in `<Skeletonize>` so the same tree
-// renders the skeleton. Route loaders warm `system_prompt` so warm navigations
-// skip the skeleton entirely.
+// Single editor — owns data fetching, the form controller, save/toast wiring,
+// and the loading state. Renders the REAL layout once, always, wrapped in
+// `<Skeletonize>`. The skeleton-aware `<Textarea>` masks itself to its exact
+// `rows={4}` height while loading. Route loaders warm `system_prompt` so warm
+// navigations skip the skeleton entirely.
 // =============================================================================
 export function SystemPromptEditor({
   organizationId,
@@ -198,9 +111,77 @@ export function SystemPromptEditor({
     save,
   });
 
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = editor.form;
+  const prefixValue = watch('mandatoryPrefixPrompt') ?? '';
+  const suffixValue = watch('mandatorySuffixPrompt') ?? '';
+
   return (
     <Skeletonize loading={isLoading} label={t('systemPrompt.title')}>
-      <SystemPromptEditorView controller={editor} onSave={save} />
+      <PageSection
+        title={t('systemPrompt.title')}
+        description={t('systemPrompt.description')}
+      >
+        <form id={FORM_ID} onSubmit={handleSubmit(save)}>
+          <fieldset disabled={editor.isLoading} className="contents">
+            <Stack gap={6} className="max-w-2xl">
+              <FormSection
+                label={t('systemPrompt.prefixLabel')}
+                description={t('systemPrompt.prefixDescription')}
+              >
+                <Textarea
+                  placeholder={t('systemPrompt.prefixPlaceholder')}
+                  rows={4}
+                  aria-label={t('systemPrompt.prefixLabel')}
+                  errorMessage={errors.mandatoryPrefixPrompt?.message}
+                  {...register('mandatoryPrefixPrompt')}
+                />
+                <Text variant="muted" className="text-xs">
+                  <SkeletonBox>
+                    {t('systemPrompt.charCount', {
+                      count: prefixValue.length,
+                      max: MAX_CHARS,
+                    })}
+                  </SkeletonBox>
+                </Text>
+              </FormSection>
+
+              <FormSection
+                label={t('systemPrompt.suffixLabel')}
+                description={t('systemPrompt.suffixDescription')}
+              >
+                <Textarea
+                  placeholder={t('systemPrompt.suffixPlaceholder')}
+                  rows={4}
+                  aria-label={t('systemPrompt.suffixLabel')}
+                  errorMessage={errors.mandatorySuffixPrompt?.message}
+                  {...register('mandatorySuffixPrompt')}
+                />
+                <Text variant="muted" className="text-xs">
+                  <SkeletonBox>
+                    {t('systemPrompt.charCount', {
+                      count: suffixValue.length,
+                      max: MAX_CHARS,
+                    })}
+                  </SkeletonBox>
+                </Text>
+              </FormSection>
+
+              <HStack justify="end">
+                <EditorActions
+                  controller={editor}
+                  formId={FORM_ID}
+                  entityKind="governance_system_prompt"
+                />
+              </HStack>
+            </Stack>
+          </fieldset>
+        </form>
+      </PageSection>
     </Skeletonize>
   );
 }

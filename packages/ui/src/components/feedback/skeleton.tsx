@@ -1,142 +1,188 @@
-import { cva, type VariantProps } from 'class-variance-authority';
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
+import { useSkeleton } from './skeleton-context';
 
-/** Shared pulse appearance — reused by Skeleton, SkeletonBox, SkeletonText. */
+/** Shared pulse appearance — reused by every skeleton primitive. */
 export const SKELETON_PULSE =
   'animate-pulse bg-muted motion-reduce:animate-none';
 
-const skeletonVariants = cva(SKELETON_PULSE, {
-  variants: {
-    size: {
-      xs: 'size-4',
-      sm: 'size-5',
-      md: 'size-8',
-      lg: 'size-9',
-      xl: 'size-10',
-    },
-    shape: {
-      default: 'rounded-md',
-      circle: 'rounded-full',
-    },
-  },
-  defaultVariants: {
-    shape: 'default',
-  },
-});
-
-interface SkeletonProps
-  extends
-    React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof skeletonVariants> {
-  /** Accessible label for screen readers */
-  label?: string;
-}
-
-export function Skeleton({
-  className,
-  size,
-  shape,
-  label = 'Loading content',
-  ...props
-}: SkeletonProps) {
-  return (
-    <div
-      role="status"
-      aria-label={label}
-      className={cn(skeletonVariants({ size, shape }), className)}
-      {...props}
-    >
-      <span className="sr-only">{label}</span>
-    </div>
-  );
+interface SkeletonWrapProps {
+  /**
+   * The REAL content to mask. Rendered untouched; the skeleton sizes itself to
+   * this content, so there is never any sizing math at the call site.
+   */
+  children: ReactNode;
+  /**
+   * Make the mask fill its container's width (block, `w-full`). Use for
+   * full-width fields/controls; omit for inline content that should hug.
+   */
+  fullWidth?: boolean;
 }
 
 /**
- * A masked placeholder. Two modes:
+ * The universal masking primitive — `<SkeletonBox>{value}</SkeletonBox>`.
  *
- * 1. **Wrapping mode** (`children` given) — renders the real component
- *    invisibly to set the exact footprint, then paints a pulse overlay on top.
- *    This is the universal masking primitive: a control's wrapper renders
- *    `<SkeletonBox><FooBase …/></SkeletonBox>` while loading, so the skeleton is
- *    the SAME size as the live control with zero sizing math — and can't drift.
+ * Renders the real value as-is. While loading (`useSkeleton()` is true, i.e.
+ * inside a `<Skeletonize loading>`) an opaque pulse overlay covers it at its
+ * natural size and intercepts pointer events so masked controls aren't
+ * interactive. When *not* loading the wrapper is `display: contents`, so it
+ * adds no box and can't tangle layout — wrap any dynamic value (text, a number,
+ * a control) unconditionally and leave it in place.
  *
- * 2. **Sized mode** (no children) — a plain pulse block sized by the caller via
- *    `className`/`style` (e.g. `h-10 w-full`), for placeholder rows/cells.
+ * Deliberately has no `className`/`style`: the skeleton's size comes from the
+ * content it wraps, never from call-site styling. Reach for `fullWidth` (or a
+ * new semantic prop here) instead of one-off classes.
  *
  * Decorative (`aria-hidden`): the enclosing `<Skeletonize>` announces "Loading"
  * once for the whole region, so individual boxes must not re-announce.
  */
-export function SkeletonBox({
-  className,
-  style,
-  children,
-}: {
-  className?: string;
-  style?: CSSProperties;
-  children?: ReactNode;
-}) {
-  if (children != null) {
-    return (
-      <div aria-hidden="true" className={cn('relative isolate', className)}>
-        {/* Real content, hidden but still laid out — sets the exact size. */}
-        <div className="invisible">{children}</div>
-        {/* Pulse overlay covering the footprint. */}
-        <div
-          className={cn(
-            'pointer-events-none absolute inset-0 rounded-md',
-            SKELETON_PULSE,
-          )}
-        />
-      </div>
-    );
-  }
+export function SkeletonBox({ children, fullWidth }: SkeletonWrapProps) {
+  const loading = useSkeleton();
   return (
     <span
-      aria-hidden="true"
-      style={style}
-      className={cn('block rounded-md', SKELETON_PULSE, className)}
-    />
+      aria-hidden={loading || undefined}
+      className={
+        loading
+          ? cn(
+              'relative isolate rounded-md',
+              fullWidth ? 'block w-full' : 'inline-block',
+            )
+          : 'contents'
+      }
+    >
+      {children}
+      {loading && (
+        <span
+          className={cn('absolute inset-0 rounded-[inherit]', SKELETON_PULSE)}
+        />
+      )}
+    </span>
   );
 }
 
 /**
- * Masked text — `lines` pulse bars at the surrounding line-height (use
- * `leading-*`/`text-*` on `className` to match the real text's metrics so the
- * block occupies the same height). The last line is shortened when `lines > 1`
- * to read like wrapped prose. Decorative (`aria-hidden`); the enclosing
+ * Circular variant — avatars, status dots, icon buttons. Wraps real round
+ * content and masks it with a round overlay. Renders its own skeleton (it does
+ * not delegate to {@link SkeletonBox}) so it stays free of call-site styling.
+ */
+export function SkeletonCircle({ children, fullWidth }: SkeletonWrapProps) {
+  const loading = useSkeleton();
+  return (
+    <span
+      aria-hidden={loading || undefined}
+      className={
+        loading
+          ? cn(
+              'relative isolate rounded-full',
+              fullWidth ? 'block w-full' : 'inline-block',
+            )
+          : 'contents'
+      }
+    >
+      {children}
+      {loading && (
+        <span className={cn('absolute inset-0 rounded-full', SKELETON_PULSE)} />
+      )}
+    </span>
+  );
+}
+
+/**
+ * Deterministic pseudo-random in [0, 1) from an integer seed. Stable across
+ * SSR and client renders so masked text never flickers or warns on hydration
+ * (plain `Math.random()` would differ between the two passes).
+ */
+function seeded(n: number): number {
+  let h = (n ^ 0x9e3779b9) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x21f0aaad);
+  h = Math.imul(h ^ (h >>> 15), 0x735a2d97);
+  h ^= h >>> 15;
+  return (h >>> 0) / 0x1_0000_0000;
+}
+
+/**
+ * The pulse overlay for one masked line of text. Fills its (relative) parent
+ * line and clips to a rounded shape, then lays out 5–10 "word" segments whose
+ * widths are randomly distributed but sum to 100% — each floored at a realistic
+ * minimum so no word collapses. A small trailing gap between segments reads as
+ * word spacing.
+ */
+function SkeletonLineFill({ seed }: { seed: number }) {
+  const segments = 5 + Math.floor(seeded(seed) * 6); // 5..10
+  const weights = Array.from(
+    { length: segments },
+    (_, j) => 0.5 + seeded(seed * 7 + j * 17 + 1) * 1.5,
+  );
+  const total = weights.reduce((sum, w) => sum + w, 0);
+
+  return (
+    <span className="absolute inset-0 flex items-center overflow-hidden rounded-md">
+      {weights.map((weight, j) => {
+        const pct = ((weight / total) * 100).toFixed(2);
+        return (
+          <span
+            // eslint-disable-next-line react/no-array-index-key
+            key={j}
+            className="h-[0.66em] shrink-0 pr-[0.4em] last:pr-0"
+            // max(min, w%): widths share 100% but never collapse below a
+            // realistic word width; overflow is clipped by the parent.
+            style={{ width: `max(1.5rem, ${pct}%)` }}
+          >
+            <span
+              className={cn('block size-full rounded-md', SKELETON_PULSE)}
+            />
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+interface SkeletonTextProps {
+  /** Number of text lines to mask. */
+  lines?: number;
+  /** Width of the final line — tapered to read like wrapped prose. */
+  lastLineWidth?: string;
+  /** Seed offset so adjacent blocks don't render an identical pattern. */
+  seed?: number;
+}
+
+/**
+ * Masked multi-line text. Each line is a relatively-positioned `<span>` whose
+ * height comes from a hidden zero-width glyph, so it matches the surrounding
+ * text metrics automatically — place it where the real text would sit and it
+ * inherits the right `font-size`/`line-height`. A word-shaped pulse overlay
+ * sits on top, and the final line is shortened so the block reads like a
+ * wrapped paragraph.
+ *
+ * Like the other primitives it takes no `className`: size and color come from
+ * the surrounding text context. Decorative (`aria-hidden`); the enclosing
  * `<Skeletonize>` owns the single status announcement.
  */
 export function SkeletonText({
   lines = 1,
-  width = '100%',
-  lastLineWidth = '60%',
-  className,
-}: {
-  lines?: number;
-  /** Width of the (single line, or every line but the last). */
-  width?: string;
-  /** Width of the final line when `lines > 1`. */
-  lastLineWidth?: string;
-  className?: string;
-}) {
+  lastLineWidth = '62%',
+  seed = 0,
+}: SkeletonTextProps) {
+  const count = Math.max(1, lines);
+
   return (
-    <span
-      aria-hidden="true"
-      className={cn('flex flex-col justify-center', className)}
-    >
-      {Array.from({ length: Math.max(1, lines) }).map((_, i) => {
-        const isLast = i === lines - 1 && lines > 1;
+    <span aria-hidden="true" className="block">
+      {Array.from({ length: count }, (_, i) => {
+        const isLast = i === count - 1;
         return (
           <span
+            // eslint-disable-next-line react/no-array-index-key
             key={i}
-            className={cn(
-              'my-[0.28em] block h-[0.72em] rounded-sm',
-              SKELETON_PULSE,
-            )}
-            style={{ width: isLast ? lastLineWidth : width }}
-          />
+            className="relative block"
+            style={isLast && count > 1 ? { width: lastLineWidth } : undefined}
+          >
+            {/* Hidden glyph: gives the line its real text height. The wrapping
+                span never shows it, but keep it un-selectable just in case. */}
+            <span className="invisible select-none">{'\u200B'}</span>
+            <SkeletonLineFill seed={seed * 131 + i * 9973 + 1} />
+          </span>
         );
       })}
     </span>

@@ -269,13 +269,23 @@ export function useChatScroll({
   // branch's content; an effect would run after paint and capture the
   // already-scrolled position.
   const prevDataThreadIdRef = useRef(dataThreadId);
+  const prevThreadIdRef = useRef(threadId);
   if (
     prevDataThreadIdRef.current !== dataThreadId &&
     prevDataThreadIdRef.current !== undefined
   ) {
+    // A genuine branch switch keeps the URL `threadId` constant and only
+    // changes `dataThreadId` (activeBranchThreadId). Ordinary thread→thread
+    // navigation (clicking another chat) changes BOTH — and ChatInterface is
+    // NOT remounted on that transition (keyed `chat-${newChatCount}`, only
+    // bumped thread→new), so this hook persists. Preserving thread A's
+    // scrollTop onto thread B would pin B at the wrong offset and defeat the
+    // thread-init scroll-to-bottom below. Only preserve for a real branch
+    // switch; on thread nav fall through to the clear path.
+    const threadChanged = prevThreadIdRef.current !== threadId;
     // Skip scroll preservation for edit-and-branch — we want scroll-to-bottom
     // so the edited message and incoming AI response are visible.
-    if (!pendingEditedMessageId) {
+    if (!pendingEditedMessageId && !threadChanged) {
       branchScrollSaveRef.current = containerRef.current?.scrollTop ?? null;
       // Clear after content settles
       if (branchScrollTimerRef.current)
@@ -297,8 +307,8 @@ export function useChatScroll({
         }
       }, 2000);
     } else {
-      // Clear any stale scroll position from a prior branch switch so
-      // onContentChange doesn't override the intended scroll-to-bottom.
+      // edit-and-branch OR thread navigation: clear any stale saved position
+      // so onContentChange doesn't override the intended scroll-to-bottom.
       branchScrollSaveRef.current = null;
       if (branchScrollTimerRef.current) {
         clearTimeout(branchScrollTimerRef.current);
@@ -307,6 +317,7 @@ export function useChatScroll({
     }
   }
   prevDataThreadIdRef.current = dataThreadId;
+  prevThreadIdRef.current = threadId;
 
   // Load-more scroll preservation: keep the viewport visually stable when older
   // messages prepend. We anchor to the topmost currently-VISIBLE message and
@@ -372,6 +383,14 @@ export function useChatScroll({
         // streaming token mutates the existing bubble's markdown subtree without
         // adding a [data-message-key] row, so it must NOT trigger the one-shot
         // correction early (which would no-op, then miss the real prepend).
+        //
+        // NOTE: this row-count gate assumes the NON-windowed DOM. Under the
+        // experimental virtualized path (localStorage tale_virtualized_messages
+        // ='1', VirtualizedChatMessageList) a prepend grows items.length but the
+        // virtualizer keeps ~constant mounted rows, so this gate stays true and
+        // load-more position restoration is a no-op there. If virtualization
+        // graduates from the flag, drive restoration off the virtualizer's
+        // topmost visible item index+start instead of this DOM row-count gate.
         if (
           container.querySelectorAll('[data-message-key]').length <=
           prevRowCount

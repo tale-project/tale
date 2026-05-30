@@ -24,10 +24,6 @@ interface DsarPolicyEditorProps {
   organizationId: string;
 }
 
-type DsarPolicyData = NonNullable<
-  ReturnType<typeof useDsarPolicyForUi>['data']
->;
-
 type DsarPendingFields = {
   coolingOffHours: boolean;
   requireDualApproval: boolean;
@@ -204,143 +200,88 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
 
   return (
     <Skeletonize loading={isLoading || !data} label={t('dsarPolicy.title')}>
-      <DsarPolicyEditorView
-        data={data}
-        coolingOffHours={coolingOffHours}
-        dailyLimitPerAdmin={dailyLimitPerAdmin}
-        readOnly={readOnly}
-        pendingFields={pendingFields}
-        cancelDisabled={cancelMutation.isPending}
-        onCoolingOffHoursChange={setCoolingOffHours}
-        onCoolingOffHoursCommit={commitCoolingOffHours}
-        onDailyLimitChange={setDailyLimitPerAdmin}
-        onDailyLimitCommit={commitDailyLimit}
-        onDualApprovalToggle={handleDualApprovalToggle}
-        onCancelPending={() => void handleCancelPending()}
-      />
-    </Skeletonize>
-  );
-}
-
-// =============================================================================
-// Plain presentational view — no data/state hooks of its own. Renders the real
-// layout from injected draft values + change callbacks. Rendered both live (by
-// the container) and as its own skeleton (the container wraps it in
-// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
-// cannot drift. The skeleton-aware `<Input>`/`<Switch>` mask themselves to
-// their natural height while loading; the owner notice + pending banner are
-// only meaningful once `data` is present, so they stay hidden in the skeleton.
-// =============================================================================
-function DsarPolicyEditorView({
-  data,
-  coolingOffHours,
-  dailyLimitPerAdmin,
-  readOnly,
-  pendingFields,
-  cancelDisabled,
-  onCoolingOffHoursChange,
-  onCoolingOffHoursCommit,
-  onDailyLimitChange,
-  onDailyLimitCommit,
-  onDualApprovalToggle,
-  onCancelPending,
-}: {
-  data: DsarPolicyData | undefined;
-  coolingOffHours: string;
-  dailyLimitPerAdmin: string;
-  readOnly: boolean;
-  pendingFields: DsarPendingFields;
-  cancelDisabled: boolean;
-  onCoolingOffHoursChange: (value: string) => void;
-  onCoolingOffHoursCommit: () => void;
-  onDailyLimitChange: (value: string) => void;
-  onDailyLimitCommit: () => void;
-  onDualApprovalToggle: (next: boolean) => void;
-  onCancelPending: () => void;
-}) {
-  const { t } = useT('governance');
-  return (
-    <PageSection
-      title={t('dsarPolicy.title')}
-      description={t('dsarPolicy.description')}
-    >
-      <div className="flex max-w-2xl flex-col gap-5">
-        {data && !data.callerIsOwner && (
-          <div
-            role="status"
-            className="border-border bg-muted/30 flex items-start gap-2 rounded-md border p-3 text-sm"
-          >
-            <Lock
-              className="text-muted-foreground mt-0.5 size-4 shrink-0"
-              aria-hidden="true"
-            />
-            <Text as="span" variant="muted" className="text-xs">
-              {t('dsarPolicy.ownerOnlyNotice')}
-            </Text>
-          </div>
-        )}
-
-        {data?.pending && (
-          <PendingChangeBanner
-            current={data.config}
-            pending={data.pending}
-            onCancel={onCancelPending}
-            cancelDisabled={cancelDisabled}
-          />
-        )}
-
-        <PendingFieldWrap pending={pendingFields.coolingOffHours} t={t}>
-          <Input
-            id="dsar-policy-cooling-off"
-            type="number"
-            min={0}
-            max={72}
-            step={1}
-            label={t('dsarPolicy.coolingOffHours.label')}
-            description={t('dsarPolicy.coolingOffHours.description')}
-            value={coolingOffHours}
-            onChange={(e) => onCoolingOffHoursChange(e.target.value)}
-            onBlur={onCoolingOffHoursCommit}
-            disabled={readOnly}
-          />
-        </PendingFieldWrap>
-
-        <PendingFieldWrap pending={pendingFields.requireDualApproval} t={t}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex flex-col gap-0.5">
-              <Text as="span" className="text-sm font-medium">
-                {t('dsarPolicy.requireDualApproval.label')}
-              </Text>
+      <PageSection
+        title={t('dsarPolicy.title')}
+        description={t('dsarPolicy.description')}
+      >
+        <div className="flex max-w-2xl flex-col gap-5">
+          {data && !data.callerIsOwner && (
+            <div
+              role="status"
+              className="border-border bg-muted/30 flex items-start gap-2 rounded-md border p-3 text-sm"
+            >
+              <Lock
+                className="text-muted-foreground mt-0.5 size-4 shrink-0"
+                aria-hidden="true"
+              />
               <Text as="span" variant="muted" className="text-xs">
-                {t('dsarPolicy.requireDualApproval.description')}
+                {t('dsarPolicy.ownerOnlyNotice')}
               </Text>
             </div>
-            <Switch
-              checked={data?.config.requireDualApproval ?? false}
-              onCheckedChange={onDualApprovalToggle}
-              disabled={readOnly}
-              aria-label={t('dsarPolicy.requireDualApproval.label')}
-            />
-          </div>
-        </PendingFieldWrap>
+          )}
 
-        <PendingFieldWrap pending={pendingFields.dailyLimitPerAdmin} t={t}>
-          <Input
-            id="dsar-policy-daily-limit"
-            type="number"
-            min={1}
-            max={50}
-            step={1}
-            label={t('dsarPolicy.dailyLimitPerAdmin.label')}
-            description={t('dsarPolicy.dailyLimitPerAdmin.description')}
-            value={dailyLimitPerAdmin}
-            onChange={(e) => onDailyLimitChange(e.target.value)}
-            onBlur={onDailyLimitCommit}
-            disabled={readOnly}
-          />
-        </PendingFieldWrap>
-      </div>
-    </PageSection>
+          {data?.pending && (
+            <PendingChangeBanner
+              current={data.config}
+              pending={data.pending}
+              onCancel={() => void handleCancelPending()}
+              cancelDisabled={cancelMutation.isPending}
+            />
+          )}
+
+          <PendingFieldWrap pending={pendingFields.coolingOffHours} t={t}>
+            <Input
+              id="dsar-policy-cooling-off"
+              type="number"
+              min={0}
+              max={72}
+              step={1}
+              label={t('dsarPolicy.coolingOffHours.label')}
+              description={t('dsarPolicy.coolingOffHours.description')}
+              value={coolingOffHours}
+              onChange={(e) => setCoolingOffHours(e.target.value)}
+              onBlur={commitCoolingOffHours}
+              disabled={readOnly}
+            />
+          </PendingFieldWrap>
+
+          <PendingFieldWrap pending={pendingFields.requireDualApproval} t={t}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-0.5">
+                <Text as="span" className="text-sm font-medium">
+                  {t('dsarPolicy.requireDualApproval.label')}
+                </Text>
+                <Text as="span" variant="muted" className="text-xs">
+                  {t('dsarPolicy.requireDualApproval.description')}
+                </Text>
+              </div>
+              <Switch
+                checked={data?.config.requireDualApproval ?? false}
+                onCheckedChange={handleDualApprovalToggle}
+                disabled={readOnly}
+                aria-label={t('dsarPolicy.requireDualApproval.label')}
+              />
+            </div>
+          </PendingFieldWrap>
+
+          <PendingFieldWrap pending={pendingFields.dailyLimitPerAdmin} t={t}>
+            <Input
+              id="dsar-policy-daily-limit"
+              type="number"
+              min={1}
+              max={50}
+              step={1}
+              label={t('dsarPolicy.dailyLimitPerAdmin.label')}
+              description={t('dsarPolicy.dailyLimitPerAdmin.description')}
+              value={dailyLimitPerAdmin}
+              onChange={(e) => setDailyLimitPerAdmin(e.target.value)}
+              onBlur={commitDailyLimit}
+              disabled={readOnly}
+            />
+          </PendingFieldWrap>
+        </div>
+      </PageSection>
+    </Skeletonize>
   );
 }
 

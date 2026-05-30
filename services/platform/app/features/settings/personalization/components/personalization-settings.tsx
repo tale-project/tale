@@ -547,7 +547,9 @@ function MemoryListSkeletonRows() {
     <ul className="divide-border divide-y" aria-hidden="true">
       {Array.from({ length: MEMORY_PLACEHOLDER_ROWS }).map((_, i) => (
         <li key={i} className="flex items-start gap-3 py-2">
-          <SkeletonText className="flex-1" width={`${70 - i * 10}%`} />
+          <div className="flex-1" style={{ width: `${70 - i * 10}%` }}>
+            <SkeletonText />
+          </div>
         </li>
       ))}
     </ul>

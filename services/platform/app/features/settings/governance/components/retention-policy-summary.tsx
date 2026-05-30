@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonBox } from '@tale/ui/skeleton';
+
 import { useT } from '@/lib/i18n/client';
 import type { RetentionPolicyConfig } from '@/lib/shared/schemas/governance';
 import {
@@ -38,7 +40,9 @@ export function RetentionPolicySummary({
           <dt className="text-muted-foreground w-44 shrink-0">
             {t('retentionPolicy.deletionGrace.label', 'Grace period (days)')}
           </dt>
-          <dd>{graceDays}</dd>
+          <dd>
+            <SkeletonBox>{graceDays}</SkeletonBox>
+          </dd>
         </div>
       </dl>
       <div className="border-border/50 border-t pt-4">
@@ -71,15 +75,17 @@ function SummaryRow({ wire, config, bounds }: SummaryRowProps) {
     <div className="flex gap-2">
       <dt className="text-muted-foreground w-44 shrink-0">{titleText}</dt>
       <dd>
-        {!enabled ? (
-          <span className="text-muted-foreground">
-            {t('retentionPolicy.summary.disabled', 'Disabled')}
-          </span>
-        ) : typeof numericValue === 'number' ? (
-          `${numericValue} ${unit}`
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
+        <SkeletonBox>
+          {!enabled ? (
+            <span className="text-muted-foreground">
+              {t('retentionPolicy.summary.disabled', 'Disabled')}
+            </span>
+          ) : typeof numericValue === 'number' ? (
+            `${numericValue} ${unit}`
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </SkeletonBox>
       </dd>
     </div>
   );

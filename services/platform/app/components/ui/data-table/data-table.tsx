@@ -2,7 +2,8 @@
 
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
 import {
   Table,
@@ -376,6 +377,9 @@ export function DataTable<TData, TValue = unknown>({
     hasActiveFilters,
   ]);
 
+  const isSkeleton =
+    tableBodyState === 'loading' || tableBodyState === 'skeleton';
+
   // Number of skeleton rows to render based on current state
   const skeletonRowCount =
     tableBodyState === 'loading'
@@ -417,230 +421,261 @@ export function DataTable<TData, TValue = unknown>({
 
   const rows = table.getRowModel().rows;
 
-  // Shared table content
+  // Shared table content. Wrapped in Skeletonize (outside <table>) so the
+  // placeholder cells below pulse while loading; idle it adds no box.
   const tableContent = (
-    <Table stickyLayout={stickyLayout}>
-      {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
-      <TableHeader sticky={stickyLayout}>
-        {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow key={headerGroup.id} className="bg-muted">
-            {enableExpanding && <TableHead className="w-[3rem]" />}
-            {headerGroup.headers.map((headerCell) => (
-              <TableHead
-                key={headerCell.id}
-                className="text-sm font-medium"
-                style={{
-                  width:
-                    headerCell.column.getSize() !== 150
-                      ? headerCell.column.getSize()
-                      : undefined,
-                }}
-              >
-                {headerCell.isPlaceholder
-                  ? null
-                  : flexRender(
-                      headerCell.column.columnDef.header,
-                      headerCell.getContext(),
-                    )}
-              </TableHead>
-            ))}
-          </TableRow>
-        ))}
-      </TableHeader>
-      <TableBody>
-        {tableBodyState === 'loading' || tableBodyState === 'skeleton' ? (
-          // Skeleton rows — count-loading uses 3 placeholder rows,
-          // skeleton uses the actual approxRowCount
-          Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
-            <TableRow key={`skeleton-${rowIndex}`}>
-              {enableExpanding && <TableCell className="w-[3rem]" />}
-              {columns.map((col, colIndex) => {
-                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
-                const meta = col.meta as ColumnMeta | undefined;
-                const isFirstColumn = colIndex === 0;
-                const isActionCol = meta?.isAction === true;
-                const skeletonType = meta?.skeleton?.type;
-                const hasAvatar = meta?.hasAvatar;
-                const align = meta?.align;
-
-                let cellContent: ReactNode;
-
-                if (isActionCol || skeletonType === 'action') {
-                  cellContent = (
-                    <HStack justify="end">
-                      <Skeleton className="h-8 w-8 rounded-md" />
-                    </HStack>
-                  );
-                } else if (skeletonType === 'badge') {
-                  cellContent = <Skeleton className="h-5 w-20 rounded-full" />;
-                } else if (skeletonType === 'switch') {
-                  cellContent = (
-                    <Skeleton className="h-[1.15rem] w-8 rounded-full" />
-                  );
-                } else if (skeletonType === 'id-copy') {
-                  cellContent = (
-                    <HStack gap={2}>
-                      <Skeleton className="h-3.5 max-w-[120px] flex-1" />
-                      <Skeleton className="size-6 shrink-0 rounded-md" />
-                    </HStack>
-                  );
-                } else if (
-                  hasAvatar === true ||
-                  skeletonType === 'avatar-text' ||
-                  (isFirstColumn && hasAvatar !== false)
-                ) {
-                  cellContent = (
-                    <HStack gap={3}>
-                      <Skeleton className="size-8 shrink-0 rounded-md" />
-                      <Stack gap={1} className="flex-1">
-                        <Skeleton className="h-3.5 w-full max-w-48" />
-                        <Skeleton className="h-3 w-2/3 max-w-24" />
-                      </Stack>
-                    </HStack>
-                  );
-                } else if (skeletonType === 'icon-text') {
-                  cellContent = (
-                    <HStack gap={3}>
-                      <Skeleton className="size-4 shrink-0 rounded" />
-                      <Skeleton className="h-3.5 w-full max-w-48" />
-                    </HStack>
-                  );
-                } else if (align === 'right') {
-                  cellContent = (
-                    <div className="flex justify-end">
-                      <Skeleton className="h-3.5 w-20" />
-                    </div>
-                  );
-                } else if (align === 'center') {
-                  cellContent = (
-                    <div className="flex justify-center">
-                      <Skeleton className="h-3.5 w-20" />
-                    </div>
-                  );
-                } else {
-                  cellContent = (
-                    <Skeleton className="h-3.5 w-full max-w-[80%]" />
-                  );
-                }
-
-                return (
-                  <TableCell
-                    key={colIndex}
-                    style={{
-                      width:
-                        col.size !== undefined && col.size !== 150
-                          ? col.size
-                          : undefined,
-                    }}
-                  >
-                    {cellContent}
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-          ))
-        ) : tableBodyState === 'empty' ? (
-          // Initial empty state — no data and no filters active. The cell
-          // wraps the empty state in a viewport-sized, sticky container so
-          // it stays centered even when the table overflows horizontally
-          // (common on narrow viewports where many columns push the table
-          // wider than the scroll viewport).
-          <TableRow className="hover:bg-transparent">
-            <TableCell colSpan={colSpan} className="p-0">
-              <div className="sticky left-0 w-screen max-w-full p-4">
-                <DataTableEmptyState
-                  icon={emptyState?.icon}
-                  title={emptyState?.title ?? ''}
-                  description={emptyState?.description}
-                />
-              </div>
-            </TableCell>
-          </TableRow>
-        ) : tableBodyState === 'filtered-empty' ? (
-          // Filtered empty state — filters applied but no matching rows
-          <TableRow className="hover:bg-transparent">
-            <TableCell colSpan={colSpan} className="p-0">
-              <div className="sticky left-0 w-screen max-w-full p-4">
-                <DataTableEmptyState
-                  title={t('search.noResults')}
-                  description={t('search.tryAdjusting')}
-                />
-              </div>
-            </TableCell>
-          </TableRow>
-        ) : tableBodyState === 'idle-empty' ? null : (
-          rows.map((row, index) => {
-            const isExpanded = row.getIsExpanded();
-            const rowClassNameValue =
-              typeof rowClassName === 'function'
-                ? rowClassName(row)
-                : rowClassName;
-            const isNewRow = animatingRows.has(row.id);
-
-            return (
-              <Fragment key={row.id}>
-                <TableRow
-                  className={cn(
-                    'group',
-                    index === rows.length - 1 ? 'border-b-0' : '',
-                    clickableRows || onRowClick ? 'cursor-pointer' : '',
-                    isNewRow && 'animate-row-enter',
-                    rowClassNameValue,
-                  )}
-                  data-state={row.getIsSelected() ? 'selected' : undefined}
-                  aria-selected={row.getIsSelected() || undefined}
-                  onMouseEnter={() => onRowMouseEnter?.(row)}
-                  onClick={() => {
-                    if (enableExpanding) {
-                      row.toggleExpanded();
-                    }
-                    onRowClick?.(row);
+    <Skeletonize loading={isSkeleton}>
+      <Table stickyLayout={stickyLayout}>
+        {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
+        <TableHeader sticky={stickyLayout}>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id} className="bg-muted">
+              {enableExpanding && <TableHead className="w-[3rem]" />}
+              {headerGroup.headers.map((headerCell) => (
+                <TableHead
+                  key={headerCell.id}
+                  className="text-sm font-medium"
+                  style={{
+                    width:
+                      headerCell.column.getSize() !== 150
+                        ? headerCell.column.getSize()
+                        : undefined,
                   }}
                 >
-                  {enableExpanding && (
-                    <TableCell className="w-[3rem]">
-                      <ChevronRight
-                        className={cn(
-                          'size-4 text-muted-foreground transition-transform duration-200',
-                          isExpanded && 'rotate-90',
-                        )}
-                      />
-                    </TableCell>
-                  )}
-                  {row.getVisibleCells().map((cell) => (
+                  {headerCell.isPlaceholder
+                    ? null
+                    : flexRender(
+                        headerCell.column.columnDef.header,
+                        headerCell.getContext(),
+                      )}
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {tableBodyState === 'loading' || tableBodyState === 'skeleton' ? (
+            // Skeleton rows — count-loading uses 3 placeholder rows,
+            // skeleton uses the actual approxRowCount
+            Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
+              <TableRow key={`skeleton-${rowIndex}`}>
+                {enableExpanding && <TableCell className="w-[3rem]" />}
+                {columns.map((col, colIndex) => {
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+                  const meta = col.meta as ColumnMeta | undefined;
+                  const isFirstColumn = colIndex === 0;
+                  const isActionCol = meta?.isAction === true;
+                  const skeletonType = meta?.skeleton?.type;
+                  const hasAvatar = meta?.hasAvatar;
+                  const align = meta?.align;
+
+                  let cellContent: ReactNode;
+
+                  if (isActionCol || skeletonType === 'action') {
+                    cellContent = (
+                      <HStack justify="end">
+                        <SkeletonBox>
+                          <div className="h-8 w-8 rounded-md" />
+                        </SkeletonBox>
+                      </HStack>
+                    );
+                  } else if (skeletonType === 'badge') {
+                    cellContent = (
+                      <SkeletonBox>
+                        <div className="h-5 w-20 rounded-full" />
+                      </SkeletonBox>
+                    );
+                  } else if (skeletonType === 'switch') {
+                    cellContent = (
+                      <SkeletonBox>
+                        <div className="h-[1.15rem] w-8 rounded-full" />
+                      </SkeletonBox>
+                    );
+                  } else if (skeletonType === 'id-copy') {
+                    cellContent = (
+                      <HStack gap={2}>
+                        <SkeletonBox>
+                          <div className="h-3.5 max-w-[120px] flex-1" />
+                        </SkeletonBox>
+                        <SkeletonBox>
+                          <div className="size-6 shrink-0 rounded-md" />
+                        </SkeletonBox>
+                      </HStack>
+                    );
+                  } else if (
+                    hasAvatar === true ||
+                    skeletonType === 'avatar-text' ||
+                    (isFirstColumn && hasAvatar !== false)
+                  ) {
+                    cellContent = (
+                      <HStack gap={3}>
+                        <SkeletonBox>
+                          <div className="size-8 shrink-0 rounded-md" />
+                        </SkeletonBox>
+                        <Stack gap={1} className="flex-1">
+                          <SkeletonBox>
+                            <div className="h-3.5 w-full max-w-48" />
+                          </SkeletonBox>
+                          <SkeletonBox>
+                            <div className="h-3 w-2/3 max-w-24" />
+                          </SkeletonBox>
+                        </Stack>
+                      </HStack>
+                    );
+                  } else if (skeletonType === 'icon-text') {
+                    cellContent = (
+                      <HStack gap={3}>
+                        <SkeletonBox>
+                          <div className="size-4 shrink-0 rounded" />
+                        </SkeletonBox>
+                        <SkeletonBox>
+                          <div className="h-3.5 w-full max-w-48" />
+                        </SkeletonBox>
+                      </HStack>
+                    );
+                  } else if (align === 'right') {
+                    cellContent = (
+                      <div className="flex justify-end">
+                        <SkeletonBox>
+                          <div className="h-3.5 w-20" />
+                        </SkeletonBox>
+                      </div>
+                    );
+                  } else if (align === 'center') {
+                    cellContent = (
+                      <div className="flex justify-center">
+                        <SkeletonBox>
+                          <div className="h-3.5 w-20" />
+                        </SkeletonBox>
+                      </div>
+                    );
+                  } else {
+                    cellContent = (
+                      <SkeletonBox>
+                        <div className="h-3.5 w-full max-w-[80%]" />
+                      </SkeletonBox>
+                    );
+                  }
+
+                  return (
                     <TableCell
-                      key={cell.id}
+                      key={colIndex}
                       style={{
                         width:
-                          cell.column.getSize() !== 150
-                            ? cell.column.getSize()
+                          col.size !== undefined && col.size !== 150
+                            ? col.size
                             : undefined,
                       }}
                     >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
+                      {cellContent}
                     </TableCell>
-                  ))}
-                </TableRow>
-                {enableExpanding && isExpanded && renderExpandedRow && (
-                  <TableRow className="border-0 hover:bg-transparent">
-                    <TableCell colSpan={columns.length + 1} className="p-0">
-                      <div className="animate-in fade-in-0 slide-in-from-top-1 grid duration-150">
-                        <div className="bg-muted/20 px-4 pb-2">
-                          {renderExpandedRow(row)}
-                        </div>
-                      </div>
-                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            ))
+          ) : tableBodyState === 'empty' ? (
+            // Initial empty state — no data and no filters active. The cell
+            // wraps the empty state in a viewport-sized, sticky container so
+            // it stays centered even when the table overflows horizontally
+            // (common on narrow viewports where many columns push the table
+            // wider than the scroll viewport).
+            <TableRow className="hover:bg-transparent">
+              <TableCell colSpan={colSpan} className="p-0">
+                <div className="sticky left-0 w-screen max-w-full p-4">
+                  <DataTableEmptyState
+                    icon={emptyState?.icon}
+                    title={emptyState?.title ?? ''}
+                    description={emptyState?.description}
+                  />
+                </div>
+              </TableCell>
+            </TableRow>
+          ) : tableBodyState === 'filtered-empty' ? (
+            // Filtered empty state — filters applied but no matching rows
+            <TableRow className="hover:bg-transparent">
+              <TableCell colSpan={colSpan} className="p-0">
+                <div className="sticky left-0 w-screen max-w-full p-4">
+                  <DataTableEmptyState
+                    title={t('search.noResults')}
+                    description={t('search.tryAdjusting')}
+                  />
+                </div>
+              </TableCell>
+            </TableRow>
+          ) : tableBodyState === 'idle-empty' ? null : (
+            rows.map((row, index) => {
+              const isExpanded = row.getIsExpanded();
+              const rowClassNameValue =
+                typeof rowClassName === 'function'
+                  ? rowClassName(row)
+                  : rowClassName;
+              const isNewRow = animatingRows.has(row.id);
+
+              return (
+                <Fragment key={row.id}>
+                  <TableRow
+                    className={cn(
+                      'group',
+                      index === rows.length - 1 ? 'border-b-0' : '',
+                      clickableRows || onRowClick ? 'cursor-pointer' : '',
+                      isNewRow && 'animate-row-enter',
+                      rowClassNameValue,
+                    )}
+                    data-state={row.getIsSelected() ? 'selected' : undefined}
+                    aria-selected={row.getIsSelected() || undefined}
+                    onMouseEnter={() => onRowMouseEnter?.(row)}
+                    onClick={() => {
+                      if (enableExpanding) {
+                        row.toggleExpanded();
+                      }
+                      onRowClick?.(row);
+                    }}
+                  >
+                    {enableExpanding && (
+                      <TableCell className="w-[3rem]">
+                        <ChevronRight
+                          className={cn(
+                            'size-4 text-muted-foreground transition-transform duration-200',
+                            isExpanded && 'rotate-90',
+                          )}
+                        />
+                      </TableCell>
+                    )}
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        style={{
+                          width:
+                            cell.column.getSize() !== 150
+                              ? cell.column.getSize()
+                              : undefined,
+                        }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    ))}
                   </TableRow>
-                )}
-              </Fragment>
-            );
-          })
-        )}
-      </TableBody>
-    </Table>
+                  {enableExpanding && isExpanded && renderExpandedRow && (
+                    <TableRow className="border-0 hover:bg-transparent">
+                      <TableCell colSpan={columns.length + 1} className="p-0">
+                        <div className="animate-in fade-in-0 slide-in-from-top-1 grid duration-150">
+                          <div className="bg-muted/20 px-4 pb-2">
+                            {renderExpandedRow(row)}
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
+    </Skeletonize>
   );
 
   // Shared pagination content

@@ -96,6 +96,26 @@ export function hasThoughtSteps(
   return false;
 }
 
+/**
+ * Cheap predicate: does this message have a tool part that is still mid-flight
+ * (input-streaming / input-available)? Used to treat a pending tool-only turn
+ * (observed before any reasoning/text streams) as active. Narrows each part the
+ * same defensive way as the builder; allocates nothing and early-exits.
+ */
+export function hasInFlightTool(
+  parts: readonly unknown[] | undefined,
+): boolean {
+  if (!Array.isArray(parts)) return false;
+  for (const raw of parts) {
+    if (!isRecord(raw) || typeof raw.type !== 'string') continue;
+    if (!raw.type.startsWith('tool-')) continue;
+    if (raw.state === 'input-streaming' || raw.state === 'input-available') {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function buildThoughtTimeline(
   parts: readonly unknown[] | undefined,
 ): ThoughtTimeline {

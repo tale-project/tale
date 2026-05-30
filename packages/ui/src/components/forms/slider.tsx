@@ -10,7 +10,6 @@ import {
 
 import { cn } from '../../lib/cn';
 import { SkeletonBox } from '../feedback/skeleton';
-import { useSkeleton } from '../feedback/skeleton-context';
 
 export interface SliderProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -219,21 +218,16 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
 SliderBase.displayName = 'SliderBase';
 
 /**
- * Skeleton-aware Slider. Inside a `<Skeletonize loading>` it masks the plain
- * control by rendering it inside a `<SkeletonBox>` — laid out invisibly to set
- * the exact size, pulse overlay on top — so the skeleton can never drift.
+ * Skeleton-aware Slider. Always wraps the real control in a `<SkeletonBox>`
+ * (`SliderBase` is kept separate only because it owns hooks): idle, the box is
+ * `display: contents`; inside a `<Skeletonize loading>` it masks the control
+ * with an overlay at its exact size.
  */
 export const Slider = forwardRef<HTMLInputElement, SliderProps>(
-  (props, ref) => {
-    const loading = useSkeleton();
-    if (loading) {
-      return (
-        <SkeletonBox>
-          <SliderBase {...props} ref={ref} />
-        </SkeletonBox>
-      );
-    }
-    return <SliderBase {...props} ref={ref} />;
-  },
+  (props, ref) => (
+    <SkeletonBox fullWidth>
+      <SliderBase {...props} ref={ref} />
+    </SkeletonBox>
+  ),
 );
 Slider.displayName = 'Slider';

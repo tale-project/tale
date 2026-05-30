@@ -36,12 +36,20 @@ function IntegrationCardSkeleton() {
       <div className="w-full p-5 text-left">
         <Stack gap={3}>
           <HStack justify="between" align="start">
-            <SkeletonBox className="size-11 rounded-lg" />
-            <SkeletonBox className="h-5 w-16 rounded-full" />
+            <SkeletonBox>
+              <div className="size-11 rounded-lg" />
+            </SkeletonBox>
+            <SkeletonBox>
+              <div className="h-5 w-16 rounded-full" />
+            </SkeletonBox>
           </HStack>
           <Stack gap={1}>
-            <SkeletonText width="6rem" className="text-base leading-none" />
-            <SkeletonText lines={2} className="text-sm leading-[1.43]" />
+            <div className="w-24 text-base leading-none">
+              <SkeletonText />
+            </div>
+            <div className="text-sm leading-[1.43]">
+              <SkeletonText lines={2} />
+            </div>
           </Stack>
         </Stack>
       </div>

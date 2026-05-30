@@ -48,7 +48,13 @@ function StatCell({ label, value, tooltip }: StatCellProps) {
           (font-mono text-2xl) so the card height is identical loading vs
           loaded and the number doesn't flash from a placeholder 0. */}
       <Text className="text-foreground font-mono text-2xl font-semibold">
-        {loading ? <SkeletonBox className="my-0.5 h-7 w-20" /> : value}
+        {loading ? (
+          <SkeletonBox>
+            <span className="my-0.5 inline-block h-7 w-20" />
+          </SkeletonBox>
+        ) : (
+          value
+        )}
       </Text>
     </div>
   );

@@ -3,8 +3,9 @@
 import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { lazy, Suspense, useCallback, useRef, useState } from 'react';
+import { lazy, useCallback, useRef, useState } from 'react';
 
+import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -47,63 +48,10 @@ function deriveValue(policy: PiiPolicy): PiiConfigPanelValue {
 }
 
 // =============================================================================
-// Plain presentational view — no data/state hooks of its own. Renders the real
-// layout from injected `enabled`/`value` + change callbacks. Rendered both live
-// (by the container) and as its own skeleton (the container wraps it in
-// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
-// cannot drift. The skeleton-aware `<Switch>` masks itself to its exact track
-// height while loading; the lazy panel only mounts once PII is enabled.
-// =============================================================================
-export function PiiConfigView({
-  enabled,
-  value,
-  disabled,
-  pending,
-  onEnabledChange,
-  onPanelChange,
-}: {
-  enabled: boolean;
-  value: PiiConfigPanelValue;
-  disabled: boolean;
-  pending: boolean;
-  onEnabledChange: (checked: boolean) => void;
-  onPanelChange: (next: PiiConfigPanelValue) => void;
-}) {
-  const { t } = useT('governance');
-
-  return (
-    <PageSection
-      title={t('pii.title')}
-      description={t('pii.description')}
-      action={
-        <Switch
-          label={t('pii.enableLabel')}
-          checked={enabled}
-          onCheckedChange={onEnabledChange}
-          disabled={disabled || pending}
-        />
-      }
-    >
-      {enabled && (
-        // The lazy chunk's size is genuinely unknown, so a fixed-height
-        // `SkeletonBox` is the honest placeholder until it hydrates.
-        <Suspense fallback={<SkeletonBox className="h-64 w-full" />}>
-          <PiiConfigPanel
-            value={value}
-            onChange={onPanelChange}
-            disabled={disabled}
-            detectionLocales="*"
-          />
-        </Suspense>
-      )}
-    </PageSection>
-  );
-}
-
-// =============================================================================
-// Container — owns data fetching, local edit state, save/toast wiring, and the
-// loading state. Wraps the plain view in `<Skeletonize>` so the same tree
-// renders the skeleton.
+// Single editor — owns data fetching, local edit state, save/toast wiring, and
+// the loading state. Renders the REAL layout once, always, wrapped in
+// `<Skeletonize>`. The skeleton-aware `<Switch>` masks itself to its exact
+// track height while loading; the lazy panel only mounts once PII is enabled.
 //
 // Local state is seeded LAZILY from the (possibly already-warm) policy so the
 // very first render shows the real values — there is no post-mount
@@ -197,14 +145,39 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
 
   return (
     <Skeletonize loading={isLoading} label={t('pii.title')}>
-      <PiiConfigView
-        enabled={enabled}
-        value={value}
-        disabled={cannotManage}
-        pending={upsertMutation.isPending}
-        onEnabledChange={handleEnabledChange}
-        onPanelChange={handlePanelChange}
-      />
+      <PageSection
+        title={t('pii.title')}
+        description={t('pii.description')}
+        action={
+          <Switch
+            label={t('pii.enableLabel')}
+            checked={enabled}
+            onCheckedChange={handleEnabledChange}
+            disabled={cannotManage || upsertMutation.isPending}
+          />
+        }
+      >
+        {enabled && (
+          // The lazy chunk's size is genuinely unknown, so a fixed-height
+          // `SkeletonBox` is the honest placeholder until it hydrates.
+          <SuspenseBoundary
+            fallback={
+              <Skeletonize loading>
+                <SkeletonBox fullWidth>
+                  <div className="h-64 w-full" />
+                </SkeletonBox>
+              </Skeletonize>
+            }
+          >
+            <PiiConfigPanel
+              value={value}
+              onChange={handlePanelChange}
+              disabled={cannotManage}
+              detectionLocales="*"
+            />
+          </SuspenseBoundary>
+        )}
+      </PageSection>
     </Skeletonize>
   );
 }

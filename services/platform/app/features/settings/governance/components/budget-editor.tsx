@@ -3,8 +3,8 @@
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
-import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
-import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Pencil, Plus, Trash2, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -316,266 +316,18 @@ const PLACEHOLDER_ROW_COUNT = 3;
  *  per-cell placeholder rows can never drift from the real header. */
 const COLUMN_COUNT = 7;
 
-interface BudgetEditorViewProps {
-  rules: BudgetRule[];
-  cannotManage: boolean;
-  resolveTarget: (rule: BudgetRule) => string;
-  onAddRule: () => void;
-  onEditRule: (index: number) => void;
-  onRemoveRule: (index: number) => void;
-  // Dialog wiring (owned by the container, rendered here so the live and
-  // skeletonized trees are the SAME element tree).
-  dialogOpen: boolean;
-  onDialogOpenChange: (open: boolean) => void;
-  dialogRule: BudgetRule;
-  dialogTitle: string;
-  onDialogSave: (rule: BudgetRule) => void;
-  memberOptions: { value: string; label: string; description?: string }[];
-  teamOptions: { value: string; label: string }[];
-  deletingIndex: number | null;
-  onDeletingIndexChange: (index: number | null) => void;
-  onConfirmRemove: () => void;
-}
-
-/**
- * Plain presentational view — no data/state hooks of its own. Rendered both
- * live (by the container) and as its own skeleton (the container wraps it in
- * `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
- * cannot drift. Skeleton-aware leaves (Button) auto-mask while loading; the
- * table renders fixed PLACEHOLDER rows so an empty `<tbody>` never reads as
- * "no rules" during load.
- */
-export function BudgetEditorView({
-  rules,
-  cannotManage,
-  resolveTarget,
-  onAddRule,
-  onEditRule,
-  onRemoveRule,
-  dialogOpen,
-  onDialogOpenChange,
-  dialogRule,
-  dialogTitle,
-  onDialogSave,
-  memberOptions,
-  teamOptions,
-  deletingIndex,
-  onDeletingIndexChange,
-  onConfirmRemove,
-}: BudgetEditorViewProps) {
-  const { t } = useT('governance');
-  const loading = useSkeleton();
-
-  return (
-    <PageSection
-      title={t('budgets.title')}
-      description={t('budgets.description')}
-      action={
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onAddRule}
-          disabled={cannotManage}
-        >
-          <Plus className="mr-1.5 size-4" />
-          {t('budgets.addRule')}
-        </Button>
-      }
-    >
-      <Stack gap={6}>
-        <Text variant="muted" className="text-xs">
-          {t('budgets.overrideHint')}
-        </Text>
-
-        <div className="border-border overflow-hidden rounded-lg border">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <caption className="sr-only">{t('budgets.title')}</caption>
-              <thead className="bg-muted/50">
-                <tr className="border-border border-b">
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-left font-medium"
-                  >
-                    {t('budgets.scope')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-left font-medium"
-                  >
-                    {t('budgets.target')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-left font-medium"
-                  >
-                    {t('budgets.period')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-right font-medium"
-                  >
-                    {t('budgets.tokenLimit')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-right font-medium"
-                  >
-                    {t('budgets.maxCost')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-right font-medium"
-                  >
-                    {t('budgets.maxRequests')}
-                  </th>
-                  <th
-                    scope="col"
-                    className="text-muted-foreground px-3 py-2 text-right font-medium"
-                  >
-                    {t('budgets.actions')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  Array.from({ length: PLACEHOLDER_ROW_COUNT }).map((_, i) => (
-                    <tr
-                      key={`placeholder-${i}`}
-                      className="border-border border-b last:border-b-0"
-                    >
-                      <td className="px-3 py-2">
-                        <SkeletonText width="4rem" />
-                      </td>
-                      <td className="px-3 py-2">
-                        <SkeletonText width="6rem" />
-                      </td>
-                      <td className="px-3 py-2">
-                        <SkeletonText width="4rem" />
-                      </td>
-                      <td className="px-3 py-2">
-                        <SkeletonText width="3.5rem" className="ml-auto" />
-                      </td>
-                      <td className="px-3 py-2">
-                        <SkeletonText width="3.5rem" className="ml-auto" />
-                      </td>
-                      <td className="px-3 py-2">
-                        <SkeletonText width="3rem" className="ml-auto" />
-                      </td>
-                      <td className="px-3 py-2">
-                        <HStack gap={1} justify="end">
-                          <SkeletonBox className="size-8 rounded-md" />
-                          <SkeletonBox className="size-8 rounded-md" />
-                        </HStack>
-                      </td>
-                    </tr>
-                  ))
-                ) : rules.length > 0 ? (
-                  rules.map((rule, index) => (
-                    <tr
-                      key={index}
-                      className="border-border border-b last:border-b-0"
-                    >
-                      <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                      <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                      <td className="px-3 py-2 capitalize">{rule.period}</td>
-                      <td className="px-3 py-2 text-right">
-                        {rule.maxTokens != null
-                          ? rule.maxTokens.toLocaleString()
-                          : '—'}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {rule.maxCostCents != null
-                          ? formatCost(rule.maxCostCents)
-                          : '—'}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {rule.maxRequests != null
-                          ? rule.maxRequests.toLocaleString()
-                          : '—'}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <HStack gap={1} justify="end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onEditRule(index)}
-                            disabled={cannotManage}
-                            aria-label={t('budgets.editRuleAriaLabel', {
-                              index: index + 1,
-                            })}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onRemoveRule(index)}
-                            disabled={cannotManage}
-                            aria-label={t('budgets.removeRuleAriaLabel', {
-                              index: index + 1,
-                            })}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </HStack>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={COLUMN_COUNT} className="p-0">
-                      <RulesTableEmptyState
-                        icon={Wallet}
-                        title={t('budgets.noRulesTitle')}
-                        description={t('budgets.noRulesDescription')}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </Stack>
-
-      <RuleDialog
-        open={dialogOpen}
-        onOpenChange={onDialogOpenChange}
-        rule={dialogRule}
-        onSave={onDialogSave}
-        title={dialogTitle}
-        cannotManage={cannotManage}
-        memberOptions={memberOptions}
-        teamOptions={teamOptions}
-      />
-
-      <ConfirmDialog
-        open={deletingIndex !== null}
-        onOpenChange={(open) => {
-          if (!open) onDeletingIndexChange(null);
-        }}
-        title={t('budgets.removeRuleConfirmTitle')}
-        description={t('budgets.removeRuleConfirmDescription')}
-        confirmText={t('budgets.removeRuleConfirmAction')}
-        variant="destructive"
-        onConfirm={onConfirmRemove}
-      />
-    </PageSection>
-  );
-}
-
 // =============================================================================
-// Container — owns data fetching, rules state, dialog state, and save/toast
-// wiring. Wraps the plain view in `<Skeletonize>` so the same tree renders the
-// skeleton while the policy loads.
+// Single editor — owns data fetching, rules state, dialog state, and
+// save/toast wiring. Renders the REAL `PageSection` once, always, wrapped in
+// `<Skeletonize>`; the table renders fixed PLACEHOLDER rows while loading so an
+// empty `<tbody>` never reads as "no rules" during load.
 // =============================================================================
 export function BudgetEditor({ organizationId }: BudgetEditorProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
 
-  const { data: policy, isLoading } = useGovernancePolicy(
+  const { data: policy, isLoading: loading } = useGovernancePolicy(
     organizationId,
     'budgets',
   );
@@ -716,30 +468,233 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
     [memberOptions, teamOptions, t],
   );
 
+  const onAddRule = openAddDialog;
+  const onEditRule = openEditDialog;
+  const onRemoveRule = setDeletingIndex;
+  const onDialogOpenChange = setDialogOpen;
+  const onDialogSave = handleDialogSave;
+  const onDeletingIndexChange = setDeletingIndex;
+  const onConfirmRemove = confirmRemoveRule;
+  const dialogTitle =
+    editingIndex === null
+      ? t('budgets.addRuleDialogTitle')
+      : t('budgets.editRuleDialogTitle');
+
   return (
-    <Skeletonize loading={isLoading} label={t('budgets.title')}>
-      <BudgetEditorView
-        rules={rules}
-        cannotManage={cannotManage}
-        resolveTarget={resolveTarget}
-        onAddRule={openAddDialog}
-        onEditRule={openEditDialog}
-        onRemoveRule={setDeletingIndex}
-        dialogOpen={dialogOpen}
-        onDialogOpenChange={setDialogOpen}
-        dialogRule={dialogRule}
-        dialogTitle={
-          editingIndex === null
-            ? t('budgets.addRuleDialogTitle')
-            : t('budgets.editRuleDialogTitle')
+    <Skeletonize loading={loading} label={t('budgets.title')}>
+      <PageSection
+        title={t('budgets.title')}
+        description={t('budgets.description')}
+        action={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onAddRule}
+            disabled={cannotManage}
+          >
+            <Plus className="mr-1.5 size-4" />
+            {t('budgets.addRule')}
+          </Button>
         }
-        onDialogSave={handleDialogSave}
-        memberOptions={memberOptions}
-        teamOptions={teamOptions}
-        deletingIndex={deletingIndex}
-        onDeletingIndexChange={setDeletingIndex}
-        onConfirmRemove={confirmRemoveRule}
-      />
+      >
+        <Stack gap={6}>
+          <Text variant="muted" className="text-xs">
+            {t('budgets.overrideHint')}
+          </Text>
+
+          <div className="border-border overflow-hidden rounded-lg border">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <caption className="sr-only">{t('budgets.title')}</caption>
+                <thead className="bg-muted/50">
+                  <tr className="border-border border-b">
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-left font-medium"
+                    >
+                      {t('budgets.scope')}
+                    </th>
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-left font-medium"
+                    >
+                      {t('budgets.target')}
+                    </th>
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-left font-medium"
+                    >
+                      {t('budgets.period')}
+                    </th>
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-right font-medium"
+                    >
+                      {t('budgets.tokenLimit')}
+                    </th>
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-right font-medium"
+                    >
+                      {t('budgets.maxCost')}
+                    </th>
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-right font-medium"
+                    >
+                      {t('budgets.maxRequests')}
+                    </th>
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-right font-medium"
+                    >
+                      {t('budgets.actions')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    Array.from({ length: PLACEHOLDER_ROW_COUNT }).map(
+                      (_, i) => (
+                        <tr
+                          key={`placeholder-${i}`}
+                          className="border-border border-b last:border-b-0"
+                        >
+                          <td className="px-3 py-2">
+                            <SkeletonBox>
+                              <div className="h-3.5 w-16" />
+                            </SkeletonBox>
+                          </td>
+                          <td className="px-3 py-2">
+                            <SkeletonBox>
+                              <div className="h-3.5 w-24" />
+                            </SkeletonBox>
+                          </td>
+                          <td className="px-3 py-2">
+                            <SkeletonBox>
+                              <div className="h-3.5 w-16" />
+                            </SkeletonBox>
+                          </td>
+                          <td className="px-3 py-2">
+                            <SkeletonBox fullWidth>
+                              <div className="ml-auto h-3.5 w-14" />
+                            </SkeletonBox>
+                          </td>
+                          <td className="px-3 py-2">
+                            <SkeletonBox fullWidth>
+                              <div className="ml-auto h-3.5 w-14" />
+                            </SkeletonBox>
+                          </td>
+                          <td className="px-3 py-2">
+                            <SkeletonBox fullWidth>
+                              <div className="ml-auto h-3.5 w-12" />
+                            </SkeletonBox>
+                          </td>
+                          <td className="px-3 py-2">
+                            <HStack gap={1} justify="end">
+                              <SkeletonBox>
+                                <div className="size-8 rounded-md" />
+                              </SkeletonBox>
+                              <SkeletonBox>
+                                <div className="size-8 rounded-md" />
+                              </SkeletonBox>
+                            </HStack>
+                          </td>
+                        </tr>
+                      ),
+                    )
+                  ) : rules.length > 0 ? (
+                    rules.map((rule, index) => (
+                      <tr
+                        key={index}
+                        className="border-border border-b last:border-b-0"
+                      >
+                        <td className="px-3 py-2 capitalize">{rule.scope}</td>
+                        <td className="px-3 py-2">{resolveTarget(rule)}</td>
+                        <td className="px-3 py-2 capitalize">{rule.period}</td>
+                        <td className="px-3 py-2 text-right">
+                          {rule.maxTokens != null
+                            ? rule.maxTokens.toLocaleString()
+                            : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {rule.maxCostCents != null
+                            ? formatCost(rule.maxCostCents)
+                            : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {rule.maxRequests != null
+                            ? rule.maxRequests.toLocaleString()
+                            : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <HStack gap={1} justify="end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onEditRule(index)}
+                              disabled={cannotManage}
+                              aria-label={t('budgets.editRuleAriaLabel', {
+                                index: index + 1,
+                              })}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onRemoveRule(index)}
+                              disabled={cannotManage}
+                              aria-label={t('budgets.removeRuleAriaLabel', {
+                                index: index + 1,
+                              })}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </HStack>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={COLUMN_COUNT} className="p-0">
+                        <RulesTableEmptyState
+                          icon={Wallet}
+                          title={t('budgets.noRulesTitle')}
+                          description={t('budgets.noRulesDescription')}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Stack>
+
+        <RuleDialog
+          open={dialogOpen}
+          onOpenChange={onDialogOpenChange}
+          rule={dialogRule}
+          onSave={onDialogSave}
+          title={dialogTitle}
+          cannotManage={cannotManage}
+          memberOptions={memberOptions}
+          teamOptions={teamOptions}
+        />
+
+        <ConfirmDialog
+          open={deletingIndex !== null}
+          onOpenChange={(open) => {
+            if (!open) onDeletingIndexChange(null);
+          }}
+          title={t('budgets.removeRuleConfirmTitle')}
+          description={t('budgets.removeRuleConfirmDescription')}
+          confirmText={t('budgets.removeRuleConfirmAction')}
+          variant="destructive"
+          onConfirm={onConfirmRemove}
+        />
+      </PageSection>
     </Skeletonize>
   );
 }

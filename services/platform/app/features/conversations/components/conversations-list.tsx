@@ -3,6 +3,8 @@
 import { Badge } from '@tale/ui/badge';
 import { Heading } from '@tale/ui/heading';
 import { Center, HStack } from '@tale/ui/layout';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { decode } from 'he';
 import { ClipboardList, Inbox, Loader2, Mail, Sparkles } from 'lucide-react';
@@ -16,7 +18,6 @@ import { cn } from '@/lib/utils/cn';
 import { isKeyOf } from '@/lib/utils/type-guards';
 
 import type { Conversation } from '../types';
-import { ConversationsListSkeleton } from './conversations-skeleton';
 
 // Get the last message content and truncate if necessary
 const getLastMessagePreview = (conversation: Conversation): string => {
@@ -125,6 +126,8 @@ interface ConversationsListProps {
     | 'LoadingMore'
     | 'Exhausted';
   loadMore?: (numItems: number) => void;
+  /** Number of placeholder rows to render while `conversations` is undefined. */
+  skeletonRows?: number;
 }
 
 const priorityConfig = {
@@ -158,25 +161,34 @@ const categoryConfig = {
 };
 
 interface ConversationRowProps {
-  conversation: Conversation;
-  isSelected: boolean;
-  isChecked: boolean;
+  conversation?: Conversation;
+  isSelected?: boolean;
+  isChecked?: boolean;
   onSelect?: (conversation: Conversation) => void;
   onCheck?: (conversationId: string, checked: boolean) => void;
-  formatDateSmart: (date: string | Date) => string;
-  t: (key: string) => string;
-  tDialogs: (key: string) => string;
+  formatDateSmart?: (date: string | Date) => string;
+  t?: (key: string) => string;
+  tDialogs?: (key: string) => string;
+  /**
+   * Placeholder row: no real conversation has loaded yet. Renders the same
+   * structure with each dynamic leaf masked. `placeholderIndex` varies which
+   * badge slots show so the loading list doesn't look uniform.
+   */
+  placeholder?: boolean;
+  placeholderIndex?: number;
 }
 
 const ConversationRow = memo(function ConversationRow({
   conversation,
-  isSelected,
-  isChecked,
+  isSelected = false,
+  isChecked = false,
   onSelect,
   onCheck,
   formatDateSmart,
   t,
   tDialogs,
+  placeholder = false,
+  placeholderIndex = 0,
 }: ConversationRowProps) {
   const { t: tCommon } = useT('common');
 
@@ -186,11 +198,11 @@ const ConversationRow = memo(function ConversationRow({
       event.target.closest('[data-state]')
     )
       return;
-    onSelect?.(conversation);
+    if (conversation) onSelect?.(conversation);
   };
 
   const handleCheckboxChange = (checked: boolean | 'indeterminate') => {
-    if (typeof checked === 'boolean') {
+    if (typeof checked === 'boolean' && conversation) {
       onCheck?.(conversation.id, checked);
     }
   };
@@ -198,6 +210,7 @@ const ConversationRow = memo(function ConversationRow({
   return (
     <button
       type="button"
+      disabled={placeholder}
       className={cn(
         'w-full text-left px-4 py-2.5 hover:bg-muted cursor-pointer transition-colors relative',
         isSelected && 'bg-muted',
@@ -210,11 +223,13 @@ const ConversationRow = memo(function ConversationRow({
       )}
       <div className="flex items-start gap-2.5">
         <div className="mt-0.5 flex items-center">
-          <Checkbox
-            checked={isChecked}
-            onCheckedChange={handleCheckboxChange}
-            aria-label={tDialogs('selectConversation')}
-          />
+          <SkeletonBox>
+            <Checkbox
+              checked={isChecked}
+              onCheckedChange={handleCheckboxChange}
+              aria-label={tDialogs?.('selectConversation') ?? ''}
+            />
+          </SkeletonBox>
         </div>
 
         <div className="min-w-0 flex-1">
@@ -228,11 +243,15 @@ const ConversationRow = memo(function ConversationRow({
                 truncate
                 className="flex-1"
               >
-                {conversation.customer?.name ||
-                  conversation?.title ||
-                  'Unknown'}
+                <SkeletonBox>
+                  {conversation
+                    ? conversation.customer?.name ||
+                      conversation?.title ||
+                      'Unknown'
+                    : 'Conversation name'}
+                </SkeletonBox>
               </Heading>
-              {conversation.unread_count > 0 && (
+              {conversation && conversation.unread_count > 0 && (
                 <span
                   className="size-1.5 shrink-0 rounded-full bg-blue-500"
                   aria-label={tCommon('aria.unread')}
@@ -245,51 +264,80 @@ const ConversationRow = memo(function ConversationRow({
               variant="label-sm"
               className="text-muted-foreground shrink-0 tracking-tight"
             >
-              {formatDateSmart(conversation.last_message_at || '')}
+              <SkeletonBox>
+                {conversation
+                  ? formatDateSmart?.(conversation.last_message_at || '')
+                  : '5m ago'}
+              </SkeletonBox>
             </Text>
           </div>
 
           <Text variant="muted" truncate className="mb-1.5 tracking-tight">
-            {conversation.title}
+            <SkeletonBox fullWidth>
+              {conversation ? (
+                conversation.title
+              ) : (
+                <span className="inline-block w-3/4">&nbsp;</span>
+              )}
+            </SkeletonBox>
           </Text>
 
           <Text variant="caption" truncate className="mb-2 tracking-tight">
-            {getLastMessagePreview(conversation)}
+            <SkeletonBox fullWidth>
+              {conversation ? (
+                getLastMessagePreview(conversation)
+              ) : (
+                <span className="inline-block w-full">&nbsp;</span>
+              )}
+            </SkeletonBox>
           </Text>
 
           <HStack gap={2}>
-            {(() => {
-              const priority: string | undefined = conversation.priority;
-              return (
-                priority &&
-                conversation.status === 'open' &&
-                priority !== 'medium' &&
-                isKeyOf(priority, priorityConfig) && (
-                  <Badge
-                    dot
-                    className="min-w-fit"
-                    variant={priorityConfig[priority].variant}
-                  >
-                    {t(priorityConfig[priority].translationKey)}
-                  </Badge>
-                )
-              );
-            })()}
+            {conversation
+              ? (() => {
+                  const priority: string | undefined = conversation.priority;
+                  return (
+                    priority &&
+                    conversation.status === 'open' &&
+                    priority !== 'medium' &&
+                    isKeyOf(priority, priorityConfig) && (
+                      <Badge
+                        dot
+                        className="min-w-fit"
+                        variant={priorityConfig[priority].variant}
+                      >
+                        {t?.(priorityConfig[priority].translationKey)}
+                      </Badge>
+                    )
+                  );
+                })()
+              : placeholderIndex % 3 === 0 && (
+                  <SkeletonBox>
+                    <div className="h-5 w-16 rounded-full" />
+                  </SkeletonBox>
+                )}
 
-            {(() => {
-              const conversationType: string | undefined = conversation.type;
-              return (
-                conversationType &&
-                isKeyOf(conversationType, categoryConfig) && (
-                  <Badge
-                    variant="outline"
-                    icon={categoryConfig[conversationType].icon}
-                  >
-                    {t(categoryConfig[conversationType].translationKey)}
-                  </Badge>
-                )
-              );
-            })()}
+            {conversation
+              ? (() => {
+                  const conversationType: string | undefined =
+                    conversation.type;
+                  return (
+                    conversationType &&
+                    isKeyOf(conversationType, categoryConfig) && (
+                      <Badge
+                        variant="outline"
+                        icon={categoryConfig[conversationType].icon}
+                      >
+                        {t?.(categoryConfig[conversationType].translationKey)}
+                      </Badge>
+                    )
+                  );
+                })()
+              : placeholderIndex % 2 === 0 && (
+                  <SkeletonBox>
+                    <div className="h-5 w-20 rounded-full" />
+                  </SkeletonBox>
+                )}
           </HStack>
         </div>
       </div>
@@ -307,6 +355,7 @@ export function ConversationsList({
   isConversationSelected,
   paginationStatus,
   loadMore,
+  skeletonRows = 12,
 }: ConversationsListProps) {
   const { formatDateSmart } = useFormatDate();
   const { t } = useT('conversations');
@@ -348,11 +397,8 @@ export function ConversationsList({
     return () => observer.disconnect();
   }, [handleIntersect]);
 
-  if (conversations === undefined) {
-    return <ConversationsListSkeleton />;
-  }
-
-  if (conversations.length === 0) {
+  // Loaded but genuinely empty — real empty state, never masked.
+  if (conversations !== undefined && conversations.length === 0) {
     return (
       <Center className="flex-1 flex-col px-4 py-16">
         <Inbox className="text-muted-foreground mb-3 size-8" />
@@ -361,30 +407,42 @@ export function ConversationsList({
     );
   }
 
+  // One real tree, always. While conversations are undefined (loading) no real
+  // rows exist, so a few placeholder rows stand in — each ConversationRow
+  // masks its own leaves (placeholder mode) inside <Skeletonize loading>.
+  const isLoading = conversations === undefined;
+  const placeholderCount = Math.min(skeletonRows, 12);
+
   return (
-    <div className="divide-border divide-y border-b">
-      {conversations.map((conversation) => (
-        <ConversationRow
-          key={conversation.id}
-          conversation={conversation}
-          isSelected={selectedConversationId === conversation.id}
-          isChecked={isConversationSelected?.(conversation.id) || false}
-          onSelect={onConversationSelect}
-          onCheck={onConversationCheck}
-          formatDateSmart={formatDateSmart}
-          t={stableT}
-          tDialogs={stableTDialogs}
-        />
-      ))}
-      {paginationStatus === 'LoadingMore' && (
-        <Center className="py-4">
-          <Loader2 className="text-muted-foreground size-5 animate-spin" />
-        </Center>
-      )}
-      {(paginationStatus === 'CanLoadMore' ||
-        paginationStatus === 'LoadingMore') && (
-        <div ref={sentinelRef} className="h-1" aria-hidden="true" />
-      )}
-    </div>
+    <Skeletonize loading={isLoading}>
+      <div className="divide-border divide-y border-b">
+        {isLoading
+          ? Array.from({ length: placeholderCount }).map((_, i) => (
+              <ConversationRow key={i} placeholder placeholderIndex={i} />
+            ))
+          : conversations.map((conversation) => (
+              <ConversationRow
+                key={conversation.id}
+                conversation={conversation}
+                isSelected={selectedConversationId === conversation.id}
+                isChecked={isConversationSelected?.(conversation.id) || false}
+                onSelect={onConversationSelect}
+                onCheck={onConversationCheck}
+                formatDateSmart={formatDateSmart}
+                t={stableT}
+                tDialogs={stableTDialogs}
+              />
+            ))}
+        {paginationStatus === 'LoadingMore' && (
+          <Center className="py-4">
+            <Loader2 className="text-muted-foreground size-5 animate-spin" />
+          </Center>
+        )}
+        {(paginationStatus === 'CanLoadMore' ||
+          paginationStatus === 'LoadingMore') && (
+          <div ref={sentinelRef} className="h-1" aria-hidden="true" />
+        )}
+      </div>
+    </Skeletonize>
   );
 }

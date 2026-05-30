@@ -7,7 +7,8 @@ import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Heading } from '@tale/ui/heading';
 import { HStack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
@@ -52,15 +53,17 @@ interface ViewWebsiteDialogProps {
   website: Doc<'websites'>;
 }
 
-function PageSkeleton() {
-  return (
-    <div className="border-border space-y-3 rounded-lg border p-4">
-      <Skeleton className="h-4 w-1/3" />
-      <Skeleton className="h-3 w-full" />
-      <Skeleton className="h-3 w-4/5" />
-    </div>
-  );
-}
+const PLACEHOLDER_PAGE: CrawlerPage = {
+  url: 'https://example.com/placeholder',
+  title: 'Placeholder page title',
+  word_count: 0,
+  status: 'idle',
+  content_hash: null,
+  last_crawled_at: null,
+  discovered_at: null,
+  chunks_count: 0,
+  indexed: false,
+};
 
 function PageRow({
   page,
@@ -92,7 +95,7 @@ function PageRow({
   const summary = (
     <div className="min-w-0 flex-1 space-y-1">
       <Heading level={3} size="sm" weight="medium" className="break-words">
-        {page.title || page.url}
+        <SkeletonBox>{page.title || page.url}</SkeletonBox>
       </Heading>
       {page.title && (
         <Text variant="caption">
@@ -103,13 +106,21 @@ function PageRow({
             className="break-all hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
-            {page.url}
+            <SkeletonBox>{page.url}</SkeletonBox>
           </a>
         </Text>
       )}
       <div className="text-muted-foreground flex gap-4 text-xs">
-        <span>{t('pagesDialog.wordCount', { count: page.word_count })}</span>
-        <span>{t('pagesDialog.chunks', { count: page.chunks_count })}</span>
+        <span>
+          <SkeletonBox>
+            {t('pagesDialog.wordCount', { count: page.word_count })}
+          </SkeletonBox>
+        </span>
+        <span>
+          <SkeletonBox>
+            {t('pagesDialog.chunks', { count: page.chunks_count })}
+          </SkeletonBox>
+        </span>
         {page.last_crawled_at && (
           <span>
             {t('pagesDialog.lastCrawled', {
@@ -451,23 +462,24 @@ export function ViewWebsiteDialog({
           </>
         ) : (
           <>
-            {isFirstLoad && isPending && (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <PageSkeleton />
-                <PageSkeleton />
-                <PageSkeleton />
-              </div>
-            )}
-
             {!isFirstLoad && pages.length === 0 && (
               <EmptyState icon={FileText} title={t('pagesDialog.noPages')} />
             )}
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {pages.map((page) => (
-                <PageRow key={page.url} page={page} websiteId={website._id} />
-              ))}
-            </div>
+            <Skeletonize loading={isFirstLoad && isPending}>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {(isFirstLoad && isPending
+                  ? [
+                      { ...PLACEHOLDER_PAGE, url: 'placeholder-1' },
+                      { ...PLACEHOLDER_PAGE, url: 'placeholder-2' },
+                      { ...PLACEHOLDER_PAGE, url: 'placeholder-3' },
+                    ]
+                  : pages
+                ).map((page) => (
+                  <PageRow key={page.url} page={page} websiteId={website._id} />
+                ))}
+              </div>
+            </Skeletonize>
 
             {hasMore && (
               <div className="flex justify-center pt-2">

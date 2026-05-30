@@ -3,7 +3,7 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
-import { SkeletonText } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { Copy, Info, ShieldAlert } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -87,7 +87,9 @@ function StatusCard({
       </div>
       <div className="text-muted-foreground mb-3 text-xs">{description}</div>
       {loading ? (
-        <SkeletonText lines={3} className="text-xs" />
+        <div className="text-xs">
+          <SkeletonText lines={3} />
+        </div>
       ) : enabled ? (
         <ul className="text-xs">
           {details.map((detail) => (
@@ -201,94 +203,51 @@ export function GuardrailsOverview({
 
   return (
     <Skeletonize loading={isLoading} label={t('guardrailsOverview.title')}>
-      <GuardrailsOverviewView
-        organizationId={organizationId}
-        chatFilterEnabled={chatFilterEnabled}
-        chatFilterDetails={chatFilterDetails}
-        piiEnabled={piiEnabled}
-        piiDetails={piiDetails}
-        moderationEnabled={moderationEnabled}
-        moderationDetails={moderationDetails}
-        chatFilterLabels={chatFilterLabels}
-      />
+      <PageSection
+        title={t('guardrailsOverview.title')}
+        description={t('guardrailsOverview.description')}
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <StatusCard
+            title={t('guardrailsOverview.statusCards.contentSafety.title')}
+            description={t(
+              'guardrailsOverview.statusCards.contentSafety.description',
+            )}
+            enabled={chatFilterEnabled}
+            details={chatFilterDetails}
+            disabledReason={t(
+              'guardrailsOverview.statusCards.contentSafety.disabled',
+            )}
+            icon={ShieldAlert}
+          />
+          <StatusCard
+            title={t('guardrailsOverview.statusCards.pii.title')}
+            description={t('guardrailsOverview.statusCards.pii.description')}
+            enabled={piiEnabled}
+            details={piiDetails}
+            disabledReason={t('guardrailsOverview.statusCards.pii.disabled')}
+            icon={ShieldAlert}
+          />
+          <StatusCard
+            title={t('guardrailsOverview.statusCards.moderation.title')}
+            description={t(
+              'guardrailsOverview.statusCards.moderation.description',
+            )}
+            enabled={moderationEnabled}
+            details={moderationDetails}
+            disabledReason={t(
+              'guardrailsOverview.statusCards.moderation.disabled',
+            )}
+            icon={ShieldAlert}
+          />
+        </div>
+
+        <RecentEvents
+          organizationId={organizationId}
+          chatFilterLabels={chatFilterLabels}
+        />
+      </PageSection>
     </Skeletonize>
-  );
-}
-
-// =============================================================================
-// Plain presentational view — no data/state hooks of its own. Renders the real
-// layout from injected enabled flags + detail strings. Rendered both live (by
-// the container) and as its own skeleton (the container wraps it in
-// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
-// cannot drift. Each `StatusCard` reads `useSkeleton()` to mask its details
-// block while loading; the static card titles/descriptions stay real text.
-// `RecentEvents` owns an independent read and skeletonizes its own table rows.
-// =============================================================================
-function GuardrailsOverviewView({
-  organizationId,
-  chatFilterEnabled,
-  chatFilterDetails,
-  piiEnabled,
-  piiDetails,
-  moderationEnabled,
-  moderationDetails,
-  chatFilterLabels,
-}: {
-  organizationId: string;
-  chatFilterEnabled: boolean;
-  chatFilterDetails: string[];
-  piiEnabled: boolean;
-  piiDetails: string[];
-  moderationEnabled: boolean;
-  moderationDetails: string[];
-  chatFilterLabels: Map<string, string>;
-}) {
-  const { t } = useT('governance');
-  return (
-    <PageSection
-      title={t('guardrailsOverview.title')}
-      description={t('guardrailsOverview.description')}
-    >
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <StatusCard
-          title={t('guardrailsOverview.statusCards.contentSafety.title')}
-          description={t(
-            'guardrailsOverview.statusCards.contentSafety.description',
-          )}
-          enabled={chatFilterEnabled}
-          details={chatFilterDetails}
-          disabledReason={t(
-            'guardrailsOverview.statusCards.contentSafety.disabled',
-          )}
-          icon={ShieldAlert}
-        />
-        <StatusCard
-          title={t('guardrailsOverview.statusCards.pii.title')}
-          description={t('guardrailsOverview.statusCards.pii.description')}
-          enabled={piiEnabled}
-          details={piiDetails}
-          disabledReason={t('guardrailsOverview.statusCards.pii.disabled')}
-          icon={ShieldAlert}
-        />
-        <StatusCard
-          title={t('guardrailsOverview.statusCards.moderation.title')}
-          description={t(
-            'guardrailsOverview.statusCards.moderation.description',
-          )}
-          enabled={moderationEnabled}
-          details={moderationDetails}
-          disabledReason={t(
-            'guardrailsOverview.statusCards.moderation.disabled',
-          )}
-          icon={ShieldAlert}
-        />
-      </div>
-
-      <RecentEvents
-        organizationId={organizationId}
-        chatFilterLabels={chatFilterLabels}
-      />
-    </PageSection>
   );
 }
 
@@ -458,7 +417,9 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
                     <tr key={i} className="border-border border-t">
                       {Array.from({ length: 6 }).map((__, j) => (
                         <td key={j} className="px-3 py-2">
-                          <SkeletonText className="text-sm" />
+                          <SkeletonBox>
+                            <div className="h-3.5 w-full max-w-24" />
+                          </SkeletonBox>
                         </td>
                       ))}
                     </tr>

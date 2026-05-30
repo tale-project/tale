@@ -4,8 +4,8 @@ import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useAction, useMutation } from 'convex/react';
 import { useEffect, useRef } from 'react';
 
-import { DashboardShellSkeleton } from '@/app/components/layout/dashboard-shell-skeleton';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { DashboardShellFrame } from '@/app/routes/dashboard/$id';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 
@@ -173,5 +173,5 @@ function DashboardIndex() {
     initializeWorkflows,
   ]);
 
-  return <DashboardShellSkeleton />;
+  return <DashboardShellFrame />;
 }

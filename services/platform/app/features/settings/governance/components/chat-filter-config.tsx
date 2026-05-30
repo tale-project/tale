@@ -277,219 +277,128 @@ export function ChatFilterConfigView({
 
   return (
     <Skeletonize loading={isLoading} label={t('contentSafety.title')}>
-      <ChatFilterConfigForm
-        enabled={enabled}
-        maskReplacement={maskReplacement}
-        appliesToInput={appliesToInput}
-        appliesToOutput={appliesToOutput}
-        preferNonStreaming={preferNonStreaming}
-        categories={categories}
-        editorIndex={editorIndex}
-        deletingIndex={deletingIndex}
-        cannotManage={cannotManage}
-        onEnabledChange={handleEnabledChange}
-        onMaskReplacementChange={setMaskReplacement}
-        onMaskReplacementCommit={() =>
-          void saveWith(buildConfig({ maskReplacement }))
+      <PageSection
+        title={t('contentSafety.title')}
+        description={t('contentSafety.description')}
+        action={
+          <Switch
+            id="chat-filter-enabled"
+            label={t('contentSafety.enableLabel')}
+            checked={enabled}
+            disabled={cannotManage}
+            onCheckedChange={handleEnabledChange}
+          />
         }
-        onAppliesToInputChange={handleAppliesToInput}
-        onAppliesToOutputChange={handleAppliesToOutput}
-        onPreferNonStreamingChange={handlePreferNonStreaming}
-        onToggleCategoryEnabled={handleToggleCategoryEnabled}
-        onAddCategory={() => setEditorIndex('new')}
-        onEditCategory={(index) => setEditorIndex(index)}
-        onRequestDeleteCategory={(index) => setDeletingIndex(index)}
-        onCloseEditor={() => setEditorIndex(null)}
-        onSaveCategory={(draft) => {
-          if (editorIndex === null) return;
-          handleSaveCategory(editorIndex, draft);
-        }}
-        onCloseDelete={() => setDeletingIndex(null)}
-        onConfirmDelete={confirmDeleteCategory}
-      />
+      >
+        {cannotManage && (
+          <Alert
+            variant="warning"
+            description={t('contentSafety.cannotManage')}
+          />
+        )}
+
+        {enabled && (
+          <>
+            <FormSection
+              label={t('contentSafety.applyTo')}
+              description={t('contentSafety.applyToDescription')}
+            >
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={appliesToInput}
+                    disabled={cannotManage}
+                    onChange={(e) => handleAppliesToInput(e.target.checked)}
+                  />
+                  <span>{t('contentSafety.userInput')}</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={appliesToOutput}
+                    disabled={cannotManage}
+                    onChange={(e) => handleAppliesToOutput(e.target.checked)}
+                  />
+                  <span>{t('contentSafety.modelOutput')}</span>
+                </label>
+              </div>
+            </FormSection>
+
+            <FormSection label={t('contentSafety.maskReplacement')}>
+              <Input
+                id="chat-filter-mask"
+                value={maskReplacement}
+                disabled={cannotManage}
+                onChange={(e) => setMaskReplacement(e.target.value)}
+                onBlur={() => void saveWith(buildConfig({ maskReplacement }))}
+              />
+            </FormSection>
+
+            <FormSection
+              label={t('contentSafety.preferNonStreaming')}
+              description={t('contentSafety.preferNonStreamingDescription')}
+            >
+              <Switch
+                id="chat-filter-nonstreaming"
+                checked={preferNonStreaming}
+                disabled={cannotManage}
+                onCheckedChange={handlePreferNonStreaming}
+              />
+            </FormSection>
+
+            <FormSection
+              label={t('contentSafety.categoriesTitle')}
+              description={t('contentSafety.categoriesDescription')}
+            >
+              <CategoryList
+                categories={categories}
+                disabled={cannotManage}
+                onAdd={() => setEditorIndex('new')}
+                onEdit={(index) => setEditorIndex(index)}
+                onDelete={(index) => setDeletingIndex(index)}
+                onToggleEnabled={handleToggleCategoryEnabled}
+              />
+            </FormSection>
+
+            <CategoryEditSheet
+              open={editorIndex !== null}
+              index={editorIndex}
+              initial={
+                editorIndex === null || editorIndex === 'new'
+                  ? undefined
+                  : categories[editorIndex]
+              }
+              onCancel={() => setEditorIndex(null)}
+              onSave={(draft) => {
+                if (editorIndex === null) return;
+                handleSaveCategory(editorIndex, draft);
+              }}
+            />
+
+            <ConfirmDialog
+              open={deletingIndex !== null}
+              onOpenChange={(open) => {
+                if (!open) setDeletingIndex(null);
+              }}
+              title={t('contentSafety.deleteConfirmTitle')}
+              description={
+                deletingIndex !== null && categories[deletingIndex]
+                  ? t('contentSafety.deleteConfirm', {
+                      label: categories[deletingIndex].label,
+                      words: categories[deletingIndex].words.length,
+                      patterns: categories[deletingIndex].patterns.length,
+                    })
+                  : ''
+              }
+              confirmText={t('contentSafety.deleteConfirmAction')}
+              variant="destructive"
+              onConfirm={confirmDeleteCategory}
+            />
+          </>
+        )}
+      </PageSection>
     </Skeletonize>
-  );
-}
-
-// =============================================================================
-// Plain presentational form — no data/state hooks of its own. Renders the real
-// layout from injected values + change callbacks. Rendered both live (by the
-// container) and as its own skeleton (the container wraps it in
-// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
-// cannot drift. The skeleton-aware `<Switch>` / `<Input>` mask themselves to
-// their natural height while loading.
-// =============================================================================
-interface ChatFilterConfigFormProps {
-  enabled: boolean;
-  maskReplacement: string;
-  appliesToInput: boolean;
-  appliesToOutput: boolean;
-  preferNonStreaming: boolean;
-  categories: ChatFilterCategory[];
-  editorIndex: number | 'new' | null;
-  deletingIndex: number | null;
-  cannotManage: boolean;
-  onEnabledChange: (checked: boolean) => void;
-  onMaskReplacementChange: (value: string) => void;
-  onMaskReplacementCommit: () => void;
-  onAppliesToInputChange: (checked: boolean) => void;
-  onAppliesToOutputChange: (checked: boolean) => void;
-  onPreferNonStreamingChange: (checked: boolean) => void;
-  onToggleCategoryEnabled: (index: number, enabled: boolean) => void;
-  onAddCategory: () => void;
-  onEditCategory: (index: number) => void;
-  onRequestDeleteCategory: (index: number) => void;
-  onCloseEditor: () => void;
-  onSaveCategory: (draft: ChatFilterCategory) => void;
-  onCloseDelete: () => void;
-  onConfirmDelete: () => void;
-}
-
-function ChatFilterConfigForm({
-  enabled,
-  maskReplacement,
-  appliesToInput,
-  appliesToOutput,
-  preferNonStreaming,
-  categories,
-  editorIndex,
-  deletingIndex,
-  cannotManage,
-  onEnabledChange,
-  onMaskReplacementChange,
-  onMaskReplacementCommit,
-  onAppliesToInputChange,
-  onAppliesToOutputChange,
-  onPreferNonStreamingChange,
-  onToggleCategoryEnabled,
-  onAddCategory,
-  onEditCategory,
-  onRequestDeleteCategory,
-  onCloseEditor,
-  onSaveCategory,
-  onCloseDelete,
-  onConfirmDelete,
-}: ChatFilterConfigFormProps) {
-  const { t } = useT('governance');
-  return (
-    <PageSection
-      title={t('contentSafety.title')}
-      description={t('contentSafety.description')}
-      action={
-        <Switch
-          id="chat-filter-enabled"
-          label={t('contentSafety.enableLabel')}
-          checked={enabled}
-          disabled={cannotManage}
-          onCheckedChange={onEnabledChange}
-        />
-      }
-    >
-      {cannotManage && (
-        <Alert
-          variant="warning"
-          description={t('contentSafety.cannotManage')}
-        />
-      )}
-
-      {enabled && (
-        <>
-          <FormSection
-            label={t('contentSafety.applyTo')}
-            description={t('contentSafety.applyToDescription')}
-          >
-            <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={appliesToInput}
-                  disabled={cannotManage}
-                  onChange={(e) => onAppliesToInputChange(e.target.checked)}
-                />
-                <span>{t('contentSafety.userInput')}</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={appliesToOutput}
-                  disabled={cannotManage}
-                  onChange={(e) => onAppliesToOutputChange(e.target.checked)}
-                />
-                <span>{t('contentSafety.modelOutput')}</span>
-              </label>
-            </div>
-          </FormSection>
-
-          <FormSection label={t('contentSafety.maskReplacement')}>
-            <Input
-              id="chat-filter-mask"
-              value={maskReplacement}
-              disabled={cannotManage}
-              onChange={(e) => onMaskReplacementChange(e.target.value)}
-              onBlur={onMaskReplacementCommit}
-            />
-          </FormSection>
-
-          <FormSection
-            label={t('contentSafety.preferNonStreaming')}
-            description={t('contentSafety.preferNonStreamingDescription')}
-          >
-            <Switch
-              id="chat-filter-nonstreaming"
-              checked={preferNonStreaming}
-              disabled={cannotManage}
-              onCheckedChange={onPreferNonStreamingChange}
-            />
-          </FormSection>
-
-          <FormSection
-            label={t('contentSafety.categoriesTitle')}
-            description={t('contentSafety.categoriesDescription')}
-          >
-            <CategoryList
-              categories={categories}
-              disabled={cannotManage}
-              onAdd={onAddCategory}
-              onEdit={onEditCategory}
-              onDelete={onRequestDeleteCategory}
-              onToggleEnabled={onToggleCategoryEnabled}
-            />
-          </FormSection>
-
-          <CategoryEditSheet
-            open={editorIndex !== null}
-            index={editorIndex}
-            initial={
-              editorIndex === null || editorIndex === 'new'
-                ? undefined
-                : categories[editorIndex]
-            }
-            onCancel={onCloseEditor}
-            onSave={onSaveCategory}
-          />
-
-          <ConfirmDialog
-            open={deletingIndex !== null}
-            onOpenChange={(open) => {
-              if (!open) onCloseDelete();
-            }}
-            title={t('contentSafety.deleteConfirmTitle')}
-            description={
-              deletingIndex !== null && categories[deletingIndex]
-                ? t('contentSafety.deleteConfirm', {
-                    label: categories[deletingIndex].label,
-                    words: categories[deletingIndex].words.length,
-                    patterns: categories[deletingIndex].patterns.length,
-                  })
-                : ''
-            }
-            confirmText={t('contentSafety.deleteConfirmAction')}
-            variant="destructive"
-            onConfirm={onConfirmDelete}
-          />
-        </>
-      )}
-    </PageSection>
   );
 }
 

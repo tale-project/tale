@@ -35,10 +35,6 @@ interface UploadPolicyForm {
 
 const FORM_ID = 'governance-upload-policy-form';
 
-type UploadPolicyController = ReturnType<
-  typeof useFormEditor<UploadPolicyForm>
->;
-
 function parseConfig(raw: unknown): UploadPolicyConfig {
   const obj = isRecord(raw) ? raw : {};
   const result = uploadPolicyConfigSchema.safeParse(obj);
@@ -91,123 +87,11 @@ function buildConfig(
 }
 
 // =============================================================================
-// Plain presentational view — no data/mutation hooks of its own. Renders the
-// real `PageSection` with the skeleton-aware enable `Switch` in the header and,
-// when enabled, the field form from an injected `controller`. Rendered both
-// live (by the container) and as its own skeleton (the container wraps it in
-// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree. The
-// skeleton-aware `<Switch>`/`<Input>` leaves mask themselves while loading.
-// =============================================================================
-export function UploadPolicyEditorView({
-  controller,
-  onSave,
-  enabled,
-  canManage,
-  switchDisabled,
-  onToggleEnabled,
-}: {
-  controller: UploadPolicyController;
-  onSave: (values: UploadPolicyForm) => Promise<void>;
-  enabled: boolean;
-  canManage: boolean;
-  switchDisabled: boolean;
-  onToggleEnabled: (next: boolean) => void;
-}) {
-  const { t } = useT('governance');
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = controller.form;
-
-  return (
-    <PageSection
-      title={t('uploadPolicy.title')}
-      description={t('uploadPolicy.description')}
-      action={
-        <Switch
-          label={t('uploadPolicy.enabled')}
-          checked={enabled}
-          onCheckedChange={onToggleEnabled}
-          disabled={switchDisabled}
-        />
-      }
-    >
-      {enabled && (
-        <form id={FORM_ID} onSubmit={handleSubmit(onSave)}>
-          <fieldset
-            disabled={!canManage || controller.isLoading}
-            className="contents"
-          >
-            <Stack gap={6} className="max-w-2xl">
-              <Stack gap={4}>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Input
-                    label={t('uploadPolicy.allowedExtensions')}
-                    placeholder={t('uploadPolicy.extensionPlaceholder')}
-                    size="sm"
-                    errorMessage={errors.allowedExtensions?.message}
-                    {...register('allowedExtensions')}
-                  />
-                  <Input
-                    label={t('uploadPolicy.blockedExtensions')}
-                    placeholder={t('uploadPolicy.extensionPlaceholder')}
-                    size="sm"
-                    errorMessage={errors.blockedExtensions?.message}
-                    {...register('blockedExtensions')}
-                  />
-                </div>
-
-                <Input
-                  label={t('uploadPolicy.allowedMimeTypes')}
-                  placeholder={t('uploadPolicy.mimeTypePlaceholder')}
-                  size="sm"
-                  errorMessage={errors.allowedMimeTypes?.message}
-                  {...register('allowedMimeTypes')}
-                />
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Input
-                    label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
-                    type="number"
-                    size="sm"
-                    min={0}
-                    step={1}
-                    errorMessage={errors.maxFileSizeMB?.message}
-                    {...register('maxFileSizeMB')}
-                  />
-                  <Input
-                    label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
-                    type="number"
-                    size="sm"
-                    min={0}
-                    step={0.1}
-                    errorMessage={errors.maxVolumeGB?.message}
-                    {...register('maxVolumeGB')}
-                  />
-                </div>
-              </Stack>
-
-              <HStack justify="end">
-                <EditorActions
-                  controller={controller}
-                  formId={FORM_ID}
-                  canEdit={canManage}
-                  entityKind="governance_upload_policy"
-                />
-              </HStack>
-            </Stack>
-          </fieldset>
-        </form>
-      )}
-    </PageSection>
-  );
-}
-
-// =============================================================================
-// Container — owns data fetching, the form controller, the enable toggle
-// state, save/toast wiring, and the loading state. Wraps the plain view in
-// `<Skeletonize>` so the same tree renders the skeleton.
+// Single editor — owns data fetching, the form controller, the enable toggle
+// state, save/toast wiring, and the loading state. Renders the REAL
+// `PageSection` once, always, wrapped in `<Skeletonize>`; the skeleton-aware
+// `<Switch>`/`<Input>` leaves mask themselves while loading, so the loading and
+// loaded layouts are the SAME tree.
 // =============================================================================
 export function UploadPolicyEditor({
   organizationId,
@@ -306,7 +190,14 @@ export function UploadPolicyEditor({
     save,
   });
 
-  const { getValues } = editor.form;
+  const {
+    getValues,
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = editor.form;
+  const canManage = !cannotManage;
+  const switchDisabled = cannotManage || upsertMutation.isPending;
 
   const handleToggleEnabled = useCallback(
     async (next: boolean) => {
@@ -332,14 +223,86 @@ export function UploadPolicyEditor({
 
   return (
     <Skeletonize loading={isLoading} label={t('uploadPolicy.title')}>
-      <UploadPolicyEditorView
-        controller={editor}
-        onSave={save}
-        enabled={enabled}
-        canManage={!cannotManage}
-        switchDisabled={cannotManage || upsertMutation.isPending}
-        onToggleEnabled={handleToggleEnabled}
-      />
+      <PageSection
+        title={t('uploadPolicy.title')}
+        description={t('uploadPolicy.description')}
+        action={
+          <Switch
+            label={t('uploadPolicy.enabled')}
+            checked={enabled}
+            onCheckedChange={handleToggleEnabled}
+            disabled={switchDisabled}
+          />
+        }
+      >
+        {enabled && (
+          <form id={FORM_ID} onSubmit={handleSubmit(save)}>
+            <fieldset
+              disabled={!canManage || editor.isLoading}
+              className="contents"
+            >
+              <Stack gap={6} className="max-w-2xl">
+                <Stack gap={4}>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Input
+                      label={t('uploadPolicy.allowedExtensions')}
+                      placeholder={t('uploadPolicy.extensionPlaceholder')}
+                      size="sm"
+                      errorMessage={errors.allowedExtensions?.message}
+                      {...register('allowedExtensions')}
+                    />
+                    <Input
+                      label={t('uploadPolicy.blockedExtensions')}
+                      placeholder={t('uploadPolicy.extensionPlaceholder')}
+                      size="sm"
+                      errorMessage={errors.blockedExtensions?.message}
+                      {...register('blockedExtensions')}
+                    />
+                  </div>
+
+                  <Input
+                    label={t('uploadPolicy.allowedMimeTypes')}
+                    placeholder={t('uploadPolicy.mimeTypePlaceholder')}
+                    size="sm"
+                    errorMessage={errors.allowedMimeTypes?.message}
+                    {...register('allowedMimeTypes')}
+                  />
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Input
+                      label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
+                      type="number"
+                      size="sm"
+                      min={0}
+                      step={1}
+                      errorMessage={errors.maxFileSizeMB?.message}
+                      {...register('maxFileSizeMB')}
+                    />
+                    <Input
+                      label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
+                      type="number"
+                      size="sm"
+                      min={0}
+                      step={0.1}
+                      errorMessage={errors.maxVolumeGB?.message}
+                      {...register('maxVolumeGB')}
+                    />
+                  </div>
+                </Stack>
+
+                <HStack justify="end">
+                  <EditorActions
+                    controller={editor}
+                    formId={FORM_ID}
+                    canEdit={canManage}
+                    entityKind="governance_upload_policy"
+                  />
+                </HStack>
+              </Stack>
+            </fieldset>
+          </form>
+        )}
+      </PageSection>
     </Skeletonize>
   );
 }

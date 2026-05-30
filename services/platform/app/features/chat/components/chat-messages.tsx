@@ -707,23 +707,31 @@ export function ChatMessages({
       </div>
     ) : null;
 
-  const responseFooter = (
-    <>
-      {/* Post-send gap affordance: shown only until the assistant message
-          appears with its in-bubble thought-process timeline. */}
-      {isLoading && !hasRenderableAssistantResponse && (
-        <ThinkingIndicator className="px-4 py-3" />
-      )}
-      {activeApproval && (
-        <ApprovalCardRenderer
-          item={activeApproval}
-          organizationId={organizationId}
-          onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
-          onSendMessage={onSendMessage}
-        />
-      )}
-    </>
-  );
+  // Post-send gap affordance: shown only until the assistant message appears
+  // with its in-bubble thought-process timeline. The ThinkingIndicator has no
+  // live region of its own (to avoid nested-live-region double-announce), so it
+  // must sit inside an aria-live wrapper to be announced.
+  const responseFooterLive =
+    isLoading && !hasRenderableAssistantResponse ? (
+      <ThinkingIndicator className="px-4 py-3" />
+    ) : null;
+  // Approval cards own internal live regions for their executing/error
+  // sub-states (e.g. workflow-run-approval-card's role=status, the role=alert
+  // error blocks). They must therefore render OUTSIDE any ancestor aria-live
+  // region, or those sub-state regions would nest (the nested-live-region
+  // anti-pattern). In the non-virtual path the root role=log aria-live=polite
+  // wraps everything — that nesting is pre-existing there and out of scope — so
+  // the card's initial pending body is announced. In the virtualized path the
+  // card renders bare (root log has no aria-live), so its pending body is not
+  // auto-announced; an accepted limitation of the experimental windowed path.
+  const responseFooterStatic = activeApproval ? (
+    <ApprovalCardRenderer
+      item={activeApproval}
+      organizationId={organizationId}
+      onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
+      onSendMessage={onSendMessage}
+    />
+  ) : null;
 
   if (useVirtual) {
     return (
@@ -744,7 +752,26 @@ export function ChatMessages({
             </>
           }
           footer={
-            <div className="flex flex-col gap-3 pb-2">{responseFooter}</div>
+            // The virtualized root log has NO aria-live (it would announce
+            // windowing churn), so the thinking affordance gets its own scoped
+            // polite region here. The region wrapper is ALWAYS mounted (only its
+            // content is conditional) so a later ThinkingIndicator insertion is
+            // a mutation of an already-registered region — content inserted in
+            // the same DOM mutation as its aria-live container announces
+            // unreliably across screen readers. ThinkingIndicator has no
+            // internal live region, so nothing nests. The approval card renders
+            // BARE (it owns internal sub-state live regions; see above). No
+            // parent `gap` — the live wrapper carries its own bottom padding
+            // only when populated, so an empty wrapper adds no phantom gap.
+            <div className="flex flex-col pb-2">
+              <div
+                aria-live="polite"
+                className={responseFooterLive ? 'pb-3' : undefined}
+              >
+                {responseFooterLive}
+              </div>
+              {responseFooterStatic}
+            </div>
           }
         />
       </VoiceOutputProvider>
@@ -787,7 +814,10 @@ export function ChatMessages({
             {afterItems.map((item, i) =>
               renderItemWithDivider(item, lastUserIdx + 1 + i),
             )}
-            {responseFooter}
+            {/* Non-virtualized path: the root already is role="log"
+                aria-live="polite", so both pieces render inside it as before. */}
+            {responseFooterLive}
+            {responseFooterStatic}
           </div>
         </div>
       </div>

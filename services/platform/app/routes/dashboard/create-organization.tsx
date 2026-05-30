@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { DashboardShellSkeleton } from '@/app/components/layout/dashboard-shell-skeleton';
 import { OrganizationForm } from '@/app/features/organization/components/organization-form';
 import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
+import { DashboardShellFrame } from '@/app/routes/dashboard/$id';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/create-organization')({
@@ -30,7 +30,7 @@ function CreateOrganizationPage() {
   }, [isAuthLoading, isAuthenticated, navigate]);
 
   if (isAuthLoading || isOrgsLoading) {
-    return <DashboardShellSkeleton />;
+    return <DashboardShellFrame />;
   }
 
   return <OrganizationForm />;

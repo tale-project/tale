@@ -12,6 +12,7 @@ import {
 
 import { useChatLayout } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
+import { hasInFlightTool } from '../utils/build-thought-timeline';
 
 const INTERNAL_ATTACHMENT_MARKER =
   /\n?\n?\[ATTACHED FILES - Pre-analysis was not available\. Use your tools to process these files\.\]/;
@@ -301,6 +302,16 @@ export function useMessageProcessing(
 
         currentKeys.add(m.key);
 
+        // A tool-only turn can be observed FIRST as status:'pending' (never
+        // 'streaming') with a tool part already mid-flight — e.g. an immediate
+        // tool call before any reasoning/text streams. The in-bubble
+        // ThoughtTimeline already MOUNTS unconditionally (showTimeline gates on
+        // hasThoughtSteps, not streaming); the only thing missing for such a
+        // turn is the ACTIVE state, so we set isStreaming=true to render it
+        // expanded with a live spinner during the tool call.
+        const messageHasInFlightTool =
+          m.role === 'assistant' && hasInFlightTool(m.parts);
+
         let isStreaming = false;
         if (m.status === 'streaming') {
           streamingKeysRef.current.add(m.key);
@@ -320,7 +331,16 @@ export function useMessageProcessing(
           emptyStreamingKeysRef.current.delete(m.key);
           streamingKeysRef.current.delete(m.key);
         } else {
-          isStreaming = streamingKeysRef.current.has(m.key);
+          // This branch is reached only for status==='pending'. AND
+          // hasInFlightTool with the thread-level generation signal: a live
+          // tool-only turn still shows the active timeline (isGenerating is
+          // true during generation), but an ORPHANED pending message — whose
+          // tool was never resolved after a hard process kill that bypassed the
+          // server's pending→success/failed reconciliation — won't latch a
+          // spinner forever once generation has stopped (or gone stale).
+          isStreaming =
+            streamingKeysRef.current.has(m.key) ||
+            (messageHasInFlightTool && !!isGenerating);
         }
 
         const attachments =

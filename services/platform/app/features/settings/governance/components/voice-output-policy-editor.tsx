@@ -31,43 +31,10 @@ function parseConfig(raw: unknown): VoiceOutputConfig {
 }
 
 // =============================================================================
-// Plain presentational view — no data/state hooks of its own. Renders the real
-// `PageSection` + skeleton-aware `Switch`. Rendered both live (by the
-// container) and as its own skeleton (the container wraps it in
-// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree. The
-// skeleton-aware `<Switch>` masks itself to its exact track size while loading.
-// =============================================================================
-export function VoiceOutputPolicyEditorView({
-  enabled,
-  disabled,
-  onToggleEnabled,
-}: {
-  enabled: boolean;
-  disabled: boolean;
-  onToggleEnabled: (checked: boolean) => void;
-}) {
-  const { t } = useT('governance');
-
-  return (
-    <PageSection
-      title={t('voiceOutput.title')}
-      description={t('voiceOutput.description')}
-      action={
-        <Switch
-          label={t('voiceOutput.enabledLabel')}
-          checked={enabled}
-          onCheckedChange={onToggleEnabled}
-          disabled={disabled}
-        />
-      }
-    />
-  );
-}
-
-// =============================================================================
-// Container — owns data fetching, the save/toast wiring, and the loading state.
-// Wraps the plain view in `<Skeletonize>` so the same tree renders the
-// skeleton.
+// Single editor — owns data fetching, save/toast wiring, and the loading
+// state. Renders the REAL `PageSection` + skeleton-aware `Switch` once, always,
+// wrapped in `<Skeletonize>`. The skeleton-aware `<Switch>` masks itself to its
+// exact track size while loading.
 // =============================================================================
 export function VoiceOutputPolicyEditor({
   organizationId,
@@ -109,10 +76,17 @@ export function VoiceOutputPolicyEditor({
 
   return (
     <Skeletonize loading={isLoading} label={t('voiceOutput.title')}>
-      <VoiceOutputPolicyEditorView
-        enabled={enabled}
-        disabled={cannotManage || upsertMutation.isPending}
-        onToggleEnabled={handleToggleEnabled}
+      <PageSection
+        title={t('voiceOutput.title')}
+        description={t('voiceOutput.description')}
+        action={
+          <Switch
+            label={t('voiceOutput.enabledLabel')}
+            checked={enabled}
+            onCheckedChange={handleToggleEnabled}
+            disabled={cannotManage || upsertMutation.isPending}
+          />
+        }
       />
     </Skeletonize>
   );

@@ -1,5 +1,7 @@
 import { FullPageCenter } from '@tale/ui/full-page-center';
 import { VStack } from '@tale/ui/layout';
+import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +14,6 @@ import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
-import { DashboardShellSkeleton } from '@/app/components/layout/dashboard-shell-skeleton';
 import { MobileBackButton } from '@/app/components/layout/mobile-back-button';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { DirtyBlockerProvider } from '@/app/components/ui/editor';
@@ -184,7 +185,7 @@ function DashboardLayout() {
         </FullPageCenter>
       );
     }
-    return <DashboardShellSkeleton />;
+    return <DashboardShellFrame />;
   }
 
   return (
@@ -242,5 +243,57 @@ function DashboardLayout() {
         </TeamFilterProvider>
       </AbilityLoadingContext.Provider>
     </AbilityContext.Provider>
+  );
+}
+
+// Dashboard chrome rendered while auth + member context resolve. Mirrors the
+// resolved layout's outer frame exactly (same `h-dvh` lock, mobile top/bottom
+// bars, desktop side-nav geometry) so the real chrome slots in without reflow
+// once access is known. Wrapped in `<Skeletonize loading>` so the nav leaves
+// mask themselves; the middle nav column is an empty `flex-1` spacer because
+// the real (CASL-gated) item count isn't known until auth resolves.
+export function DashboardShellFrame() {
+  return (
+    <Skeletonize loading>
+      <div className="flex h-dvh w-full flex-col overflow-hidden md:flex-row">
+        {/* Mobile top bar */}
+        <div className="bg-background border-border flex items-center gap-2 border-b p-2 pt-[calc(var(--safe-top)+0.75rem)] md:hidden">
+          <SkeletonBox>
+            <div className="size-8" />
+          </SkeletonBox>
+          <SkeletonBox>
+            <div className="h-4 w-32" />
+          </SkeletonBox>
+        </div>
+
+        {/* Desktop side nav */}
+        <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
+          <div className="border-border flex h-full flex-col">
+            <div className="flex flex-shrink-0 items-center justify-center py-3">
+              <SkeletonBox>
+                <div className="size-8" />
+              </SkeletonBox>
+            </div>
+            <div className="mx-1 min-h-0 flex-1 overflow-y-auto py-4" />
+            <div className="flex flex-shrink-0 flex-col items-center gap-2 py-3">
+              <SkeletonCircle>
+                <div className="size-9" />
+              </SkeletonCircle>
+              <SkeletonCircle>
+                <div className="size-9" />
+              </SkeletonCircle>
+              <SkeletonCircle>
+                <div className="size-9" />
+              </SkeletonCircle>
+            </div>
+          </div>
+        </div>
+
+        <main className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l" />
+
+        {/* Mobile bottom-nav placeholder */}
+        <div className="bg-background border-border flex min-h-12 border-t pb-(--safe-bottom) md:hidden" />
+      </div>
+    </Skeletonize>
   );
 }

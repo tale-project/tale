@@ -37,8 +37,6 @@ interface LoginPolicyForm {
 
 const FORM_ID = 'governance-login-policy-form';
 
-type LoginPolicyController = ReturnType<typeof useFormEditor<LoginPolicyForm>>;
-
 function parseConfig(raw: unknown): LoginPolicyConfig {
   const obj = isRecord(raw) ? raw : {};
   const result = loginPolicyConfigSchema.safeParse(obj);
@@ -81,126 +79,13 @@ function stringToSchedule(value: string): number[] | null {
 }
 
 // =============================================================================
-// Plain presentational view — no data/mutation hooks of its own. Renders the
-// real layout from the injected form `controller` and toggle props. Rendered
-// both live (by the container) and as its own skeleton (the container wraps it
-// in `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
-// cannot drift. The skeleton-aware `<Switch>`/`<Input>` mask themselves to
-// their exact track/field height while loading. The header `enabled` switch
-// always renders so its mask is visible even before data arrives; the batched
-// fields render once `enabled` is true (matching the loaded behavior, since
-// `enabled` defaults to `false` while loading).
-// =============================================================================
-export function LoginPolicyEditorView({
-  controller,
-  onSave,
-  enabled,
-  onToggleEnabled,
-  canEdit,
-  isToggling,
-}: {
-  controller: LoginPolicyController;
-  onSave: (values: LoginPolicyForm) => Promise<void>;
-  enabled: boolean;
-  onToggleEnabled: (next: boolean) => void;
-  canEdit: boolean;
-  isToggling: boolean;
-}) {
-  const { t } = useT('governance');
-  const {
-    form: {
-      register,
-      handleSubmit,
-      formState: { errors },
-    },
-  } = controller;
-
-  return (
-    <PageSection
-      title={t('loginPolicy.title')}
-      description={t('loginPolicy.description')}
-      action={
-        <Switch
-          label={t('loginPolicy.enabled')}
-          checked={enabled}
-          onCheckedChange={onToggleEnabled}
-          disabled={!canEdit || isToggling}
-        />
-      }
-    >
-      <form id={FORM_ID} onSubmit={handleSubmit(onSave)}>
-        <fieldset
-          disabled={!canEdit || controller.isLoading}
-          className="contents"
-        >
-          <Stack gap={6} className="max-w-2xl">
-            {enabled && (
-              <Stack gap={4}>
-                <div>
-                  <Input
-                    label={t('loginPolicy.maxAttempts')}
-                    type="number"
-                    size="sm"
-                    min={1}
-                    max={50}
-                    step={1}
-                    errorMessage={errors.maxAttempts?.message}
-                    {...register('maxAttempts', { valueAsNumber: true })}
-                  />
-                  <Text variant="muted" className="mt-1 text-xs">
-                    {t('loginPolicy.maxAttemptsHint')}
-                  </Text>
-                </div>
-
-                <div>
-                  <Input
-                    label={t('loginPolicy.backoffSchedule')}
-                    placeholder="1, 10, 60, 600"
-                    size="sm"
-                    errorMessage={errors.scheduleSeconds?.message}
-                    {...register('scheduleSeconds')}
-                  />
-                  <Text variant="muted" className="mt-1 text-xs">
-                    {t('loginPolicy.backoffScheduleHint')}
-                  </Text>
-                </div>
-
-                <div>
-                  <Input
-                    label={t('loginPolicy.trustedProxies')}
-                    placeholder="loopback, uniquelocal, 10.0.0.0/8"
-                    size="sm"
-                    errorMessage={errors.trustedProxies?.message}
-                    {...register('trustedProxies')}
-                  />
-                  <Text variant="muted" className="mt-1 text-xs">
-                    {t('loginPolicy.trustedProxiesHint')}
-                  </Text>
-                </div>
-              </Stack>
-            )}
-
-            {enabled && (
-              <HStack justify="end">
-                <EditorActions
-                  controller={controller}
-                  formId={FORM_ID}
-                  canEdit={canEdit}
-                  entityKind="governance_login_policy"
-                />
-              </HStack>
-            )}
-          </Stack>
-        </fieldset>
-      </form>
-    </PageSection>
-  );
-}
-
-// =============================================================================
-// Container — owns data fetching, the form controller, the instant-save
-// `enabled` toggle, and the loading state. Wraps the plain view in
-// `<Skeletonize>` so the same tree renders the skeleton while `isLoading`.
+// Single editor — owns data fetching, the form controller, the instant-save
+// `enabled` toggle, and the loading state. Renders the REAL layout once,
+// always, wrapped in `<Skeletonize>`. The skeleton-aware `<Switch>`/`<Input>`
+// mask themselves to their exact track/field height while loading. The header
+// `enabled` switch always renders so its mask is visible even before data
+// arrives; the batched fields render once `enabled` is true (matching the
+// loaded behavior, since `enabled` defaults to `false` while loading).
 // =============================================================================
 export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
   const { t } = useT('governance');
@@ -296,6 +181,14 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
     save,
   });
 
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = editor.form;
+  const canEdit = !cannotManage;
+  const isToggling = upsertMutation.isPending;
+
   const handleToggleEnabled = useCallback(
     async (next: boolean) => {
       setEnabled(next);
@@ -323,14 +216,84 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
 
   return (
     <Skeletonize loading={isLoading} label={t('loginPolicy.title')}>
-      <LoginPolicyEditorView
-        controller={editor}
-        onSave={save}
-        enabled={enabled}
-        onToggleEnabled={handleToggleEnabled}
-        canEdit={!cannotManage}
-        isToggling={upsertMutation.isPending}
-      />
+      <PageSection
+        title={t('loginPolicy.title')}
+        description={t('loginPolicy.description')}
+        action={
+          <Switch
+            label={t('loginPolicy.enabled')}
+            checked={enabled}
+            onCheckedChange={handleToggleEnabled}
+            disabled={!canEdit || isToggling}
+          />
+        }
+      >
+        <form id={FORM_ID} onSubmit={handleSubmit(save)}>
+          <fieldset
+            disabled={!canEdit || editor.isLoading}
+            className="contents"
+          >
+            <Stack gap={6} className="max-w-2xl">
+              {enabled && (
+                <Stack gap={4}>
+                  <div>
+                    <Input
+                      label={t('loginPolicy.maxAttempts')}
+                      type="number"
+                      size="sm"
+                      min={1}
+                      max={50}
+                      step={1}
+                      errorMessage={errors.maxAttempts?.message}
+                      {...register('maxAttempts', { valueAsNumber: true })}
+                    />
+                    <Text variant="muted" className="mt-1 text-xs">
+                      {t('loginPolicy.maxAttemptsHint')}
+                    </Text>
+                  </div>
+
+                  <div>
+                    <Input
+                      label={t('loginPolicy.backoffSchedule')}
+                      placeholder="1, 10, 60, 600"
+                      size="sm"
+                      errorMessage={errors.scheduleSeconds?.message}
+                      {...register('scheduleSeconds')}
+                    />
+                    <Text variant="muted" className="mt-1 text-xs">
+                      {t('loginPolicy.backoffScheduleHint')}
+                    </Text>
+                  </div>
+
+                  <div>
+                    <Input
+                      label={t('loginPolicy.trustedProxies')}
+                      placeholder="loopback, uniquelocal, 10.0.0.0/8"
+                      size="sm"
+                      errorMessage={errors.trustedProxies?.message}
+                      {...register('trustedProxies')}
+                    />
+                    <Text variant="muted" className="mt-1 text-xs">
+                      {t('loginPolicy.trustedProxiesHint')}
+                    </Text>
+                  </div>
+                </Stack>
+              )}
+
+              {enabled && (
+                <HStack justify="end">
+                  <EditorActions
+                    controller={editor}
+                    formId={FORM_ID}
+                    canEdit={canEdit}
+                    entityKind="governance_login_policy"
+                  />
+                </HStack>
+              )}
+            </Stack>
+          </fieldset>
+        </form>
+      </PageSection>
     </Skeletonize>
   );
 }

@@ -223,7 +223,7 @@ function MessageBubbleComponent({
   // assistant role below; citations render only for `!isUser`). Skipping the
   // subscription for user messages halves the per-message query count in a
   // typical thread. `MessageInfoDialog` already tolerates undefined metadata.
-  const { metadata, isLoading: isMetadataLoading } = useMessageMetadata(
+  const { metadata } = useMessageMetadata(
     message.role === 'assistant' ? message.id : null,
     message.threadId,
   );
@@ -234,12 +234,6 @@ function MessageBubbleComponent({
   // streamed before stopStream() fired.
   const blockedReason = metadata?.blockedReason;
   const isBlocked = !!blockedReason && message.role === 'assistant';
-  // While the metadata subscription is still loading for an assistant message,
-  // `blockedReason` is unknown — treat the blocked state as indeterminate so we
-  // don't flash reasoning/tool steps (or answer text) for a guardrails-blocked
-  // message before <BlockedNotice/> can swap in. Flips false the instant the
-  // query resolves, so a normal message's content isn't withheld.
-  const metadataPending = message.role === 'assistant' && isMetadataLoading;
 
   // Image-generation agents show a ↻ Edit button on assistant image parts.
   const { agent: effectiveAgentForEdit } = useEffectiveAgent(
@@ -278,22 +272,20 @@ function MessageBubbleComponent({
   // still has chrome. Hidden for guardrails-blocked messages. Use the cheap
   // predicate here — ThoughtTimeline builds the full step list itself.
   //
-  // The metadata gate withholds reasoning until we know the message isn't
-  // guardrails-blocked, so a blocked message's raw chain-of-thought can't flash
-  // before <BlockedNotice/> resolves. But the metadata query is genuinely
-  // `isLoading` for a round-trip BOTH on a fresh streaming message (no doc yet)
-  // and right after completion (the streaming `stream:<id>` row swaps to the
-  // persisted `_id`, recreating a cold query key). So gate only when NOT
-  // streaming, and latch "already shown" so the timeline doesn't blink out
-  // across that post-stream id swap. A genuinely-blocked message never streams
-  // and never shows the timeline this mount, so it stays suppressed → no flash.
-  const timelineShownRef = useRef(false);
-  const showTimeline =
-    !isUser &&
-    !isBlocked &&
-    hasThoughtSteps(message.parts) &&
-    (isAssistantStreaming || !metadataPending || timelineShownRef.current);
-  if (showTimeline) timelineShownRef.current = true;
+  // No metadata-loading gate. For a message first observed as NON-streaming
+  // (history reload of an already-blocked message) ThoughtTimeline is COLLAPSED
+  // by default (active = isStreaming = false → expanded = userToggled), so it
+  // can only flash the one-line summary ("used N tools"), never the raw
+  // chain-of-thought text, and <BlockedNotice/> swaps the content out the
+  // instant `blockedReason` resolves. The streamed-then-output-blocked case is
+  // a SEPARATE, pre-existing window: a live output-direction block streams
+  // reasoning deltas (rendered expanded while active) before the tombstone +
+  // blockedReason propagate, so reasoning IS briefly visible there — gating
+  // showTimeline during streaming to hide it would reintroduce the stream-end
+  // blink (the `stream:<id>` row swaps to the persisted `_id`, recreating a
+  // cold metadata query) and any latch bridging that swap reopened the leak, so
+  // we accept the live window and rely on collapse-by-default for history.
+  const showTimeline = !isUser && !isBlocked && hasThoughtSteps(message.parts);
   // Normalize pipes (markdown table rendering) + inject citation tags so [N]
   // renders as interactive components. Folded into one memo keyed on the raw
   // content so the regex passes don't re-run on render churn that doesn't
@@ -407,7 +399,13 @@ function MessageBubbleComponent({
             parts={message.parts}
             isStreaming={!!isAssistantStreaming}
             hasAnswerStarted={!!displayContent}
-            durationMs={metadata?.timeToFirstTokenMs ?? metadata?.durationMs}
+            // Only timeToFirstTokenMs (pre-answer "thinking" time), never
+            // durationMs (the FULL turn): a reasoning/tool-only or
+            // aborted/truncated turn leaves TTFT undefined, and falling back to
+            // the whole-turn duration would over-report "Thought for Ns". When
+            // TTFT is absent ThoughtTimeline shows the honest duration-less
+            // summary ("Used N tools" / "Showed its reasoning") instead.
+            durationMs={metadata?.timeToFirstTokenMs}
           />
         )}
         {isBlocked && blockedReason ? (

@@ -2,7 +2,9 @@
 
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
-import { Center, Stack } from '@tale/ui/layout';
+import { Center, Stack, VStack } from '@tale/ui/layout';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import {
   AlertTriangleIcon,
@@ -33,7 +35,6 @@ import {
 } from '../hooks/mutations';
 import { useConversationWithMessages } from '../hooks/queries';
 import { ConversationHeader } from './conversation-header';
-import { ConversationPanelSkeleton } from './conversations-skeleton';
 import { Message } from './message';
 
 const MessageEditor = lazyComponent(
@@ -58,16 +59,44 @@ interface AttachedFile {
   type: 'image' | 'video' | 'audio' | 'document';
 }
 
+// Placeholder message bubbles for the loading window — no real messages exist
+// yet, so these synthetic rows stand in (each masked at its leaves). Sized to
+// mirror real `Message` bubbles so the swap into real content doesn't shift.
+const PLACEHOLDER_MESSAGE_BUBBLES: Array<{
+  align: 'start' | 'end';
+  bubbleClassName: string;
+  withTimestamp?: boolean;
+}> = [
+  {
+    align: 'start',
+    bubbleClassName: 'h-24 w-96 max-w-full',
+    withTimestamp: true,
+  },
+  { align: 'end', bubbleClassName: 'h-20 w-80 max-w-full' },
+  {
+    align: 'start',
+    bubbleClassName: 'h-16 w-72 max-w-full',
+    withTimestamp: true,
+  },
+];
+
 interface ConversationPanelProps {
   selectedConversationId: string | null;
   onSelectedConversationChange: (conversationId: string | null) => void;
   status?: 'open' | 'closed' | 'archived' | 'spam';
+  /**
+   * Force the loading (masked) state regardless of selection — used by the
+   * parent while the conversation LIST is still loading its first page, so the
+   * panel shows masked placeholders instead of the "no selection" empty state.
+   */
+  forceLoading?: boolean;
 }
 
 export function ConversationPanel({
   selectedConversationId,
   onSelectedConversationChange,
   status: tabStatus,
+  forceLoading = false,
 }: ConversationPanelProps) {
   // Translations
   const { t: tConversations } = useT('conversations');
@@ -75,10 +104,14 @@ export function ConversationPanel({
 
   const {
     data: conversation,
-    isLoading,
+    isLoading: isQueryLoading,
     isError,
     refetch,
   } = useConversationWithMessages(selectedConversationId);
+
+  // Loading when the query is in flight OR the parent forces it (list still
+  // loading its first page). Drives the single-tree masked render below.
+  const isLoading = isQueryLoading || forceLoading;
 
   const { mutate: markAsRead } = useMarkAsRead();
   const { mutateAsync: sendMessageViaIntegration } =
@@ -244,7 +277,8 @@ export function ConversationPanel({
     });
   };
 
-  if (!selectedConversationId) {
+  // No selection (and not force-loading) → real empty state, never masked.
+  if (!selectedConversationId && !isLoading) {
     return (
       <Center className="flex-1 px-4">
         <EmptyState
@@ -279,13 +313,8 @@ export function ConversationPanel({
     );
   }
 
-  if (isLoading) {
-    // Single source of truth — matches the loaded panel's wrapper, header,
-    // message padding and footer exactly (see conversations-skeleton.tsx).
-    return <ConversationPanelSkeleton status={tabStatus} />;
-  }
-
-  if (!conversation) {
+  // Resolved-but-missing is a real not-found state, never masked.
+  if (!isLoading && !conversation) {
     return (
       <Center className="flex-1">
         <Text>{tConversations('panel.notFound')}</Text>
@@ -293,14 +322,14 @@ export function ConversationPanel({
     );
   }
 
-  const { messages } = conversation;
+  const { messages } = conversation ?? { messages: [] };
 
   // All messages from the database have valid delivery states, no filtering needed
   const displayMessages = messages;
 
   // Create pending message from approval if it exists (emailBody only)
   const pendingMessage =
-    conversation.pendingApproval?.metadata &&
+    conversation?.pendingApproval?.metadata &&
     typeof conversation.pendingApproval.metadata === 'object' &&
     'emailBody' in conversation.pendingApproval.metadata
       ? {
@@ -319,309 +348,422 @@ export function ConversationPanel({
   const showCollapse = totalMessages > COLLAPSE_THRESHOLD && isThreadCollapsed;
   const collapsedHiddenCount = totalMessages - 2;
 
+  // Status drives which footer banner the loading placeholder mirrors.
+  const isInactiveTab =
+    tabStatus === 'closed' || tabStatus === 'archived' || tabStatus === 'spam';
+
+  // One real tree, always. While the conversation query resolves there is no
+  // real conversation, so each slot (header, messages, footer) renders
+  // placeholder markup with masked leaves inside <Skeletonize loading>; once
+  // loaded the real ConversationHeader / Message / composer render in place.
   return (
-    <div
-      ref={containerRef}
-      className="relative flex flex-[1_1_0] flex-col overflow-y-auto"
-    >
-      <div className="bg-background sticky top-0 z-20">
-        <ConversationHeader
-          conversation={conversation}
-          organizationId={conversation.organizationId}
-          onResolve={() => {
-            onSelectedConversationChange(null);
-          }}
-          onReopen={() => {
-            onSelectedConversationChange(null);
-          }}
-          onBack={() => {
-            onSelectedConversationChange(null);
-          }}
-        />
-      </div>
-      <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-2">
-        {messageGroups.length === 0 ? (
-          <Center className="h-full">
-            <Text variant="muted">{tConversations('panel.noMessages')}</Text>
-          </Center>
-        ) : (
-          <>
-            {showCollapse && (
-              <div className="flex justify-center py-3">
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-foreground text-sm underline-offset-2 hover:underline"
-                  onClick={() => setIsThreadCollapsed(false)}
-                >
-                  {tConversations('panel.showEarlierMessages', {
-                    count: collapsedHiddenCount,
-                  })}
-                </button>
-              </div>
-            )}
-            {messageGroups.map((group, groupIndex) => {
-              const isLastGroup = groupIndex === messageGroups.length - 1;
-              const messagesToShow =
-                showCollapse && isLastGroup
-                  ? group.messages.slice(-2)
-                  : showCollapse && !isLastGroup
-                    ? []
-                    : group.messages;
-
-              if (messagesToShow.length === 0) return null;
-
-              return (
-                <div key={group.date} className="relative">
-                  {/* Sticky Date Header */}
-                  <div className="z-10 mb-4 py-2">
-                    <div className="flex justify-center">
-                      <div className="bg-background border-border rounded-full border px-2 py-0.5 shadow-sm">
-                        <Text
-                          as="span"
-                          variant="label-sm"
-                          className="text-primary"
-                        >
-                          {formatDateHeader(group.date)}
-                        </Text>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Messages for this date */}
-                  <Stack gap={4} className="mb-8">
-                    {messagesToShow.map((message) => (
-                      <Message
-                        key={message.id}
-                        message={message}
-                        onDownloadAttachments={(messageId) => {
-                          downloadAttachments(
-                            {
-                              messageId:
-                                toId<'conversationMessages'>(messageId),
-                            },
-                            {
-                              onError: (error) => {
-                                console.error(
-                                  'Failed to download attachments:',
-                                  error,
-                                );
-                                toast({
-                                  title: tConversations('panel.downloadFailed'),
-                                  variant: 'destructive',
-                                });
-                              },
-                            },
-                          );
-                        }}
-                      />
-                    ))}
-                  </Stack>
-                </div>
-              );
-            })}
-          </>
-        )}
-      </div>
-      <PanelFooter
-        className={cn(
-          'py-3 px-4',
-          conversation.status !== 'open' && 'px-0 pb-0',
-        )}
+    <Skeletonize loading={isLoading}>
+      <div
+        ref={containerRef}
+        className="relative flex flex-[1_1_0] flex-col overflow-y-auto"
       >
-        {conversation.status === 'open' ? (
-          <div ref={messageComposerRef} className="mx-auto w-full max-w-3xl">
-            <MessageEditor
-              key={conversation.id}
-              onSave={handleSaveMessage}
-              placeholder={tConversations('messagePlaceholder')}
-              messageId={conversation.id}
-              businessId={conversation.business_id}
-              conversationId={conversation.id}
-              onConversationResolved={() => {
+        <div className="bg-background sticky top-0 z-20">
+          {conversation ? (
+            <ConversationHeader
+              conversation={conversation}
+              organizationId={conversation.organizationId}
+              onResolve={() => {
                 onSelectedConversationChange(null);
               }}
-              pendingMessage={pendingMessage}
-              hasMessageHistory={displayMessages.length > 0}
-              organizationId={conversation.organizationId}
-            />
-          </div>
-        ) : conversation.status === 'closed' ? (
-          <div
-            className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
-            role="status"
-          >
-            <CircleCheckIcon
-              className="size-4 shrink-0 text-emerald-600"
-              aria-hidden="true"
-            />
-            <span className="text-[13px] text-gray-500 dark:text-gray-400">
-              {conversation.resolved_at
-                ? tConversations('panel.closedBanner', {
-                    date: formatDate(conversation.resolved_at, 'long'),
-                  })
-                : tConversations('panel.closedBannerNoDate')}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={isReopening}
-              className="h-auto px-3 py-1 text-[13px]"
-              onClick={() => {
-                reopenConversation(
-                  {
-                    conversationId: toId<'conversations'>(conversation.id),
-                  },
-                  {
-                    onSuccess: () => {
-                      toast({
-                        title: tConversations('header.toast.reopened'),
-                        variant: 'success',
-                      });
-                      onSelectedConversationChange(null);
-                    },
-                    onError: (error) => {
-                      console.error('Error reopening conversation:', error);
-                      toast({
-                        title: tConversations('header.toast.reopenFailed'),
-                        variant: 'destructive',
-                      });
-                    },
-                  },
-                );
+              onReopen={() => {
+                onSelectedConversationChange(null);
               }}
-            >
-              {isReopening
-                ? tConversations('header.reopening')
-                : tConversations('header.reopenConversation')}
-            </Button>
-          </div>
-        ) : conversation.status === 'archived' ? (
-          <div
-            className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
-            role="status"
-          >
-            <ArchiveIcon
-              className="size-4 shrink-0 text-gray-500 dark:text-gray-500"
-              aria-hidden="true"
-            />
-            <span className="text-[13px] text-gray-500 dark:text-gray-400">
-              {tConversations('panel.archivedBanner')}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={isReopening}
-              className="h-auto px-3 py-1 text-[13px]"
-              onClick={() => {
-                reopenConversation(
-                  {
-                    conversationId: toId<'conversations'>(conversation.id),
-                  },
-                  {
-                    onSuccess: () => {
-                      toast({
-                        title: tConversations('header.toast.reopened'),
-                        variant: 'success',
-                      });
-                      onSelectedConversationChange(null);
-                    },
-                    onError: (error) => {
-                      console.error('Error reopening conversation:', error);
-                      toast({
-                        title: tConversations('header.toast.reopenFailed'),
-                        variant: 'destructive',
-                      });
-                    },
-                  },
-                );
+              onBack={() => {
+                onSelectedConversationChange(null);
               }}
-            >
-              {isReopening
-                ? tConversations('header.reopening')
-                : tConversations('panel.unarchive')}
-            </Button>
-          </div>
-        ) : conversation.status === 'spam' ? (
-          <div
-            className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
-            role="status"
-          >
-            <ShieldAlertIcon
-              className="size-4 shrink-0 text-red-500 dark:text-red-400"
-              aria-hidden="true"
             />
-            <span className="text-[13px] text-gray-500 dark:text-gray-400">
-              {tConversations('panel.spamBanner')}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={isReopening || isDeleting}
-                className="h-auto px-3 py-1 text-[13px]"
-                onClick={() => {
-                  reopenConversation(
-                    {
-                      conversationId: toId<'conversations'>(conversation.id),
-                    },
-                    {
-                      onSuccess: () => {
-                        toast({
-                          title: tConversations('header.toast.reopened'),
-                          variant: 'success',
-                        });
-                        onSelectedConversationChange(null);
-                      },
-                      onError: (error) => {
-                        console.error('Error reopening conversation:', error);
-                        toast({
-                          title: tConversations('header.toast.reopenFailed'),
-                          variant: 'destructive',
-                        });
-                      },
-                    },
-                  );
-                }}
-              >
-                {tConversations('panel.notSpam')}
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={isDeleting || isReopening}
-                className="h-auto px-3 py-1 text-[13px]"
-                onClick={() => {
-                  deleteConversation(
-                    {
-                      conversationId: toId<'conversations'>(conversation.id),
-                    },
-                    {
-                      onSuccess: () => {
-                        toast({
-                          title: tConversations('panel.deleteSuccess'),
-                          variant: 'success',
-                        });
-                        onSelectedConversationChange(null);
-                      },
-                      onError: (error) => {
-                        console.error('Error deleting conversation:', error);
-                        toast({
-                          title: tConversations('panel.deleteFailed'),
-                          variant: 'destructive',
-                        });
-                      },
-                    },
-                  );
-                }}
-              >
-                {isDeleting
-                  ? tConversations('panel.deleting')
-                  : tConversations('panel.delete')}
-              </Button>
+          ) : (
+            <div className="border-border flex flex-col gap-3 border-b p-4 sm:px-6 sm:py-4">
+              <div className="flex items-center justify-between gap-4">
+                <SkeletonBox>
+                  <div className="h-5 w-64 max-w-full" />
+                </SkeletonBox>
+                <SkeletonBox>
+                  <div className="size-7 shrink-0 rounded-md" />
+                </SkeletonBox>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <SkeletonBox>
+                  <div className="size-8 shrink-0 rounded-full" />
+                </SkeletonBox>
+                <VStack className="gap-1">
+                  <SkeletonBox>
+                    <div className="h-3.5 w-28" />
+                  </SkeletonBox>
+                  <SkeletonBox>
+                    <div className="h-3 w-44" />
+                  </SkeletonBox>
+                </VStack>
+              </div>
             </div>
-          </div>
-        ) : null}
-      </PanelFooter>
-    </div>
+          )}
+        </div>
+        <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-2">
+          {!conversation ? (
+            <>
+              <div className="mb-4 py-2">
+                <div className="flex justify-center">
+                  <SkeletonBox>
+                    <div className="h-5 w-24 rounded-full" />
+                  </SkeletonBox>
+                </div>
+              </div>
+              <VStack gap={4} className="mb-8">
+                {PLACEHOLDER_MESSAGE_BUBBLES.map((row, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      'flex',
+                      row.align === 'start' ? 'justify-start' : 'justify-end',
+                    )}
+                  >
+                    <div className="relative">
+                      <SkeletonBox>
+                        <div
+                          className={cn(
+                            'mb-2 rounded-2xl',
+                            row.bubbleClassName,
+                          )}
+                        />
+                      </SkeletonBox>
+                      {row.withTimestamp && (
+                        <SkeletonBox>
+                          <div className="h-3 w-20" />
+                        </SkeletonBox>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </VStack>
+            </>
+          ) : messageGroups.length === 0 ? (
+            <Center className="h-full">
+              <Text variant="muted">{tConversations('panel.noMessages')}</Text>
+            </Center>
+          ) : (
+            <>
+              {showCollapse && (
+                <div className="flex justify-center py-3">
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground text-sm underline-offset-2 hover:underline"
+                    onClick={() => setIsThreadCollapsed(false)}
+                  >
+                    {tConversations('panel.showEarlierMessages', {
+                      count: collapsedHiddenCount,
+                    })}
+                  </button>
+                </div>
+              )}
+              {messageGroups.map((group, groupIndex) => {
+                const isLastGroup = groupIndex === messageGroups.length - 1;
+                const messagesToShow =
+                  showCollapse && isLastGroup
+                    ? group.messages.slice(-2)
+                    : showCollapse && !isLastGroup
+                      ? []
+                      : group.messages;
+
+                if (messagesToShow.length === 0) return null;
+
+                return (
+                  <div key={group.date} className="relative">
+                    {/* Sticky Date Header */}
+                    <div className="z-10 mb-4 py-2">
+                      <div className="flex justify-center">
+                        <div className="bg-background border-border rounded-full border px-2 py-0.5 shadow-sm">
+                          <Text
+                            as="span"
+                            variant="label-sm"
+                            className="text-primary"
+                          >
+                            {formatDateHeader(group.date)}
+                          </Text>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Messages for this date */}
+                    <Stack gap={4} className="mb-8">
+                      {messagesToShow.map((message) => (
+                        <Message
+                          key={message.id}
+                          message={message}
+                          onDownloadAttachments={(messageId) => {
+                            downloadAttachments(
+                              {
+                                messageId:
+                                  toId<'conversationMessages'>(messageId),
+                              },
+                              {
+                                onError: (error) => {
+                                  console.error(
+                                    'Failed to download attachments:',
+                                    error,
+                                  );
+                                  toast({
+                                    title: tConversations(
+                                      'panel.downloadFailed',
+                                    ),
+                                    variant: 'destructive',
+                                  });
+                                },
+                              },
+                            );
+                          }}
+                        />
+                      ))}
+                    </Stack>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+        {!conversation ? (
+          isInactiveTab ? (
+            <PanelFooter className="px-0 pt-3 pb-0">
+              <div className="flex items-center justify-center gap-2 border-t px-3 pt-3 pb-4">
+                <SkeletonBox>
+                  <div className="h-4 w-48" />
+                </SkeletonBox>
+                <SkeletonBox>
+                  <div className="h-7 w-32 rounded-md" />
+                </SkeletonBox>
+              </div>
+            </PanelFooter>
+          ) : (
+            <PanelFooter className="px-4 py-3">
+              <div className="mx-auto w-full max-w-3xl">
+                <SkeletonBox fullWidth>
+                  <div className="h-[5rem] w-full rounded-xl" />
+                </SkeletonBox>
+              </div>
+            </PanelFooter>
+          )
+        ) : (
+          <PanelFooter
+            className={cn(
+              'py-3 px-4',
+              conversation.status !== 'open' && 'px-0 pb-0',
+            )}
+          >
+            {conversation.status === 'open' ? (
+              <div
+                ref={messageComposerRef}
+                className="mx-auto w-full max-w-3xl"
+              >
+                <MessageEditor
+                  key={conversation.id}
+                  onSave={handleSaveMessage}
+                  placeholder={tConversations('messagePlaceholder')}
+                  messageId={conversation.id}
+                  businessId={conversation.business_id}
+                  conversationId={conversation.id}
+                  onConversationResolved={() => {
+                    onSelectedConversationChange(null);
+                  }}
+                  pendingMessage={pendingMessage}
+                  hasMessageHistory={displayMessages.length > 0}
+                  organizationId={conversation.organizationId}
+                />
+              </div>
+            ) : conversation.status === 'closed' ? (
+              <div
+                className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
+                role="status"
+              >
+                <CircleCheckIcon
+                  className="size-4 shrink-0 text-emerald-600"
+                  aria-hidden="true"
+                />
+                <span className="text-[13px] text-gray-500 dark:text-gray-400">
+                  {conversation.resolved_at
+                    ? tConversations('panel.closedBanner', {
+                        date: formatDate(conversation.resolved_at, 'long'),
+                      })
+                    : tConversations('panel.closedBannerNoDate')}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={isReopening}
+                  className="h-auto px-3 py-1 text-[13px]"
+                  onClick={() => {
+                    reopenConversation(
+                      {
+                        conversationId: toId<'conversations'>(conversation.id),
+                      },
+                      {
+                        onSuccess: () => {
+                          toast({
+                            title: tConversations('header.toast.reopened'),
+                            variant: 'success',
+                          });
+                          onSelectedConversationChange(null);
+                        },
+                        onError: (error) => {
+                          console.error('Error reopening conversation:', error);
+                          toast({
+                            title: tConversations('header.toast.reopenFailed'),
+                            variant: 'destructive',
+                          });
+                        },
+                      },
+                    );
+                  }}
+                >
+                  {isReopening
+                    ? tConversations('header.reopening')
+                    : tConversations('header.reopenConversation')}
+                </Button>
+              </div>
+            ) : conversation.status === 'archived' ? (
+              <div
+                className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
+                role="status"
+              >
+                <ArchiveIcon
+                  className="size-4 shrink-0 text-gray-500 dark:text-gray-500"
+                  aria-hidden="true"
+                />
+                <span className="text-[13px] text-gray-500 dark:text-gray-400">
+                  {tConversations('panel.archivedBanner')}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={isReopening}
+                  className="h-auto px-3 py-1 text-[13px]"
+                  onClick={() => {
+                    reopenConversation(
+                      {
+                        conversationId: toId<'conversations'>(conversation.id),
+                      },
+                      {
+                        onSuccess: () => {
+                          toast({
+                            title: tConversations('header.toast.reopened'),
+                            variant: 'success',
+                          });
+                          onSelectedConversationChange(null);
+                        },
+                        onError: (error) => {
+                          console.error('Error reopening conversation:', error);
+                          toast({
+                            title: tConversations('header.toast.reopenFailed'),
+                            variant: 'destructive',
+                          });
+                        },
+                      },
+                    );
+                  }}
+                >
+                  {isReopening
+                    ? tConversations('header.reopening')
+                    : tConversations('panel.unarchive')}
+                </Button>
+              </div>
+            ) : conversation.status === 'spam' ? (
+              <div
+                className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
+                role="status"
+              >
+                <ShieldAlertIcon
+                  className="size-4 shrink-0 text-red-500 dark:text-red-400"
+                  aria-hidden="true"
+                />
+                <span className="text-[13px] text-gray-500 dark:text-gray-400">
+                  {tConversations('panel.spamBanner')}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={isReopening || isDeleting}
+                    className="h-auto px-3 py-1 text-[13px]"
+                    onClick={() => {
+                      reopenConversation(
+                        {
+                          conversationId: toId<'conversations'>(
+                            conversation.id,
+                          ),
+                        },
+                        {
+                          onSuccess: () => {
+                            toast({
+                              title: tConversations('header.toast.reopened'),
+                              variant: 'success',
+                            });
+                            onSelectedConversationChange(null);
+                          },
+                          onError: (error) => {
+                            console.error(
+                              'Error reopening conversation:',
+                              error,
+                            );
+                            toast({
+                              title: tConversations(
+                                'header.toast.reopenFailed',
+                              ),
+                              variant: 'destructive',
+                            });
+                          },
+                        },
+                      );
+                    }}
+                  >
+                    {tConversations('panel.notSpam')}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={isDeleting || isReopening}
+                    className="h-auto px-3 py-1 text-[13px]"
+                    onClick={() => {
+                      deleteConversation(
+                        {
+                          conversationId: toId<'conversations'>(
+                            conversation.id,
+                          ),
+                        },
+                        {
+                          onSuccess: () => {
+                            toast({
+                              title: tConversations('panel.deleteSuccess'),
+                              variant: 'success',
+                            });
+                            onSelectedConversationChange(null);
+                          },
+                          onError: (error) => {
+                            console.error(
+                              'Error deleting conversation:',
+                              error,
+                            );
+                            toast({
+                              title: tConversations('panel.deleteFailed'),
+                              variant: 'destructive',
+                            });
+                          },
+                        },
+                      );
+                    }}
+                  >
+                    {isDeleting
+                      ? tConversations('panel.deleting')
+                      : tConversations('panel.delete')}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </PanelFooter>
+        )}
+      </div>
+    </Skeletonize>
   );
 }

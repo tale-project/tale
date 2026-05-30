@@ -27,47 +27,10 @@ function readEnabled(raw: unknown): boolean {
 }
 
 // =============================================================================
-// Plain presentational view — no data/state hooks of its own. Renders the real
-// `PageSection` + skeleton-aware `Switch`. Rendered both live (by the
-// container) and as its own skeleton (the container wraps it in
-// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree. The
+// Single toggle — owns data fetching, the local toggle state, save/toast
+// wiring, and the loading state. Renders the REAL `PageSection` +
+// skeleton-aware `Switch` once, always, wrapped in `<Skeletonize>`. The
 // skeleton-aware `<Switch>` masks itself to its exact track size while loading.
-// =============================================================================
-function PersonalizationPolicyToggleView({
-  titleKey,
-  descriptionKey,
-  enabled,
-  disabled,
-  onToggleEnabled,
-}: {
-  titleKey: string;
-  descriptionKey: string;
-  enabled: boolean;
-  disabled: boolean;
-  onToggleEnabled: (checked: boolean) => void;
-}) {
-  const { t } = useT('governance');
-
-  return (
-    <PageSection
-      title={t(titleKey)}
-      description={t(descriptionKey)}
-      action={
-        <Switch
-          label={t('personalization.enabledLabel')}
-          checked={enabled}
-          onCheckedChange={onToggleEnabled}
-          disabled={disabled}
-        />
-      }
-    />
-  );
-}
-
-// =============================================================================
-// Container — owns data fetching, the local toggle state, save/toast wiring,
-// and the loading state. Wraps the plain view in `<Skeletonize>` so the same
-// tree renders the skeleton.
 // =============================================================================
 function PersonalizationPolicyToggle({
   organizationId,
@@ -122,12 +85,17 @@ function PersonalizationPolicyToggle({
 
   return (
     <Skeletonize loading={isLoading} label={t(titleKey)}>
-      <PersonalizationPolicyToggleView
-        titleKey={titleKey}
-        descriptionKey={descriptionKey}
-        enabled={enabled}
-        disabled={cannotManage || upsertMutation.isPending}
-        onToggleEnabled={handleToggleEnabled}
+      <PageSection
+        title={t(titleKey)}
+        description={t(descriptionKey)}
+        action={
+          <Switch
+            label={t('personalization.enabledLabel')}
+            checked={enabled}
+            onCheckedChange={handleToggleEnabled}
+            disabled={cannotManage || upsertMutation.isPending}
+          />
+        }
       />
     </Skeletonize>
   );

@@ -2,7 +2,8 @@
 
 import { Button } from '@tale/ui/button';
 import { Popover } from '@tale/ui/popover';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Circle, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
@@ -24,7 +25,13 @@ const DatePickerWithRange = lazyComponent(
       default: mod.DatePickerWithRange,
     })),
   {
-    loading: () => <Skeleton className="h-9 w-[18rem]" />,
+    loading: () => (
+      <Skeletonize loading>
+        <SkeletonBox>
+          <div className="h-9 w-[18rem]" />
+        </SkeletonBox>
+      </Skeletonize>
+    ),
   },
 );
 
@@ -321,7 +328,13 @@ export function DataTableFilters({
 
         {dateRange && (
           <SuspenseBoundary
-            fallback={<Skeleton className="h-9 w-[18rem]" />}
+            fallback={
+              <Skeletonize loading>
+                <SkeletonBox>
+                  <div className="h-9 w-[18rem]" />
+                </SkeletonBox>
+              </Skeletonize>
+            }
             errorFallback={
               <Text as="span" variant="muted">
                 Date filter unavailable

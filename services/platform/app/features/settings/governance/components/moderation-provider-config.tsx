@@ -665,364 +665,248 @@ export function ModerationProviderConfigView({
 
   return (
     <Skeletonize loading={isLoading} label={t('moderationProvider.title')}>
-      <ModerationProviderConfigForm
-        organizationId={organizationId}
-        enabled={enabled}
-        appliesToInput={appliesToInput}
-        appliesToOutput={appliesToOutput}
-        url={url}
-        headers={headers}
-        timeoutMs={timeoutMs}
-        responseShape={responseShape}
-        customCategoriesPath={customCategoriesPath}
-        failInput={failInput}
-        failOutput={failOutput}
-        mappings={mappings}
-        endpointDraft={endpointDraft}
-        endpointDialogOpen={endpointDialogOpen}
-        mappingEditorIndex={mappingEditorIndex}
-        deletingMappingIndex={deletingMappingIndex}
-        cannotManage={cannotManage}
-        onToggleEnabled={handleToggleEnabled}
-        onAppliesToInput={handleAppliesToInput}
-        onAppliesToOutput={handleAppliesToOutput}
-        onFailInputChange={handleFailInputChange}
-        onFailOutputChange={handleFailOutputChange}
-        onApplyPreset={handleApplyPreset}
-        onResponseShapeChange={handleResponseShapeChange}
-        onOpenEndpointDialog={() => setEndpointDialogOpen(true)}
-        onCloseEndpointDialog={() => setEndpointDialogOpen(false)}
-        onSaveEndpoint={handleSaveEndpoint}
-        onAddMapping={() => setMappingEditorIndex('new')}
-        onEditMapping={(index) => setMappingEditorIndex(index)}
-        onCloseMappingEditor={() => setMappingEditorIndex(null)}
-        onSaveMapping={handleSaveMapping}
-        onRequestDeleteMapping={(index) => setDeletingMappingIndex(index)}
-        onCloseDeleteMapping={() => setDeletingMappingIndex(null)}
-        onConfirmDeleteMapping={handleDeleteMapping}
-      />
-    </Skeletonize>
-  );
-}
-
-// =============================================================================
-// Plain presentational form — no data/state hooks of its own. Renders the real
-// layout from injected values + change callbacks. Rendered both live (by the
-// container) and as its own skeleton (the container wraps it in
-// `<Skeletonize>`), so the loading and loaded layouts are the SAME tree and
-// cannot drift. The skeleton-aware `<Switch>` masks itself to its natural track
-// height while loading. (`ApiKeyPanel`/`TestConnectionPanel` own their own data
-// hooks and only mount once enabled, so they never render in the skeleton.)
-// =============================================================================
-interface ModerationProviderConfigFormProps {
-  organizationId: string;
-  enabled: boolean;
-  appliesToInput: boolean;
-  appliesToOutput: boolean;
-  url: string;
-  headers: HeaderRow[];
-  timeoutMs: string;
-  responseShape: ModerationResponseShape['type'];
-  customCategoriesPath: string;
-  failInput: 'open' | 'closed';
-  failOutput: 'open' | 'closed';
-  mappings: ModerationCategoryMapping[];
-  endpointDraft: EndpointDraft;
-  endpointDialogOpen: boolean;
-  mappingEditorIndex: number | 'new' | null;
-  deletingMappingIndex: number | null;
-  cannotManage: boolean;
-  onToggleEnabled: (checked: boolean) => void;
-  onAppliesToInput: (checked: boolean) => void;
-  onAppliesToOutput: (checked: boolean) => void;
-  onFailInputChange: (value: 'open' | 'closed') => void;
-  onFailOutputChange: (value: 'open' | 'closed') => void;
-  onApplyPreset: (preset: ModerationPreset) => void;
-  onResponseShapeChange: (value: ModerationResponseShape['type']) => void;
-  onOpenEndpointDialog: () => void;
-  onCloseEndpointDialog: () => void;
-  onSaveEndpoint: (draft: EndpointDraft) => void;
-  onAddMapping: () => void;
-  onEditMapping: (index: number) => void;
-  onCloseMappingEditor: () => void;
-  onSaveMapping: (
-    index: number | 'new',
-    draft: ModerationCategoryMapping,
-  ) => void;
-  onRequestDeleteMapping: (index: number) => void;
-  onCloseDeleteMapping: () => void;
-  onConfirmDeleteMapping: (index: number) => void;
-}
-
-function ModerationProviderConfigForm({
-  organizationId,
-  enabled,
-  appliesToInput,
-  appliesToOutput,
-  url,
-  headers,
-  timeoutMs,
-  responseShape,
-  customCategoriesPath,
-  failInput,
-  failOutput,
-  mappings,
-  endpointDraft,
-  endpointDialogOpen,
-  mappingEditorIndex,
-  deletingMappingIndex,
-  cannotManage,
-  onToggleEnabled,
-  onAppliesToInput,
-  onAppliesToOutput,
-  onFailInputChange,
-  onFailOutputChange,
-  onApplyPreset,
-  onResponseShapeChange,
-  onOpenEndpointDialog,
-  onCloseEndpointDialog,
-  onSaveEndpoint,
-  onAddMapping,
-  onEditMapping,
-  onCloseMappingEditor,
-  onSaveMapping,
-  onRequestDeleteMapping,
-  onCloseDeleteMapping,
-  onConfirmDeleteMapping,
-}: ModerationProviderConfigFormProps) {
-  const { t } = useT('governance');
-  return (
-    <PageSection
-      title={t('moderationProvider.title')}
-      description={t('moderationProvider.description', {
-        secretPlaceholder: '{{secret}}',
-      })}
-      action={
-        <Switch
-          label={t('moderationProvider.enableLabel')}
-          checked={enabled}
-          disabled={cannotManage}
-          onCheckedChange={onToggleEnabled}
-        />
-      }
-    >
-      {cannotManage && (
-        <Alert
-          variant="warning"
-          description={t('moderationProvider.cannotManage')}
-        />
-      )}
-
-      {enabled && (
-        <>
-          <FormSection label={t('moderationProvider.applyTo')}>
-            <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={appliesToInput}
-                  disabled={cannotManage}
-                  onChange={(e) => onAppliesToInput(e.target.checked)}
-                />
-                <span>{t('moderationProvider.userInput')}</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={appliesToOutput}
-                  disabled={cannotManage}
-                  onChange={(e) => onAppliesToOutput(e.target.checked)}
-                />
-                <span>{t('moderationProvider.modelOutput')}</span>
-              </label>
-            </div>
-          </FormSection>
-
-          <FormSection
-            label={t('moderationProvider.failBehavior')}
-            description={t('moderationProvider.failBehaviorDescription')}
-          >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <div className="text-muted-foreground mb-1 text-xs">
-                  {t('moderationProvider.input')}
-                </div>
-                <Select
-                  value={failInput}
-                  disabled={cannotManage}
-                  onValueChange={(v) => {
-                    if (v === 'open' || v === 'closed') onFailInputChange(v);
-                  }}
-                  options={[
-                    { value: 'open', label: t('moderationProvider.failOpen') },
-                    {
-                      value: 'closed',
-                      label: t('moderationProvider.failClosed'),
-                    },
-                  ]}
-                />
-              </div>
-              <div>
-                <div className="text-muted-foreground mb-1 text-xs">
-                  {t('moderationProvider.output')}
-                </div>
-                <Select
-                  value={failOutput}
-                  disabled={cannotManage}
-                  onValueChange={(v) => {
-                    if (v === 'open' || v === 'closed') onFailOutputChange(v);
-                  }}
-                  options={[
-                    { value: 'open', label: t('moderationProvider.failOpen') },
-                    {
-                      value: 'closed',
-                      label: t('moderationProvider.failClosed'),
-                    },
-                  ]}
-                />
-              </div>
-            </div>
-          </FormSection>
-
-          <FormSection
-            label={t('moderationProvider.provider')}
-            description={t('moderationProvider.providerDescription')}
-          >
-            <div className="flex flex-wrap gap-2">
-              {MODERATION_PRESETS.map((preset) => {
-                const active = responseShape === preset.id;
-                const label = active
-                  ? `✓ ${t(presetActiveLabelKey(preset.id))}`
-                  : t(presetLabelKey(preset.id));
-                return (
-                  <Button
-                    key={preset.id}
-                    variant={active ? 'primary' : 'secondary'}
-                    size="sm"
-                    disabled={cannotManage}
-                    onClick={() => onApplyPreset(preset)}
-                  >
-                    {label}
-                  </Button>
-                );
-              })}
-              <Button
-                variant={
-                  responseShape === 'custom_jsonpath' ? 'primary' : 'secondary'
-                }
-                size="sm"
-                disabled={cannotManage}
-                onClick={() => onResponseShapeChange('custom_jsonpath')}
-              >
-                {responseShape === 'custom_jsonpath'
-                  ? `✓ ${t('moderationProvider.presetCustomJsonPathActive')}`
-                  : t('moderationProvider.presetCustomJsonPath')}
-              </Button>
-            </div>
-            {responseShape === 'custom_jsonpath' &&
-              !customCategoriesPath.trim() && (
-                <p className="mt-2 text-xs text-amber-600">
-                  {t('moderationProvider.customJsonPathHint')}
-                </p>
-              )}
-          </FormSection>
-
-          <ApiKeyPanel
-            organizationId={organizationId}
+      <PageSection
+        title={t('moderationProvider.title')}
+        description={t('moderationProvider.description', {
+          secretPlaceholder: '{{secret}}',
+        })}
+        action={
+          <Switch
+            label={t('moderationProvider.enableLabel')}
+            checked={enabled}
             disabled={cannotManage}
+            onCheckedChange={handleToggleEnabled}
           />
+        }
+      >
+        {cannotManage && (
+          <Alert
+            variant="warning"
+            description={t('moderationProvider.cannotManage')}
+          />
+        )}
 
-          <FormSection
-            label={t('moderationProvider.endpoint')}
-            description={t('moderationProvider.endpointDescription')}
-          >
-            <EndpointSummary
-              url={url}
-              headersCount={
-                headers.filter((h) => h.key.trim().length > 0).length
-              }
-              timeoutMs={timeoutMs}
-              onEdit={onOpenEndpointDialog}
+        {enabled && (
+          <>
+            <FormSection label={t('moderationProvider.applyTo')}>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={appliesToInput}
+                    disabled={cannotManage}
+                    onChange={(e) => handleAppliesToInput(e.target.checked)}
+                  />
+                  <span>{t('moderationProvider.userInput')}</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={appliesToOutput}
+                    disabled={cannotManage}
+                    onChange={(e) => handleAppliesToOutput(e.target.checked)}
+                  />
+                  <span>{t('moderationProvider.modelOutput')}</span>
+                </label>
+              </div>
+            </FormSection>
+
+            <FormSection
+              label={t('moderationProvider.failBehavior')}
+              description={t('moderationProvider.failBehaviorDescription')}
+            >
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <div className="text-muted-foreground mb-1 text-xs">
+                    {t('moderationProvider.input')}
+                  </div>
+                  <Select
+                    value={failInput}
+                    disabled={cannotManage}
+                    onValueChange={(v) => {
+                      if (v === 'open' || v === 'closed')
+                        handleFailInputChange(v);
+                    }}
+                    options={[
+                      {
+                        value: 'open',
+                        label: t('moderationProvider.failOpen'),
+                      },
+                      {
+                        value: 'closed',
+                        label: t('moderationProvider.failClosed'),
+                      },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <div className="text-muted-foreground mb-1 text-xs">
+                    {t('moderationProvider.output')}
+                  </div>
+                  <Select
+                    value={failOutput}
+                    disabled={cannotManage}
+                    onValueChange={(v) => {
+                      if (v === 'open' || v === 'closed')
+                        handleFailOutputChange(v);
+                    }}
+                    options={[
+                      {
+                        value: 'open',
+                        label: t('moderationProvider.failOpen'),
+                      },
+                      {
+                        value: 'closed',
+                        label: t('moderationProvider.failClosed'),
+                      },
+                    ]}
+                  />
+                </div>
+              </div>
+            </FormSection>
+
+            <FormSection
+              label={t('moderationProvider.provider')}
+              description={t('moderationProvider.providerDescription')}
+            >
+              <div className="flex flex-wrap gap-2">
+                {MODERATION_PRESETS.map((preset) => {
+                  const active = responseShape === preset.id;
+                  const label = active
+                    ? `✓ ${t(presetActiveLabelKey(preset.id))}`
+                    : t(presetLabelKey(preset.id));
+                  return (
+                    <Button
+                      key={preset.id}
+                      variant={active ? 'primary' : 'secondary'}
+                      size="sm"
+                      disabled={cannotManage}
+                      onClick={() => handleApplyPreset(preset)}
+                    >
+                      {label}
+                    </Button>
+                  );
+                })}
+                <Button
+                  variant={
+                    responseShape === 'custom_jsonpath'
+                      ? 'primary'
+                      : 'secondary'
+                  }
+                  size="sm"
+                  disabled={cannotManage}
+                  onClick={() => handleResponseShapeChange('custom_jsonpath')}
+                >
+                  {responseShape === 'custom_jsonpath'
+                    ? `✓ ${t('moderationProvider.presetCustomJsonPathActive')}`
+                    : t('moderationProvider.presetCustomJsonPath')}
+                </Button>
+              </div>
+              {responseShape === 'custom_jsonpath' &&
+                !customCategoriesPath.trim() && (
+                  <p className="mt-2 text-xs text-amber-600">
+                    {t('moderationProvider.customJsonPathHint')}
+                  </p>
+                )}
+            </FormSection>
+
+            <ApiKeyPanel
+              organizationId={organizationId}
               disabled={cannotManage}
             />
-          </FormSection>
 
-          <FormSection
-            label={t('moderationProvider.categoryMappings')}
-            description={t('moderationProvider.categoryMappingsDescription')}
-          >
-            {mappings.length === 0 && (
-              <Alert
-                variant="warning"
-                description={t('moderationProvider.mappingsWarning')}
+            <FormSection
+              label={t('moderationProvider.endpoint')}
+              description={t('moderationProvider.endpointDescription')}
+            >
+              <EndpointSummary
+                url={url}
+                headersCount={
+                  headers.filter((h) => h.key.trim().length > 0).length
+                }
+                timeoutMs={timeoutMs}
+                onEdit={() => setEndpointDialogOpen(true)}
+                disabled={cannotManage}
+              />
+            </FormSection>
+
+            <FormSection
+              label={t('moderationProvider.categoryMappings')}
+              description={t('moderationProvider.categoryMappingsDescription')}
+            >
+              {mappings.length === 0 && (
+                <Alert
+                  variant="warning"
+                  description={t('moderationProvider.mappingsWarning')}
+                />
+              )}
+              <MappingList
+                mappings={mappings}
+                disabled={cannotManage}
+                onAdd={() => setMappingEditorIndex('new')}
+                onEdit={(index) => setMappingEditorIndex(index)}
+              />
+            </FormSection>
+
+            <TestConnectionPanel
+              organizationId={organizationId}
+              disabled={cannotManage}
+            />
+
+            {endpointDialogOpen && (
+              <EndpointEditDialog
+                open={endpointDialogOpen}
+                initial={endpointDraft}
+                responseShape={responseShape}
+                onCancel={() => setEndpointDialogOpen(false)}
+                onSave={handleSaveEndpoint}
               />
             )}
-            <MappingList
-              mappings={mappings}
-              disabled={cannotManage}
-              onAdd={onAddMapping}
-              onEdit={onEditMapping}
-            />
-          </FormSection>
 
-          <TestConnectionPanel
-            organizationId={organizationId}
-            disabled={cannotManage}
-          />
-
-          {endpointDialogOpen && (
-            <EndpointEditDialog
-              open={endpointDialogOpen}
-              initial={endpointDraft}
-              responseShape={responseShape}
-              onCancel={onCloseEndpointDialog}
-              onSave={onSaveEndpoint}
-            />
-          )}
-
-          {mappingEditorIndex !== null && (
-            <MappingEditDialog
-              index={mappingEditorIndex}
-              initial={
-                mappingEditorIndex === 'new'
-                  ? undefined
-                  : mappings[mappingEditorIndex]
-              }
-              onCancel={onCloseMappingEditor}
-              onSave={(draft) => onSaveMapping(mappingEditorIndex, draft)}
-              onDelete={
-                mappingEditorIndex === 'new'
-                  ? undefined
-                  : () => {
-                      if (typeof mappingEditorIndex === 'number') {
-                        onRequestDeleteMapping(mappingEditorIndex);
+            {mappingEditorIndex !== null && (
+              <MappingEditDialog
+                index={mappingEditorIndex}
+                initial={
+                  mappingEditorIndex === 'new'
+                    ? undefined
+                    : mappings[mappingEditorIndex]
+                }
+                onCancel={() => setMappingEditorIndex(null)}
+                onSave={(draft) => handleSaveMapping(mappingEditorIndex, draft)}
+                onDelete={
+                  mappingEditorIndex === 'new'
+                    ? undefined
+                    : () => {
+                        if (typeof mappingEditorIndex === 'number') {
+                          setDeletingMappingIndex(mappingEditorIndex);
+                        }
                       }
-                    }
-              }
-            />
-          )}
-
-          <ConfirmDialog
-            open={deletingMappingIndex !== null}
-            onOpenChange={(open) => {
-              if (!open) onCloseDeleteMapping();
-            }}
-            title={t('moderationProvider.deleteMappingConfirmTitle')}
-            description={t(
-              'moderationProvider.deleteMappingConfirmDescription',
+                }
+              />
             )}
-            confirmText={t('moderationProvider.deleteMappingConfirmAction')}
-            variant="destructive"
-            onConfirm={() => {
-              if (deletingMappingIndex !== null) {
-                onConfirmDeleteMapping(deletingMappingIndex);
-                onCloseDeleteMapping();
-              }
-            }}
-          />
-        </>
-      )}
-    </PageSection>
+
+            <ConfirmDialog
+              open={deletingMappingIndex !== null}
+              onOpenChange={(open) => {
+                if (!open) setDeletingMappingIndex(null);
+              }}
+              title={t('moderationProvider.deleteMappingConfirmTitle')}
+              description={t(
+                'moderationProvider.deleteMappingConfirmDescription',
+              )}
+              confirmText={t('moderationProvider.deleteMappingConfirmAction')}
+              variant="destructive"
+              onConfirm={() => {
+                if (deletingMappingIndex !== null) {
+                  handleDeleteMapping(deletingMappingIndex);
+                  setDeletingMappingIndex(null);
+                }
+              }}
+            />
+          </>
+        )}
+      </PageSection>
+    </Skeletonize>
   );
 }
 

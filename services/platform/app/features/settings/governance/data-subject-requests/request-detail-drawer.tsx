@@ -1,7 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { AlertTriangle, Ban, Clock, RefreshCcw } from 'lucide-react';
 import { useState } from 'react';
@@ -58,16 +59,23 @@ export function RequestDetailDrawer({
     >
       {isError ? (
         <DrawerErrorState onRetry={() => void refetch()} />
-      ) : isLoading || !data ? (
-        <DrawerSkeleton />
       ) : (
-        <DrawerBody
-          organizationId={organizationId}
-          data={data}
-          onExtend={() => setExtendOpen(true)}
-          onRetry={() => setRetryOpen(true)}
-          onCancel={() => setCancelOpen(true)}
-        />
+        // Render the REAL `DrawerBody` once, always, wrapped in
+        // `<Skeletonize>`; while the read is in flight feed it placeholder
+        // data so the dynamic leaves (masked in place) reserve their real
+        // height instead of swapping in a separate skeleton tree.
+        <Skeletonize
+          loading={isLoading || !data}
+          label={t('dataSubjectRequests.drawer.headerTitle')}
+        >
+          <DrawerBody
+            organizationId={organizationId}
+            data={data ?? PLACEHOLDER_DRAWER_DATA}
+            onExtend={() => setExtendOpen(true)}
+            onRetry={() => setRetryOpen(true)}
+            onCancel={() => setCancelOpen(true)}
+          />
+        </Skeletonize>
       )}
       {data && (
         <>
@@ -116,16 +124,31 @@ function DrawerErrorState({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-function DrawerSkeleton() {
-  return (
-    <div className="flex flex-col gap-3" aria-busy="true">
-      <Skeleton className="h-6 w-3/4" />
-      <Skeleton className="h-4 w-1/2" />
-      <Skeleton className="h-32 w-full" />
-      <Skeleton className="h-32 w-full" />
-    </div>
-  );
-}
+type DrawerData = NonNullable<ReturnType<typeof useGetErasureRequest>['data']>;
+
+// Placeholder fed to the REAL `DrawerBody` while the read is in flight, so the
+// masked leaves reserve their natural size. `status: 'running'` keeps every
+// conditional banner (cooling-off / cancelled / blocked / extension) closed, so
+// the loading layout shows the stable subset (header + sections + footer).
+// Intentionally partial: only the fields the masked `DrawerBody` reads are set.
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+const PLACEHOLDER_DRAWER_DATA = {
+  request: {
+    status: 'running',
+    targetUserName: 'Placeholder user',
+    targetUserId: 'placeholder',
+    requestedByName: 'Placeholder admin',
+    requestedAt: 0,
+    slaDeadlineAt: 0,
+    threadsErased: 0,
+    threadsTargeted: [],
+    ragDocumentsRemoved: 0,
+    documentsErased: 0,
+    wfExecutionsErased: 0,
+    promptTemplatesErased: 0,
+  },
+  auditEntries: [],
+} as unknown as DrawerData;
 
 interface DrawerBodyProps {
   organizationId: string;
@@ -173,15 +196,19 @@ function DrawerBody({
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-center gap-2 pr-12">
-        <StatusBadge
-          status={request.status}
-          effectiveAt={request.effectiveAt}
-        />
-        <SlaCountdownBadge
-          slaDeadlineAt={request.slaDeadlineAt}
-          extensionDeadlineAt={request.extensionDeadlineAt}
-          status={request.status}
-        />
+        <SkeletonBox>
+          <StatusBadge
+            status={request.status}
+            effectiveAt={request.effectiveAt}
+          />
+        </SkeletonBox>
+        <SkeletonBox>
+          <SlaCountdownBadge
+            slaDeadlineAt={request.slaDeadlineAt}
+            extensionDeadlineAt={request.extensionDeadlineAt}
+            status={request.status}
+          />
+        </SkeletonBox>
       </header>
 
       {isCoolingOff && request.effectiveAt !== undefined && (
@@ -571,7 +598,7 @@ function KeyValue({ label, value, multiline, mono }: KeyValueProps) {
               : 'text-sm'
         }
       >
-        {value}
+        <SkeletonBox>{value}</SkeletonBox>
       </Text>
     </div>
   );
@@ -584,7 +611,9 @@ function KeyValueDate({ label, ms }: { label: string; ms: number }) {
         {label}
       </Text>
       <Text as="span" className="text-sm">
-        <TableDateCell date={ms} />
+        <SkeletonBox>
+          <TableDateCell date={ms} />
+        </SkeletonBox>
       </Text>
     </div>
   );

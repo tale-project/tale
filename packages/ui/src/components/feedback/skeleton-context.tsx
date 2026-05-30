@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
+import { useT } from '../../i18n/client';
 import { cn } from '../../lib/cn';
 
 interface SkeletonContextValue {
@@ -25,7 +26,10 @@ interface SkeletonizeProps {
   loading: boolean;
   /** The REAL component tree — rendered identically in both states. */
   children: ReactNode;
-  /** Accessible label announced once for the whole region while loading. */
+  /**
+   * Accessible label announced once for the whole region while loading.
+   * Defaults to the translated `skeleton.loading` string.
+   */
   label?: string;
   /** Classes for the wrapper element (present in both states → no shift). */
   className?: string;
@@ -50,20 +54,22 @@ interface SkeletonizeProps {
 export function Skeletonize({
   loading,
   children,
-  label = 'Loading content',
+  label,
   className,
 }: SkeletonizeProps) {
+  const { t } = useT('skeleton');
+  const resolvedLabel = label ?? t('loading');
   const value = useMemo(() => ({ loading }), [loading]);
   return (
     <SkeletonContext.Provider value={value}>
       <div
         role={loading ? 'status' : undefined}
         aria-busy={loading || undefined}
-        aria-label={loading ? label : undefined}
+        aria-label={loading ? resolvedLabel : undefined}
         className={cn(className)}
       >
         {children}
-        {loading && <span className="sr-only">{label}</span>}
+        {loading && <span className="sr-only">{resolvedLabel}</span>}
       </div>
     </SkeletonContext.Provider>
   );

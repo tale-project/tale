@@ -70,7 +70,9 @@ export function FeedbackSummaryCards({
             }
           >
             {loading ? (
-              <SkeletonBox className="my-0.5 h-9 w-24" />
+              <SkeletonBox>
+                <span className="my-0.5 inline-block h-9 w-24" />
+              </SkeletonBox>
             ) : capped ? (
               '—'
             ) : (
@@ -89,7 +91,9 @@ export function FeedbackSummaryCards({
         {/* The sentiment bar only paints with data — reserve its exact 0.5rem
             height while loading so the sentiment cell doesn't grow on load. */}
         {loading ? (
-          <SkeletonBox className="h-2 w-full rounded-full" />
+          <SkeletonBox fullWidth>
+            <div className="h-2 w-full rounded-full" />
+          </SkeletonBox>
         ) : total > 0 ? (
           <div
             className="bg-muted relative h-2 w-full overflow-hidden rounded-full"
@@ -144,7 +148,13 @@ function Cell({
           accent === 'negative' && 'text-rose-600 dark:text-rose-400',
         )}
       >
-        {loading ? <SkeletonBox className="my-0.5 h-7 w-16" /> : value}
+        {loading ? (
+          <SkeletonBox>
+            <span className="my-0.5 inline-block h-7 w-16" />
+          </SkeletonBox>
+        ) : (
+          value
+        )}
       </Text>
     </Stack>
   );

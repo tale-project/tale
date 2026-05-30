@@ -34,7 +34,7 @@ interface SuspenseBoundaryProps {
  * const DatePickerWithRange = lazyComponent(() => import('...'));
  *
  * <SuspenseBoundary
- *   fallback={<Skeleton className="h-9 w-[24rem]" />}
+ *   fallback={<Skeletonize loading><SkeletonBox><div className="h-9 w-[24rem]" /></SkeletonBox></Skeletonize>}
  *   errorFallback={<span className="text-sm text-muted-foreground">Date filter unavailable</span>}
  * >
  *   <DatePickerWithRange {...props} />

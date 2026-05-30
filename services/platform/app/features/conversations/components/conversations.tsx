@@ -32,10 +32,6 @@ import { ConversationListPanel } from './conversation-list-panel';
 import { ConversationListToolbar } from './conversation-list-toolbar';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationsList } from './conversations-list';
-import {
-  ConversationPanelSkeleton,
-  ConversationsListSkeleton,
-} from './conversations-skeleton';
 
 interface ConversationsProps {
   status?: Conversation['status'];
@@ -359,19 +355,16 @@ export function Conversations({
           )}
         </ConversationListToolbar>
 
-        {isLoading ? (
-          <ConversationsListSkeleton rows={skeletonRows} />
-        ) : (
-          <ConversationsList
-            conversations={filteredConversations}
-            selectedConversationId={selectedConversationId}
-            onConversationSelect={handleConversationSelect}
-            onConversationCheck={handleConversationCheck}
-            isConversationSelected={isConversationSelected}
-            paginationStatus={paginatedResult.status}
-            loadMore={paginatedResult.loadMore}
-          />
-        )}
+        <ConversationsList
+          conversations={isLoading ? undefined : filteredConversations}
+          selectedConversationId={selectedConversationId}
+          onConversationSelect={handleConversationSelect}
+          onConversationCheck={handleConversationCheck}
+          isConversationSelected={isConversationSelected}
+          paginationStatus={paginatedResult.status}
+          loadMore={paginatedResult.loadMore}
+          skeletonRows={skeletonRows}
+        />
       </ConversationListPanel>
 
       <div
@@ -380,15 +373,12 @@ export function Conversations({
           selectedConversationId ? 'flex' : 'hidden md:flex',
         )}
       >
-        {isLoading ? (
-          <ConversationPanelSkeleton status={status} />
-        ) : (
-          <ConversationPanel
-            selectedConversationId={selectedConversationId}
-            onSelectedConversationChange={setSelectedConversationId}
-            status={status}
-          />
-        )}
+        <ConversationPanel
+          selectedConversationId={selectedConversationId}
+          onSelectedConversationChange={setSelectedConversationId}
+          status={status}
+          forceLoading={isLoading}
+        />
       </div>
 
       {bulkSendDialog.isOpen && (

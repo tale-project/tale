@@ -3,7 +3,8 @@
 import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack, Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
 import { Check, Copy, WrapText } from 'lucide-react';
@@ -152,129 +153,131 @@ export function SkillAssetViewer({
   const canCopy = !isLoading && content.length > 0 && loadError === null;
 
   return (
-    <div key={assetPath} className="flex h-full min-h-0 flex-col">
-      <HStack
-        gap={2}
-        align="center"
-        className="border-border bg-muted/30 sticky top-0 z-10 border-b px-3 py-2"
-      >
-        <Text variant="caption" className="truncate font-mono">
-          {assetPath}
-        </Text>
-        {!skipFetch && !loadError ? (
-          <Text variant="caption" className="text-muted-foreground shrink-0">
-            {isLoading ? '—' : `${formatBytes(size, locale)} · ${langLabel}`}
+    <Skeletonize
+      loading={isLoading}
+      className="flex h-full min-h-0 flex-col"
+      label={assetPath}
+    >
+      <div key={assetPath} className="flex h-full min-h-0 flex-col">
+        <HStack
+          gap={2}
+          align="center"
+          className="border-border bg-muted/30 sticky top-0 z-10 border-b px-3 py-2"
+        >
+          <Text variant="caption" className="truncate font-mono">
+            {assetPath}
           </Text>
-        ) : null}
-        <div className="flex-1" />
-        {useShiki && !oversize && content ? (
+          {!skipFetch && !loadError ? (
+            <Text variant="caption" className="text-muted-foreground shrink-0">
+              <SkeletonBox>
+                {`${formatBytes(size, locale)} · ${langLabel}`}
+              </SkeletonBox>
+            </Text>
+          ) : null}
+          <div className="flex-1" />
+          {useShiki && !oversize && content ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={WrapText}
+              onClick={() => setWrap((w) => !w)}
+              aria-pressed={wrap}
+              aria-label={t('skills.viewer.toggleWrap', {
+                defaultValue: 'Toggle line wrap',
+              })}
+            />
+          ) : null}
           <Button
             variant="ghost"
             size="sm"
-            icon={WrapText}
-            onClick={() => setWrap((w) => !w)}
-            aria-pressed={wrap}
-            aria-label={t('skills.viewer.toggleWrap', {
-              defaultValue: 'Toggle line wrap',
-            })}
-          />
-        ) : null}
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={copied ? Check : Copy}
-          onClick={() => void handleCopy()}
-          disabled={!canCopy}
-        >
-          {copied ? tCommon('actions.copied') : tCommon('actions.copy')}
-        </Button>
-      </HStack>
-      <div className="min-h-0 flex-1 overflow-auto">
-        {isLoading ? (
-          <Stack gap={1} className="p-4">
-            {Array.from({ length: 10 }).map((_, idx) => (
-              <Skeleton
-                key={idx}
-                className="h-4"
-                style={{ width: `${40 + ((idx * 11) % 55)}%` }}
-              />
-            ))}
-          </Stack>
-        ) : isImage ? (
-          <Stack gap={3} className="items-center p-6">
-            <Text variant="muted">
-              {t('skills.viewer.imageNotice', {
-                defaultValue:
-                  'Image preview is not available in the browser. Use the CLI to inspect this asset.',
-              })}
-            </Text>
-            <Text variant="caption" className="font-mono">
-              {assetPath}
-            </Text>
-          </Stack>
-        ) : isKnownBinary ? (
-          <Stack gap={3} className="items-center p-6">
-            <Text variant="muted">
-              {t('skills.viewer.binaryNotice', {
-                defaultValue:
-                  'This file type is not previewable in the browser.',
-              })}
-            </Text>
-            <Text variant="caption" className="font-mono">
-              {assetPath}
-            </Text>
-          </Stack>
-        ) : loadError === 'not_found' ? (
-          <Text variant="muted" className="text-destructive p-4">
-            {t('skills.viewer.notFound', {
-              defaultValue:
-                'This file is no longer in the bundle. Pick another file from the tree.',
-            })}
-          </Text>
-        ) : isMarkdown ? (
-          <div className={`${markdownWrapperStyles} p-4`}>
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={markdownComponents}
-            >
-              {content}
-            </ReactMarkdown>
-          </div>
-        ) : useShiki && highlightedHtml && !oversize ? (
-          <div
-            ref={highlightRef}
-            className={`code-line-numbers text-sm [&_code]:text-xs [&_code]:leading-relaxed [&_pre]:m-0! [&_pre]:p-4! ${
-              wrap
-                ? '[&_pre]:break-words [&_pre]:whitespace-pre-wrap'
-                : '[&_pre]:overflow-auto'
-            }`}
-          />
-        ) : (
-          <>
-            {oversize ? (
-              <Text
-                variant="caption"
-                className="bg-muted/40 border-border border-b px-4 py-2"
-              >
-                {t('skills.viewer.largeFile', {
+            icon={copied ? Check : Copy}
+            onClick={() => void handleCopy()}
+            disabled={!canCopy}
+          >
+            {copied ? tCommon('actions.copied') : tCommon('actions.copy')}
+          </Button>
+        </HStack>
+        <div className="min-h-0 flex-1 overflow-auto">
+          {isLoading ? (
+            <div className="p-4 text-sm">
+              <SkeletonText lines={10} />
+            </div>
+          ) : isImage ? (
+            <Stack gap={3} className="items-center p-6">
+              <Text variant="muted">
+                {t('skills.viewer.imageNotice', {
                   defaultValue:
-                    'Large file — syntax highlighting disabled for performance.',
+                    'Image preview is not available in the browser. Use the CLI to inspect this asset.',
                 })}
               </Text>
-            ) : null}
-            <pre
-              ref={preRef}
-              className={`m-0 p-4 ${
-                wrap ? 'break-words whitespace-pre-wrap' : 'overflow-auto'
-              }`}
-            >
-              <code className="text-foreground font-mono text-xs leading-relaxed">
+              <Text variant="caption" className="font-mono">
+                {assetPath}
+              </Text>
+            </Stack>
+          ) : isKnownBinary ? (
+            <Stack gap={3} className="items-center p-6">
+              <Text variant="muted">
+                {t('skills.viewer.binaryNotice', {
+                  defaultValue:
+                    'This file type is not previewable in the browser.',
+                })}
+              </Text>
+              <Text variant="caption" className="font-mono">
+                {assetPath}
+              </Text>
+            </Stack>
+          ) : loadError === 'not_found' ? (
+            <Text variant="muted" className="text-destructive p-4">
+              {t('skills.viewer.notFound', {
+                defaultValue:
+                  'This file is no longer in the bundle. Pick another file from the tree.',
+              })}
+            </Text>
+          ) : isMarkdown ? (
+            <div className={`${markdownWrapperStyles} p-4`}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={markdownComponents}
+              >
                 {content}
-              </code>
-            </pre>
-          </>
-        )}
+              </ReactMarkdown>
+            </div>
+          ) : useShiki && highlightedHtml && !oversize ? (
+            <div
+              ref={highlightRef}
+              className={`code-line-numbers text-sm [&_code]:text-xs [&_code]:leading-relaxed [&_pre]:m-0! [&_pre]:p-4! ${
+                wrap
+                  ? '[&_pre]:break-words [&_pre]:whitespace-pre-wrap'
+                  : '[&_pre]:overflow-auto'
+              }`}
+            />
+          ) : (
+            <>
+              {oversize ? (
+                <Text
+                  variant="caption"
+                  className="bg-muted/40 border-border border-b px-4 py-2"
+                >
+                  {t('skills.viewer.largeFile', {
+                    defaultValue:
+                      'Large file — syntax highlighting disabled for performance.',
+                  })}
+                </Text>
+              ) : null}
+              <pre
+                ref={preRef}
+                className={`m-0 p-4 ${
+                  wrap ? 'break-words whitespace-pre-wrap' : 'overflow-auto'
+                }`}
+              >
+                <code className="text-foreground font-mono text-xs leading-relaxed">
+                  {content}
+                </code>
+              </pre>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </Skeletonize>
   );
 }

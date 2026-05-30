@@ -65,7 +65,9 @@ export function ArenaSummary({ byVerdict, total }: ArenaSummaryProps) {
             </Text>
             <Text className="text-foreground font-mono text-2xl font-semibold">
               {loading ? (
-                <SkeletonBox className="my-0.5 h-7 w-16" />
+                <SkeletonBox>
+                  <span className="my-0.5 inline-block h-7 w-16" />
+                </SkeletonBox>
               ) : (
                 formatNumber(cell.count, i18n.language)
               )}

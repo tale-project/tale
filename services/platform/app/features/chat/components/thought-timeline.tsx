@@ -102,15 +102,21 @@ function ThinkingDots() {
 
 function ToolStepRow({
   step,
+  active,
 }: {
   step: Extract<ThoughtStep, { kind: 'tool' }>;
+  /** Whether the OWNING message is still streaming. A tool stuck at
+   *  input-available on a finished/aborted turn must NOT show a live spinner. */
+  active: boolean;
 }) {
   const { t } = useT('chat');
   const Icon = toolIcon(step.toolName);
   const { displayText } = formatToolDetail(t, step.toolName, step.input);
   const isActive =
-    step.state === 'input-streaming' || step.state === 'input-available';
+    active &&
+    (step.state === 'input-streaming' || step.state === 'input-available');
   const isError = step.state === 'output-error';
+  const isComplete = step.state === 'output-available';
 
   return (
     <div className="flex items-start gap-2 text-sm">
@@ -119,8 +125,13 @@ function ToolStepRow({
           <Loader2 className="text-muted-foreground size-3.5 animate-spin" />
         ) : isError ? (
           <TriangleAlert className="text-destructive size-3.5" />
-        ) : (
+        ) : isComplete ? (
           <Check className="text-success size-3.5" />
+        ) : (
+          // Non-active and never reached a terminal state (e.g. aborted
+          // mid-call, left stuck at input-available). Show a MUTED check, not
+          // the green success check, so it isn't mislabeled as succeeded.
+          <Check className="text-muted-foreground size-3.5" />
         )}
       </span>
       <span className="flex min-w-0 flex-col">
@@ -158,7 +169,7 @@ function ReasoningStepRow({
   );
 }
 
-function StepNode({ step }: { step: ThoughtStep }) {
+function StepNode({ step, active }: { step: ThoughtStep; active: boolean }) {
   return (
     <>
       {/* timeline node dot, sitting on the connector line */}
@@ -169,7 +180,7 @@ function StepNode({ step }: { step: ThoughtStep }) {
       {step.kind === 'reasoning' ? (
         <ReasoningStepRow step={step} />
       ) : (
-        <ToolStepRow step={step} />
+        <ToolStepRow step={step} active={active} />
       )}
     </>
   );
@@ -270,7 +281,7 @@ export function ThoughtTimeline({
         {timeline.steps.map((step) =>
           prefersReducedMotion ? (
             <li key={step.id} className="relative pl-5">
-              <StepNode step={step} />
+              <StepNode step={step} active={active} />
             </li>
           ) : (
             // NOTE: deliberately NO `layout` prop. With `layout`, framer
@@ -286,7 +297,7 @@ export function ThoughtTimeline({
               transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
               className="relative pl-5"
             >
-              <StepNode step={step} />
+              <StepNode step={step} active={active} />
             </m.li>
           ),
         )}
@@ -313,7 +324,10 @@ export function ThoughtTimeline({
           type="button"
           onClick={() => setUserToggled(!expanded)}
           aria-expanded={expanded}
-          aria-controls={stepsId}
+          // The <ul id={stepsId}> is only mounted while `expanded` ({expanded
+          // && stepList}); point aria-controls at it only when it exists so we
+          // don't leave a dangling reference (flagged by axe aria-valid-attr-value).
+          aria-controls={expanded ? stepsId : undefined}
           className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm transition-colors"
         >
           <ChevronRight

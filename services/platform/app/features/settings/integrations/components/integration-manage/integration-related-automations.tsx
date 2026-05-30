@@ -2,7 +2,8 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button, LinkButton } from '@tale/ui/button';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { ChevronDown, ChevronRight, ExternalLink, Plus } from 'lucide-react';
 import { useState } from 'react';
@@ -43,16 +44,20 @@ export function IntegrationRelatedAutomations({
         <span className="text-foreground text-[13px] leading-tight font-medium tracking-[-0.078px]">
           {t('integrations.manageDialog.relatedAutomations')}
         </span>
-        {isLoading ? (
-          <Skeleton
-            className="h-5 w-5 rounded-full"
-            label={t('integrations.manageDialog.loadingAutomations')}
-          />
-        ) : (
-          <Badge variant="outline" className="text-xs">
-            {count}
-          </Badge>
-        )}
+        <Skeletonize
+          loading={isLoading}
+          label={t('integrations.manageDialog.loadingAutomations')}
+        >
+          {isLoading ? (
+            <SkeletonCircle>
+              <span className="block size-5" />
+            </SkeletonCircle>
+          ) : (
+            <Badge variant="outline" className="text-xs">
+              {count}
+            </Badge>
+          )}
+        </Skeletonize>
         <span className="text-muted-foreground ml-auto shrink-0">
           {expanded ? (
             <ChevronDown className="size-4" aria-hidden />
@@ -65,20 +70,19 @@ export function IntegrationRelatedAutomations({
       {expanded && (
         <div className="border-border bg-muted border-x px-4 py-3">
           {isLoading ? (
-            <div
-              className="space-y-2"
-              role="status"
-              aria-label={t('integrations.manageDialog.loadingAutomations')}
+            <Skeletonize
+              loading
+              label={t('integrations.manageDialog.loadingAutomations')}
             >
-              <Skeleton
-                className="h-8 w-full rounded-md"
-                label={t('integrations.manageDialog.loadingAutomations')}
-              />
-              <Skeleton
-                className="h-8 w-3/4 rounded-md"
-                label={t('integrations.manageDialog.loadingAutomations')}
-              />
-            </div>
+              <div className="space-y-2">
+                <SkeletonBox fullWidth>
+                  <div className="h-8 w-full rounded-md" />
+                </SkeletonBox>
+                <SkeletonBox>
+                  <div className="h-8 w-3/4 rounded-md" />
+                </SkeletonBox>
+              </div>
+            </Skeletonize>
           ) : count > 0 ? (
             <ul className="space-y-1 text-sm" role="list">
               {automations?.map((automation) => {
