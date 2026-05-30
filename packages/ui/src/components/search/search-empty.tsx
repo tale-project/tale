@@ -56,7 +56,9 @@ export function SearchEmpty({
             <button
               type="button"
               onClick={onClearRecents}
-              className="text-fg-subtle hover:text-fg-base focus-visible:ring-fg-base/40 rounded text-[11px] transition-colors focus-visible:ring-2 focus-visible:outline-none"
+              // `-mr-1.5` keeps the label edge aligned with the header while
+              // the padding gives the control a >=24px touch target.
+              className="text-fg-subtle hover:text-fg-base focus-visible:ring-fg-base/40 -mr-1.5 inline-flex min-h-6 items-center rounded px-1.5 py-1 text-[11px] transition-colors focus-visible:ring-2 focus-visible:outline-none"
             >
               {labels.clearRecent}
             </button>

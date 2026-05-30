@@ -189,7 +189,9 @@ describe('useStopGenerating — edge cases', () => {
   });
 
   it('recovers when cancelGeneration rejects: unfreezes and lets the user retry', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
     mockMutateAsync.mockRejectedValueOnce(new Error('Network error'));
 
     const { result } = renderHook(() =>
@@ -210,6 +212,10 @@ describe('useStopGenerating — edge cases', () => {
     mockMutateAsync.mockResolvedValueOnce(null);
     act(() => result.current.stopGenerating());
     expect(mockMutateAsync).toHaveBeenCalledTimes(2);
+
+    // Restore so the silenced console.error doesn't leak into other tests
+    // (clearAllMocks in beforeEach resets call history but not the impl).
+    consoleErrorSpy.mockRestore();
   });
 
   it('resetCancelled is idempotent (calling multiple times is safe)', () => {

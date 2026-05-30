@@ -64,6 +64,12 @@ export function useArenaThreadSetup({
         })
         .catch((error) => {
           console.error('Failed to create arena thread B:', error);
+          // The setup guard was claimed optimistically (line above) before
+          // creation; clear it on failure so a later effect run can retry
+          // rather than being permanently short-circuited.
+          if (arenaSetupThreadRef.current === threadId) {
+            arenaSetupThreadRef.current = null;
+          }
         })
         .finally(() => {
           creatingThreadBRef.current = false;

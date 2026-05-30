@@ -104,8 +104,12 @@ export function useSearchCommand({
     debouncedTrimmed.length >= minQueryLength ? debouncedTrimmed : '';
 
   // Rules of hooks: call the source unconditionally, every render. It receives
-  // `active` so it can unsubscribe / skip work while the dialog is closed.
-  const sourceState = source(effectiveQuery, { active: open });
+  // `active` so it can unsubscribe / skip work while the dialog is closed OR
+  // the raw query is below min length — gating on `meetsMin` (raw, not
+  // debounced) cancels the source the instant the user deletes back below the
+  // threshold, instead of letting it keep running the stale debounced query
+  // whose results would be discarded anyway.
+  const sourceState = source(effectiveQuery, { active: open && meetsMin });
 
   // While a valid query is still settling through the debounce, the source is
   // running the previous (or empty) query — surface that as `loading` so we

@@ -120,6 +120,7 @@ export function SearchCommand({
     clearRecents,
     canLoadMore,
     loadMore,
+    isLoadingMore,
     isShortQuery,
     showEmptyState,
     showSkeleton,
@@ -164,6 +165,9 @@ export function SearchCommand({
       setActiveIndex(next);
       scrollRowIntoView(next);
     } else if (event.key === 'Enter') {
+      // Ignore Enter while an IME composition is in progress, so composing
+      // users can commit candidate text without it selecting a result.
+      if (event.nativeEvent.isComposing) return;
       event.preventDefault();
       const target = visualResults[activeIndex];
       if (target) onResultSelect(target);
@@ -172,19 +176,20 @@ export function SearchCommand({
 
   // Paginated sources: load the next page when the sentinel scrolls into view.
   useEffect(() => {
-    if (!open || !canLoadMore || !loadMore) return undefined;
+    if (!open || !canLoadMore || !loadMore || isLoadingMore) return undefined;
     const sentinel = loadMoreRef.current;
     const root = listboxRef.current;
     if (!sentinel || !root) return undefined;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((e) => e.isIntersecting)) loadMore();
+        // Guard against firing a second page while one is already in flight.
+        if (entries.some((e) => e.isIntersecting) && !isLoadingMore) loadMore();
       },
       { root, rootMargin: '120px' },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [open, canLoadMore, loadMore, visualResults.length]);
+  }, [open, canLoadMore, loadMore, isLoadingMore, visualResults.length]);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
