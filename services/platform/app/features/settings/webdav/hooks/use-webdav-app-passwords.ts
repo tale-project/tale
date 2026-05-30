@@ -4,10 +4,12 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 
 export function useWebdavAppPasswords(organizationId: string) {
-  const rows = useQuery(api.webdav.app_password_queries.listAppPasswords, {
+  // Return `undefined` while loading so the UI can distinguish skeleton vs
+  // empty-state. Coercing to `[]` here would collapse both into the empty
+  // path and flash "No app-passwords yet." on first paint.
+  return useQuery(api.webdav.app_password_queries.listAppPasswords, {
     organizationId,
   });
-  return rows ?? [];
 }
 
 export function useCreateWebdavAppPassword() {
@@ -18,8 +20,8 @@ export function useRevokeWebdavAppPassword() {
   return useMutation(api.webdav.app_password_mutations.revokeAppPassword);
 }
 
-export type WebdavAppPasswordRow = ReturnType<
-  typeof useWebdavAppPasswords
+export type WebdavAppPasswordRow = NonNullable<
+  ReturnType<typeof useWebdavAppPasswords>
 >[number];
 
 export type WebdavAppPasswordId = Id<'webdavAppPasswords'>;

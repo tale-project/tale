@@ -221,6 +221,19 @@
 	}
 
 	# ============================================================================
+	# WebDAV uploads — defense-in-depth body cap (RAM blow-up protection)
+	# ============================================================================
+	# The platform process enforces a per-method limit (XML methods ~64 KB,
+	# PUT default 5 GB) but a malicious client streaming an unbounded body
+	# can still tie up Caddy's buffer. Cap at the proxy too.
+	handle /dav/* {
+		request_body {
+			max_size 5GB
+		}
+		reverse_proxy platform:3000
+	}
+
+	# ============================================================================
 	# Express Server (static files + HTML env injection only)
 	# ============================================================================
 

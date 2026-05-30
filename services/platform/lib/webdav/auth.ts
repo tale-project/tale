@@ -2,7 +2,20 @@ import { anyApi } from 'convex/server';
 
 import type { AuthContext, WebDAVCtx, WebDAVRequest } from './types';
 
+// MIRROR OF convex/webdav/helpers.ts — keep these in sync. The Convex
+// isolate cannot import from lib/, so the `hexToBytes` / `encodeText` /
+// `bytesToHex` / `hmacHash` / `timingSafeEqual` helpers are duplicated
+// here. If you change one, change both — and update the unit-test
+// vector (`lib/webdav/auth.test.ts` once added) that pins them to the
+// same output bytes.
+
 // Outcome of Basic-auth verification + org-slug resolution.
+//
+// `status` is restricted to 401 / 403 because the current handler.ts
+// dispatch maps non-401 to a literal 403. Rate-limit exhaustion is
+// surfaced as `status: 403, reason: 'rate limited'` to preserve the
+// existing switch shape; widening to 429 requires a handler.ts change
+// (out of scope for this commit — see plan section D.3 owner).
 export type AuthResult =
   | { ok: true; auth: AuthContext }
   | { ok: false; status: 401 | 403; reason: string };
@@ -12,15 +25,36 @@ interface ParseBasicResult {
   password: string;
 }
 
+// RFC 7230 doesn't fix a max header size — we choose 4 KB as a generous
+// upper bound. A correctly-formed Basic header with UTF-8 user/pass is
+// well under 1 KB; anything larger is malformed or an attempt to push
+// expensive base64 decoding work into the auth fast-path. Treat as
+// "missing" (401) — don't 400, since browsers would surface that as a
+// hard failure rather than retrying with credentials.
+const MAX_AUTHORIZATION_HEADER_LENGTH = 4096;
+
 function parseBasicHeader(header: string | null): ParseBasicResult | null {
   if (!header) return null;
+  if (header.length > MAX_AUTHORIZATION_HEADER_LENGTH) return null;
   if (!header.toLowerCase().startsWith('basic ')) return null;
-  let decoded: string;
+  const b64 = header.slice(6).trim();
+  // atob is ASCII — we have to manually map the resulting binary string
+  // to bytes and then UTF-8-decode. RFC 7617 §2.1 mandates UTF-8 for
+  // user-id/password when the server advertises `charset="UTF-8"` in
+  // the WWW-Authenticate challenge (we do — see buildUnauthorizedResponse).
+  let binary: string;
   try {
-    decoded = atob(header.slice(6).trim());
+    binary = atob(b64);
   } catch {
+    // Malformed base64 — user error, not a server bug. Returning null
+    // surfaces the standard 401 + WWW-Authenticate challenge so the
+    // client can retry with corrected credentials. No log: this is the
+    // hot path; a noisy log per probe is a DoS amplifier.
     return null;
   }
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
   const colon = decoded.indexOf(':');
   if (colon < 0) return null;
   return {
@@ -56,7 +90,19 @@ function parseCandidates(payload: unknown): AppPasswordCandidate[] {
   return out;
 }
 
+// Hex pattern used to validate the configured HMAC secret before we
+// hand it to crypto.subtle. Anchored + case-insensitive (operators
+// occasionally paste uppercase).
+const HEX_RE = /^[0-9a-f]+$/i;
+
 function hexToBytes(hex: string): Uint8Array<ArrayBuffer> {
+  // Defense in depth — `parseInt('zz', 16) === NaN` silently coerces
+  // to 0, so an unvalidated path would produce zero bytes and a key
+  // an attacker can guess. Fail loudly instead. The handler's
+  // getHmacSecret() should have already rejected non-hex input.
+  if (hex.length % 2 !== 0 || !HEX_RE.test(hex)) {
+    throw new Error('hexToBytes: input is not valid even-length hex');
+  }
   const buf = new ArrayBuffer(hex.length / 2);
   const out = new Uint8Array(buf);
   for (let i = 0; i < out.length; i++) {
@@ -133,13 +179,35 @@ export async function verifyBasicAuthForDav(
   }
 
   const prefix = parsed.password.slice(0, 4);
-  const rawCandidates: unknown = await ctx.convex.query(
-    anyApi.webdav.app_password_queries.findCandidatesByPrefix,
-    {
-      organizationId: orgRow.organizationId,
-      prefix,
-    },
-  );
+  let rawCandidates: unknown;
+  try {
+    // findCandidatesByPrefix is an internalMutation (not Query): it
+    // consumes a `webdav:auth-attempt` rate-limit token per call to
+    // cap brute-force probing per org. The limiter component requires
+    // mutation context to decrement, hence the mutation kind.
+    rawCandidates = await ctx.convex.mutation(
+      anyApi.webdav.app_password_queries.findCandidatesByPrefix,
+      {
+        organizationId: orgRow.organizationId,
+        prefix,
+      },
+    );
+  } catch (err) {
+    // ConvexError({ code: 'RATE_LIMITED' }) surfaces as a thrown Error
+    // on the HttpClient — match by message substring (the underlying
+    // ConvexError data isn't preserved across the wire as a discrete
+    // type for HttpClient calls).
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('RATE_LIMITED')) {
+      console.warn('[webdav] auth rate-limited', { orgSlug });
+      // Surface as 403 (not the semantically-correct 429) because the
+      // current handler hard-maps non-401 to 403; widening that to a
+      // proper 429 is owned by the dispatch-error refactor. The reason
+      // is generic on the wire — internal log captures specifics.
+      return { ok: false, status: 403, reason: 'forbidden' };
+    }
+    throw err;
+  }
   const candidates = parseCandidates(rawCandidates);
 
   if (candidates.length === 0) {
@@ -165,7 +233,16 @@ export async function verifyBasicAuthForDav(
     matched.userId,
   );
   if (!membership) {
-    return { ok: false, status: 403, reason: 'Not a member of org' };
+    // Log the precise reason server-side for forensics, but never let
+    // the client distinguish "not a member" from other 403 causes —
+    // that would let an attacker enumerate which (user, org) pairs
+    // hold app-passwords. The wire body stays generic.
+    console.warn('[webdav] auth forbidden:', {
+      orgSlug,
+      userId: matched.userId,
+      reason: 'not a member of org',
+    });
+    return { ok: false, status: 403, reason: 'forbidden' };
   }
 
   // Debounced lastUsedAt — fire-and-forget.

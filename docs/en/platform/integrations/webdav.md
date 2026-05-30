@@ -11,6 +11,8 @@ This page is the setup guide. The wire-protocol reference lives under [Develop >
 
 The WebDAV endpoint authenticates with **app-passwords** — short random secrets you generate per device under Settings. Your main account password does not work here; the platform does not accept it on the WebDAV endpoint, and it would be insecure to do so (every WebDAV client stores credentials in its system keychain, replayable to anything that can read that keychain). App-passwords let you scope access per device and revoke per device without rotating anything else.
 
+A note on the username field: the app-password is the only credential the server actually verifies — the username string is not matched against your account record. The convention is to use your Tale account email so audit logs and the row label stay readable, and most client UIs expect an email-shaped string anyway, but the auth decision is made on the password alone.
+
 You also need to know your **organisation slug** and the **site URL** your operator deployed the platform under. Both are visible on the Settings > WebDAV panel, and the panel will pre-fill them in the connection details below the password generator.
 
 ## Generating an app-password
@@ -70,13 +72,19 @@ To revoke an app-password, click the trash icon next to its row. The row stays i
 
 ## Troubleshooting
 
-A request that returns `401` after working yesterday almost always means the app-password was revoked or you typed the username wrong. Use the email you sign in with, not your display name.
+A request that returns `401` after working yesterday almost always means the app-password was revoked or expired. The username field itself is not verified — only the password is checked — so a typo in the username will not cause a 401, but a wrong, revoked, or mis-pasted password will.
 
 A request that returns `423 Locked` means the path is locked by another client. Wait for the lock to expire, switch to a different filename, or revoke the app-password holding it.
 
 A Finder mount that hangs on first browse usually means Convex is slow to answer a large PROPFIND on a deep tree — wait it out. If it never returns, check that your account is still a member of the organisation slug in the URL; the WebDAV endpoint rejects requests from non-members with `403`.
 
 A `502` on GET indicates the platform could fetch the document metadata but failed to retrieve the blob bytes from storage. Check the Convex logs for storage errors and confirm `ADMIN_KEY` is set in the platform environment — the WebDAV server reads blobs through an admin-authenticated client.
+
+## Security
+
+WebDAV uses HTTP Basic, which means the app-password is sent on every request — there is no session cookie that expires, no refresh token, just the raw credential going up the wire every time the client talks to the server. Only mount the share over HTTPS; over plain HTTP, anyone on the path between you and the server can read the password. Let your OS keychain (macOS Keychain, Windows Credential Manager, GNOME Keyring) hold the password — never paste it into the `https://user:pass@host/...` shorthand, because most tools log URLs in shell history, crash reports, and proxy access logs where the credential would survive far longer than the mount.
+
+If you suspect a password has leaked, revoke that row in **Settings > WebDAV** immediately. The revoke is instant; the next request authenticated with the leaked password is rejected. Other devices using their own app-passwords are unaffected.
 
 ## Where this fits
 

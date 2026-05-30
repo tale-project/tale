@@ -16,6 +16,7 @@ import { jsonRecordValidator } from '../lib/validators/json';
  * Reserved (non-integration) values:
  * - `upload` — user-uploaded file with no integration backing
  * - `agent` — created by an AI agent
+ * - `webdav` — created/uploaded via the WebDAV server
  */
 export const sourceProviderValidator = v.string();
 

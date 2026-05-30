@@ -6,17 +6,20 @@ running server.
 
 ## 0. Prereqs
 
+Both `ADMIN_KEY` and `WEBDAV_APP_PASSWORD_HMAC_KEY` are derived deterministically
+from `INSTANCE_SECRET` — operators don't need to mint them manually. In prod,
+`docker-entrypoint.sh` exports both before `bun server.ts` starts. In dev,
+`bun server.ts` derives the HMAC key from `INSTANCE_SECRET` at boot when
+not explicitly set.
+
+Operators who want an HMAC rotation independent of `INSTANCE_SECRET` can
+set `WEBDAV_APP_PASSWORD_HMAC_KEY=$(openssl rand -hex 32)` in `.env`; an
+explicit value always wins over the derived one.
+
 ```bash
-# Set the deployment HMAC secret if not already set.
 cd services/platform
-bunx convex env set WEBDAV_APP_PASSWORD_HMAC_KEY=$(openssl rand -hex 32)
-
-# Make sure ADMIN_KEY is set in the platform env (for both dev and prod —
-# the Hono server uses it to call internal Convex queries with admin auth).
-echo "ADMIN_KEY=<from generate-admin-key.sh>" >> .env.local
-
-# Boot dev (Convex + Vite) — the Vite plugin mirrors /dav/* in dev.
-bun dev
+# Ensure INSTANCE_SECRET is set in .env.local (64-char hex). Then:
+bun dev   # the Vite plugin mirrors /dav/* in dev.
 ```
 
 Then generate an app-password through the UI (Settings > WebDAV) and copy

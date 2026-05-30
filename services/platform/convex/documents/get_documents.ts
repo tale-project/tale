@@ -8,6 +8,7 @@
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import { isActiveDocument } from './_helpers';
 import { transformDocumentsBatch } from './transform_to_document_item';
 import type { DocumentFindResponse } from './types';
 
@@ -48,6 +49,11 @@ export async function getDocuments(
     const matchingDocuments: Array<Doc<'documents'>> = [];
 
     for await (const doc of baseQuery) {
+      // Skip soft-deleted (trashed) documents
+      if (!isActiveDocument(doc)) {
+        continue;
+      }
+
       // Apply search filter (case-insensitive contains)
       if (searchQuery) {
         const titleMatch = doc.title?.toLowerCase().includes(searchQuery);

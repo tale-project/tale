@@ -29,6 +29,24 @@ export const WEBDAV_METHODS: ReadonlyArray<WebDAVMethod> = [
   'UNLOCK',
 ];
 
+// XML bodies (PROPFIND/PROPPATCH/LOCK/MKCOL) cap. Anything larger is
+// almost certainly an attack — RFC 4918 envisions tiny XML envelopes.
+export const WEBDAV_MAX_XML_BODY = 64 * 1024;
+
+// PUT body cap. Operators can raise via WEBDAV_MAX_PUT_BYTES env var.
+// Default 5 GB matches the Caddyfile request_body cap.
+export const WEBDAV_MAX_PUT_BYTES = (() => {
+  const raw = process.env.WEBDAV_MAX_PUT_BYTES;
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : 5 * 1024 * 1024 * 1024;
+})();
+
+// Authorization header cap — anything longer is junk; reject before
+// touching `atob`. 4 KB matches Caddy's default header cap.
+export const WEBDAV_MAX_AUTH_HEADER = 4 * 1024;
+
 // Framework-neutral request shape. Adapters (Hono / Vite Connect) build
 // one of these from their native request type, then call dispatch().
 export interface WebDAVRequest {
@@ -42,10 +60,26 @@ export interface WebDAVRequest {
   // Body is a readable stream for large PUTs and a string for parseable
   // XML bodies. Adapters decide which based on the method.
   body: ReadableStream<Uint8Array> | null;
+  // Aborts when the client disconnects. Handlers forward to upstream
+  // `fetch` calls so a cancelled PUT or GET stops bandwidth burn end
+  // to end.
+  signal?: AbortSignal;
   // Where to read the body as text/bytes when the handler needs it.
-  // Stays lazy so GET/PROPFIND with no body don't allocate.
-  readText: () => Promise<string>;
-  readBytes: () => Promise<Uint8Array>;
+  // Stays lazy so GET/PROPFIND with no body don't allocate. `maxBytes`
+  // bounds the buffered size — exceeded reads throw so the dispatcher
+  // can map to 413.
+  readText: (maxBytes?: number) => Promise<string>;
+  readBytes: (maxBytes?: number) => Promise<Uint8Array>;
+}
+
+// readBytes / readText throws this when Content-Length or the actual
+// streamed size exceeds the caller-supplied cap. Handlers catch and
+// return 413.
+export class WebDAVBodyTooLarge extends Error {
+  constructor(public readonly limit: number) {
+    super(`Request body exceeds ${limit} bytes`);
+    this.name = 'WebDAVBodyTooLarge';
+  }
 }
 
 export interface WebDAVResponseInit {

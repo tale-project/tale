@@ -9,7 +9,9 @@ import type {
   WebDAVRequest,
   WebDAVResponse,
 } from '../types';
+import { buildDavError, DAV_ERROR_HEADERS } from '../xml/error-body';
 import {
+  isOwnerExtractError,
   parseIfHeaderTokens,
   parseLockBody,
   parseTimeoutHeader,
@@ -32,8 +34,33 @@ export async function handleLock(
     return { status: 403, headers: {}, body: 'Cannot lock root' };
   }
 
+  // Depth header validation (RFC 4918 §9.10.3). Only "0", "infinity",
+  // or absent are valid for LOCK. Other values are a client bug.
+  const depthHeaderRaw = req.headers.get('depth');
+  let requestedDepth: '0' | 'infinity' | null = null;
+  if (depthHeaderRaw !== null) {
+    const lower = depthHeaderRaw.toLowerCase();
+    if (lower === '0') requestedDepth = '0';
+    else if (lower === 'infinity') requestedDepth = 'infinity';
+    else {
+      return {
+        status: 400,
+        headers: {},
+        body: 'Invalid Depth header for LOCK (must be 0 or infinity)',
+      };
+    }
+  }
+
   const body = await req.readText();
-  const lockInfo = parseLockBody(body);
+  const lockBodyResult = parseLockBody(body);
+  if (isOwnerExtractError(lockBodyResult)) {
+    return {
+      status: 400,
+      headers: {},
+      body: `Hostile XML in <owner>: ${lockBodyResult.kind} declarations are forbidden`,
+    };
+  }
+  const lockInfo = lockBodyResult;
   const timeoutSec = clampTimeout(
     parseTimeoutHeader(req.headers.get('timeout')),
   );
@@ -61,22 +88,53 @@ export async function handleLock(
           anyApi.webdav.lock_mutations.refreshLock,
           { lockToken: token, timeoutMs: timeoutSec * 1000 },
         );
-        return buildLockOkResponse(
-          token,
-          { ownerXml: '', scope: 'exclusive' },
+        // RFC §9.10.5: echo the stored ownerXml / scope / depth from
+        // the original LOCK request, not whatever the refresh client
+        // happened to send (which is allowed to be empty body).
+        return buildLockOkResponse({
+          lockToken: token,
+          ownerXml: refreshed.ownerXml,
+          scope: refreshed.scope,
+          depth: refreshed.depth,
           parsed,
           auth,
-          Math.round((refreshed.expiresAt - Date.now()) / 1000),
-        );
+          timeoutSec: Math.round((refreshed.expiresAt - Date.now()) / 1000),
+          created: false,
+        });
       }
     } catch (err) {
       console.error('[webdav] LOCK refresh failed', err);
       return { status: 500, headers: {}, body: 'Refresh failed' };
     }
-    return { status: 412, headers: {}, body: 'Lock token not found' };
+    return {
+      status: 412,
+      headers: DAV_ERROR_HEADERS,
+      body: buildDavError({ precondition: 'lock-token-matches-request-uri' }),
+    };
   }
 
   // Fresh LOCK
+  // Resolve the path to detect lock-null (resource doesn't exist yet).
+  // RFC §9.10.4 + §7.3: LOCK on a non-existent URI creates an empty
+  // resource bound to the lock — clients use this to reserve a name
+  // before a PUT. Status code must be 201 Created in that case.
+  const resolved = await ctx.convex.query(
+    anyApi.webdav.tree_queries.resolvePath,
+    {
+      organizationId: auth.organizationId,
+      namespace: parsed.namespace,
+      segments: parsed.segments,
+    },
+  );
+  const isLockNull = !resolved.exists;
+
+  // Default Depth per RFC: collections default to infinity, leaves to 0.
+  // The trailing-slash URL signals "this is a collection" — clients
+  // (Office, Cyberduck) sometimes lock a collection with no Depth
+  // header expecting infinity propagation. We honor that.
+  const effectiveDepth: '0' | 'infinity' =
+    requestedDepth ?? (parsed.isCollection ? 'infinity' : '0');
+
   const lockToken = randomUuid();
   const lockKey = lockKeyFromParsed(parsed);
 
@@ -86,48 +144,76 @@ export async function handleLock(
       resourcePath: lockKey,
       lockToken,
       ownerXml: lockInfo.ownerXml,
-      depth: parsed.isCollection ? 'infinity' : '0',
+      depth: effectiveDepth,
       scope: lockInfo.scope,
       ownerUserId: auth.userId,
       appPasswordId: auth.appPasswordId,
       timeoutMs: timeoutSec * 1000,
     });
   } catch (err) {
-    if (convexErrorCode(err) === 'LOCKED') {
-      return { status: 423, headers: {}, body: 'Already locked' };
+    const code = convexErrorCode(err);
+    if (code === 'LOCKED') {
+      return {
+        status: 423,
+        headers: DAV_ERROR_HEADERS,
+        body: buildDavError({ precondition: 'no-conflicting-lock' }),
+      };
+    }
+    if (code === 'RATE_LIMITED') {
+      return {
+        status: 503,
+        headers: { 'Retry-After': '60' },
+        body: 'Too many locks held by this app-password',
+      };
     }
     console.error('[webdav] LOCK create failed', err);
     return { status: 500, headers: {}, body: 'Internal error' };
   }
 
-  return buildLockOkResponse(lockToken, lockInfo, parsed, auth, timeoutSec);
+  return buildLockOkResponse({
+    lockToken,
+    ownerXml: lockInfo.ownerXml,
+    scope: lockInfo.scope,
+    depth: effectiveDepth,
+    parsed,
+    auth,
+    timeoutSec,
+    created: isLockNull,
+  });
 }
 
-function buildLockOkResponse(
-  lockToken: string,
-  lockInfo: { ownerXml: string; scope: 'exclusive' | 'shared' },
-  parsed: ParsedPath,
-  auth: AuthContext,
-  timeoutSec: number,
-): WebDAVResponse {
+interface BuildLockOkResponseArgs {
+  lockToken: string;
+  ownerXml: string;
+  scope: 'exclusive' | 'shared';
+  depth: '0' | 'infinity';
+  parsed: ParsedPath;
+  auth: AuthContext;
+  timeoutSec: number;
+  // RFC §9.10.4: lock-null (lock on non-existent resource) returns
+  // 201 Created; refresh and lock-on-existing return 200 OK.
+  created: boolean;
+}
+
+function buildLockOkResponse(args: BuildLockOkResponseArgs): WebDAVResponse {
   const href = buildDavPath({
-    orgSlug: auth.orgSlug,
-    namespace: parsed.namespace,
-    segments: parsed.segments,
-    isCollection: parsed.isCollection,
+    orgSlug: args.auth.orgSlug,
+    namespace: args.parsed.namespace,
+    segments: args.parsed.segments,
+    isCollection: args.parsed.isCollection,
   });
   return {
-    status: 200,
+    status: args.created ? 201 : 200,
     headers: {
       'Content-Type': 'application/xml; charset=utf-8',
-      'Lock-Token': `<opaquelocktoken:${lockToken}>`,
+      'Lock-Token': `<opaquelocktoken:${args.lockToken}>`,
     },
     body: buildLockResponse({
-      scope: lockInfo.scope,
-      ownerXml: lockInfo.ownerXml,
-      depth: parsed.isCollection ? 'infinity' : '0',
-      timeoutSeconds: timeoutSec,
-      lockToken,
+      scope: args.scope,
+      ownerXml: args.ownerXml,
+      depth: args.depth,
+      timeoutSeconds: args.timeoutSec,
+      lockToken: args.lockToken,
       href,
     }),
   };

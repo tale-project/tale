@@ -7,25 +7,25 @@ Tale exponiert den Dokumentenspeicher unter `/dav/<orgSlug>/` als lese- und schr
 
 ## URL-Schema
 
-```
+```text
 /dav/<orgSlug>/documents/<path>      R/W  aktiver Dokumentenbaum
 /dav/<orgSlug>/.trash/<path>         R/O  gelöschte Dokumente (Soft-Delete-Ansicht)
 /dav/<orgSlug>/                      R/O  Sammlung, die die zwei obigen enthält
 ```
 
-Segmente sind URL-kodiert. Der Server lehnt Segmente mit `/`, `\`, NUL oder den relativen Namen `.` und `..` ab. Jedes Segment muss 1–255 Byte umfassen. Der `orgSlug` matcht `[a-zA-Z0-9_-]{1,64}`.
+Segmente sind URL-kodiert. Der Server lehnt Segmente mit `/`, `\`, NUL oder den relativen Namen `.` und `..` ab. Jedes Segment muss 1–255 Byte umfassen. Der `orgSlug` entspricht `[a-zA-Z0-9_-]{1,64}`.
 
-Die Trailing-Slash-Konvention folgt WebDAV: Sammlungen (Ordner) werden mit Trailing Slash referenziert, Ressourcen (Dateien) ohne. Viele Clients normalisieren das im Flug; der Server akzeptiert beide Formen beim Lookup und gibt die kanonische Form in PROPFIND-Antworten aus.
+Die Trailing-Slash-Konvention folgt WebDAV: Sammlungen (Ordner) werden mit Trailing Slash referenziert, Ressourcen (Dateien) ohne. Viele Clients normalisieren das unterwegs; der Server akzeptiert beide Formen beim Lookup und gibt die kanonische Form in PROPFIND-Antworten aus.
 
 ## Authentifizierung
 
-Nur HTTP Basic. Der Benutzername ist die Tale-Konto-E-Mail des Benutzers; das Passwort ist ein **App-Passwort**, das unter Einstellungen > WebDAV generiert wird. Das Haupt-Konto-Passwort wird auf diesem Endpunkt nicht akzeptiert.
+Nur HTTP Basic. Das Feld Benutzername kann ein beliebiger nicht-leerer Wert sein — das App-Passwort ist die eigentliche Berechtigung, und der Server vergleicht den Benutzernamen nicht mit deinem Konto. Deine Tale-Konto-E-Mail einzutragen ist die Konvention für lesbare Audit-Logs, und die meisten Clients erwarten eine E-Mail-ähnliche Zeichenkette, aber die Auth-Entscheidung wird allein auf dem Passwort getroffen. Das Passwort ist ein **App-Passwort**, das du unter Einstellungen > WebDAV erzeugst. Dein Haupt-Konto-Passwort wird auf diesem Endpunkt nicht akzeptiert.
 
-```
-Authorization: Basic <base64(email:app-passwort)>
+```http
+Authorization: Basic <base64(email-oder-beliebig:app-passwort)>
 ```
 
-App-Passwörter werden mit HMAC-SHA256 unter dem Deployment-Secret `WEBDAV_APP_PASSWORD_HMAC_KEY` gehasht. Der Lookup grenzt über die ersten vier Zeichen des Passworts ein (neben dem Hash gespeichert für indexierten Lookup) und verifiziert mit einem Konstant-Zeit-HMAC-Vergleich.
+App-Passwörter werden mit HMAC-SHA256 unter dem Deployment-Secret `WEBDAV_APP_PASSWORD_HMAC_KEY` gehasht. Der Schlüssel wird vom Plattform-Entrypoint (Prod) und von `server.ts` (Dev) deterministisch aus `INSTANCE_SECRET` abgeleitet — Operatoren müssen ihn nicht manuell setzen; ein expliziter Wert in `.env` überschreibt jedoch den abgeleiteten. Der Lookup grenzt über die ersten vier Zeichen des Passworts ein (neben dem Hash gespeichert für indexierten Lookup) und verifiziert mit einem Konstant-Zeit-HMAC-Vergleich.
 
 Jede authentifizierte Anfrage prüft zusätzlich, dass der anfragende Benutzer aktives Mitglied der Organisation in der URL ist — eine veraltete Zeile (Mitgliedschaft nach App-Passwort-Ausgabe entfernt) wird mit `403` abgelehnt.
 
@@ -69,7 +69,7 @@ Dead Properties werden nicht gespeichert. PROPPATCH gibt 200 pro Eigenschaft zur
 
 Sperren leben in ihrer eigenen Convex-Tabelle, gekeyt mit `(organizationId, resourcePath)`. Wire-Form ist `opaquelocktoken:<uuid>`. Der Server:
 
-- Deckelt Timeout auf 3600 Sekunden. Anfragen für längere Fenster werden still geklemmt.
+- Deckelt Timeout auf 3600 Sekunden. Anfragen für längere Fenster werden still gekappt.
 - Behandelt `LOCK` mit `If: (<opaquelocktoken:UUID>)`-Header und leerem Body als Refresh — der Ablauf der bestehenden Sperre wird verlängert.
 - Gibt `412 Precondition Failed` beim Refresh zurück, wenn das gelieferte Token unbekannt ist.
 - Gibt `423 Locked` auf `PUT / DELETE / MOVE / COPY / MKCOL / PROPPATCH` gegen einen gesperrten Pfad zurück, wenn die Anfrage keinen passenden `If`-Header trägt.
@@ -107,8 +107,8 @@ Der Server bewirbt `DAV: 1, 2` in der OPTIONS-Antwort.
 ## Limits
 
 - `Depth: infinity` auf PROPFIND wird mit `403` abgelehnt.
-- `Timeout: Second-N` auf LOCK wird auf `[1, 3600]` geklemmt.
-- Die PUT-Body-Größe ist durch das Upload-URL-Limit des Convex-Speichers der Plattform begrenzt. Der Plattform-Server leitet den Body an eine Convex-Presigned-URL; das Limit ist, was Ihr self-hosted Convex erzwingt. Für unbegrenztes Streaming sollten Sie Import über die REST-API erwägen.
+- `Timeout: Second-N` auf LOCK wird auf `[1, 3600]` begrenzt.
+- Die PUT-Body-Größe ist durch das Upload-URL-Limit des Convex-Speichers der Plattform begrenzt. Der Plattform-Server leitet den Body an eine Convex-Presigned-URL; das Limit ist, was dein selbst gehostetes Convex erzwingt. Für unbegrenztes Streaming kannst du den Import über die REST-API erwägen.
 - App-Passwörter werden mit HMAC-SHA256 gehasht; das Geheimnis taucht nach dem Create-Call in keiner Antwort mehr auf.
 - `lastUsedAt` wird höchstens einmal pro Minute pro App-Passwort gepatcht, um Write-Storms auf belebten Mounts zu vermeiden.
 
@@ -118,8 +118,12 @@ Der WebDAV-Endpunkt läuft im Plattform-Hono-Server (`platform:3000` in Compose)
 
 Für Dev (`bun dev`) wird derselbe Dispatch als Vite-Middleware gemountet (`vite-plugins/serve-webdav.ts`) — `curl` und Clients können `http://localhost:3000/dav/<orgSlug>/...` gegen einen laufenden Dev-Server ohne Rebuild treffen.
 
-## Siehe auch
+## Sicherheit
 
-- [Plattform > Integrationen > WebDAV](/platform/integrations/webdav) — Endbenutzer-Einrichtungsleitfaden und Per-Client-Anweisungen.
-- [Entwickeln > API-Referenz](/develop/api-reference) — die REST-API für Bulk-Dokumentenimport, Suche und andere Non-Mount-Workflows.
-- RFC 4918 — WebDAV (HTTP-Erweiterungen für distributed authoring).
+WebDAV schickt das App-Passwort als HTTP-Basic-Header bei jeder Anfrage — keine Session, kein Token-Refresh, einfach die nackte Berechtigung wiedergespielt bei jedem PROPFIND, PUT, LOCK und so weiter. Hänge den Endpunkt nur über HTTPS ein; über reines HTTP leakt das Passwort an jeden auf der Leitung, und ein Widerruf der Zeile ist die einzige Erholung. Stecke das App-Passwort niemals direkt in die URL (die `https://user:pass@host/...`-Kurzform) — die meisten Clients protokollieren URLs in Shell-History, Crash-Reports und Proxy-Access-Logs, wo die Berechtigung den Unmount weit überdauern würde. Lass den WebDAV-Client das Passwort im System-Schlüsselbund speichern (macOS Keychain, Windows Credential Manager, GNOME Keyring) und über den Standard-Credential-Prompt herausgeben.
+
+Der Server erzwingt TLS auf der Reverse-Proxy-Schicht in Produktion; der Dev-Modus über reines HTTP ist nur für `localhost`-Tests gedacht. Audit-Logs erfassen jede authentifizierte Anfrage mit dem Präfix des verwendeten Passworts, sodass eine geleakte Berechtigung sich nachverfolgen und widerrufen lässt, ohne die übrige Geräteflotte zu rotieren.
+
+## Wo das hinpasst
+
+WebDAV ist die Mount-Protokoll-Oberfläche desselben Dokumentenspeichers, den die [REST-API-Referenz](/develop/api-reference) für Bulk-Import und Suche bedient — beide Wege schreiben in dieselbe Tabelle, aus der der [Dokumenten-Hub](/platform/knowledge/documents) liest, sodass eine über den Finder erstellte Datei ohne Sync-Schritt in der Web-Oberfläche erscheint. Das Protokoll ist die richtige Wahl, wenn Dokumente sich wie ein lokaler Ordner anfühlen sollen; die REST-API ist die richtige Wahl, wenn ein Skript oder Agent Byte-Kontrolle über das Geschriebene braucht. RFC 4918 ist die Wire-Level-Autorität für alles auf dieser Seite.

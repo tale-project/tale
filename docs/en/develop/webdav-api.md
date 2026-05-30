@@ -7,7 +7,7 @@ Tale exposes the document store under `/dav/<orgSlug>/` as a read-write WebDAV C
 
 ## URL scheme
 
-```
+```text
 /dav/<orgSlug>/documents/<path>      R/W  active documents tree
 /dav/<orgSlug>/.trash/<path>         R/O  trashed documents (soft-delete view)
 /dav/<orgSlug>/                      R/O  collection containing the two above
@@ -19,13 +19,13 @@ Trailing-slash policy follows WebDAV convention: collections (folders) are refer
 
 ## Authentication
 
-HTTP Basic only. The username is the user's Tale account email; the password is an **app-password** generated under Settings > WebDAV. The user's main account password is not accepted on this endpoint.
+HTTP Basic only. The username field can be any non-empty value — the app-password itself is the actual credential, and the server does not match the username against your account record. Using your Tale account email is the convention for audit clarity, and clients that prefill from the keychain expect an email-shaped string, but the auth decision is made on the password alone. The password is an **app-password** generated under Settings > WebDAV. The user's main account password is not accepted on this endpoint.
 
-```
-Authorization: Basic <base64(email:app-password)>
+```http
+Authorization: Basic <base64(email-or-anything:app-password)>
 ```
 
-App-passwords are hashed with HMAC-SHA256 keyed by the server's `WEBDAV_APP_PASSWORD_HMAC_KEY` deployment secret. Lookup narrows by the password's first four characters (stored alongside the hash for indexed lookup) and verifies with a constant-time HMAC comparison.
+App-passwords are hashed with HMAC-SHA256 keyed by the server's `WEBDAV_APP_PASSWORD_HMAC_KEY` deployment secret. The key is derived deterministically from `INSTANCE_SECRET` by the platform entrypoint (prod) and `server.ts` (dev), so operators do not mint it manually; setting it explicitly in `.env` overrides the derived value. Lookup narrows by the password's first four characters (stored alongside the hash for indexed lookup) and verifies with a constant-time HMAC comparison.
 
 Every authenticated request also verifies the requesting user is an active member of the organisation in the URL — a stale row (membership removed after app-password issue) is rejected with `403`.
 
@@ -118,8 +118,12 @@ The WebDAV endpoint runs inside the platform Hono server (`platform:3000` in com
 
 For dev (`bun dev`), the same dispatch is mounted as a Vite middleware (`vite-plugins/serve-webdav.ts`) — `curl` and clients can hit `http://localhost:3000/dav/<orgSlug>/...` against a running dev server without rebuilding.
 
-## See also
+## Security
 
-- [Platform > Integrations > WebDAV](/platform/integrations/webdav) — end-user setup guide and per-client instructions.
-- [Develop > API reference](/develop/api-reference) — the REST API for bulk document import, search, and other non-mount workflows.
-- RFC 4918 — WebDAV (HTTP extensions for distributed authoring).
+WebDAV ships the app-password on every request as an HTTP Basic header — there is no session, no token refresh, just the raw credential replayed on every PROPFIND, PUT, LOCK, and so on. Only mount the endpoint over HTTPS; running it over plain HTTP leaks the password to anyone on the wire, and revoking the row is the only way to recover. Never put the app-password into the URL itself (the `https://user:pass@host/...` shorthand) — most clients log URLs in shell history, crash reports, and proxy access logs, where the credential would survive long after the mount was unmounted. Let the WebDAV client store the password in the OS keychain (macOS Keychain, Windows Credential Manager, GNOME Keyring) and surface it through the standard credential prompt instead.
+
+The server enforces TLS at the reverse proxy layer in production deploys; dev mode over plain HTTP is only intended for `localhost` testing. Audit logs record every authenticated request with the prefix of the password used, so a leaked credential can be traced and revoked without rotating the rest of the device fleet.
+
+## Where this fits
+
+WebDAV is the mount-protocol surface of the same document store the [REST API reference](/develop/api-reference) drives for bulk import and search — both routes write into the table the [Document Hub](/platform/knowledge/documents) reads from, so a file created through Finder appears in the web UI without any sync step. The protocol is the right pick when a user wants their documents to feel like a local folder; the REST API is the right pick when a script or agent wants byte-level control over what gets written and when. RFC 4918 is the wire-level authority for everything on this page.

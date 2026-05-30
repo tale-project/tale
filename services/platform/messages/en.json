@@ -9,6 +9,7 @@
     "skills": "You need Admin or Developer permissions to manage skills.",
     "branding": "You need Admin permissions to access branding settings.",
     "knowledge": "Your account does not have permission to access knowledge.",
+    "webdav": "You need Admin or Developer permissions to access WebDAV settings.",
     "workspaceNotFound": "The workspace you're looking for doesn't exist or may have been removed.",
     "disabled": "Your account has been disabled. Contact support for assistance.",
     "noMembership": "You are not a member of this workspace. Please contact an administrator for access.",
@@ -3552,6 +3553,7 @@
     "account": "Account",
     "agents": "Agents",
     "skills": "Skills",
+    "webdav": "WebDAV",
     "teamFilter": {
       "allTeams": "All"
     },
@@ -5924,9 +5926,12 @@
     "create": {
       "title": "Generate a new app-password",
       "description": "Use one per device. The full password is only shown once — copy it before closing this dialog.",
+      "labelLabel": "Label",
       "labelPlaceholder": "e.g. MacBook Finder",
       "submit": "Generate",
+      "generate": "Generate app-password",
       "error": "Failed to create app-password",
+      "errorGeneric": "Could not generate app-password",
       "savedTitle": "Save this password — it will not be shown again.",
       "copy": "Copy",
       "dismiss": "I have saved it"
@@ -5939,7 +5944,18 @@
       "created": "Created",
       "neverUsed": "never",
       "revoked": "revoked",
-      "revokedToast": "Revoked"
+      "revoke": "Revoke",
+      "copy": "Copy",
+      "revokedToast": "Revoked",
+      "copiedToast": "Copied",
+      "revokeError": "Could not revoke",
+      "copyError": "Could not copy"
+    },
+    "revokeDialog": {
+      "title": "Revoke this app-password?",
+      "body": "Any device mounted with this password will be disconnected and active locks released.",
+      "confirm": "Revoke",
+      "cancel": "Cancel"
     }
   }
 }

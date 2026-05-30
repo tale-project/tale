@@ -11,10 +11,7 @@ export interface LockResponseInput {
 }
 
 export function buildLockResponse(input: LockResponseInput): string {
-  const owner =
-    input.ownerXml.trim().length > 0
-      ? `<D:owner>${input.ownerXml}</D:owner>`
-      : '';
+  const owner = safeOwnerEmit(input.ownerXml);
   return `<?xml version="1.0" encoding="utf-8"?>
 <D:prop xmlns:D="DAV:">
   <D:lockdiscovery>
@@ -29,6 +26,21 @@ export function buildLockResponse(input: LockResponseInput): string {
     </D:activelock>
   </D:lockdiscovery>
 </D:prop>`;
+}
+
+// Wrap stored ownerXml in CDATA so the (already-validated, length-capped)
+// blob round-trips back to the client without us having to re-escape
+// every `<D:href>` / `<a:thing>` inside. CDATA terminator `]]>` is the
+// only sequence that can break out — we neutralize it by splitting:
+//   "]]>" → "]]" + "]]><![CDATA[" + ">"
+// RFC 4918 doesn't mandate any particular shape inside `<D:owner>`; the
+// spec says servers MUST preserve the client's owner content "as is",
+// and real clients (rclone, Cyberduck, Office) read it with a generic
+// XML parser that handles CDATA transparently.
+export function safeOwnerEmit(stored: string): string {
+  if (stored.trim().length === 0) return '';
+  const cleaned = stored.replace(/]]>/g, ']]]]><![CDATA[>');
+  return `<D:owner><![CDATA[${cleaned}]]></D:owner>`;
 }
 
 function escapeXml(s: string): string {

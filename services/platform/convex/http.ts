@@ -149,17 +149,90 @@ http.route({
         return new Response('File not found', { status: 404 });
       }
 
-      const headers: Record<string, string> = {
-        'Content-Type': blob.type || 'application/octet-stream',
-        'Content-Length': blob.size.toString(),
-      };
+      const totalSize = blob.size;
+      const contentType = blob.type || 'application/octet-stream';
 
+      const dispositionHeaders: Record<string, string> = {};
       if (filename) {
         const sanitizedFilename = filename.replace(/[^\w\s.-]/g, '_');
         const encodedFilename = encodeURIComponent(filename);
-        headers['Content-Disposition'] =
+        dispositionHeaders['Content-Disposition'] =
           `attachment; filename="${sanitizedFilename}"; filename*=UTF-8''${encodedFilename}`;
       }
+
+      // RFC 7233 single-range support. Multi-range (`bytes=0-9,20-29`) is
+      // declined here — caller falls back to a full 200 response.
+      const rangeHeader = req.headers.get('range');
+      if (rangeHeader) {
+        const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+        if (match) {
+          const [, startStr, endStr] = match;
+          let start: number;
+          let end: number;
+          let parseOk = true;
+          if (startStr === '' && endStr === '') {
+            parseOk = false;
+            start = 0;
+            end = 0;
+          } else if (startStr === '') {
+            const suffix = Number(endStr);
+            if (!Number.isFinite(suffix) || suffix <= 0) {
+              parseOk = false;
+              start = 0;
+              end = 0;
+            } else {
+              start = Math.max(0, totalSize - suffix);
+              end = totalSize - 1;
+            }
+          } else {
+            start = Number(startStr);
+            if (!Number.isFinite(start) || start < 0) {
+              parseOk = false;
+              end = 0;
+            } else if (endStr === '') {
+              end = totalSize - 1;
+            } else {
+              end = Number(endStr);
+              if (!Number.isFinite(end) || end < start) {
+                parseOk = false;
+              } else if (end > totalSize - 1) {
+                end = totalSize - 1;
+              }
+            }
+          }
+
+          if (parseOk) {
+            if (totalSize === 0 || start >= totalSize) {
+              return new Response('Range not satisfiable', {
+                status: 416,
+                headers: {
+                  'Content-Range': `bytes */${totalSize}`,
+                  'Accept-Ranges': 'bytes',
+                },
+              });
+            }
+            // slice() upper bound is exclusive, byte range end is inclusive.
+            const sliced = blob.slice(start, end + 1, contentType);
+            return new Response(sliced, {
+              status: 206,
+              headers: {
+                'Content-Type': contentType,
+                'Content-Length': String(end - start + 1),
+                'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+                'Accept-Ranges': 'bytes',
+                ...dispositionHeaders,
+              },
+            });
+          }
+        }
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': contentType,
+        'Content-Length': totalSize.toString(),
+        'Accept-Ranges': 'bytes',
+        ...dispositionHeaders,
+      };
 
       return new Response(blob, { status: 200, headers });
     } catch (error) {

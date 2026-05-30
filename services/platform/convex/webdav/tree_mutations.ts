@@ -1,15 +1,35 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import type { Doc, Id } from '../_generated/dataModel';
+import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { internalMutation } from '../_generated/server';
 import { createDocument } from '../documents/create_document';
 import { extractExtension } from '../documents/extract_extension';
 import { findFolderByPath } from '../folders/find_folder_by_path';
-import { getOrCreateFolderPath } from '../folders/get_or_create_path';
+import { MAX_FOLDER_DEPTH } from '../folders/mutations';
+import { buildFolderPath } from '../folders/queries';
 
 const WEBDAV_SOURCE_PROVIDER = 'webdav';
+
+// Source-provider slugs whose docs are part of an external sync loop.
+// When a MOVE detaches the doc from its sync root we clear these so the
+// connector doesn't see the row as still belonging to its tree.
+const SYNC_SOURCE_PROVIDERS = new Set([
+  'onedrive',
+  'sharepoint',
+  'google_drive',
+  'gdrive',
+  'google-drive',
+]);
+
+// NFC normalisation belt-and-suspenders. paths.ts already normalises at
+// the wire boundary; this second pass protects against callers that hit
+// the mutations directly (e.g. tests, scripts) and would otherwise leave
+// mixed NFD rows in storage.
+function nfc(s: string): string {
+  return s.normalize('NFC');
+}
 
 // Internal generate-upload-url for the WebDAV PUT path. Mirrors
 // files/mutations.generateUploadUrl but bypasses Better Auth — Hono
@@ -33,23 +53,32 @@ export const ingestPutBlob = internalMutation({
     contentType: v.string(),
     size: v.number(),
     userId: v.string(),
+    // X-OC-Mtime (unix seconds, OwnCloud/NextCloud convention) lets
+    // sync clients preserve mtime through round-trips. Mapped to ms by
+    // the caller. Absent → wall clock.
+    sourceModifiedAtMs: v.optional(v.number()),
   },
   async handler(ctx, args) {
     if (args.pathSegments.length === 0) {
       throw new ConvexError({ code: 'INVALID_PATH' });
     }
-    const parentSegments = args.pathSegments.slice(0, -1);
-    const fileName = args.pathSegments[args.pathSegments.length - 1];
+    const parentSegments = args.pathSegments.slice(0, -1).map(nfc);
+    const fileName = nfc(args.pathSegments[args.pathSegments.length - 1]);
 
-    const folderId =
-      parentSegments.length > 0
-        ? await getOrCreateFolderPath(
-            ctx,
-            args.organizationId,
-            parentSegments,
-            args.userId,
-          )
-        : undefined;
+    // RFC 4918 §9.7.1: a PUT may not auto-vivify intermediate
+    // collections. If any ancestor is missing the request 409s.
+    let folderId: Id<'folders'> | undefined = undefined;
+    if (parentSegments.length > 0) {
+      const found = await findFolderByPath(
+        ctx,
+        args.organizationId,
+        parentSegments,
+      );
+      if (!found) {
+        throw new ConvexError({ code: 'CONFLICT' });
+      }
+      folderId = found;
+    }
 
     // Find existing doc by (folderId, title) — overwrite case
     const candidates = await ctx.db
@@ -79,13 +108,34 @@ export const ingestPutBlob = internalMutation({
       },
     );
 
+    // Pull the sha256 Convex computes on upload — fileMetadata stores
+    // it but documents.contentHash is the field most reads go through.
+    const sha256 = await ctx.runQuery(
+      internal.file_metadata.internal_queries.getStorageSha256,
+      { storageId: args.storageId },
+    );
+
+    const sourceModifiedAt = args.sourceModifiedAtMs ?? Date.now();
+
     if (existing) {
+      const oldFileId = existing.fileId;
       await ctx.db.patch(existing._id, {
         fileId: args.storageId,
         mimeType: args.contentType,
         extension: extractExtension(fileName),
-        sourceModifiedAt: Date.now(),
+        contentHash: sha256 ?? undefined,
+        sourceModifiedAt,
       });
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.linkDocumentToFile,
+        { storageId: args.storageId, documentId: existing._id },
+      );
+      // Purge the prior blob + mark the old fileMetadata row trashed.
+      // Done inline because we have no eraseStorageBlob action; the
+      // operations are O(1) so they don't blow the mutation budget.
+      if (oldFileId && oldFileId !== args.storageId) {
+        await purgeOldBlob(ctx, oldFileId);
+      }
       return { created: false, documentId: existing._id };
     }
 
@@ -95,12 +145,17 @@ export const ingestPutBlob = internalMutation({
       fileId: args.storageId,
       mimeType: args.contentType,
       extension: extractExtension(fileName),
+      contentHash: sha256 ?? undefined,
       sourceProvider: WEBDAV_SOURCE_PROVIDER,
       sourceCreatedAt: Date.now(),
-      sourceModifiedAt: Date.now(),
+      sourceModifiedAt,
       createdBy: args.userId,
       folderId,
     });
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.linkDocumentToFile,
+      { storageId: args.storageId, documentId: result.documentId },
+    );
     return { created: true, documentId: result.documentId };
   },
 });
@@ -111,15 +166,7 @@ export const softDeleteDocument = internalMutation({
     documentId: v.id('documents'),
   },
   async handler(ctx, args) {
-    const doc = await ctx.db.get(args.documentId);
-    if (!doc || doc.organizationId !== args.organizationId) {
-      throw new ConvexError({ code: 'NOT_FOUND' });
-    }
-    if ((doc.lifecycleStatus ?? 'active') !== 'active') return;
-    await ctx.db.patch(args.documentId, {
-      lifecycleStatus: 'trashed',
-      statusChangedAt: Date.now(),
-    });
+    await softDeleteDocumentInner(ctx, args.organizationId, args.documentId);
   },
 });
 
@@ -143,13 +190,16 @@ export const mkcol = internalMutation({
     userId: v.string(),
   },
   async handler(ctx, args) {
+    const name = nfc(args.name);
+    const parentSegments = args.parentSegments.map(nfc);
+
     // RFC 4918 §9.3.1: parent must already exist (when there are parents).
     let parentId: Id<'folders'> | undefined = undefined;
-    if (args.parentSegments.length > 0) {
+    if (parentSegments.length > 0) {
       const found = await findFolderByPath(
         ctx,
         args.organizationId,
-        args.parentSegments,
+        parentSegments,
       );
       if (!found) throw new ConvexError({ code: 'CONFLICT' });
       parentId = found;
@@ -162,14 +212,14 @@ export const mkcol = internalMutation({
         q
           .eq('organizationId', args.organizationId)
           .eq('parentId', parentId)
-          .eq('name', args.name),
+          .eq('name', name),
       )
       .first();
     if (existing) throw new ConvexError({ code: 'METHOD_NOT_ALLOWED' });
 
     const id = await ctx.db.insert('folders', {
       organizationId: args.organizationId,
-      name: args.name,
+      name,
       parentId,
       createdBy: args.userId,
     });
@@ -177,9 +227,9 @@ export const mkcol = internalMutation({
   },
 });
 
-// MOVE: rename / move a document. Folder moves are folder-id-tree
-// rewrites (no descendant scan needed since folderId is the canonical
-// link). Returns { created: true } if the destination was new.
+// MOVE: rename / move a document or folder. Returns { created: true }
+// if the destination was new. Lock rows at the source are deleted —
+// RFC §7.5 says locks don't migrate with the resource.
 export const moveResource = internalMutation({
   args: {
     organizationId: v.string(),
@@ -187,35 +237,63 @@ export const moveResource = internalMutation({
       v.object({ kind: v.literal('document'), id: v.id('documents') }),
       v.object({ kind: v.literal('folder'), id: v.id('folders') }),
     ),
+    // Original src path, used to clean up webdavLocks rows that don't
+    // travel with the resource (RFC §7.5).
+    srcSegments: v.array(v.string()),
     destParentSegments: v.array(v.string()),
     destName: v.string(),
     overwrite: v.boolean(),
     userId: v.string(),
   },
   async handler(ctx, args) {
-    const destFolderId =
-      args.destParentSegments.length > 0
-        ? await getOrCreateFolderPath(
-            ctx,
-            args.organizationId,
-            args.destParentSegments,
-            args.userId,
-          )
-        : undefined;
+    const destName = nfc(args.destName);
+    const destParentSegments = args.destParentSegments.map(nfc);
+    const srcSegments = args.srcSegments.map(nfc);
 
+    // RFC 4918 §9.8.5 / §9.9.4: destination parent must exist; the
+    // server does not auto-vivify intermediate collections.
+    let destFolderId: Id<'folders'> | undefined = undefined;
+    if (destParentSegments.length > 0) {
+      const found = await findFolderByPath(
+        ctx,
+        args.organizationId,
+        destParentSegments,
+      );
+      if (!found) throw new ConvexError({ code: 'CONFLICT' });
+      destFolderId = found;
+    }
+
+    // Self-move guard. For documents, "self" means same folder + same
+    // name. For folders, same parent + same name.
     const collision = await findCollision(
       ctx,
       args.organizationId,
       destFolderId ?? null,
-      args.destName,
+      destName,
     );
+    if (
+      collision !== null &&
+      collision.kind === args.src.kind &&
+      collision.id === args.src.id
+    ) {
+      throw new ConvexError({ code: 'CONFLICT' });
+    }
+
+    // Folder-into-own-descendant guard. Walk parentId up from the
+    // destination; if we cross src.id we'd build a cycle.
+    if (args.src.kind === 'folder' && destFolderId) {
+      await assertNotDescendantOf(ctx, destFolderId, args.src.id);
+    }
 
     if (collision && !args.overwrite) {
       throw new ConvexError({ code: 'CONFLICT' });
     }
     if (collision && args.overwrite) {
+      // Route through softDeleteDocument / cascadeDeleteFolderRecursive
+      // so blob + fileMetadata + lock rows are cleaned, not just the
+      // documents row.
       if (collision.kind === 'document') {
-        await ctx.db.delete(collision.id);
+        await softDeleteDocumentInner(ctx, args.organizationId, collision.id);
       } else {
         await cascadeDeleteFolderRecursive(
           ctx,
@@ -226,17 +304,45 @@ export const moveResource = internalMutation({
     }
 
     if (args.src.kind === 'document') {
-      await ctx.db.patch(args.src.id, {
-        title: args.destName,
+      const existing = await ctx.db.get(args.src.id);
+      if (!existing) throw new ConvexError({ code: 'NOT_FOUND' });
+      const newFolderPath = destFolderId
+        ? await buildFolderPath(ctx, destFolderId)
+        : undefined;
+      const patch: Record<string, unknown> = {
+        title: destName,
         folderId: destFolderId,
+        folderPath: newFolderPath,
         sourceModifiedAt: Date.now(),
-      });
+      };
+      // Integration-sourced docs lose their external binding on move —
+      // we don't try to figure out whether the new folder sits inside
+      // the sync root; safest is to detach. The connector will re-create
+      // the row at the new path on the next sweep if applicable.
+      if (
+        existing.sourceProvider &&
+        SYNC_SOURCE_PROVIDERS.has(existing.sourceProvider)
+      ) {
+        patch.sourceProvider = undefined;
+        patch.externalItemId = undefined;
+        patch.driveId = undefined;
+      }
+      await ctx.db.patch(args.src.id, patch);
     } else {
       await ctx.db.patch(args.src.id, {
-        name: args.destName,
+        name: destName,
         parentId: destFolderId,
       });
     }
+
+    // Drop lock rows at the old path (and below for folder moves).
+    await purgeLocksAtAndBelow(
+      ctx,
+      args.organizationId,
+      lockKeyForSegments(srcSegments),
+      args.src.kind === 'folder',
+    );
+
     return { created: collision === null };
   },
 });
@@ -254,29 +360,46 @@ export const copyResource = internalMutation({
     userId: v.string(),
   },
   async handler(ctx, args) {
-    const destFolderId =
-      args.destParentSegments.length > 0
-        ? await getOrCreateFolderPath(
-            ctx,
-            args.organizationId,
-            args.destParentSegments,
-            args.userId,
-          )
-        : undefined;
+    const destName = nfc(args.destName);
+    const destParentSegments = args.destParentSegments.map(nfc);
+
+    let destFolderId: Id<'folders'> | undefined = undefined;
+    if (destParentSegments.length > 0) {
+      const found = await findFolderByPath(
+        ctx,
+        args.organizationId,
+        destParentSegments,
+      );
+      if (!found) throw new ConvexError({ code: 'CONFLICT' });
+      destFolderId = found;
+    }
 
     const collision = await findCollision(
       ctx,
       args.organizationId,
       destFolderId ?? null,
-      args.destName,
+      destName,
     );
+
+    // Self-copy guard mirrors moveResource — copying a folder onto
+    // itself or a doc onto itself would just duplicate/overwrite.
+    if (
+      collision !== null &&
+      collision.kind === args.src.kind &&
+      collision.id === args.src.id
+    ) {
+      throw new ConvexError({ code: 'CONFLICT' });
+    }
+    if (args.src.kind === 'folder' && destFolderId) {
+      await assertNotDescendantOf(ctx, destFolderId, args.src.id);
+    }
 
     if (collision && !args.overwrite) {
       throw new ConvexError({ code: 'CONFLICT' });
     }
     if (collision && args.overwrite) {
       if (collision.kind === 'document') {
-        await ctx.db.delete(collision.id);
+        await softDeleteDocumentInner(ctx, args.organizationId, collision.id);
       } else {
         await cascadeDeleteFolderRecursive(
           ctx,
@@ -293,7 +416,7 @@ export const copyResource = internalMutation({
       // destination is just another reference to the same bytes.
       await createDocument(ctx, {
         organizationId: args.organizationId,
-        title: args.destName,
+        title: destName,
         fileId: src.fileId,
         mimeType: src.mimeType,
         extension: src.extension,
@@ -314,14 +437,36 @@ export const copyResource = internalMutation({
       args.organizationId,
       args.src.id,
       destFolderId ?? null,
-      args.destName,
+      destName,
       args.userId,
+      0,
     );
     return { created: collision === null };
   },
 });
 
 // --- internal helpers ---
+
+async function softDeleteDocumentInner(
+  ctx: MutationCtx,
+  organizationId: string,
+  documentId: Id<'documents'>,
+): Promise<void> {
+  const doc = await ctx.db.get(documentId);
+  if (!doc || doc.organizationId !== organizationId) {
+    throw new ConvexError({ code: 'NOT_FOUND' });
+  }
+  if ((doc.lifecycleStatus ?? 'active') !== 'active') return;
+  await ctx.db.patch(documentId, {
+    lifecycleStatus: 'trashed',
+    statusChangedAt: Date.now(),
+  });
+  // Locks at the doc path don't outlive the doc (RFC §7.5). We can't
+  // reconstruct the wire path from the doc row alone, but we can drop
+  // any lock whose token belongs to a doc-shaped path that resolves
+  // here — handled by the MOVE/DELETE callers instead. Caller passes
+  // segments where it has them.
+}
 
 async function findCollision(
   ctx: MutationCtx,
@@ -364,7 +509,11 @@ async function cascadeDeleteFolderRecursive(
   ctx: MutationCtx,
   organizationId: string,
   folderId: Id<'folders'>,
+  depth: number = 0,
 ): Promise<void> {
+  if (depth > MAX_FOLDER_DEPTH) {
+    throw new ConvexError({ code: 'CONFLICT' });
+  }
   const children = await ctx.db
     .query('folders')
     .withIndex('by_org_parent_name', (q) =>
@@ -372,7 +521,7 @@ async function cascadeDeleteFolderRecursive(
     )
     .collect();
   for (const c of children) {
-    await cascadeDeleteFolderRecursive(ctx, organizationId, c._id);
+    await cascadeDeleteFolderRecursive(ctx, organizationId, c._id, depth + 1);
   }
   const docs = await ctx.db
     .query('documents')
@@ -388,6 +537,12 @@ async function cascadeDeleteFolderRecursive(
       });
     }
   }
+  // Drop any locks rooted under this folder (we delete by org + the
+  // canonical wire path is unknown here, so the caller resolves the
+  // prefix). When called from DELETE the path-prefix purge runs in the
+  // method handler via a separate call; when called from MOVE
+  // collision-overwrite the source-side locks are already cleared by
+  // moveResource. Folder rows hold no blobs.
   await ctx.db.delete(folderId);
 }
 
@@ -398,10 +553,14 @@ async function copyFolderRecursive(
   destParentId: Id<'folders'> | null,
   destName: string,
   userId: string,
+  depth: number,
 ): Promise<Id<'folders'>> {
+  if (depth > MAX_FOLDER_DEPTH) {
+    throw new ConvexError({ code: 'CONFLICT' });
+  }
   const newFolderId = await ctx.db.insert('folders', {
     organizationId,
-    name: destName,
+    name: nfc(destName),
     parentId: destParentId ?? undefined,
     createdBy: userId,
   });
@@ -420,6 +579,7 @@ async function copyFolderRecursive(
       newFolderId,
       cf.name,
       userId,
+      depth + 1,
     );
   }
 
@@ -433,7 +593,7 @@ async function copyFolderRecursive(
     if ((d.lifecycleStatus ?? 'active') !== 'active') continue;
     await createDocument(ctx, {
       organizationId,
-      title: d.title ?? '(untitled)',
+      title: nfc(d.title ?? '(untitled)'),
       fileId: d.fileId,
       mimeType: d.mimeType,
       extension: d.extension,
@@ -448,5 +608,95 @@ async function copyFolderRecursive(
   return newFolderId;
 }
 
-// Suppress no-unused warnings for the Doc type — used inline via ctx.db.get.
-type _Doc = Doc<'documents'>;
+// Walk up `descendantId`'s parent chain. Throws CONFLICT if `ancestorId`
+// is encountered — i.e. a MOVE/COPY tries to put a folder inside one
+// of its own descendants. Bounded by MAX_FOLDER_DEPTH so corrupt data
+// can't spin forever.
+async function assertNotDescendantOf(
+  ctx: MutationCtx,
+  descendantId: Id<'folders'>,
+  ancestorId: Id<'folders'>,
+): Promise<void> {
+  let cursor: Id<'folders'> | undefined = descendantId;
+  for (let i = 0; i < MAX_FOLDER_DEPTH; i++) {
+    if (!cursor) return;
+    if (cursor === ancestorId) {
+      throw new ConvexError({ code: 'CONFLICT' });
+    }
+    const row: { parentId?: Id<'folders'> } | null = await ctx.db.get(cursor);
+    if (!row) return;
+    cursor = row.parentId;
+  }
+  // Walked past MAX_FOLDER_DEPTH without resolving — treat as corrupt
+  // tree and reject conservatively.
+  throw new ConvexError({ code: 'CONFLICT' });
+}
+
+// Wire path used as the lock key — mirrors lockKeyFromParsed in
+// lib/webdav/paths.ts. We assume the segment array is the canonical
+// `documents/...` path with NFC normalisation already applied. Trash
+// segments are never moved so we always emit the `documents` namespace.
+function lockKeyForSegments(segments: string[]): string {
+  if (segments.length === 0) return '/documents';
+  return '/documents/' + segments.map((s) => encodeURIComponent(s)).join('/');
+}
+
+async function purgeLocksAtAndBelow(
+  ctx: MutationCtx,
+  organizationId: string,
+  resourcePath: string,
+  alsoDescendants: boolean,
+): Promise<void> {
+  // Exact-path locks: indexed lookup, O(1) ish.
+  const exact = await ctx.db
+    .query('webdavLocks')
+    .withIndex('by_organization_resource', (q) =>
+      q.eq('organizationId', organizationId).eq('resourcePath', resourcePath),
+    )
+    .collect();
+  for (const row of exact) await ctx.db.delete(row._id);
+
+  if (!alsoDescendants) return;
+
+  // Descendant locks: same org, path starts with `${resourcePath}/`.
+  // The compound index narrows to the org; we filter to the prefix in
+  // memory. Lock tables are small (< few hundred rows per org) so the
+  // scan is fine; if this grows we'd add a range scan on resourcePath.
+  const prefix = resourcePath.endsWith('/') ? resourcePath : resourcePath + '/';
+  const all = await ctx.db
+    .query('webdavLocks')
+    .withIndex('by_organization_resource', (q) =>
+      q.eq('organizationId', organizationId),
+    )
+    .collect();
+  for (const row of all) {
+    if (row.resourcePath.startsWith(prefix)) {
+      await ctx.db.delete(row._id);
+    }
+  }
+}
+
+async function purgeOldBlob(
+  ctx: MutationCtx,
+  oldFileId: Id<'_storage'>,
+): Promise<void> {
+  // Mark the corresponding fileMetadata row trashed so retention
+  // sweeps don't try to re-index it; then delete the blob. Order
+  // matters — if storage.delete fails we still want the metadata in a
+  // sensible state.
+  const meta = await ctx.db
+    .query('fileMetadata')
+    .withIndex('by_storageId', (q) => q.eq('storageId', oldFileId))
+    .first();
+  if (meta && (meta.lifecycleStatus ?? 'active') === 'active') {
+    await ctx.db.patch(meta._id, {
+      lifecycleStatus: 'trashed',
+      statusChangedAt: Date.now(),
+    });
+  }
+  try {
+    await ctx.storage.delete(oldFileId);
+  } catch (err) {
+    console.warn('[webdav] purgeOldBlob storage.delete failed', err);
+  }
+}

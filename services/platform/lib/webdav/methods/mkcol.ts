@@ -1,6 +1,7 @@
 import { anyApi } from 'convex/server';
 
 import { convexErrorCode } from '../errors';
+import { checkResourceLockOnParents } from '../locks';
 import type {
   AuthContext,
   ParsedPath,
@@ -26,14 +27,26 @@ export async function handleMkcol(
     };
   }
 
-  // RFC 4918 §9.3.1: 415 for non-empty body (extended MKCOL is RFC 5689,
-  // not implemented in v1).
-  const ct = req.headers.get('content-type') ?? '';
-  if (ct.includes('xml')) {
-    const body = await req.readText();
-    if (body.trim().length > 0) {
-      return { status: 415, headers: {}, body: 'MKCOL body not supported' };
-    }
+  // RFC 4918 §9.3.1: 415 for *any* non-empty body — extended MKCOL
+  // (RFC 5689) isn't implemented in v1, and silently accepting a body
+  // that we ignore would mislead clients into thinking their custom
+  // properties were stored. We don't gate on Content-Type because a
+  // misconfigured client may omit it; the body itself is the signal.
+  const body = await req.readText();
+  if (body.length > 0) {
+    return { status: 415, headers: {}, body: 'MKCOL body not supported' };
+  }
+
+  // RFC §9.10.4 / §7.4: a depth=infinity lock on an ancestor must
+  // forbid creating new children inside the locked tree without the
+  // lock token in the If: header.
+  const parentLock = await checkResourceLockOnParents(req, ctx, auth, parsed);
+  if (!parentLock.ok) {
+    return {
+      status: parentLock.status,
+      headers: parentLock.headers,
+      body: parentLock.body,
+    };
   }
 
   const parentSegments = parsed.segments.slice(0, -1);

@@ -53,15 +53,19 @@ export async function dispatch(
     };
   }
 
+  // OPTIONS short-circuit (RFC 4918 §10.1 / HTTP §9.3.7): some clients
+  // (KDE, Office, Finder) probe with `OPTIONS /dav`, `OPTIONS /dav/`,
+  // or even `OPTIONS *` before they have org context. Returning
+  // capability headers regardless of path validity lets them detect
+  // DAV support and proceed to authenticate. Done BEFORE parseDavPath
+  // so a malformed-but-OPTIONS request still gets a 200 instead of 404.
+  if (method === 'OPTIONS') {
+    return handleOptions();
+  }
+
   const parsed = parseDavPath(req.pathname);
   if (!parsed) {
     return { status: 404, headers: {}, body: 'Not found' };
-  }
-
-  // OPTIONS is the only method allowed without auth — required by some
-  // clients (Finder, rclone) to probe DAV capability before logging in.
-  if (method === 'OPTIONS') {
-    return handleOptions();
   }
 
   let hmacSecret: string;
@@ -92,11 +96,11 @@ export async function dispatch(
     case 'PROPFIND':
       return handlePropfind(req, ctx, auth, parsed);
     case 'PROPPATCH':
-      return handleProppatch(auth, parsed);
+      return handleProppatch(req, ctx, auth, parsed);
     case 'GET':
-      return handleGet(ctx, auth, parsed, false);
+      return handleGet(ctx, auth, parsed, false, req);
     case 'HEAD':
-      return handleGet(ctx, auth, parsed, true);
+      return handleGet(ctx, auth, parsed, true, req);
     case 'PUT':
       return handlePut(req, ctx, auth, parsed);
     case 'DELETE':

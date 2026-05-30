@@ -1,13 +1,21 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internalMutation, mutation } from '../_generated/server';
+import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
+import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
-import { getUserOrganizations } from '../lib/rls/organization/get_user_organizations';
 import {
   generateAppPasswordSecret,
   hmacHash,
   requireHmacSecret,
 } from './helpers';
+
+// Hard cap on active (non-revoked) app-passwords per (org, user). Mirrors
+// the Better Auth API-key approach: a single user holding hundreds of
+// live PAT-equivalent credentials is almost always a runaway script —
+// 50 is generous for power users with many devices and tight enough
+// that a compromised admin loop is bounded.
+const MAX_ACTIVE_APP_PASSWORDS_PER_USER = 50;
 
 export const createAppPassword = mutation({
   args: {
@@ -15,11 +23,39 @@ export const createAppPassword = mutation({
     label: v.string(),
   },
   async handler(ctx, args) {
-    const authUser = await requireAuthenticatedUser(ctx);
+    // App-passwords are PAT-equivalent (HTTP Basic auth bypassing Better
+    // Auth session cookies). Gate creation on the `developerSettings`
+    // capability so `member`/`editor` roles cannot mint credentials that
+    // outlive their normal session scope. Mirrors the API-keys flow.
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
 
-    const orgs = await getUserOrganizations(ctx, authUser);
-    if (!orgs.some((o) => o.organizationId === args.organizationId)) {
-      throw new ConvexError({ code: 'FORBIDDEN' });
+    // Per-org mint-rate cap — AFTER the role gate so unauthenticated /
+    // unauthorized callers can't drain the bucket on the org's behalf.
+    // 20/hour is well above legitimate device-onboarding rates; a
+    // runaway script trips it within minutes. RateLimitExceededError
+    // bubbles up as a thrown Error to the UI mutation client.
+    await checkOrganizationRateLimit(
+      ctx,
+      'webdav:app-password-create',
+      args.organizationId,
+      1,
+    );
+
+    // Per-(org, user) hard count cap on active rows. Mirrors Better
+    // Auth's API-key count ceiling. Walks the by_organization_user
+    // index and tallies non-revoked rows — cheap because the typical
+    // user holds 1-5 credentials.
+    const existing = await ctx.db
+      .query('webdavAppPasswords')
+      .withIndex('by_organization_user', (q) =>
+        q.eq('organizationId', args.organizationId).eq('userId', auth.userId),
+      )
+      .collect();
+    const activeCount = existing.filter(
+      (r) => r.revokedAt === undefined,
+    ).length;
+    if (activeCount >= MAX_ACTIVE_APP_PASSWORDS_PER_USER) {
+      throw new ConvexError({ code: 'LIMIT_EXCEEDED' });
     }
 
     const label = args.label.trim();
@@ -33,7 +69,7 @@ export const createAppPassword = mutation({
 
     await ctx.db.insert('webdavAppPasswords', {
       organizationId: args.organizationId,
-      userId: authUser.userId,
+      userId: auth.userId,
       label,
       passwordHashed,
       passwordPrefix,
@@ -50,6 +86,11 @@ export const revokeAppPassword = mutation({
     id: v.id('webdavAppPasswords'),
   },
   async handler(ctx, args) {
+    // Revoke only requires authentication + ownership — a user revoking
+    // their own credential after losing role privileges must still
+    // succeed (otherwise compromised members can hold a live token
+    // forever). The `userId === authUser.userId` check below is the
+    // ownership gate.
     const authUser = await requireAuthenticatedUser(ctx);
 
     const row = await ctx.db.get(args.id);

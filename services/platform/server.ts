@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -346,6 +347,25 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     crossOriginOpenerPolicy: false,
     crossOriginResourcePolicy: false,
   });
+  // WebDAV-specific narrow variant: CSP is dropped (DAV bodies are raw
+  // blobs / XML, not HTML — CSP rewrites would confuse clients like
+  // Finder and rclone), but HSTS, X-Frame-Options, X-Content-Type-Options,
+  // and Referrer-Policy stay on. A WebDAV-served HTML upload SHOULD NOT
+  // execute as a same-origin document; nosniff + X-Frame-Options: DENY
+  // close that surface. CORS-relevant defaults stay off (no browser is
+  // expected to script-fetch /dav/*).
+  // Hono's `secureHeaders` accepts `ContentSecurityPolicyOptions` only —
+  // there's no `false` literal for the CSP key, so we omit it to disable
+  // CSP generation while keeping HSTS / nosniff / X-Frame-Options.
+  const secureForDav = secureHeaders({
+    strictTransportSecurity: isHttpsSite(env) ? 'max-age=15552000' : false,
+    xContentTypeOptions: 'nosniff',
+    xFrameOptions: 'DENY',
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false,
+  });
   // `secureHeaders` unconditionally rewrites `Content-Security-Policy`
   // after handlers run, so per-route permissive CSP cannot be set just by
   // header overrides. The Canvas preview shell needs its own permissive
@@ -353,10 +373,8 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
   // guard, not registration order — the latter is fragile to refactors.
   app.use('*', async (c, next) => {
     if (c.req.path === '/canvas-preview') return next();
-    // WebDAV responses set their own Content-Type and stream raw blobs;
-    // secureHeaders' CSP / X-Frame-Options would interfere with client
-    // compatibility (Finder's HTML preview, rclone integrity checks).
-    if (c.req.path.startsWith('/dav/') || c.req.path === '/dav') return next();
+    if (c.req.path.startsWith('/dav/') || c.req.path === '/dav')
+      return secureForDav(c, next);
     return secure(c, next);
   });
 
@@ -526,7 +544,34 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
   // responses on GET — webdav handlers set their own Content-Type and
   // we want the raw bytes through. Skip the middleware on this path.
   const webdavAdminKey = process.env.ADMIN_KEY ?? '';
+  // Dev parity: `docker-entrypoint.sh` derives this deterministically from
+  // INSTANCE_SECRET in prod; mirror the derivation here so `bun dev` works
+  // without an explicit operator step. An explicit env var always wins —
+  // operators rotating the HMAC key set it directly in .env.local.
+  if (
+    !process.env.WEBDAV_APP_PASSWORD_HMAC_KEY &&
+    process.env.INSTANCE_SECRET
+  ) {
+    process.env.WEBDAV_APP_PASSWORD_HMAC_KEY = createHash('sha256')
+      .update(`${process.env.INSTANCE_SECRET}:webdav-hmac:v1`)
+      .digest('hex');
+  }
+  const webdavHmacKey = process.env.WEBDAV_APP_PASSWORD_HMAC_KEY ?? '';
   const webdavConvexUrl = process.env.CONVEX_URL ?? 'http://convex:3210';
+  // Boot-time visibility into the two preconditions for /dav/*. We log
+  // and continue instead of throwing so the rest of the platform serves
+  // even when the operator hasn't configured WebDAV yet; the per-request
+  // handler then 500s with an actionable message.
+  if (!webdavAdminKey) {
+    console.warn(
+      '[webdav] ADMIN_KEY unset — /dav/* will 500. Set via docker-entrypoint (prod) or .env.local (dev).',
+    );
+  }
+  if (!webdavHmacKey || webdavHmacKey.length < 64) {
+    console.warn(
+      '[webdav] WEBDAV_APP_PASSWORD_HMAC_KEY unset or too short (need 64 hex chars) — /dav/* will 500.',
+    );
+  }
   let webdavCtx: ReturnType<typeof makeWebdavCtx> | null = null;
   function getWebdavCtx() {
     if (!webdavAdminKey) {
@@ -544,7 +589,13 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
   }
   const webdavHandler = (c: { req: { raw: Request } }) =>
     webdavFetchAdapter(c.req.raw, getWebdavCtx());
+  // Hono's `Method` union covers RFC 7231 verbs only. WebDAV adds
+  // PROPFIND/PROPPATCH/MKCOL/MOVE/COPY/LOCK/UNLOCK, which Hono's router
+  // accepts at runtime via `app.on(string[], ...)` but the TS overload
+  // declares the narrower `Method[]`. Cast intentionally.
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   app.on(WEBDAV_METHODS as unknown as string[], '/dav/*', webdavHandler);
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   app.on(WEBDAV_METHODS as unknown as string[], '/dav', webdavHandler);
 
   // Static files + index.html fallback (TanStack Router SPA).

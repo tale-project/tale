@@ -243,6 +243,27 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 30,
     period: MINUTE,
   },
+  // Per-org failed-auth throttle on the WebDAV Basic-auth lookup. Each /dav/*
+  // request consumes one token regardless of whether the supplied password
+  // matches — capping the rate at which an attacker can probe app-password
+  // candidates against a known org. Fixed-window matches `security:login-ip`
+  // shape; 100/min/org is high enough that legitimate clients (Finder
+  // mounting, rclone batch ops) never hit it, low enough that a brute-force
+  // loop is starved.
+  'webdav:auth-attempt': {
+    kind: 'fixed window',
+    rate: 100,
+    period: MINUTE,
+  },
+  // Per-org cap on app-password minting. Each row is a HTTP-Basic credential
+  // with PAT-equivalent reach; a runaway create loop (compromised admin
+  // script) could bloat the org and pollute the prefix-index search space.
+  // App-passwords are minted once per device — 20/hour/org is generous.
+  'webdav:app-password-create': {
+    kind: 'fixed window',
+    rate: 20,
+    period: HOUR,
+  },
 
   // ============================================
   // TIER 5: Workflow Operations (Token Bucket)

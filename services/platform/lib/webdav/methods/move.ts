@@ -2,7 +2,7 @@ import { anyApi } from 'convex/server';
 
 import { convexErrorCode } from '../errors';
 import { checkResourceLock } from '../locks';
-import { parseDavPath } from '../paths';
+import { buildDavPath, parseDavPath } from '../paths';
 import type {
   AuthContext,
   ParsedPath,
@@ -43,28 +43,55 @@ async function doMoveOrCopy(
     return { status: 403, headers: {}, body: 'Cannot move/copy the root' };
   }
 
+  // RFC 4918 §9.8/§9.9: MOVE requires Depth: infinity (or absent),
+  // COPY accepts 0 or infinity (absent → infinity for collections).
+  const depthErr = validateDepth(req.headers.get('depth'), op);
+  if (depthErr) return depthErr;
+
   const destHeader = req.headers.get('destination');
   if (!destHeader) {
     return { status: 400, headers: {}, body: 'Missing Destination header' };
   }
-  const destPathname = (() => {
+
+  // Destination may be absolute URL or absolute path. If absolute URL,
+  // host must match the request host (cross-host → 502 per RFC).
+  const reqHost = hostOf(req);
+  const destParsedUrl = (() => {
     try {
-      // Destination may be absolute URL or absolute path.
-      return new URL(destHeader, 'http://placeholder').pathname;
+      // Use a placeholder origin so relative paths still parse — we
+      // examine .protocol to tell them apart from absolute URLs below.
+      return new URL(destHeader, `http://${reqHost ?? 'placeholder'}`);
     } catch {
       return null;
     }
   })();
-  if (!destPathname) {
+  if (!destParsedUrl) {
     return { status: 400, headers: {}, body: 'Invalid Destination header' };
   }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(destHeader)) {
+    // Absolute URL — host must match.
+    if (!reqHost || destParsedUrl.host !== reqHost) {
+      return {
+        status: 502,
+        headers: {},
+        body: 'Cross-host destination not supported',
+      };
+    }
+  }
+  const destPathname = destParsedUrl.pathname;
 
   const destParsed = parseDavPath(destPathname);
-  if (!destParsed || destParsed.orgSlug !== auth.orgSlug) {
+  if (!destParsed) {
+    return { status: 400, headers: {}, body: 'Invalid Destination header' };
+  }
+  if (destParsed.orgSlug !== auth.orgSlug) {
+    // Same host, different org — this is an authorization boundary,
+    // not a cross-host hop. RFC §9.8.5 lists 403 for "the source and
+    // destination URIs are in different namespaces".
     return {
-      status: 502,
+      status: 403,
       headers: {},
-      body: 'Cross-host or cross-org destination not supported',
+      body: 'Cross-org destination not allowed',
     };
   }
   if (destParsed.namespace === '.trash') {
@@ -106,33 +133,89 @@ async function doMoveOrCopy(
       : { kind: 'folder' as const, id: src.folderId };
 
   try {
+    const mutationArgs =
+      op === 'MOVE'
+        ? {
+            organizationId: auth.organizationId,
+            src: srcArg,
+            srcSegments: parsed.segments,
+            destParentSegments,
+            destName,
+            overwrite,
+            userId: auth.userId,
+          }
+        : {
+            organizationId: auth.organizationId,
+            src: srcArg,
+            destParentSegments,
+            destName,
+            overwrite,
+            userId: auth.userId,
+          };
     const result = await ctx.convex.mutation(
       op === 'MOVE'
         ? anyApi.webdav.tree_mutations.moveResource
         : anyApi.webdav.tree_mutations.copyResource,
-      {
-        organizationId: auth.organizationId,
-        src: srcArg,
-        destParentSegments,
-        destName,
-        overwrite,
-        userId: auth.userId,
-      },
+      mutationArgs,
     );
+    const headers: Record<string, string> = {};
+    if (result.created) {
+      headers['Location'] = buildDavPath({
+        orgSlug: auth.orgSlug,
+        namespace: destParsed.namespace,
+        segments: destParsed.segments,
+        isCollection: src.kind === 'folder',
+      });
+    }
     return {
       status: result.created ? 201 : 204,
-      headers: {},
+      headers,
       body: null,
     };
   } catch (err) {
     const code = convexErrorCode(err);
     if (code === 'CONFLICT') {
-      return { status: 412, headers: {}, body: 'Destination exists' };
+      // CONFLICT covers self-move, move-into-descendant, missing
+      // destination parent, and existing-without-overwrite. Map to
+      // 412 when overwrite=F is the cause; 409 for missing parent;
+      // 403 for self/descendant. We can't always tell which path
+      // got hit, so prefer 409 except when overwrite was disabled.
+      if (!overwrite) {
+        return { status: 412, headers: {}, body: 'Destination exists' };
+      }
+      return { status: 409, headers: {}, body: 'Conflict' };
     }
     if (code === 'NOT_FOUND') {
       return { status: 404, headers: {}, body: 'Not found' };
     }
     console.error(`[webdav] ${op} failed`, err);
     return { status: 500, headers: {}, body: 'Internal error' };
+  }
+}
+
+function validateDepth(
+  raw: string | null,
+  op: 'MOVE' | 'COPY',
+): WebDAVResponse | null {
+  if (raw === null) return null;
+  const v = raw.trim().toLowerCase();
+  if (op === 'MOVE') {
+    // RFC 4918 §9.9.3: MOVE is always Depth: infinity. We accept
+    // absent or explicit infinity; anything else is malformed.
+    if (v === 'infinity') return null;
+    return { status: 400, headers: {}, body: 'Invalid Depth for MOVE' };
+  }
+  // COPY
+  if (v === '0' || v === 'infinity') return null;
+  return { status: 400, headers: {}, body: 'Invalid Depth for COPY' };
+}
+
+function hostOf(req: WebDAVRequest): string | null {
+  const fromHeader = req.headers.get('host');
+  if (fromHeader) return fromHeader;
+  try {
+    return new URL(req.url).host;
+  } catch {
+    return null;
   }
 }

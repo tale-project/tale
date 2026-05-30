@@ -10,6 +10,7 @@ import type { QueryCtx } from '../_generated/server';
 import { getMetadataString } from '../lib/metadata/get_metadata_string';
 import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../lib/pagination';
 import { hasTeamAccess } from '../lib/team_access';
+import { isActiveDocument } from './_helpers';
 import { transformDocumentsBatch } from './transform_to_document_item';
 import type { DocumentItemResponse } from './types';
 
@@ -53,6 +54,11 @@ export async function getDocumentsCursor(
         .order('desc');
 
   const filter = (doc: Doc<'documents'>): boolean => {
+    // Skip soft-deleted (trashed) documents
+    if (!isActiveDocument(doc)) {
+      return false;
+    }
+
     if (args.userTeamIds !== undefined) {
       if (!hasTeamAccess(doc, args.userTeamIds)) {
         return false;

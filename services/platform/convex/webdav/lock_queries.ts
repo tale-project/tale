@@ -39,7 +39,10 @@ export const findLockForPath = internalQuery({
 });
 
 // Lookup by wire token. Used by UNLOCK to verify the supplied
-// Lock-Token header before deleting.
+// Lock-Token header before deleting, AND by LOCK refresh to echo the
+// stored ownerXml / scope / depth back to the client (RFC §9.10.5).
+// Refresh needs the full row, so we return everything callers might
+// want — UNLOCK ignores the extra fields.
 export const findLockByToken = internalQuery({
   args: {
     token: v.string(),
@@ -55,7 +58,11 @@ export const findLockByToken = internalQuery({
       _id: row._id,
       organizationId: row.organizationId,
       resourcePath: row.resourcePath,
+      lockToken: row.lockToken,
       ownerUserId: row.ownerUserId,
+      ownerXml: row.ownerXml,
+      depth: row.depth,
+      scope: row.scope,
       expiresAt: row.expiresAt,
     };
   },

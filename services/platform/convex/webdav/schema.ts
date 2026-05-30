@@ -62,4 +62,11 @@ export const webdavLocksTable = defineTable({
   .index('by_organization_resource', ['organizationId', 'resourcePath'])
   .index('by_token', ['lockToken'])
   .index('by_appPasswordId', ['appPasswordId'])
+  // TODO: reserved for a future periodic GC sweep (operator-triggered
+  // admin tool or cron once we add one). Today, expiration is enforced
+  // lazily on read in lock_queries.findLockForPath — no code path
+  // consumes this index. Kept rather than dropped because removing a
+  // Convex index requires a schema migration with a non-trivial cost
+  // on every deployment, while keeping an unused index is essentially
+  // free on a low-traffic table like webdavLocks.
   .index('by_expiresAt', ['expiresAt']);

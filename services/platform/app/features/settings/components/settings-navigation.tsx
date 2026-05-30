@@ -21,6 +21,7 @@ type SettingsLabelKey =
   | 'providers'
   | 'skills'
   | 'apiKeys'
+  | 'webdav'
   | 'branding'
   | 'governance'
   | 'personalization'
@@ -102,6 +103,12 @@ export function SettingsNavigation({
       labelKey: 'apiKeys',
       label: t('apiKeys'),
       href: `/dashboard/${organizationId}/settings/api-keys`,
+      can: ['read', 'developerSettings'],
+    },
+    {
+      labelKey: 'webdav',
+      label: t('webdav'),
+      href: `/dashboard/${organizationId}/settings/webdav`,
       can: ['read', 'developerSettings'],
     },
     {

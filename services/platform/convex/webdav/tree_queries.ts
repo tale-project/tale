@@ -5,9 +5,22 @@ import type { QueryCtx } from '../_generated/server';
 import { internalQuery } from '../_generated/server';
 import { findFolderByPath } from '../folders/find_folder_by_path';
 
+// Cap children returned for a single PROPFIND. RFC 4918 doesn't paginate
+// — clients expect one 207 multistatus per request — so we truncate to
+// keep individual responses bounded. The lib layer surfaces a
+// `truncated` flag that the handler turns into a `Tale-Truncated: 1`
+// response header and a warning log. Followup ticket: NextCloud-style
+// `X-NC-Paginate` cursor for clients that need full enumeration.
+export const MAX_CHILDREN_PER_PROPFIND = 1000;
+
 // Path segments → either a folder id, a document id, or "not found".
 // "root" is represented as folderId = null. Used by every method handler
 // (PROPFIND/GET/PUT/DELETE/...) to map a WebDAV URL to backing rows.
+//
+// Folder-kind responses include `creationTime` so PROPFIND can emit
+// `creationdate` / `getlastmodified` for the collection self-entry from
+// real backing data instead of `new Date()`. Root has no backing row, so
+// `creationTime` is null there.
 export const resolvePath = internalQuery({
   args: {
     organizationId: v.string(),
@@ -16,7 +29,7 @@ export const resolvePath = internalQuery({
   },
   async handler(ctx, args) {
     if (args.segments.length === 0) {
-      return { kind: 'root' as const, exists: true };
+      return { kind: 'root' as const, exists: true, creationTime: null };
     }
     return await resolvePathInner(
       ctx,
@@ -48,7 +61,16 @@ export const listCollection = internalQuery({
             .eq('lifecycleStatus', 'trashed'),
         )
         .collect();
-      return { folders: [], documents: docs.map(documentRowToMeta) };
+      const sorted = docs.sort((a, b) => a._creationTime - b._creationTime);
+      const truncated = sorted.length > MAX_CHILDREN_PER_PROPFIND;
+      const slice = truncated
+        ? sorted.slice(0, MAX_CHILDREN_PER_PROPFIND)
+        : sorted;
+      return {
+        folders: [],
+        documents: slice.map(documentRowToMeta),
+        truncated,
+      };
     }
 
     const parentId = args.folderId ?? undefined;
@@ -59,7 +81,7 @@ export const listCollection = internalQuery({
       )
       .collect();
 
-    const docs = await ctx.db
+    const rawDocs = await ctx.db
       .query('documents')
       .withIndex('by_organizationId_and_folderId', (q) =>
         q
@@ -67,16 +89,46 @@ export const listCollection = internalQuery({
           .eq('folderId', args.folderId ?? undefined),
       )
       .collect();
+    const docs = rawDocs.filter(
+      (d) => (d.lifecycleStatus ?? 'active') === 'active',
+    );
+
+    // Sort folders + documents independently by _creationTime asc, then
+    // cap the COMBINED count at MAX_CHILDREN_PER_PROPFIND. Folders win
+    // ties since collections are usually fewer and clients lean on them
+    // for tree expansion; truncating leaf docs is the safer failure
+    // mode than hiding subfolders.
+    const sortedFolders = folders.sort(
+      (a, b) => a._creationTime - b._creationTime,
+    );
+    const sortedDocs = docs.sort((a, b) => a._creationTime - b._creationTime);
+
+    const total = sortedFolders.length + sortedDocs.length;
+    const truncated = total > MAX_CHILDREN_PER_PROPFIND;
+
+    let folderSlice = sortedFolders;
+    let docSlice = sortedDocs;
+    if (truncated) {
+      if (sortedFolders.length >= MAX_CHILDREN_PER_PROPFIND) {
+        folderSlice = sortedFolders.slice(0, MAX_CHILDREN_PER_PROPFIND);
+        docSlice = [];
+      } else {
+        folderSlice = sortedFolders;
+        docSlice = sortedDocs.slice(
+          0,
+          MAX_CHILDREN_PER_PROPFIND - sortedFolders.length,
+        );
+      }
+    }
 
     return {
-      folders: folders.map((f) => ({
+      folders: folderSlice.map((f) => ({
         _id: f._id,
         name: f.name,
         creationTime: f._creationTime,
       })),
-      documents: docs
-        .filter((d) => (d.lifecycleStatus ?? 'active') === 'active')
-        .map(documentRowToMeta),
+      documents: docSlice.map(documentRowToMeta),
+      truncated,
     };
   },
 });
@@ -145,8 +197,13 @@ async function resolvePathInner(
   namespace: 'documents' | '.trash',
   segments: string[],
 ): Promise<
-  | { kind: 'root'; exists: true }
-  | { kind: 'folder'; folderId: Id<'folders'>; exists: true }
+  | { kind: 'root'; exists: true; creationTime: null }
+  | {
+      kind: 'folder';
+      folderId: Id<'folders'>;
+      exists: true;
+      creationTime: number;
+    }
   | { kind: 'document'; documentId: Id<'documents'>; exists: true }
   | { kind: 'not_found'; exists: false }
 > {
@@ -181,7 +238,14 @@ async function resolvePathInner(
           .eq('name', onlyName),
       )
       .first();
-    if (folder) return { kind: 'folder', folderId: folder._id, exists: true };
+    if (folder) {
+      return {
+        kind: 'folder',
+        folderId: folder._id,
+        exists: true,
+        creationTime: folder._creationTime,
+      };
+    }
     const doc = await ctx.db
       .query('documents')
       .withIndex('by_organizationId_and_folderId', (q) =>
@@ -217,7 +281,12 @@ async function resolvePathInner(
     )
     .first();
   if (childFolder) {
-    return { kind: 'folder', folderId: childFolder._id, exists: true };
+    return {
+      kind: 'folder',
+      folderId: childFolder._id,
+      exists: true,
+      creationTime: childFolder._creationTime,
+    };
   }
 
   // Then child document

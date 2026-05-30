@@ -1,8 +1,14 @@
+'use client';
+
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
+import { Skeleton } from '@tale/ui/skeleton';
 import { Copy, Key, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { useCopyButton } from '@/app/hooks/use-copy';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -71,22 +77,50 @@ function ConnectionDetailsPanel(props: {
 }
 
 function KeyValue(props: { label: string; value: string }) {
-  const { toast } = useToast();
   return (
     <div className="flex items-baseline gap-2 py-1 text-sm">
       <span className="w-24 shrink-0 font-medium">{props.label}:</span>
       <code className="flex-1 break-all">{props.value}</code>
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => {
-          void navigator.clipboard.writeText(props.value);
-          toast({ title: 'Copied' });
-        }}
-      >
-        <Copy className="h-3.5 w-3.5" />
-      </Button>
+      <CopyButton value={props.value} />
     </div>
+  );
+}
+
+/**
+ * Single copy button wired through `useCopyButton` from app/hooks/use-copy.
+ * Surfaces `webdav.list.copiedToast` / `webdav.list.copyError` instead of
+ * the shared `common.errors.failedToCopy` so wording matches this panel.
+ */
+function CopyButton(props: {
+  value: string;
+  variant?: 'ghost' | 'secondary';
+  label?: string;
+}) {
+  const { t } = useT('webdav');
+  const { toast } = useToast();
+  const copySuccessTitle = t('list.copiedToast', 'Copied');
+  const copyErrorTitle = t('list.copyError', 'Could not copy');
+  const copyAriaLabel = t('list.copy', 'Copy');
+  const { onClick } = useCopyButton(props.value, {
+    showErrorToast: false,
+    onSuccess: () => {
+      toast({ title: copySuccessTitle });
+    },
+    onError: (err: Error) => {
+      console.error('webdav: copy failed', err);
+      toast({ title: copyErrorTitle, variant: 'destructive' });
+    },
+  });
+  return (
+    <Button
+      size="sm"
+      variant={props.variant ?? 'ghost'}
+      aria-label={copyAriaLabel}
+      onClick={onClick}
+    >
+      <Copy className={props.label ? 'mr-1 h-3.5 w-3.5' : 'h-3.5 w-3.5'} />
+      {props.label}
+    </Button>
   );
 }
 
@@ -98,99 +132,163 @@ function CreateAppPasswordForm(props: { organizationId: string }) {
     password: string;
     prefix: string;
   } | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const create = useCreateWebdavAppPassword();
 
+  // Drop any revealed secret when the active org changes — the password is
+  // org-scoped and must never leak across route navigations.
+  useEffect(() => () => setRevealed(null), [props.organizationId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = label.trim();
+    if (!trimmed || isCreating) return;
+    setIsCreating(true);
+    try {
+      const result = await create({
+        organizationId: props.organizationId,
+        label: trimmed,
+      });
+      setRevealed(result);
+      setLabel('');
+    } catch (err) {
+      console.error('webdav: create app-password failed', err);
+      toast({
+        title:
+          err instanceof Error
+            ? err.message
+            : t('create.error', 'Failed to create app-password'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   return (
-    <section className="rounded-md border p-4">
-      <h2 className="mb-2 text-base font-medium">
-        {t('create.title', 'Generate a new app-password')}
-      </h2>
-      <p className="text-muted-foreground mb-3 text-sm">
+    <>
+      <section className="rounded-md border p-4">
+        <h2 className="mb-2 text-base font-medium">
+          {t('create.title', 'Generate a new app-password')}
+        </h2>
+        <p className="text-muted-foreground mb-3 text-sm">
+          {t(
+            'create.description',
+            'Use one per device. The full password is only shown once — copy it before closing this dialog.',
+          )}
+        </p>
+        <form className="flex items-end gap-2" onSubmit={handleSubmit}>
+          <div className="flex flex-1 flex-col gap-1">
+            <label htmlFor="webdav-label" className="text-xs font-medium">
+              {t('create.labelLabel', 'Label')}
+            </label>
+            <input
+              id="webdav-label"
+              className="rounded border px-2 py-1 text-sm"
+              placeholder={t('create.labelPlaceholder', 'e.g. MacBook Finder')}
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              maxLength={64}
+              disabled={isCreating}
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={!label.trim() || isCreating}
+            aria-busy={isCreating}
+          >
+            <Key className="mr-1 h-4 w-4" />
+            {t('create.submit', 'Generate')}
+          </Button>
+        </form>
+      </section>
+
+      <RevealedPasswordDialog
+        revealed={revealed}
+        onClose={() => setRevealed(null)}
+      />
+    </>
+  );
+}
+
+function RevealedPasswordDialog(props: {
+  revealed: { password: string; prefix: string } | null;
+  onClose: () => void;
+}) {
+  const { t } = useT('webdav');
+  const open = props.revealed !== null;
+  const password = props.revealed?.password ?? '';
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) props.onClose();
+      }}
+      title={t(
+        'create.savedTitle',
+        'Save this password — it will not be shown again.',
+      )}
+      submitText={t('create.dismiss', 'I have saved it')}
+      isSubmitting={false}
+      onSubmit={(e) => {
+        e.preventDefault();
+        props.onClose();
+      }}
+      customFooter={
+        <Button type="button" onClick={props.onClose}>
+          {t('create.dismiss', 'I have saved it')}
+        </Button>
+      }
+    >
+      <p className="text-muted-foreground text-sm">
         {t(
           'create.description',
           'Use one per device. The full password is only shown once — copy it before closing this dialog.',
         )}
       </p>
-      <form
-        className="flex items-center gap-2"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const trimmed = label.trim();
-          if (!trimmed) return;
-          try {
-            const result = await create({
-              organizationId: props.organizationId,
-              label: trimmed,
-            });
-            setRevealed(result);
-            setLabel('');
-          } catch (err) {
-            toast({
-              title:
-                err instanceof Error
-                  ? err.message
-                  : t('create.error', 'Failed to create app-password'),
-              variant: 'destructive',
-            });
-          }
-        }}
-      >
-        <input
-          className="flex-1 rounded border px-2 py-1 text-sm"
-          placeholder={t('create.labelPlaceholder', 'e.g. MacBook Finder')}
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          maxLength={64}
+      <div className="flex items-center gap-2">
+        <code className="bg-muted flex-1 rounded p-2 font-mono text-xs break-all">
+          {password}
+        </code>
+        <CopyButton
+          value={password}
+          variant="secondary"
+          label={t('create.copy', 'Copy')}
         />
-        <Button type="submit" disabled={!label.trim()}>
-          <Key className="mr-1 h-4 w-4" />
-          {t('create.submit', 'Generate')}
-        </Button>
-      </form>
-
-      {revealed && (
-        <div className="mt-4 rounded border border-yellow-500/40 bg-yellow-500/10 p-3">
-          <p className="mb-2 text-sm font-medium">
-            {t(
-              'create.savedTitle',
-              'Save this password — it will not be shown again.',
-            )}
-          </p>
-          <div className="flex items-center gap-2">
-            <code className="bg-background flex-1 rounded p-2 text-xs break-all">
-              {revealed.password}
-            </code>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                void navigator.clipboard.writeText(revealed.password);
-                toast({ title: 'Copied' });
-              }}
-            >
-              <Copy className="mr-1 h-3.5 w-3.5" />
-              {t('create.copy', 'Copy')}
-            </Button>
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="mt-2"
-            onClick={() => setRevealed(null)}
-          >
-            {t('create.dismiss', 'I have saved it')}
-          </Button>
-        </div>
-      )}
-    </section>
+      </div>
+    </FormDialog>
   );
 }
 
 function AppPasswordsTable(props: {
   organizationId: string;
-  rows: WebdavAppPasswordRow[];
+  rows: WebdavAppPasswordRow[] | undefined;
 }) {
   const { t } = useT('webdav');
+  // Newest first — the just-generated row is the one users most likely want
+  // to identify or revoke. Memo runs unconditionally (rules of hooks); the
+  // skeleton / empty branches below short-circuit before render.
+  const sortedRows = useMemo(
+    () =>
+      props.rows
+        ? [...props.rows].sort((a, b) => b.createdAt - a.createdAt)
+        : [],
+    [props.rows],
+  );
+
+  if (props.rows === undefined) {
+    return (
+      <section className="rounded-md border p-4">
+        <Stack gap={2}>
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-6 w-2/3" />
+        </Stack>
+      </section>
+    );
+  }
+
   if (props.rows.length === 0) {
     return (
       <section className="text-muted-foreground rounded-md border p-4 text-sm">
@@ -198,6 +296,7 @@ function AppPasswordsTable(props: {
       </section>
     );
   }
+
   return (
     <section className="rounded-md border">
       <table className="w-full text-sm">
@@ -213,7 +312,7 @@ function AppPasswordsTable(props: {
           </tr>
         </thead>
         <tbody>
-          {props.rows.map((row) => (
+          {sortedRows.map((row) => (
             <Row key={row._id} row={row} />
           ))}
         </tbody>
@@ -226,7 +325,32 @@ function Row({ row }: { row: WebdavAppPasswordRow }) {
   const { t } = useT('webdav');
   const { toast } = useToast();
   const revoke = useRevokeWebdavAppPassword();
+  const [isRevokeDialogOpen, setIsRevokeDialogOpen] = useState(false);
+  const [isRevoking, setIsRevoking] = useState(false);
   const isRevoked = row.revokedAt !== undefined;
+  const revokeAriaLabel = t('list.revoke', 'Revoke');
+
+  const handleRevoke = async () => {
+    if (isRevoking) return;
+    setIsRevoking(true);
+    try {
+      await revoke({ id: row._id as WebdavAppPasswordId });
+      toast({ title: t('list.revokedToast', 'Revoked') });
+      setIsRevokeDialogOpen(false);
+    } catch (err) {
+      console.error('webdav: revoke app-password failed', err);
+      toast({
+        title:
+          err instanceof Error
+            ? err.message
+            : t('list.revokeError', 'Could not revoke'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRevoking(false);
+    }
+  };
+
   return (
     <tr className="border-b last:border-b-0">
       <td className="p-3">
@@ -248,23 +372,30 @@ function Row({ row }: { row: WebdavAppPasswordRow }) {
       </td>
       <td className="p-3 text-right">
         {!isRevoked && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={async () => {
-              try {
-                await revoke({ id: row._id as WebdavAppPasswordId });
-                toast({ title: t('list.revokedToast', 'Revoked') });
-              } catch (err) {
-                toast({
-                  title: err instanceof Error ? err.message : 'Failed',
-                  variant: 'destructive',
-                });
-              }
-            }}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={revokeAriaLabel}
+              disabled={isRevoking}
+              onClick={() => setIsRevokeDialogOpen(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+            <DeleteDialog
+              open={isRevokeDialogOpen}
+              onOpenChange={setIsRevokeDialogOpen}
+              title={t('revokeDialog.title', 'Revoke this app-password?')}
+              description={t(
+                'revokeDialog.body',
+                'Any device mounted with this password will be disconnected and active locks released.',
+              )}
+              deleteText={t('revokeDialog.confirm', 'Revoke')}
+              cancelText={t('revokeDialog.cancel', 'Cancel')}
+              isDeleting={isRevoking}
+              onDelete={handleRevoke}
+            />
+          </>
         )}
       </td>
     </tr>

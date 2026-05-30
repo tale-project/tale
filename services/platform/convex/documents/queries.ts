@@ -11,6 +11,7 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { countItemsInOrg } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { hasTeamAccess } from '../lib/team_access';
+import { isActiveDocument } from './_helpers';
 import { listDocumentsPaginated as listDocumentsPaginatedHelper } from './list_documents_paginated';
 import { transformDocumentsBatch } from './transform_to_document_item';
 
@@ -56,6 +57,7 @@ export const listDocuments = query({
         q.eq('organizationId', args.organizationId),
       )
       .order('desc')) {
+      if (!isActiveDocument(doc)) continue;
       if (!hasTeamAccess(doc, userTeamIds)) continue;
 
       documents.push(doc);
