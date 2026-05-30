@@ -1,5 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
+import { resolveFileType } from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -86,6 +87,15 @@ export const ingestPutBlob = internalMutation({
     const parentSegments = args.pathSegments.slice(0, -1).map(nfc);
     const fileName = nfc(args.pathSegments[args.pathSegments.length - 1]);
 
+    // WebDAV clients (GVfs/davfs2) routinely PUT with a generic
+    // `application/octet-stream` Content-Type, which would otherwise be
+    // stored verbatim and make remote file managers show blank/unknown
+    // icons (DAV:getcontenttype is derived from this). Derive the real MIME
+    // from the filename extension exactly as the web upload path does
+    // (documents/mutations.createDocumentFromUpload) so both ingestion
+    // routes converge on the same canonical type.
+    const resolvedContentType = resolveFileType(fileName, args.contentType);
+
     // RFC 4918 §9.7.1: a PUT may not auto-vivify intermediate
     // collections. If any ancestor is missing the request 409s.
     let folderId: Id<'folders'> | undefined = undefined;
@@ -134,7 +144,7 @@ export const ingestPutBlob = internalMutation({
         organizationId: args.organizationId,
         storageId: args.storageId,
         fileName,
-        contentType: args.contentType,
+        contentType: resolvedContentType,
         size: args.size,
         uploadedBy: args.userId,
       },
@@ -153,7 +163,7 @@ export const ingestPutBlob = internalMutation({
       const oldFileId = existing.fileId;
       await ctx.db.patch(existing._id, {
         fileId: args.storageId,
-        mimeType: args.contentType,
+        mimeType: resolvedContentType,
         extension: extractExtension(fileName),
         contentHash: sha256 ?? undefined,
         sourceModifiedAt,
@@ -175,7 +185,7 @@ export const ingestPutBlob = internalMutation({
       organizationId: args.organizationId,
       title: fileName,
       fileId: args.storageId,
-      mimeType: args.contentType,
+      mimeType: resolvedContentType,
       extension: extractExtension(fileName),
       contentHash: sha256 ?? undefined,
       sourceProvider: WEBDAV_SOURCE_PROVIDER,

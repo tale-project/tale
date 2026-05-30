@@ -1,8 +1,18 @@
 import { convexTest } from 'convex-test';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { internal } from '../_generated/api';
 import schema from '../schema';
+
+// ingestPutBlob → saveFileMetadata gates an opportunistic retention-cleanup
+// schedule behind the rate-limiter component, which convex-test can't resolve
+// (no component registration in this suite). That gate is orthogonal to the
+// content-type behaviour under test, so stub the helper to a no-op while
+// preserving the error type the caller branches on.
+vi.mock('../lib/rate_limiter/helpers', () => ({
+  checkOrganizationRateLimit: vi.fn(async () => undefined),
+  RateLimitExceededError: class RateLimitExceededError extends Error {},
+}));
 
 // Normalize the module glob to convex/-root-relative keys (see the rationale in
 // lock_mutations.test.ts). Kept in this convex-excluded .test.ts file.
@@ -155,5 +165,70 @@ describe('webdav tree_mutations.moveResource folder reparent (convex-test)', () 
     // ...and its denormalized folderPath recomputed (no longer the stale "/src").
     expect(doc?.folderPath).not.toBe('/src');
     expect(doc?.folderPath).toContain('dst');
+  });
+});
+
+describe('webdav tree_mutations.ingestPutBlob content-type derivation (convex-test)', () => {
+  const PPTX_MIME =
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+  // WebDAV clients (GVfs/davfs2) PUT with a generic application/octet-stream
+  // Content-Type. ingestPutBlob must derive the real MIME from the filename so
+  // remote file managers render the right icon and the stored type matches the
+  // web upload path. Regression guard for the blank-icon bug.
+  async function ingest(
+    t: TestCtx,
+    fileName: string,
+    clientContentType: string,
+  ) {
+    const storageId = await t.run(async (ctx) =>
+      ctx.storage.store(new Blob(['x'], { type: clientContentType })),
+    );
+    const result = await t.mutation(
+      internal.webdav.tree_mutations.ingestPutBlob,
+      {
+        organizationId: ORG,
+        pathSegments: [fileName],
+        storageId,
+        contentType: clientContentType,
+        size: 1,
+        userId: USER,
+      },
+    );
+    const doc = await t.run(async (ctx) => ctx.db.get(result.documentId));
+    const fm = await t.run(async (ctx) => {
+      const rows = await ctx.db.query('fileMetadata').collect();
+      return rows.find((r) => r.storageId === storageId) ?? null;
+    });
+    return { result, mimeType: doc?.mimeType, contentType: fm?.contentType };
+  }
+
+  it('rewrites octet-stream to application/pdf for a .pdf upload', async () => {
+    const t = convexTest(schema, modules);
+    const { result, mimeType, contentType } = await ingest(
+      t,
+      'report.pdf',
+      'application/octet-stream',
+    );
+    expect(result.created).toBe(true);
+    expect(mimeType).toBe('application/pdf');
+    expect(contentType).toBe('application/pdf');
+  });
+
+  it('rewrites octet-stream to the Office MIME for a .pptx upload', async () => {
+    const t = convexTest(schema, modules);
+    const { mimeType, contentType } = await ingest(
+      t,
+      'deck.pptx',
+      'application/octet-stream',
+    );
+    expect(mimeType).toBe(PPTX_MIME);
+    expect(contentType).toBe(PPTX_MIME);
+  });
+
+  it('preserves a correct client-supplied Content-Type', async () => {
+    const t = convexTest(schema, modules);
+    const { mimeType } = await ingest(t, 'photo.png', 'image/png');
+    expect(mimeType).toBe('image/png');
   });
 });
