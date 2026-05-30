@@ -146,6 +146,44 @@ function ensureWebdavHmacKey() {
     .digest('hex');
 }
 
+// WebDAV's dev route (vite-plugins/serve-webdav.ts) talks to Convex with the
+// deployment ADMIN_KEY to call internal functions; without it the plugin
+// disables /dav/* and every request returns 503. Prod derives the key with the
+// `generate_key` binary in docker-entrypoint.sh, but the Convex CLI does NOT
+// download that binary for local dev — it instead writes the anonymous
+// deployment's admin key in cleartext to .convex/local/default/config.json.
+// Read it from there so `bun dev` enables WebDAV with zero manual setup. Only
+// meaningful for the local backend (the file is a local-CLI artifact); an
+// explicit ADMIN_KEY (.env) always wins. MUST run after waitForConvex() so the
+// CLI has created the config file.
+function ensureLocalAdminKey() {
+  if (process.env.ADMIN_KEY) return;
+  const configPath = join(platformRoot, '.convex/local/default/config.json');
+  if (!existsSync(configPath)) {
+    console.warn(
+      `[dev] ⚠️  ${configPath} not found; ADMIN_KEY unset, WebDAV /dav/* will 503.`,
+    );
+    return;
+  }
+  try {
+    const adminKey = JSON.parse(readFileSync(configPath, 'utf8'))?.adminKey;
+    if (typeof adminKey !== 'string' || adminKey.length === 0) {
+      console.warn(
+        '[dev] ⚠️  No adminKey in local Convex config; WebDAV /dav/* will 503.',
+      );
+      return;
+    }
+    process.env.ADMIN_KEY = adminKey;
+    console.log(
+      '[dev] 🔑 ADMIN_KEY loaded from local Convex config — WebDAV /dav/* enabled',
+    );
+  } catch (err) {
+    console.warn(
+      `[dev] ⚠️  Failed to read local Convex admin key (${configPath}); WebDAV /dav/* will 503. Underlying: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
+
 function loadEnvFiles() {
   const repoEnvPath = join(repoRoot, '.env');
   const repoEnvLocalPath = join(repoRoot, '.env.local');
@@ -642,6 +680,13 @@ async function main() {
       console.log(
         `[dev] ℹ️  Picked up new deployment: ${freshEnv.CONVEX_DEPLOYMENT}`,
       );
+    }
+
+    // Load the local deployment's admin key now that `convex dev` has written
+    // it — enables the WebDAV /dav/* route in dev. External backends supply
+    // ADMIN_KEY via .env instead (no local config file to read).
+    if (!useExternalConvex) {
+      ensureLocalAdminKey();
     }
 
     console.log('[dev] 🔄 Syncing environment variables...');
