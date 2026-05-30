@@ -1211,7 +1211,6 @@
     },
     "skeleton": {
       "loadingWelcome": "Loading welcome",
-      "loadingSuggestion": "Loading suggestion",
       "loadingMessage": "Loading message"
     },
     "promptLibrary": "Prompt library",

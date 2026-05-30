@@ -70,6 +70,12 @@ export function VoiceOutputPolicyEditor({
             description: t('voiceOutput.saved'),
             variant: 'success',
           }),
+        onError: (error) =>
+          toast({
+            title: t('toastSaveFailedTitle'),
+            description: error instanceof Error ? error.message : undefined,
+            variant: 'destructive',
+          }),
       },
     );
   };

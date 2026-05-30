@@ -227,7 +227,7 @@ const ConversationRow = memo(function ConversationRow({
             <Checkbox
               checked={isChecked}
               onCheckedChange={handleCheckboxChange}
-              aria-label={tDialogs?.('selectConversation') ?? ''}
+              aria-label={tDialogs ? tDialogs('selectConversation') : ''}
             />
           </SkeletonBox>
         </div>

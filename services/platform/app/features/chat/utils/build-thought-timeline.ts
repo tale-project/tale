@@ -109,6 +109,10 @@ export function hasInFlightTool(
   for (const raw of parts) {
     if (!isRecord(raw) || typeof raw.type !== 'string') continue;
     if (!raw.type.startsWith('tool-')) continue;
+    // Skip the generic `tool-invocation` placeholder, matching the builder and
+    // `hasThoughtSteps` — only a concrete tool part counts as in-flight.
+    const name = raw.type.slice('tool-'.length);
+    if (!name || name === 'invocation') continue;
     if (raw.state === 'input-streaming' || raw.state === 'input-available') {
       return true;
     }

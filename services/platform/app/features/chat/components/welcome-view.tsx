@@ -44,7 +44,7 @@ export function WelcomeView({
   // is masked at the point it renders inside <Skeletonize loading>.
   const starters = hasStarters
     ? conversationStarters
-    : (Array.from({ length: 4 }, () => '') as string[]);
+    : Array.from({ length: 4 }, () => '');
 
   return (
     <Skeletonize loading={isLoading} label={t('skeleton.loadingWelcome')}>

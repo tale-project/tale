@@ -1212,7 +1212,6 @@
     },
     "skeleton": {
       "loadingWelcome": "Chargement de l'accueil",
-      "loadingSuggestion": "Chargement de la suggestion",
       "loadingMessage": "Chargement du message"
     },
     "promptLibrary": "Bibliothèque de prompts",

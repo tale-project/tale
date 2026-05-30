@@ -14,6 +14,10 @@ import { api } from '@/convex/_generated/api';
  */
 export function useUpsertGovernancePolicy() {
   return useConvexMutation(api.governance.mutations.upsertPolicy, {
+    // Every policy editor surfaces its own specific failure toast in its save
+    // handler, so opt out of the hook's default generic toast to avoid a
+    // double toast. (`voice-output-policy-editor` likewise toasts on error.)
+    errorToast: false,
     optimisticUpdate: (store, args) =>
       updateDocumentQuery(
         store,
@@ -25,12 +29,17 @@ export function useUpsertGovernancePolicy() {
 }
 
 export function useProposeDsarPolicy() {
-  return useConvexMutation(api.governance.dsar_policy.proposeDsarPolicy);
+  // The DSAR editor toasts its own failure message — opt out of the default.
+  return useConvexMutation(api.governance.dsar_policy.proposeDsarPolicy, {
+    errorToast: false,
+  });
 }
 
 export function useCancelPendingDsarPolicyChange() {
+  // The DSAR editor toasts its own failure message — opt out of the default.
   return useConvexMutation(
     api.governance.dsar_policy.cancelPendingDsarPolicyChange,
+    { errorToast: false },
   );
 }
 

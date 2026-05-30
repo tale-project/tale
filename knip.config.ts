@@ -31,6 +31,10 @@ export default {
         // Peer of @vitest/browser-playwright, required at runtime by vitest's browser test mode
         // but never imported directly.
         '@vitest/browser',
+        // Imported only by the on-demand CLS proof harness (scripts/cls-harness.ts),
+        // which is NOT part of CI. Available transitively via @vitest/browser's
+        // playwright driver, so it never needs to be a declared dependency.
+        'playwright',
       ],
     },
     'services/web': {
