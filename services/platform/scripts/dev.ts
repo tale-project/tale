@@ -23,6 +23,7 @@
 */
 
 import { type ChildProcess, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
@@ -126,6 +127,23 @@ function ensureBetterAuthSecret() {
     process.env.BETTER_AUTH_SECRET =
       'local-dev-better-auth-secret-do-not-use-in-prod-0123456789abcdef';
   }
+}
+
+// WebDAV app-password HMAC key. The `createAppPassword` mutation reads this
+// from the Convex deployment env via `requireHmacSecret()`, so it must be
+// pushed into Convex (see ORCHESTRATOR_MANAGED_KEYS in
+// sync-convex-env-from-dotenv.ts). We derive it deterministically from
+// INSTANCE_SECRET using the SAME formula as docker-entrypoint.sh
+// (sha256(secret || ':webdav-hmac:v1')) so a local dev key is stable across
+// restarts and identical to what a containerized run would produce. Must run
+// after ensureInstanceSecret() so INSTANCE_SECRET is populated. An explicit
+// .env value still wins — we only fill the gap.
+function ensureWebdavHmacKey() {
+  if (process.env.WEBDAV_APP_PASSWORD_HMAC_KEY) return;
+  const secret = process.env.INSTANCE_SECRET ?? '';
+  process.env.WEBDAV_APP_PASSWORD_HMAC_KEY = createHash('sha256')
+    .update(`${secret}:webdav-hmac:v1`)
+    .digest('hex');
 }
 
 function loadEnvFiles() {
@@ -397,6 +415,7 @@ async function main() {
     envNormalizeCommon();
     ensureInstanceSecret();
     ensureBetterAuthSecret();
+    ensureWebdavHmacKey();
     const deployment = process.env.CONVEX_DEPLOYMENT;
     const hasLocalDeployment = deployment?.startsWith('anonymous:');
     if (deployment && !hasLocalDeployment) {
