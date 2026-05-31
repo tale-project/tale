@@ -403,6 +403,12 @@ export async function migrateConfigLayout(
   const { dryRun, cleanupOld } = options;
   const projectDir = options.projectDir ?? process.cwd();
 
+  // Resolve the container name up front — `getProjectId()` throws if the
+  // caller forgot to bootstrap the project context. Do this BEFORE Phase 1's
+  // irreversible host-dir renames so a missing bootstrap fails fast instead of
+  // leaving the project half-migrated (host moved, container not).
+  const containerName = `${getProjectId()}-convex`;
+
   // ---------------------------------------------------------------------------
   // Phase 1 — host layout
   //
@@ -448,7 +454,6 @@ export async function migrateConfigLayout(
   // ---------------------------------------------------------------------------
   // Phase 2 — container layout (providers/*.secrets.json under $DATA)
   // ---------------------------------------------------------------------------
-  const containerName = `${getProjectId()}-convex`;
   if (!(await isContainerRunning(containerName))) {
     // Earlier the message said "e.g. `tale deploy`", but `tale deploy`
     // now hard-fails on legacy layout — creating a deadlock for fresh

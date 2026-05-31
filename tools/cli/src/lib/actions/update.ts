@@ -57,6 +57,28 @@ export async function update(options: UpdateOptions): Promise<void> {
   logger.info(`Current version: ${project.cliVersion}`);
   logger.info(`Target version:  ${pkg.version}`);
 
+  // Resolve (or assign) the project ID and prime the module-level singleton
+  // BEFORE the legacy-layout preflight. The preflight may run
+  // `migrateConfigLayout`, whose container-side phase derives the convex
+  // container name from `getProjectId()`; without a primed singleton it throws
+  // "Project context not initialized" — and by then Phase 1 has already
+  // irreversibly moved the host dirs. Legacy projects (pre-ID) get an ID
+  // auto-assigned + persisted here; projects that already have one still need
+  // the singleton primed (the old `!project.id` branch skipped them).
+  let assignedId: string | undefined;
+  if (!project.id) {
+    assignedId = generateProjectId(basename(projectDir));
+    project.id = assignedId;
+    if (!options.dryRun) {
+      await writeProject(join(projectDir, 'tale.json'), project);
+    }
+    logger.blank();
+    logger.info(`Assigned project ID: ${assignedId}`);
+  }
+  if (!options.dryRun && project.id) {
+    setProjectId(project.id);
+  }
+
   // If the project is on the pre-org-first layout, migrate now (before
   // we write any new `default/<domain>/...` files). Without this gate
   // `tale update` happily lays the new tree down next to the legacy
@@ -69,22 +91,6 @@ export async function update(options: UpdateOptions): Promise<void> {
       assumeYes: options.assumeYes ?? false,
       context: 'update',
     });
-  }
-
-  // Legacy projects (pre-ID) get an ID auto-assigned here. We also attempt
-  // volume migration immediately, but the migration function itself defers
-  // (via a marker file) if any legacy containers are running, so production
-  // deployments are never impacted by `tale upgrade`.
-  let assignedId: string | undefined;
-  if (!project.id) {
-    assignedId = generateProjectId(basename(projectDir));
-    project.id = assignedId;
-    if (!options.dryRun) {
-      await writeProject(join(projectDir, 'tale.json'), project);
-      setProjectId(assignedId);
-    }
-    logger.blank();
-    logger.info(`Assigned project ID: ${assignedId}`);
   }
 
   // Update reference code

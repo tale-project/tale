@@ -705,7 +705,7 @@ export function ChatInterface({
           ref={contentRef}
           className={cn(
             'flex flex-col overflow-y-visible p-4 sm:p-6',
-            showWelcome && 'flex-1 items-center justify-center',
+            showWelcome && 'flex-1 justify-center',
           )}
         >
           {showWelcome && (
