@@ -3,7 +3,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { SettingsListPageSkeleton } from '@/app/features/settings/components/settings-skeleton';
 import { WebdavSettings } from '@/app/features/settings/webdav/components/webdav-settings';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -34,11 +33,10 @@ function WebdavSettingsPage() {
   const siteOrigin = useSiteUrl();
   const orgSlug = organization?.slug ?? organizationId;
 
-  if (abilityLoading) {
-    return <SettingsListPageSkeleton />;
-  }
-
-  if (ability.cannot('read', 'developerSettings')) {
+  // Access is only knowable once the ability has loaded; until then the real
+  // page renders (its app-password list self-skeletonizes), so there is no
+  // denied-flash on warm entry and no bespoke skeleton to drift.
+  if (!abilityLoading && ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={tAccess('webdav')} />;
   }
 

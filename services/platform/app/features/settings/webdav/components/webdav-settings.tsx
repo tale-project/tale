@@ -2,7 +2,8 @@
 
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Copy, Key, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -281,9 +282,10 @@ function AppPasswordsTable(props: {
   rows: WebdavAppPasswordRow[] | undefined;
 }) {
   const { t } = useT('webdav');
+  const isLoading = props.rows === undefined;
   // Newest first — the just-generated row is the one users most likely want
   // to identify or revoke. Memo runs unconditionally (rules of hooks); the
-  // skeleton / empty branches below short-circuit before render.
+  // empty branch below short-circuits before render.
   const sortedRows = useMemo(
     () =>
       props.rows
@@ -292,19 +294,7 @@ function AppPasswordsTable(props: {
     [props.rows],
   );
 
-  if (props.rows === undefined) {
-    return (
-      <section className="rounded-md border p-4">
-        <Stack gap={2}>
-          <Skeleton className="h-6 w-full" />
-          <Skeleton className="h-6 w-full" />
-          <Skeleton className="h-6 w-2/3" />
-        </Stack>
-      </section>
-    );
-  }
-
-  if (props.rows.length === 0) {
+  if (props.rows !== undefined && props.rows.length === 0) {
     return (
       <section className="text-muted-foreground rounded-md border p-4 text-sm">
         {t('list.empty', 'No app-passwords yet.')}
@@ -312,8 +302,11 @@ function AppPasswordsTable(props: {
     );
   }
 
+  // While loading, render the SAME table shell with placeholder rows wrapped in
+  // `<Skeletonize>` (so the masked cells announce "Loading" once) — never a
+  // hand-rolled bar stack whose sizing drifts from the real table.
   return (
-    <section className="rounded-md border">
+    <Skeletonize loading={isLoading} className="rounded-md border">
       <table className="w-full text-sm">
         <thead className="border-b text-left">
           <tr>
@@ -327,12 +320,22 @@ function AppPasswordsTable(props: {
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((row) => (
-            <Row key={row._id} row={row} />
-          ))}
+          {isLoading
+            ? Array.from({ length: 3 }).map((_, i) => (
+                <tr key={i} className="border-b last:border-b-0">
+                  {Array.from({ length: 5 }).map((__, j) => (
+                    <td key={j} className="p-3">
+                      <SkeletonBox>
+                        <div className="h-3.5 w-full max-w-24" />
+                      </SkeletonBox>
+                    </td>
+                  ))}
+                </tr>
+              ))
+            : sortedRows.map((row) => <Row key={row._id} row={row} />)}
         </tbody>
       </table>
-    </section>
+    </Skeletonize>
   );
 }
 
