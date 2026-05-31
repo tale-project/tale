@@ -7,7 +7,7 @@
  * create-project dialog (live derivation as the user types the name).
  */
 
-export const PROJECT_KEY_MIN = 2;
+const PROJECT_KEY_MIN = 2;
 export const PROJECT_KEY_MAX = 6;
 
 /** Allowed shape: starts with a letter, then 1–5 more letters/digits, uppercase. */
