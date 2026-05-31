@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useRef } from 'react';
 
@@ -51,6 +53,51 @@ export function ColorPickerInput({
   const isValidHex = /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/.test(value);
   const colorOnly = value.slice(0, 7);
   const displayValue = value.replace('#', '').toUpperCase();
+  const loading = useSkeleton();
+
+  // The swatch + hex control. Masked (to its exact footprint) while a parent
+  // `<Skeletonize>` loads, so the default `#000000` swatch never flashes
+  // before real branding arrives. The label stays as real text.
+  const control = (
+    <div
+      className={cn(
+        'border-border flex items-center overflow-clip rounded-md border shadow-xs',
+      )}
+    >
+      <button
+        type="button"
+        onClick={handleSwatchClick}
+        className="h-full w-7 shrink-0 cursor-pointer border-none"
+        style={{
+          backgroundColor: isValidHex ? value : '#FFFFFF',
+        }}
+        aria-label={`Pick ${label.toLowerCase()}`}
+      />
+      <input
+        ref={colorInputRef}
+        type="color"
+        value={isValidHex ? colorOnly : '#FFFFFF'}
+        onChange={handleColorChange}
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+      <div className="flex items-center justify-center px-2 py-1.5">
+        <Text as="span" variant="muted" className="leading-5">
+          #
+        </Text>
+        <input
+          id={id}
+          type="text"
+          value={displayValue}
+          onChange={handleTextChange}
+          maxLength={8}
+          className="text-foreground w-[4.5rem] border-none bg-transparent text-sm leading-5 font-normal outline-none"
+          aria-label={`${label} hex value`}
+        />
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex items-stretch justify-between">
@@ -60,44 +107,7 @@ export function ColorPickerInput({
       >
         {label}
       </label>
-      <div
-        className={cn(
-          'border-border flex items-center overflow-clip rounded-md border shadow-xs',
-        )}
-      >
-        <button
-          type="button"
-          onClick={handleSwatchClick}
-          className="h-full w-7 shrink-0 cursor-pointer border-none"
-          style={{
-            backgroundColor: isValidHex ? value : '#FFFFFF',
-          }}
-          aria-label={`Pick ${label.toLowerCase()}`}
-        />
-        <input
-          ref={colorInputRef}
-          type="color"
-          value={isValidHex ? colorOnly : '#FFFFFF'}
-          onChange={handleColorChange}
-          className="sr-only"
-          tabIndex={-1}
-          aria-hidden="true"
-        />
-        <div className="flex items-center justify-center px-2 py-1.5">
-          <Text as="span" variant="muted" className="leading-5">
-            #
-          </Text>
-          <input
-            id={id}
-            type="text"
-            value={displayValue}
-            onChange={handleTextChange}
-            maxLength={8}
-            className="text-foreground w-[4.5rem] border-none bg-transparent text-sm leading-5 font-normal outline-none"
-            aria-label={`${label} hex value`}
-          />
-        </div>
-      </div>
+      {loading ? <SkeletonBox>{control}</SkeletonBox> : control}
     </div>
   );
 }

@@ -215,6 +215,32 @@ export const audioFormatLiterals = [
 ] as const;
 export type AudioFormat = (typeof audioFormatLiterals)[number];
 
+/**
+ * Per-model reasoning-control capability for the Adaptive Reasoning Governor
+ * (`convex/lib/agent_response/reasoning/`). Declares whether the model can be
+ * told how hard to think and which control surface it exposes. Operators only
+ * need this for reasoning models outside the governor's built-in curated table,
+ * or to pin/disable reasoning for a specific deployment — common families
+ * (gpt-5*, o-series, Claude 3.7/4 thinking) work without it.
+ *
+ *  - `effort`       → request `reasoning_effort` ('minimal'|'low'|'medium'|'high')
+ *  - `budgetTokens` → request `thinking: { budget_tokens }` (model self-truncates)
+ *  - `none`         → opt this model out of the governor entirely
+ */
+export const reasoningCapabilitySchema = z.object({
+  knob: z.enum(['effort', 'budgetTokens', 'none']),
+  /** effort-only: the model supports the `'minimal'` floor (gpt-5 family). */
+  supportsMinimal: z.boolean().optional(),
+  /** budgetTokens-only: provider-mandated minimum (Anthropic requires ≥1024). */
+  minBudgetTokens: z.number().int().positive().optional(),
+  /** budgetTokens-only: a hard ceiling for the thinking budget. */
+  maxBudgetTokens: z.number().int().positive().optional(),
+});
+
+export type ReasoningCapabilityConfig = z.infer<
+  typeof reasoningCapabilitySchema
+>;
+
 const modelDefinitionSchema = z.object({
   id: z.string().min(1).max(200),
   displayName: z.string().min(1).max(200),
@@ -223,6 +249,8 @@ const modelDefinitionSchema = z.object({
   dimensions: z.number().int().positive().optional(),
   maxOutputTokens: z.number().int().positive().optional(),
   supportsStructuredOutputs: z.boolean().optional(),
+  /** Reasoning-control capability override; see `reasoningCapabilitySchema`. */
+  reasoning: reasoningCapabilitySchema.optional(),
   fallbackModelId: z.string().min(1).max(200).optional(),
   baseUrl: z.string().url().optional(),
   imageGenerationMode: imageGenerationModeSchema.optional(),

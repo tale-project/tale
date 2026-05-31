@@ -3,28 +3,72 @@ import { describe, it, expect } from 'vitest';
 import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
-import { Skeleton } from './skeleton';
+import { SkeletonBox, SkeletonCircle, SkeletonText } from './skeleton';
+import { Skeletonize } from './skeleton-context';
 
-describe('Skeleton', () => {
-  describe('accessibility', () => {
-    it('passes axe audit', async () => {
-      const { container } = render(<Skeleton />);
-      await checkAccessibility(container);
-    });
+describe('SkeletonBox', () => {
+  it('renders the real child untouched when not loading', () => {
+    render(
+      <SkeletonBox>
+        <span data-testid="value">42</span>
+      </SkeletonBox>,
+    );
+    expect(screen.getByTestId('value')).toHaveTextContent('42');
+  });
 
-    it('has status role', () => {
-      render(<Skeleton />);
-      expect(screen.getByRole('status')).toBeInTheDocument();
-    });
+  it('adds no box of its own when not loading (display: contents)', () => {
+    const { container } = render(
+      <SkeletonBox>
+        <span data-testid="value">42</span>
+      </SkeletonBox>,
+    );
+    expect(container.firstElementChild).toHaveClass('contents');
+  });
 
-    it('has accessible label', () => {
-      render(<Skeleton label="Loading users" />);
-      expect(screen.getByLabelText('Loading users')).toBeInTheDocument();
-    });
+  it('keeps the child mounted and hides the region while loading', () => {
+    render(
+      <Skeletonize loading>
+        <SkeletonBox>
+          <span data-testid="value">42</span>
+        </SkeletonBox>
+      </Skeletonize>,
+    );
+    // The real content stays in the tree; an opaque overlay covers it.
+    expect(screen.getByTestId('value')).toBeInTheDocument();
+  });
+});
 
-    it('has sr-only text', () => {
-      render(<Skeleton label="Loading data" />);
-      expect(screen.getByText('Loading data')).toBeInTheDocument();
-    });
+describe('SkeletonCircle', () => {
+  it('wraps round content and is decorative while loading', () => {
+    render(
+      <Skeletonize loading>
+        <SkeletonCircle>
+          <span data-testid="avatar" className="block size-9" />
+        </SkeletonCircle>
+      </Skeletonize>,
+    );
+    expect(screen.getByTestId('avatar')).toBeInTheDocument();
+  });
+});
+
+describe('SkeletonText', () => {
+  it('renders a single line by default', () => {
+    const { container } = render(<SkeletonText />);
+    expect(container.firstElementChild?.children).toHaveLength(1);
+  });
+
+  it('renders `lines` lines', () => {
+    const { container } = render(<SkeletonText lines={3} />);
+    expect(container.firstElementChild?.children).toHaveLength(3);
+  });
+
+  it('is decorative (aria-hidden)', () => {
+    const { container } = render(<SkeletonText lines={2} />);
+    expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('passes axe audit', async () => {
+    const { container } = render(<SkeletonText lines={3} />);
+    await checkAccessibility(container);
   });
 });

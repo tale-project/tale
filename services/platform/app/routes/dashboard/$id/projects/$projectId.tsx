@@ -1,5 +1,6 @@
 import { Heading } from '@tale/ui/heading';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { useMemo } from 'react';
@@ -16,7 +17,6 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
-import { ProjectTabSkeleton } from '@/app/features/projects/components/project-tab-skeleton';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useT } from '@/lib/i18n/client';
@@ -70,38 +70,7 @@ function ProjectDetailLayout() {
     [t, organizationId, projectId],
   );
 
-  if (isLoading) {
-    return (
-      <PageLayout
-        header={
-          <>
-            <AdaptiveHeaderRoot standalone={false} className="gap-2">
-              <Heading level={1} size="base" truncate>
-                <Link
-                  to="/dashboard/$id/projects"
-                  params={{ id: organizationId }}
-                  className="text-muted-foreground hidden md:inline"
-                >
-                  {t('title')}&nbsp;&nbsp;
-                </Link>
-                <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-                <Skeleton className="inline-block h-4 w-32 align-middle" />
-              </Heading>
-            </AdaptiveHeaderRoot>
-            <TabNavigation
-              items={tabs}
-              standalone={false}
-              ariaLabel={tCommon('aria.projectsNavigation')}
-            />
-          </>
-        }
-      >
-        <ProjectTabSkeleton />
-      </PageLayout>
-    );
-  }
-
-  if (!project) {
+  if (!isLoading && !project) {
     return (
       <PageLayout>
         <ContentArea variant="narrow" className="py-6">
@@ -130,7 +99,15 @@ function ProjectDetailLayout() {
                 </Link>
                 <span className="text-foreground inline-flex items-center gap-2">
                   <span className="hidden md:inline">/&nbsp;</span>
-                  {project.name}
+                  <Skeletonize loading={isLoading} label={t('title')}>
+                    {project ? (
+                      project.name
+                    ) : (
+                      <SkeletonBox>
+                        <span className="inline-block h-4 w-32 align-middle" />
+                      </SkeletonBox>
+                    )}
+                  </Skeletonize>
                 </span>
               </Heading>
             </AdaptiveHeaderRoot>
@@ -144,7 +121,9 @@ function ProjectDetailLayout() {
           </>
         }
       >
-        <Outlet />
+        <Skeletonize loading={isLoading} label={t('title')}>
+          <Outlet />
+        </Skeletonize>
       </PageLayout>
     </ActiveEditorProvider>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -26,6 +26,12 @@ function readEnabled(raw: unknown): boolean {
   return isRecord(raw) && raw['enabled'] === true;
 }
 
+// =============================================================================
+// Single toggle — owns data fetching, the local toggle state, save/toast
+// wiring, and the loading state. Renders the REAL `PageSection` +
+// skeleton-aware `Switch` once, always, wrapped in `<Skeletonize>`. The
+// skeleton-aware `<Switch>` masks itself to its exact track size while loading.
+// =============================================================================
 function PersonalizationPolicyToggle({
   organizationId,
   policyType,
@@ -77,34 +83,21 @@ function PersonalizationPolicyToggle({
     [organizationId, policyType, upsertMutation, toast, t],
   );
 
-  if (isLoading) {
-    return (
-      <div aria-busy="true" className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-4 w-96 max-w-full" />
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <Skeleton className="h-3.5 w-14" />
-          <Skeleton className="h-[1.15rem] w-8 rounded-full" />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <PageSection
-      title={t(titleKey)}
-      description={t(descriptionKey)}
-      action={
-        <Switch
-          label={t('personalization.enabledLabel')}
-          checked={enabled}
-          onCheckedChange={handleToggleEnabled}
-          disabled={cannotManage || upsertMutation.isPending}
-        />
-      }
-    />
+    <Skeletonize loading={isLoading} label={t(titleKey)}>
+      <PageSection
+        title={t(titleKey)}
+        description={t(descriptionKey)}
+        action={
+          <Switch
+            label={t('personalization.enabledLabel')}
+            checked={enabled}
+            onCheckedChange={handleToggleEnabled}
+            disabled={cannotManage || upsertMutation.isPending}
+          />
+        }
+      />
+    </Skeletonize>
   );
 }
 

@@ -5,6 +5,27 @@ import { internalQuery } from '../_generated/server';
 import { getThreadMessages as getThreadMessagesHelper } from './get_thread_messages';
 import { listThreads as listThreadsHelper } from './list_threads';
 
+/**
+ * Read the cross-thread Adaptive Reasoning Governor profile (per org + scope,
+ * where scope is the resolved model id) for warm-starting the controller.
+ * Returns the stored `ReasoningState` or `null`. Co-located with the per-thread
+ * reasoning state so both share an existing function module.
+ */
+export const getReasoningProfile = internalQuery({
+  args: { organizationId: v.string(), scopeKey: v.string() },
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('reasoningProfiles')
+      .withIndex('by_org_scope', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('scopeKey', args.scopeKey),
+      )
+      .first();
+    return row?.state ?? null;
+  },
+});
+
 export const getThreadMetadata = internalQuery({
   args: {
     threadId: v.string(),

@@ -1,0 +1,46 @@
+import type { ReasoningLexicon } from '../types';
+
+export const ms: ReasoningLexicon = {
+  locale: 'ms',
+  name: 'Malay',
+  boundaryMode: 'word',
+  hardVerbs: [
+    'analisis',
+    'buktikan',
+    'debug',
+    'optimumkan',
+    'reka bentuk',
+    'laksanakan',
+    'bandingkan',
+    'taakul',
+    'algoritma',
+  ],
+  easyVerbs: [
+    'terjemah',
+    'ringkaskan',
+    'parafrasa',
+    'tulis semula',
+    'pendekkan',
+    'format',
+  ],
+  trivialAcks: [
+    'helo',
+    'hai',
+    'terima kasih',
+    'ok',
+    'ya',
+    'tidak',
+    'tolong',
+    'sila',
+  ],
+  creativeVerbs: ['tulis', 'cerita', 'puisi', 'bayangkan', 'cipta', 'lagu'],
+  analyticalVerbs: [
+    'kira',
+    'buktikan',
+    'debug',
+    'ekstrak',
+    'kelaskan',
+    'selesaikan',
+    'sahkan',
+  ],
+};

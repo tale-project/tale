@@ -3,6 +3,14 @@ import { v } from 'convex/values';
 
 import { chatTypeValidator, threadStatusValidator } from './validators';
 
+/** One Adaptive Reasoning Governor difficulty-bucket — mirrors `BucketStats`. */
+const reasoningBucketValidator = v.object({
+  count: v.number(),
+  mean: v.number(),
+  m2: v.number(),
+  underResourcedEma: v.number(),
+});
+
 export const threadMetadataTable = defineTable({
   threadId: v.string(),
   userId: v.string(),
@@ -25,6 +33,22 @@ export const threadMetadataTable = defineTable({
   cancelledAt: v.optional(v.number()),
   cancelledMessageId: v.optional(v.string()),
   generationStartTime: v.optional(v.number()),
+  /**
+   * Adaptive Reasoning Governor (Layer C) per-thread learning state: per
+   * difficulty-class Welford statistics of observed reasoning tokens plus an
+   * "under-resourced" EMA, letting the governor learn a difficulty→need curve
+   * and converge the budget toward what the model actually uses. Updated once
+   * per completed turn from telemetry the platform already records. Shape must
+   * mirror `ReasoningState` in `lib/agent_response/reasoning/types.ts`.
+   */
+  reasoningState: v.optional(
+    v.object({
+      easy: reasoningBucketValidator,
+      medium: reasoningBucketValidator,
+      hard: reasoningBucketValidator,
+      turns: v.number(),
+    }),
+  ),
   agentSlug: v.optional(v.string()),
   /** @deprecated Use agentSlug. Retained for backward compatibility with existing documents. */
   agentId: v.optional(v.id('agentBindings')),

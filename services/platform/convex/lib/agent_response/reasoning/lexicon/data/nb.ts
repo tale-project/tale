@@ -1,0 +1,45 @@
+import type { ReasoningLexicon } from '../types';
+
+export const nb: ReasoningLexicon = {
+  locale: 'nb',
+  name: 'Norwegian Bokmål',
+  boundaryMode: 'word',
+  hardVerbs: [
+    'analyser',
+    'bevis',
+    'feilsøk',
+    'optimaliser',
+    'design',
+    'implementer',
+    'sammenlign',
+    'resonner',
+    'algoritme',
+  ],
+  easyVerbs: [
+    'oversett',
+    'oppsummer',
+    'omformuler',
+    'skriv om',
+    'forkort',
+    'formater',
+  ],
+  trivialAcks: ['hei', 'heisann', 'takk', 'ok', 'ja', 'nei', 'vær så snill'],
+  creativeVerbs: [
+    'skriv',
+    'historie',
+    'dikt',
+    'forestill',
+    'finn opp',
+    'sang',
+    'kreativ',
+  ],
+  analyticalVerbs: [
+    'beregn',
+    'bevis',
+    'feilsøk',
+    'trekk ut',
+    'klassifiser',
+    'løs',
+    'verifiser',
+  ],
+};

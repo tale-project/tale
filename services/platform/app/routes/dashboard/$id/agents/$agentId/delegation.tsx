@@ -1,5 +1,4 @@
-import { Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
@@ -91,6 +90,18 @@ function DelegationTab() {
 
   const selectedValues = config.delegates ?? [];
 
+  // While loading, feed the real CheckboxGroup a few placeholder rows so the
+  // same tree renders in both states; `<Skeletonize loading>` masks them.
+  const placeholderOptions = useMemo(
+    () =>
+      Array.from({ length: 4 }, (_, i) => ({
+        value: `__placeholder_${i}`,
+        label: 'Delegate agent',
+        disabled: true,
+      })),
+    [],
+  );
+
   return (
     <ContentArea variant="narrow" gap={6}>
       <StickySectionHeader
@@ -98,23 +109,19 @@ function DelegationTab() {
         description={t('agents.delegation.description')}
       />
 
-      {isLoading ? (
-        <Stack gap={2}>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-6 w-full" />
-          ))}
-        </Stack>
-      ) : availableAgents.length === 0 ? (
+      {!isLoading && availableAgents.length === 0 ? (
         <Text variant="muted" className="italic">
           {t('agents.delegation.noDelegatesAvailable')}
         </Text>
       ) : (
-        <CheckboxGroup
-          options={delegateOptions}
-          value={selectedValues}
-          onValueChange={(delegates) => updateConfig({ delegates })}
-          columns={1}
-        />
+        <Skeletonize loading={isLoading} label={t('agents.delegation.title')}>
+          <CheckboxGroup
+            options={isLoading ? placeholderOptions : delegateOptions}
+            value={isLoading ? [] : selectedValues}
+            onValueChange={(delegates) => updateConfig({ delegates })}
+            columns={1}
+          />
+        </Skeletonize>
       )}
     </ContentArea>
   );

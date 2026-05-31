@@ -61,7 +61,12 @@ describe('Badge', () => {
 
     it('has title for string children', () => {
       const { container } = render(<Badge>Long text</Badge>);
-      expect(container.firstChild).toHaveAttribute('title', 'Long text');
+      // The Badge is wrapped in a `<SkeletonBox>` (a `display: contents` span),
+      // so the title-bearing element is the inner badge `<div>`, not firstChild.
+      expect(container.querySelector('div')).toHaveAttribute(
+        'title',
+        'Long text',
+      );
     });
 
     it('dot has aria-hidden', () => {
@@ -76,7 +81,9 @@ describe('Badge', () => {
       const { container } = render(
         <Badge className="custom-class">Badge</Badge>,
       );
-      expect(container.firstChild).toHaveClass('custom-class');
+      // `className` lands on the inner badge `<div>`, not the `<SkeletonBox>`
+      // wrapper that is `container.firstChild`.
+      expect(container.querySelector('div')).toHaveClass('custom-class');
     });
 
     it('truncates long text', () => {

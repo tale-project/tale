@@ -2,6 +2,8 @@
 
 import * as RadioGroupPrimitive from '@radix-ui/react-radio-group';
 import { Description } from '@tale/ui/description';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Circle } from 'lucide-react';
 import {
   forwardRef,
@@ -106,7 +108,9 @@ interface RadioGroupItemProps extends ComponentPropsWithoutRef<
   description?: ReactNode;
 }
 
-export const RadioGroupItem = forwardRef<
+// Plain control — the real radio (+ optional label/description). No skeleton
+// logic of its own.
+const RadioGroupItemBase = forwardRef<
   ComponentRef<typeof RadioGroupPrimitive.Item>,
   RadioGroupItemProps
 >(({ className, label, description, id: providedId, ...props }, ref) => {
@@ -160,5 +164,27 @@ export const RadioGroupItem = forwardRef<
       )}
     </label>
   );
+});
+RadioGroupItemBase.displayName = 'RadioGroupItemBase';
+
+/**
+ * Skeleton-aware RadioGroupItem. Inside a `<Skeletonize loading>` it masks the
+ * plain control by rendering it inside a `<SkeletonBox>` — laid out invisibly
+ * to set the exact size, pulse overlay on top — so the skeleton can never
+ * drift.
+ */
+export const RadioGroupItem = forwardRef<
+  ComponentRef<typeof RadioGroupPrimitive.Item>,
+  RadioGroupItemProps
+>((props, ref) => {
+  const loading = useSkeleton();
+  if (loading) {
+    return (
+      <SkeletonBox>
+        <RadioGroupItemBase {...props} ref={ref} />
+      </SkeletonBox>
+    );
+  }
+  return <RadioGroupItemBase {...props} ref={ref} />;
 });
 RadioGroupItem.displayName = RadioGroupPrimitive.Item.displayName;

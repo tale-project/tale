@@ -42,6 +42,7 @@ import {
   useVoiceModeEffective,
   useVoiceOutputChunker,
 } from '../hooks/use-voice-output';
+import { hasThoughtSteps } from '../utils/build-thought-timeline';
 import { injectCitationTags } from '../utils/inject-citation-tags';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
 import { AssistantMessageContent } from './assistant-message-content';
@@ -58,6 +59,7 @@ import type { Message } from './message-bubble/types';
 import { MessageFeedback } from './message-feedback';
 import { MessageInfoDialog } from './message-info-dialog';
 import { SourceCards } from './source-cards';
+import { ThoughtTimeline } from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
 export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
@@ -217,7 +219,14 @@ function MessageBubbleComponent({
   const contentRef = useRef<HTMLDivElement | null>(null);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { metadata } = useMessageMetadata(message.id, message.threadId);
+  // Only assistant messages consume metadata (blockedReason gates on
+  // assistant role below; citations render only for `!isUser`). Skipping the
+  // subscription for user messages halves the per-message query count in a
+  // typical thread. `MessageInfoDialog` already tolerates undefined metadata.
+  const { metadata } = useMessageMetadata(
+    message.role === 'assistant' ? message.id : null,
+    message.threadId,
+  );
   const { citations, hasCitations } = useCitations(metadata?.citations);
   // Guardrails block: when the pipeline tombstoned this message we replace
   // the entire content area with <BlockedNotice/> so reasoning, tool calls,
@@ -258,13 +267,37 @@ function MessageBubbleComponent({
   const galleryImages = useMessageGallery(message);
 
   const displayContent = message.content ?? '';
-  // Only normalize pipes for assistant messages (markdown table rendering);
-  // user messages must be rendered verbatim to preserve content integrity.
-  const normalizedContent = displayContent.replace(/\|\|+/g, '|');
-  // Inject citation tags for known citation numbers so [N] renders as interactive components
+  // Thought-process timeline (assistant only): reasoning + tool activity from
+  // the message parts. Drives bubble padding so an empty-but-thinking bubble
+  // still has chrome. Hidden for guardrails-blocked messages. Use the cheap
+  // predicate here — ThoughtTimeline builds the full step list itself.
+  //
+  // No metadata-loading gate. For a message first observed as NON-streaming
+  // (history reload of an already-blocked message) ThoughtTimeline is COLLAPSED
+  // by default (active = isStreaming = false → expanded = userToggled), so it
+  // can only flash the one-line summary ("used N tools"), never the raw
+  // chain-of-thought text, and <BlockedNotice/> swaps the content out the
+  // instant `blockedReason` resolves. The streamed-then-output-blocked case is
+  // a SEPARATE, pre-existing window: a live output-direction block streams
+  // reasoning deltas (rendered expanded while active) before the tombstone +
+  // blockedReason propagate, so reasoning IS briefly visible there — gating
+  // showTimeline during streaming to hide it would reintroduce the stream-end
+  // blink (the `stream:<id>` row swaps to the persisted `_id`, recreating a
+  // cold metadata query) and any latch bridging that swap reopened the leak, so
+  // we accept the live window and rely on collapse-by-default for history.
+  const showTimeline = !isUser && !isBlocked && hasThoughtSteps(message.parts);
+  // Normalize pipes (markdown table rendering) + inject citation tags so [N]
+  // renders as interactive components. Folded into one memo keyed on the raw
+  // content so the regex passes don't re-run on render churn that doesn't
+  // change the text (e.g. parts/streaming-flag updates). User messages are
+  // rendered verbatim elsewhere to preserve content integrity.
   const assistantContent = useMemo(
-    () => injectCitationTags(normalizedContent, citationNumbers),
-    [normalizedContent, citationNumbers],
+    () =>
+      injectCitationTags(
+        displayContent.replace(/\|\|+/g, '|'),
+        citationNumbers,
+      ),
+    [displayContent, citationNumbers],
   );
 
   // Map each filePart/attachment to its gallery index (-1 for non-images)
@@ -355,9 +388,26 @@ function MessageBubbleComponent({
           isUser
             ? 'bg-muted text-foreground max-w-xs lg:max-w-md'
             : 'text-foreground bg-background w-full min-w-0',
-          (displayContent || message.isAborted || isBlocked) && 'px-4 py-3',
+          (displayContent || message.isAborted || isBlocked || showTimeline) &&
+            'px-4 py-3',
         )}
       >
+        {/* Thought process (reasoning + tools): above the answer, persists
+            collapsed in history. Hidden for guardrails-blocked messages. */}
+        {showTimeline && (
+          <ThoughtTimeline
+            parts={message.parts}
+            isStreaming={!!isAssistantStreaming}
+            hasAnswerStarted={!!displayContent}
+            // Only timeToFirstTokenMs (pre-answer "thinking" time), never
+            // durationMs (the FULL turn): a reasoning/tool-only or
+            // aborted/truncated turn leaves TTFT undefined, and falling back to
+            // the whole-turn duration would over-report "Thought for Ns". When
+            // TTFT is absent ThoughtTimeline shows the honest duration-less
+            // summary ("Used N tools" / "Showed its reasoning") instead.
+            durationMs={metadata?.timeToFirstTokenMs}
+          />
+        )}
         {isBlocked && blockedReason ? (
           <BlockedNotice
             code={blockedReason.code}
@@ -569,14 +619,65 @@ function MessageBubbleComponent({
         {!isUser &&
           !isAssistantStreaming &&
           (!!displayContent ||
-            (message.fileParts && message.fileParts.length > 0)) &&
-          (!hideFeedback && organizationId && message.threadId ? (
-            <MessageFeedback
-              messageId={message.id}
-              threadId={message.threadId}
-              organizationId={organizationId}
-              before={
-                <>
+            (message.fileParts && message.fileParts.length > 0)) && (
+            // Fade the post-answer toolbar in (opacity-only, no layout shift)
+            // so it doesn't snap into existence the instant streaming ends.
+            <div className="animate-content-in">
+              {!hideFeedback && organizationId && message.threadId ? (
+                <MessageFeedback
+                  messageId={message.id}
+                  threadId={message.threadId}
+                  organizationId={organizationId}
+                  before={
+                    <>
+                      <Tooltip
+                        content={
+                          isCopied ? t('actions.copied') : t('actions.copy')
+                        }
+                        side="bottom"
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="p-1"
+                          onClick={handleCopy}
+                        >
+                          {isCopied ? (
+                            <CheckIcon className="text-success size-4" />
+                          ) : (
+                            <CopyIcon className="size-4" />
+                          )}
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content={t('actions.showInfo')} side="bottom">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="p-1"
+                          onClick={handleInfoClick}
+                        >
+                          <Info className="size-4" />
+                        </Button>
+                      </Tooltip>
+                    </>
+                  }
+                  after={
+                    onFork ? (
+                      <Tooltip content={tChat('forkChat')} side="bottom">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="p-1"
+                          onClick={handleForkClick}
+                        >
+                          <GitFork className="size-4" />
+                        </Button>
+                      </Tooltip>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                <div className="flex items-start gap-1 pt-2">
                   <Tooltip
                     content={isCopied ? t('actions.copied') : t('actions.copy')}
                     side="bottom"
@@ -604,66 +705,22 @@ function MessageBubbleComponent({
                       <Info className="size-4" />
                     </Button>
                   </Tooltip>
-                </>
-              }
-              after={
-                onFork ? (
-                  <Tooltip content={tChat('forkChat')} side="bottom">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="p-1"
-                      onClick={handleForkClick}
-                    >
-                      <GitFork className="size-4" />
-                    </Button>
-                  </Tooltip>
-                ) : undefined
-              }
-            />
-          ) : (
-            <div className="flex items-start gap-1 pt-2">
-              <Tooltip
-                content={isCopied ? t('actions.copied') : t('actions.copy')}
-                side="bottom"
-              >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="p-1"
-                  onClick={handleCopy}
-                >
-                  {isCopied ? (
-                    <CheckIcon className="text-success size-4" />
-                  ) : (
-                    <CopyIcon className="size-4" />
+                  {onFork && (
+                    <Tooltip content={tChat('forkChat')} side="bottom">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="p-1"
+                        onClick={handleForkClick}
+                      >
+                        <GitFork className="size-4" />
+                      </Button>
+                    </Tooltip>
                   )}
-                </Button>
-              </Tooltip>
-              <Tooltip content={t('actions.showInfo')} side="bottom">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="p-1"
-                  onClick={handleInfoClick}
-                >
-                  <Info className="size-4" />
-                </Button>
-              </Tooltip>
-              {onFork && (
-                <Tooltip content={tChat('forkChat')} side="bottom">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="p-1"
-                    onClick={handleForkClick}
-                  >
-                    <GitFork className="size-4" />
-                  </Button>
-                </Tooltip>
+                </div>
               )}
             </div>
-          ))}
+          )}
 
         {galleryImages.length > 0 && (
           <ImagePreviewDialog
@@ -742,6 +799,85 @@ function MessageBubbleComponent({
   );
 }
 
+/**
+ * Value-compare attachments. The message list rebuilds `attachments`/`fileParts`
+ * arrays with fresh references on every streamed token (use-message-processing.ts
+ * re-maps the whole list), so a reference check would re-render every
+ * attachment-bearing bubble on each tick. A length + per-item value check keeps
+ * those bubbles stable while still catching genuine changes — crucially the
+ * render-driving fields (`previewUrl`/`fileName`/`fileType`), not just `fileId`,
+ * so a thumbnail resolving in place (same id, new previewUrl) still re-renders.
+ */
+function sameAttachments(
+  a: Message['attachments'],
+  b: Message['attachments'],
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (
+      a[i].fileId !== b[i].fileId ||
+      a[i].fileType !== b[i].fileType ||
+      a[i].previewUrl !== b[i].previewUrl ||
+      a[i].fileName !== b[i].fileName
+    )
+      return false;
+  }
+  return true;
+}
+
+function sameFileParts(
+  a: Message['fileParts'],
+  b: Message['fileParts'],
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (
+      a[i].url !== b[i].url ||
+      a[i].mediaType !== b[i].mediaType ||
+      a[i].filename !== b[i].filename
+    )
+      return false;
+  }
+  return true;
+}
+
+/**
+ * Structural compare of UIMessage parts for the thought-process timeline. The
+ * message list rebuilds `parts` with fresh references on every streamed token,
+ * so a reference check would never re-render — but a deep check would re-render
+ * every bubble per tick. Compare length + per-part identity (type, state,
+ * text length, toolCallId): enough to catch reasoning growth and tool
+ * state transitions without churning unrelated bubbles.
+ */
+function isPartRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
+}
+
+function sameParts(a: Message['parts'], b: Message['parts']): boolean {
+  if (a === b) return true;
+  if (!a || !b) return a === b;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const pa = a[i];
+    const pb = b[i];
+    if (!isPartRecord(pa) || !isPartRecord(pb)) {
+      if (pa !== pb) return false;
+      continue;
+    }
+    if (pa.type !== pb.type) return false;
+    if (pa.state !== pb.state) return false;
+    if (pa.toolCallId !== pb.toolCallId) return false;
+    const ta = typeof pa.text === 'string' ? pa.text.length : 0;
+    const tb = typeof pb.text === 'string' ? pb.text.length : 0;
+    if (ta !== tb) return false;
+  }
+  return true;
+}
+
 export const MessageBubble = memo(
   MessageBubbleComponent,
   (prevProps, nextProps) => {
@@ -751,8 +887,12 @@ export const MessageBubble = memo(
       prevProps.message.isStreaming === nextProps.message.isStreaming &&
       prevProps.message.isAborted === nextProps.message.isAborted &&
       prevProps.message.isFailed === nextProps.message.isFailed &&
-      prevProps.message.attachments === nextProps.message.attachments &&
-      prevProps.message.fileParts === nextProps.message.fileParts &&
+      sameAttachments(
+        prevProps.message.attachments,
+        nextProps.message.attachments,
+      ) &&
+      sameFileParts(prevProps.message.fileParts, nextProps.message.fileParts) &&
+      sameParts(prevProps.message.parts, nextProps.message.parts) &&
       prevProps.message.threadId === nextProps.message.threadId &&
       prevProps.className === nextProps.className &&
       prevProps.organizationId === nextProps.organizationId &&

@@ -2,9 +2,11 @@ import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
+import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { AutomationsActionMenu } from '@/app/features/automations/components/automations-action-menu';
 import { AutomationsTable } from '@/app/features/automations/components/automations-table';
+import type { AutomationTableItem } from '@/app/features/automations/components/automations-table';
 import { useAutomationsTableConfig } from '@/app/features/automations/hooks/use-automations-table-config';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -26,6 +28,7 @@ function AutomationsPage() {
   const { id: organizationId } = Route.useParams();
   const { folder } = Route.useSearch();
   const { t } = useT('accessDenied');
+  const { t: tAutomations } = useT('automations');
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -33,14 +36,32 @@ function AutomationsPage() {
     useAutomationsTableConfig(organizationId);
 
   if (abilityLoading) {
+    // The DataTable renders its own loading skeleton; mirror AutomationsTable's
+    // header so the layout doesn't shift once the ability check resolves.
     return (
       <div className="flex flex-col gap-4 p-4">
-        <DataTableSkeleton
+        <div className="flex items-center justify-between gap-4">
+          <SearchInput
+            wrapperClassName="w-full max-w-sm"
+            placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
+            value=""
+            onChange={() => {}}
+            readOnly
+          />
+          <AutomationsActionMenu organizationId={organizationId} />
+        </div>
+        <DataTable<AutomationTableItem>
           columns={columns}
-          rows={5}
-          searchPlaceholder={searchPlaceholder}
-          noFirstColumnAvatar
-          actionMenu={<AutomationsActionMenu organizationId={organizationId} />}
+          data={[]}
+          isLoading
+          approxRowCount={5}
+          infiniteScroll={{
+            hasMore: false,
+            onLoadMore: () => {},
+            entityLabel: tAutomations('entityLabel'),
+            totalCount: 0,
+          }}
         />
       </div>
     );

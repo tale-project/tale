@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -52,9 +54,11 @@ export function DocumentPreviewDocx({ url }: DocumentPreviewDocxProps) {
   return (
     <PreviewPane>
       {isLoading && (
-        <div className="mt-4 text-center text-gray-500">
-          {t('preview.loading')}
-        </div>
+        <Skeletonize loading label={t('preview.loading')} className="contents">
+          <SkeletonBox>
+            <div className="mx-auto aspect-[1/1.4] w-full max-w-2xl" />
+          </SkeletonBox>
+        </Skeletonize>
       )}
       {!isLoading && error && (
         <div className="mt-4 text-center text-red-500">

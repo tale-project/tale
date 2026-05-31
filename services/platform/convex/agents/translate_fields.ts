@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
+import { reasoningProviderOptionsFor } from '../lib/agent_response/reasoning/build_reasoning_options';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 
@@ -117,7 +118,12 @@ export async function translateFields(
   );
 
   const agent = createTranslationAgent(args.targetLocale, languageModel);
-  const callProviderOptions = buildCallProviderOptions(modelData);
+  // Translation is mechanical — force minimal reasoning on reasoning models.
+  const callProviderOptions = reasoningProviderOptionsFor(
+    modelData,
+    buildCallProviderOptions(modelData),
+    { kind: 'utility' },
+  );
   const userId = `translate-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const prompt = JSON.stringify(flat);
 

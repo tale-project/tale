@@ -2,6 +2,8 @@
 
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { Description } from '@tale/ui/description';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Check, ChevronDown, Circle, Search } from 'lucide-react';
 import {
@@ -117,7 +119,9 @@ function findNextEnabledIndex(
   return options[index]?.disabled ? -1 : index;
 }
 
-export function SearchableSelect({
+// Plain control — the real default trigger (or caller-supplied `trigger`) +
+// searchable popover (+ optional label/description). No skeleton logic.
+function SearchableSelectBase({
   value,
   onValueChange,
   options,
@@ -388,6 +392,25 @@ export function SearchableSelect({
       )}
     </div>
   );
+}
+
+/**
+ * Skeleton-aware SearchableSelect. Inside a `<Skeletonize loading>` it masks
+ * the plain control by rendering it inside a `<SkeletonBox>` — laid out
+ * invisibly to set the exact size, pulse overlay on top — so the skeleton can
+ * never drift. Only the DEFAULT trigger is masked: when a custom `trigger` is
+ * supplied the caller owns its own skeleton, so it renders normally.
+ */
+export function SearchableSelect(props: SearchableSelectProps) {
+  const loading = useSkeleton();
+  if (loading && !props.trigger) {
+    return (
+      <SkeletonBox>
+        <SearchableSelectBase {...props} />
+      </SkeletonBox>
+    );
+  }
+  return <SearchableSelectBase {...props} />;
 }
 
 function SearchableSelectOptionItem({

@@ -1,0 +1,46 @@
+import type { ReasoningLexicon } from '../types';
+
+export const id: ReasoningLexicon = {
+  locale: 'id',
+  name: 'Indonesian',
+  boundaryMode: 'word',
+  hardVerbs: [
+    'analisis',
+    'buktikan',
+    'debug',
+    'optimalkan',
+    'rancang',
+    'implementasikan',
+    'bandingkan',
+    'nalar',
+    'algoritma',
+  ],
+  easyVerbs: [
+    'terjemahkan',
+    'ringkas',
+    'parafrase',
+    'tulis ulang',
+    'perpendek',
+    'format',
+  ],
+  trivialAcks: [
+    'halo',
+    'hai',
+    'terima kasih',
+    'makasih',
+    'oke',
+    'ya',
+    'tidak',
+    'tolong',
+  ],
+  creativeVerbs: ['tulis', 'cerita', 'puisi', 'bayangkan', 'ciptakan', 'lagu'],
+  analyticalVerbs: [
+    'hitung',
+    'buktikan',
+    'debug',
+    'ekstrak',
+    'klasifikasikan',
+    'selesaikan',
+    'verifikasi',
+  ],
+};

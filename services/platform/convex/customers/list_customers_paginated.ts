@@ -9,6 +9,7 @@ import type { PaginationOptions, PaginationResult } from 'convex/server';
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import { customersSearchStrategy, runEntitySearch } from '../lib/search';
 
 interface FilterIndex {
   field: string;
@@ -27,6 +28,9 @@ interface ListCustomersPaginatedArgs {
   status?: string;
   source?: string;
   locale?: string;
+  /** Case-insensitive backend search over name / email / externalId. When set,
+   *  routes through the shared search contract instead of the plain list. */
+  search?: string;
 }
 
 type FilterArgs = Record<string, string | undefined>;
@@ -63,6 +67,22 @@ export async function listCustomersPaginated(
   ctx: QueryCtx,
   args: ListCustomersPaginatedArgs,
 ): Promise<PaginationResult<Doc<'customers'>>> {
+  // Backend search path: org-scoped substring scan over name/email/externalId
+  // via the shared contract, with facets applied as a post-filter. Behind the
+  // same `{ page, isDone, continueCursor }` shape as the plain list.
+  if (args.search?.trim()) {
+    const accessFilter = (row: Doc<'customers'>): boolean =>
+      (!args.status || row.status === args.status) &&
+      (!args.source || row.source === args.source) &&
+      (!args.locale || row.locale === args.locale);
+    return await runEntitySearch(ctx, customersSearchStrategy, {
+      organizationId: args.organizationId,
+      term: args.search,
+      paginationOpts: args.paginationOpts,
+      accessFilter,
+    });
+  }
+
   const filterArgs: FilterArgs = {
     status: args.status,
     source: args.source,

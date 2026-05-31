@@ -1,5 +1,7 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 
+import { ensureConvexQuery } from '@/app/lib/loader-preload';
+import { api } from '@/convex/_generated/api';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 const RequestsListSection = lazyComponent(() =>
@@ -17,6 +19,15 @@ const DsarPolicyEditor = lazyComponent(() =>
 export const Route = createFileRoute(
   '/dashboard/$id/settings/governance/data-subject-requests',
 )({
+  // Warm the single-row DSAR policy the editor at the top of this page gates
+  // on, so it paints its real values on first render (no skeleton flash). The
+  // requests list is a paginated query and stays on its own loading path.
+  loader: ({ context, params }) =>
+    ensureConvexQuery(context, api.governance.dsar_policy.getDsarPolicyForUi, {
+      organizationId: params.id,
+    }).catch((error: unknown) => {
+      console.warn('Failed to preload DSAR policy', error);
+    }),
   component: DataSubjectRequestsRoute,
 });
 

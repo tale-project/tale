@@ -3,7 +3,8 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Pencil, Users } from 'lucide-react';
 import { useState } from 'react';
@@ -72,17 +73,25 @@ function TeamDetailDialogContent({
           </Text>
 
           {isLoading ? (
-            <Stack gap={3}>
-              {Array.from({ length: 3 }).map((_, i) => (
-                <HStack key={i} gap={3} align="center">
-                  <Skeleton className="size-8 shrink-0 rounded-full" />
-                  <Stack gap={1} className="flex-1">
-                    <Skeleton className="h-3.5 w-32" />
-                    <Skeleton className="h-3 w-48" />
-                  </Stack>
-                </HStack>
-              ))}
-            </Stack>
+            <Skeletonize loading>
+              <Stack gap={3}>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <HStack key={i} gap={3} align="center">
+                    <SkeletonCircle>
+                      <div className="size-8 shrink-0" />
+                    </SkeletonCircle>
+                    <Stack gap={1} className="flex-1">
+                      <SkeletonBox>
+                        <div className="h-3.5 w-32" />
+                      </SkeletonBox>
+                      <SkeletonBox>
+                        <div className="h-3 w-48" />
+                      </SkeletonBox>
+                    </Stack>
+                  </HStack>
+                ))}
+              </Stack>
+            </Skeletonize>
           ) : !teamMembers || teamMembers.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-6">
               <Users className="text-muted-foreground size-8" />

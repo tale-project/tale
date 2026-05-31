@@ -1,0 +1,45 @@
+import type { ReasoningLexicon } from '../types';
+
+export const sv: ReasoningLexicon = {
+  locale: 'sv',
+  name: 'Swedish',
+  boundaryMode: 'word',
+  hardVerbs: [
+    'analysera',
+    'bevisa',
+    'felsök',
+    'optimera',
+    'designa',
+    'implementera',
+    'jämför',
+    'resonera',
+    'algoritm',
+  ],
+  easyVerbs: [
+    'översätt',
+    'sammanfatta',
+    'omformulera',
+    'skriv om',
+    'förkorta',
+    'formatera',
+  ],
+  trivialAcks: ['hej', 'tjena', 'hallå', 'tack', 'ok', 'ja', 'nej'],
+  creativeVerbs: [
+    'skriv',
+    'berättelse',
+    'dikt',
+    'föreställ',
+    'hitta på',
+    'sång',
+    'kreativ',
+  ],
+  analyticalVerbs: [
+    'beräkna',
+    'bevisa',
+    'felsök',
+    'extrahera',
+    'klassificera',
+    'lös',
+    'verifiera',
+  ],
+};

@@ -7,6 +7,8 @@ import {
   type FeedbackKind,
   type FeedbackPeriod,
 } from '@/app/features/analytics/feedback/feedback-metrics-page';
+import { ensureConvexQuery } from '@/app/lib/loader-preload';
+import { api } from '@/convex/_generated/api';
 
 const searchSchema = z.object({
   period: z.enum(['1', '7', '30', '90', 'all']).optional(),
@@ -23,6 +25,20 @@ export const Route = createFileRoute(
   '/dashboard/$id/settings/governance/feedback',
 )({
   validateSearch: searchSchema,
+  // Warm the aggregated feedback stats for the default view (7d / no filters)
+  // so a warm navigation paints the real cards+arena+tables instead of the
+  // skeleton. Bounded aggregate; never fail the transition on a transient/auth
+  // error (the page's error/empty branches still render correctly).
+  loader: ({ context, params }) =>
+    ensureConvexQuery(context, api.feedback.queries.getFeedbackStats, {
+      organizationId: params.id,
+      periodDays: 7,
+      agentSlug: undefined,
+      model: undefined,
+      provider: undefined,
+    }).catch((error: unknown) => {
+      console.warn('Failed to preload feedback stats', error);
+    }),
   component: FeedbackRoute,
 });
 

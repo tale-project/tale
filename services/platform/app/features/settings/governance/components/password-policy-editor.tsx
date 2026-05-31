@@ -2,7 +2,7 @@
 
 import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
@@ -46,6 +46,14 @@ function parseConfig(raw: unknown): PasswordPolicyConfig {
   return result.success ? result.data : DEFAULT_PASSWORD_POLICY;
 }
 
+// =============================================================================
+// Single editor — owns data fetching, the form controller, save/toast wiring,
+// and the loading state. Renders the REAL layout once, always, wrapped in
+// `<Skeletonize>`. The skeleton-aware `<Input>`/`<Checkbox>`/`<Switch>` mask
+// themselves to their exact size while loading. The `rotationDays` input
+// renders once `rotationEnabled` is true (matching the loaded behavior, since
+// the form value is `undefined`/`false` while loading).
+// =============================================================================
 export function PasswordPolicyEditor({
   organizationId,
 }: PasswordPolicyEditorProps) {
@@ -135,151 +143,121 @@ export function PasswordPolicyEditor({
   });
 
   const cannotManage = ability.cannot('write', 'orgSettings');
+  const canEdit = !cannotManage;
 
   const {
-    form: {
-      register,
-      handleSubmit,
-      watch,
-      setValue,
-      formState: { errors },
-    },
-  } = editor;
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = editor.form;
 
   const rotationEnabled = watch('rotationEnabled') ?? false;
 
-  const skeleton = (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <Skeleton className="h-6 w-32" />
-        <Skeleton className="h-4 w-80 max-w-full" />
-      </div>
-      <div className="flex max-w-2xl flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Skeleton className="h-3.5 w-32" />
-          <Skeleton className="h-8 w-full rounded-md" />
-          <Skeleton className="mt-0.5 h-3 w-56 max-w-full" />
-        </div>
-        <div className="flex flex-col gap-5">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center gap-3">
-              <Skeleton className="size-4 rounded-sm" />
-              <Skeleton className="h-3.5 w-48" />
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center gap-3">
-          <Skeleton className="h-3.5 w-40" />
-          <Skeleton className="h-[1.15rem] w-8 rounded-full" />
-        </div>
-        <Skeleton className="h-8 w-20 rounded-md" />
-      </div>
-    </div>
-  );
-
-  if (isLoading) {
-    return <div aria-busy="true">{skeleton}</div>;
-  }
-
   return (
-    <PageSection
-      title={t('passwordPolicy.title')}
-      description={t('passwordPolicy.description')}
-    >
-      <form id={FORM_ID} onSubmit={handleSubmit((values) => save(values))}>
-        <fieldset
-          disabled={cannotManage || editor.isLoading}
-          className="contents"
-        >
-          <Stack gap={6} className="max-w-2xl">
-            <Stack gap={4}>
-              <div>
-                <Input
-                  label={t('passwordPolicy.minLength')}
-                  type="number"
-                  size="sm"
-                  min={6}
-                  max={128}
-                  step={1}
-                  errorMessage={errors.minLength?.message}
-                  {...register('minLength', { valueAsNumber: true })}
-                />
-                <Text variant="muted" className="mt-1 text-xs">
-                  {t('passwordPolicy.minLengthHint')}
-                </Text>
-              </div>
-
-              <Checkbox
-                label={t('passwordPolicy.requireUpper')}
-                checked={watch('requireUpper') ?? false}
-                onCheckedChange={(v) =>
-                  setValue('requireUpper', Boolean(v), { shouldDirty: true })
-                }
-                disabled={cannotManage}
-              />
-              <Checkbox
-                label={t('passwordPolicy.requireLower')}
-                checked={watch('requireLower') ?? false}
-                onCheckedChange={(v) =>
-                  setValue('requireLower', Boolean(v), { shouldDirty: true })
-                }
-                disabled={cannotManage}
-              />
-              <Checkbox
-                label={t('passwordPolicy.requireDigit')}
-                checked={watch('requireDigit') ?? false}
-                onCheckedChange={(v) =>
-                  setValue('requireDigit', Boolean(v), { shouldDirty: true })
-                }
-                disabled={cannotManage}
-              />
-              <Checkbox
-                label={t('passwordPolicy.requireSpecial')}
-                checked={watch('requireSpecial') ?? false}
-                onCheckedChange={(v) =>
-                  setValue('requireSpecial', Boolean(v), { shouldDirty: true })
-                }
-                disabled={cannotManage}
-              />
-
-              <Switch
-                label={t('passwordPolicy.rotationEnabled')}
-                checked={rotationEnabled}
-                onCheckedChange={(v) =>
-                  setValue('rotationEnabled', v, { shouldDirty: true })
-                }
-                disabled={cannotManage || editor.isSaving}
-              />
-              {rotationEnabled && (
+    <Skeletonize loading={isLoading} label={t('passwordPolicy.title')}>
+      <PageSection
+        title={t('passwordPolicy.title')}
+        description={t('passwordPolicy.description')}
+      >
+        <form id={FORM_ID} onSubmit={handleSubmit(save)}>
+          <fieldset
+            disabled={!canEdit || editor.isLoading}
+            className="contents"
+          >
+            <Stack gap={6} className="max-w-2xl">
+              <Stack gap={4}>
                 <div>
                   <Input
-                    label={t('passwordPolicy.rotationDays')}
+                    label={t('passwordPolicy.minLength')}
                     type="number"
                     size="sm"
-                    min={1}
-                    max={3650}
+                    min={6}
+                    max={128}
                     step={1}
-                    errorMessage={errors.rotationDays?.message}
-                    {...register('rotationDays', { valueAsNumber: true })}
+                    errorMessage={errors.minLength?.message}
+                    {...register('minLength', { valueAsNumber: true })}
                   />
                   <Text variant="muted" className="mt-1 text-xs">
-                    {t('passwordPolicy.rotationDaysHint')}
+                    {t('passwordPolicy.minLengthHint')}
                   </Text>
                 </div>
-              )}
-            </Stack>
 
-            <HStack justify="end">
-              <EditorActions
-                controller={editor}
-                formId={FORM_ID}
-                canEdit={!cannotManage}
-                entityKind="governance_password_policy"
-              />
-            </HStack>
-          </Stack>
-        </fieldset>
-      </form>
-    </PageSection>
+                <Checkbox
+                  label={t('passwordPolicy.requireUpper')}
+                  checked={watch('requireUpper') ?? false}
+                  onCheckedChange={(v) =>
+                    setValue('requireUpper', Boolean(v), { shouldDirty: true })
+                  }
+                  disabled={!canEdit}
+                />
+                <Checkbox
+                  label={t('passwordPolicy.requireLower')}
+                  checked={watch('requireLower') ?? false}
+                  onCheckedChange={(v) =>
+                    setValue('requireLower', Boolean(v), { shouldDirty: true })
+                  }
+                  disabled={!canEdit}
+                />
+                <Checkbox
+                  label={t('passwordPolicy.requireDigit')}
+                  checked={watch('requireDigit') ?? false}
+                  onCheckedChange={(v) =>
+                    setValue('requireDigit', Boolean(v), { shouldDirty: true })
+                  }
+                  disabled={!canEdit}
+                />
+                <Checkbox
+                  label={t('passwordPolicy.requireSpecial')}
+                  checked={watch('requireSpecial') ?? false}
+                  onCheckedChange={(v) =>
+                    setValue('requireSpecial', Boolean(v), {
+                      shouldDirty: true,
+                    })
+                  }
+                  disabled={!canEdit}
+                />
+
+                <Switch
+                  label={t('passwordPolicy.rotationEnabled')}
+                  checked={rotationEnabled}
+                  onCheckedChange={(v) =>
+                    setValue('rotationEnabled', v, { shouldDirty: true })
+                  }
+                  disabled={!canEdit || editor.isSaving}
+                />
+                {rotationEnabled && (
+                  <div>
+                    <Input
+                      label={t('passwordPolicy.rotationDays')}
+                      type="number"
+                      size="sm"
+                      min={1}
+                      max={3650}
+                      step={1}
+                      errorMessage={errors.rotationDays?.message}
+                      {...register('rotationDays', { valueAsNumber: true })}
+                    />
+                    <Text variant="muted" className="mt-1 text-xs">
+                      {t('passwordPolicy.rotationDaysHint')}
+                    </Text>
+                  </div>
+                )}
+              </Stack>
+
+              <HStack justify="end">
+                <EditorActions
+                  controller={editor}
+                  formId={FORM_ID}
+                  canEdit={canEdit}
+                  entityKind="governance_password_policy"
+                />
+              </HStack>
+            </Stack>
+          </fieldset>
+        </form>
+      </PageSection>
+    </Skeletonize>
   );
 }

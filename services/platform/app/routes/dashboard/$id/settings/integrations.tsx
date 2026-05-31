@@ -12,7 +12,6 @@ import {
   type IntegrationListItem,
   Integrations,
 } from '@/app/features/settings/integrations/components/integrations';
-import { IntegrationsPageSkeleton } from '@/app/features/settings/integrations/components/integrations-page-skeleton';
 import {
   useIntegrationCredentials,
   useIntegrations,
@@ -103,13 +102,18 @@ function IntegrationsPage() {
     }
   }, [search.integration_oauth2, search.integration_oauth2_error]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (abilityLoading || isOrgLoading || isIntegrationsLoading || isSsoLoading) {
-    return <IntegrationsPageSkeleton />;
-  }
-
-  if (ability.cannot('read', 'developerSettings')) {
+  // Access is only knowable once the ability has loaded; until then the page
+  // chrome (title + tabs) renders with a skeletonized card grid so nothing
+  // shifts when access resolves and the real list streams in.
+  if (!abilityLoading && ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={t('integrations')} />;
   }
+
+  // The card grid masks while the ability, org, file list, or SSO read are in
+  // flight — the list resolves under stable chrome instead of swapping in from
+  // a separate page-level skeleton.
+  const isAppsLoading =
+    abilityLoading || isOrgLoading || isIntegrationsLoading || isSsoLoading;
 
   const credentialsBySlug = new Map(
     (credentials ?? []).map(
@@ -212,6 +216,7 @@ function IntegrationsPage() {
                 onTabChange={handleTabChange}
                 initialSlug={search.slug}
                 onInitialSlugConsumed={clearSlugParam}
+                isLoading={isAppsLoading}
               />
             ),
           },

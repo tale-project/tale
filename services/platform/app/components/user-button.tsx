@@ -4,7 +4,8 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useInstallPrompt } from '@tale/ui/pwa/use-install-prompt';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
@@ -160,48 +161,63 @@ export function UserButton({
             side="top"
           >
             <div className="flex min-w-0 flex-1 cursor-default flex-col gap-1">
-              {loading || !user ? (
-                <>
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-3.5 w-40" />
-                </>
-              ) : (
-                <>
-                  <Text className="font-semibold">{displayName}</Text>
-                  {displayName !== user.email && (
-                    <Text variant="muted">{user.email}</Text>
-                  )}
-                  {currentVersion && (
-                    <Text variant="muted" className="text-xs">
-                      {t('userButton.currentVersion', {
-                        version: currentVersion,
-                      })}
-                      {' · '}
-                      <Link
-                        to="/dashboard/changelog"
-                        search={{
-                          from: lastSeenVersion,
-                          to: currentVersion,
-                        }}
-                        onClick={markChangelogSeen}
-                        className="text-foreground relative inline-flex cursor-pointer items-center underline underline-offset-2 hover:opacity-80"
-                      >
-                        {t('userButton.whatsNew')}
-                        {hasUnseenVersion && (
-                          <>
-                            <span className="sr-only">
-                              {t('userButton.updateAvailable')}
-                            </span>
-                            <span
-                              className="ml-1.5 size-1.5 rounded-full bg-red-500"
-                              aria-hidden="true"
-                            />
-                          </>
-                        )}
-                      </Link>
-                    </Text>
-                  )}
-                </>
+              {/* One real label tree, masked while auth/member context loads.
+                  Name + email are the dynamic leaves; the version row only
+                  exists once loaded (it has no placeholder counterpart). */}
+              <Skeletonize
+                loading={loading || !user}
+                label={t('userButton.defaultName')}
+              >
+                <Text className="font-semibold">
+                  <SkeletonBox>
+                    {!loading && user ? (
+                      displayName
+                    ) : (
+                      <span className="inline-block h-4 w-32" />
+                    )}
+                  </SkeletonBox>
+                </Text>
+                {(loading || !user || displayName !== user.email) && (
+                  <Text variant="muted">
+                    <SkeletonBox>
+                      {!loading && user ? (
+                        user.email
+                      ) : (
+                        <span className="inline-block h-3.5 w-40" />
+                      )}
+                    </SkeletonBox>
+                  </Text>
+                )}
+              </Skeletonize>
+              {!loading && user && currentVersion && (
+                <Text variant="muted" className="text-xs">
+                  {t('userButton.currentVersion', {
+                    version: currentVersion,
+                  })}
+                  {' · '}
+                  <Link
+                    to="/dashboard/changelog"
+                    search={{
+                      from: lastSeenVersion,
+                      to: currentVersion,
+                    }}
+                    onClick={markChangelogSeen}
+                    className="text-foreground relative inline-flex cursor-pointer items-center underline underline-offset-2 hover:opacity-80"
+                  >
+                    {t('userButton.whatsNew')}
+                    {hasUnseenVersion && (
+                      <>
+                        <span className="sr-only">
+                          {t('userButton.updateAvailable')}
+                        </span>
+                        <span
+                          className="ml-1.5 size-1.5 rounded-full bg-red-500"
+                          aria-hidden="true"
+                        />
+                      </>
+                    )}
+                  </Link>
+                </Text>
               )}
             </div>
           </Tooltip>

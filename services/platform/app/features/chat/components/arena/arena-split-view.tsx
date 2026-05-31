@@ -65,7 +65,6 @@ function ArenaColumn({
     loadMore,
     canLoadMore,
     isLoadingMore,
-    activeMessage,
   } = useMessageProcessing(threadId);
 
   // --- Local optimistic message (independent per column) ---
@@ -233,7 +232,6 @@ function ArenaColumn({
             canLoadMore={canLoadMore}
             isLoadingMore={isLoadingMore}
             loadMore={loadMore}
-            activeMessage={activeMessage}
             isLoading={columnLoading}
             lastUserMessageRef={lastUserMessageRef}
             containerRef={containerRef}

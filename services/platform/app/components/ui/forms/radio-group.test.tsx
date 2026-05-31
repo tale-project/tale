@@ -1,3 +1,4 @@
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
@@ -195,6 +196,38 @@ describe('RadioGroup', () => {
       expect(screen.getByRole('radiogroup')).toHaveAttribute(
         'aria-describedby',
       );
+    });
+  });
+
+  describe('skeleton mode', () => {
+    it('masks the radio controls while loading', () => {
+      render(
+        <Skeletonize loading>
+          <RadioGroup
+            options={[
+              { value: 'a', label: 'Option A' },
+              { value: 'b', label: 'Option B' },
+            ]}
+          />
+        </Skeletonize>,
+      );
+      expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+      // Static option labels stay real (known at load time).
+      expect(screen.getByText('Option A')).toBeInTheDocument();
+    });
+
+    it('renders the real radio controls when not loading', () => {
+      render(
+        <Skeletonize loading={false}>
+          <RadioGroup
+            options={[
+              { value: 'a', label: 'Option A' },
+              { value: 'b', label: 'Option B' },
+            ]}
+          />
+        </Skeletonize>,
+      );
+      expect(screen.getAllByRole('radio')).toHaveLength(2);
     });
   });
 });

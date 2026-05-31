@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import { cn } from '../../lib/cn';
+import { SkeletonBox } from '../feedback/skeleton';
 
 export interface SliderProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -80,7 +81,9 @@ const inputClasses = cn(
   'focus-visible:[&::-moz-range-thumb]:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-accent-base)_20%,transparent)]',
 );
 
-export const Slider = forwardRef<HTMLInputElement, SliderProps>(
+// Plain control — the real range input + track/fill/tick overlays. No
+// skeleton logic of its own.
+const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
   (
     {
       value,
@@ -211,5 +214,20 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(
       </div>
     );
   },
+);
+SliderBase.displayName = 'SliderBase';
+
+/**
+ * Skeleton-aware Slider. Always wraps the real control in a `<SkeletonBox>`
+ * (`SliderBase` is kept separate only because it owns hooks): idle, the box is
+ * `display: contents`; inside a `<Skeletonize loading>` it masks the control
+ * with an overlay at its exact size.
+ */
+export const Slider = forwardRef<HTMLInputElement, SliderProps>(
+  (props, ref) => (
+    <SkeletonBox fullWidth>
+      <SliderBase {...props} ref={ref} />
+    </SkeletonBox>
+  ),
 );
 Slider.displayName = 'Slider';

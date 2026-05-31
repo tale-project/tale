@@ -1,6 +1,8 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Info } from 'lucide-react';
 import * as React from 'react';
 
@@ -14,7 +16,8 @@ interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {
   errorMessage?: string;
 }
 
-export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
+// Plain control — the real textarea field. No skeleton logic of its own.
+const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   (
     {
       className,
@@ -58,7 +61,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         <textarea
           id={id}
           className={cn(
-            'flex min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm transition-[border-color,box-shadow] duration-150',
+            'border-border bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[80px] w-full rounded-md border px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
             hasError && 'border-destructive focus-visible:ring-destructive',
             showShake && 'animate-shake',
             className,
@@ -88,6 +91,27 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         )}
       </div>
     );
+  },
+);
+TextareaBase.displayName = 'TextareaBase';
+
+/**
+ * Skeleton-aware Textarea. Inside a `<Skeletonize loading>` it masks the plain
+ * control by rendering it inside a `<SkeletonBox>` — the real field is laid out
+ * invisibly to set the exact height (incl. `rows`), with a pulse overlay on
+ * top, so the skeleton can never drift from the live control.
+ */
+export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
+  (props, ref) => {
+    const loading = useSkeleton();
+    if (loading) {
+      return (
+        <SkeletonBox>
+          <TextareaBase {...props} ref={ref} />
+        </SkeletonBox>
+      );
+    }
+    return <TextareaBase {...props} ref={ref} />;
   },
 );
 Textarea.displayName = 'Textarea';

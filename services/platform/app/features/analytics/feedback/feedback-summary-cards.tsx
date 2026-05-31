@@ -1,6 +1,8 @@
 'use client';
 
 import { Stack } from '@tale/ui/layout';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useTranslation } from 'react-i18next';
 
@@ -39,6 +41,7 @@ export function FeedbackSummaryCards({
 }: FeedbackSummaryCardsProps) {
   const { t } = useT('analytics');
   const { i18n } = useTranslation();
+  const loading = useSkeleton();
   const total = helpful + notHelpful;
   const positivePct = total === 0 ? 0 : helpful / total;
   const negativePct = total === 0 ? 0 : notHelpful / total;
@@ -66,9 +69,17 @@ export function FeedbackSummaryCards({
                   })
             }
           >
-            {capped ? '—' : sentimentLabel}
+            {loading ? (
+              <SkeletonBox>
+                <span className="my-0.5 inline-block h-9 w-24" />
+              </SkeletonBox>
+            ) : capped ? (
+              '—'
+            ) : (
+              sentimentLabel
+            )}
           </Text>
-          {!capped && total > 0 ? (
+          {!loading && !capped && total > 0 ? (
             <Text variant="caption">
               {t('feedback.cards.sentimentDenominator', {
                 helpful: formatNumber(helpful, i18n.language),
@@ -77,7 +88,13 @@ export function FeedbackSummaryCards({
             </Text>
           ) : null}
         </div>
-        {total > 0 ? (
+        {/* The sentiment bar only paints with data — reserve its exact 0.5rem
+            height while loading so the sentiment cell doesn't grow on load. */}
+        {loading ? (
+          <SkeletonBox fullWidth>
+            <div className="h-2 w-full rounded-full" />
+          </SkeletonBox>
+        ) : total > 0 ? (
           <div
             className="bg-muted relative h-2 w-full overflow-hidden rounded-full"
             role="img"
@@ -120,6 +137,7 @@ function Cell({
   value: string;
   accent: 'positive' | 'negative';
 }) {
+  const loading = useSkeleton();
   return (
     <Stack className="border-border border-b px-5 py-6 md:border-r md:border-b-0 last:md:border-r-0">
       <Text className="text-muted-foreground text-sm">{label}</Text>
@@ -130,7 +148,13 @@ function Cell({
           accent === 'negative' && 'text-rose-600 dark:text-rose-400',
         )}
       >
-        {value}
+        {loading ? (
+          <SkeletonBox>
+            <span className="my-0.5 inline-block h-7 w-16" />
+          </SkeletonBox>
+        ) : (
+          value
+        )}
       </Text>
     </Stack>
   );

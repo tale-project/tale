@@ -1,4 +1,5 @@
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useIsMobile } from '@tale/ui/use-is-mobile';
 import {
   createFileRoute,
@@ -127,7 +128,9 @@ function GovernanceLayout() {
         const href = `${basePath}/${item.slug}`;
         const isActive = pathname === href || pathname.startsWith(`${href}/`);
         return {
-          ...item,
+          slug: item.slug,
+          labelKey: item.labelKey,
+          icon: item.icon,
           href,
           label: t(`groups.${item.labelKey}`),
           isActive,
@@ -136,15 +139,35 @@ function GovernanceLayout() {
     [basePath, pathname, t],
   );
 
+  // The access check (and therefore the `<Outlet/>`) can't render until the
+  // ability resolves, so while it's loading mask the content pane. The sidebar
+  // nav is static (known at load time), so it always renders its real `<Link>`s
+  // — never a placeholder tree.
   if (abilityLoading) {
     return (
-      <div aria-busy="true" className={LAYOUT_ROOT_CLASSNAME}>
-        <div className={SIDEBAR_CLASSNAME}>
-          {NAV_ITEMS.map((item) => (
-            <Skeleton key={item.slug} className="h-9 w-full rounded-md" />
+      <div className={LAYOUT_ROOT_CLASSNAME}>
+        <nav aria-label={t('title')} className={SIDEBAR_CLASSNAME}>
+          {navItems.map((item) => (
+            <Link
+              key={item.slug}
+              to={item.href}
+              aria-current={item.isActive ? 'page' : undefined}
+              className={cn(
+                'rounded-md px-3 py-2 text-left text-sm transition-colors',
+                item.isActive
+                  ? 'bg-muted text-foreground font-medium'
+                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+              )}
+            >
+              {item.label}
+            </Link>
           ))}
-        </div>
-        <div className={CONTENT_CLASSNAME} />
+        </nav>
+        <Skeletonize loading className={CONTENT_CLASSNAME}>
+          <SkeletonBox fullWidth>
+            <div className="h-9 w-full rounded-md" />
+          </SkeletonBox>
+        </Skeletonize>
       </div>
     );
   }

@@ -1,7 +1,8 @@
 'use client';
 
 import { Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { memo, useEffect, useState } from 'react';
@@ -185,12 +186,9 @@ function FileViewerRouterComponent({
 
   if (result.status === 'loading') {
     return (
-      <div className="flex h-full flex-col gap-2 p-4">
-        <Skeleton className="h-4 w-1/3" />
-        <Skeleton className="h-4 w-2/3" />
-        <Skeleton className="h-4 w-1/2" />
-        <Skeleton className="h-4 w-3/4" />
-      </div>
+      <Skeletonize loading className="flex h-full flex-col gap-2 p-4 text-sm">
+        <SkeletonText lines={4} lastLineWidth="75%" />
+      </Skeletonize>
     );
   }
 

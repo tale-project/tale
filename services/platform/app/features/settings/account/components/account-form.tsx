@@ -2,6 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -46,10 +48,34 @@ interface SetPasswordFormData {
   confirmPassword: string;
 }
 
+// =============================================================================
+// Container — owns the loading state (current user + credential probe) and
+// wraps the real `SettingsPage narrow` view in `<Skeletonize>` so the skeleton
+// inherits the SAME narrow centering and section structure (no horizontal
+// shift on load, and no empty-Input → real-value flash). Skeleton-aware leaves
+// (Input, Button) and `<SkeletonText>` for the read-only email mask themselves
+// while loading.
+// =============================================================================
 export function AccountForm() {
+  const { data: hasCredential, isLoading: isCredentialLoading } =
+    useHasCredentialAccount();
+  const { isLoading: isUserLoading } = useAuth();
+
+  return (
+    <Skeletonize loading={isUserLoading || isCredentialLoading}>
+      <AccountFormView hasCredential={hasCredential ?? false} />
+    </Skeletonize>
+  );
+}
+
+// =============================================================================
+// Plain presentational view — renders the real `SettingsPage narrow` layout.
+// Rendered both live and (wrapped in `<Skeletonize>`) as its own skeleton, so
+// loading and loaded layouts are the SAME tree and cannot drift.
+// =============================================================================
+function AccountFormView({ hasCredential }: { hasCredential: boolean }) {
   const { t: tNav } = useT('navigation');
   const { t: tSettings } = useT('settings');
-  const { data: hasCredential } = useHasCredentialAccount();
 
   return (
     <SettingsPage
@@ -58,7 +84,7 @@ export function AccountForm() {
       narrow
     >
       <ProfileSection />
-      <PasswordSection hasCredential={hasCredential ?? false} />
+      <PasswordSection hasCredential={hasCredential} />
       <TwoFactorSection />
     </SettingsPage>
   );
@@ -142,15 +168,33 @@ function ProfileSection() {
             wrapperClassName="max-w-sm"
             {...register('name')}
           />
-          <div className="flex max-w-sm flex-col gap-1.5">
-            <Label>{tSettings('account.profile.email')}</Label>
-            <Text as="span" variant="body">
-              {user?.email ?? ''}
-            </Text>
-          </div>
+          <EmailField email={user?.email ?? ''} />
         </fieldset>
       </Form>
     </SettingsSection>
+  );
+}
+
+/** Read-only email row. `Text` isn't a skeleton-aware leaf, so mask it with
+ *  `<SkeletonText>` sized to the body line-height while loading — without this
+ *  the value pops in after the user query resolves. */
+function EmailField({ email }: { email: string }) {
+  const { t: tSettings } = useT('settings');
+  const loading = useSkeleton();
+
+  return (
+    <div className="flex max-w-sm flex-col gap-1.5">
+      <Label>{tSettings('account.profile.email')}</Label>
+      {loading ? (
+        <div className="w-48 text-base leading-normal">
+          <SkeletonText />
+        </div>
+      ) : (
+        <Text as="span" variant="body">
+          {email}
+        </Text>
+      )}
+    </div>
   );
 }
 

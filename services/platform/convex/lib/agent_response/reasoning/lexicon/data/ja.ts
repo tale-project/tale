@@ -1,0 +1,36 @@
+import type { ReasoningLexicon } from '../types';
+
+export const ja: ReasoningLexicon = {
+  locale: 'ja',
+  name: 'Japanese',
+  boundaryMode: 'substring',
+  hardVerbs: [
+    '証明',
+    '解析',
+    '分析',
+    '最適化',
+    'デバッグ',
+    'リファクタ',
+    '設計',
+    '実装',
+    '推論',
+    '診断',
+    '比較',
+    'アルゴリズム',
+    '評価',
+  ],
+  easyVerbs: ['翻訳', '言い換え', '書き換え', '要約', 'まとめ', '短縮', '整形'],
+  trivialAcks: [
+    'こんにちは',
+    'こんにちわ',
+    'やあ',
+    'ありがとう',
+    'どうも',
+    'はい',
+    'いいえ',
+    'オーケー',
+    'おはよう',
+  ],
+  creativeVerbs: ['物語', '想像', '創作', '歌詞', 'クリエイティブ'],
+  analyticalVerbs: ['計算', '証明', 'デバッグ', '抽出', '分類', '検証'],
+};

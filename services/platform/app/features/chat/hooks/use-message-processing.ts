@@ -12,6 +12,7 @@ import {
 
 import { useChatLayout } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
+import { hasInFlightTool } from '../utils/build-thought-timeline';
 
 const INTERNAL_ATTACHMENT_MARKER =
   /\n?\n?\[ATTACHED FILES - Pre-analysis was not available\. Use your tools to process these files\.\]/;
@@ -73,6 +74,9 @@ export interface ChatMessage {
   error?: string;
   systemMessageDisplay?: SystemMessageDisplay;
   systemMessageBody?: string;
+  /** Raw UIMessage parts (reasoning + tool calls) for the thought-process
+   *  timeline. Present on assistant messages; undefined elsewhere. */
+  parts?: UIMessage['parts'];
 }
 
 interface UseMessageProcessingResult {
@@ -298,6 +302,16 @@ export function useMessageProcessing(
 
         currentKeys.add(m.key);
 
+        // A tool-only turn can be observed FIRST as status:'pending' (never
+        // 'streaming') with a tool part already mid-flight — e.g. an immediate
+        // tool call before any reasoning/text streams. The in-bubble
+        // ThoughtTimeline already MOUNTS unconditionally (showTimeline gates on
+        // hasThoughtSteps, not streaming); the only thing missing for such a
+        // turn is the ACTIVE state, so we set isStreaming=true to render it
+        // expanded with a live spinner during the tool call.
+        const messageHasInFlightTool =
+          m.role === 'assistant' && hasInFlightTool(m.parts);
+
         let isStreaming = false;
         if (m.status === 'streaming') {
           streamingKeysRef.current.add(m.key);
@@ -317,7 +331,16 @@ export function useMessageProcessing(
           emptyStreamingKeysRef.current.delete(m.key);
           streamingKeysRef.current.delete(m.key);
         } else {
-          isStreaming = streamingKeysRef.current.has(m.key);
+          // This branch is reached only for status==='pending'. AND
+          // hasInFlightTool with the thread-level generation signal: a live
+          // tool-only turn still shows the active timeline (isGenerating is
+          // true during generation), but an ORPHANED pending message — whose
+          // tool was never resolved after a hard process kill that bypassed the
+          // server's pending→success/failed reconciliation — won't latch a
+          // spinner forever once generation has stopped (or gone stale).
+          isStreaming =
+            streamingKeysRef.current.has(m.key) ||
+            (messageHasInFlightTool && !!isGenerating);
         }
 
         const attachments =
@@ -341,6 +364,12 @@ export function useMessageProcessing(
             m.role === 'assistant' && m.status === 'failed' && !m.text?.trim(),
           isFailed:
             m.role === 'assistant' && m.status === 'failed' && !!m.text?.trim(),
+          // Carry reasoning/tool parts on assistant messages for the
+          // thought-process timeline. User messages don't have a timeline.
+          parts:
+            m.role === 'assistant' && Array.isArray(m.parts)
+              ? m.parts
+              : undefined,
           error:
             messageErrors?.[m.id] ??
             // UIMessage.id is the first message in a group, but the error
@@ -416,6 +445,13 @@ export function useMessageProcessing(
           break;
         }
       }
+    }
+
+    // Fast path (the common case, hit on every streamed token): there are no
+    // file-only tool messages to hide or merge this turn, so the filter+map
+    // rebuild below would just clone the array unchanged. Skip it.
+    if (fileOnlyKeys.size === 0 && activeTurnOrder == null) {
+      return result;
     }
 
     // Pass 2: rebuild without file-only messages, merging extra parts immutably.

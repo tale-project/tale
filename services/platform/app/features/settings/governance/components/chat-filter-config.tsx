@@ -3,9 +3,9 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
@@ -43,6 +43,63 @@ function sanitizeFilename(raw: string): string {
   return base.length > 0 ? base : 'category';
 }
 
+interface ChatFilterDraft {
+  enabled: boolean;
+  maskReplacement: string;
+  appliesToInput: boolean;
+  appliesToOutput: boolean;
+  preferNonStreaming: boolean;
+  categories: ChatFilterCategory[];
+}
+
+const DEFAULT_DRAFT: ChatFilterDraft = {
+  enabled: false,
+  maskReplacement: '[BLOCKED]',
+  appliesToInput: true,
+  appliesToOutput: false,
+  preferNonStreaming: false,
+  categories: [],
+};
+
+type ChatFilterPolicy = ReturnType<typeof useGovernancePolicy>['data'];
+
+/**
+ * Derive the editor draft from the persisted policy. Returns the defaults
+ * (so the masked-during-load view still has a valid shape to render) when
+ * there's no policy yet or the stored config fails schema validation.
+ */
+function deriveDraft(policy: ChatFilterPolicy): ChatFilterDraft {
+  if (!policy) return DEFAULT_DRAFT;
+  const parsed = chatFilterConfigSchema.safeParse(policy.config);
+  if (!parsed.success) return DEFAULT_DRAFT;
+  const config = parsed.data;
+  return {
+    enabled: policy.enabled ?? config.enabled ?? false,
+    maskReplacement: config.maskReplacement ?? '[BLOCKED]',
+    appliesToInput: config.appliesTo?.includes('input') ?? true,
+    appliesToOutput: config.appliesTo?.includes('output') ?? false,
+    preferNonStreaming: config.preferNonStreamingForFiltering ?? false,
+    categories: config.categories ?? [],
+  };
+}
+
+// =============================================================================
+// Container — owns data fetching, local edit state, save/toast wiring, and the
+// loading state. Wraps the plain `ChatFilterConfigForm` in `<Skeletonize>` so
+// the same tree renders the skeleton (the hand-rolled loading `PageSection`
+// with magic-height `Skeleton` boxes is gone — the skeleton-aware `<Switch>` /
+// `<Input>` mask themselves to their real height).
+//
+// `enabled` and the rest of the draft are seeded LAZILY from the (possibly
+// already-warm) policy so the first render shows real values — replacing the
+// post-mount `useEffect`/`initializedRef` swap that flashed defaults for a
+// frame on warm navigations. A one-time render-time sync still adopts a cold
+// read once it lands (pre-commit → no flicker); after that, edits are
+// client-owned and the optimistic upsert keeps the server read in step.
+//
+// NOTE: exported as `ChatFilterConfigView` because the guardrails route already
+// imports that name as the entry point — keep it stable.
+// =============================================================================
 export function ChatFilterConfigView({
   organizationId,
 }: ChatFilterConfigProps) {
@@ -56,31 +113,38 @@ export function ChatFilterConfigView({
   );
   const upsertMutation = useUpsertGovernancePolicy();
 
-  const [enabled, setEnabled] = useState(false);
-  const [maskReplacement, setMaskReplacement] = useState('[BLOCKED]');
-  const [appliesToInput, setAppliesToInput] = useState(true);
-  const [appliesToOutput, setAppliesToOutput] = useState(false);
-  const [preferNonStreaming, setPreferNonStreaming] = useState(false);
-  const [categories, setCategories] = useState<ChatFilterCategory[]>([]);
+  const initial = useMemo(() => deriveDraft(policy), [policy]);
+
+  const [enabled, setEnabled] = useState(initial.enabled);
+  const [maskReplacement, setMaskReplacement] = useState(
+    initial.maskReplacement,
+  );
+  const [appliesToInput, setAppliesToInput] = useState(initial.appliesToInput);
+  const [appliesToOutput, setAppliesToOutput] = useState(
+    initial.appliesToOutput,
+  );
+  const [preferNonStreaming, setPreferNonStreaming] = useState(
+    initial.preferNonStreaming,
+  );
+  const [categories, setCategories] = useState(initial.categories);
 
   const [editorIndex, setEditorIndex] = useState<number | 'new' | null>(null);
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
-  const initializedRef = useRef(false);
 
-  if (!isLoading && !initializedRef.current && policy) {
-    initializedRef.current = true;
-    const parsed = chatFilterConfigSchema.safeParse(policy.config);
-    if (parsed.success) {
-      const config = parsed.data;
-      setEnabled(policy.enabled ?? config.enabled ?? false);
-      setMaskReplacement(config.maskReplacement ?? '[BLOCKED]');
-      setAppliesToInput(config.appliesTo?.includes('input') ?? true);
-      setAppliesToOutput(config.appliesTo?.includes('output') ?? false);
-      setPreferNonStreaming(config.preferNonStreamingForFiltering ?? false);
-      setCategories(config.categories ?? []);
-    }
+  // One-time sync for the cold-load case: the lazy seeds above ran against an
+  // absent policy, so adopt the real config the first render it lands. Runs
+  // pre-commit, so no default→real flash; afterwards edits stay client-owned.
+  const syncedRef = useRef(policy != null);
+  if (!syncedRef.current && policy != null) {
+    syncedRef.current = true;
+    setEnabled(initial.enabled);
+    setMaskReplacement(initial.maskReplacement);
+    setAppliesToInput(initial.appliesToInput);
+    setAppliesToOutput(initial.appliesToOutput);
+    setPreferNonStreaming(initial.preferNonStreaming);
+    setCategories(initial.categories);
   }
 
   const buildConfig = useCallback(
@@ -179,160 +243,162 @@ export function ChatFilterConfigView({
     void saveWith(buildConfig({ categories: next }));
   }, [buildConfig, categories, deletingIndex, saveWith]);
 
-  if (isLoading) {
-    return (
+  const handleEnabledChange = useCallback(
+    (checked: boolean) => {
+      setEnabled(checked);
+      void saveWith(buildConfig({ enabled: checked }));
+    },
+    [buildConfig, saveWith],
+  );
+
+  const handleAppliesToInput = useCallback(
+    (checked: boolean) => {
+      setAppliesToInput(checked);
+      void saveWith(buildConfig({ appliesToInput: checked }));
+    },
+    [buildConfig, saveWith],
+  );
+
+  const handleAppliesToOutput = useCallback(
+    (checked: boolean) => {
+      setAppliesToOutput(checked);
+      void saveWith(buildConfig({ appliesToOutput: checked }));
+    },
+    [buildConfig, saveWith],
+  );
+
+  const handlePreferNonStreaming = useCallback(
+    (checked: boolean) => {
+      setPreferNonStreaming(checked);
+      void saveWith(buildConfig({ preferNonStreaming: checked }));
+    },
+    [buildConfig, saveWith],
+  );
+
+  return (
+    <Skeletonize loading={isLoading} label={t('contentSafety.title')}>
       <PageSection
         title={t('contentSafety.title')}
         description={t('contentSafety.description')}
-        action={<Skeleton className="h-[1.15rem] w-8 rounded-full" />}
+        action={
+          <Switch
+            id="chat-filter-enabled"
+            label={t('contentSafety.enableLabel')}
+            checked={enabled}
+            disabled={cannotManage}
+            onCheckedChange={handleEnabledChange}
+          />
+        }
       >
-        <div className="flex flex-col gap-4">
-          <Skeleton className="h-10 w-full max-w-sm" />
-          <Skeleton className="h-10 w-full max-w-sm" />
-          <Skeleton className="h-48 w-full rounded-md" />
-        </div>
-      </PageSection>
-    );
-  }
+        {cannotManage && (
+          <Alert
+            variant="warning"
+            description={t('contentSafety.cannotManage')}
+          />
+        )}
 
-  return (
-    <PageSection
-      title={t('contentSafety.title')}
-      description={t('contentSafety.description')}
-      action={
-        <Switch
-          id="chat-filter-enabled"
-          label={t('contentSafety.enableLabel')}
-          checked={enabled}
-          disabled={cannotManage}
-          onCheckedChange={(checked) => {
-            setEnabled(checked);
-            void saveWith(buildConfig({ enabled: checked }));
-          }}
-        />
-      }
-    >
-      {cannotManage && (
-        <Alert
-          variant="warning"
-          description={t('contentSafety.cannotManage')}
-        />
-      )}
+        {enabled && (
+          <>
+            <FormSection
+              label={t('contentSafety.applyTo')}
+              description={t('contentSafety.applyToDescription')}
+            >
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={appliesToInput}
+                    disabled={cannotManage}
+                    onChange={(e) => handleAppliesToInput(e.target.checked)}
+                  />
+                  <span>{t('contentSafety.userInput')}</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={appliesToOutput}
+                    disabled={cannotManage}
+                    onChange={(e) => handleAppliesToOutput(e.target.checked)}
+                  />
+                  <span>{t('contentSafety.modelOutput')}</span>
+                </label>
+              </div>
+            </FormSection>
 
-      {enabled && (
-        <>
-          <FormSection
-            label={t('contentSafety.applyTo')}
-            description={t('contentSafety.applyToDescription')}
-          >
-            <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={appliesToInput}
-                  disabled={cannotManage}
-                  onChange={(e) => {
-                    setAppliesToInput(e.target.checked);
-                    void saveWith(
-                      buildConfig({ appliesToInput: e.target.checked }),
-                    );
-                  }}
-                />
-                <span>{t('contentSafety.userInput')}</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={appliesToOutput}
-                  disabled={cannotManage}
-                  onChange={(e) => {
-                    setAppliesToOutput(e.target.checked);
-                    void saveWith(
-                      buildConfig({ appliesToOutput: e.target.checked }),
-                    );
-                  }}
-                />
-                <span>{t('contentSafety.modelOutput')}</span>
-              </label>
-            </div>
-          </FormSection>
+            <FormSection label={t('contentSafety.maskReplacement')}>
+              <Input
+                id="chat-filter-mask"
+                value={maskReplacement}
+                disabled={cannotManage}
+                onChange={(e) => setMaskReplacement(e.target.value)}
+                onBlur={() => void saveWith(buildConfig({ maskReplacement }))}
+              />
+            </FormSection>
 
-          <FormSection label={t('contentSafety.maskReplacement')}>
-            <Input
-              id="chat-filter-mask"
-              value={maskReplacement}
-              disabled={cannotManage}
-              onChange={(e) => setMaskReplacement(e.target.value)}
-              onBlur={() => void saveWith(buildConfig({ maskReplacement }))}
-            />
-          </FormSection>
+            <FormSection
+              label={t('contentSafety.preferNonStreaming')}
+              description={t('contentSafety.preferNonStreamingDescription')}
+            >
+              <Switch
+                id="chat-filter-nonstreaming"
+                checked={preferNonStreaming}
+                disabled={cannotManage}
+                onCheckedChange={handlePreferNonStreaming}
+              />
+            </FormSection>
 
-          <FormSection
-            label={t('contentSafety.preferNonStreaming')}
-            description={t('contentSafety.preferNonStreamingDescription')}
-          >
-            <Switch
-              id="chat-filter-nonstreaming"
-              checked={preferNonStreaming}
-              disabled={cannotManage}
-              onCheckedChange={(checked) => {
-                setPreferNonStreaming(checked);
-                void saveWith(buildConfig({ preferNonStreaming: checked }));
+            <FormSection
+              label={t('contentSafety.categoriesTitle')}
+              description={t('contentSafety.categoriesDescription')}
+            >
+              <CategoryList
+                categories={categories}
+                disabled={cannotManage}
+                onAdd={() => setEditorIndex('new')}
+                onEdit={(index) => setEditorIndex(index)}
+                onDelete={(index) => setDeletingIndex(index)}
+                onToggleEnabled={handleToggleCategoryEnabled}
+              />
+            </FormSection>
+
+            <CategoryEditSheet
+              open={editorIndex !== null}
+              index={editorIndex}
+              initial={
+                editorIndex === null || editorIndex === 'new'
+                  ? undefined
+                  : categories[editorIndex]
+              }
+              onCancel={() => setEditorIndex(null)}
+              onSave={(draft) => {
+                if (editorIndex === null) return;
+                handleSaveCategory(editorIndex, draft);
               }}
             />
-          </FormSection>
 
-          <FormSection
-            label={t('contentSafety.categoriesTitle')}
-            description={t('contentSafety.categoriesDescription')}
-          >
-            <CategoryList
-              categories={categories}
-              disabled={cannotManage}
-              onAdd={() => setEditorIndex('new')}
-              onEdit={(index) => setEditorIndex(index)}
-              onDelete={(index) => setDeletingIndex(index)}
-              onToggleEnabled={handleToggleCategoryEnabled}
+            <ConfirmDialog
+              open={deletingIndex !== null}
+              onOpenChange={(open) => {
+                if (!open) setDeletingIndex(null);
+              }}
+              title={t('contentSafety.deleteConfirmTitle')}
+              description={
+                deletingIndex !== null && categories[deletingIndex]
+                  ? t('contentSafety.deleteConfirm', {
+                      label: categories[deletingIndex].label,
+                      words: categories[deletingIndex].words.length,
+                      patterns: categories[deletingIndex].patterns.length,
+                    })
+                  : ''
+              }
+              confirmText={t('contentSafety.deleteConfirmAction')}
+              variant="destructive"
+              onConfirm={confirmDeleteCategory}
             />
-          </FormSection>
-
-          <CategoryEditSheet
-            open={editorIndex !== null}
-            index={editorIndex}
-            initial={
-              editorIndex === null || editorIndex === 'new'
-                ? undefined
-                : categories[editorIndex]
-            }
-            onCancel={() => setEditorIndex(null)}
-            onSave={(draft) => {
-              if (editorIndex === null) return;
-              handleSaveCategory(editorIndex, draft);
-            }}
-          />
-
-          <ConfirmDialog
-            open={deletingIndex !== null}
-            onOpenChange={(open) => {
-              if (!open) setDeletingIndex(null);
-            }}
-            title={t('contentSafety.deleteConfirmTitle')}
-            description={
-              deletingIndex !== null && categories[deletingIndex]
-                ? t('contentSafety.deleteConfirm', {
-                    label: categories[deletingIndex].label,
-                    words: categories[deletingIndex].words.length,
-                    patterns: categories[deletingIndex].patterns.length,
-                  })
-                : ''
-            }
-            confirmText={t('contentSafety.deleteConfirmAction')}
-            variant="destructive"
-            onConfirm={confirmDeleteCategory}
-          />
-        </>
-      )}
-    </PageSection>
+          </>
+        )}
+      </PageSection>
+    </Skeletonize>
   );
 }
 

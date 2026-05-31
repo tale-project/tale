@@ -3,7 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute } from '@tanstack/react-router';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -198,203 +198,197 @@ function RunCodePolicyRoute() {
     setTestRows(rows);
   }, [testInput, testBucket, liveDraft]);
 
-  if (isLoading) {
-    return (
-      <SettingsPage title={t('runCodePolicy.title')}>
-        <div aria-busy="true" className="flex flex-col gap-6">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
-        </div>
-      </SettingsPage>
-    );
-  }
-
   return (
     <SettingsPage
       title={t('runCodePolicy.title')}
       description={t('runCodePolicy.description')}
     >
-      <PageSection
-        title={t('runCodePolicy.modeSectionTitle')}
-        description={t('runCodePolicy.modeSectionDescription')}
+      <Skeletonize
+        loading={isLoading}
+        label={t('runCodePolicy.title')}
+        className="flex flex-col gap-6"
       >
-        <RadioGroup
-          value={defaultMode}
-          onValueChange={(value) => {
-            if (value === 'allowlist' || value === 'denylist') {
-              setDefaultMode(value);
-            }
-          }}
-          options={[
-            {
-              value: 'denylist',
-              label: t('runCodePolicy.modeDenylistLabel'),
-              description: t('runCodePolicy.modeDenylistDescription'),
-              disabled: cannotManage,
-            },
-            {
-              value: 'allowlist',
-              label: t('runCodePolicy.modeAllowlistLabel'),
-              description: t('runCodePolicy.modeAllowlistDescription'),
-              disabled: cannotManage,
-            },
-          ]}
-        />
-      </PageSection>
-
-      <PageSection
-        title={t('runCodePolicy.pythonSectionTitle')}
-        description={t('runCodePolicy.listsHint')}
-      >
-        <Stack gap={4} className="max-w-3xl">
-          <Textarea
-            label={t('runCodePolicy.pythonAllowLabel')}
-            description={t('runCodePolicy.pythonAllowDescription')}
-            placeholder={t('runCodePolicy.pythonPlaceholder')}
-            value={pythonAllowText}
-            onChange={(e) => setPythonAllowText(e.target.value)}
-            disabled={cannotManage}
-            rows={4}
-          />
-          <Textarea
-            label={t('runCodePolicy.pythonDenyLabel')}
-            description={t('runCodePolicy.pythonDenyDescription')}
-            placeholder={t('runCodePolicy.pythonPlaceholder')}
-            value={pythonDenyText}
-            onChange={(e) => setPythonDenyText(e.target.value)}
-            disabled={cannotManage}
-            rows={4}
-          />
-        </Stack>
-      </PageSection>
-
-      <PageSection
-        title={t('runCodePolicy.nodeSectionTitle')}
-        description={t('runCodePolicy.listsHint')}
-      >
-        <Stack gap={4} className="max-w-3xl">
-          <Textarea
-            label={t('runCodePolicy.nodeAllowLabel')}
-            description={t('runCodePolicy.nodeAllowDescription')}
-            placeholder={t('runCodePolicy.nodePlaceholder')}
-            value={nodeAllowText}
-            onChange={(e) => setNodeAllowText(e.target.value)}
-            disabled={cannotManage}
-            rows={4}
-          />
-          <Textarea
-            label={t('runCodePolicy.nodeDenyLabel')}
-            description={t('runCodePolicy.nodeDenyDescription')}
-            placeholder={t('runCodePolicy.nodePlaceholder')}
-            value={nodeDenyText}
-            onChange={(e) => setNodeDenyText(e.target.value)}
-            disabled={cannotManage}
-            rows={4}
-          />
-        </Stack>
-      </PageSection>
-
-      <Button
-        onClick={handleSave}
-        disabled={cannotManage || upsertMutation.isPending}
-        size="sm"
-        className="self-start"
-      >
-        {upsertMutation.isPending
-          ? t('runCodePolicy.saving')
-          : t('runCodePolicy.save')}
-      </Button>
-
-      <PageSection
-        title={t('runCodePolicy.testerTitle')}
-        description={t('runCodePolicy.testerDescription')}
-      >
-        <Stack gap={3} className="max-w-3xl">
+        <PageSection
+          title={t('runCodePolicy.modeSectionTitle')}
+          description={t('runCodePolicy.modeSectionDescription')}
+        >
           <RadioGroup
-            label={t('runCodePolicy.testerBucketLabel')}
-            value={testBucket}
+            value={defaultMode}
             onValueChange={(value) => {
-              if (value === 'python' || value === 'node') {
-                setTestBucket(value);
+              if (value === 'allowlist' || value === 'denylist') {
+                setDefaultMode(value);
               }
             }}
-            columns={2}
             options={[
-              { value: 'python', label: t('runCodePolicy.bucketPython') },
-              { value: 'node', label: t('runCodePolicy.bucketNode') },
+              {
+                value: 'denylist',
+                label: t('runCodePolicy.modeDenylistLabel'),
+                description: t('runCodePolicy.modeDenylistDescription'),
+                disabled: cannotManage,
+              },
+              {
+                value: 'allowlist',
+                label: t('runCodePolicy.modeAllowlistLabel'),
+                description: t('runCodePolicy.modeAllowlistDescription'),
+                disabled: cannotManage,
+              },
             ]}
           />
-          <Input
-            label={t('runCodePolicy.testerInputLabel')}
-            placeholder={
-              testBucket === 'python'
-                ? t('runCodePolicy.testerPlaceholderPython')
-                : t('runCodePolicy.testerPlaceholderNode')
-            }
-            value={testInput}
-            onChange={(e) => setTestInput(e.target.value)}
-            size="sm"
-          />
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={handleRunTest}
-            className="self-start"
-            disabled={testInput.trim().length === 0}
-          >
-            {t('runCodePolicy.testerButton')}
-          </Button>
+        </PageSection>
 
-          {testRows.length > 0 && (
-            <ul
-              role="list"
-              className="border-border bg-card divide-border flex flex-col divide-y rounded-md border"
+        <PageSection
+          title={t('runCodePolicy.pythonSectionTitle')}
+          description={t('runCodePolicy.listsHint')}
+        >
+          <Stack gap={4} className="max-w-3xl">
+            <Textarea
+              label={t('runCodePolicy.pythonAllowLabel')}
+              description={t('runCodePolicy.pythonAllowDescription')}
+              placeholder={t('runCodePolicy.pythonPlaceholder')}
+              value={pythonAllowText}
+              onChange={(e) => setPythonAllowText(e.target.value)}
+              disabled={cannotManage}
+              rows={4}
+            />
+            <Textarea
+              label={t('runCodePolicy.pythonDenyLabel')}
+              description={t('runCodePolicy.pythonDenyDescription')}
+              placeholder={t('runCodePolicy.pythonPlaceholder')}
+              value={pythonDenyText}
+              onChange={(e) => setPythonDenyText(e.target.value)}
+              disabled={cannotManage}
+              rows={4}
+            />
+          </Stack>
+        </PageSection>
+
+        <PageSection
+          title={t('runCodePolicy.nodeSectionTitle')}
+          description={t('runCodePolicy.listsHint')}
+        >
+          <Stack gap={4} className="max-w-3xl">
+            <Textarea
+              label={t('runCodePolicy.nodeAllowLabel')}
+              description={t('runCodePolicy.nodeAllowDescription')}
+              placeholder={t('runCodePolicy.nodePlaceholder')}
+              value={nodeAllowText}
+              onChange={(e) => setNodeAllowText(e.target.value)}
+              disabled={cannotManage}
+              rows={4}
+            />
+            <Textarea
+              label={t('runCodePolicy.nodeDenyLabel')}
+              description={t('runCodePolicy.nodeDenyDescription')}
+              placeholder={t('runCodePolicy.nodePlaceholder')}
+              value={nodeDenyText}
+              onChange={(e) => setNodeDenyText(e.target.value)}
+              disabled={cannotManage}
+              rows={4}
+            />
+          </Stack>
+        </PageSection>
+
+        <Button
+          onClick={handleSave}
+          disabled={cannotManage || upsertMutation.isPending}
+          size="sm"
+          className="self-start"
+        >
+          {upsertMutation.isPending
+            ? t('runCodePolicy.saving')
+            : t('runCodePolicy.save')}
+        </Button>
+
+        <PageSection
+          title={t('runCodePolicy.testerTitle')}
+          description={t('runCodePolicy.testerDescription')}
+        >
+          <Stack gap={3} className="max-w-3xl">
+            <RadioGroup
+              label={t('runCodePolicy.testerBucketLabel')}
+              value={testBucket}
+              onValueChange={(value) => {
+                if (value === 'python' || value === 'node') {
+                  setTestBucket(value);
+                }
+              }}
+              columns={2}
+              options={[
+                { value: 'python', label: t('runCodePolicy.bucketPython') },
+                { value: 'node', label: t('runCodePolicy.bucketNode') },
+              ]}
+            />
+            <Input
+              label={t('runCodePolicy.testerInputLabel')}
+              placeholder={
+                testBucket === 'python'
+                  ? t('runCodePolicy.testerPlaceholderPython')
+                  : t('runCodePolicy.testerPlaceholderNode')
+              }
+              value={testInput}
+              onChange={(e) => setTestInput(e.target.value)}
+              size="sm"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleRunTest}
+              className="self-start"
+              disabled={testInput.trim().length === 0}
             >
-              {testRows.map((row, idx) => {
-                const allowed = row.decision.decision === 'allowed';
-                const Icon = allowed ? CheckCircle2 : XCircle;
-                return (
-                  <li
-                    key={`${row.bucket}-${idx}-${row.spec}`}
-                    className="flex items-start gap-3 px-3 py-2 text-sm"
-                  >
-                    <Icon
-                      aria-hidden="true"
-                      className={cn(
-                        'mt-0.5 size-4 shrink-0',
-                        allowed ? 'text-green-600' : 'text-red-600',
-                      )}
-                    />
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      <span className="text-foreground font-mono text-xs">
-                        {row.spec}
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        {t('runCodePolicy.testerBaseLabel')}:{' '}
-                        <span className="font-mono">{row.base}</span>
-                      </span>
-                      <span
+              {t('runCodePolicy.testerButton')}
+            </Button>
+
+            {testRows.length > 0 && (
+              <ul
+                role="list"
+                className="border-border bg-card divide-border flex flex-col divide-y rounded-md border"
+              >
+                {testRows.map((row, idx) => {
+                  const allowed = row.decision.decision === 'allowed';
+                  const Icon = allowed ? CheckCircle2 : XCircle;
+                  return (
+                    <li
+                      key={`${row.bucket}-${idx}-${row.spec}`}
+                      className="flex items-start gap-3 px-3 py-2 text-sm"
+                    >
+                      <Icon
+                        aria-hidden="true"
                         className={cn(
-                          'text-xs',
-                          allowed ? 'text-green-700' : 'text-red-700',
+                          'mt-0.5 size-4 shrink-0',
+                          allowed ? 'text-green-600' : 'text-red-600',
                         )}
-                      >
-                        {allowed
-                          ? t('runCodePolicy.testerAllowed')
-                          : t('runCodePolicy.testerDenied')}
-                        {' — '}
-                        {t(`runCodePolicy.${row.decision.reasonKey}`)}
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Stack>
-      </PageSection>
+                      />
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-foreground font-mono text-xs">
+                          {row.spec}
+                        </span>
+                        <span className="text-muted-foreground text-xs">
+                          {t('runCodePolicy.testerBaseLabel')}:{' '}
+                          <span className="font-mono">{row.base}</span>
+                        </span>
+                        <span
+                          className={cn(
+                            'text-xs',
+                            allowed ? 'text-green-700' : 'text-red-700',
+                          )}
+                        >
+                          {allowed
+                            ? t('runCodePolicy.testerAllowed')
+                            : t('runCodePolicy.testerDenied')}
+                          {' — '}
+                          {t(`runCodePolicy.${row.decision.reasonKey}`)}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Stack>
+        </PageSection>
+      </Skeletonize>
     </SettingsPage>
   );
 }

@@ -6,6 +6,7 @@ import { CronExpressionParser } from 'cron-parser';
 import { z } from 'zod/v4';
 
 import { action } from '../../_generated/server';
+import { reasoningProviderOptionsFor } from '../../lib/agent_response/reasoning/build_reasoning_options';
 import { requireOrgMembershipById } from '../../lib/auth/require_org_membership';
 import { buildCallProviderOptions } from '../../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../../providers/failover';
@@ -38,7 +39,12 @@ export const generateCronExpression = action({
         organizationId: args.organizationId,
       },
     );
-    const callProviderOptions = buildCallProviderOptions(modelData);
+    // Cron generation is a small structured task — force minimal reasoning.
+    const callProviderOptions = reasoningProviderOptionsFor(
+      modelData,
+      buildCallProviderOptions(modelData),
+      { kind: 'utility' },
+    );
 
     const result = await generateObject({
       model: languageModel,

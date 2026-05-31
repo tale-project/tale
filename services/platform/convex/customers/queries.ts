@@ -41,6 +41,7 @@ export const listCustomersPaginated = queryWithRLS({
     status: v.optional(v.string()),
     source: v.optional(v.string()),
     locale: v.optional(v.string()),
+    search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await listCustomersPaginatedHelper(ctx, args);

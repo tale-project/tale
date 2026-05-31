@@ -2,7 +2,7 @@
 
 import { Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
@@ -33,6 +33,15 @@ function parseConfig(raw: unknown): TwoFactorPolicyConfig {
   return { ...DEFAULT_TWO_FACTOR_POLICY };
 }
 
+// =============================================================================
+// Single editor — owns data fetching, the local state mirrors, instant-save
+// handlers, and the loading state. Renders the REAL layout once, always,
+// wrapped in `<Skeletonize>` while `isLoading` (or before the state has been
+// seeded from the loaded config). The skeleton-aware header `<Switch>`, the
+// grace-period `<Input>`, and the exempt-SSO `<Switch>` mask themselves to
+// their exact size while loading. The disabled-policy hint and field hints stay
+// real text (read better than gray bars and are known at load time).
+// =============================================================================
 export function TwoFactorPolicyEditor({
   organizationId,
 }: TwoFactorPolicyEditorProps) {
@@ -141,89 +150,71 @@ export function TwoFactorPolicyEditor({
     t,
   ]);
 
-  if (isLoading || !initializedRef.current) {
-    return (
+  // Mask until the network read resolves AND the local mirrors have been
+  // seeded from it — the leaves would otherwise flash their `useState`
+  // defaults (enforced=false, empty grace period) for a frame.
+  const loading = isLoading || !initializedRef.current;
+  const canEdit = !cannotManage;
+  const isSaving = upsertMutation.isPending;
+
+  return (
+    <Skeletonize loading={loading} label={t('twoFactorPolicy.title')}>
       <PageSection
         title={t('twoFactorPolicy.title')}
         description={t('twoFactorPolicy.description')}
-        action={<Skeleton className="h-[1.15rem] w-8 rounded-full" />}
+        action={
+          <Switch
+            label={t('twoFactorPolicy.enforced')}
+            checked={enforced}
+            onCheckedChange={handleEnforcedChange}
+            disabled={!canEdit || isSaving}
+          />
+        }
       >
         <Stack gap={6} className="max-w-2xl">
-          <Stack gap={4}>
-            <div className="flex flex-col gap-1.5">
-              <Skeleton className="h-3.5 w-40" />
-              <Skeleton className="h-8 w-full max-w-sm rounded-md" />
-            </div>
-            <Skeleton className="h-3 w-64 max-w-full" />
-            <div className="flex items-center justify-between gap-6">
-              <div className="flex min-w-0 flex-col gap-1">
-                <Skeleton className="h-3.5 w-40" />
-                <Skeleton className="h-3 w-64 max-w-full" />
-              </div>
-              <Skeleton className="h-[1.15rem] w-8 shrink-0 rounded-full" />
-            </div>
-          </Stack>
+          {!enforced && (
+            <Text variant="muted" className="text-sm">
+              {t('twoFactorPolicy.policyDisabledHint')}
+            </Text>
+          )}
+
+          <div
+            className={cn(
+              'flex flex-col gap-6 transition-opacity duration-200',
+              !enforced && 'pointer-events-none opacity-50',
+            )}
+          >
+            <Stack gap={4}>
+              <Input
+                label={t('twoFactorPolicy.gracePeriodDays')}
+                type="number"
+                value={gracePeriodDays}
+                onChange={(e) => setGracePeriodDays(e.target.value)}
+                onBlur={handleGraceBlur}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur();
+                }}
+                disabled={!canEdit || !enforced || isSaving}
+                size="sm"
+                min={0}
+                max={30}
+                step={1}
+              />
+              <Text variant="muted" className="text-xs">
+                {t('twoFactorPolicy.gracePeriodDaysHint')}
+              </Text>
+
+              <Switch
+                label={t('twoFactorPolicy.exemptSsoUsers')}
+                description={t('twoFactorPolicy.exemptSsoUsersHint')}
+                checked={exemptSsoUsers}
+                onCheckedChange={handleExemptSsoChange}
+                disabled={!canEdit || !enforced || isSaving}
+              />
+            </Stack>
+          </div>
         </Stack>
       </PageSection>
-    );
-  }
-
-  return (
-    <PageSection
-      title={t('twoFactorPolicy.title')}
-      description={t('twoFactorPolicy.description')}
-      action={
-        <Switch
-          label={t('twoFactorPolicy.enforced')}
-          checked={enforced}
-          onCheckedChange={handleEnforcedChange}
-          disabled={cannotManage || upsertMutation.isPending}
-        />
-      }
-    >
-      <Stack gap={6} className="max-w-2xl">
-        {!enforced && (
-          <Text variant="muted" className="text-sm">
-            {t('twoFactorPolicy.policyDisabledHint')}
-          </Text>
-        )}
-
-        <div
-          className={cn(
-            'flex flex-col gap-6 transition-opacity duration-200',
-            !enforced && 'pointer-events-none opacity-50',
-          )}
-        >
-          <Stack gap={4}>
-            <Input
-              label={t('twoFactorPolicy.gracePeriodDays')}
-              type="number"
-              value={gracePeriodDays}
-              onChange={(e) => setGracePeriodDays(e.target.value)}
-              onBlur={handleGraceBlur}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') e.currentTarget.blur();
-              }}
-              disabled={cannotManage || !enforced || upsertMutation.isPending}
-              size="sm"
-              min={0}
-              max={30}
-              step={1}
-            />
-            <Text variant="muted" className="text-xs">
-              {t('twoFactorPolicy.gracePeriodDaysHint')}
-            </Text>
-
-            <Switch
-              label={t('twoFactorPolicy.exemptSsoUsers')}
-              description={t('twoFactorPolicy.exemptSsoUsersHint')}
-              checked={exemptSsoUsers}
-              onCheckedChange={handleExemptSsoChange}
-              disabled={cannotManage || !enforced || upsertMutation.isPending}
-            />
-          </Stack>
-        </div>
-      </Stack>
-    </PageSection>
+    </Skeletonize>
   );
 }

@@ -4,7 +4,8 @@ import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { AlertCircle, Database, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -144,6 +145,8 @@ interface RuleDialogProps {
   providerList: ProviderInfo[];
   accessConfig: ModelAccessConfig | null;
 }
+
+const PLACEHOLDER_ROW_COUNT = 3;
 
 function RuleDialog({
   open,
@@ -321,6 +324,13 @@ function RuleDialog({
   );
 }
 
+// =============================================================================
+// Single editor — owns data fetching, local rule/dialog state, save/toast
+// wiring, and the loading state. Renders the REAL header + rules table +
+// dialogs once, always, wrapped in `<Skeletonize>`. The table renders
+// placeholder rows while loading so an empty body never reads as "no rules"
+// mid-load.
+// =============================================================================
 export function DefaultModelEditor({
   organizationId,
 }: DefaultModelEditorProps) {
@@ -328,7 +338,7 @@ export function DefaultModelEditor({
   const { toast } = useToast();
   const ability = useAbility();
 
-  const { data: policy, isLoading } = useGovernancePolicy(
+  const { data: policy, isLoading: loading } = useGovernancePolicy(
     organizationId,
     'default_models',
   );
@@ -473,7 +483,7 @@ export function DefaultModelEditor({
     (rule: DefaultModelRule): string => {
       switch (rule.scope) {
         case 'team': {
-          if (!rule.scopeId) return '\u2014';
+          if (!rule.scopeId) return '—';
           return (
             teamOptions.find((o) => o.value === rule.scopeId)?.label ??
             rule.scopeId
@@ -483,12 +493,12 @@ export function DefaultModelEditor({
           return (
             ROLE_OPTIONS.find((o) => o.value === rule.scopeId)?.label ??
             rule.scopeId ??
-            '\u2014'
+            '—'
           );
         case 'default':
           return t('defaultModels.allUsers');
         default:
-          return '\u2014';
+          return '—';
       }
     },
     [teamOptions, t],
@@ -514,162 +524,190 @@ export function DefaultModelEditor({
     [providerList],
   );
 
-  const skeleton = (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-4 w-96 max-w-full" />
-        </div>
-        <Skeleton className="h-8 w-20 rounded-md" />
-      </div>
-      <div className="border-border overflow-hidden rounded-lg border">
-        <Skeleton className="h-10 w-full rounded-none" />
-        <Skeleton className="h-36 w-full rounded-none" />
-      </div>
-    </div>
-  );
-
-  if (isLoading) {
-    return <div aria-busy="true">{skeleton}</div>;
-  }
+  // While loading, render fixed placeholder rows so the table occupies the
+  // same height as real content and reads as "loading", not "empty".
+  const displayRows = loading
+    ? Array.from({ length: PLACEHOLDER_ROW_COUNT }, (_, i) => ({
+        __placeholder: i,
+      }))
+    : rules;
 
   return (
-    <PageSection
-      title={t('defaultModels.title')}
-      description={t('defaultModels.description')}
-      action={
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={openAddDialog}
-          disabled={cannotManage}
-        >
-          <Plus className="mr-1.5 size-4" />
-          {t('defaultModels.addRule')}
-        </Button>
-      }
-    >
-      <div className="border-border overflow-hidden rounded-lg border">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <caption className="sr-only">{t('defaultModels.title')}</caption>
-            <thead className="bg-muted/50">
-              <tr className="border-border border-b">
-                <th
-                  scope="col"
-                  className="text-muted-foreground px-3 py-2 text-left font-medium"
-                >
-                  {t('defaultModels.scope')}
-                </th>
-                <th
-                  scope="col"
-                  className="text-muted-foreground px-3 py-2 text-left font-medium"
-                >
-                  {t('defaultModels.target')}
-                </th>
-                <th
-                  scope="col"
-                  className="text-muted-foreground px-3 py-2 text-left font-medium"
-                >
-                  {t('defaultModels.provider')}
-                </th>
-                <th
-                  scope="col"
-                  className="text-muted-foreground px-3 py-2 text-left font-medium"
-                >
-                  {t('defaultModels.model')}
-                </th>
-                <th
-                  scope="col"
-                  className="text-muted-foreground px-3 py-2 text-right font-medium"
-                >
-                  {t('defaultModels.actions')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rules.length > 0 ? (
-                rules.map((rule, index) => (
-                  <tr
-                    key={index}
-                    className="border-border border-b last:border-b-0"
+    <Skeletonize loading={loading} label={t('defaultModels.title')}>
+      <PageSection
+        title={t('defaultModels.title')}
+        description={t('defaultModels.description')}
+        action={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={openAddDialog}
+            disabled={cannotManage}
+          >
+            <Plus className="mr-1.5 size-4" />
+            {t('defaultModels.addRule')}
+          </Button>
+        }
+      >
+        <div className="border-border overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <caption className="sr-only">{t('defaultModels.title')}</caption>
+              <thead className="bg-muted/50">
+                <tr className="border-border border-b">
+                  <th
+                    scope="col"
+                    className="text-muted-foreground px-3 py-2 text-left font-medium"
                   >
-                    <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                    <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                    <td className="px-3 py-2">{resolveProviderName(rule)}</td>
-                    <td className="px-3 py-2">{resolveModelName(rule)}</td>
-                    <td className="px-3 py-2 text-right">
-                      <HStack gap={1} justify="end">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(index)}
-                          disabled={cannotManage}
-                          aria-label={t('defaultModels.editRule', {
-                            index: index + 1,
-                          })}
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeletingIndex(index)}
-                          disabled={cannotManage}
-                          aria-label={t('defaultModels.removeRule', {
-                            index: index + 1,
-                          })}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </HStack>
+                    {t('defaultModels.scope')}
+                  </th>
+                  <th
+                    scope="col"
+                    className="text-muted-foreground px-3 py-2 text-left font-medium"
+                  >
+                    {t('defaultModels.target')}
+                  </th>
+                  <th
+                    scope="col"
+                    className="text-muted-foreground px-3 py-2 text-left font-medium"
+                  >
+                    {t('defaultModels.provider')}
+                  </th>
+                  <th
+                    scope="col"
+                    className="text-muted-foreground px-3 py-2 text-left font-medium"
+                  >
+                    {t('defaultModels.model')}
+                  </th>
+                  <th
+                    scope="col"
+                    className="text-muted-foreground px-3 py-2 text-right font-medium"
+                  >
+                    {t('defaultModels.actions')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  displayRows.map((_, index) => (
+                    <tr
+                      key={`skeleton-${index}`}
+                      className="border-border border-b last:border-b-0"
+                    >
+                      <td className="px-3 py-2">
+                        <SkeletonBox>
+                          <div className="h-3.5 w-16" />
+                        </SkeletonBox>
+                      </td>
+                      <td className="px-3 py-2">
+                        <SkeletonBox>
+                          <div className="h-3.5 w-24" />
+                        </SkeletonBox>
+                      </td>
+                      <td className="px-3 py-2">
+                        <SkeletonBox>
+                          <div className="h-3.5 w-20" />
+                        </SkeletonBox>
+                      </td>
+                      <td className="px-3 py-2">
+                        <SkeletonBox>
+                          <div className="h-3.5 w-28" />
+                        </SkeletonBox>
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <HStack gap={1} justify="end">
+                          <SkeletonBox>
+                            <div className="size-8 rounded-md" />
+                          </SkeletonBox>
+                          <SkeletonBox>
+                            <div className="size-8 rounded-md" />
+                          </SkeletonBox>
+                        </HStack>
+                      </td>
+                    </tr>
+                  ))
+                ) : rules.length > 0 ? (
+                  rules.map((rule, index) => (
+                    <tr
+                      key={index}
+                      className="border-border border-b last:border-b-0"
+                    >
+                      <td className="px-3 py-2 capitalize">{rule.scope}</td>
+                      <td className="px-3 py-2">{resolveTarget(rule)}</td>
+                      <td className="px-3 py-2">{resolveProviderName(rule)}</td>
+                      <td className="px-3 py-2">{resolveModelName(rule)}</td>
+                      <td className="px-3 py-2 text-right">
+                        <HStack gap={1} justify="end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditDialog(index)}
+                            disabled={cannotManage}
+                            aria-label={t('defaultModels.editRule', {
+                              index: index + 1,
+                            })}
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeletingIndex(index)}
+                            disabled={cannotManage}
+                            aria-label={t('defaultModels.removeRule', {
+                              index: index + 1,
+                            })}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </HStack>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="p-0">
+                      <RulesTableEmptyState
+                        icon={Database}
+                        title={t('defaultModels.noRulesTitle')}
+                        description={t('defaultModels.noRulesDescription')}
+                      />
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="p-0">
-                    <RulesTableEmptyState
-                      icon={Database}
-                      title={t('defaultModels.noRulesTitle')}
-                      description={t('defaultModels.noRulesDescription')}
-                    />
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
-      <RuleDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        rule={dialogRule}
-        onSave={handleDialogSave}
-        title={
-          editingIndex === null
-            ? t('defaultModels.addRuleTitle')
-            : t('defaultModels.editRuleTitle')
-        }
-        cannotManage={cannotManage}
-        teamOptions={teamOptions}
-        providerList={providerList}
-        accessConfig={accessConfig}
-      />
+        <RuleDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          rule={dialogRule}
+          onSave={handleDialogSave}
+          title={
+            editingIndex === null
+              ? t('defaultModels.addRuleTitle')
+              : t('defaultModels.editRuleTitle')
+          }
+          cannotManage={cannotManage}
+          teamOptions={teamOptions}
+          providerList={providerList}
+          accessConfig={accessConfig}
+        />
 
-      <ConfirmDialog
-        open={deletingIndex !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeletingIndex(null);
-        }}
-        title={t('defaultModels.removeRuleConfirmTitle')}
-        description={t('defaultModels.removeRuleConfirmDescription')}
-        confirmText={t('defaultModels.removeRuleConfirmAction')}
-        variant="destructive"
-        onConfirm={confirmRemoveRule}
-      />
-    </PageSection>
+        <ConfirmDialog
+          open={deletingIndex !== null}
+          onOpenChange={(open) => {
+            if (!open) setDeletingIndex(null);
+          }}
+          title={t('defaultModels.removeRuleConfirmTitle')}
+          description={t('defaultModels.removeRuleConfirmDescription')}
+          confirmText={t('defaultModels.removeRuleConfirmAction')}
+          variant="destructive"
+          onConfirm={confirmRemoveRule}
+        />
+      </PageSection>
+    </Skeletonize>
   );
 }

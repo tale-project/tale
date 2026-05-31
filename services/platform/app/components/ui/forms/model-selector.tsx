@@ -1,5 +1,7 @@
 'use client';
 
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -32,7 +34,9 @@ export interface ModelSelectorProps {
   readonlyOrder?: boolean;
 }
 
-export function ModelSelector({
+// Plain control — the real reorderable model list + add control. No skeleton
+// logic of its own.
+function ModelSelectorBase({
   models,
   onChange,
   availableOptions,
@@ -143,4 +147,22 @@ export function ModelSelector({
       />
     </div>
   );
+}
+
+/**
+ * Skeleton-aware ModelSelector. Inside a `<Skeletonize loading>` it masks the
+ * plain control by rendering it inside a `<SkeletonBox>` — laid out invisibly
+ * to set the exact size, pulse overlay on top — so the skeleton can never
+ * drift.
+ */
+export function ModelSelector(props: ModelSelectorProps) {
+  const loading = useSkeleton();
+  if (loading) {
+    return (
+      <SkeletonBox>
+        <ModelSelectorBase {...props} />
+      </SkeletonBox>
+    );
+  }
+  return <ModelSelectorBase {...props} />;
 }

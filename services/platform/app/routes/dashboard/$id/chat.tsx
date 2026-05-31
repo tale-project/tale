@@ -1,22 +1,20 @@
 import { Button } from '@tale/ui/button';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonText } from '@tale/ui/skeleton';
 import { createFileRoute, useMatch, useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { m, AnimatePresence } from 'framer-motion';
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { z } from 'zod';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
+import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { ArenaModeProvider } from '@/app/features/chat/components/arena/arena-mode-context';
 import { BudgetBanner } from '@/app/features/chat/components/budget-banner';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
-import { MessagesSkeleton } from '@/app/features/chat/components/messages-skeleton';
 import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
-import { WelcomeContentSkeleton } from '@/app/features/chat/components/welcome-content-skeleton';
 import { BranchProvider } from '@/app/features/chat/context/branch-context';
 import {
   ChatLayoutProvider,
@@ -57,49 +55,6 @@ export const Route = createFileRoute('/dashboard/$id/chat')({
   component: ChatLayout,
 });
 
-function ChatInputSkeleton() {
-  return (
-    // mt-auto mirrors ChatInterface's PanelFooter pinning so the composer
-    // sits at the bottom without relying on a flex-1 sibling. Harmless
-    // inside ChatSkeleton where the sibling already consumes all space.
-    <PanelFooter className="mt-auto">
-      <div className="mx-auto w-full max-w-(--chat-max-width)">
-        <div className="bg-background border-border sm:border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-xl border px-3 pt-3 sm:rounded-2xl sm:px-5 sm:pt-4">
-          <Skeleton className="h-[72px] w-full bg-transparent sm:h-[100px]" />
-          <div className="flex items-center pb-3">
-            <Skeleton className="h-5 w-5 rounded" />
-          </div>
-        </div>
-      </div>
-    </PanelFooter>
-  );
-}
-
-function ChatSkeleton() {
-  return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="flex flex-1 flex-col items-center justify-center overflow-y-visible p-4 sm:p-8">
-        <WelcomeContentSkeleton />
-      </div>
-      <ChatInputSkeleton />
-    </div>
-  );
-}
-
-// Loading placeholder for the existing-thread path. Mirrors ChatInterface's
-// wrapper for the messages-list render (chat-interface.tsx) — content div
-// is natural-height, ChatInputSkeleton pins to bottom via `mt-auto`.
-function ThreadLoadingSkeleton() {
-  return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="flex flex-col overflow-y-visible p-4 sm:p-6">
-        <MessagesSkeleton />
-      </div>
-      <ChatInputSkeleton />
-    </div>
-  );
-}
-
 /**
  * Gates ChatInterface behind a thread ownership check.
  * When a threadId is present, waits for getThreadStatus to resolve:
@@ -132,23 +87,48 @@ function ThreadGate({
     threadId && !isJustCreated ? { threadId, organizationId } : 'skip',
   );
 
-  // No threadId or just-created thread → render immediately. BranchProvider
-  // is mounted up in ChatLayoutContent, so we don't need to wrap here.
-  if (!threadId || isJustCreated) {
+  // Once we've rendered ChatInterface for any thread this session, keep it
+  // mounted across thread→thread switches instead of swapping to the loading
+  // skeleton while getThreadStatus does its round-trip. That full-component
+  // swap (interface → skeleton → interface) was the flicker/layout-shift on
+  // switching chats. Message queries are auth-checked server-side, so the
+  // optimistic render is safe; an unauthorized thread still resolves to the
+  // not-found branch below. Only a cold first paint / deep link shows the
+  // skeleton. (Ref mutation during render is intentional and idempotent.)
+  const hasRenderedInterfaceRef = useRef(false);
+
+  const renderInterface = (readOnly?: boolean) => {
+    hasRenderedInterfaceRef.current = true;
     return (
-      <Suspense fallback={<ChatSkeleton />}>
+      <SuspenseBoundary
+        fallback={
+          <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6">
+            <SkeletonText lines={3} />
+          </div>
+        }
+      >
         <ChatInterface
           key={`chat-${newChatCount}`}
           organizationId={organizationId}
           threadId={threadId}
+          readOnly={readOnly}
         />
-      </Suspense>
+      </SuspenseBoundary>
     );
+  };
+
+  // No threadId or just-created thread → render immediately. BranchProvider
+  // is mounted up in ChatLayoutContent, so we don't need to wrap here.
+  if (!threadId || isJustCreated) {
+    return renderInterface();
   }
 
-  // Still loading
+  // Still loading ownership: render the real ChatInterface optimistically (its
+  // own Skeletonize-wrapped welcome/message states cover the load). Message
+  // queries are auth-checked server-side, so this is safe; an unauthorized
+  // thread still resolves to the not-found branch below once status arrives.
   if (threadStatus === undefined) {
-    return <ThreadLoadingSkeleton />;
+    return renderInterface();
   }
 
   // Loaded but thread not found / not authorized
@@ -173,28 +153,11 @@ function ThreadGate({
 
   // Shared read-only access for non-owner org members
   if (threadStatus === 'shared-readonly') {
-    return (
-      <Suspense fallback={<ChatSkeleton />}>
-        <ChatInterface
-          key={`chat-${newChatCount}`}
-          organizationId={organizationId}
-          threadId={threadId}
-          readOnly
-        />
-      </Suspense>
-    );
+    return renderInterface(true);
   }
 
   // Thread is accessible — render ChatInterface
-  return (
-    <Suspense fallback={<ChatSkeleton />}>
-      <ChatInterface
-        key={`chat-${newChatCount}`}
-        organizationId={organizationId}
-        threadId={threadId}
-      />
-    </Suspense>
-  );
+  return renderInterface();
 }
 
 function ChatLayoutContent({ organizationId }: { organizationId: string }) {
@@ -236,14 +199,10 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
     return (
       <PageLayout className="bg-background h-full overflow-hidden">
         <LayoutErrorBoundary organizationId={organizationId}>
-          <Suspense
+          <SuspenseBoundary
             fallback={
-              <div className="flex h-full flex-col items-center p-8">
-                <div className="w-full max-w-(--chat-max-width) space-y-4">
-                  <Skeleton className="h-8 w-48" />
-                  <Skeleton className="h-24 w-full" />
-                  <Skeleton className="h-24 w-3/4" />
-                </div>
+              <div className="flex h-full flex-col p-4 sm:p-6">
+                <SkeletonText lines={3} />
               </div>
             }
           >
@@ -251,7 +210,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
               organizationId={organizationId}
               shareToken={shareToken}
             />
-          </Suspense>
+          </SuspenseBoundary>
         </LayoutErrorBoundary>
       </PageLayout>
     );

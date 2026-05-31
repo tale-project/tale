@@ -2,7 +2,8 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Check, CircleAlert, Loader2, Minus, X } from 'lucide-react';
 import type React from 'react';
@@ -127,14 +128,20 @@ export function TestConnectionSheet({
             <Text className="text-sm">{systemError}</Text>
           </HStack>
         ) : configLoading ? (
-          <Stack gap={2}>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <HStack key={i} gap={3} align="center">
-                <Skeleton className="size-4" />
-                <Skeleton className="h-4 w-48" />
-              </HStack>
-            ))}
-          </Stack>
+          <Skeletonize loading>
+            <Stack gap={2}>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <HStack key={i} gap={3} align="center">
+                  <SkeletonBox>
+                    <div className="size-4" />
+                  </SkeletonBox>
+                  <SkeletonBox>
+                    <div className="h-4 w-48" />
+                  </SkeletonBox>
+                </HStack>
+              ))}
+            </Stack>
+          </Skeletonize>
         ) : (
           <Stack gap={3}>
             {report ? (

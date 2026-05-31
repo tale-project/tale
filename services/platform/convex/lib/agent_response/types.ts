@@ -10,6 +10,7 @@ import type { ActionCtx } from '../../_generated/server';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management';
 import type { StructuredContextResult } from '../context_management';
+import type { ReasoningCapabilityConfig } from './reasoning/capability';
 
 /**
  * Configuration for creating a generic agent response generator.
@@ -61,6 +62,17 @@ export interface GenerateResponseConfig {
    * sites omit the field.
    */
   providerOptions?: SharedV3ProviderOptions;
+  /**
+   * Per-model output cap (`modelData.maxOutputTokens`). Bounds the Adaptive
+   * Reasoning Governor's thinking budget so it leaves room for the answer.
+   */
+  modelMaxOutputTokens?: number;
+  /**
+   * Operator-declared reasoning capability (`modelData.reasoning`) for the
+   * Adaptive Reasoning Governor. Optional — the governor falls back to a
+   * built-in curated model-id table when absent.
+   */
+  reasoningCapability?: ReasoningCapabilityConfig;
 }
 
 /**

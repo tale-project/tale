@@ -28,6 +28,12 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    // Fail loudly if 3000 is taken instead of silently moving to the next free
+    // port: SITE_URL, the Convex proxy, and the dev orchestrator all assume the
+    // app is on 3000, so a silent port shift just looks like "localhost:3000 is
+    // broken". The dev orchestrator passes --strictPort too; this keeps direct
+    // `vite`/preview invocations consistent.
+    strictPort: true,
     proxy: {
       // Proxy Convex API requests to the (possibly remote) convex service.
       '/ws_api': {
@@ -76,6 +82,20 @@ export default defineConfig({
       'zod',
       'lodash',
       'date-fns',
+      // Markdown rendering stack. Every consumer (chat, skills, automations,
+      // changelog, workspace viewers, docs bodies) lives behind a code-split
+      // route or a lazily-loaded dialog, so Vite's cold-start scanner never
+      // reaches them. The first navigation that mounts a renderer then
+      // discovers this whole cluster at once, forcing a "optimized
+      // dependencies changed. reloading" re-bundle — which rewrites the hashed
+      // chunk names and 404s any in-flight request for the old ones (zwitch,
+      // unist-util-visit, etc.). Pre-bundling the four entry points pulls their
+      // transitive deps (micromark-*, hast/mdast-util-*) into the first pass so
+      // no mid-session re-optimization is ever triggered.
+      'react-markdown',
+      'remark-gfm',
+      'rehype-raw',
+      'rehype-sanitize',
     ],
     exclude: [
       '@tanstack/react-start/server',

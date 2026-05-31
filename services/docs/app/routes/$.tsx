@@ -2,7 +2,7 @@ import { createFileRoute, notFound } from '@tanstack/react-router';
 
 import { DocsPage } from '@/app/pages/docs-page';
 import { NotFoundPage } from '@/app/pages/not-found-page';
-import { getDocPage } from '@/lib/content/loader';
+import { ensureDocBody, getDocPage } from '@/lib/content/loader';
 import { isUrlPrefixedLocale, type SupportedLocale } from '@/lib/i18n/locales';
 
 interface Resolved {
@@ -56,6 +56,15 @@ export const Route = createFileRoute('/$')({
     if (isSpecialEndpoint(splat)) return;
     const { locale, slug } = resolve(splat);
     if (!getDocPage(locale, slug)) throw notFound();
+  },
+  // Fetch only this page's body before it renders (one lazy chunk on the
+  // client; resolved from the eager glob on SSR). The frontmatter the sidebar
+  // and breadcrumbs need is already loaded from the manifest.
+  loader: async ({ params }) => {
+    const splat = params._splat ?? '';
+    if (isSpecialEndpoint(splat)) return;
+    const { locale, slug } = resolve(splat);
+    await ensureDocBody(locale, slug);
   },
   component: SplatRoute,
   notFoundComponent: SplatNotFound,

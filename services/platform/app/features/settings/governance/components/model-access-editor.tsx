@@ -3,7 +3,8 @@
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -149,6 +150,8 @@ interface RuleDialogProps {
   mode: ModelAccessConfig['mode'];
 }
 
+const PLACEHOLDER_ROW_COUNT = 3;
+
 function RuleDialog({
   open,
   onOpenChange,
@@ -286,6 +289,15 @@ function RuleDialog({
   );
 }
 
+// =============================================================================
+// Single editor — owns data fetching, local enabled/mode/rule/dialog state,
+// save/toast wiring (including the affected-defaults confirm), and the loading
+// state. Renders the REAL header (enable Switch), mode select, rules table, and
+// dialogs once, always, wrapped in `<Skeletonize>`. The skeleton-aware
+// `Switch`/`Select`/action `Button` mask themselves; the body (mode + table) is
+// forced visible while loading so its placeholder rows can render even though
+// `enabled` is still its initial `false`.
+// =============================================================================
 export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
@@ -523,219 +535,250 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     [allModelOptions],
   );
 
-  if (isLoading || !initializedRef.current) {
-    return (
+  const loading = isLoading || !initializedRef.current;
+  const isPending = upsertMutation.isPending;
+
+  // While loading, render fixed placeholder rows so the table occupies the
+  // same height as real content and reads as "loading", not "empty".
+  const displayRows = loading
+    ? Array.from({ length: PLACEHOLDER_ROW_COUNT }, (_, i) => ({
+        __placeholder: i,
+      }))
+    : rules;
+
+  return (
+    <Skeletonize loading={loading} label={t('modelAccess.title')}>
       <PageSection
         title={t('modelAccess.title')}
         description={t('modelAccess.description')}
-        action={<Skeleton className="h-[1.15rem] w-8 rounded-full" />}
+        action={
+          <Switch
+            label={t('modelAccess.enabled')}
+            checked={enabled}
+            onCheckedChange={handleToggleEnabled}
+            disabled={cannotManage || isPending}
+          />
+        }
       >
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Skeleton className="h-3.5 w-32" />
-            <Skeleton className="h-8 w-full max-w-sm rounded-md" />
-          </div>
-          <Skeleton className="h-48 w-full rounded-md" />
-        </div>
-      </PageSection>
-    );
-  }
-
-  return (
-    <PageSection
-      title={t('modelAccess.title')}
-      description={t('modelAccess.description')}
-      action={
-        <Switch
-          label={t('modelAccess.enabled')}
-          checked={enabled}
-          onCheckedChange={handleToggleEnabled}
-          disabled={cannotManage || upsertMutation.isPending}
-        />
-      }
-    >
-      {enabled && (
-        <Stack gap={6}>
-          <HStack gap={2} align="center" justify="between">
-            <HStack gap={2} align="center">
-              <Text className="text-sm font-medium">
-                {t('modelAccess.mode')}
-              </Text>
-              <div className="w-36">
-                <Select
-                  options={MODE_OPTIONS}
-                  value={mode}
-                  onValueChange={handleModeChange}
-                  disabled={cannotManage || upsertMutation.isPending}
-                  size="sm"
-                />
-              </div>
-            </HStack>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={openAddDialog}
-              disabled={cannotManage}
-            >
-              <Plus className="mr-1.5 size-4" />
-              {t('modelAccess.addRule')}
-            </Button>
-          </HStack>
-
-          <div className="border-border overflow-hidden rounded-lg border">
-            <div className="overflow-x-auto">
-              <table
-                className="w-full text-sm"
-                aria-label={t('modelAccess.title')}
+        {(enabled || loading) && (
+          <Stack gap={6}>
+            <HStack gap={2} align="center" justify="between">
+              <HStack gap={2} align="center">
+                <Text className="text-sm font-medium">
+                  {t('modelAccess.mode')}
+                </Text>
+                <div className="w-36">
+                  <Select
+                    options={MODE_OPTIONS}
+                    value={mode}
+                    onValueChange={handleModeChange}
+                    disabled={cannotManage || isPending}
+                    size="sm"
+                    aria-label={t('modelAccess.mode')}
+                  />
+                </div>
+              </HStack>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={openAddDialog}
+                disabled={cannotManage}
               >
-                <caption className="sr-only">{t('modelAccess.title')}</caption>
-                <thead className="bg-muted/50">
-                  <tr className="border-border border-b">
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {t('modelAccess.scope')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {t('modelAccess.target')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {mode === 'allowlist'
-                        ? t('modelAccess.allowedModels')
-                        : t('modelAccess.blockedModels')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-right font-medium"
-                    >
-                      {t('modelAccess.actions')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rules.length > 0 ? (
-                    rules.map((rule, index) => (
-                      <tr
-                        key={index}
-                        className="border-border border-b last:border-b-0"
+                <Plus className="mr-1.5 size-4" />
+                {t('modelAccess.addRule')}
+              </Button>
+            </HStack>
+
+            <div className="border-border overflow-hidden rounded-lg border">
+              <div className="overflow-x-auto">
+                <table
+                  className="w-full text-sm"
+                  aria-label={t('modelAccess.title')}
+                >
+                  <caption className="sr-only">
+                    {t('modelAccess.title')}
+                  </caption>
+                  <thead className="bg-muted/50">
+                    <tr className="border-border border-b">
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-left font-medium"
                       >
-                        <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                        <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                        <td className="px-3 py-2">
-                          {mode === 'allowlist'
-                            ? resolveModelNames(rule.allowedModels)
-                            : resolveModelNames(rule.blockedModels ?? [])}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <HStack gap={1} justify="end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEditDialog(index)}
-                              disabled={cannotManage}
-                              aria-label={t('modelAccess.editRule')}
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setDeletingIndex(index)}
-                              disabled={cannotManage}
-                              aria-label={t('modelAccess.deleteRule')}
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </HStack>
+                        {t('modelAccess.scope')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-left font-medium"
+                      >
+                        {t('modelAccess.target')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-left font-medium"
+                      >
+                        {mode === 'allowlist'
+                          ? t('modelAccess.allowedModels')
+                          : t('modelAccess.blockedModels')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-right font-medium"
+                      >
+                        {t('modelAccess.actions')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      displayRows.map((_, index) => (
+                        <tr
+                          key={`skeleton-${index}`}
+                          className="border-border border-b last:border-b-0"
+                        >
+                          <td className="px-3 py-2">
+                            <SkeletonBox>
+                              <div className="h-3.5 w-16" />
+                            </SkeletonBox>
+                          </td>
+                          <td className="px-3 py-2">
+                            <SkeletonBox>
+                              <div className="h-3.5 w-24" />
+                            </SkeletonBox>
+                          </td>
+                          <td className="px-3 py-2">
+                            <SkeletonBox>
+                              <div className="h-3.5 w-32" />
+                            </SkeletonBox>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <HStack gap={1} justify="end">
+                              <SkeletonBox>
+                                <div className="size-8 rounded-md" />
+                              </SkeletonBox>
+                              <SkeletonBox>
+                                <div className="size-8 rounded-md" />
+                              </SkeletonBox>
+                            </HStack>
+                          </td>
+                        </tr>
+                      ))
+                    ) : rules.length > 0 ? (
+                      rules.map((rule, index) => (
+                        <tr
+                          key={index}
+                          className="border-border border-b last:border-b-0"
+                        >
+                          <td className="px-3 py-2 capitalize">{rule.scope}</td>
+                          <td className="px-3 py-2">{resolveTarget(rule)}</td>
+                          <td className="px-3 py-2">
+                            {mode === 'allowlist'
+                              ? resolveModelNames(rule.allowedModels)
+                              : resolveModelNames(rule.blockedModels ?? [])}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <HStack gap={1} justify="end">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openEditDialog(index)}
+                                disabled={cannotManage}
+                                aria-label={t('modelAccess.editRule')}
+                              >
+                                <Pencil className="size-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setDeletingIndex(index)}
+                                disabled={cannotManage}
+                                aria-label={t('modelAccess.deleteRule')}
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </HStack>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="p-0">
+                          <RulesTableEmptyState
+                            icon={ShieldCheck}
+                            title={t('modelAccess.noRulesTitle')}
+                            description={t('modelAccess.noRulesDescription')}
+                          />
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="p-0">
-                        <RulesTableEmptyState
-                          icon={ShieldCheck}
-                          title={t('modelAccess.noRulesTitle')}
-                          description={t('modelAccess.noRulesDescription')}
-                        />
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        </Stack>
-      )}
+          </Stack>
+        )}
 
-      {dialogOpen && (
-        <RuleDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          rule={dialogRule}
-          onSave={handleDialogSave}
-          title={
-            editingIndex === null
-              ? t('modelAccess.addRule')
-              : t('modelAccess.editRule')
-          }
-          cannotManage={cannotManage}
-          memberOptions={memberOptions}
-          teamOptions={teamOptions}
-          allModelOptions={allModelOptions}
-          mode={mode}
+        {dialogOpen && (
+          <RuleDialog
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+            rule={dialogRule}
+            onSave={handleDialogSave}
+            title={
+              editingIndex === null
+                ? t('modelAccess.addRule')
+                : t('modelAccess.editRule')
+            }
+            cannotManage={cannotManage}
+            memberOptions={memberOptions}
+            teamOptions={teamOptions}
+            allModelOptions={allModelOptions}
+            mode={mode}
+          />
+        )}
+
+        <ConfirmDialog
+          open={deletingIndex !== null}
+          onOpenChange={(open) => {
+            if (!open) setDeletingIndex(null);
+          }}
+          title={t('modelAccess.removeRuleConfirmTitle')}
+          description={t('modelAccess.removeRuleConfirmDescription')}
+          confirmText={t('modelAccess.removeRuleConfirmAction')}
+          variant="destructive"
+          onConfirm={confirmRemoveRule}
         />
-      )}
 
-      <ConfirmDialog
-        open={deletingIndex !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeletingIndex(null);
-        }}
-        title={t('modelAccess.removeRuleConfirmTitle')}
-        description={t('modelAccess.removeRuleConfirmDescription')}
-        confirmText={t('modelAccess.removeRuleConfirmAction')}
-        variant="destructive"
-        onConfirm={confirmRemoveRule}
-      />
-
-      <ConfirmDialog
-        open={pendingSave !== null}
-        onOpenChange={(open) => {
-          if (!open && pendingSave) {
-            pendingSave.revert();
-            setPendingSave(null);
-          }
-        }}
-        title={t('modelAccess.removeDefaultConfirmTitle')}
-        description={t('modelAccess.removeDefaultConfirmBody', {
-          rules:
-            pendingSave?.affected
-              .map((r) => {
-                const target =
-                  r.scope === 'default'
-                    ? t('modelAccess.allUsers')
-                    : (r.scopeId ?? r.scope);
-                return `${r.modelId} (${target})`;
-              })
-              .join(', ') ?? '',
-        })}
-        confirmText={t('modelAccess.removeDefaultConfirmAction')}
-        variant="destructive"
-        onConfirm={() => {
-          if (pendingSave) {
-            void saveConfig(pendingSave.next);
-            setPendingSave(null);
-          }
-        }}
-      />
-    </PageSection>
+        <ConfirmDialog
+          open={pendingSave !== null}
+          onOpenChange={(open) => {
+            if (!open && pendingSave) {
+              pendingSave.revert();
+              setPendingSave(null);
+            }
+          }}
+          title={t('modelAccess.removeDefaultConfirmTitle')}
+          description={t('modelAccess.removeDefaultConfirmBody', {
+            rules:
+              pendingSave?.affected
+                .map((r) => {
+                  const target =
+                    r.scope === 'default'
+                      ? t('modelAccess.allUsers')
+                      : (r.scopeId ?? r.scope);
+                  return `${r.modelId} (${target})`;
+                })
+                .join(', ') ?? '',
+          })}
+          confirmText={t('modelAccess.removeDefaultConfirmAction')}
+          variant="destructive"
+          onConfirm={() => {
+            if (pendingSave) {
+              void saveConfig(pendingSave.next);
+              setPendingSave(null);
+            }
+          }}
+        />
+      </PageSection>
+    </Skeletonize>
   );
 }

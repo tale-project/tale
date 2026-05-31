@@ -1,3 +1,4 @@
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
@@ -154,6 +155,41 @@ describe('ModelSelector', () => {
     it('passes axe audit in readonly mode', async () => {
       const { container } = renderModelSelector({ readonlyOrder: true });
       await checkAccessibility(container);
+    });
+  });
+
+  describe('skeleton mode', () => {
+    it('masks the add control and model rows while loading', () => {
+      render(
+        <Skeletonize loading>
+          <ModelSelector
+            models={defaultModels}
+            onChange={vi.fn()}
+            availableOptions={availableOptions}
+            getDisplayName={getDisplayName}
+          />
+        </Skeletonize>,
+      );
+      // The real control is laid out invisibly inside an aria-hidden
+      // SkeletonBox, so no interactive controls (add trigger, reorder
+      // buttons) are exposed to the accessibility tree while masked.
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
+
+    it('renders the real list and add control when not loading', () => {
+      render(
+        <Skeletonize loading={false}>
+          <ModelSelector
+            models={defaultModels}
+            onChange={vi.fn()}
+            availableOptions={availableOptions}
+            getDisplayName={getDisplayName}
+          />
+        </Skeletonize>,
+      );
+      expect(screen.getByText('Add model')).toBeInTheDocument();
+      expect(screen.getByText('Claude Sonnet 4')).toBeInTheDocument();
+      expect(screen.getAllByRole('button').length).toBeGreaterThan(0);
     });
   });
 });

@@ -490,6 +490,8 @@ export const runAgentGeneration = internalAction({
               toolsSummary,
               personalizationMode: agentConfig.personalizationMode,
               providerOptions: buildCallProviderOptions(modelData),
+              modelMaxOutputTokens: modelData.maxOutputTokens,
+              reasoningCapability: modelData.reasoning,
             },
             {
               ctx,

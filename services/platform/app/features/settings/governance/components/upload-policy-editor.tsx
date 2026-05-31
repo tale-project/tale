@@ -2,7 +2,7 @@
 
 import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
@@ -86,6 +86,13 @@ function buildConfig(
   return config;
 }
 
+// =============================================================================
+// Single editor — owns data fetching, the form controller, the enable toggle
+// state, save/toast wiring, and the loading state. Renders the REAL
+// `PageSection` once, always, wrapped in `<Skeletonize>`; the skeleton-aware
+// `<Switch>`/`<Input>` leaves mask themselves while loading, so the loading and
+// loaded layouts are the SAME tree.
+// =============================================================================
 export function UploadPolicyEditor({
   organizationId,
 }: UploadPolicyEditorProps) {
@@ -184,13 +191,13 @@ export function UploadPolicyEditor({
   });
 
   const {
-    form: {
-      register,
-      handleSubmit,
-      getValues,
-      formState: { errors },
-    },
-  } = editor;
+    getValues,
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = editor.form;
+  const canManage = !cannotManage;
+  const switchDisabled = cannotManage || upsertMutation.isPending;
 
   const handleToggleEnabled = useCallback(
     async (next: boolean) => {
@@ -214,132 +221,88 @@ export function UploadPolicyEditor({
     [getValues, organizationId, t, toast, upsertMutation],
   );
 
-  const skeleton = (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-4 w-80 max-w-full" />
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <Skeleton className="h-3.5 w-14" />
-          <Skeleton className="h-[1.15rem] w-8 rounded-full" />
-        </div>
-      </div>
-      {enabled && (
-        <div className="flex max-w-2xl flex-col gap-6">
-          <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {[0, 1].map((i) => (
-                <div key={i} className="flex flex-col gap-2.5">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-8 w-full rounded-md" />
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-col gap-2.5">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-8 w-full rounded-md" />
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {[0, 1].map((i) => (
-                <div key={i} className="flex flex-col gap-2.5">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-8 w-full rounded-md" />
-                </div>
-              ))}
-            </div>
-          </div>
-          <Skeleton className="h-8 w-20 rounded-md" />
-        </div>
-      )}
-    </div>
-  );
-
-  if (isLoading) {
-    return <div aria-busy="true">{skeleton}</div>;
-  }
-
   return (
-    <PageSection
-      title={t('uploadPolicy.title')}
-      description={t('uploadPolicy.description')}
-      action={
-        <Switch
-          label={t('uploadPolicy.enabled')}
-          checked={enabled}
-          onCheckedChange={handleToggleEnabled}
-          disabled={cannotManage || upsertMutation.isPending}
-        />
-      }
-    >
-      {enabled && (
-        <form id={FORM_ID} onSubmit={handleSubmit((values) => save(values))}>
-          <fieldset
-            disabled={cannotManage || editor.isLoading}
-            className="contents"
-          >
-            <Stack gap={6} className="max-w-2xl">
-              <Stack gap={4}>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Input
-                    label={t('uploadPolicy.allowedExtensions')}
-                    placeholder={t('uploadPolicy.extensionPlaceholder')}
-                    size="sm"
-                    errorMessage={errors.allowedExtensions?.message}
-                    {...register('allowedExtensions')}
-                  />
-                  <Input
-                    label={t('uploadPolicy.blockedExtensions')}
-                    placeholder={t('uploadPolicy.extensionPlaceholder')}
-                    size="sm"
-                    errorMessage={errors.blockedExtensions?.message}
-                    {...register('blockedExtensions')}
-                  />
-                </div>
+    <Skeletonize loading={isLoading} label={t('uploadPolicy.title')}>
+      <PageSection
+        title={t('uploadPolicy.title')}
+        description={t('uploadPolicy.description')}
+        action={
+          <Switch
+            label={t('uploadPolicy.enabled')}
+            checked={enabled}
+            onCheckedChange={handleToggleEnabled}
+            disabled={switchDisabled}
+          />
+        }
+      >
+        {enabled && (
+          <form id={FORM_ID} onSubmit={handleSubmit(save)}>
+            <fieldset
+              disabled={!canManage || editor.isLoading}
+              className="contents"
+            >
+              <Stack gap={6} className="max-w-2xl">
+                <Stack gap={4}>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Input
+                      label={t('uploadPolicy.allowedExtensions')}
+                      placeholder={t('uploadPolicy.extensionPlaceholder')}
+                      size="sm"
+                      errorMessage={errors.allowedExtensions?.message}
+                      {...register('allowedExtensions')}
+                    />
+                    <Input
+                      label={t('uploadPolicy.blockedExtensions')}
+                      placeholder={t('uploadPolicy.extensionPlaceholder')}
+                      size="sm"
+                      errorMessage={errors.blockedExtensions?.message}
+                      {...register('blockedExtensions')}
+                    />
+                  </div>
 
-                <Input
-                  label={t('uploadPolicy.allowedMimeTypes')}
-                  placeholder={t('uploadPolicy.mimeTypePlaceholder')}
-                  size="sm"
-                  errorMessage={errors.allowedMimeTypes?.message}
-                  {...register('allowedMimeTypes')}
-                />
+                  <Input
+                    label={t('uploadPolicy.allowedMimeTypes')}
+                    placeholder={t('uploadPolicy.mimeTypePlaceholder')}
+                    size="sm"
+                    errorMessage={errors.allowedMimeTypes?.message}
+                    {...register('allowedMimeTypes')}
+                  />
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Input
-                    label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
-                    type="number"
-                    size="sm"
-                    min={0}
-                    step={1}
-                    errorMessage={errors.maxFileSizeMB?.message}
-                    {...register('maxFileSizeMB')}
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Input
+                      label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
+                      type="number"
+                      size="sm"
+                      min={0}
+                      step={1}
+                      errorMessage={errors.maxFileSizeMB?.message}
+                      {...register('maxFileSizeMB')}
+                    />
+                    <Input
+                      label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
+                      type="number"
+                      size="sm"
+                      min={0}
+                      step={0.1}
+                      errorMessage={errors.maxVolumeGB?.message}
+                      {...register('maxVolumeGB')}
+                    />
+                  </div>
+                </Stack>
+
+                <HStack justify="end">
+                  <EditorActions
+                    controller={editor}
+                    formId={FORM_ID}
+                    canEdit={canManage}
+                    entityKind="governance_upload_policy"
                   />
-                  <Input
-                    label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
-                    type="number"
-                    size="sm"
-                    min={0}
-                    step={0.1}
-                    errorMessage={errors.maxVolumeGB?.message}
-                    {...register('maxVolumeGB')}
-                  />
-                </div>
+                </HStack>
               </Stack>
-
-              <HStack justify="end">
-                <EditorActions
-                  controller={editor}
-                  formId={FORM_ID}
-                  canEdit={!cannotManage}
-                  entityKind="governance_upload_policy"
-                />
-              </HStack>
-            </Stack>
-          </fieldset>
-        </form>
-      )}
-    </PageSection>
+            </fieldset>
+          </form>
+        )}
+      </PageSection>
+    </Skeletonize>
   );
 }

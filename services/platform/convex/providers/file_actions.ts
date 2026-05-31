@@ -612,6 +612,18 @@ export const resolveModelData = internalAction({
       ),
     ),
     providerOptions: v.optional(v.record(v.string(), v.any())),
+    reasoning: v.optional(
+      v.object({
+        knob: v.union(
+          v.literal('effort'),
+          v.literal('budgetTokens'),
+          v.literal('none'),
+        ),
+        supportsMinimal: v.optional(v.boolean()),
+        minBudgetTokens: v.optional(v.number()),
+        maxBudgetTokens: v.optional(v.number()),
+      }),
+    ),
   }),
   handler: async (ctx, args) => {
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
@@ -719,6 +731,7 @@ export const resolveModelData = internalAction({
         instructionsByLocale: definition.instructionsByLocale,
         audioFormat: definition.audioFormat,
         providerOptions,
+        reasoning: definition.reasoning,
       };
     }
 
@@ -773,6 +786,18 @@ export const resolveModelByTag = internalAction({
       ),
     ),
     providerOptions: v.optional(v.record(v.string(), v.any())),
+    reasoning: v.optional(
+      v.object({
+        knob: v.union(
+          v.literal('effort'),
+          v.literal('budgetTokens'),
+          v.literal('none'),
+        ),
+        supportsMinimal: v.optional(v.boolean()),
+        minBudgetTokens: v.optional(v.number()),
+        maxBudgetTokens: v.optional(v.number()),
+      }),
+    ),
   }),
   handler: async (ctx, args) => {
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
@@ -831,6 +856,7 @@ export const resolveModelByTag = internalAction({
               provider.config.providerOptions,
               definition.providerOptions,
             ),
+            reasoning: definition.reasoning,
           };
         }
       }
@@ -871,6 +897,7 @@ export const resolveModelByTag = internalAction({
             provider.config.providerOptions,
             definition.providerOptions,
           ),
+          reasoning: definition.reasoning,
         };
       }
     }

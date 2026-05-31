@@ -19,6 +19,7 @@ import {
   loadGuardrailsSnapshot,
   sanitizeMessage,
 } from '../governance/sanitize';
+import { buildReasoningOptions } from '../lib/agent_response/reasoning/build_reasoning_options';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
@@ -240,7 +241,31 @@ export const chatDirectModel = internalAction({
         (args.conversationMessages as ModelMessage[])
       : [{ role: 'user' as const, content: message }];
 
-    const callProviderOptions = buildCallProviderOptions(resolved.modelData);
+    // Adaptive Reasoning Governor: scale reasoning + temperature to the
+    // request's difficulty. The stateless API path has no per-thread state, but
+    // it warm-starts from the org+model profile that chat turns accumulate.
+    // An explicit per-request temperature still wins.
+    const reasoningProfile = await ctx
+      .runQuery(internal.threads.internal_queries.getReasoningProfile, {
+        organizationId: args.organizationId,
+        scopeKey: resolved.modelData.modelId,
+      })
+      .catch(() => null);
+    const reasoningDecision = buildReasoningOptions({
+      modelData: resolved.modelData,
+      baseProviderOptions: buildCallProviderOptions(resolved.modelData),
+      signals: {
+        kind: 'chat',
+        promptText: typeof message === 'string' ? message : undefined,
+        toolCount: aiTools ? Object.keys(aiTools).length : 0,
+      },
+      profile: reasoningProfile ?? undefined,
+    });
+    const callProviderOptions = reasoningDecision.providerOptions;
+    const effectiveTemperature =
+      genParams.temperature != null
+        ? Number(genParams.temperature)
+        : reasoningDecision.temperature;
     const result = streamText({
       model: resolved.languageModel,
       system: systemPrompt,
@@ -250,8 +275,8 @@ export const chatDirectModel = internalAction({
       ...(args.toolChoice != null && {
         toolChoice: mapToolChoice(args.toolChoice),
       }),
-      ...(genParams.temperature != null && {
-        temperature: Number(genParams.temperature),
+      ...(effectiveTemperature != null && {
+        temperature: effectiveTemperature,
       }),
       ...(genParams.maxTokens != null && {
         maxTokens: Number(genParams.maxTokens),

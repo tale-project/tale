@@ -3,7 +3,8 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import startCase from 'lodash/startCase';
 import { AlertTriangle, ChevronDown, Cpu } from 'lucide-react';
 import {
@@ -236,8 +237,29 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
 
   const isLoading = agentsLoading || providersLoading;
 
+  // While agents/providers load, render the REAL closed-trigger structure
+  // (the same Button + Cpu icon the resolved selector shows) with its dynamic
+  // label masked inside <Skeletonize loading>. No whole-tree swap to a
+  // standalone skeleton — the trigger is the real control.
   if (isLoading) {
-    return <Skeleton className="h-6 w-24" label={t('modelSelector.label')} />;
+    return (
+      <Skeletonize loading label={t('modelSelector.label')}>
+        <Button
+          type="button"
+          className="gap-2"
+          size="icon"
+          variant="ghost"
+          aria-label={t('modelSelector.label')}
+          disabled
+        >
+          <Cpu className="size-3.5" aria-hidden="true" />
+          <SkeletonBox>
+            <span className="inline-block h-4 w-24" />
+          </SkeletonBox>
+          <ChevronDown className="size-3" aria-hidden="true" />
+        </Button>
+      </Skeletonize>
+    );
   }
 
   if (!filteredModels.length) {

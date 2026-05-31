@@ -771,16 +771,17 @@
       "body": "Cette réponse a été bloquée par la politique de contenu de ton organisation."
     },
     "thinking": {
-      "default": "Réflexion",
-      "searching": "Recherche de \"{query}\"",
       "reading": "Lecture de {hostname}",
       "searchingKnowledgeBase": "Recherche dans la base de connaissances pour \"{query}\"",
-      "searchingMultiple": "Recherche de {queries}",
-      "searchingMore": "Recherche de {first}, {second} et {count} autres",
-      "multipleTools": "{first} et {second}",
-      "multipleToolsMore": "{first}, {second} et {count} autres",
-      "and": "et",
-      "delegating": "Demande à {agent}"
+      "delegating": "Demande à {agent}",
+      "redacted": "A réfléchi en privé"
+    },
+    "thoughtProcess": {
+      "thinking": "Réflexion",
+      "summary": "A réfléchi {seconds} s · {tools, plural, one {# outil utilisé} other {# outils utilisés}}",
+      "summaryNoTools": "A réfléchi {seconds} s",
+      "summaryUnknownDuration": "{tools, plural, one {# outil utilisé} other {# outils utilisés}}",
+      "summaryReasoningOnly": "A montré son raisonnement"
     },
     "tools": {
       "customerRead": "Lecture des données client",
@@ -1211,7 +1212,6 @@
     },
     "skeleton": {
       "loadingWelcome": "Chargement de l'accueil",
-      "loadingSuggestion": "Chargement de la suggestion",
       "loadingMessage": "Chargement du message"
     },
     "promptLibrary": "Bibliothèque de prompts",
@@ -1451,7 +1451,11 @@
     "moveUp": "Monter",
     "moveDown": "Descendre",
     "drag": "Glisser pour réordonner",
-    "remove": "Retirer"
+    "remove": "Retirer",
+    "loading": {
+      "navigating": "Chargement de la page",
+      "label": "Chargement"
+    }
   },
   "composer": {
     "openMenu": "Ouvrir le menu du composeur",
@@ -2374,8 +2378,7 @@
       "title": "Sortie vocale",
       "description": "Lorsqu'elle est désactivée, aucun membre de cette organisation ne peut utiliser la sortie vocale. La préférence personnelle et les remplacements par chat n'ont alors aucun effet.",
       "enabledLabel": "Sortie vocale activée pour cette organisation",
-      "saved": "Politique de sortie vocale mise à jour",
-      "saveFailed": "Échec de la mise à jour de la politique de sortie vocale"
+      "saved": "Politique de sortie vocale mise à jour"
     },
     "personalization": {
       "enabledLabel": "Activé pour cette organisation",
@@ -5350,7 +5353,8 @@
       "addMemberFailed": "Échec de l'ajout du membre",
       "automationDuplicateFailed": "Échec de la duplication de l'automatisation",
       "automationRenameFailed": "Échec du renommage de l'automatisation",
-      "automationDeleteFailed": "Échec de la suppression de l'automatisation"
+      "automationDeleteFailed": "Échec de la suppression de l'automatisation",
+      "generic": "Une erreur s'est produite. Merci de réessayer."
     }
   },
   "todoList": {

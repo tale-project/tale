@@ -2,6 +2,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
 
 import { cn } from '../../lib/cn';
+import { SkeletonBox } from './skeleton';
 
 export const badgeVariants = cva(
   'inline-flex items-center rounded-md text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 whitespace-nowrap overflow-hidden border-transparent text-primary-muted hover:bg-primary-foreground/10 px-2.5 py-1 text-secondary',
@@ -47,6 +48,11 @@ export interface BadgeProps
   children: React.ReactNode;
 }
 
+/**
+ * Skeleton-aware Badge. Always wraps the real badge in a `<SkeletonBox>`: idle,
+ * the box is `display: contents`; inside a `<Skeletonize loading>` it masks the
+ * badge with an overlay at its exact footprint.
+ */
 export function Badge({
   className,
   variant,
@@ -56,20 +62,22 @@ export function Badge({
   ...props
 }: BadgeProps) {
   return (
-    <div
-      title={typeof children === 'string' ? children : undefined}
-      className={cn(badgeVariants({ variant }), className)}
-      {...props}
-    >
-      {dot && (
-        <div className="mr-1 shrink-0" aria-hidden="true">
-          <div className={cn(dotVariants({ variant }))} />
-        </div>
-      )}
-      {Icon && <Icon className="size-4 shrink-0" aria-hidden="true" />}
-      <span className={cn(Icon && 'ml-1', 'truncate leading-4')}>
-        {children}
-      </span>
-    </div>
+    <SkeletonBox>
+      <div
+        title={typeof children === 'string' ? children : undefined}
+        className={cn(badgeVariants({ variant }), className)}
+        {...props}
+      >
+        {dot && (
+          <div className="mr-1 shrink-0" aria-hidden="true">
+            <div className={cn(dotVariants({ variant }))} />
+          </div>
+        )}
+        {Icon && <Icon className="size-4 shrink-0" aria-hidden="true" />}
+        <span className={cn(Icon && 'ml-1', 'truncate leading-4')}>
+          {children}
+        </span>
+      </div>
+    </SkeletonBox>
   );
 }

@@ -1,0 +1,45 @@
+import type { ReasoningLexicon } from '../types';
+
+export const ca: ReasoningLexicon = {
+  locale: 'ca',
+  name: 'Catalan',
+  boundaryMode: 'word',
+  hardVerbs: [
+    'analitza',
+    'demostra',
+    'depura',
+    'optimitza',
+    'dissenya',
+    'implementa',
+    'compara',
+    'raona',
+    'algorisme',
+  ],
+  easyVerbs: [
+    'tradueix',
+    'resumeix',
+    'reformula',
+    'reescriu',
+    'escurça',
+    'formata',
+  ],
+  trivialAcks: ['hola', 'gràcies', "d'acord", 'sí', 'no', 'si us plau'],
+  creativeVerbs: [
+    'escriu',
+    'història',
+    'poema',
+    'imagina',
+    'inventa',
+    'cançó',
+    'creatiu',
+  ],
+  analyticalVerbs: [
+    'calcula',
+    'demostra',
+    'depura',
+    'extreu',
+    'classifica',
+    'resol',
+    'verifica',
+  ],
+};

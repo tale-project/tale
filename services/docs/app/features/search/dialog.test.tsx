@@ -94,7 +94,7 @@ describe('SearchDialog', () => {
       'xyz',
     );
     await waitFor(() => {
-      expect(screen.getByText('No results.')).toBeInTheDocument();
+      expect(screen.getByText('No results found')).toBeInTheDocument();
     });
   });
 
@@ -188,7 +188,7 @@ describe('SearchDialog', () => {
     );
     expect(stored).toHaveLength(1);
     expect(stored[0].query).toBe('config');
-    expect(stored[0].url).toBe('/cfg');
+    expect(stored[0].href).toBe('/cfg');
   });
 
   it('pre-warms the index when opened', async () => {
@@ -208,15 +208,20 @@ describe('SearchDialog', () => {
 
   it('shows the skeleton while the first search is in flight', async () => {
     let resolve: (rows: SearchResult[]) => void = () => {};
-    vi.spyOn(client, 'search').mockImplementation(
-      () => new Promise<SearchResult[]>((r) => (resolve = r)),
-    );
+    const searchSpy = vi
+      .spyOn(client, 'search')
+      .mockImplementation(
+        () => new Promise<SearchResult[]>((r) => (resolve = r)),
+      );
     const user = userEvent.setup();
     renderDialog();
     await user.type(
       screen.getByPlaceholderText('Search documentation…'),
       'config',
     );
+    // The query is debounced in the shared controller, so wait for the actual
+    // search call before resolving (otherwise `resolve` is still the no-op).
+    await waitFor(() => expect(searchSpy).toHaveBeenCalled());
     await waitFor(() => {
       expect(screen.getByTestId('search-skeleton')).toBeInTheDocument();
     });

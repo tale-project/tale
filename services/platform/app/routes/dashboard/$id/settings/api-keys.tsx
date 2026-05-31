@@ -4,7 +4,6 @@ import { AccessDenied } from '@/app/components/layout/access-denied';
 import { ApiKeysTable } from '@/app/features/settings/api-keys/components/api-keys-table';
 import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { SettingsListPageSkeleton } from '@/app/features/settings/components/settings-skeleton';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -27,11 +26,11 @@ function ApiKeysSettingsPage() {
 
   const { data: apiKeys } = useApiKeys(organizationId);
 
-  if (abilityLoading) {
-    return <SettingsListPageSkeleton />;
-  }
-
-  if (ability.cannot('read', 'developerSettings')) {
+  // Access is only knowable once the ability has loaded; until then the real
+  // page (whose `ApiKeysTable` DataTable self-skeletonizes via its count-aware
+  // state machine) stands in — no denied-flash on warm entry and no separate
+  // skeleton whose column widths could drift from the real table.
+  if (!abilityLoading && ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={t('apiKeys')} />;
   }
 

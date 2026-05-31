@@ -1,0 +1,45 @@
+import type { ReasoningLexicon } from '../types';
+
+export const da: ReasoningLexicon = {
+  locale: 'da',
+  name: 'Danish',
+  boundaryMode: 'word',
+  hardVerbs: [
+    'analyser',
+    'bevis',
+    'fejlret',
+    'optimer',
+    'design',
+    'implementer',
+    'sammenlign',
+    'ræsonner',
+    'algoritme',
+  ],
+  easyVerbs: [
+    'oversæt',
+    'opsummer',
+    'omformuler',
+    'omskriv',
+    'forkort',
+    'formater',
+  ],
+  trivialAcks: ['hej', 'hejsa', 'tak', 'ok', 'ja', 'nej', 'venligst'],
+  creativeVerbs: [
+    'skriv',
+    'historie',
+    'digt',
+    'forestil',
+    'opfind',
+    'sang',
+    'kreativ',
+  ],
+  analyticalVerbs: [
+    'beregn',
+    'bevis',
+    'fejlret',
+    'udtræk',
+    'klassificer',
+    'løs',
+    'verificer',
+  ],
+};

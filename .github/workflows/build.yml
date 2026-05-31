@@ -671,7 +671,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.storybook == 'true' && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # A cold build of all four Storybooks (web/docs/ui/platform) on a 2vCPU
+    # runner lands right at 5m, so any packages/ui change that misses the Turbo
+    # cache flakily times out. Give the cold path headroom.
+    timeout-minutes: 12
     permissions:
       contents: read
     env:

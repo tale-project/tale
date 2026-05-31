@@ -1,7 +1,8 @@
 'use client';
 
 import { Center } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -50,9 +51,13 @@ export function DocumentPreviewImage({
   return (
     <PreviewPane>
       {isLoading && (
-        <Center className="absolute inset-0 z-10">
-          <Skeleton className="size-64 rounded-xl" />
-        </Center>
+        <Skeletonize loading className="absolute inset-0 z-10">
+          <Center className="size-full">
+            <SkeletonBox>
+              <div className="size-64 rounded-xl" />
+            </SkeletonBox>
+          </Center>
+        </Skeletonize>
       )}
       <ZoomPanViewer
         src={url}

@@ -1,3 +1,4 @@
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
@@ -191,6 +192,35 @@ describe('SearchInput', () => {
       await waitFor(() => {
         expect(screen.getByLabelText('Search')).toHaveClass('animate-shake');
       });
+    });
+  });
+
+  describe('skeleton mode', () => {
+    it('masks the input (composed Input) while loading', () => {
+      render(
+        <Skeletonize loading>
+          <SearchInput value="" onChange={vi.fn()} placeholder="Search..." />
+        </Skeletonize>,
+      );
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    });
+
+    it('keeps the static label real while loading', () => {
+      render(
+        <Skeletonize loading>
+          <SearchInput value="" onChange={vi.fn()} label="Search" />
+        </Skeletonize>,
+      );
+      expect(screen.getByText('Search')).toBeInTheDocument();
+    });
+
+    it('renders the real input when not loading', () => {
+      render(
+        <Skeletonize loading={false}>
+          <SearchInput value="" onChange={vi.fn()} placeholder="Search..." />
+        </Skeletonize>,
+      );
+      expect(screen.getByPlaceholderText('Search...')).toBeInTheDocument();
     });
   });
 });

@@ -1,7 +1,8 @@
 'use client';
 
 import { VStack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useQuery } from 'convex/react';
 import {
@@ -207,7 +208,13 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   const [transcriptOpen, setTranscriptOpen] = useState(false);
 
   if (isImage && !displayUrl) {
-    return <Skeleton className="size-9 rounded-lg" />;
+    return (
+      <Skeletonize loading>
+        <SkeletonBox>
+          <div className="size-9 rounded-lg" />
+        </SkeletonBox>
+      </Skeletonize>
+    );
   }
 
   if (isImage) {

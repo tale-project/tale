@@ -55,6 +55,7 @@ import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
 import { projectsTable } from './projects/schema';
 import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
+import { reasoningProfilesTable } from './reasoning_profiles/schema';
 import { sandboxExecutionsTable } from './sandbox/schema';
 import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
@@ -155,6 +156,7 @@ export default defineSchema({
   userPreferences: userPreferencesTable,
   products: productsTable,
   projects: projectsTable,
+  reasoningProfiles: reasoningProfilesTable,
   ssoProviders: ssoProvidersTable,
   vendors: vendorsTable,
   sandboxExecutions: sandboxExecutionsTable,

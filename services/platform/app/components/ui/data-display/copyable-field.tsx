@@ -2,6 +2,8 @@
 
 import { Description } from '@tale/ui/description';
 import { HStack } from '@tale/ui/layout';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Check, Copy } from 'lucide-react';
 import * as React from 'react';
 
@@ -37,7 +39,7 @@ interface CopyableFieldProps {
  * A read-only "ID field" pill: a single bordered container that shows a value
  * and an inline copy affordance. Matches the design-system ID Field pattern.
  */
-export const CopyableField = React.memo(function CopyableField({
+const CopyableFieldBase = React.memo(function CopyableFieldBase({
   value,
   label,
   description,
@@ -115,6 +117,25 @@ export const CopyableField = React.memo(function CopyableField({
       </span>
     </div>
   );
+});
+CopyableFieldBase.displayName = 'CopyableFieldBase';
+
+/**
+ * Skeleton-aware CopyableField. Inside a `<Skeletonize loading>` it masks the
+ * real pill at its exact footprint, so it doesn't pop in when an id resolves.
+ */
+export const CopyableField = React.memo(function CopyableField(
+  props: CopyableFieldProps,
+) {
+  const loading = useSkeleton();
+  if (loading) {
+    return (
+      <SkeletonBox>
+        <CopyableFieldBase {...props} />
+      </SkeletonBox>
+    );
+  }
+  return <CopyableFieldBase {...props} />;
 });
 
 interface CopyableTextProps {

@@ -236,11 +236,10 @@ describe('useStreamBuffer', () => {
       expect(result.current.isTyping).toBe(false);
     });
 
-    it('reveals multi-sentence tail word-by-word, not as sentence flashes', () => {
-      // Regression: previously the drain phase used sentence-paced chunks,
-      // so a multi-sentence reply revealed in ~3 ticks (one per sentence).
-      // Now drain is always word-paced — we should see many distinct
-      // intermediate displayLengths, not just a handful of sentence stops.
+    it('reveals a multi-sentence tail character-by-character, not as sentence flashes', () => {
+      // The drain reveals ONE character per tick, so a multi-sentence reply
+      // produces many distinct intermediate displayLengths as it types out —
+      // not a handful of whole-sentence jumps.
       const frenchText =
         "C'est très gentil à vous, merci beaucoup ! Je suis ravi de savoir " +
         "que mon aide vous satisfait. N'hésitez pas si vous avez besoin de " +
@@ -256,8 +255,8 @@ describe('useStreamBuffer', () => {
       act(() => advanceFrames(4));
       rerender({ text: frenchText, isStreaming: false });
 
-      // Sample displayLength across drain — word-paced reveal should
-      // produce many distinct intermediate values (≫ 3 sentence stops).
+      // Sample displayLength across drain — character-by-character reveal
+      // should produce many distinct intermediate values (≫ 3 sentence stops).
       const seen = new Set<number>();
       for (let i = 0; i < 40; i++) {
         act(() => advanceFrames(2));
@@ -273,11 +272,10 @@ describe('useStreamBuffer', () => {
       expect(result.current.displayLength).toBe(frenchText.length);
     });
 
-    it('reveals short tail in multiple word-paced ticks, not one dump', () => {
+    it('reveals short tail in multiple per-character ticks, not one dump', () => {
       // Short reply scenario: text is below the initialBufferChars gate so
-      // streaming never starts the reveal; the whole buffer is handed to
-      // the drain phase. The fix routes short tails through word-mode so
-      // the sentence doesn't land in a single sentence-tick.
+      // streaming never starts the reveal; the whole buffer is handed to the
+      // drain phase, which reveals it character-by-character.
       const shortText = 'Hello there friend it works.';
 
       const { result, rerender } = renderHook(
@@ -293,11 +291,10 @@ describe('useStreamBuffer', () => {
       // Stream ends — drain engages.
       rerender({ text: shortText, isStreaming: false });
 
-      // Sample reveal progression at a few checkpoints. With base targetCPS=80
-      // in word-mode, tickInterval ≈ 62.5 ms — each ~4 frames advances one
-      // word chunk. We expect to observe at least two distinct intermediate
-      // positions before the final length (i.e. the reveal is word-paced,
-      // not a single sentence-tick dump).
+      // Sample reveal progression. This test passes no targetCPS, so the
+      // default 40 CPS applies; a short-tail drain reveals one character per
+      // ~25 ms tick (1000/40). We expect at least two distinct intermediate
+      // positions before the final length (i.e. it types out, not one dump).
       const samples: number[] = [];
       for (let i = 0; i < 8; i++) {
         act(() => advanceFrames(3));
@@ -341,7 +338,9 @@ describe('useStreamBuffer', () => {
       act(() => advanceFrames(60));
 
       rerender({ text: drainText, isStreaming: false });
-      act(() => advanceFrames(300));
+      // targetCPS:0 clamps to 1 CPS; char-by-char reveal at the 500ms tick
+      // floor needs ample frames to drain this short tail fully.
+      act(() => advanceFrames(1000));
 
       expect(result.current.displayLength).toBe(drainText.length);
     });
@@ -821,6 +820,157 @@ describe('useStreamBuffer — adaptive CPS', () => {
     expect(fastResult.current.displayLength).toBeGreaterThan(
       slowResult.current.displayLength,
     );
+  });
+});
+
+// ============================================================================
+// ADAPTIVE SMOOTHING — EMA CPS ramp + character-by-character reveal (WS3 / R7)
+// ============================================================================
+
+describe('useStreamBuffer — adaptive smoothing + character reveal', () => {
+  beforeEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
+    vi.restoreAllMocks();
+  });
+
+  it('reveals a single long word character-by-character, not all at once', () => {
+    // A 26-char token with NO word boundaries. Word/sentence chunking would
+    // reveal the whole token in one tick (no boundary until end-of-buffer);
+    // character reveal exposes it one char at a time, so after a few ticks the
+    // display lands MID-token — the proof of per-character granularity.
+    const word = 'abcdefghijklmnopqrstuvwxyz';
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text: word,
+        isStreaming: true,
+        targetCPS: 40,
+        initialBufferChars: 3,
+      }),
+    );
+
+    act(() => advanceFrames(6)); // ~100ms at 40 CPS ≈ a few characters
+    expect(result.current.displayLength).toBeGreaterThan(0);
+    expect(result.current.displayLength).toBeLessThan(word.length);
+
+    // And it still completes.
+    act(() => advanceFrames(400));
+    expect(result.current.displayLength).toBe(word.length);
+  });
+
+  it('reveals link markdown atomically (no raw syntax flash mid-construct)', () => {
+    // Char-by-char must NOT expose "[", "[t", "[te"… of a link — the
+    // syntax-skip jumps the whole [text](url) in one step.
+    const text = 'see [the docs](https://example.com/page) now';
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text,
+        isStreaming: true,
+        targetCPS: 1000, // fast so it advances into the link quickly
+        initialBufferChars: 1,
+      }),
+    );
+
+    // Sample reveal positions across frames; none may land inside the link
+    // markup (between the opening '[' and the closing ')').
+    const linkStart = text.indexOf('[');
+    const linkEnd = text.indexOf(')') + 1;
+    for (let i = 0; i < 60; i++) {
+      act(() => advanceFrames(1));
+      const len = result.current.displayLength;
+      const insideLink = len > linkStart && len < linkEnd;
+      expect(insideLink).toBe(false);
+    }
+    expect(result.current.displayLength).toBe(text.length);
+  });
+
+  /**
+   * Simulate the backend's ~250 ms throttled delta cadence: append a fixed
+   * slice of `full` every `framesPerPush` frames while streaming. The EMA must
+   * absorb the burstiness without ever revealing past what has actually
+   * arrived, and the buffer must still fully drain once streaming ends.
+   */
+  it('fully reveals a bursty, throttle-style multi-push stream', () => {
+    const full = 'word '.repeat(120); // 600 chars
+    const pushChars = 80;
+    const pushes = Math.ceil(full.length / pushChars);
+
+    const { result, rerender } = renderHook(
+      ({ text, isStreaming }: { text: string; isStreaming: boolean }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      { initialProps: { text: full.slice(0, pushChars), isStreaming: true } },
+    );
+
+    for (let p = 1; p <= pushes; p++) {
+      rerender({ text: full.slice(0, pushChars * p), isStreaming: true });
+      act(() => advanceFrames(15)); // ~250 ms between pushes
+      // Never reveal past what has actually streamed in.
+      expect(result.current.displayLength).toBeLessThanOrEqual(
+        Math.min(pushChars * p, full.length),
+      );
+    }
+
+    // Stream ends; drain to completion.
+    rerender({ text: full, isStreaming: false });
+    act(() => advanceFrames(800));
+
+    expect(result.current.displayLength).toBe(full.length);
+    expect(result.current.isTyping).toBe(false);
+  });
+
+  it('does not dump a large mid-stream burst in a single frame', () => {
+    const base = 'word '.repeat(6); // 30 chars
+    const burst = base + 'alpha '.repeat(120); // +720 chars
+
+    const { result, rerender } = renderHook(
+      ({ text }: { text: string }) =>
+        useStreamBuffer({ text, isStreaming: true, initialBufferChars: 3 }),
+      { initialProps: { text: base } },
+    );
+
+    act(() => advanceFrames(6));
+
+    // A large burst lands at once (throttled delta). The reveal stays paced —
+    // one frame cannot expose the whole backlog.
+    rerender({ text: burst });
+    const before = result.current.displayLength;
+    act(() => advanceFrames(1));
+    const afterOneFrame = result.current.displayLength;
+
+    expect(afterOneFrame).toBeLessThan(burst.length);
+    expect(afterOneFrame - before).toBeLessThan(burst.length - before);
+
+    // …but it still catches up fully over time.
+    act(() => advanceFrames(800));
+    expect(result.current.displayLength).toBe(burst.length);
+  });
+
+  it('drains a large deep-buffer backlog to completion', () => {
+    // Large backlog: the adaptive CPS ramps up for fast char-by-char catch-up.
+    const full = 'This is a sentence. '.repeat(40); // 800 chars
+
+    const { result, rerender } = renderHook(
+      ({ text, isStreaming }: { text: string; isStreaming: boolean }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      { initialProps: { text: full, isStreaming: true } },
+    );
+
+    // Reveal a chunk while streaming (deep buffer → high adaptive CPS).
+    act(() => advanceFrames(60));
+    expect(result.current.displayLength).toBeGreaterThan(0);
+    expect(result.current.displayLength).toBeLessThanOrEqual(full.length);
+
+    // End the stream and drain fully — hysteresis must not strand the tail.
+    rerender({ text: full, isStreaming: false });
+    act(() => advanceFrames(2000));
+    expect(result.current.displayLength).toBe(full.length);
   });
 });
 

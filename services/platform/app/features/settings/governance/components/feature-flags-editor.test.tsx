@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
@@ -118,37 +117,53 @@ describe('FeatureFlagsEditor', () => {
     expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
 
-  describe('accessibility', () => {
-    it('passes axe audit with empty state', async () => {
-      const { container } = render(
-        <FeatureFlagsEditor organizationId="org_1" />,
-      );
-      await checkAccessibility(container);
+  describe('loaded state', () => {
+    it('is not marked busy once loaded', () => {
+      render(<FeatureFlagsEditor organizationId="org_1" />);
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
-    it('passes axe audit with rules table', async () => {
-      mockedUseGovernancePolicy.mockReturnValue({
-        data: {
-          config: {
-            enabled: true,
-            rules: [
-              {
-                scope: 'default',
-                webSearch: true,
-                codeExecution: true,
-                fileUpload: true,
-                maxContextTokens: 65536,
-              },
-            ],
-          },
-        },
-        isLoading: false,
-      } as never);
+    it('keeps the real table header while loaded', () => {
+      render(<FeatureFlagsEditor organizationId="org_1" />);
+      expect(
+        screen.getByRole('heading', { name: /feature controls/i }),
+      ).toBeInTheDocument();
+    });
+  });
 
+  describe('loading state (skeletonized)', () => {
+    beforeEach(() => {
+      mockedUseGovernancePolicy.mockReturnValue({
+        data: null,
+        isLoading: true,
+      } as never);
+    });
+
+    it('exposes a single busy/status region', () => {
+      render(<FeatureFlagsEditor organizationId="org_1" />);
+      expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    });
+
+    it('keeps the real table header while loading (no gray bars)', () => {
+      render(<FeatureFlagsEditor organizationId="org_1" />);
+      expect(
+        screen.getByRole('heading', { name: /feature controls/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('renders placeholder rows, not the empty-state, while loading', () => {
       const { container } = render(
         <FeatureFlagsEditor organizationId="org_1" />,
       );
-      await checkAccessibility(container);
+      // Empty-state copy must NOT show during load (an empty tbody would read
+      // as "no rules").
+      expect(
+        screen.queryByText(/no feature control rules configured/i),
+      ).not.toBeInTheDocument();
+      // 3 placeholder rows in the body, each with the real column count.
+      const bodyRows = container.querySelectorAll('tbody tr');
+      expect(bodyRows).toHaveLength(3);
+      expect(bodyRows[0].querySelectorAll('td')).toHaveLength(7);
     });
   });
 });

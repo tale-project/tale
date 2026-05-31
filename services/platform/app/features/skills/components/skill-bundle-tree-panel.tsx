@@ -1,8 +1,8 @@
 'use client';
 
 import { Heading } from '@tale/ui/heading';
-import { Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import {
   ChevronDown,
@@ -288,100 +288,70 @@ export function SkillBundleTreePanel({
 
   const heading = t('skills.detail.tree.heading', { defaultValue: 'Bundle' });
 
-  if (loading) {
-    return (
+  return (
+    <Skeletonize
+      loading={loading ?? false}
+      label={heading}
+      className="contents"
+    >
       <aside
         className="border-border w-72 shrink-0 overflow-y-auto border-r p-3"
         aria-label={heading}
       >
-        <Skeleton className="mb-2 ml-1 h-3 w-16" />
-        <Stack gap={0}>
-          <div className="flex items-center gap-1.5 rounded-md px-2 py-1.5">
-            <Skeleton className="size-3.5 shrink-0 rounded" />
-            <Skeleton className="h-3.5 w-20" />
-          </div>
-          {Array.from({ length: 3 }).map((_, groupIdx) => (
-            <div key={groupIdx} className="mt-2">
-              <Skeleton className="ml-2 h-3 w-20" />
-              <Stack gap={0} className="mt-0.5">
-                {Array.from({ length: 2 + (groupIdx % 2) }).map(
-                  (__, fileIdx) => (
-                    <div
-                      key={fileIdx}
-                      className="ml-3 flex items-center gap-1.5 rounded-md px-2 py-1"
-                    >
-                      <Skeleton className="size-3 shrink-0 rounded" />
-                      <Skeleton
-                        className="h-3"
-                        style={{ width: `${50 + ((fileIdx * 17) % 35)}%` }}
-                      />
-                    </div>
-                  ),
-                )}
-              </Stack>
-            </div>
-          ))}
-        </Stack>
-      </aside>
-    );
-  }
-
-  return (
-    <aside
-      className="border-border w-72 shrink-0 overflow-y-auto border-r p-3"
-      aria-label={heading}
-    >
-      <Heading level={2} className="sr-only">
-        {heading}
-      </Heading>
-      <Text variant="caption" className="mb-2 block px-1" aria-hidden>
-        {heading}
-      </Text>
-      <ul
-        ref={treeRef}
-        role="tree"
-        aria-label={heading}
-        onKeyDown={handleKeyDown}
-        className="m-0 list-none p-0"
-      >
-        <li role="none">
-          <TreeRowButton
-            isActive={selectedPath === SKILL_MD}
-            depth={0}
-            onClick={() => onSelectPath(SKILL_MD)}
-            title={SKILL_MD}
-            ariaLabel={SKILL_MD}
-          >
-            <span className="size-3 shrink-0" aria-hidden />
-            <FileText className="size-3.5 shrink-0" aria-hidden />
-            <span className="truncate font-mono">SKILL.md</span>
-          </TreeRowButton>
-        </li>
-        {tree.length === 0 ? (
-          <li role="none" className="mt-3 px-2">
-            <Text variant="muted" className="text-xs">
-              {t('skills.detail.tree.empty', {
-                defaultValue:
-                  'Only SKILL.md — add files under scripts/, references/, or assets/.',
-              })}
-            </Text>
-          </li>
-        ) : (
-          tree.map((node) => (
-            <TreeNodeRow
-              key={node.path}
-              node={node}
+        <Heading level={2} className="sr-only">
+          {heading}
+        </Heading>
+        <Text variant="caption" className="mb-2 block px-1" aria-hidden>
+          {heading}
+        </Text>
+        <ul
+          ref={treeRef}
+          role="tree"
+          aria-label={heading}
+          onKeyDown={handleKeyDown}
+          className="m-0 list-none p-0"
+        >
+          <li role="none">
+            <TreeRowButton
+              isActive={selectedPath === SKILL_MD}
               depth={0}
-              parentPath={null}
-              expanded={expanded}
-              selectedPath={selectedPath}
-              onSelectPath={onSelectPath}
-              onToggleDir={toggleDir}
-            />
-          ))
-        )}
-      </ul>
-    </aside>
+              onClick={() => onSelectPath(SKILL_MD)}
+              title={SKILL_MD}
+              ariaLabel={SKILL_MD}
+            >
+              <span className="size-3 shrink-0" aria-hidden />
+              <FileText className="size-3.5 shrink-0" aria-hidden />
+              <span className="truncate font-mono">
+                <SkeletonBox>SKILL.md</SkeletonBox>
+              </span>
+            </TreeRowButton>
+          </li>
+          {tree.length === 0 ? (
+            <li role="none" className="mt-3 px-2">
+              <Text variant="muted" className="text-xs">
+                {t('skills.detail.tree.empty', {
+                  defaultValue:
+                    'Only SKILL.md — add files under scripts/, references/, or assets/.',
+                })}
+              </Text>
+            </li>
+          ) : (
+            tree.map((node) => (
+              <TreeNodeRow
+                key={node.path}
+                node={node}
+                depth={0}
+                parentPath={null}
+                expanded={expanded}
+                selectedPath={selectedPath}
+                onSelectPath={onSelectPath}
+                onToggleDir={toggleDir}
+              />
+            ))
+          )}
+        </ul>
+      </aside>
+    </Skeletonize>
   );
 }
 
@@ -434,7 +404,9 @@ function TreeNodeRow({
           ) : (
             <Folder className="size-3.5 shrink-0" aria-hidden />
           )}
-          <span className="truncate font-mono">{node.name}</span>
+          <span className="truncate font-mono">
+            <SkeletonBox>{node.name}</SkeletonBox>
+          </span>
         </TreeRowButton>
         {isOpen && node.children && node.children.length > 0 ? (
           <ul
@@ -473,7 +445,9 @@ function TreeNodeRow({
       >
         <span className="size-3 shrink-0" aria-hidden />
         <Icon className="size-3 shrink-0" aria-hidden />
-        <span className="truncate font-mono">{node.name}</span>
+        <span className="truncate font-mono">
+          <SkeletonBox>{node.name}</SkeletonBox>
+        </span>
       </TreeRowButton>
     </li>
   );

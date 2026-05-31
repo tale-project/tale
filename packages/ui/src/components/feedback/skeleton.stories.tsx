@@ -1,180 +1,102 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { Skeleton } from './skeleton';
+import { Button } from '../primitives/button';
+import { SkeletonBox, SkeletonCircle, SkeletonText } from './skeleton';
+import { Skeletonize } from './skeleton-context';
 
-const meta: Meta<typeof Skeleton> = {
+const meta: Meta<typeof SkeletonBox> = {
   title: 'Feedback/Skeleton',
-  component: Skeleton,
+  component: SkeletonBox,
   tags: ['autodocs'],
   parameters: {
     layout: 'centered',
     docs: {
       description: {
         component: `
-A loading placeholder component with pulse animation.
+Loading placeholders with a pulse animation. They are **wrapping** primitives:
+you wrap the REAL content and the skeleton sizes itself to that content — there
+is no \`className\`/\`style\` and no sizing math at the call site.
 
-## Usage
-\`\`\`tsx
-import { Skeleton } from './skeleton';
-
-// Fixed size
-<Skeleton size="md" />
-
-// Custom size with className
-<Skeleton className="h-4 w-32" />
-
-// Circle shape for avatars
-<Skeleton size="lg" shape="circle" />
-\`\`\`
+- **\`SkeletonBox\`** — wrap any dynamic value/control:
+  \`<SkeletonBox>{value}</SkeletonBox>\`. \`fullWidth\` makes it span its
+  container.
+- **\`SkeletonCircle\`** — round variant for avatars / status dots.
+- **\`SkeletonText\`** — masked multi-line text shaped like real words; inherits
+  the surrounding font metrics.
+- **\`Skeletonize\`** — wrap a region of REAL component JSX; descendant
+  skeleton-aware leaves (Input, Button, Badge, \`SkeletonBox\`) mask themselves
+  while \`loading\`. Off, the wrappers are \`display: contents\` and add nothing.
 
 ## Accessibility
-- Uses \`role="status"\` for screen reader announcement
-- Includes \`aria-label\` describing loading state
-- Visually hidden text for screen readers
+Skeleton primitives are \`aria-hidden\`; the enclosing \`Skeletonize\` announces
+"Loading" once for the whole region.
         `,
       },
-    },
-  },
-  argTypes: {
-    size: {
-      control: 'select',
-      options: ['xs', 'sm', 'md', 'lg', 'xl'],
-      description: 'Predefined size variants',
-    },
-    shape: {
-      control: 'select',
-      options: ['default', 'circle'],
-      description: 'Shape of the skeleton',
-    },
-    label: {
-      control: 'text',
-      description: 'Accessible label for screen readers',
     },
   },
 };
 
 export default meta;
-type Story = StoryObj<typeof Skeleton>;
+type Story = StoryObj<typeof SkeletonBox>;
 
-export const Default: Story = {
-  args: {
-    className: 'h-4 w-32',
-  },
+export const WrappingValuesAndControls: Story = {
+  render: () => (
+    <div className="flex flex-col gap-3">
+      <Skeletonize loading>
+        <p className="text-sm">
+          Balance: <SkeletonBox>$12,480.55</SkeletonBox>
+        </p>
+        <Button>Save changes</Button>
+      </Skeletonize>
+      <p className="text-fg-muted text-xs">
+        Inside <code>Skeletonize loading</code> the value and button keep their
+        real markup with a pulse overlay; flip <code>loading</code> off and the
+        same tree shows the content.
+      </p>
+    </div>
+  ),
 };
 
-export const AllSizes: Story = {
+export const Text: Story = {
   render: () => (
-    <div className="flex items-center gap-4">
-      <Skeleton size="xs" />
-      <Skeleton size="sm" />
-      <Skeleton size="md" />
-      <Skeleton size="lg" />
-      <Skeleton size="xl" />
+    <div className="w-80 space-y-6">
+      <Skeletonize loading>
+        <div className="text-sm">
+          <SkeletonText />
+        </div>
+        <div className="text-sm leading-6">
+          <SkeletonText lines={4} />
+        </div>
+      </Skeletonize>
     </div>
   ),
   parameters: {
     docs: {
       description: {
-        story: 'All available size variants: xs, sm, md, lg, xl.',
+        story:
+          'Word-shaped multi-line text; the last line tapers like wrapped prose.',
       },
     },
   },
 };
 
-export const CircleShape: Story = {
+export const Card: Story = {
   render: () => (
-    <div className="flex items-center gap-4">
-      <Skeleton size="xs" shape="circle" />
-      <Skeleton size="sm" shape="circle" />
-      <Skeleton size="md" shape="circle" />
-      <Skeleton size="lg" shape="circle" />
-      <Skeleton size="xl" shape="circle" />
-    </div>
-  ),
-  parameters: {
-    docs: {
-      description: {
-        story: 'Circle shape for avatar placeholders.',
-      },
-    },
-  },
-};
-
-export const TextLines: Story = {
-  render: () => (
-    <div className="w-64 space-y-2">
-      <Skeleton className="h-4 w-full" />
-      <Skeleton className="h-4 w-4/5" />
-      <Skeleton className="h-4 w-3/5" />
-    </div>
-  ),
-  parameters: {
-    docs: {
-      description: {
-        story: 'Text content placeholder with varying line widths.',
-      },
-    },
-  },
-};
-
-export const CardSkeleton: Story = {
-  render: () => (
-    <div className="w-72 space-y-4 rounded-lg border p-4">
-      <div className="flex items-center gap-3">
-        <Skeleton size="lg" shape="circle" />
-        <div className="flex-1 space-y-2">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-3 w-32" />
+    <Skeletonize loading>
+      <div className="w-72 space-y-4 rounded-lg border p-4">
+        <div className="flex items-center gap-3">
+          <SkeletonCircle>
+            <span className="block size-10" />
+          </SkeletonCircle>
+          <div className="flex-1 space-y-2 text-sm">
+            <SkeletonText />
+            <SkeletonText />
+          </div>
+        </div>
+        <div className="text-sm">
+          <SkeletonText lines={3} />
         </div>
       </div>
-      <div className="space-y-2">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-2/3" />
-      </div>
-    </div>
+    </Skeletonize>
   ),
-  parameters: {
-    docs: {
-      description: {
-        story: 'Example card loading state with avatar and text.',
-      },
-    },
-  },
-};
-
-export const TableRowSkeleton: Story = {
-  render: () => (
-    <div className="w-full max-w-lg space-y-3 overflow-x-auto">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="flex items-center gap-4 p-2">
-          <Skeleton className="h-4 w-16 shrink-0" />
-          <Skeleton className="h-4 w-32 shrink-0" />
-          <Skeleton className="h-4 w-24 shrink-0" />
-          <Skeleton className="h-4 w-20 shrink-0" />
-        </div>
-      ))}
-    </div>
-  ),
-  parameters: {
-    docs: {
-      description: {
-        story: 'Table rows loading state.',
-      },
-    },
-  },
-};
-
-export const CustomLabel: Story = {
-  args: {
-    size: 'lg',
-    label: 'Loading user profile',
-  },
-  parameters: {
-    docs: {
-      description: {
-        story: 'Custom accessible label for screen readers.',
-      },
-    },
-  },
 };

@@ -770,16 +770,17 @@
       "body": "Diese Antwort wurde durch die Inhaltsrichtlinie deiner Organisation blockiert."
     },
     "thinking": {
-      "default": "Denkt nach",
-      "searching": "Sucht nach \"{query}\"",
       "reading": "Liest {hostname}",
       "searchingKnowledgeBase": "Durchsucht die Wissensdatenbank nach \"{query}\"",
-      "searchingMultiple": "Sucht nach {queries}",
-      "searchingMore": "Sucht nach {first}, {second} und {count} weiteren",
-      "multipleTools": "{first} und {second}",
-      "multipleToolsMore": "{first}, {second} und {count} weitere",
-      "and": "und",
-      "delegating": "Fragt {agent}"
+      "delegating": "Fragt {agent}",
+      "redacted": "Hat intern nachgedacht"
+    },
+    "thoughtProcess": {
+      "thinking": "Denkt nach",
+      "summary": "{seconds} s nachgedacht · {tools, plural, one {# Werkzeug} other {# Werkzeuge}} verwendet",
+      "summaryNoTools": "{seconds} s nachgedacht",
+      "summaryUnknownDuration": "{tools, plural, one {# Werkzeug} other {# Werkzeuge}} verwendet",
+      "summaryReasoningOnly": "Hat den Gedankengang gezeigt"
     },
     "tools": {
       "customerRead": "Kundendaten werden gelesen",
@@ -1210,7 +1211,6 @@
     },
     "skeleton": {
       "loadingWelcome": "Willkommen wird geladen",
-      "loadingSuggestion": "Vorschlag wird geladen",
       "loadingMessage": "Nachricht wird geladen"
     },
     "promptLibrary": "Prompt-Bibliothek",
@@ -1450,7 +1450,11 @@
     "moveUp": "Nach oben",
     "moveDown": "Nach unten",
     "drag": "Zum Sortieren ziehen",
-    "remove": "Entfernen"
+    "remove": "Entfernen",
+    "loading": {
+      "navigating": "Seite wird geladen",
+      "label": "Wird geladen"
+    }
   },
   "composer": {
     "openMenu": "Composer-Menü öffnen",
@@ -2373,8 +2377,7 @@
       "title": "Sprachausgabe",
       "description": "Wenn deaktiviert, kann kein Mitglied dieser Organisation Sprachausgabe nutzen. Persönliche Voreinstellungen und Chat-spezifische Überschreibungen haben dann keine Wirkung.",
       "enabledLabel": "Sprachausgabe für diese Organisation aktiviert",
-      "saved": "Sprachausgabe-Richtlinie aktualisiert",
-      "saveFailed": "Sprachausgabe-Richtlinie konnte nicht aktualisiert werden"
+      "saved": "Sprachausgabe-Richtlinie aktualisiert"
     },
     "personalization": {
       "enabledLabel": "Für diese Organisation aktiviert",
@@ -5349,7 +5352,8 @@
       "addMemberFailed": "Mitglied konnte nicht hinzugefügt werden",
       "automationDuplicateFailed": "Automatisierung konnte nicht dupliziert werden",
       "automationRenameFailed": "Automatisierung konnte nicht umbenannt werden",
-      "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden"
+      "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden",
+      "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
     }
   },
   "todoList": {

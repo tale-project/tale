@@ -10,6 +10,7 @@ import { ConvexError } from 'convex/values';
 import { parseModelRef } from '../../../../../lib/shared/utils/model-ref';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
+import { reasoningProviderOptionsFor } from '../../../../lib/agent_response/reasoning/build_reasoning_options';
 import { buildCallProviderOptions } from '../../../../lib/provider_options';
 import { recordFailure } from '../../../../providers/circuit_breaker';
 import {
@@ -105,7 +106,15 @@ export async function executeLLMNode(
             userId,
             languageModel,
             resolvedModelId: modelData.modelId,
-            providerOptions: buildCallProviderOptions(modelData),
+            providerOptions: reasoningProviderOptionsFor(
+              modelData,
+              buildCallProviderOptions(modelData),
+              {
+                kind: 'subagent',
+                promptText: prompts.userPrompt,
+                toolCount: normalizedConfig.tools?.length ?? 0,
+              },
+            ),
             modelMaxOutputTokens: modelData.maxOutputTokens,
           },
         );
@@ -161,7 +170,15 @@ export async function executeLLMNode(
       userId,
       languageModel,
       resolvedModelId: chatModelData.modelId,
-      providerOptions: buildCallProviderOptions(chatModelData),
+      providerOptions: reasoningProviderOptionsFor(
+        chatModelData,
+        buildCallProviderOptions(chatModelData),
+        {
+          kind: 'subagent',
+          promptText: prompts.userPrompt,
+          toolCount: normalizedConfig.tools?.length ?? 0,
+        },
+      ),
       modelMaxOutputTokens: chatModelData.maxOutputTokens,
     },
   );

@@ -3,7 +3,6 @@
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Center } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
 import { Image, Download, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -13,21 +12,18 @@ import { getFileExtension } from '@/lib/utils/document-helpers';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 import { isTextBasedFile } from '@/lib/utils/text-file-types';
 
-function PreviewSkeleton() {
-  return (
-    <Center className="flex-1 p-6">
-      <Skeleton className="h-[600px] w-full max-w-2xl" />
-    </Center>
-  );
-}
+import { PreviewPaneSkeleton } from './preview-pane';
 
+// Every preview renders inside `PreviewPane`, so the lazy Suspense fallback is
+// the real pane shell (see `PreviewPaneSkeleton`) — the chunk swaps in without
+// the panel resizing or recentering.
 const DocumentPreviewPDF = lazyComponent(
   () =>
     import('./document-preview-pdf').then((m) => ({
       default: m.DocumentPreviewPDF,
     })),
   {
-    loading: () => <PreviewSkeleton />,
+    loading: () => <PreviewPaneSkeleton />,
   },
 );
 const DocumentPreviewDocx = lazyComponent(
@@ -36,7 +32,7 @@ const DocumentPreviewDocx = lazyComponent(
       default: m.DocumentPreviewDocx,
     })),
   {
-    loading: () => <PreviewSkeleton />,
+    loading: () => <PreviewPaneSkeleton />,
   },
 );
 const DocumentPreviewXlsx = lazyComponent(
@@ -45,7 +41,7 @@ const DocumentPreviewXlsx = lazyComponent(
       default: m.DocumentPreviewXlsx,
     })),
   {
-    loading: () => <PreviewSkeleton />,
+    loading: () => <PreviewPaneSkeleton />,
   },
 );
 const DocumentPreviewText = lazyComponent(
@@ -54,7 +50,7 @@ const DocumentPreviewText = lazyComponent(
       default: m.DocumentPreviewText,
     })),
   {
-    loading: () => <PreviewSkeleton />,
+    loading: () => <PreviewPaneSkeleton />,
   },
 );
 const DocumentPreviewImage = lazyComponent(
@@ -63,7 +59,7 @@ const DocumentPreviewImage = lazyComponent(
       default: m.DocumentPreviewImage,
     })),
   {
-    loading: () => <PreviewSkeleton />,
+    loading: () => <PreviewPaneSkeleton />,
   },
 );
 

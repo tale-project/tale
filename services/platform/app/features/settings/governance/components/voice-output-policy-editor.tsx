@@ -1,8 +1,7 @@
 'use client';
 
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import type { z } from 'zod';
 
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -31,6 +30,12 @@ function parseConfig(raw: unknown): VoiceOutputConfig {
   return { enabled: true };
 }
 
+// =============================================================================
+// Single editor — owns data fetching, save/toast wiring, and the loading
+// state. Renders the REAL `PageSection` + skeleton-aware `Switch` once, always,
+// wrapped in `<Skeletonize>`. The skeleton-aware `<Switch>` masks itself to its
+// exact track size while loading.
+// =============================================================================
 export function VoiceOutputPolicyEditor({
   organizationId,
 }: VoiceOutputPolicyEditorProps) {
@@ -44,68 +49,51 @@ export function VoiceOutputPolicyEditor({
   );
   const upsertMutation = useUpsertGovernancePolicy();
 
-  const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
-  const [enabled, setEnabled] = useState(true);
-
-  useEffect(() => {
-    setEnabled(savedConfig.enabled);
-  }, [savedConfig]);
+  // Derived straight from the query: the optimistic update flips it the instant
+  // the switch is toggled and Convex rolls it back on failure, so no local
+  // mirror state (and no manual rollback) is needed.
+  const enabled = parseConfig(policy?.config).enabled;
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
-  const handleToggleEnabled = useCallback(
-    async (checked: boolean) => {
-      setEnabled(checked);
-      try {
-        await upsertMutation.mutateAsync({
-          organizationId,
-          policyType: 'voice_output',
-          config: { enabled: checked },
-        });
-        toast({
-          title: t('toastSavedTitle'),
-          description: t('voiceOutput.saved'),
-          variant: 'success',
-        });
-      } catch {
-        setEnabled(!checked);
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('voiceOutput.saveFailed'),
-          variant: 'destructive',
-        });
-      }
-    },
-    [organizationId, upsertMutation, toast, t],
-  );
-
-  if (isLoading) {
-    return (
-      <div aria-busy="true" className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-4 w-96 max-w-full" />
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <Skeleton className="h-3.5 w-14" />
-          <Skeleton className="h-[1.15rem] w-8 rounded-full" />
-        </div>
-      </div>
+  const handleToggleEnabled = (checked: boolean) => {
+    upsertMutation.mutate(
+      {
+        organizationId,
+        policyType: 'voice_output',
+        config: { enabled: checked },
+      },
+      {
+        onSuccess: () =>
+          toast({
+            title: t('toastSavedTitle'),
+            description: t('voiceOutput.saved'),
+            variant: 'success',
+          }),
+        onError: (error) =>
+          toast({
+            title: t('toastSaveFailedTitle'),
+            description: error instanceof Error ? error.message : undefined,
+            variant: 'destructive',
+          }),
+      },
     );
-  }
+  };
 
   return (
-    <PageSection
-      title={t('voiceOutput.title')}
-      description={t('voiceOutput.description')}
-      action={
-        <Switch
-          label={t('voiceOutput.enabledLabel')}
-          checked={enabled}
-          onCheckedChange={handleToggleEnabled}
-          disabled={cannotManage || upsertMutation.isPending}
-        />
-      }
-    />
+    <Skeletonize loading={isLoading} label={t('voiceOutput.title')}>
+      <PageSection
+        title={t('voiceOutput.title')}
+        description={t('voiceOutput.description')}
+        action={
+          <Switch
+            label={t('voiceOutput.enabledLabel')}
+            checked={enabled}
+            onCheckedChange={handleToggleEnabled}
+            disabled={cannotManage || upsertMutation.isPending}
+          />
+        }
+      />
+    </Skeletonize>
   );
 }

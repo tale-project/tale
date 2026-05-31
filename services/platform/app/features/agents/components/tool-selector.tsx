@@ -1,7 +1,7 @@
 'use client';
 
 import { Grid, Stack } from '@tale/ui/layout';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 
@@ -154,16 +154,6 @@ export function ToolSelector({
     [availableToolNames],
   );
 
-  if (isLoading) {
-    return (
-      <Grid cols={2} gap={2}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-6 w-full" />
-        ))}
-      </Grid>
-    );
-  }
-
   const bindingsSections = (
     <Stack gap={4}>
       <IntegrationBindingsSection
@@ -183,28 +173,49 @@ export function ToolSelector({
     </Stack>
   );
 
-  return (
-    <fieldset disabled={disabled}>
-      <Stack gap={4}>
-        {Array.from(categorized.entries()).map(([category, toolNames]) => (
-          <div key={category}>
-            {category === 'Other' && (
-              <div className="mb-4">{bindingsSections}</div>
-            )}
-            <CheckboxGroup
-              label={category}
-              options={toolNames.map((name) => ({ value: name, label: name }))}
-              value={toolNames.filter((name) => selectedSet.has(name))}
-              onValueChange={(values) =>
-                handleCategoryChange(toolNames, values)
-              }
-            />
-          </div>
-        ))}
+  // While the catalog loads there are no real categories, so render the real
+  // CheckboxGroup structure with placeholder rows; `Checkbox` self-masks under
+  // `<Skeletonize loading>`. Static category labels stay real text.
+  const displayCategories: Array<[string, string[]]> = isLoading
+    ? [
+        ['CRM', ['__p_crm_0', '__p_crm_1']],
+        ['Web', ['__p_web_0', '__p_web_1']],
+        ['Files', ['__p_files_0', '__p_files_1']],
+      ]
+    : Array.from(categorized.entries());
 
-        {!categorized.has('Other') && bindingsSections}
-      </Stack>
-    </fieldset>
+  return (
+    <Skeletonize loading={isLoading} label={t('agents.form.sectionTools')}>
+      <fieldset disabled={disabled}>
+        <Stack gap={4}>
+          {displayCategories.map(([category, toolNames]) => (
+            <div key={category}>
+              {category === 'Other' && (
+                <div className="mb-4">{bindingsSections}</div>
+              )}
+              <CheckboxGroup
+                label={category}
+                options={toolNames.map((name) => ({
+                  value: name,
+                  label: isLoading ? 'Tool name' : name,
+                  disabled: isLoading,
+                }))}
+                value={
+                  isLoading
+                    ? []
+                    : toolNames.filter((name) => selectedSet.has(name))
+                }
+                onValueChange={(values) =>
+                  handleCategoryChange(toolNames, values)
+                }
+              />
+            </div>
+          ))}
+
+          {!isLoading && !categorized.has('Other') && bindingsSections}
+        </Stack>
+      </fieldset>
+    </Skeletonize>
   );
 }
 
@@ -223,36 +234,41 @@ function IntegrationBindingsSection({
   onToggle: (name: string) => void;
   t: (key: string) => string;
 }) {
-  if (isLoading) {
-    return (
-      <FormSection label={t('agents.form.sectionIntegrationBindings')}>
-        <Skeleton className="h-6 w-full" />
-      </FormSection>
-    );
-  }
+  const placeholders = ['__p_int_0', '__p_int_1'];
+  const isEmpty = !isLoading && (!integrations || integrations.length === 0);
 
   return (
-    <FormSection
+    <Skeletonize
+      loading={isLoading}
       label={t('agents.form.sectionIntegrationBindings')}
-      description={t('agents.form.sectionIntegrationBindingsDescription')}
     >
-      {!integrations || integrations.length === 0 ? (
-        <Text variant="caption" className="italic">
-          {t('agents.form.noIntegrationsAvailable')}
-        </Text>
-      ) : (
-        <Grid cols={2} className="gap-x-4 gap-y-1.5">
-          {integrations.map((integration) => (
-            <Checkbox
-              key={integration.name}
-              label={integration.title}
-              checked={selectedBindingsSet.has(integration.name)}
-              onCheckedChange={() => onToggle(integration.name)}
-            />
-          ))}
-        </Grid>
-      )}
-    </FormSection>
+      <FormSection
+        label={t('agents.form.sectionIntegrationBindings')}
+        description={t('agents.form.sectionIntegrationBindingsDescription')}
+      >
+        {isEmpty ? (
+          <Text variant="caption" className="italic">
+            {t('agents.form.noIntegrationsAvailable')}
+          </Text>
+        ) : (
+          <Grid cols={2} className="gap-x-4 gap-y-1.5">
+            {(isLoading
+              ? placeholders.map((name) => ({ name, title: 'Integration' }))
+              : (integrations ?? [])
+            ).map((integration) => (
+              <Checkbox
+                key={integration.name}
+                label={integration.title}
+                checked={
+                  !isLoading && selectedBindingsSet.has(integration.name)
+                }
+                onCheckedChange={() => onToggle(integration.name)}
+              />
+            ))}
+          </Grid>
+        )}
+      </FormSection>
+    </Skeletonize>
   );
 }
 
@@ -271,35 +287,38 @@ function WorkflowBindingsSection({
   onToggle: (id: string) => void;
   t: (key: string) => string;
 }) {
-  if (isLoading) {
-    return (
-      <FormSection label={t('agents.form.sectionWorkflowBindings')}>
-        <Skeleton className="h-6 w-full" />
-      </FormSection>
-    );
-  }
+  const placeholders = ['__p_wf_0', '__p_wf_1'];
+  const isEmpty = !isLoading && (!workflows || workflows.length === 0);
 
   return (
-    <FormSection
+    <Skeletonize
+      loading={isLoading}
       label={t('agents.form.sectionWorkflowBindings')}
-      description={t('agents.form.sectionWorkflowBindingsDescription')}
     >
-      {!workflows || workflows.length === 0 ? (
-        <Text variant="caption" className="italic">
-          {t('agents.form.noWorkflowsAvailable')}
-        </Text>
-      ) : (
-        <Grid cols={2} className="gap-x-4 gap-y-1.5">
-          {workflows.map((workflow) => (
-            <Checkbox
-              key={workflow.id}
-              label={workflow.name}
-              checked={selectedBindingsSet.has(workflow.id)}
-              onCheckedChange={() => onToggle(workflow.id)}
-            />
-          ))}
-        </Grid>
-      )}
-    </FormSection>
+      <FormSection
+        label={t('agents.form.sectionWorkflowBindings')}
+        description={t('agents.form.sectionWorkflowBindingsDescription')}
+      >
+        {isEmpty ? (
+          <Text variant="caption" className="italic">
+            {t('agents.form.noWorkflowsAvailable')}
+          </Text>
+        ) : (
+          <Grid cols={2} className="gap-x-4 gap-y-1.5">
+            {(isLoading
+              ? placeholders.map((id) => ({ id, name: 'Workflow' }))
+              : (workflows ?? [])
+            ).map((workflow) => (
+              <Checkbox
+                key={workflow.id}
+                label={workflow.name}
+                checked={!isLoading && selectedBindingsSet.has(workflow.id)}
+                onCheckedChange={() => onToggle(workflow.id)}
+              />
+            ))}
+          </Grid>
+        )}
+      </FormSection>
+    </Skeletonize>
   );
 }

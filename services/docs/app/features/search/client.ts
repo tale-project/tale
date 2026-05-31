@@ -1,3 +1,4 @@
+import { extractTerms } from '@tale/ui/search/snippet';
 import MiniSearch, { type SearchResult as MiniHit } from 'minisearch';
 
 import {
@@ -6,7 +7,6 @@ import {
   type SearchDoc,
   type SerializedIndex,
 } from './build-index';
-import { extractTerms } from './snippet';
 import type { SearchResult } from './types';
 
 /** Per-locale promise cache. A `Map` (vs the old single-cell pair of

@@ -282,6 +282,56 @@ function tcpProbe(
   });
 }
 
+/** Fail fast with an actionable message if the app's port is already taken.
+ *  Without this (and without Vite's `--strictPort`) Vite quietly falls through
+ *  to the next free port — so the orchestrator keeps promising
+ *  http://localhost:3000 while the app actually came up on :3001/:3002/etc.
+ *  That looks exactly like "I can't reach localhost:3000", so we'd rather stop
+ *  here and tell the developer how to free the port. */
+async function assertPortFree(port: number): Promise<void> {
+  const inUse = await tcpProbe('127.0.0.1', port, 1_000);
+  if (!inUse) return;
+  throw new Error(
+    [
+      `Port ${port} is already in use, so the app can't start there.`,
+      `   This is usually a previous \`bun run dev\` / \`tale start\` that didn't fully`,
+      `   exit, or another process holding the port. Find and stop it, then re-run:`,
+      ``,
+      `     lsof -nP -iTCP:${port} -sTCP:LISTEN     # show the PID holding it`,
+      `     kill <PID>                              # stop it`,
+      ``,
+      `   Or run the app on a different port:  PORT=3005 bun run dev`,
+    ].join('\n'),
+  );
+}
+
+/** Poll until the dev server is actually accepting connections, then print one
+ *  unmistakable READY banner. This matters because (a) the log line printed
+ *  just before spawning Vite only *promises* the URL — the socket isn't bound
+ *  yet — and (b) under `turbo run dev` the platform is the MAIN app but the
+ *  SLOWEST to start (it waits on the Convex pre-warm), coming up ~20-60s after
+ *  the lighter web/docs servers print their own "Local: …" lines. Without a
+ *  distinct post-bind signal, developers open :3000 too early, hit
+ *  connection-refused, and assume it's broken. */
+async function announceWhenReady(port: number, url: string): Promise<void> {
+  const deadline = Date.now() + 180_000;
+  while (Date.now() < deadline) {
+    if (await tcpProbe('127.0.0.1', port, 1_000)) {
+      console.log('');
+      console.log(
+        '[dev] ════════════════════════════════════════════════════════',
+      );
+      console.log(`[dev]  ✅  READY — open ${url} in your browser`);
+      console.log(
+        '[dev] ════════════════════════════════════════════════════════',
+      );
+      console.log('');
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
+
 function killProcessTree(
   proc: ChildProcess | null,
   signal: string = 'SIGKILL',
@@ -357,12 +407,52 @@ async function main() {
     } else if (hasLocalDeployment) {
       console.log(`[dev] ℹ️  Reusing local deployment: ${deployment}`);
     }
+
+    // Run every local Convex CLI invocation in anonymous (local-only) mode.
+    // Besides skipping the cloud login flow, an explicit
+    // CONVEX_AGENT_MODE=anonymous also SUPPRESSES the CLI's repeated
+    //   "Run `npx convex login` at any time to create an account ..."
+    // hint — the CLI only prints that when this var is *not* 'anonymous'
+    // (see convex/src/cli/lib/init.ts). Setting it on process.env means the
+    // pre-warm, the spawned `convex dev`, env-sync and codegen all inherit it.
+    // We never force it in external mode — that backend may be a real
+    // cloud/self-hosted deployment where anonymous mode would be wrong.
+    if (!useExternalConvex) {
+      process.env.CONVEX_AGENT_MODE = 'anonymous';
+    }
     console.log('[dev] ✅ Environment normalized (env.sh parity)');
 
+    // Port + URL are fully resolved now (envNormalizeCommon set PORT/SITE_URL),
+    // so derive the app's address from those — honouring PORT/SITE_URL
+    // overrides instead of hardcoding localhost:3000.
+    const appPort = Number(process.env.PORT || '3000');
+    const appUrl = process.env.SITE_URL || `http://localhost:${appPort}`;
+
+    // Fail fast (before the slow Convex pre-warm) if the app's port is taken —
+    // otherwise Vite silently moves to another port and every "${appUrl}"
+    // message we print becomes a lie.
+    await assertPortFree(appPort);
+    console.log(`[dev] ✅ Port ${appPort} is free`);
+
+    // Set expectations before the slow part: the app (the MAIN server) comes up
+    // LAST, after Convex. Until the READY banner, ${appUrl} refusing
+    // connections is normal — not a failure.
+    console.log(
+      `[dev] ⏳ Heads up: the app on ${appUrl} starts LAST (after Convex).`,
+    );
+    console.log(
+      '[dev]    A cold start can take 30-90s; until the "READY" banner appears,',
+    );
+    console.log(
+      `[dev]    connection-refused on ${appUrl} is expected — not a failure.`,
+    );
+    console.log(
+      '[dev]    (Under `bun run dev`, the lighter web/docs servers come up first.)',
+    );
+
+    // Inherits CONVEX_AGENT_MODE=anonymous from process.env (set above) in
+    // local mode, so the spawned backend runs anonymous and stays quiet.
     const convexEnv = { ...process.env };
-    if (!hasLocalDeployment) {
-      convexEnv.CONVEX_AGENT_MODE = 'anonymous';
-    }
 
     function spawnConvex() {
       convexProcess = spawn('npx', ['convex', 'dev'], {
@@ -507,11 +597,10 @@ async function main() {
       console.log(
         '[dev] 🧰 Pre-warming Convex backend (npx convex dev --once)...',
       );
-      const preflightEnv: Record<string, string> = hasLocalDeployment
-        ? {}
-        : { CONVEX_AGENT_MODE: 'anonymous' };
       try {
-        await runCommand('npx', ['convex', 'dev', '--once'], preflightEnv);
+        // CONVEX_AGENT_MODE=anonymous is already on process.env (local mode),
+        // which runCommand forwards — so the pre-warm runs anonymous too.
+        await runCommand('npx', ['convex', 'dev', '--once']);
         console.log('[dev] ✅ Convex backend pre-warmed');
       } catch (err) {
         throw new Error(
@@ -575,27 +664,36 @@ async function main() {
     process.env.CONVEX_URL = convexUrl;
     console.log(`[dev] ✅ Set CONVEX_URL=${convexUrl} for Vite proxy`);
 
-    const port = process.env.PORT || '3000';
-    const siteUrl = process.env.SITE_URL || `http://localhost:${port}`;
+    const port = String(appPort);
 
-    console.log('[dev] 🚀 Starting TanStack Start dev server...');
-    console.log(`[dev] 🌐 Your app will be available at ${siteUrl}`);
+    console.log('[dev] 🚀 Starting TanStack Start dev server (compiling)...');
     console.log(
-      `[dev] 🌐 Also accessible via your internal IP address on port ${port}`,
+      `[dev] ⏳ ${appUrl} is NOT reachable yet — wait for the "READY" banner below.`,
+    );
+    console.log(
+      `[dev]    (Once ready it is also served on your LAN IP on port ${port}.)`,
     );
     console.log('');
 
     // Run Vite on Node.js (no --bun flag): Bun 1.3.x lacks socket.destroySoon,
     // which Vite 7's dev proxy requires. Build/preview still use --bun.
+    // `--strictPort`: if 3000 is taken, FAIL loudly instead of silently moving
+    // to the next free port (which would break SITE_URL, the Convex proxy, and
+    // every "localhost:3000" message). The assertPortFree() preflight above
+    // catches this earlier with a friendlier message; this is the safety net.
     viteProcess = spawn(
       'bun',
-      ['vite', 'dev', '--port', port, '--host', '0.0.0.0'],
+      ['vite', 'dev', '--port', port, '--strictPort', '--host', '0.0.0.0'],
       {
         stdio: 'inherit',
         cwd: platformRoot,
         env: process.env,
       },
     );
+
+    // Print one unmistakable READY banner once Vite has actually bound the
+    // port — the messages above only promise the URL.
+    void announceWhenReady(appPort, appUrl);
 
     async function shutdown() {
       if (shuttingDown) return;

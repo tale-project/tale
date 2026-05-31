@@ -1,0 +1,56 @@
+import { Fragment } from 'react';
+
+import { cn } from '../../lib/cn';
+
+interface HighlightProps {
+  text: string;
+  terms: readonly string[];
+  className?: string;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Render `text` with case-insensitive runs of any `terms` wrapped in a
+ *  `<mark>`. Empty/whitespace-only terms are ignored. Longer terms are
+ *  tried first in the regex alternation so a `config|configuration` set
+ *  doesn't leave "uration" un-marked when the input contains the longer
+ *  word — important for prefix-expansion matches where MiniSearch returns
+ *  both the user's literal token and the index term that fired. */
+export function Highlight({ text, terms, className }: HighlightProps) {
+  if (!text) return null;
+  const filtered = terms
+    .filter((t) => t.trim().length > 0)
+    .slice()
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegex);
+  if (filtered.length === 0) return <>{text}</>;
+
+  const regex = new RegExp(`(${filtered.join('|')})`, 'gi');
+  const parts = text.split(regex);
+
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <mark
+            // The split alternates [text, match, text, match, …] so odd
+            // indices are always matches. Index is stable per render.
+            // oxlint-disable-next-line react/no-array-index-key
+            key={i}
+            className={cn(
+              'rounded-[3px] bg-amber-400/25 px-0.5 text-fg-base dark:bg-amber-300/20',
+              className,
+            )}
+          >
+            {part}
+          </mark>
+        ) : (
+          // oxlint-disable-next-line react/no-array-index-key
+          <Fragment key={i}>{part}</Fragment>
+        ),
+      )}
+    </>
+  );
+}

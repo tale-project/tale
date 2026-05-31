@@ -2,6 +2,8 @@
 
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
+import { SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { useAction, useMutation, useQuery } from 'convex/react';
@@ -116,15 +118,17 @@ function resolveGate(
   };
 }
 
+// =============================================================================
+// Container — owns the Convex reads (preferences + org defaults + memory
+// lists) and the loading state. Wraps the real `SettingsPage narrow` view in
+// `<Skeletonize>` so the skeleton inherits the SAME narrow centering and
+// section structure (no horizontal shift on load).
+// =============================================================================
 function PersonalizationSettingsInner({
   organizationId,
 }: {
   organizationId: string;
 }) {
-  const { t } = useT('personalization');
-  const { t: tNav } = useT('navigation');
-  const { t: tSettings } = useT('settings');
-
   const prefs = useQuery(api.user_preferences.queries.getMyPreferences, {
     organizationId,
   });
@@ -141,6 +145,12 @@ function PersonalizationSettingsInner({
     organizationId,
   });
 
+  // Gate the page on the two reads that decide WHICH sections render — so the
+  // conditional Custom-instructions / Memories blocks don't pop in (and push
+  // the page down) once preferences resolve. The memory LISTS load
+  // independently and render placeholder rows of their own while pending.
+  const isLoading = prefs === undefined || orgDefault === undefined;
+
   const orgDefaultLoaded = orgDefault !== undefined;
   const customInstructionsGate = resolveGate(
     prefs?.customInstructionsEnabled,
@@ -150,6 +160,50 @@ function PersonalizationSettingsInner({
     prefs?.memoriesEnabled,
     orgDefault?.memories === true,
   );
+
+  return (
+    <Skeletonize loading={isLoading}>
+      <PersonalizationSettingsView
+        organizationId={organizationId}
+        prefs={prefs}
+        approvedMemories={approvedMemories}
+        pendingMemories={pendingMemories}
+        customInstructionsGate={customInstructionsGate}
+        memoriesGate={memoriesGate}
+        orgDefaultLoaded={orgDefaultLoaded}
+      />
+    </Skeletonize>
+  );
+}
+
+// =============================================================================
+// Plain presentational view — renders the real `SettingsPage narrow` layout.
+// Rendered both live and (wrapped in `<Skeletonize>`) as its own skeleton, so
+// loading and loaded layouts are the SAME tree and cannot drift. While loading
+// the gate-dependent sections are force-rendered (masked) so they reserve
+// their space — the loaded layout never shifts as gates resolve.
+// =============================================================================
+function PersonalizationSettingsView({
+  organizationId,
+  prefs,
+  approvedMemories,
+  pendingMemories,
+  customInstructionsGate,
+  memoriesGate,
+  orgDefaultLoaded,
+}: {
+  organizationId: string;
+  prefs: Doc<'userPreferences'> | null | undefined;
+  approvedMemories: Doc<'userMemories'>[] | undefined;
+  pendingMemories: Doc<'userMemories'>[] | undefined;
+  customInstructionsGate: FeatureGate;
+  memoriesGate: FeatureGate;
+  orgDefaultLoaded: boolean;
+}) {
+  const { t } = useT('personalization');
+  const { t: tNav } = useT('navigation');
+  const { t: tSettings } = useT('settings');
+  const loading = useSkeleton();
 
   return (
     <SettingsPage
@@ -174,7 +228,7 @@ function PersonalizationSettingsInner({
         gate={customInstructionsGate}
         orgDefaultLoaded={orgDefaultLoaded}
       />
-      {customInstructionsGate.effective && (
+      {(loading || customInstructionsGate.effective) && (
         <CustomInstructionsSection
           prefs={prefs ?? null}
           organizationId={organizationId}
@@ -185,7 +239,7 @@ function PersonalizationSettingsInner({
         gate={memoriesGate}
         orgDefaultLoaded={orgDefaultLoaded}
       />
-      {memoriesGate.effective && (
+      {(loading || memoriesGate.effective) && (
         <>
           <SavedMemoriesSection memories={approvedMemories ?? []} />
           <PendingMemoriesSection memories={pendingMemories ?? []} />
@@ -483,6 +537,25 @@ function VoiceOutputSection({
   );
 }
 
+/** Placeholder list rows shown while a memory list loads — same `divide-y`
+ *  row structure as the live list, so an empty-state ("No memories") never
+ *  flashes during load and the section's height is reserved. */
+const MEMORY_PLACEHOLDER_ROWS = 3;
+
+function MemoryListSkeletonRows() {
+  return (
+    <ul className="divide-border divide-y" aria-hidden="true">
+      {Array.from({ length: MEMORY_PLACEHOLDER_ROWS }).map((_, i) => (
+        <li key={i} className="flex items-start gap-3 py-2">
+          <div className="flex-1" style={{ width: `${70 - i * 10}%` }}>
+            <SkeletonText />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function SavedMemoriesSection({
   memories,
 }: {
@@ -491,10 +564,13 @@ function SavedMemoriesSection({
   const { t } = useT('personalization');
   const { toast } = useToast();
   const { mutateAsync: softDelete } = useSoftDeleteMemory();
+  const loading = useSkeleton();
 
   return (
     <SettingsSection title={t('page.memories.title')}>
-      {memories.length === 0 ? (
+      {loading ? (
+        <MemoryListSkeletonRows />
+      ) : memories.length === 0 ? (
         <Text className="text-muted-foreground text-sm">
           {t('page.memories.empty')}
         </Text>
@@ -540,10 +616,13 @@ function PendingMemoriesSection({
   const { toast } = useToast();
   const { mutateAsync: approve } = useApprovePendingMemory();
   const { mutateAsync: dismiss } = useDismissPendingMemory();
+  const loading = useSkeleton();
 
   return (
     <SettingsSection title={t('page.pending.title')}>
-      {memories.length === 0 ? (
+      {loading ? (
+        <MemoryListSkeletonRows />
+      ) : memories.length === 0 ? (
         <Text className="text-muted-foreground text-sm">
           {t('page.pending.empty')}
         </Text>

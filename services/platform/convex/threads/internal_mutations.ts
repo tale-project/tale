@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { internalMutation, type MutationCtx } from '../_generated/server';
+import { recordOutcome } from '../lib/agent_response/reasoning/controller';
 import { getAuthUserIdentity } from '../lib/rls';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { persistentStreaming } from '../streaming/helpers';
@@ -47,6 +48,102 @@ async function gateThreadAccess(
     callerOrgId,
   );
 }
+
+/**
+ * Fold a completed turn's outcome into the thread's Adaptive Reasoning Governor
+ * state (Layer C). Called fire-and-forget from `generateAgentResponse` after a
+ * successful turn; the controller math is pure and runs read-modify-write here
+ * so concurrent turns can't clobber each other's statistics. A no-op when the
+ * thread row is gone.
+ */
+export const updateThreadReasoningState = internalMutation({
+  args: {
+    threadId: v.string(),
+    difficultyClass: v.union(
+      v.literal('easy'),
+      v.literal('medium'),
+      v.literal('hard'),
+    ),
+    budgetTokens: v.number(),
+    selfTruncates: v.boolean(),
+    reasoningTokens: v.optional(v.number()),
+    finishReason: v.optional(v.string()),
+    retried: v.optional(v.boolean()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+    if (!row) return null;
+    const next = recordOutcome(row.reasoningState, {
+      difficultyClass: args.difficultyClass,
+      reasoningTokens: args.reasoningTokens,
+      budgetTokens: args.budgetTokens,
+      selfTruncates: args.selfTruncates,
+      finishReason: args.finishReason,
+      retried: args.retried,
+    });
+    await ctx.db.patch(row._id, { reasoningState: next });
+    return null;
+  },
+});
+
+/**
+ * Fold a completed turn's outcome into the cross-thread reasoning profile (per
+ * org + scope = model id). Uses the same pure `recordOutcome` as the per-thread
+ * state, so the profile is just a higher-level `ReasoningState`. Fire-and-forget
+ * read-modify-write under Convex's OCC; upserts on first write. Future threads
+ * (and the stateless API path) warm-start from it.
+ */
+export const updateReasoningProfile = internalMutation({
+  args: {
+    organizationId: v.string(),
+    scopeKey: v.string(),
+    difficultyClass: v.union(
+      v.literal('easy'),
+      v.literal('medium'),
+      v.literal('hard'),
+    ),
+    budgetTokens: v.number(),
+    selfTruncates: v.boolean(),
+    reasoningTokens: v.optional(v.number()),
+    finishReason: v.optional(v.string()),
+    retried: v.optional(v.boolean()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('reasoningProfiles')
+      .withIndex('by_org_scope', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('scopeKey', args.scopeKey),
+      )
+      .first();
+    const next = recordOutcome(row?.state, {
+      difficultyClass: args.difficultyClass,
+      reasoningTokens: args.reasoningTokens,
+      budgetTokens: args.budgetTokens,
+      selfTruncates: args.selfTruncates,
+      finishReason: args.finishReason,
+      retried: args.retried,
+    });
+    const updatedAt = Date.now();
+    if (row) {
+      await ctx.db.patch(row._id, { state: next, updatedAt });
+    } else {
+      await ctx.db.insert('reasoningProfiles', {
+        organizationId: args.organizationId,
+        scopeKey: args.scopeKey,
+        state: next,
+        updatedAt,
+      });
+    }
+    return null;
+  },
+});
 
 export const getOrCreateSubThreadAtomic = internalMutation({
   args: {

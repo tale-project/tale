@@ -2,10 +2,10 @@
 
 import { Button } from '@tale/ui/button';
 import { PageSection } from '@tale/ui/page-section';
-import { Skeleton } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Pencil } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -35,18 +35,20 @@ function parseRetentionConfig(policy: unknown): RetentionPolicyConfig {
   return { documentsRetentionDays: 90 };
 }
 
-function skeletonRow(): ReactNode {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex flex-col gap-1">
-        <Skeleton className="h-5 w-44" />
-        <Skeleton className="h-4 w-72 max-w-full" />
-      </div>
-      <Skeleton className="h-8 w-24 rounded-md" />
-    </div>
-  );
-}
-
+// =============================================================================
+// Single editor — owns data fetching (policy + bounds), the drawer open state,
+// and the loading state. Renders the REAL `PageSection` once, always, wrapped
+// in `<Skeletonize>` while the policy loads.
+//
+// The conditional banners (`RetentionBoundsProposalBanner`,
+// `RetentionPendingBanner`) mount only when their async reads return data —
+// which never happens during the initial skeleton pass, so they render nothing
+// while loading. They stay ABOVE the summary in source order, so any later
+// mount only nudges layout below them. While loading, `RetentionPolicySummary`
+// renders the same card with its dynamic values masked (the enclosing
+// `<Skeletonize>` drives the mask), so the block reserves its real height; the
+// Edit action button auto-masks via `<Skeletonize>`.
+// =============================================================================
 export function RetentionEditor({ organizationId }: RetentionEditorProps) {
   const { t } = useT('governance');
   const { t: tCommon } = useT('common');
@@ -66,59 +68,54 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
   const cannotManage = ability.cannot('write', 'orgSettings');
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  if (isLoading) {
-    return (
-      <div aria-busy="true" className="flex flex-col gap-6">
-        {skeletonRow()}
-        {skeletonRow()}
-        {skeletonRow()}
-      </div>
-    );
-  }
-
   return (
-    <PageSection
-      title={t('retentionPolicy.title', 'Retention policy')}
-      description={t(
-        'retentionPolicy.description',
-        'Configure how long each data type is kept before deletion.',
-      )}
-      action={
-        <Button
-          variant="secondary"
-          size="sm"
-          icon={Pencil}
-          disabled={cannotManage}
-          onClick={() => setDrawerOpen(true)}
-        >
-          {tCommon('actions.edit')}
-        </Button>
-      }
+    <Skeletonize
+      loading={isLoading}
+      label={t('retentionPolicy.title', 'Retention policy')}
     >
-      {retentionDisabled && (
-        <div className="border-warning bg-warning/10 rounded border p-3">
-          <Text className="text-sm">
-            {t(
-              'retentionPolicy.envDisabled',
-              'Retention is currently disabled by the operator (TALE_RETENTION_DISABLED=true). Cleanup will not run until the env flag is removed.',
-            )}
-          </Text>
-        </div>
-      )}
+      <PageSection
+        title={t('retentionPolicy.title', 'Retention policy')}
+        description={t(
+          'retentionPolicy.description',
+          'Configure how long each data type is kept before deletion.',
+        )}
+        action={
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Pencil}
+            disabled={cannotManage}
+            onClick={() => setDrawerOpen(true)}
+          >
+            {tCommon('actions.edit')}
+          </Button>
+        }
+      >
+        {retentionDisabled && (
+          <div className="border-warning bg-warning/10 rounded border p-3">
+            <Text className="text-sm">
+              {t(
+                'retentionPolicy.envDisabled',
+                'Retention is currently disabled by the operator (TALE_RETENTION_DISABLED=true). Cleanup will not run until the env flag is removed.',
+              )}
+            </Text>
+          </div>
+        )}
 
-      <RetentionBoundsProposalBanner organizationId={organizationId} />
-      <RetentionPendingBanner organizationId={organizationId} />
+        <RetentionBoundsProposalBanner organizationId={organizationId} />
+        <RetentionPendingBanner organizationId={organizationId} />
 
-      <RetentionPolicySummary config={savedConfig} bounds={bounds} />
+        <RetentionPolicySummary config={savedConfig} bounds={bounds} />
 
-      <RetentionEditDrawer
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        savedConfig={savedConfig}
-        bounds={bounds}
-        organizationId={organizationId}
-        cannotManage={cannotManage}
-      />
-    </PageSection>
+        <RetentionEditDrawer
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          savedConfig={savedConfig}
+          bounds={bounds}
+          organizationId={organizationId}
+          cannotManage={cannotManage}
+        />
+      </PageSection>
+    </Skeletonize>
   );
 }

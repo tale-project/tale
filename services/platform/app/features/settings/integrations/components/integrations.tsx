@@ -1,9 +1,12 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Heading } from '@tale/ui/heading';
 import { Grid, HStack, Stack } from '@tale/ui/layout';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { Search, Unplug } from 'lucide-react';
@@ -17,6 +20,42 @@ import { IntegrationCard } from './integration-card';
 import { IntegrationPanel } from './integration-panel';
 import { IntegrationUploadDialog } from './integration-upload/integration-upload-dialog';
 import { SSOCard } from './sso-card';
+
+/** Number of placeholder cards rendered while the integration list loads. */
+const PLACEHOLDER_CARD_COUNT = 6;
+
+/**
+ * Placeholder card matching `IntegrationCard`'s footprint (icon tile + status
+ * badge, title, two description lines) so the loading grid occupies the same
+ * height as the loaded grid. Decorative; the enclosing `<Skeletonize>` owns the
+ * single status announcement.
+ */
+function IntegrationCardSkeleton() {
+  return (
+    <Card contentClassName="p-0">
+      <div className="w-full p-5 text-left">
+        <Stack gap={3}>
+          <HStack justify="between" align="start">
+            <SkeletonBox>
+              <div className="size-11 rounded-lg" />
+            </SkeletonBox>
+            <SkeletonBox>
+              <div className="h-5 w-16 rounded-full" />
+            </SkeletonBox>
+          </HStack>
+          <Stack gap={1}>
+            <div className="w-24 text-base leading-none">
+              <SkeletonText />
+            </div>
+            <div className="text-sm leading-[1.43]">
+              <SkeletonText lines={2} />
+            </div>
+          </Stack>
+        </Stack>
+      </div>
+    </Card>
+  );
+}
 
 export interface IntegrationListItem {
   _id: string;
@@ -40,6 +79,12 @@ interface IntegrationsProps {
   initialSlug?: string;
   /** Called after `initialSlug` has been handled so the caller can clear the URL. */
   onInitialSlugConsumed?: () => void;
+  /**
+   * While true the card grid renders skeleton placeholders inside the real
+   * header/tabs/search layout, so the integration list resolves under stable
+   * page chrome instead of swapping in from a separate page-level skeleton.
+   */
+  isLoading?: boolean;
 }
 
 export function Integrations({
@@ -50,6 +95,7 @@ export function Integrations({
   onTabChange,
   initialSlug,
   onInitialSlugConsumed,
+  isLoading = false,
 }: IntegrationsProps) {
   const { t } = useT('settings');
 
@@ -147,7 +193,15 @@ export function Integrations({
         />
       </HStack>
 
-      {filteredIntegrations.length > 0 || (isSsoVisible && !showSearch) ? (
+      {isLoading ? (
+        <Skeletonize loading label={t('integrations.title')}>
+          <Grid cols={1} md={2} lg={3}>
+            {Array.from({ length: PLACEHOLDER_CARD_COUNT }).map((_, i) => (
+              <IntegrationCardSkeleton key={i} />
+            ))}
+          </Grid>
+        </Skeletonize>
+      ) : filteredIntegrations.length > 0 || (isSsoVisible && !showSearch) ? (
         <Grid cols={1} md={2} lg={3}>
           {isSsoVisible && !showSearch && (
             <SSOCard
