@@ -99,12 +99,18 @@ export const listCollection = internalQuery({
     }
 
     const parentId = args.folderId ?? undefined;
-    const folders = await ctx.db
+    // Bounded like the document scan below: a folder with a very large flat
+    // set of subfolders would otherwise .collect() past the single-query
+    // read ceiling and hard-fail the PROPFIND. by_org_parent_name orders by
+    // name (org+parentId fixed); .take(cap+1) lets us detect truncation.
+    const rawFolders = await ctx.db
       .query('folders')
       .withIndex('by_org_parent_name', (q) =>
         q.eq('organizationId', args.organizationId).eq('parentId', parentId),
       )
-      .collect();
+      .take(MAX_CHILDREN_PER_PROPFIND + 1);
+    const foldersHitReadCap = rawFolders.length > MAX_CHILDREN_PER_PROPFIND;
+    const folders = rawFolders;
 
     // Bounded with .take: a very large flat folder would otherwise blow the
     // single-query read ceiling. by_organizationId_and_folderId orders by
@@ -134,7 +140,8 @@ export const listCollection = internalQuery({
     const sortedDocs = docs;
 
     const total = sortedFolders.length + sortedDocs.length;
-    const truncated = total > MAX_CHILDREN_PER_PROPFIND || docsHitReadCap;
+    const truncated =
+      total > MAX_CHILDREN_PER_PROPFIND || docsHitReadCap || foldersHitReadCap;
 
     let folderSlice = sortedFolders;
     let docSlice = sortedDocs;
@@ -243,13 +250,20 @@ async function resolvePathInner(
   // visible. A multi-segment path under .trash never resolves.
   if (namespace === '.trash') {
     if (segments.length !== 1) return { kind: 'not_found', exists: false };
-    const all = await ctx.db
+    // Exact indexed lookup — never collect every trashed doc in the org
+    // (a large trash would blow the read ceiling and make .trash files
+    // un-GET-able). Title is required to be non-empty here (segments[0] is
+    // a path segment), so docs with an undefined title never matched the
+    // prior `(title ?? '') === segment` check either.
+    const match = await ctx.db
       .query('documents')
-      .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-        q.eq('organizationId', organizationId).eq('lifecycleStatus', 'trashed'),
+      .withIndex('by_org_lifecycle_title', (q) =>
+        q
+          .eq('organizationId', organizationId)
+          .eq('lifecycleStatus', 'trashed')
+          .eq('title', segments[0]),
       )
-      .collect();
-    const match = all.find((d) => (d.title ?? '') === segments[0]);
+      .first();
     if (match) {
       return { kind: 'document', documentId: match._id, exists: true };
     }
@@ -341,19 +355,20 @@ async function resolveLeafDocument(
   folderId: Id<'folders'> | undefined,
   leafName: string,
 ): Promise<Id<'documents'> | null> {
-  // Exact title match, indexed by (org, title) and filtered to this folder —
-  // avoids scanning the whole folder (which would blow the read ceiling on a
-  // large flat folder). Same-title docs in one org are few in practice.
+  // Exact (org, title, folder) match — the composite index bounds the scan
+  // to same-name docs in THIS folder, so a name repeated across a synced
+  // tree can't blow the read ceiling. Same-name docs in one folder are few.
   const titleMatches = await ctx.db
     .query('documents')
-    .withIndex('by_organizationId_and_title', (q) =>
-      q.eq('organizationId', organizationId).eq('title', leafName),
+    .withIndex('by_org_title_folder', (q) =>
+      q
+        .eq('organizationId', organizationId)
+        .eq('title', leafName)
+        .eq('folderId', folderId),
     )
     .collect();
   const exact = titleMatches.find(
-    (d) =>
-      (d.folderId ?? undefined) === folderId &&
-      (d.lifecycleStatus ?? 'active') === 'active',
+    (d) => (d.lifecycleStatus ?? 'active') === 'active',
   );
   if (exact) return exact._id;
 

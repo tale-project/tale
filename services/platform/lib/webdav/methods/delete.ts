@@ -84,10 +84,20 @@ export async function handleDelete(
       );
     }
   } catch (err) {
-    if (convexErrorCode(err) === 'LEGAL_HOLD_ACTIVE') {
+    const code = convexErrorCode(err);
+    if (code === 'LEGAL_HOLD_ACTIVE') {
       // The org or a descendant doc's author is on a legal hold — refuse.
       // 403, not 423 (a legal hold is not a client-clearable WebDAV lock).
       return { status: 403, headers: {}, body: 'Resource is under legal hold' };
+    }
+    if (code === 'SUBTREE_TOO_LARGE') {
+      // The folder subtree exceeds what one transaction can delete safely.
+      // 507 rather than crash mid-cascade (which could half-trash the tree).
+      return {
+        status: 507,
+        headers: {},
+        body: 'Folder is too large to delete in a single request',
+      };
     }
     throw err;
   }

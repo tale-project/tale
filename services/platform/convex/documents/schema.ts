@@ -79,6 +79,18 @@ export const documentsTable = defineTable({
   ])
   .index('by_organizationId_and_extension', ['organizationId', 'extension'])
   .index('by_organizationId_and_title', ['organizationId', 'title'])
+  // Bounded exact-match lookup for the WebDAV .trash resolver: find a
+  // trashed doc by title without collecting every trashed row in the org.
+  .index('by_org_lifecycle_title', [
+    'organizationId',
+    'lifecycleStatus',
+    'title',
+  ])
+  // Bounded name-collision / leaf-resolve lookup for WebDAV: docs with an
+  // exact title in an exact folder (0-1 active in practice). Without the
+  // folderId column, a name repeated across a synced tree (package.json,
+  // .DS_Store, index.html) makes the (org,title) collect O(all-same-name).
+  .index('by_org_title_folder', ['organizationId', 'title', 'folderId'])
   .index('by_organizationId_and_fileId', ['organizationId', 'fileId'])
   .index('by_organizationId_and_indexed', ['organizationId', 'indexed'])
   .index('by_organizationId_and_folderPath', ['organizationId', 'folderPath'])

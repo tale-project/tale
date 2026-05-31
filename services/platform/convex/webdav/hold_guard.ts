@@ -5,6 +5,12 @@ import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { MAX_FOLDER_DEPTH } from '../folders/mutations';
 import { loadActiveHolds, type ActiveHolds } from '../governance/legal_hold';
 import { assertNotHeld } from '../governance/legal_hold_guard';
+import {
+  budgetTake,
+  chargeReadBudget,
+  newReadBudget,
+  type ReadBudget,
+} from './bulk_budget';
 
 // Legal-hold gate for the WebDAV destructive surface (DELETE, MOVE/COPY
 // overwrite, PUT overwrite). Every other delete path in the codebase flows
@@ -45,6 +51,7 @@ export async function assertWebdavFolderTreeNotHeld(
   folderId: Id<'folders'>,
   preloaded?: ActiveHolds,
   depth: number = 0,
+  budget: ReadBudget = newReadBudget(),
 ): Promise<void> {
   const holds = preloaded ?? (await loadActiveHolds(ctx, organizationId));
   // Org-level hold is target-independent — assert it once at the root.
@@ -60,7 +67,8 @@ export async function assertWebdavFolderTreeNotHeld(
     .withIndex('by_org_parent_name', (q) =>
       q.eq('organizationId', organizationId).eq('parentId', folderId),
     )
-    .collect();
+    .take(budgetTake(budget));
+  chargeReadBudget(budget, childFolders.length);
   for (const cf of childFolders) {
     await assertWebdavFolderTreeNotHeld(
       ctx,
@@ -68,6 +76,7 @@ export async function assertWebdavFolderTreeNotHeld(
       cf._id,
       holds,
       depth + 1,
+      budget,
     );
   }
 
@@ -76,7 +85,8 @@ export async function assertWebdavFolderTreeNotHeld(
     .withIndex('by_organizationId_and_folderId', (q) =>
       q.eq('organizationId', organizationId).eq('folderId', folderId),
     )
-    .collect();
+    .take(budgetTake(budget));
+  chargeReadBudget(budget, docs.length);
   for (const d of docs) {
     if ((d.lifecycleStatus ?? 'active') !== 'active') continue;
     if (d.createdBy && holds.userMembershipIds.has(d.createdBy)) {

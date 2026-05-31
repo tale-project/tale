@@ -12,6 +12,12 @@ import { findFolderByPath } from '../folders/find_folder_by_path';
 import { MAX_FOLDER_DEPTH } from '../folders/mutations';
 import { buildFolderPath } from '../folders/queries';
 import {
+  budgetTake,
+  chargeReadBudget,
+  newReadBudget,
+  type ReadBudget,
+} from './bulk_budget';
+import {
   assertWebdavDocNotHeld,
   assertWebdavFolderTreeNotHeld,
 } from './hold_guard';
@@ -126,20 +132,21 @@ export const ingestPutBlob = internalMutation({
       folderId = found;
     }
 
-    // Find the existing doc to overwrite by exact (org, title), filtered to
-    // this folder + active in memory. Indexing by title (not scanning the
-    // whole folder) keeps a large flat folder from blowing the single-query
-    // read ceiling.
+    // Find the existing doc to overwrite by exact (org, title, folder). The
+    // composite index bounds the scan to same-name docs in THIS folder
+    // (0-1 active in practice) instead of every same-name doc in the org —
+    // a name repeated across a synced tree would otherwise collect O(all).
     const titleMatches = await ctx.db
       .query('documents')
-      .withIndex('by_organizationId_and_title', (q) =>
-        q.eq('organizationId', args.organizationId).eq('title', fileName),
+      .withIndex('by_org_title_folder', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('title', fileName)
+          .eq('folderId', folderId),
       )
       .collect();
     const existing = titleMatches.find(
-      (d) =>
-        (d.folderId ?? undefined) === folderId &&
-        (d.lifecycleStatus ?? 'active') === 'active',
+      (d) => (d.lifecycleStatus ?? 'active') === 'active',
     );
 
     // Legal-hold gate on overwrite: a held document must not be content-
@@ -571,19 +578,20 @@ async function findCollision(
     .first();
   if (folder) return { kind: 'folder', id: folder._id };
 
-  // Query by exact (org, title) and filter to this folder in memory, rather
-  // than scanning the entire folder: a large flat folder would blow Convex's
-  // single-query read ceiling. Same-title docs in one org are few in practice.
+  // Exact (org, title, folder) lookup — the composite index bounds the scan
+  // to same-name docs in THIS folder rather than every same-name doc in the
+  // org (a name repeated across a synced tree would blow the read ceiling).
   const titleMatches = await ctx.db
     .query('documents')
-    .withIndex('by_organizationId_and_title', (q) =>
-      q.eq('organizationId', organizationId).eq('title', name),
+    .withIndex('by_org_title_folder', (q) =>
+      q
+        .eq('organizationId', organizationId)
+        .eq('title', name)
+        .eq('folderId', parentFolderId ?? undefined),
     )
     .collect();
   const doc = titleMatches.find(
-    (d) =>
-      (d.folderId ?? undefined) === (parentFolderId ?? undefined) &&
-      (d.lifecycleStatus ?? 'active') === 'active',
+    (d) => (d.lifecycleStatus ?? 'active') === 'active',
   );
   if (doc) return { kind: 'document', id: doc._id };
   return null;
@@ -594,10 +602,12 @@ async function cascadeDeleteFolderRecursive(
   organizationId: string,
   folderId: Id<'folders'>,
   depth: number = 0,
+  budget: ReadBudget = newReadBudget(),
 ): Promise<void> {
   // Legal-hold pre-walk: assert the ENTIRE subtree is releasable before
   // trashing anything (atomicity — never half-delete a tree). Runs once at the
-  // root; the recursion below does the actual trashing.
+  // root; the recursion below does the actual trashing. It re-reads the same
+  // subtree, so it uses its OWN budget (not this one) to avoid double-charging.
   if (depth === 0) {
     await assertWebdavFolderTreeNotHeld(ctx, organizationId, folderId);
   }
@@ -609,16 +619,24 @@ async function cascadeDeleteFolderRecursive(
     .withIndex('by_org_parent_name', (q) =>
       q.eq('organizationId', organizationId).eq('parentId', folderId),
     )
-    .collect();
+    .take(budgetTake(budget));
+  chargeReadBudget(budget, children.length);
   for (const c of children) {
-    await cascadeDeleteFolderRecursive(ctx, organizationId, c._id, depth + 1);
+    await cascadeDeleteFolderRecursive(
+      ctx,
+      organizationId,
+      c._id,
+      depth + 1,
+      budget,
+    );
   }
   const docs = await ctx.db
     .query('documents')
     .withIndex('by_organizationId_and_folderId', (q) =>
       q.eq('organizationId', organizationId).eq('folderId', folderId),
     )
-    .collect();
+    .take(budgetTake(budget));
+  chargeReadBudget(budget, docs.length);
   for (const d of docs) {
     if ((d.lifecycleStatus ?? 'active') === 'active') {
       await ctx.db.patch(d._id, {
@@ -644,6 +662,7 @@ async function copyFolderRecursive(
   destName: string,
   userId: string,
   depth: number,
+  budget: ReadBudget = newReadBudget(),
 ): Promise<Id<'folders'>> {
   if (depth > MAX_FOLDER_DEPTH) {
     throw new ConvexError({ code: 'CONFLICT' });
@@ -660,7 +679,8 @@ async function copyFolderRecursive(
     .withIndex('by_org_parent_name', (q) =>
       q.eq('organizationId', organizationId).eq('parentId', srcFolderId),
     )
-    .collect();
+    .take(budgetTake(budget));
+  chargeReadBudget(budget, childFolders.length);
   for (const cf of childFolders) {
     await copyFolderRecursive(
       ctx,
@@ -670,6 +690,7 @@ async function copyFolderRecursive(
       cf.name,
       userId,
       depth + 1,
+      budget,
     );
   }
 
@@ -678,7 +699,8 @@ async function copyFolderRecursive(
     .withIndex('by_organizationId_and_folderId', (q) =>
       q.eq('organizationId', organizationId).eq('folderId', srcFolderId),
     )
-    .collect();
+    .take(budgetTake(budget));
+  chargeReadBudget(budget, childDocs.length);
   for (const d of childDocs) {
     if ((d.lifecycleStatus ?? 'active') !== 'active') continue;
     await createDocument(ctx, {
@@ -776,6 +798,7 @@ async function fixupMovedFolderDescendants(
   organizationId: string,
   folderId: Id<'folders'>,
   depth: number,
+  budget: ReadBudget = newReadBudget(),
 ): Promise<void> {
   if (depth > MAX_FOLDER_DEPTH) {
     throw new ConvexError({ code: 'CONFLICT' });
@@ -786,7 +809,8 @@ async function fixupMovedFolderDescendants(
     .withIndex('by_organizationId_and_folderId', (q) =>
       q.eq('organizationId', organizationId).eq('folderId', folderId),
     )
-    .collect();
+    .take(budgetTake(budget));
+  chargeReadBudget(budget, docs.length);
   for (const d of docs) {
     if ((d.lifecycleStatus ?? 'active') !== 'active') continue;
     const patch: Record<string, unknown> = { folderPath };
@@ -802,9 +826,16 @@ async function fixupMovedFolderDescendants(
     .withIndex('by_org_parent_name', (q) =>
       q.eq('organizationId', organizationId).eq('parentId', folderId),
     )
-    .collect();
+    .take(budgetTake(budget));
+  chargeReadBudget(budget, childFolders.length);
   for (const cf of childFolders) {
-    await fixupMovedFolderDescendants(ctx, organizationId, cf._id, depth + 1);
+    await fixupMovedFolderDescendants(
+      ctx,
+      organizationId,
+      cf._id,
+      depth + 1,
+      budget,
+    );
   }
 }
 

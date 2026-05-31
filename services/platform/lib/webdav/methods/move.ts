@@ -248,6 +248,15 @@ async function doMoveOrCopy(
     if (code === 'NOT_FOUND') {
       return { status: 404, headers: {}, body: 'Not found' };
     }
+    if (code === 'SUBTREE_TOO_LARGE') {
+      // The source subtree exceeds what one transaction can copy/move-fixup
+      // safely — 507 rather than a partial, inconsistent tree.
+      return {
+        status: 507,
+        headers: {},
+        body: 'Folder is too large to move or copy in a single request',
+      };
+    }
     console.error(`[webdav] ${op} failed`, err);
     return { status: 500, headers: {}, body: 'Internal error' };
   }

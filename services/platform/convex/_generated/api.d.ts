@@ -907,6 +907,7 @@ import type * as video_links_url_safety from "../video_links/url_safety.js";
 import type * as video_links_ytdlp from "../video_links/ytdlp.js";
 import type * as webdav_app_password_mutations from "../webdav/app_password_mutations.js";
 import type * as webdav_app_password_queries from "../webdav/app_password_queries.js";
+import type * as webdav_bulk_budget from "../webdav/bulk_budget.js";
 import type * as webdav_helpers from "../webdav/helpers.js";
 import type * as webdav_hold_guard from "../webdav/hold_guard.js";
 import type * as webdav_lock_mutations from "../webdav/lock_mutations.js";
@@ -2079,6 +2080,7 @@ declare const fullApi: ApiFromModules<{
   "video_links/ytdlp": typeof video_links_ytdlp;
   "webdav/app_password_mutations": typeof webdav_app_password_mutations;
   "webdav/app_password_queries": typeof webdav_app_password_queries;
+  "webdav/bulk_budget": typeof webdav_bulk_budget;
   "webdav/helpers": typeof webdav_helpers;
   "webdav/hold_guard": typeof webdav_hold_guard;
   "webdav/lock_mutations": typeof webdav_lock_mutations;
