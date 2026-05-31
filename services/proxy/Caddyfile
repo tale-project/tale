@@ -225,10 +225,14 @@
 	# ============================================================================
 	# The platform process enforces a per-method limit (XML methods ~64 KB,
 	# PUT default 5 GB) but a malicious client streaming an unbounded body
-	# can still tie up Caddy's buffer. Cap at the proxy too.
+	# can still tie up Caddy's buffer. Cap at the proxy too. Driven by the
+	# same WEBDAV_MAX_PUT_BYTES the platform uses (a raw byte count; Caddy
+	# accepts a plain integer as bytes) so the two ceilings stay in sync.
+	# Operators raising the platform limit above 5 GB must also set this env
+	# on the proxy container, or the proxy stays the binding cap (default 5 GB).
 	handle /dav/* {
 		request_body {
-			max_size 5GB
+			max_size {$WEBDAV_MAX_PUT_BYTES:5GB}
 		}
 		reverse_proxy platform:3000 {
 			# Forward the real client IP. The WebDAV failed-auth throttle

@@ -579,6 +579,11 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       webdavCtx = makeWebdavCtx({
         convexUrl: webdavConvexUrl,
         adminKey: webdavAdminKey,
+        // Escape hatch for the GET storage-proxy fallback when the Convex
+        // site origin isn't `<backend host>:3211` — e.g. an external Convex
+        // on non-default ports or a single-origin HTTPS front. Defaults to
+        // the :3211 derivation when unset.
+        convexSiteUrl: process.env.WEBDAV_CONVEX_SITE_URL || undefined,
       });
     }
     return webdavCtx;

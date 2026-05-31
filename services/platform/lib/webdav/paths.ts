@@ -41,8 +41,13 @@ export function parseDavPath(pathname: string): ParsedPath | null {
 
   const segments: string[] = [];
   for (let i = 2; i < raw.length; i++) {
-    const seg = safeDecodeNFC(raw[i]);
-    if (seg === null) return null;
+    const decoded = safeDecodeNFC(raw[i]);
+    if (decoded === null) return null;
+    // Trim leading/trailing whitespace so the path layer matches the
+    // backend's validateFolderName (which trims before storing). Without
+    // this, " foo " is created as "foo" but resolved as " foo " — stranding
+    // the resource — and " .. " would slip past the `..` guard below.
+    const seg = decoded.trim();
     if (!isValidSegment(seg)) return null;
     segments.push(seg);
   }

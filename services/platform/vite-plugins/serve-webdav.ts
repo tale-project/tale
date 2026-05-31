@@ -40,7 +40,14 @@ export function serveWebdav(): Plugin {
           '[serve-webdav] WEBDAV_APP_PASSWORD_HMAC_KEY unset and INSTANCE_SECRET missing; /dav/* auth will 500 in dev.',
         );
       }
-      const ctx = adminKey ? makeWebdavCtx({ convexUrl, adminKey }) : null;
+      const ctx = adminKey
+        ? makeWebdavCtx({
+            convexUrl,
+            adminKey,
+            // Same GET storage-proxy escape hatch as the prod server.
+            convexSiteUrl: process.env.WEBDAV_CONVEX_SITE_URL || undefined,
+          })
+        : null;
 
       // Prepend to the middleware stack so it runs BEFORE Vite's SPA
       // catchall — same trick used by serve-canvas-preview.ts for the
