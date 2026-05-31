@@ -116,7 +116,6 @@ export interface SearchCommandLabels {
   recent: string;
   clearRecent: string;
   removeRecent: string;
-  tipsTitle: string;
   tipNavigate: string;
   tipSelect: string;
   tipClose: string;

@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Clock, CornerDownLeft, History, Search, X } from 'lucide-react';
+import { Clock, History, Search, X } from 'lucide-react';
 
 import { cn } from '../../lib/cn';
 import type { RecentSearch, SearchCommandLabels } from './types';
@@ -111,42 +111,6 @@ export function SearchEmpty({
           </p>
         </div>
       )}
-
-      <section aria-label={labels.tipsTitle}>
-        <header className="mb-2 px-1">
-          <span className="text-fg-subtle text-[11px] font-semibold tracking-wider uppercase">
-            {labels.tipsTitle}
-          </span>
-        </header>
-        <ul
-          role="list"
-          className="text-fg-muted grid grid-cols-1 gap-2 px-1 text-xs sm:grid-cols-3"
-        >
-          <li className="flex items-center gap-2">
-            <KeyHint>↑</KeyHint>
-            <KeyHint>↓</KeyHint>
-            <span>{labels.tipNavigate}</span>
-          </li>
-          <li className="flex items-center gap-2">
-            <KeyHint>
-              <CornerDownLeft className="size-3" />
-            </KeyHint>
-            <span>{labels.tipSelect}</span>
-          </li>
-          <li className="flex items-center gap-2">
-            <KeyHint>esc</KeyHint>
-            <span>{labels.tipClose}</span>
-          </li>
-        </ul>
-      </section>
     </motion.div>
-  );
-}
-
-function KeyHint({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="border-border-base bg-bg-base text-fg-base inline-flex h-5 min-w-5 items-center justify-center rounded border px-1 font-mono text-[10px]">
-      {children}
-    </kbd>
   );
 }
