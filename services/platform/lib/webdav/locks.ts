@@ -154,6 +154,36 @@ async function runLockCheck(
     };
   }
 
+  // RFC 4918 §10.4.2: the If: header is a general precondition evaluated even
+  // when the resource is UNLOCKED — the lock loop above only enforces it
+  // against a found lock. The lost-update case it protects is an `[etag]`
+  // optimistic-concurrency condition on an unlocked file. We enforce that case
+  // only when (a) the caller resolved the current ETag and (b) some List
+  // carries an `[etag]` term: then the write proceeds only if at least one
+  // List is satisfied by the current state. A pure lock-token If: on an
+  // unlocked resource stays lenient (its lock has expired/released; failing it
+  // would surprise clients that resubmit the token they last held), and
+  // callers that don't resolve an ETag (PROPPATCH/MOVE/DELETE) are unaffected.
+  if (
+    resourceEtag !== undefined &&
+    clauses.some((c) => c.conditions.some((cond) => cond.etag !== undefined))
+  ) {
+    const anySatisfied = clauses.some((clause) =>
+      clause.conditions.every((cond) =>
+        evalIfCondition(cond, '', resourceEtag),
+      ),
+    );
+    if (!anySatisfied) {
+      return {
+        ok: false,
+        status: 412,
+        reason: 'If: precondition failed',
+        body: buildDavError({ precondition: 'lock-token-submitted' }),
+        headers: { ...DAV_ERROR_HEADERS },
+      };
+    }
+  }
+
   return { ok: true };
 }
 

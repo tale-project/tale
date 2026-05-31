@@ -123,8 +123,12 @@ async function doMoveOrCopy(
   }
   // Destination lock — required for BOTH MOVE and COPY: with Overwrite: T
   // (the default) either can destroy a locked destination, so the token
-  // must be submitted (RFC 4918 §9.8.5 / §9.9.4).
-  const dstLock = await checkResourceLock(req, ctx, auth, destParsed);
+  // must be submitted (RFC 4918 §9.8.5 / §9.9.4). The destination is also a
+  // NEW member of its parent collection, so a depth-0 lock on the
+  // destination's direct parent must block it too (§9.10.4 — membership).
+  const dstLock = await checkResourceLock(req, ctx, auth, destParsed, {
+    directParentDepth0: true,
+  });
   if (!dstLock.ok) {
     return {
       status: dstLock.status,
