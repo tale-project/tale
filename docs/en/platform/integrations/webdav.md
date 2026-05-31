@@ -15,6 +15,8 @@ A note on the username field: the app-password is the only credential the server
 
 You also need to know your **organisation slug** and the **site URL** your operator deployed the platform under. Both are visible on the Settings > WebDAV panel, and the panel will pre-fill them in the connection details below the password generator.
 
+Generating an app-password requires **Admin** or **Developer** permissions in the organisation — the same capability that gates API keys. A plain member who opens Settings > WebDAV sees an access-denied screen instead of the generator; ask an organisation admin to issue a password, or to grant the capability.
+
 ## Generating an app-password
 
 Open **Settings > WebDAV** and type a label that describes where you will use the password — `MacBook Finder`, `iPhone Files`, `ops-laptop rclone`. Click **Generate**. The full password appears once, with a copy button next to it; copy it into your device's connection dialog or into your password manager before you close the panel. After dismissing, only the first four characters are visible from the table, which is enough to identify the row when you later want to revoke it.

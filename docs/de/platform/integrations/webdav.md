@@ -15,6 +15,8 @@ Eine Anmerkung zum Benutzernamen-Feld: Das App-Passwort ist die einzige Berechti
 
 Du benötigst außerdem den **Organisations-Slug** deiner Org und die **Site-URL** deines Deployments. Beides ist im Panel Einstellungen > WebDAV sichtbar, und das Panel füllt die Verbindungsdaten unten beim Passwort-Generator vor.
 
+Zum Erzeugen eines App-Passworts brauchst du **Admin**- oder **Developer**-Rechte in der Organisation — dieselbe Berechtigung, die auch API-Schlüssel absichert. Ein einfaches Mitglied sieht beim Öffnen von Einstellungen > WebDAV statt des Generators einen Zugriff-verweigert-Hinweis; bitte eine Org-Admin, ein Passwort auszustellen oder dir die Berechtigung zu erteilen.
+
 ## App-Passwort generieren
 
 Öffne **Einstellungen > WebDAV** und tippe ein Label, das den Verwendungszweck beschreibt — `MacBook Finder`, `iPhone Files`, `ops-laptop rclone`. Klicke **Erzeugen**. Das vollständige Passwort erscheint einmal, mit einer Kopier-Schaltfläche daneben; kopiere es in den Verbindungsdialog deines Geräts oder in deinen Passwort-Manager, bevor du das Panel schließt. Nach dem Verwerfen sind nur die ersten vier Zeichen aus der Tabelle sichtbar, was reicht, um die Zeile beim späteren Widerruf zu identifizieren.

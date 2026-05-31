@@ -15,6 +15,8 @@ Une note sur le champ nom d’utilisateur : le mot de passe applicatif est le se
 
 Tu as aussi besoin du **slug d’organisation** et de l’**URL du site** sous laquelle ton opérateur a déployé la plateforme. Les deux sont visibles dans le panneau Paramètres > WebDAV, et le panneau pré-remplit les détails de connexion sous le générateur de mot de passe.
 
+Générer un mot de passe applicatif requiert les permissions **Admin** ou **Developer** dans l’organisation — la même capacité qui protège les clés API. Un simple membre qui ouvre Paramètres > WebDAV voit un écran d’accès refusé au lieu du générateur ; demande à une admin de l’organisation d’émettre un mot de passe ou de t’accorder la capacité.
+
 ## Générer un mot de passe applicatif
 
 Ouvre **Paramètres > WebDAV** et tape un libellé décrivant l’usage — `MacBook Finder`, `iPhone Files`, `ops-laptop rclone`. Clique **Générer**. Le mot de passe complet apparaît une seule fois, avec un bouton de copie à côté ; copie-le dans la boîte de dialogue de connexion de ton appareil ou dans ton gestionnaire avant de fermer le panneau. Après fermeture, seuls les quatre premiers caractères restent visibles dans la table — assez pour identifier la ligne au moment de la révocation.
