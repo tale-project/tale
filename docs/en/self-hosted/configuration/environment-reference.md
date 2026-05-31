@@ -84,6 +84,18 @@ Optional toggles for features not enabled by default. Each flag turns one featur
 | `TRUSTED_HEADERS_ENABLED` | `false` | Enables the trusted-headers auth mode (identity supplied by the reverse proxy). |
 | `FILE_EVENTS_ENABLED`     | `false` | Enables file-watching events for the OneDrive-sync integration.                 |
 
+## Slack
+
+Set these to run one shared Slack app across every organisation. The platform entrypoint syncs them into the Convex deployment at boot; the OAuth install flow and the inbound events endpoint read them. Leave all three unset to keep Slack disabled.
+
+| Name                   | Default | Description                                                                                                            |
+| ---------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `SLACK_CLIENT_ID`      | unset   | OAuth client ID of the shared Slack app. Seeded onto each org's credential at connect time, so admins never paste it.  |
+| `SLACK_CLIENT_SECRET`  | unset   | OAuth client secret of the shared Slack app. Encrypted before storage.                                                 |
+| `SLACK_SIGNING_SECRET` | unset   | Secret used to verify inbound Slack event requests (HMAC over the raw body). Required for the bot to receive messages. |
+
+The shared app's Event Subscriptions Request URL is `${SITE_URL}${BASE_PATH}/api/integrations/slack/events`; subscribe the `app_mention` and `message.im` bot events. Inbound events route to the installing organisation by Slack `team_id`.
+
 ## Versioning
 
 | Name           | Default       | Description                                                                                     |

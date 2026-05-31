@@ -36,6 +36,14 @@ Les deux leviers sont appliqués à la requête, pas à l'installation — chang
 
 Clique la ligne, puis **Déconnecter**. Une intégration déconnectée arrête d'authentifier immédiatement ; les agents et workflows qui en dépendent font remonter une erreur de configuration au prochain appel. La ligne reste dans la liste avec un badge déconnecté pour que la piste d'audit survive. Reconnecter parcourt le flux d'identifiants de zéro.
 
+## Bot Slack et notifications
+
+Slack est bidirectionnel. Au-delà de l'agent qui appelle Slack (poster des messages, lire des canaux), l'org peut laisser des personnes parler à un agent depuis Slack et pousser des événements système dans un canal. Les deux se configurent sur la ligne Slack connectée, et les deux utilisent le même identifiant OAuth — pas de seconde connexion.
+
+Faire tourner le bot demande une étape opérateur unique : une app Slack partagée dont `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` et `SLACK_SIGNING_SECRET` sont définis sur le déploiement (voir [Référence d'environnement](/fr/self-hosted/configuration/environment-reference)), avec les Event Subscriptions pointées sur `https://<ton-hôte>/api/integrations/slack/events` et les événements bot `app_mention` et `message.im` abonnés. Chaque org installe ensuite cette app avec son propre flux OAuth ; les messages entrants sont routés vers la bonne org via l'espace de travail Slack.
+
+Sur la ligne Slack connectée, un admin choisit **quel agent répond sur Slack** (une mention dans un canal ou un message direct démarre une réponse en thread de cet agent) et **quels canaux reçoivent les notifications**, avec une bascule par événement. Les événements livrés sont workflow échoué, workflow terminé et alertes de sécurité ; un thread Slack correspond à une conversation d'agent, et l'auteur Slack y est conservé plutôt qu'enregistré comme le système.
+
 ## Intégrations versus serveurs MCP
 
 Deux surfaces laissent un agent atteindre au-delà de Tale. Les **Intégrations** sont les connecteurs spécifiques au fournisseur, premier-party, documentés ici. Les **serveurs MCP** sont des processus externes qui exposent le Model Context Protocol ; l'org les enregistre sous **Paramètres > Serveurs MCP** et approuve chaque tool à son premier appel. Va vers une intégration quand une existe pour le système cible ; va vers les [serveurs MCP](/fr/platform/integrations/mcp-servers) quand aucune intégration ne couvre ton besoin.

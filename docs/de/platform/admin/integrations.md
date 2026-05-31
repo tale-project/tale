@@ -36,6 +36,14 @@ Beide Hebel werden zur Anfrage-Zeit erzwungen, nicht zur Installations-Zeit — 
 
 Klick auf die Zeile, dann auf **Trennen**. Eine getrennte Integration hört sofort auf zu authentifizieren; Agents und Workflows, die von ihr abhängen, melden beim nächsten Aufruf einen Konfigurationsfehler. Die Zeile bleibt mit einem Getrennt-Badge in der Liste, damit der Audit-Pfad überlebt. Erneutes Verbinden geht den Anmelde-Fluss von Grund auf neu.
 
+## Slack-Bot und Benachrichtigungen
+
+Slack ist zweigerichtet. Über den Agent, der Slack aufruft (Nachrichten posten, Kanäle lesen), hinaus kann die Organisation Leute aus Slack heraus mit einem Agent sprechen lassen und System-Events in einen Kanal pushen. Beides wird auf der verbundenen Slack-Zeile konfiguriert, und beides nutzt dieselbe OAuth-Anmeldung — keine zweite Verbindung.
+
+Den Bot zu betreiben braucht einen einmaligen Betreiber-Schritt: eine gemeinsame Slack-App, deren `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` und `SLACK_SIGNING_SECRET` auf dem Deployment gesetzt sind (siehe [Umgebungs-Referenz](/de/self-hosted/configuration/environment-reference)), mit Event Subscriptions auf `https://<dein-host>/api/integrations/slack/events` und den abonnierten Bot-Events `app_mention` und `message.im`. Jede Organisation installiert diese App dann mit ihrem eigenen OAuth-Flow; eingehende Nachrichten werden über den Slack-Workspace zurück an die richtige Organisation geroutet.
+
+Auf der verbundenen Slack-Zeile wählt ein Admin, **welcher Agent auf Slack antwortet** (eine Erwähnung in einem Kanal oder eine Direktnachricht startet eine Thread-Antwort dieses Agents) und **welche Kanäle Benachrichtigungen erhalten**, mit einem Schalter pro Event. Die ausgelieferten Events sind Workflow fehlgeschlagen, Workflow abgeschlossen und Sicherheitswarnungen; ein Slack-Thread bildet sich auf ein Agent-Gespräch ab, und der Slack-Autor bleibt darauf erhalten, statt als System verbucht zu werden.
+
 ## Integrationen versus MCP-Server
 
 Zwei Oberflächen lassen einen Agent über Tale hinausgreifen. **Integrationen** sind die hier dokumentierten anbieterspezifischen Erstanbieter-Konnektoren. **MCP-Server** sind externe Prozesse, die das Model Context Protocol freilegen; die Organisation registriert sie unter **Einstellungen > MCP-Server** und genehmigt jedes Tool beim ersten Aufruf. Greif zu einer Integration, wenn eine für das Zielsystem existiert; greif zu [MCP-Servern](/de/platform/integrations/mcp-servers), wenn keine Integration deckt, was du brauchst.
