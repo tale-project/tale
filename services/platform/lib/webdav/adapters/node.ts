@@ -10,17 +10,22 @@ import {
   type WebDAVResponse,
 } from '../types';
 
-// Methods that may carry a body. PUT streams; XML methods buffer via
-// readBytes/readText. Everything else exposes body: null to avoid
-// accidental consumption.
-const BODY_BEARING_METHODS = new Set([
-  'PUT',
-  'POST',
-  'MKCOL',
-  'PROPPATCH',
-  'LOCK',
-  'PROPFIND',
-]);
+// Methods whose body we STREAM straight through as a Web ReadableStream
+// (consumed by the handler, e.g. PUT → Convex storage). Every other
+// method that carries a body (LOCK / PROPPATCH / PROPFIND / MKCOL) reads
+// it via readBytes/readText, which drains the raw Node `req` stream.
+//
+// These two paths are mutually exclusive ON PURPOSE: `Readable.toWeb(req)`
+// takes ownership of the socket and, across the async dispatch gap before
+// a handler calls readText(), pulls the buffered body into the Web
+// stream's internal queue — leaving a later `for await (chunk of req)` in
+// readBytes with nothing. So we must NOT build a Web stream for the
+// buffered methods, or their request body silently arrives empty (this
+// manifested as LOCK → 400 "Missing If: header for refresh" and
+// PROPPATCH / named-prop PROPFIND silently ignoring their body in dev,
+// while prod's fetch adapter — whose Request.body is a lazy stream that is
+// never pulled for those methods — worked fine).
+const STREAMING_METHODS = new Set(['PUT', 'POST']);
 
 // First hop of X-Forwarded-For (rate-limit bucket key, not a security
 // boundary). Mirrors the Hono adapter's helper.
@@ -50,7 +55,7 @@ export async function nodeAdapter(
   // Use a dummy origin — only req.pathname is consumed downstream.
   const url = `http://localhost${req.url ?? '/'}`;
   const method = (req.method ?? 'GET').toUpperCase();
-  const hasBody = BODY_BEARING_METHODS.has(method);
+  const isStreaming = STREAMING_METHODS.has(method);
 
   // Mirror the Web Fetch AbortSignal contract — clients dropping the
   // socket mid-upload must propagate to platform→Convex upstream calls.
@@ -67,10 +72,12 @@ export async function nodeAdapter(
     if (!req.complete) ac.abort();
   });
 
-  // Hold a single stream reference so readBytes can drain it lazily.
-  // Once consumed it can't be replayed — readBytes caches the buffer.
+  // Build the Web stream ONLY for streaming methods (PUT/POST). Buffered
+  // methods (LOCK/PROPPATCH/PROPFIND/MKCOL) read their body via readBytes,
+  // which drains the raw Node `req` — building a Web stream here too would
+  // let it pull the socket empty before readBytes runs (see STREAMING_METHODS).
   let body: ReadableStream<Uint8Array> | null = null;
-  if (hasBody) {
+  if (isStreaming) {
     // Readable.toWeb's generic disagrees with the Web ReadableStream<Uint8Array>
     // we promise in WebDAVRequest: it returns ReadableStream<any> in
     // @types/node 22 while the runtime emits Uint8Array chunks for an
