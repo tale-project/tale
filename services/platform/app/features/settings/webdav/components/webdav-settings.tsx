@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -153,13 +154,27 @@ function CreateAppPasswordForm(props: { organizationId: string }) {
       setLabel('');
     } catch (err) {
       console.error('webdav: create app-password failed', err);
-      toast({
-        title:
-          err instanceof Error
-            ? err.message
-            : t('create.error', 'Failed to create app-password'),
-        variant: 'destructive',
-      });
+      // Map the server's ConvexError code to a localized message instead of
+      // surfacing the raw (English, code-shaped) error text to the user.
+      const code = extractErrorCode(err);
+      const title =
+        code === 'LIMIT_EXCEEDED'
+          ? t(
+              'create.errorLimit',
+              'You have reached the maximum number of app-passwords. Revoke an unused one first.',
+            )
+          : code === 'INVALID_LABEL'
+            ? t(
+                'create.errorInvalidLabel',
+                'Enter a label between 1 and 64 characters.',
+              )
+            : code === 'rate_limited'
+              ? t(
+                  'create.errorRateLimited',
+                  'Too many app-passwords created recently. Please try again later.',
+                )
+              : t('create.error', 'Failed to create app-password');
+      toast({ title, variant: 'destructive' });
     } finally {
       setIsCreating(false);
     }
@@ -339,13 +354,12 @@ function Row({ row }: { row: WebdavAppPasswordRow }) {
       setIsRevokeDialogOpen(false);
     } catch (err) {
       console.error('webdav: revoke app-password failed', err);
-      toast({
-        title:
-          err instanceof Error
-            ? err.message
-            : t('list.revokeError', 'Could not revoke'),
-        variant: 'destructive',
-      });
+      const code = extractErrorCode(err);
+      const title =
+        code === 'NOT_FOUND'
+          ? t('list.revokeErrorNotFound', 'This app-password no longer exists.')
+          : t('list.revokeError', 'Could not revoke');
+      toast({ title, variant: 'destructive' });
     } finally {
       setIsRevoking(false);
     }

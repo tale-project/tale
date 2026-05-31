@@ -5930,6 +5930,9 @@
       "labelPlaceholder": "e.g. MacBook Finder",
       "submit": "Generate",
       "error": "Failed to create app-password",
+      "errorLimit": "You have reached the maximum number of app-passwords. Revoke an unused one first.",
+      "errorInvalidLabel": "Enter a label between 1 and 64 characters.",
+      "errorRateLimited": "Too many app-passwords created recently. Please try again later.",
       "savedTitle": "Save this password — it will not be shown again.",
       "copy": "Copy",
       "dismiss": "I have saved it"
@@ -5947,6 +5950,7 @@
       "revokedToast": "Revoked",
       "copiedToast": "Copied",
       "revokeError": "Could not revoke",
+      "revokeErrorNotFound": "This app-password no longer exists.",
       "copyError": "Could not copy"
     },
     "revokeDialog": {

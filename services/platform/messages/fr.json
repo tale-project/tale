@@ -5931,6 +5931,9 @@
       "labelPlaceholder": "p. ex. MacBook Finder",
       "submit": "Générer",
       "error": "Impossible de créer le mot de passe applicatif",
+      "errorLimit": "Tu as atteint le nombre maximum de mots de passe applicatifs. Révoque-en un inutilisé d’abord.",
+      "errorInvalidLabel": "Saisis un libellé de 1 à 64 caractères.",
+      "errorRateLimited": "Trop de mots de passe applicatifs créés récemment. Réessaie plus tard.",
       "savedTitle": "Sauvegarde ce mot de passe — il ne sera plus affiché.",
       "copy": "Copier",
       "dismiss": "Je l'ai sauvegardé"
@@ -5948,6 +5951,7 @@
       "revokedToast": "Révoqué",
       "copiedToast": "Copié",
       "revokeError": "Révocation impossible",
+      "revokeErrorNotFound": "Ce mot de passe applicatif n’existe plus.",
       "copyError": "Impossible de copier"
     },
     "revokeDialog": {

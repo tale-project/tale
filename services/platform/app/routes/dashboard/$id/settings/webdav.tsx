@@ -7,6 +7,7 @@ import { SettingsListPageSkeleton } from '@/app/features/settings/components/set
 import { WebdavSettings } from '@/app/features/settings/webdav/components/webdav-settings';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
+import { useSiteUrl } from '@/lib/site-url-context';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/webdav')({
@@ -27,8 +28,10 @@ function WebdavSettingsPage() {
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
 
-  const siteOrigin =
-    typeof window !== 'undefined' ? window.location.origin : '';
+  // Canonical deployment URL (SITE_URL), not the browser's current origin —
+  // the mount URL we show must be the one WebDAV clients should connect to,
+  // which can differ from window.location (proxies, custom domains).
+  const siteOrigin = useSiteUrl();
   const orgSlug = organization?.slug ?? organizationId;
 
   if (abilityLoading) {

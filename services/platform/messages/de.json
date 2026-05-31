@@ -5930,6 +5930,9 @@
       "labelPlaceholder": "z. B. MacBook Finder",
       "submit": "Erzeugen",
       "error": "App-Passwort konnte nicht erstellt werden",
+      "errorLimit": "Du hast die maximale Anzahl an App-Passwörtern erreicht. Widerrufe zuerst ein nicht genutztes.",
+      "errorInvalidLabel": "Gib eine Bezeichnung mit 1 bis 64 Zeichen ein.",
+      "errorRateLimited": "Zu viele App-Passwörter in letzter Zeit erstellt. Bitte versuche es später erneut.",
       "savedTitle": "Speichere dieses Passwort — es wird nicht erneut angezeigt.",
       "copy": "Kopieren",
       "dismiss": "Ich habe es gespeichert"
@@ -5947,6 +5950,7 @@
       "revokedToast": "Widerrufen",
       "copiedToast": "Kopiert",
       "revokeError": "Widerruf nicht möglich",
+      "revokeErrorNotFound": "Dieses App-Passwort existiert nicht mehr.",
       "copyError": "Konnte nicht kopieren"
     },
     "revokeDialog": {
