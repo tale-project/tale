@@ -46,7 +46,9 @@ export function RetentionPolicySummary({
         </div>
       </dl>
       <div className="border-border/50 border-t pt-4">
-        <RetentionTimeline graceDays={graceDays} />
+        <SkeletonBox fullWidth>
+          <RetentionTimeline graceDays={graceDays} />
+        </SkeletonBox>
       </div>
     </div>
   );

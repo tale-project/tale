@@ -354,9 +354,13 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
     [teams],
   );
 
+  // Memoize on the consumed value (`policy?.config`), not the `policy` wrapper.
+  // A query hook that hands back a fresh wrapper object each render would
+  // otherwise give `savedConfig` a new identity every render, and the
+  // `[savedConfig]` effect below would `setRules` in a loop.
   const savedConfig = useMemo(
     () => parseBudgetConfig(policy?.config),
-    [policy],
+    [policy?.config],
   );
 
   const [rules, setRules] = useState<BudgetRule[]>([]);
