@@ -23,6 +23,7 @@ import { IntegrationActiveView } from './integration-manage/integration-active-v
 import { IntegrationCredentialsForm } from './integration-manage/integration-credentials-form';
 import { IntegrationIconUpload } from './integration-manage/integration-icon-upload';
 import { IntegrationUpdateSection } from './integration-manage/integration-update-section';
+import { SlackNotificationConfig } from './integration-manage/slack-notification-config';
 
 interface IntegrationPanelProps {
   open: boolean;
@@ -180,19 +181,27 @@ export function IntegrationPanel({
           </Stack>
 
           {isDetailsMode ? (
-            <IntegrationActiveView
-              integration={integration}
-              isSql={manage.isSql}
-              busy={manage.busy}
-              isSavingOAuth2={manage.isSavingOAuth2}
-              isTesting={manage.isTesting}
-              hasOAuth2Config={manage.hasOAuth2Config}
-              testResult={manage.testResult}
-              editableConfigFields={manage.editableConfigFields}
-              onReauthorize={manage.handleReauthorize}
-              onTestConnection={manage.handleTestConnection}
-              onDismissTestResult={() => manage.setTestResult(null)}
-            />
+            <Stack gap={3}>
+              <IntegrationActiveView
+                integration={integration}
+                isSql={manage.isSql}
+                busy={manage.busy}
+                isSavingOAuth2={manage.isSavingOAuth2}
+                isTesting={manage.isTesting}
+                hasOAuth2Config={manage.hasOAuth2Config}
+                testResult={manage.testResult}
+                editableConfigFields={manage.editableConfigFields}
+                onReauthorize={manage.handleReauthorize}
+                onTestConnection={manage.handleTestConnection}
+                onDismissTestResult={() => manage.setTestResult(null)}
+              />
+              {integration.name === 'slack' && (
+                <SlackNotificationConfig
+                  integration={integration}
+                  organizationId={organizationId}
+                />
+              )}
+            </Stack>
           ) : (
             <IntegrationCredentialsForm
               integration={integration}

@@ -4595,6 +4595,23 @@
       "title": "Intégrations",
       "pageSubtitle": "Connecte des services tiers à ton espace de travail.",
       "addCustomIntegration": "Ajouter une intégration",
+      "slackNotify": {
+        "title": "Bot Slack et notifications",
+        "agentLabel": "Agent qui répond sur Slack",
+        "agentPlaceholder": "Sélectionner un agent",
+        "channelsLabel": "Canaux de notification",
+        "channelsHint": "ID de canaux Slack séparés par des virgules (par ex. C0123ABCD) qui reçoivent les notifications système.",
+        "eventsLabel": "Notifier en cas de",
+        "save": "Enregistrer les paramètres Slack",
+        "saving": "Enregistrement…",
+        "saved": "Paramètres Slack enregistrés",
+        "saveFailed": "Échec de l'enregistrement des paramètres Slack",
+        "events": {
+          "workflowFailed": "Échec du workflow",
+          "workflowCompleted": "Workflow terminé",
+          "securityAlert": "Alerte de sécurité"
+        }
+      },
       "tabs": {
         "all": "Toutes les intégrations",
         "connected": "Connectées"

@@ -24,6 +24,21 @@ interface TokenResponse {
   token_type: string;
   expires_in?: number;
   scope?: string;
+  // Slack `oauth.v2.access` non-standard extras (optional; ignored by other
+  // providers). Used to route inbound Slack events back to the installing org
+  // and to drop the bot's own messages. Slack omits `expires_in` for
+  // non-rotating bot tokens, so the generic refresh path treats them as
+  // non-expiring — no special handling needed.
+  bot_user_id?: string;
+  app_id?: string;
+  team?: { id: string; name?: string };
+  enterprise?: { id: string; name?: string } | null;
+  authed_user?: {
+    id: string;
+    scope?: string;
+    access_token?: string;
+    token_type?: string;
+  };
 }
 
 export const handleOAuth2Callback = internalAction({
@@ -126,6 +141,29 @@ export const handleOAuth2Callback = internalAction({
         errorMessage: undefined,
       },
     );
+
+    // Slack-specific: capture the workspace routing identity from the same
+    // token response (no extra round trip). The generic exchange above already
+    // stored the bot token; this records team_id → org so inbound events can
+    // be routed, plus the bot user id for self-message loop prevention.
+    if (credential.slug === 'slack' && tokens.team?.id) {
+      await ctx.runMutation(
+        internal.integrations.slack_installations.upsertInstallation,
+        {
+          teamId: tokens.team.id,
+          teamName: tokens.team.name,
+          enterpriseId: tokens.enterprise?.id,
+          organizationId: credential.organizationId,
+          slug: credential.slug,
+          botUserId: tokens.bot_user_id,
+          appId: tokens.app_id,
+          credentialId: args.credentialId,
+        },
+      );
+      debugLog(
+        `Recorded Slack installation for team ${tokens.team.id} (org ${credential.organizationId})`,
+      );
+    }
 
     debugLog(
       `OAuth2 token exchange successful for credential ${args.credentialId}`,

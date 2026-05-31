@@ -331,6 +331,15 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 50,
   },
+  // Inbound Slack Events API endpoint, keyed by client IP. All deliveries come
+  // from Slack's egress, and a busy workspace can burst many events, so this is
+  // intentionally generous — it's a flood backstop, not a per-user limit.
+  'integration:slack-events': {
+    kind: 'token bucket',
+    rate: 120,
+    period: MINUTE,
+    capacity: 240,
+  },
   'openai:chat': {
     kind: 'token bucket',
     rate: 30,
@@ -402,6 +411,15 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   // 90 days; older terminal rows are reclaimed here instead of via a
   // crons.ts entry (see feedback_lazy_cleanup_over_cron).
   'cleanup:sandbox': {
+    kind: 'token bucket',
+    rate: 1,
+    period: HOUR,
+    capacity: 1,
+  },
+  // Lazy cleanup of expired slackEventDedup rows. Gated from claimSlackEvent so
+  // a busy workspace sweeps at most once per hour. Token-bucket (not
+  // fixed-window) for the same minute-boundary reason as cleanup:tts.
+  'cleanup:slack-dedup': {
     kind: 'token bucket',
     rate: 1,
     period: HOUR,

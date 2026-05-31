@@ -4594,6 +4594,23 @@
       "title": "Integrationen",
       "pageSubtitle": "Drittanbieter-Dienste mit deinem Workspace verbinden.",
       "addCustomIntegration": "Integration hinzufügen",
+      "slackNotify": {
+        "title": "Slack-Bot & Benachrichtigungen",
+        "agentLabel": "Agent, der auf Slack antwortet",
+        "agentPlaceholder": "Agent auswählen",
+        "channelsLabel": "Benachrichtigungskanäle",
+        "channelsHint": "Kommagetrennte Slack-Kanal-IDs (z. B. C0123ABCD), die Systembenachrichtigungen erhalten.",
+        "eventsLabel": "Benachrichtigen bei",
+        "save": "Slack-Einstellungen speichern",
+        "saving": "Speichern…",
+        "saved": "Slack-Einstellungen gespeichert",
+        "saveFailed": "Slack-Einstellungen konnten nicht gespeichert werden",
+        "events": {
+          "workflowFailed": "Workflow fehlgeschlagen",
+          "workflowCompleted": "Workflow abgeschlossen",
+          "securityAlert": "Sicherheitswarnung"
+        }
+      },
       "tabs": {
         "all": "Alle Integrationen",
         "connected": "Verbunden"

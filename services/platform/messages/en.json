@@ -4855,6 +4855,23 @@
       "title": "Integrations",
       "pageSubtitle": "Connect third-party services to your workspace.",
       "addCustomIntegration": "Add integration",
+      "slackNotify": {
+        "title": "Slack bot & notifications",
+        "agentLabel": "Agent that answers Slack",
+        "agentPlaceholder": "Select an agent",
+        "channelsLabel": "Notification channels",
+        "channelsHint": "Comma-separated Slack channel IDs (e.g. C0123ABCD) that receive system notifications.",
+        "eventsLabel": "Notify on",
+        "save": "Save Slack settings",
+        "saving": "Saving…",
+        "saved": "Slack settings saved",
+        "saveFailed": "Failed to save Slack settings",
+        "events": {
+          "workflowFailed": "Workflow failed",
+          "workflowCompleted": "Workflow completed",
+          "securityAlert": "Security alert"
+        }
+      },
       "tabs": {
         "all": "All integrations",
         "connected": "Connected"

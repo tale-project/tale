@@ -18,6 +18,7 @@ import { authComponent } from '../auth';
 import { encryptCredentials } from './encrypt_credentials';
 import { generateOAuth2AuthUrl } from './generate_oauth2_auth_url';
 import { saveOAuth2ClientCredentials as saveOAuth2ClientCredentialsHandler } from './save_oauth2_client_credentials';
+import { seedSlackOAuth2Config } from './seed_slack_oauth2_config';
 import { testConnection as testConnectionHandler } from './test_connection';
 import {
   apiKeyAuthValidator,
@@ -123,6 +124,17 @@ export const generateOAuth2Url = action({
       { credentialId: args.credentialId, userId: String(authUser._id) },
     );
     if (!cred) throw new Error('Credential not found or access denied');
+
+    // The shared Slack App's client credentials are seeded from deployment env
+    // vars (not pasted per-org), so populate them before building the auth URL,
+    // which requires clientId on the credential row.
+    if (cred.slug === 'slack') {
+      await seedSlackOAuth2Config(ctx, {
+        credentialId: args.credentialId,
+        organizationId: args.organizationId,
+        existingOAuth2Config: cred.oauth2Config,
+      });
+    }
 
     return await generateOAuth2AuthUrl(ctx, args);
   },

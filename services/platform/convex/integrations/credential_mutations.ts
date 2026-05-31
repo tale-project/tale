@@ -5,6 +5,7 @@ import * as AuditLogHelpers from '../audit_logs/helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { jsonRecordValidator } from '../lib/validators/json';
+import { deleteSlackInstallationsForCredential } from './slack_installations';
 import {
   authMethodValidator,
   statusValidator,
@@ -159,6 +160,10 @@ export const deleteCredentials = mutation({
       await ctx.storage.delete(cred.iconStorageId);
     }
 
+    if (cred.slug === 'slack') {
+      await deleteSlackInstallationsForCredential(ctx, args.credentialId);
+    }
+
     await ctx.db.delete(args.credentialId);
 
     await AuditLogHelpers.logSuccess(ctx, {
@@ -197,6 +202,10 @@ export const deleteCredentialsInternal = internalMutation({
 
     if (cred.iconStorageId) {
       await ctx.storage.delete(cred.iconStorageId);
+    }
+
+    if (cred.slug === 'slack') {
+      await deleteSlackInstallationsForCredential(ctx, args.credentialId);
     }
 
     await ctx.db.delete(args.credentialId);

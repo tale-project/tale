@@ -10,11 +10,13 @@
     "authorizationUrl": "https://slack.com/oauth/v2/authorize",
     "tokenUrl": "https://slack.com/api/oauth.v2.access",
     "scopes": [
+      "app_mentions:read",
       "channels:read",
       "channels:history",
       "groups:read",
       "groups:history",
       "im:read",
+      "im:write",
       "im:history",
       "mpim:read",
       "mpim:history",

@@ -7,8 +7,9 @@
  */
 
 import { isRecord, getString } from '../../../lib/utils/type-guards';
-import { components } from '../../_generated/api';
+import { components, internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
+import { isExternalOwnerId } from '../../identities/external_identities';
 
 const VARIABLE_PATTERN = /\{\{([^}]+)\}\}/g;
 const VARIABLE_MARKER = '{{';
@@ -43,6 +44,18 @@ export async function fetchUser(
   ctx: ActionCtx,
   userId: string,
 ): Promise<{ name?: string; email?: string }> {
+  // External / sentinel owners (e.g. `slack:U123`, `'system'`) are not Better
+  // Auth users — never hand them to the adapter (its `_id` lookup throws on
+  // non-Convex-id strings). Resolve their display name from externalIdentities
+  // when available so `{{user.name}}` still renders the real author.
+  if (isExternalOwnerId(userId)) {
+    const identity = await ctx.runQuery(
+      internal.identities.external_identities.getByOwnerId,
+      { ownerId: userId },
+    );
+    return identity?.displayName ? { name: identity.displayName } : {};
+  }
+
   const user = await ctx.runQuery(components.betterAuth.adapter.findOne, {
     model: 'user',
     where: [{ field: '_id', value: userId, operator: 'eq' }],
@@ -56,6 +69,9 @@ export async function fetchMemberRole(
   organizationId: string,
   userId: string,
 ): Promise<string | undefined> {
+  // External / sentinel owners have no org membership role.
+  if (isExternalOwnerId(userId)) return undefined;
+
   const member = await ctx.runQuery(components.betterAuth.adapter.findOne, {
     model: 'member',
     where: [
