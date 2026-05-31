@@ -2724,6 +2724,7 @@
       "auditLogs": "Journaux d'audit",
       "dataSubjectRequests": "Personnes concernées",
       "policiesAndLimitsDescription": "Budgets, restrictions de téléversement, rétention des données, feature flags et sortie vocale.",
+      "securityAndMonitoringDescription": "Politiques de connexion, de mot de passe et d’authentification à deux facteurs.",
       "runCodePolicy": "Paquets run-code"
     },
     "runCodePolicy": {
@@ -5401,7 +5402,8 @@
       "p0": "Urgent",
       "p1": "Élevée",
       "p2": "Moyenne",
-      "p3": "Basse"
+      "p3": "Basse",
+      "none": "Aucune priorité"
     },
     "fields": {
       "title": "Titre",
@@ -5415,8 +5417,10 @@
     },
     "actions": {
       "create": "Créer une tâche",
-      "claim": "Prendre",
       "comment": "Commenter",
+      "reply": "Répondre",
+      "assign": "Assigner",
+      "add": "Ajouter",
       "archive": "Archiver",
       "restore": "Restaurer"
     },
@@ -5435,12 +5439,25 @@
     "detail": {
       "overview": "Aperçu",
       "comments": "Commentaires",
+      "noComments": "Aucun commentaire pour le moment.",
       "activity": "Activité",
       "subtasks": "Sous-tâches",
+      "addSubtask": "Ajouter une sous-tâche…",
+      "addDescription": "Ajouter une description…",
+      "noDescription": "Aucune description.",
       "parentCloseGuard": "Terminez toutes les sous-tâches avant de clôturer cette tâche."
     },
+    "comment": {
+      "edited": "modifié",
+      "deleteConfirm": "Supprimer ce commentaire ?"
+    },
     "assignee": {
-      "unassigned": "Non assigné"
+      "unassigned": "Non assigné",
+      "assignToMe": "M’assigner",
+      "agents": "Agents",
+      "unassign": "Désassigner",
+      "you": "Vous",
+      "search": "Rechercher des personnes…"
     },
     "activity": {
       "created": "Créé",
@@ -5988,7 +6005,6 @@
       "deleteError": "Impossible de supprimer le projet",
       "saveSuccess": "Enregistré",
       "saveError": "Impossible d'enregistrer les paramètres",
-      "saveButton": "Enregistrer les modifications",
       "saveSubmitting": "Enregistrement…",
       "archiveDescription": "Masque ce projet pour les membres. Les fichiers et les conversations sont conservés ; restauration possible à tout moment.",
       "restoreDescription": "Rend ce projet à nouveau visible pour les membres.",

@@ -14,6 +14,8 @@ export const TASK_AUDIT_ACTIONS = {
   claimed: 'task.claimed',
   unassigned: 'task.unassigned',
   commentCreated: 'task.comment.created',
+  commentUpdated: 'task.comment.updated',
+  commentDeleted: 'task.comment.deleted',
   archived: 'task.archived',
   restored: 'task.restored',
   deleted: 'task.deleted',

@@ -631,6 +631,8 @@ export const addTaskComment = mutation({
   args: {
     taskId: v.id('tasks'),
     body: v.string(),
+    // When set, this comment is a reply to an existing comment on the same task.
+    parentCommentId: v.optional(v.id('taskComments')),
   },
   returns: v.id('taskComments'),
   handler: async (ctx, args) => {
@@ -638,6 +640,18 @@ export const addTaskComment = mutation({
     const project = await loadProjectOrThrow(ctx, task.projectId);
     const auth = await getAuthContext(ctx, task.organizationId);
     assertTaskWritable(project, auth);
+
+    // Resolve the reply target: it must be a live comment on the same task.
+    // Replies-to-replies are re-rooted to their thread root so threading stays
+    // single-level (matches the schema contract).
+    let parentCommentId: Id<'taskComments'> | undefined;
+    if (args.parentCommentId) {
+      const parent = await ctx.db.get(args.parentCommentId);
+      if (!parent || parent.taskId !== args.taskId || parent.deletedAt) {
+        throw new ConvexError({ code: 'TASK_COMMENT_PARENT_INVALID' });
+      }
+      parentCommentId = parent.parentCommentId ?? args.parentCommentId;
+    }
 
     const body = args.body.trim();
     if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
@@ -664,9 +678,15 @@ export const addTaskComment = mutation({
       authorType: 'user',
       authorId: auth.userId,
       body,
+      parentCommentId,
       mentions: mentions.length > 0 ? mentions : undefined,
       createdAt: now,
       updatedAt: now,
+    });
+
+    // Keep the denormalized comment count in step with the live comment set.
+    await ctx.db.patch(args.taskId, {
+      commentCount: (task.commentCount ?? 0) + 1,
     });
 
     await recordActivity(ctx, {
@@ -716,6 +736,122 @@ export const addTaskComment = mutation({
     }
 
     return commentId;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Edit / delete a comment (author-only edit; author-or-admin delete)
+// ---------------------------------------------------------------------------
+
+async function loadCommentContext(
+  ctx: MutationCtx,
+  commentId: Id<'taskComments'>,
+) {
+  const comment = await ctx.db.get(commentId);
+  if (!comment || comment.deletedAt) {
+    throw new ConvexError({ code: 'TASK_COMMENT_NOT_FOUND' });
+  }
+  const task = await loadTaskOrThrow(ctx, comment.taskId);
+  const project = await loadProjectOrThrow(ctx, task.projectId);
+  const auth = await getAuthContext(ctx, comment.organizationId);
+  return { comment, task, project, auth };
+}
+
+export const editTaskComment = mutation({
+  args: {
+    commentId: v.id('taskComments'),
+    body: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { comment, task, project, auth } = await loadCommentContext(
+      ctx,
+      args.commentId,
+    );
+    assertTaskWritable(project, auth);
+    // Only the human author can edit their own comment.
+    if (comment.authorType !== 'user' || comment.authorId !== auth.userId) {
+      throw new ConvexError({ code: 'TASK_COMMENT_FORBIDDEN' });
+    }
+
+    const body = args.body.trim();
+    if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
+      throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
+    }
+    if (body === comment.body) return null;
+
+    const directory = await buildMentionDirectory(ctx, {
+      organizationId: comment.organizationId,
+      project,
+    });
+    const mentions = extractMentions(body, directory);
+
+    const now = Date.now();
+    await ctx.db.patch(args.commentId, {
+      body,
+      mentions: mentions.length > 0 ? mentions : undefined,
+      updatedAt: now,
+      editedAt: now,
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: comment.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: TASK_AUDIT_ACTIONS.commentUpdated,
+      category: 'data',
+      resourceType: TASK_COMMENT_RESOURCE_TYPE,
+      resourceId: String(args.commentId),
+      resourceName: task.title,
+      metadata: { taskId: String(comment.taskId) },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+export const deleteTaskComment = mutation({
+  args: { commentId: v.id('taskComments') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { comment, task, project, auth } = await loadCommentContext(
+      ctx,
+      args.commentId,
+    );
+    assertTaskReadable(project, auth);
+    const isAuthor =
+      comment.authorType === 'user' && comment.authorId === auth.userId;
+    if (!isAuthor && !ADMIN_ROLES.has(auth.role)) {
+      throw new ConvexError({ code: 'TASK_COMMENT_FORBIDDEN' });
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(args.commentId, { deletedAt: now, updatedAt: now });
+
+    // Soft-delete drops the comment from the live set, so the denormalized
+    // count must follow. Clamp at 0 so a stale/missing baseline can't go
+    // negative.
+    await ctx.db.patch(comment.taskId, {
+      commentCount: Math.max(0, (task.commentCount ?? 0) - 1),
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: comment.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: TASK_AUDIT_ACTIONS.commentDeleted,
+      category: 'data',
+      resourceType: TASK_COMMENT_RESOURCE_TYPE,
+      resourceId: String(args.commentId),
+      resourceName: task.title,
+      metadata: { taskId: String(comment.taskId) },
+      status: 'success',
+    });
+
+    return null;
   },
 });
 

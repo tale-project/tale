@@ -2723,6 +2723,7 @@
       "auditLogs": "Audit logs",
       "dataSubjectRequests": "Data subject requests",
       "policiesAndLimitsDescription": "Budgets, upload restrictions, data retention, feature flags, and voice output.",
+      "securityAndMonitoringDescription": "Sign-in, password, and two-factor authentication policies.",
       "runCodePolicy": "Run-code packages"
     },
     "runCodePolicy": {
@@ -4265,7 +4266,6 @@
       "deleteError": "Couldn't delete project",
       "saveSuccess": "Saved",
       "saveError": "Couldn't save settings",
-      "saveButton": "Save changes",
       "saveSubmitting": "Saving…",
       "archiveDescription": "Hide this project from members. Files and chats are preserved; restore anytime.",
       "restoreDescription": "Make this project visible to members again.",
@@ -5662,7 +5662,8 @@
       "p0": "Urgent",
       "p1": "High",
       "p2": "Medium",
-      "p3": "Low"
+      "p3": "Low",
+      "none": "No priority"
     },
     "fields": {
       "title": "Title",
@@ -5676,8 +5677,10 @@
     },
     "actions": {
       "create": "Create task",
-      "claim": "Claim",
       "comment": "Comment",
+      "reply": "Reply",
+      "assign": "Assign",
+      "add": "Add",
       "archive": "Archive",
       "restore": "Restore"
     },
@@ -5696,12 +5699,25 @@
     "detail": {
       "overview": "Overview",
       "comments": "Comments",
+      "noComments": "No comments yet.",
       "activity": "Activity",
       "subtasks": "Subtasks",
+      "addSubtask": "Add a subtask…",
+      "addDescription": "Add a description…",
+      "noDescription": "No description.",
       "parentCloseGuard": "Finish all subtasks before closing this task."
     },
+    "comment": {
+      "edited": "edited",
+      "deleteConfirm": "Delete this comment?"
+    },
     "assignee": {
-      "unassigned": "Unassigned"
+      "unassigned": "Unassigned",
+      "assignToMe": "Assign to me",
+      "agents": "Agents",
+      "unassign": "Unassign",
+      "you": "You",
+      "search": "Search people…"
     },
     "activity": {
       "created": "Created",

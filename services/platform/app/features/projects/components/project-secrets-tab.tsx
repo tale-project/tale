@@ -151,7 +151,7 @@ export function ProjectSecretsTab({
   };
 
   return (
-    <ContentArea variant="narrow" gap={6} className="py-6">
+    <ContentArea variant="narrow" gap={6}>
       <StickySectionHeader
         title={t('title')}
         description={t('description')}

@@ -25,6 +25,14 @@ export function useAddTaskComment() {
   return useConvexMutation(api.tasks.mutations.addTaskComment);
 }
 
+export function useEditTaskComment() {
+  return useConvexMutation(api.tasks.mutations.editTaskComment);
+}
+
+export function useDeleteTaskComment() {
+  return useConvexMutation(api.tasks.mutations.deleteTaskComment);
+}
+
 export function useArchiveTask() {
   return useConvexMutation(api.tasks.mutations.archiveTask);
 }

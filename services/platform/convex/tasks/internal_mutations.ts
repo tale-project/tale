@@ -576,6 +576,10 @@ export const agentAddComment = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
+    // Keep the denormalized comment count in step (mirrors addTaskComment).
+    await ctx.db.patch(args.taskId, {
+      commentCount: (task.commentCount ?? 0) + 1,
+    });
     await recordActivity(ctx, {
       task,
       actorType: 'agent',
@@ -710,5 +714,42 @@ export const agentUpdateProject = internalMutation({
       metadata: { changedFields },
     });
     return { ok: true };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Maintenance
+// ---------------------------------------------------------------------------
+
+/**
+ * One-off backfill: recompute `tasks.commentCount` from the live (non-deleted)
+ * comment set for every task in an organization. Run after deploying the
+ * comment-count denormalization so tasks created before counting reflect their
+ * real count. Idempotent — only patches rows whose stored value has drifted.
+ */
+export const backfillTaskCommentCounts = internalMutation({
+  args: { organizationId: v.string() },
+  returns: v.object({ scanned: v.number(), updated: v.number() }),
+  handler: async (ctx, args) => {
+    let scanned = 0;
+    let updated = 0;
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_organization', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      scanned += 1;
+      let count = 0;
+      for await (const comment of ctx.db
+        .query('taskComments')
+        .withIndex('by_task_createdAt', (q) => q.eq('taskId', task._id))) {
+        if (!comment.deletedAt) count += 1;
+      }
+      if ((task.commentCount ?? 0) !== count) {
+        await ctx.db.patch(task._id, { commentCount: count });
+        updated += 1;
+      }
+    }
+    return { scanned, updated };
   },
 });

@@ -15,19 +15,23 @@ import { TaskStatusBadge } from './task-status-badge';
 export function BoardColumn({
   status,
   tasks,
+  childrenByParent,
   onOpenTask,
   projectKey,
 }: {
   status: TaskStatus;
   tasks: TaskRow[];
+  childrenByParent?: Map<string, TaskRow[]>;
   onOpenTask?: (task: TaskRow) => void;
   projectKey?: string | null;
 }) {
   const { t } = useT('tasks');
   // Column is itself a drop target so cards can be dropped into an empty lane.
+  // The droppable id is the bare status string so the board's container-lookup
+  // can treat `over.id` uniformly (a status = a column, anything else = a card).
   const { setNodeRef, isOver } = useDroppable({
-    id: `column:${status}`,
-    data: { status },
+    id: status,
+    data: { type: 'column', status },
   });
 
   return (
@@ -53,6 +57,7 @@ export function BoardColumn({
             <TaskCard
               key={task._id}
               task={task}
+              subtasks={childrenByParent?.get(task._id)}
               onOpen={onOpenTask}
               projectKey={projectKey}
             />

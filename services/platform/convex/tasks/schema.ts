@@ -76,6 +76,12 @@ export const tasksTable = defineTable({
   // Hierarchy (subtasks). Root tasks have parentTaskId undefined.
   parentTaskId: v.optional(v.id('tasks')),
 
+  // Denormalized count of non-deleted comments, maintained by the comment
+  // add/delete mutations so the board/table can render a comment indicator
+  // without an N+1 fetch. Optional for back-compat with tasks created before
+  // counting (treat undefined as 0).
+  commentCount: v.optional(v.number()),
+
   // Board ordering: lexicographic fractional key within (projectId, status).
   rank: v.string(),
 
@@ -121,6 +127,10 @@ export const taskCommentsTable = defineTable({
   authorType: taskActorTypeValidator,
   authorId: v.string(),
   body: v.string(),
+  // Single-level threading: a reply points at the top-level comment it answers.
+  // Top-level comments leave this undefined. Replies-to-replies are flattened
+  // onto their root thread (the mutation re-roots a nested parent).
+  parentCommentId: v.optional(v.id('taskComments')),
   mentions: v.optional(
     v.array(
       v.object({

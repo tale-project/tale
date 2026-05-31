@@ -1,1 +1,13 @@
 @import '@tale/ui/globals.css';
+
+/*
+ * Desktop side-nav rail width. Consumed by the dashboard layout
+ * (`md:flex-[0_0_var(--nav-size)]`) for BOTH the real `Navigation` rail and the
+ * `NavRailPlaceholder` skeleton so they share one geometry. Defining it here
+ * (rather than leaving the flex-basis to resolve to `auto`/content width) keeps
+ * the rail a fixed width from first paint — otherwise the column reflows as the
+ * icon set hydrates, shifting the whole page on reload.
+ */
+:root {
+  --nav-size: 3.5rem;
+}

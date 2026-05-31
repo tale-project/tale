@@ -2723,6 +2723,7 @@
       "auditLogs": "Audit-Logs",
       "dataSubjectRequests": "Anfragen betroffener Personen",
       "policiesAndLimitsDescription": "Budgets, Upload-Beschränkungen, Datenaufbewahrung, Feature-Flags und Sprachausgabe.",
+      "securityAndMonitoringDescription": "Anmelde-, Passwort- und Zwei-Faktor-Authentifizierungsrichtlinien.",
       "runCodePolicy": "Run-code-Pakete"
     },
     "runCodePolicy": {
@@ -5400,7 +5401,8 @@
       "p0": "Dringend",
       "p1": "Hoch",
       "p2": "Mittel",
-      "p3": "Niedrig"
+      "p3": "Niedrig",
+      "none": "Keine Priorität"
     },
     "fields": {
       "title": "Titel",
@@ -5414,8 +5416,10 @@
     },
     "actions": {
       "create": "Aufgabe erstellen",
-      "claim": "Übernehmen",
       "comment": "Kommentieren",
+      "reply": "Antworten",
+      "assign": "Zuweisen",
+      "add": "Hinzufügen",
       "archive": "Archivieren",
       "restore": "Wiederherstellen"
     },
@@ -5434,12 +5438,25 @@
     "detail": {
       "overview": "Übersicht",
       "comments": "Kommentare",
+      "noComments": "Noch keine Kommentare.",
       "activity": "Aktivität",
       "subtasks": "Teilaufgaben",
+      "addSubtask": "Teilaufgabe hinzufügen…",
+      "addDescription": "Beschreibung hinzufügen…",
+      "noDescription": "Keine Beschreibung.",
       "parentCloseGuard": "Schließe alle Teilaufgaben ab, bevor du diese Aufgabe abschließt."
     },
+    "comment": {
+      "edited": "bearbeitet",
+      "deleteConfirm": "Diesen Kommentar löschen?"
+    },
     "assignee": {
-      "unassigned": "Nicht zugewiesen"
+      "unassigned": "Nicht zugewiesen",
+      "assignToMe": "Mir zuweisen",
+      "agents": "Agenten",
+      "unassign": "Zuweisung aufheben",
+      "you": "Du",
+      "search": "Personen suchen…"
     },
     "activity": {
       "created": "Erstellt",
@@ -5987,7 +6004,6 @@
       "deleteError": "Projekt konnte nicht gelöscht werden",
       "saveSuccess": "Gespeichert",
       "saveError": "Einstellungen konnten nicht gespeichert werden",
-      "saveButton": "Änderungen speichern",
       "saveSubmitting": "Wird gespeichert…",
       "archiveDescription": "Projekt für Mitglieder ausblenden. Dateien und Chats bleiben erhalten; jederzeit wiederherstellbar.",
       "restoreDescription": "Projekt für Mitglieder wieder sichtbar machen.",

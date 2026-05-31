@@ -74,6 +74,7 @@ export const taskRowValidator = v.object({
   assigneeType: v.optional(taskActorTypeValidator),
   assigneeId: v.optional(v.string()),
   parentTaskId: v.optional(v.id('tasks')),
+  commentCount: v.optional(v.number()),
   rank: v.string(),
   externalSystem: v.optional(v.string()),
   externalId: v.optional(v.string()),
@@ -96,6 +97,7 @@ const commentRowValidator = v.object({
   authorType: taskActorTypeValidator,
   authorId: v.string(),
   body: v.string(),
+  parentCommentId: v.optional(v.id('taskComments')),
   mentions: v.optional(
     v.array(v.object({ type: taskActorTypeValidator, id: v.string() })),
   ),

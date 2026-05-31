@@ -8,23 +8,33 @@ import type { Doc } from '@/convex/_generated/dataModel';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
 
-import { AssigneeAvatar } from './assignee-avatar';
-import { TaskPriorityBadge } from './task-priority-badge';
+import { useAssignTask, useUpdateTask } from '../hooks/mutations';
+import { subtaskProgress } from '../lib/subtasks';
+import { AssigneePicker } from './assignee-picker';
+import { PriorityPicker } from './priority-picker';
+import { CommentCountIndicator, SubtaskProgress } from './task-indicators';
 
 export type TaskRow = Doc<'tasks'>;
 
 export function TaskCard({
   task,
+  subtasks,
   onOpen,
   dragging,
   projectKey,
 }: {
   task: TaskRow;
+  /** This task's subtasks, when known — drives the progress ring. */
+  subtasks?: TaskRow[];
   onOpen?: (task: TaskRow) => void;
+  /** True when rendered inside the DragOverlay (floating clone). */
   dragging?: boolean;
   projectKey?: string | null;
 }) {
   const identifier = formatTaskIdentifier(projectKey, task.number);
+  const assignTask = useAssignTask();
+  const updateTask = useUpdateTask();
+  const { done, total } = subtaskProgress(subtasks);
   const sortable = useSortable({ id: task._id, data: { status: task.status } });
   const style = {
     transform: CSS.Translate.toString(sortable.transform),
@@ -46,10 +56,13 @@ export function TaskCard({
         }
       }}
       className={cn(
-        'group border-border bg-card cursor-pointer rounded-lg border p-3 text-left shadow-sm transition-colors',
-        'hover:border-border-strong focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
-        (sortable.isDragging || dragging) && 'opacity-50',
-        dragging && 'shadow-md',
+        'group border-border bg-card cursor-pointer rounded-lg border p-3 text-left shadow-sm transition-[colors,box-shadow]',
+        'hover:border-border-strong hover:shadow-md focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+        // While dragging, the in-place card becomes a faint placeholder marking
+        // the slot the floating overlay will land in.
+        sortable.isDragging && 'opacity-40',
+        // The floating overlay clone lifts off the board: stronger shadow + ring.
+        dragging && 'ring-border rotate-1 shadow-lg ring-1',
       )}
     >
       {identifier && (
@@ -82,17 +95,30 @@ export function TaskCard({
 
       <div className="mt-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          {task.priority && <TaskPriorityBadge priority={task.priority} />}
+          <PriorityPicker
+            priority={task.priority ?? null}
+            onChange={(priority) =>
+              updateTask.mutate({ taskId: task._id, priority })
+            }
+          />
           {task.parentTaskId && (
             <GitBranch
               className="text-muted-foreground size-3.5"
               aria-hidden="true"
             />
           )}
+          {total > 0 && <SubtaskProgress done={done} total={total} />}
+          <CommentCountIndicator count={task.commentCount} />
         </div>
-        <AssigneeAvatar
+        <AssigneePicker
+          organizationId={task.organizationId}
+          projectId={task.projectId}
           assigneeType={task.assigneeType}
           assigneeId={task.assigneeId}
+          onAssign={(assigneeType, assigneeId) =>
+            assignTask.mutate({ taskId: task._id, assigneeType, assigneeId })
+          }
+          onUnassign={() => assignTask.mutate({ taskId: task._id })}
         />
       </div>
     </div>

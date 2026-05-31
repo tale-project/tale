@@ -120,6 +120,7 @@ export function TasksWorkspace({
         onOpenChange={(open) => {
           if (!open) setOpenTaskId(null);
         }}
+        onOpenTask={(id) => setOpenTaskId(id)}
       />
     </ContentArea>
   );
