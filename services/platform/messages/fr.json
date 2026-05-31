@@ -746,6 +746,25 @@
     "imageCounter": "{current} sur {total}",
     "newChat": "Nouveau chat",
     "moreActions": "Plus d'actions",
+    "tryAgain": "Réessayer",
+    "regenerateFailed": "Impossible de régénérer la réponse",
+    "speakOutLoud": "Lire à voix haute",
+    "pin": "Épingler",
+    "unpin": "Détacher",
+    "pinChat": "Épingler le chat",
+    "unpinChat": "Détacher le chat",
+    "pinProject": "Épingler le projet",
+    "unpinProject": "Détacher le projet",
+    "pinned": "Épinglé",
+    "pinFailed": "Échec de l'épinglage",
+    "newResponse": "Nouvelle réponse",
+    "projectsSection": "Projets",
+    "chatsSection": "Chats",
+    "quote": {
+      "button": "Citer",
+      "label": "Citation",
+      "remove": "Supprimer la citation"
+    },
     "deleteChat": "Supprimer le chat",
     "deleteConfirmation": "Es-tu sûr de vouloir supprimer {title} ?",
     "deletePermanentMessage": "Déplacer le chat vers la corbeille. Tu peux le restaurer pendant la période de grâce de l'organisation ; ensuite la rétention supprime définitivement le chat et ses messages.",
@@ -785,19 +804,19 @@
       "summaryReasoningOnly": "A montré son raisonnement"
     },
     "tools": {
-      "customerRead": "Lecture des données client",
-      "productRead": "Lecture du catalogue de produits",
-      "ragSearch": "Recherche dans la base de connaissances",
-      "web": "Récupération du contenu web",
-      "pdf": "Traitement du PDF",
-      "image": "Analyse de l'image",
-      "pptx": "Traitement de la présentation",
-      "docx": "Traitement du document",
-      "workflowRead": "Lecture du workflow",
-      "updateWorkflowStep": "Mise à jour de l'étape du workflow",
-      "saveWorkflowDefinition": "Enregistrement du workflow",
-      "validateWorkflowDefinition": "Validation du workflow",
-      "excel": "Traitement du fichier Excel"
+      "customerRead": "Données client",
+      "productRead": "Catalogue produits",
+      "ragSearch": "Base de connaissances",
+      "web": "Contenu web",
+      "pdf": "PDF",
+      "image": "Images",
+      "pptx": "Présentation",
+      "docx": "Document",
+      "workflowRead": "Workflow",
+      "updateWorkflowStep": "Étape du workflow",
+      "saveWorkflowDefinition": "Enregistrer le workflow",
+      "validateWorkflowDefinition": "Valider le workflow",
+      "excel": "Fichier Excel"
     },
     "agentSelector": {
       "label": "Sélectionner un agent",
@@ -849,7 +868,10 @@
       "voiceOutputAnnounceBlocked": "Lecture vocale bloquée — active la lecture pour écouter",
       "voiceOutputAnnounceError": "Échec de la sortie vocale",
       "voiceOutputThreadSwitchLabel": "Sortie vocale pour ce chat",
-      "voiceOutputThreadSaveFailed": "Impossible d'enregistrer le paramètre vocal pour ce chat"
+      "voiceOutputThreadSaveFailed": "Impossible d'enregistrer le paramètre vocal pour ce chat",
+      "voiceModeLabel": "Mode vocal",
+      "voiceModeEnable": "Lire les réponses à voix haute",
+      "voiceModeDisable": "Arrêter la lecture à voix haute"
     },
     "searchChat": "Rechercher dans le chat",
     "hideSearch": "Masquer la recherche",
@@ -1024,7 +1046,11 @@
       "contextTokens": "Tokens",
       "contextMessages": "Messages",
       "contextApprovals": "Approbations",
-      "showContext": "Afficher la fenêtre de contexte"
+      "showContext": "Afficher la fenêtre de contexte",
+      "throughput": "Débit",
+      "tokensPerSecond": "{value} tok/s",
+      "cachedPercent": "{percent}% en cache",
+      "copyId": "Copier l'ID du message"
     },
     "toolDetails": {
       "title": "Détails de {tool}",
@@ -1464,7 +1490,27 @@
     "modeHeader": "Modes",
     "capabilityHeader": "Capacités",
     "capabilityDisable": "Désactiver {name}",
-    "requiresIntegration": "Nécessite {name}"
+    "requiresIntegration": "Nécessite {name}",
+    "takeScreenshot": "Faire une capture d'écran",
+    "screenshotCapturing": "Capture d'écran en cours…",
+    "screenshotFailed": "Impossible de faire la capture d'écran",
+    "screenshotUnsupported": "La capture d'écran n'est pas prise en charge par ce navigateur",
+    "tuningHeader": "Réglage des réponses",
+    "adaptive": "Adaptatif",
+    "adaptiveHint": "Auto",
+    "effort": "Effort",
+    "effortLow": "Faible",
+    "effortMedium": "Moyen",
+    "effortHigh": "Élevé",
+    "creativity": "Créativité",
+    "creativityPrecise": "Précis",
+    "creativityBalanced": "Équilibré",
+    "creativityCreative": "Créatif",
+    "style": "Style",
+    "styleConcise": "Concis",
+    "styleDetailed": "Détaillé",
+    "styleFormal": "Formel",
+    "styleFriendly": "Amical"
   },
   "connectivity": {
     "reconnectingTitle": "Reconnexion…",
@@ -3296,7 +3342,6 @@
     "defaultReason": "L'assistant a besoin de ta localisation pour répondre à ta demande."
   },
   "mcpServers": {
-    "title": "Serveurs MCP",
     "description": "Connecte-toi à des sources de données et outils internes via le Model Context Protocol.",
     "addServer": "Ajouter un serveur MCP",
     "editServer": "Modifier le serveur MCP",
@@ -3545,7 +3590,7 @@
     "people": "Personnes",
     "teams": "Équipes",
     "integrations": "Intégrations",
-    "mcpServers": "Serveurs MCP",
+    "mcp": "MCP",
     "providers": "Fournisseurs IA",
     "apiKeys": "Clés API",
     "branding": "Branding",
@@ -4069,7 +4114,10 @@
         "description": "Logo, couleurs et nom affiché à tes utilisateurs."
       },
       "integrations": {
-        "description": "Connecte des applications externes et des serveurs MCP."
+        "description": "Connecte des applications externes à ton espace de travail."
+      },
+      "mcp": {
+        "description": "Connecte des serveurs MCP pour les outils et les données."
       },
       "providers": {
         "description": "Utilise tes propres clés API pour OpenAI, Anthropic et d'autres."
@@ -4537,9 +4585,6 @@
       "tabs": {
         "all": "Toutes les intégrations",
         "connected": "Connectées"
-      },
-      "sections": {
-        "apps": "Apps"
       },
       "searchPlaceholder": "Rechercher des intégrations...",
       "badge": {
@@ -5297,6 +5342,81 @@
       }
     }
   },
+  "inbox": {
+    "title": "Boîte de réception",
+    "subtitle": "Assignations, changements de statut, commentaires et mentions sur vos tâches.",
+    "empty": "Vous êtes à jour.",
+    "markAllRead": "Tout marquer comme lu",
+    "unreadOnly": "Non lus uniquement",
+    "taskAssigned": "Tâche qui vous est assignée",
+    "taskAssignedBody": "« {{title}} » vous a été assignée.",
+    "taskStatusChanged": "Statut de tâche modifié",
+    "taskStatusChangedBody": "« {{title}} » est passée de {{from}} à {{to}}.",
+    "taskCommented": "Nouveau commentaire",
+    "taskCommentedBody": "Nouveau commentaire sur « {{title}} ».",
+    "mention": "Vous avez été mentionné",
+    "mentionBody": "Vous avez été mentionné sur « {{title}} »."
+  },
+  "projectSecrets": {
+    "title": "Secrets",
+    "description": "Identifiants chiffrés que les agents de ce projet peuvent utiliser. Les valeurs ne sont jamais affichées après l'enregistrement.",
+    "addButton": "Ajouter un secret",
+    "empty": "Aucun secret pour le moment.",
+    "agentAccessTitle": "Accessible aux agents",
+    "agentAccessBody": "Les runtimes d'agents (par ex. Hermes, OpenClaw) peuvent utiliser ces secrets lorsqu'ils exécutent des tâches pour ce projet — par exemple pour se connecter à des services externes en ton nom. Les valeurs sont injectées à l'exécution et ne sont jamais montrées au modèle de chat ni affichées dans l'interface.",
+    "nameLabel": "Nom",
+    "valueLabel": "Valeur",
+    "descriptionLabel": "Description (facultatif)",
+    "saveSuccess": "Secret enregistré",
+    "deleteSuccess": "Secret supprimé"
+  },
+  "tasks": {
+    "title": "Tâches",
+    "entityLabel": "tâches",
+    "status": {
+      "backlog": "Backlog",
+      "todo": "À faire",
+      "in_progress": "En cours",
+      "in_review": "En revue",
+      "done": "Terminé",
+      "cancelled": "Annulé"
+    },
+    "priority": {
+      "p0": "Urgent",
+      "p1": "Élevée",
+      "p2": "Moyenne",
+      "p3": "Basse"
+    },
+    "fields": {
+      "title": "Titre",
+      "description": "Description",
+      "assignee": "Assigné à",
+      "priority": "Priorité",
+      "labels": "Étiquettes",
+      "status": "Statut",
+      "unassigned": "Non assigné",
+      "id": "ID"
+    },
+    "actions": {
+      "create": "Créer une tâche",
+      "claim": "Prendre",
+      "comment": "Commenter",
+      "archive": "Archiver",
+      "restore": "Restaurer"
+    },
+    "views": {
+      "board": "Tableau",
+      "table": "Table",
+      "timeline": "Chronologie"
+    },
+    "detail": {
+      "overview": "Aperçu",
+      "comments": "Commentaires",
+      "activity": "Activité",
+      "subtasks": "Sous-tâches",
+      "parentCloseGuard": "Terminez toutes les sous-tâches avant de clôturer cette tâche."
+    }
+  },
   "tables": {
     "headers": {
       "name": "Nom",
@@ -5689,6 +5809,8 @@
       "title": "Créer un projet",
       "nameLabel": "Nom du projet",
       "namePlaceholder": "par ex. Q2 Sales Hiring",
+      "keyLabel": "Clé du projet",
+      "keyDescription": "Préfixe des identifiants de tâches (par ex. TAL-1). Fixe — impossible à modifier après la création du projet.",
       "descriptionLabel": "Description",
       "descriptionPlaceholder": "Optionnel — à quoi sert ce projet ?",
       "teamLabel": "Équipe propriétaire",
@@ -5884,6 +6006,8 @@
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} n'est pas disponible dans ce projet. Choisis un autre agent.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} n'est pas disponible dans ce projet. Choisis un autre modèle.",
       "PROJECT_NAME_INVALID": "Le nom du projet doit faire entre 1 et 80 caractères.",
+      "PROJECT_KEY_INVALID": "Utilise 2 à 6 lettres ou chiffres, en commençant par une lettre (par ex. TAL).",
+      "PROJECT_KEY_TAKEN": "Cette clé est déjà utilisée par un autre projet. Choisis-en une autre.",
       "PROJECT_DESCRIPTION_INVALID": "La description est trop longue.",
       "PROJECT_INSTRUCTIONS_TOO_LONG": "Les instructions dépassent la limite de {cap} caractères. Raccourcis-les avant d'enregistrer.",
       "PROJECT_RECOMMENDED_NOT_SUBSET": "Les éléments recommandés doivent tous figurer dans la liste autorisée.",

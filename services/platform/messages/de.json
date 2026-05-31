@@ -745,6 +745,25 @@
     "imageCounter": "{current} von {total}",
     "newChat": "Neuer Chat",
     "moreActions": "Weitere Aktionen",
+    "tryAgain": "Erneut versuchen",
+    "regenerateFailed": "Antwort konnte nicht neu generiert werden",
+    "speakOutLoud": "Vorlesen",
+    "pin": "Anheften",
+    "unpin": "Anheften aufheben",
+    "pinChat": "Chat anheften",
+    "unpinChat": "Chat nicht mehr anheften",
+    "pinProject": "Projekt anheften",
+    "unpinProject": "Projekt nicht mehr anheften",
+    "pinned": "Angeheftet",
+    "pinFailed": "Anheften fehlgeschlagen",
+    "newResponse": "Neue Antwort",
+    "projectsSection": "Projekte",
+    "chatsSection": "Chats",
+    "quote": {
+      "button": "Zitieren",
+      "label": "Zitat",
+      "remove": "Zitat entfernen"
+    },
     "deleteChat": "Chat löschen",
     "deleteConfirmation": "Möchtest du {title} wirklich löschen?",
     "deletePermanentMessage": "Chat in den Papierkorb verschieben. Du kannst ihn während der Schonfrist der Org wiederherstellen; danach löscht die Aufbewahrungsrichtlinie den Chat und seine Nachrichten endgültig.",
@@ -784,19 +803,19 @@
       "summaryReasoningOnly": "Hat den Gedankengang gezeigt"
     },
     "tools": {
-      "customerRead": "Kundendaten werden gelesen",
-      "productRead": "Produktkatalog wird gelesen",
-      "ragSearch": "Wissensdatenbank wird durchsucht",
-      "web": "Webinhalt wird abgerufen",
-      "pdf": "PDF wird verarbeitet",
-      "image": "Bild wird analysiert",
-      "pptx": "Präsentation wird verarbeitet",
-      "docx": "Dokument wird verarbeitet",
-      "workflowRead": "Workflow wird gelesen",
-      "updateWorkflowStep": "Workflow-Schritt wird aktualisiert",
-      "saveWorkflowDefinition": "Workflow wird gespeichert",
-      "validateWorkflowDefinition": "Workflow wird validiert",
-      "excel": "Excel-Datei wird verarbeitet"
+      "customerRead": "Kundendaten",
+      "productRead": "Produktkatalog",
+      "ragSearch": "Wissensdatenbank",
+      "web": "Webinhalt",
+      "pdf": "PDF",
+      "image": "Bilder",
+      "pptx": "Präsentation",
+      "docx": "Dokument",
+      "workflowRead": "Workflow",
+      "updateWorkflowStep": "Workflow-Schritt",
+      "saveWorkflowDefinition": "Workflow speichern",
+      "validateWorkflowDefinition": "Workflow validieren",
+      "excel": "Excel-Datei"
     },
     "agentSelector": {
       "label": "Agent auswählen",
@@ -848,7 +867,10 @@
       "voiceOutputAnnounceBlocked": "Sprachausgabe blockiert — Wiedergabe aktivieren, um zuzuhören",
       "voiceOutputAnnounceError": "Sprachausgabe fehlgeschlagen",
       "voiceOutputThreadSwitchLabel": "Sprachausgabe für diesen Chat",
-      "voiceOutputThreadSaveFailed": "Sprach-Einstellung für diesen Chat konnte nicht gespeichert werden"
+      "voiceOutputThreadSaveFailed": "Sprach-Einstellung für diesen Chat konnte nicht gespeichert werden",
+      "voiceModeLabel": "Sprachmodus",
+      "voiceModeEnable": "Antworten vorlesen",
+      "voiceModeDisable": "Vorlesen beenden"
     },
     "searchChat": "Chat durchsuchen",
     "hideSearch": "Suche ausblenden",
@@ -1023,7 +1045,11 @@
       "contextTokens": "Token",
       "contextMessages": "Nachrichten",
       "contextApprovals": "Genehmigungen",
-      "showContext": "Kontextfenster anzeigen"
+      "showContext": "Kontextfenster anzeigen",
+      "throughput": "Durchsatz",
+      "tokensPerSecond": "{value} Tok/s",
+      "cachedPercent": "{percent}% zwischengespeichert",
+      "copyId": "Nachrichten-ID kopieren"
     },
     "toolDetails": {
       "title": "{tool}-Details",
@@ -1463,7 +1489,27 @@
     "modeHeader": "Modi",
     "capabilityHeader": "Fähigkeiten",
     "capabilityDisable": "{name} deaktivieren",
-    "requiresIntegration": "Benötigt {name}"
+    "requiresIntegration": "Benötigt {name}",
+    "takeScreenshot": "Screenshot aufnehmen",
+    "screenshotCapturing": "Screenshot wird aufgenommen…",
+    "screenshotFailed": "Screenshot konnte nicht aufgenommen werden",
+    "screenshotUnsupported": "Bildschirmaufnahme wird in diesem Browser nicht unterstützt",
+    "tuningHeader": "Antwort-Feinabstimmung",
+    "adaptive": "Adaptiv",
+    "adaptiveHint": "Auto",
+    "effort": "Aufwand",
+    "effortLow": "Niedrig",
+    "effortMedium": "Mittel",
+    "effortHigh": "Hoch",
+    "creativity": "Kreativität",
+    "creativityPrecise": "Präzise",
+    "creativityBalanced": "Ausgewogen",
+    "creativityCreative": "Kreativ",
+    "style": "Stil",
+    "styleConcise": "Prägnant",
+    "styleDetailed": "Ausführlich",
+    "styleFormal": "Formell",
+    "styleFriendly": "Freundlich"
   },
   "connectivity": {
     "reconnectingTitle": "Verbindung wird wiederhergestellt…",
@@ -3295,7 +3341,6 @@
     "defaultReason": "Der Assistent benötigt deinen Standort, um dir bei deiner Anfrage zu helfen."
   },
   "mcpServers": {
-    "title": "MCP-Server",
     "description": "Verbinde interne Datenquellen und Tools via Model Context Protocol.",
     "addServer": "MCP-Server hinzufügen",
     "editServer": "MCP-Server bearbeiten",
@@ -3544,7 +3589,7 @@
     "people": "Personen",
     "teams": "Teams",
     "integrations": "Integrationen",
-    "mcpServers": "MCP-Server",
+    "mcp": "MCP",
     "providers": "KI-Anbieter",
     "apiKeys": "API-Schlüssel",
     "branding": "Branding",
@@ -4068,7 +4113,10 @@
         "description": "Logo, Farben und der Name, den deine Nutzer sehen."
       },
       "integrations": {
-        "description": "Verbinde externe Apps und MCP-Server."
+        "description": "Verbinde externe Apps mit deinem Workspace."
+      },
+      "mcp": {
+        "description": "Verbinde MCP-Server für Tools und Daten."
       },
       "providers": {
         "description": "Eigene API-Schlüssel für OpenAI, Anthropic und andere mitbringen."
@@ -4536,9 +4584,6 @@
       "tabs": {
         "all": "Alle Integrationen",
         "connected": "Verbunden"
-      },
-      "sections": {
-        "apps": "Apps"
       },
       "searchPlaceholder": "Integrationen suchen...",
       "badge": {
@@ -5296,6 +5341,81 @@
       }
     }
   },
+  "inbox": {
+    "title": "Posteingang",
+    "subtitle": "Zuweisungen, Statusänderungen, Kommentare und Erwähnungen zu deinen Aufgaben.",
+    "empty": "Alles erledigt.",
+    "markAllRead": "Alle als gelesen markieren",
+    "unreadOnly": "Nur ungelesen",
+    "taskAssigned": "Aufgabe dir zugewiesen",
+    "taskAssignedBody": "Dir wurde \"{{title}}\" zugewiesen.",
+    "taskStatusChanged": "Aufgabenstatus geändert",
+    "taskStatusChangedBody": "\"{{title}}\" wechselte von {{from}} zu {{to}}.",
+    "taskCommented": "Neuer Kommentar",
+    "taskCommentedBody": "Neuer Kommentar zu \"{{title}}\".",
+    "mention": "Du wurdest erwähnt",
+    "mentionBody": "Du wurdest bei \"{{title}}\" erwähnt."
+  },
+  "projectSecrets": {
+    "title": "Secrets",
+    "description": "Verschlüsselte Zugangsdaten, die die Agenten dieses Projekts nutzen können. Werte werden nach dem Speichern nie angezeigt.",
+    "addButton": "Secret hinzufügen",
+    "empty": "Noch keine Secrets.",
+    "agentAccessTitle": "Für Agenten verfügbar",
+    "agentAccessBody": "Agent-Runtimes (z. B. Hermes, OpenClaw) können diese Secrets nutzen, wenn sie Aufgaben für dieses Projekt ausführen — etwa um sich in deinem Namen bei externen Diensten anzumelden. Werte werden zur Laufzeit eingefügt und niemals dem Chat-Modell gezeigt oder in der Oberfläche angezeigt.",
+    "nameLabel": "Name",
+    "valueLabel": "Wert",
+    "descriptionLabel": "Beschreibung (optional)",
+    "saveSuccess": "Secret gespeichert",
+    "deleteSuccess": "Secret gelöscht"
+  },
+  "tasks": {
+    "title": "Aufgaben",
+    "entityLabel": "Aufgaben",
+    "status": {
+      "backlog": "Backlog",
+      "todo": "Zu erledigen",
+      "in_progress": "In Bearbeitung",
+      "in_review": "In Prüfung",
+      "done": "Erledigt",
+      "cancelled": "Abgebrochen"
+    },
+    "priority": {
+      "p0": "Dringend",
+      "p1": "Hoch",
+      "p2": "Mittel",
+      "p3": "Niedrig"
+    },
+    "fields": {
+      "title": "Titel",
+      "description": "Beschreibung",
+      "assignee": "Zuständig",
+      "priority": "Priorität",
+      "labels": "Labels",
+      "status": "Status",
+      "unassigned": "Nicht zugewiesen",
+      "id": "ID"
+    },
+    "actions": {
+      "create": "Aufgabe erstellen",
+      "claim": "Übernehmen",
+      "comment": "Kommentieren",
+      "archive": "Archivieren",
+      "restore": "Wiederherstellen"
+    },
+    "views": {
+      "board": "Board",
+      "table": "Tabelle",
+      "timeline": "Zeitachse"
+    },
+    "detail": {
+      "overview": "Übersicht",
+      "comments": "Kommentare",
+      "activity": "Aktivität",
+      "subtasks": "Teilaufgaben",
+      "parentCloseGuard": "Schließe alle Teilaufgaben ab, bevor du diese Aufgabe abschließt."
+    }
+  },
   "tables": {
     "headers": {
       "name": "Name",
@@ -5688,6 +5808,8 @@
       "title": "Projekt erstellen",
       "nameLabel": "Projektname",
       "namePlaceholder": "z. B. Q2 Sales Hiring",
+      "keyLabel": "Projektkürzel",
+      "keyDescription": "Präfix für Aufgaben-IDs (z. B. TAL-1). Fix — kann nach dem Erstellen des Projekts nicht mehr geändert werden.",
       "descriptionLabel": "Beschreibung",
       "descriptionPlaceholder": "Optional — wofür ist dieses Projekt?",
       "teamLabel": "Verantwortliches Team",
@@ -5883,6 +6005,8 @@
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} ist in diesem Projekt nicht verfügbar. Wähle einen anderen Agenten.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} ist in diesem Projekt nicht verfügbar. Wähle ein anderes Modell.",
       "PROJECT_NAME_INVALID": "Projektname muss 1–80 Zeichen lang sein.",
+      "PROJECT_KEY_INVALID": "2–6 Buchstaben oder Ziffern, beginnend mit einem Buchstaben (z. B. TAL).",
+      "PROJECT_KEY_TAKEN": "Dieses Kürzel wird bereits von einem anderen Projekt verwendet. Bitte ein anderes wählen.",
       "PROJECT_DESCRIPTION_INVALID": "Beschreibung ist zu lang.",
       "PROJECT_INSTRUCTIONS_TOO_LONG": "Anweisungen überschreiten das Limit von {cap} Zeichen. Kürze sie vor dem Speichern.",
       "PROJECT_LEGAL_HOLD": "Dieses Projekt unterliegt einem Legal Hold und kann nicht gelöscht werden.",

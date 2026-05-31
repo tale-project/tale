@@ -1,5 +1,4 @@
-import { cleanup } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
@@ -73,8 +72,6 @@ vi.mock('../hooks/use-media-recorder-dictation', () => ({
 }));
 
 let mockOnTranscriptRef: ((t: string) => void) | null = null;
-
-afterEach(cleanup);
 
 beforeEach(() => {
   vi.clearAllMocks();

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Code } from 'lucide-react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
 
@@ -17,8 +17,6 @@ vi.mock('@/app/components/ui/data-display/image', () => ({
   // oxlint-disable-next-line jsx-a11y/alt-text -- test mock, alt is passed via props spread
   Image: (props: Record<string, unknown>) => <img alt="" {...props} />,
 }));
-
-afterEach(cleanup);
 
 describe('IntegrationCard', () => {
   it('renders title and description', () => {

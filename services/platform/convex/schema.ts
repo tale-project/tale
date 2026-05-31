@@ -17,6 +17,11 @@ import {
 } from './branding/schema';
 import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
+  notificationPreferencesTable,
+  taskSubscriptionsTable,
+  userNotificationsTable,
+} from './collab/schema';
+import {
   conversationsTable,
   conversationMessagesTable,
 } from './conversations/schema';
@@ -54,12 +59,22 @@ import { notificationsTable } from './notifications/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
 import { projectsTable } from './projects/schema';
+import {
+  agentSecretAccessTable,
+  projectSecretsTable,
+} from './projects/secrets/schema';
 import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
 import { reasoningProfilesTable } from './reasoning_profiles/schema';
 import { sandboxExecutionsTable } from './sandbox/schema';
 import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
+import {
+  boardViewsTable,
+  taskActivityTable,
+  taskCommentsTable,
+  tasksTable,
+} from './tasks/schema';
 import { threadFilesTable } from './thread_files/schema';
 import { threadTodosTable } from './thread_todos/schema';
 import { threadBranchesTable } from './threads/branch_schema';
@@ -157,6 +172,15 @@ export default defineSchema({
   userPreferences: userPreferencesTable,
   products: productsTable,
   projects: projectsTable,
+  tasks: tasksTable,
+  taskComments: taskCommentsTable,
+  taskActivity: taskActivityTable,
+  boardViews: boardViewsTable,
+  projectSecrets: projectSecretsTable,
+  agentSecretAccess: agentSecretAccessTable,
+  userNotifications: userNotificationsTable,
+  taskSubscriptions: taskSubscriptionsTable,
+  notificationPreferences: notificationPreferencesTable,
   reasoningProfiles: reasoningProfilesTable,
   ssoProviders: ssoProvidersTable,
   vendors: vendorsTable,

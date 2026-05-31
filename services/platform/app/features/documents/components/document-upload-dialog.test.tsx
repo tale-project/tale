@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockToast = vi.fn();
 const mockStageFiles = vi.fn();
@@ -101,12 +101,9 @@ vi.mock('../hooks/mutations', () => ({
     hasFailures: mockHookState.hasFailures,
   }),
 }));
-
 import { checkAccessibility } from '@/test/utils/a11y';
 
 import { DocumentUploadDialog } from './document-upload-dialog';
-
-afterEach(cleanup);
 
 beforeEach(() => {
   vi.clearAllMocks();

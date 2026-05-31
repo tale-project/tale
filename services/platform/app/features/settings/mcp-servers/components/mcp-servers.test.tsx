@@ -30,27 +30,44 @@ vi.mock('@/convex/_generated/api', () => ({
 
 const { McpServers } = await import('./mcp-servers');
 
+const noop = vi.fn();
+
 describe('McpServers', () => {
-  it('renders title', () => {
-    render(<McpServers organizationId="org_1" />);
-    expect(screen.getByText('MCP Servers')).toBeInTheDocument();
-  });
-
-  it('renders add button', () => {
-    render(<McpServers organizationId="org_1" />);
-    expect(
-      screen.getByRole('button', { name: /add mcp server/i }),
-    ).toBeInTheDocument();
-  });
-
+  // The page title and "Add MCP server" trigger now live in the route's
+  // `SettingsPage` header; this component renders the server grid + add sheet.
   it('renders empty state when no servers', () => {
-    render(<McpServers organizationId="org_1" />);
+    render(
+      <McpServers
+        organizationId="org_1"
+        addDialogOpen={false}
+        onAddDialogOpenChange={noop}
+      />,
+    );
     expect(screen.getByText('No MCP servers configured')).toBeInTheDocument();
+  });
+
+  it('renders the add-server sheet when open', () => {
+    render(
+      <McpServers
+        organizationId="org_1"
+        addDialogOpen
+        onAddDialogOpenChange={noop}
+      />,
+    );
+    expect(
+      screen.getByRole('button', { name: /save server/i }),
+    ).toBeInTheDocument();
   });
 
   describe('accessibility', () => {
     it('passes axe audit with empty state', async () => {
-      const { container } = render(<McpServers organizationId="org_1" />);
+      const { container } = render(
+        <McpServers
+          organizationId="org_1"
+          addDialogOpen={false}
+          onAddDialogOpenChange={noop}
+        />,
+      );
       await checkAccessibility(container);
     });
   });

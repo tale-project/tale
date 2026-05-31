@@ -8,6 +8,12 @@ export const EVENT_TYPE_CATEGORIES = {
   workflows: {
     label: 'Workflows',
   },
+  projects: {
+    label: 'Projects',
+  },
+  tasks: {
+    label: 'Tasks',
+  },
 } as const;
 
 export type EventTypeCategory = keyof typeof EVENT_TYPE_CATEGORIES;
@@ -73,6 +79,92 @@ export const EVENT_TYPES: Record<string, EventTypeDef> = {
         label: 'Source workflow',
         inputType: 'workflow-select',
       },
+    ],
+  },
+  'project.created': {
+    category: 'projects',
+    label: 'Project created',
+    description: 'Triggered when a new project is created',
+    filterFields: [],
+  },
+  'task.created': {
+    category: 'tasks',
+    label: 'Task created',
+    description: 'Triggered when a new task is created in a project',
+    filterFields: [
+      { key: 'task.projectId', label: 'Project', inputType: 'text' },
+      {
+        key: 'task.priority',
+        label: 'Priority',
+        inputType: 'select',
+        options: [
+          { value: 'p0', label: 'P0' },
+          { value: 'p1', label: 'P1' },
+          { value: 'p2', label: 'P2' },
+          { value: 'p3', label: 'P3' },
+        ],
+      },
+    ],
+  },
+  'task.status_changed': {
+    category: 'tasks',
+    label: 'Task status changed',
+    description: "Triggered when a task's status transitions",
+    filterFields: [
+      { key: 'task.projectId', label: 'Project', inputType: 'text' },
+      {
+        key: 'toStatus',
+        label: 'New status',
+        inputType: 'select',
+        options: [
+          { value: 'backlog', label: 'Backlog' },
+          { value: 'todo', label: 'To do' },
+          { value: 'in_progress', label: 'In progress' },
+          { value: 'in_review', label: 'In review' },
+          { value: 'done', label: 'Done' },
+          { value: 'cancelled', label: 'Cancelled' },
+        ],
+      },
+    ],
+  },
+  'task.assigned': {
+    category: 'tasks',
+    label: 'Task assigned',
+    description: "Triggered when a task's assignee changes (incl. agent claim)",
+    filterFields: [
+      { key: 'task.projectId', label: 'Project', inputType: 'text' },
+      {
+        key: 'assigneeType',
+        label: 'Assignee type',
+        inputType: 'select',
+        options: [
+          { value: 'user', label: 'Human' },
+          { value: 'agent', label: 'Agent' },
+        ],
+      },
+    ],
+  },
+  'task.deleted': {
+    category: 'tasks',
+    label: 'Task deleted',
+    description: 'Triggered when a task is deleted',
+    filterFields: [{ key: 'projectId', label: 'Project', inputType: 'text' }],
+  },
+  'comment.created': {
+    category: 'tasks',
+    label: 'Task comment created',
+    description: 'Triggered when a comment is added to a task',
+    filterFields: [
+      { key: 'comment.projectId', label: 'Project', inputType: 'text' },
+    ],
+  },
+  'comment.mentioned': {
+    category: 'tasks',
+    label: 'Task comment mention',
+    description:
+      'Triggered when a user or agent is @mentioned in a task comment',
+    filterFields: [
+      { key: 'comment.projectId', label: 'Project', inputType: 'text' },
     ],
   },
 };

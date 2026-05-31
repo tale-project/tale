@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import type {
   WorkflowCreationApproval,
@@ -99,8 +98,6 @@ const defaultProps = {
 };
 
 describe('MessageList', () => {
-  afterEach(cleanup);
-
   describe('approval rendering', () => {
     it('renders a pending approval at the bottom', () => {
       const message = createMessage({ id: 'msg-1', content: 'AI response' });

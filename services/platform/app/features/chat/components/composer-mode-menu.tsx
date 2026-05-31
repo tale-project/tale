@@ -7,10 +7,30 @@ import {
   type DropdownMenuItem,
 } from '@tale/ui/dropdown-menu';
 import { useNavigate } from '@tanstack/react-router';
-import { Check, Paperclip, Plus, Swords } from 'lucide-react';
+import {
+  Camera,
+  Check,
+  Gauge,
+  Paperclip,
+  Plus,
+  Sparkles,
+  Swords,
+  Type,
+} from 'lucide-react';
 import { type ReactNode, useCallback, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import {
+  type CreativityProfile,
+  type EffortProfile,
+  type StyleProfile,
+  CREATIVITY_PROFILES,
+  EFFORT_PROFILES,
+  STYLE_PROFILES,
+  isCreativityProfile,
+  isEffortProfile,
+  isStyleProfile,
+} from '@/lib/shared/composer-profiles';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
@@ -26,9 +46,32 @@ import { useArenaModeOptional } from './arena/arena-mode-context';
 interface ComposerModeMenuProps {
   organizationId: string;
   onAttachFile?: () => void;
+  /** Capture a screenshot and attach it. Omitted when unsupported/disabled. */
+  onTakeScreenshot?: () => void;
   fileUploadDisabled?: boolean;
   disabled?: boolean;
 }
+
+// Map each profile value to its `composer` i18n key.
+const EFFORT_LABEL_KEYS: Record<EffortProfile, string> = {
+  adaptive: 'adaptive',
+  low: 'effortLow',
+  medium: 'effortMedium',
+  high: 'effortHigh',
+};
+const CREATIVITY_LABEL_KEYS: Record<CreativityProfile, string> = {
+  adaptive: 'adaptive',
+  precise: 'creativityPrecise',
+  balanced: 'creativityBalanced',
+  creative: 'creativityCreative',
+};
+const STYLE_LABEL_KEYS: Record<StyleProfile, string> = {
+  adaptive: 'adaptive',
+  concise: 'styleConcise',
+  detailed: 'styleDetailed',
+  formal: 'styleFormal',
+  friendly: 'styleFriendly',
+};
 
 function labelWithHint(label: string, hint: string): ReactNode {
   return (
@@ -42,14 +85,20 @@ function labelWithHint(label: string, hint: string): ReactNode {
 export function ComposerModeMenu({
   organizationId,
   onAttachFile,
+  onTakeScreenshot,
   fileUploadDisabled = false,
   disabled = false,
 }: ComposerModeMenuProps) {
   const { t } = useT('composer');
   const { t: tChat } = useT('chat');
   const navigate = useNavigate();
-  const { setSelectedAgent, enabledCapabilities, setCapabilityEnabled } =
-    useChatLayout();
+  const {
+    setSelectedAgent,
+    enabledCapabilities,
+    setCapabilityEnabled,
+    composerProfiles,
+    setComposerProfile,
+  } = useChatLayout();
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents } = useChatAgents(organizationId);
   const capabilities = useComposerCapabilities(organizationId);
@@ -99,15 +148,25 @@ export function ComposerModeMenu({
   const items = useMemo<DropdownMenuGroup[]>(() => {
     const groups: DropdownMenuGroup[] = [];
 
-    if (!fileUploadDisabled && onAttachFile) {
-      groups.push([
-        {
+    if ((!fileUploadDisabled && onAttachFile) || onTakeScreenshot) {
+      const attachGroup: DropdownMenuGroup = [];
+      if (!fileUploadDisabled && onAttachFile) {
+        attachGroup.push({
           type: 'item',
           label: t('addFiles'),
           icon: Paperclip,
           onClick: onAttachFile,
-        },
-      ]);
+        });
+      }
+      if (onTakeScreenshot) {
+        attachGroup.push({
+          type: 'item',
+          label: t('takeScreenshot'),
+          icon: Camera,
+          onClick: onTakeScreenshot,
+        });
+      }
+      groups.push(attachGroup);
     }
 
     const hasArena = arenaContext != null;
@@ -173,6 +232,89 @@ export function ComposerModeMenu({
       groups.push(modeGroup);
     }
 
+    // Response tuning: effort / creativity / style. Default `adaptive` keeps
+    // the platform's algorithms in charge; any other value is a fixed
+    // override applied for that lever only (see composer-profiles.ts).
+    groups.push([
+      { type: 'label', content: t('tuningHeader') },
+      {
+        type: 'sub',
+        label: t('effort'),
+        icon: Gauge,
+        trailing: (
+          <span className="text-muted-foreground text-xs">
+            {t(EFFORT_LABEL_KEYS[composerProfiles.effort])}
+          </span>
+        ),
+        items: [
+          [
+            {
+              type: 'radio-group',
+              value: composerProfiles.effort,
+              onValueChange: (value) => {
+                if (isEffortProfile(value)) setComposerProfile('effort', value);
+              },
+              options: EFFORT_PROFILES.map((p) => ({
+                value: p,
+                label: t(EFFORT_LABEL_KEYS[p]),
+              })),
+            },
+          ],
+        ],
+      },
+      {
+        type: 'sub',
+        label: t('creativity'),
+        icon: Sparkles,
+        trailing: (
+          <span className="text-muted-foreground text-xs">
+            {t(CREATIVITY_LABEL_KEYS[composerProfiles.creativity])}
+          </span>
+        ),
+        items: [
+          [
+            {
+              type: 'radio-group',
+              value: composerProfiles.creativity,
+              onValueChange: (value) => {
+                if (isCreativityProfile(value))
+                  setComposerProfile('creativity', value);
+              },
+              options: CREATIVITY_PROFILES.map((p) => ({
+                value: p,
+                label: t(CREATIVITY_LABEL_KEYS[p]),
+              })),
+            },
+          ],
+        ],
+      },
+      {
+        type: 'sub',
+        label: t('style'),
+        icon: Type,
+        trailing: (
+          <span className="text-muted-foreground text-xs">
+            {t(STYLE_LABEL_KEYS[composerProfiles.style])}
+          </span>
+        ),
+        items: [
+          [
+            {
+              type: 'radio-group',
+              value: composerProfiles.style,
+              onValueChange: (value) => {
+                if (isStyleProfile(value)) setComposerProfile('style', value);
+              },
+              options: STYLE_PROFILES.map((p) => ({
+                value: p,
+                label: t(STYLE_LABEL_KEYS[p]),
+              })),
+            },
+          ],
+        ],
+      },
+    ]);
+
     if (capabilities.length > 0) {
       const capabilityGroup: DropdownMenuGroup = [
         { type: 'label', content: t('capabilityHeader') },
@@ -208,6 +350,9 @@ export function ComposerModeMenu({
   }, [
     fileUploadDisabled,
     onAttachFile,
+    onTakeScreenshot,
+    composerProfiles,
+    setComposerProfile,
     modeAgents,
     chatAgent,
     effectiveAgent?.name,

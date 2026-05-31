@@ -1,5 +1,4 @@
-import { cleanup } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { render, screen, within } from '@/test/utils/render';
 
@@ -33,8 +32,6 @@ function renderSelect(
   );
   return { ...result, onValueChange };
 }
-
-afterEach(cleanup);
 
 describe('SearchableSelect', () => {
   describe('rendering', () => {

@@ -264,6 +264,63 @@ export const unarchiveChatThread = mutation({
   },
 });
 
+export const setThreadPinned = mutation({
+  args: {
+    threadId: v.string(),
+    pinned: v.boolean(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
+      throw new Error('Unauthenticated');
+    }
+
+    // Cross-tenant gate, same rationale as the other thread mutations in
+    // this file: the row is looked up by threadId and is otherwise blind
+    // to caller identity, so without this any signed-in user could pin
+    // another tenant's thread by guessing the id.
+    await assertThreadAccess(ctx, args.threadId, identity);
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    if (metadata) {
+      await ctx.db.patch(metadata._id, {
+        pinnedAt: args.pinned ? Date.now() : undefined,
+      });
+    }
+    return null;
+  },
+});
+
+export const markThreadRead = mutation({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
+      throw new Error('Unauthenticated');
+    }
+
+    await assertThreadAccess(ctx, args.threadId, identity);
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    if (metadata) {
+      await ctx.db.patch(metadata._id, { lastReadAt: Date.now() });
+    }
+    return null;
+  },
+});
+
 export const updateBranchSelections = mutation({
   args: {
     threadId: v.string(),

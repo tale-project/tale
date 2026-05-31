@@ -1,7 +1,7 @@
 import { convexQuery } from '@convex-dev/react-query';
-import { Tabs } from '@tale/ui/tabs';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { Button } from '@tale/ui/button';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -17,7 +17,6 @@ import {
   useIntegrations,
   useSsoProvider,
 } from '@/app/features/settings/integrations/hooks/queries';
-import { McpServers } from '@/app/features/settings/mcp-servers/components/mcp-servers';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -39,6 +38,16 @@ export const Route = createFileRoute('/dashboard/$id/settings/integrations')({
     meta: seo('integrations'),
   }),
   validateSearch: searchSchema,
+  beforeLoad: ({ params, search }) => {
+    // MCP servers are now their own settings page; redirect the legacy
+    // `?section=mcp-servers` deep link to keep old bookmarks working.
+    if (search.section === 'mcp-servers') {
+      throw redirect({
+        to: '/dashboard/$id/settings/mcp',
+        params: { id: params.id },
+      });
+    }
+  },
   loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.integrations.credential_queries.list, {
@@ -47,11 +56,6 @@ export const Route = createFileRoute('/dashboard/$id/settings/integrations')({
     );
     void context.queryClient.prefetchQuery(
       convexQuery(api.sso_providers.queries.get, {}),
-    );
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.mcp_servers.queries.list, {
-        organizationId: params.id,
-      }),
     );
   },
   component: IntegrationsPage,
@@ -65,7 +69,7 @@ function IntegrationsPage() {
   const { t: tSettings } = useT('settings');
   const { t: tNav } = useT('navigation');
 
-  const section = search.section ?? 'apps';
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -96,7 +100,7 @@ function IntegrationsPage() {
     if (search.integration_oauth2 || search.integration_oauth2_error) {
       void navigate({
         from: Route.fullPath,
-        search: { section: search.section, tab: search.tab },
+        search: { tab: search.tab },
         replace: true,
       });
     }
@@ -170,15 +174,6 @@ function IntegrationsPage() {
     },
   ) as unknown as IntegrationListItem[];
 
-  const handleSectionChange = (next: string) => {
-    const sectionNext = next === 'mcp-servers' ? 'mcp-servers' : undefined;
-    void navigate({
-      from: Route.fullPath,
-      search: { section: sectionNext },
-      replace: true,
-    });
-  };
-
   const handleTabChange = (tab: string) => {
     void navigate({
       from: Route.fullPath,
@@ -198,34 +193,24 @@ function IntegrationsPage() {
   return (
     <SettingsPage
       title={tNav('integrations')}
-      description={tSettings('menu.integrations.description')}
+      description={tSettings('integrations.pageSubtitle')}
+      headerAction={
+        <Button onClick={() => setAddDialogOpen(true)}>
+          {tSettings('integrations.addCustomIntegration')}
+        </Button>
+      }
     >
-      <Tabs
-        value={section}
-        onValueChange={handleSectionChange}
-        items={[
-          {
-            value: 'apps',
-            label: tSettings('integrations.sections.apps'),
-            content: (
-              <Integrations
-                organizationId={organizationId}
-                integrations={allIntegrations}
-                ssoProvider={ssoProvider ?? null}
-                tab={search.tab ?? 'connected'}
-                onTabChange={handleTabChange}
-                initialSlug={search.slug}
-                onInitialSlugConsumed={clearSlugParam}
-                isLoading={isAppsLoading}
-              />
-            ),
-          },
-          {
-            value: 'mcp-servers',
-            label: tNav('mcpServers'),
-            content: <McpServers organizationId={organizationId} />,
-          },
-        ]}
+      <Integrations
+        organizationId={organizationId}
+        integrations={allIntegrations}
+        ssoProvider={ssoProvider ?? null}
+        tab={search.tab ?? 'connected'}
+        onTabChange={handleTabChange}
+        initialSlug={search.slug}
+        onInitialSlugConsumed={clearSlugParam}
+        isLoading={isAppsLoading}
+        addDialogOpen={addDialogOpen}
+        onAddDialogOpenChange={setAddDialogOpen}
       />
     </SettingsPage>
   );

@@ -242,6 +242,9 @@ export const clearGenerationStatus = internalMutation({
       await ctx.db.patch(meta._id, {
         generationStatus: 'idle',
         streamId: undefined,
+        // Generation ended → mark "new activity" for the unread badge. The
+        // sidebar compares this against the per-user `lastReadAt`.
+        lastReplyAt: Date.now(),
       });
     }
   },

@@ -34,6 +34,7 @@ export interface Thread {
   generationStatus?: 'generating' | 'idle';
   teamId?: string;
   isShared?: boolean;
+  projectId?: string;
 }
 
 const THREADS_PAGE_SIZE = 20;
@@ -70,6 +71,11 @@ export function useThreads({
   return {
     threads,
     isLoading,
+    // First-page load with no cached results. The chat sidebar gates its
+    // skeleton on this so it never flashes the empty state before the real
+    // chats arrive (Convex returns `results: []` while the first page loads,
+    // which is indistinguishable from "no chats" without this flag).
+    isLoadingFirstPage: status === 'LoadingFirstPage',
     canLoadMore: status === 'CanLoadMore',
     isLoadingMore: status === 'LoadingMore',
     loadMore: () => loadMore(THREADS_PAGE_SIZE),

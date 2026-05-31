@@ -55,18 +55,13 @@ const defaultProps = {
   ssoProvider: null,
   tab: 'all',
   onTabChange: vi.fn(),
+  addDialogOpen: false,
+  onAddDialogOpenChange: vi.fn(),
 };
 
 describe('Integrations', () => {
-  it('renders page header with title and button', () => {
-    render(<Integrations {...defaultProps} />);
-    expect(screen.getByText('integrations.title')).toBeInTheDocument();
-    expect(screen.getByText('integrations.pageSubtitle')).toBeInTheDocument();
-    expect(
-      screen.getByText('integrations.addCustomIntegration'),
-    ).toBeInTheDocument();
-  });
-
+  // The page title, subtitle, and "Add integration" trigger now live in the
+  // route's `SettingsPage` header; this component renders the tabs + grid only.
   it('renders tabs', () => {
     render(<Integrations {...defaultProps} />);
     expect(screen.getByText('integrations.tabs.all')).toBeInTheDocument();

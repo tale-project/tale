@@ -195,6 +195,27 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   // ============================================
+  // TIER 3.7: Tasks (Token Bucket)
+  // Bounds storage churn from scripted/agent task creation and comment spam.
+  // Higher than project:create — tasks are lighter and created more often
+  // (incl. by agents picking up and decomposing work).
+  // ============================================
+  'task:create': {
+    kind: 'token bucket',
+    rate: 60,
+    period: MINUTE,
+    capacity: 90,
+    shards: 4,
+  },
+  'task:comment': {
+    kind: 'token bucket',
+    rate: 60,
+    period: MINUTE,
+    capacity: 90,
+    shards: 4,
+  },
+
+  // ============================================
   // TIER 4: Security (Fixed Window - strict)
   // Prevent brute-force and abuse
   // ============================================

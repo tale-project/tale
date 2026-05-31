@@ -14,6 +14,14 @@ vi.mock('../hooks/mutations', () => ({
 
 // Mutable, hoisted so the mock factory can read it (vi.mock is hoisted above
 // imports). Toggling `state` flips the editor between loading and loaded.
+//
+// `result` is the object the mocked hook hands back. It MUST be referentially
+// stable between renders: the real react-query/convex hook returns a stable
+// value until the data changes, and the editor's `savedConfig` memo (plus the
+// effect that seeds rules from it) is keyed on that reference. Returning a
+// fresh `{ data, isLoading }` object per render re-seeds state every render,
+// spinning an unbounded re-render loop that exhausts the heap (the worker
+// OOMs). Rebuild the snapshot only when a scenario helper changes state.
 const { state } = vi.hoisted(() => ({
   state: {
     isLoading: false,
@@ -21,14 +29,20 @@ const { state } = vi.hoisted(() => ({
       enabled: boolean;
       rules: unknown[];
     } | null,
+    result: undefined as unknown,
   },
 }));
 
-vi.mock('../hooks/queries', () => ({
-  useGovernancePolicy: () => ({
+function refreshPolicy() {
+  state.result = {
     data: state.isLoading ? undefined : { config: state.config },
     isLoading: state.isLoading,
-  }),
+  };
+}
+refreshPolicy();
+
+vi.mock('../hooks/queries', () => ({
+  useGovernancePolicy: () => state.result,
 }));
 
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
@@ -69,10 +83,12 @@ function setLoaded() {
       { scope: 'default', providerName: 'openai', modelId: 'openai/gpt-4o' },
     ],
   };
+  refreshPolicy();
 }
 function setLoading() {
   state.isLoading = true;
   state.config = null;
+  refreshPolicy();
 }
 
 describe('DefaultModelEditor', () => {

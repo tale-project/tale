@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
-import { afterEach, describe, it, vi } from 'vitest';
+import { describe, it, vi } from 'vitest';
 
 import type { WorkflowJsonConfig } from '@/lib/shared/schemas/workflows';
 import { checkAccessibility } from '@/test/utils/a11y';
@@ -28,8 +27,6 @@ const snapshotConfig: WorkflowJsonConfig = {
 };
 
 describe('AutomationHistoryDiffDialog', () => {
-  afterEach(cleanup);
-
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(

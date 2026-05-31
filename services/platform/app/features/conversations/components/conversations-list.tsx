@@ -397,52 +397,54 @@ export function ConversationsList({
     return () => observer.disconnect();
   }, [handleIntersect]);
 
-  // Loaded but genuinely empty — real empty state, never masked.
-  if (conversations !== undefined && conversations.length === 0) {
-    return (
-      <Center className="flex-1 flex-col px-4 py-16">
-        <Inbox className="text-muted-foreground mb-3 size-8" />
-        <Text variant="muted">{t('list.empty')}</Text>
-      </Center>
-    );
-  }
-
-  // One real tree, always. While conversations are undefined (loading) no real
-  // rows exist, so a few placeholder rows stand in — each ConversationRow
-  // masks its own leaves (placeholder mode) inside <Skeletonize loading>.
+  // One real tree, always. Loading, empty and populated states all render
+  // inside the SAME <Skeletonize> wrapper so the base layout never shifts
+  // between states (mirrors the DataTable body-state pattern):
+  //   - loading  → placeholder rows, each ConversationRow masks its own leaves
+  //   - empty    → top-anchored empty message in the rows' place (NOT a
+  //                vertically-centered block, which would jump the layout)
+  //   - data     → real rows
   const isLoading = conversations === undefined;
+  const isEmpty = conversations !== undefined && conversations.length === 0;
   const placeholderCount = Math.min(skeletonRows, 12);
 
   return (
     <Skeletonize loading={isLoading}>
-      <div className="divide-border divide-y border-b">
-        {isLoading
-          ? Array.from({ length: placeholderCount }).map((_, i) => (
-              <ConversationRow key={i} placeholder placeholderIndex={i} />
-            ))
-          : conversations.map((conversation) => (
-              <ConversationRow
-                key={conversation.id}
-                conversation={conversation}
-                isSelected={selectedConversationId === conversation.id}
-                isChecked={isConversationSelected?.(conversation.id) || false}
-                onSelect={onConversationSelect}
-                onCheck={onConversationCheck}
-                formatDateSmart={formatDateSmart}
-                t={stableT}
-                tDialogs={stableTDialogs}
-              />
-            ))}
-        {paginationStatus === 'LoadingMore' && (
-          <Center className="py-4">
-            <Loader2 className="text-muted-foreground size-5 animate-spin" />
-          </Center>
-        )}
-        {(paginationStatus === 'CanLoadMore' ||
-          paginationStatus === 'LoadingMore') && (
-          <div ref={sentinelRef} className="h-1" aria-hidden="true" />
-        )}
-      </div>
+      {isEmpty ? (
+        <Center className="flex-col px-4 py-16 text-center">
+          <Inbox className="text-muted-foreground/60 mb-3 size-6" />
+          <Text variant="muted">{t('list.empty')}</Text>
+        </Center>
+      ) : (
+        <div className="divide-border divide-y border-b">
+          {isLoading
+            ? Array.from({ length: placeholderCount }).map((_, i) => (
+                <ConversationRow key={i} placeholder placeholderIndex={i} />
+              ))
+            : conversations.map((conversation) => (
+                <ConversationRow
+                  key={conversation.id}
+                  conversation={conversation}
+                  isSelected={selectedConversationId === conversation.id}
+                  isChecked={isConversationSelected?.(conversation.id) || false}
+                  onSelect={onConversationSelect}
+                  onCheck={onConversationCheck}
+                  formatDateSmart={formatDateSmart}
+                  t={stableT}
+                  tDialogs={stableTDialogs}
+                />
+              ))}
+          {paginationStatus === 'LoadingMore' && (
+            <Center className="py-4">
+              <Loader2 className="text-muted-foreground size-5 animate-spin" />
+            </Center>
+          )}
+          {(paginationStatus === 'CanLoadMore' ||
+            paginationStatus === 'LoadingMore') && (
+            <div ref={sentinelRef} className="h-1" aria-hidden="true" />
+          )}
+        </div>
+      )}
     </Skeletonize>
   );
 }

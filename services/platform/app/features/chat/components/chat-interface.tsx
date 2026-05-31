@@ -38,6 +38,7 @@ import { useChatLayout } from '../context/chat-layout-context';
 import {
   useEditAndBranch,
   useForkOwnThread,
+  useMarkThreadRead,
   useUnarchiveThread,
 } from '../hooks/mutations';
 import { useChatAgents, useThreadStatus } from '../hooks/queries';
@@ -68,6 +69,7 @@ import { ChatMessages } from './chat-messages';
 import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
 import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
+import { SelectionQuoteButton } from './selection-quote-button';
 import { WelcomeView } from './welcome-view';
 
 const SavePromptDialog = lazyComponent<
@@ -131,6 +133,7 @@ export function ChatInterface({
     selectedModelOverrides,
     setSelectedModelOverride,
     enabledCapabilities,
+    composerProfiles,
     insertedPrompt,
     setInsertedPrompt,
   } = useChatLayout();
@@ -361,6 +364,32 @@ export function ChatInterface({
     if (isGenerating && dataThreadId) clearSendPending(dataThreadId);
   }, [isGenerating, dataThreadId]);
 
+  // Unread tracking: clear the chat-list "new response" badge by marking the
+  // open thread read on open, and again when a generation finishes while the
+  // user is viewing it (so a reply that lands in the foreground never
+  // badges). Owner-only — skipped for read-only / shared views where the
+  // mutation's access check would reject.
+  const { mutate: markThreadRead } = useMarkThreadRead();
+  const markReadIfOwned = useCallback(() => {
+    if (!threadId || readOnly) return;
+    markThreadRead(
+      { threadId },
+      {
+        onError: (error) => {
+          console.warn('[chat] markThreadRead failed', error);
+        },
+      },
+    );
+  }, [threadId, readOnly, markThreadRead]);
+  useEffect(() => {
+    markReadIfOwned();
+  }, [markReadIfOwned]);
+  const prevLoadingForReadRef = useRef(isLoading);
+  useEffect(() => {
+    if (prevLoadingForReadRef.current && !isLoading) markReadIfOwned();
+    prevLoadingForReadRef.current = isLoading;
+  }, [isLoading, markReadIfOwned]);
+
   // Stop generating
   const { stopGenerating, resetCancelled } = useStopGenerating({
     threadId: dataThreadId,
@@ -436,6 +465,7 @@ export function ChatInterface({
       ? selectedModelOverrides[effectiveAgent.name]
       : undefined,
     enabledCapabilities,
+    composerProfiles,
     userContext,
     arena: arenaContext ?? undefined,
     teamId: teamFilter?.selectedTeamId ?? undefined,
@@ -610,6 +640,73 @@ export function ChatInterface({
       selectNewBranch,
       setPendingMessage,
       scrollIntentRef,
+    ],
+  );
+
+  // Regenerate a specific assistant message: re-run the preceding user
+  // message unchanged through edit-and-branch, producing a sibling branch
+  // (the BranchNavigator then lets the user flip between attempts). Reuses
+  // the same machinery as handleEditSubmit, just with the original prompt.
+  const handleRegenerateMessage = useCallback(
+    (assistantMessageId: string) => {
+      if (!dataThreadId || !effectiveAgent) return;
+      const idx = messages.findIndex((msg) => msg.id === assistantMessageId);
+      if (idx < 0) return;
+      let userMessage: (typeof messages)[number] | undefined;
+      for (let i = idx - 1; i >= 0; i--) {
+        if (messages[i].role === 'user') {
+          userMessage = messages[i];
+          break;
+        }
+      }
+      if (!userMessage?.content) return;
+
+      const modelId = effectiveAgent.name
+        ? selectedModelOverrides[effectiveAgent.name]
+        : undefined;
+
+      setPendingMessage({
+        content: userMessage.content,
+        threadId: dataThreadId,
+        timestamp: new Date(),
+        editedMessageId: userMessage.id,
+      });
+      scrollIntentRef.current = 'smooth';
+
+      void (async () => {
+        try {
+          const result = await editAndBranchAction({
+            sourceThreadId: dataThreadId,
+            rootThreadId: rootThreadId ?? dataThreadId,
+            editedMessageId: userMessage.id,
+            newMessage: userMessage.content,
+            organizationId,
+            agentSlug: effectiveAgent.name,
+            modelId,
+            userContext,
+          });
+          selectNewBranch(String(result.forkOrder), result.branchThreadId);
+        } catch (error) {
+          console.error('Failed to regenerate message:', error);
+          setPendingMessage(null);
+          toast({ title: t('regenerateFailed'), variant: 'destructive' });
+        }
+      })();
+    },
+    [
+      messages,
+      dataThreadId,
+      rootThreadId,
+      effectiveAgent,
+      selectedModelOverrides,
+      organizationId,
+      userContext,
+      editAndBranchAction,
+      selectNewBranch,
+      setPendingMessage,
+      scrollIntentRef,
+      toast,
+      t,
     ],
   );
 
@@ -789,6 +886,9 @@ export function ChatInterface({
                 onUnsavePrompt={handleUnsavePrompt}
                 savedMessageMap={savedMessageMap}
                 onRetry={isArchived || readOnly ? undefined : handleRetry}
+                onRegenerate={
+                  isArchived || readOnly ? undefined : handleRegenerateMessage
+                }
                 editingMessageId={
                   isArchived || readOnly ? undefined : editingMessage?.id
                 }
@@ -809,6 +909,10 @@ export function ChatInterface({
           )}
         </div>
       )}
+
+      {/* Floating "Quote" affordance on text selection inside messages.
+          Portals to <body>, so placement here is just for lifecycle. */}
+      {!readOnly && <SelectionQuoteButton containerRef={containerRef} />}
 
       <PanelFooter className="mt-auto">
         <div className="relative mx-auto w-full max-w-(--chat-max-width)">
@@ -895,6 +999,7 @@ export function ChatInterface({
                       : undefined
                 }
                 organizationId={organizationId}
+                threadId={dataThreadId}
                 attachments={attachments}
                 uploadingFiles={uploadingFiles}
                 uploadFiles={uploadFiles}

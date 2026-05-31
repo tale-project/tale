@@ -123,6 +123,18 @@ export interface GenerationParams {
   stopSequences?: string[];
 }
 
+/**
+ * Per-turn override of the Adaptive Reasoning Governor, sourced from the
+ * composer "response tuning" profiles. Each field is independent and
+ * `undefined` means "adaptive" (leave that lever to the governor).
+ */
+export interface ReasoningOverride {
+  /** Forced reasoning tier — skips the adaptive tier selection. */
+  effort?: 'low' | 'medium' | 'high';
+  /** Forced creativity score in [0, 1] — overrides the difficulty-scaled value. */
+  creativity?: number;
+}
+
 export interface RunAgentGenerationArgs {
   agentType: string;
   agentConfig: SerializableAgentConfig;
@@ -152,6 +164,8 @@ export interface RunAgentGenerationArgs {
   generationParams?: GenerationParams;
   /** Governance-enforced max context tokens (overrides agent config) */
   maxContextTokens?: number;
+  /** Composer-sourced override of the reasoning governor (effort/creativity). */
+  reasoningOverride?: ReasoningOverride;
 }
 
 /**

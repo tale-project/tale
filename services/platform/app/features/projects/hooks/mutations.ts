@@ -47,6 +47,10 @@ export function useMoveThreadToProject() {
   return useConvexMutation(api.projects.mutations.moveThreadToProject);
 }
 
+export function useSetProjectPinned() {
+  return useConvexMutation(api.projects.mutations.setProjectPinned);
+}
+
 export function useSetThreadSharedWithProject() {
   return useConvexMutation(api.projects.mutations.setThreadSharedWithProject);
 }

@@ -14,6 +14,11 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import {
+  deriveProjectKey,
+  isValidProjectKey,
+  normalizeProjectKey,
+} from '../../lib/shared/project_key';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
@@ -24,6 +29,7 @@ import {
   RateLimitExceededError,
 } from '../lib/rate_limiter/helpers';
 import { getOrganizationMember } from '../lib/rls';
+import { emitEvent } from '../workflows/triggers/emit_event';
 import { checkProjectAccess, isOrgWideProject } from './access';
 import { PROJECT_AUDIT_ACTIONS, PROJECT_RESOURCE_TYPE } from './audit_actions';
 import {
@@ -134,6 +140,34 @@ function validateDescription(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/**
+ * Resolve the immutable project key: an explicit value if the user supplied one,
+ * otherwise derived from the name. Validates shape and enforces per-org
+ * uniqueness so task identifiers (`KEY-n`) never collide. Throws
+ * `PROJECT_KEY_INVALID` / `PROJECT_KEY_TAKEN`.
+ */
+async function resolveProjectKey(
+  ctx: MutationCtx,
+  organizationId: string,
+  rawKey: string | undefined,
+  name: string,
+): Promise<string> {
+  const key = normalizeProjectKey(rawKey?.trim() || deriveProjectKey(name));
+  if (!isValidProjectKey(key)) {
+    throw new ConvexError({ code: 'PROJECT_KEY_INVALID' });
+  }
+  const clash = await ctx.db
+    .query('projects')
+    .withIndex('by_organization_key', (q) =>
+      q.eq('organizationId', organizationId).eq('key', key),
+    )
+    .first();
+  if (clash) {
+    throw new ConvexError({ code: 'PROJECT_KEY_TAKEN' });
+  }
+  return key;
+}
+
 function validateInstructions(instructions: string): string {
   if (instructions.length > PROJECT_INSTRUCTIONS_MAX_CHARS) {
     throw new ConvexError({
@@ -226,6 +260,7 @@ export const createProject = mutation({
   args: {
     organizationId: v.string(),
     name: v.string(),
+    key: v.optional(v.string()),
     description: v.optional(v.string()),
     icon: v.optional(v.string()),
     color: v.optional(v.string()),
@@ -248,6 +283,12 @@ export const createProject = mutation({
     }
 
     const name = validateName(args.name);
+    const key = await resolveProjectKey(
+      ctx,
+      args.organizationId,
+      args.key,
+      name,
+    );
     const description = validateDescription(args.description);
     const sharedWithTeamIds = args.sharedWithTeamIds ?? [];
     validateSharing(args.teamId, args.sharedWithTeamIds);
@@ -256,6 +297,8 @@ export const createProject = mutation({
     const projectId = await ctx.db.insert('projects', {
       organizationId: args.organizationId,
       name,
+      key,
+      taskCounter: 0,
       description,
       icon: args.icon,
       color: args.color,
@@ -287,6 +330,15 @@ export const createProject = mutation({
       },
       status: 'success',
     });
+
+    const project = await ctx.db.get(projectId);
+    if (project) {
+      await emitEvent(ctx, {
+        organizationId: args.organizationId,
+        eventType: 'project.created',
+        eventData: { project },
+      });
+    }
 
     return projectId;
   },
@@ -355,6 +407,47 @@ export const updateProjectIdentity = mutation({
       previousState,
       newState,
       changedFields: diff(previousState, newState),
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+/**
+ * Pin / unpin a project in the chat-history sidebar. The pin lives on the
+ * shared project doc (so it reorders the folder for everyone who sees the
+ * project, mirroring how the project itself is shared). Gated on read
+ * access — any member who can see the project may reorder it; this is a
+ * benign UI preference, not a content edit, so it does not require
+ * edit/admin rights.
+ */
+export const setProjectPinned = mutation({
+  args: {
+    projectId: v.id('projects'),
+    pinned: v.boolean(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertReadable(project, auth);
+
+    await ctx.db.patch(args.projectId, {
+      pinnedAt: args.pinned ? Date.now() : undefined,
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.updated,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      changedFields: ['pinnedAt'],
       status: 'success',
     });
 

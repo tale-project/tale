@@ -36,6 +36,7 @@ import type {
   SerializableAgentConfig,
   AgentHooksConfig,
   GenerationParams,
+  ReasoningOverride,
 } from './types';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[startAgentChat]');
@@ -93,6 +94,8 @@ export interface StartAgentChatArgs {
   agentId?: Id<'agentBindings'>;
   /** Optional per-request generation parameters (temperature, etc.) */
   generationParams?: GenerationParams;
+  /** Composer-sourced reasoning override (effort/creativity). */
+  reasoningOverride?: ReasoningOverride;
   /**
    * Pre-created stream ID from markGenerating. When provided, stream creation
    * and the generationStatus patch are skipped (already committed in the
@@ -407,6 +410,7 @@ export async function startAgentChat(
       userContext,
       deadlineMs,
       generationParams: args.generationParams,
+      reasoningOverride: args.reasoningOverride,
       maxContextTokens: governanceMaxContextTokens,
       threadTeamId: threadMeta?.teamId,
     },

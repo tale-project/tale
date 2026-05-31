@@ -437,6 +437,7 @@ export async function generateAgentResponse(
     promptMessageId,
     maxSteps: _maxSteps,
     generationParams,
+    reasoningOverride,
     suppressErrorCleanup,
   } = args;
 
@@ -1002,6 +1003,8 @@ export async function generateAgentResponse(
           },
           state: reasoningState,
           profile: reasoningProfile ?? undefined,
+          effortOverride: reasoningOverride?.effort,
+          creativityOverride: reasoningOverride?.creativity,
         })
       : undefined;
     const reasoningProviderOptions =

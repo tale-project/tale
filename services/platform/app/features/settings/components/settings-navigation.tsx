@@ -18,6 +18,7 @@ type SettingsLabelKey =
   | 'organization'
   | 'people'
   | 'integrations'
+  | 'mcp'
   | 'providers'
   | 'skills'
   | 'apiKeys'
@@ -79,6 +80,13 @@ export function SettingsNavigation({
       can: ['read', 'orgSettings'],
     },
     {
+      labelKey: 'providers',
+      label: t('providers'),
+      href: `/dashboard/${organizationId}/settings/providers`,
+      can: ['read', 'developerSettings'],
+      matchMode: 'startsWith',
+    },
+    {
       labelKey: 'integrations',
       label: t('integrations'),
       href: `/dashboard/${organizationId}/settings/integrations`,
@@ -86,16 +94,15 @@ export function SettingsNavigation({
       matchMode: 'startsWith',
     },
     {
+      labelKey: 'mcp',
+      label: t('mcp'),
+      href: `/dashboard/${organizationId}/settings/mcp`,
+      can: ['read', 'developerSettings'],
+    },
+    {
       labelKey: 'skills',
       label: t('skills'),
       href: `/dashboard/${organizationId}/settings/skills`,
-      can: ['read', 'developerSettings'],
-      matchMode: 'startsWith',
-    },
-    {
-      labelKey: 'providers',
-      label: t('providers'),
-      href: `/dashboard/${organizationId}/settings/providers`,
       can: ['read', 'developerSettings'],
       matchMode: 'startsWith',
     },

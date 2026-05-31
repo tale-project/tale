@@ -4,6 +4,7 @@ import {
   KeyRound,
   Palette,
   Plug,
+  Server,
   Shield,
   SlidersHorizontal,
   Sparkles,
@@ -74,15 +75,21 @@ export function useSettingsMenuGroups(
         can: ['read', 'orgSettings'],
       },
       {
+        key: 'providers',
+        icon: Sparkles,
+        path: 'providers',
+        can: ['read', 'developerSettings'],
+      },
+      {
         key: 'integrations',
         icon: Plug,
         path: 'integrations',
         can: ['read', 'developerSettings'],
       },
       {
-        key: 'providers',
-        icon: Sparkles,
-        path: 'providers',
+        key: 'mcp',
+        icon: Server,
+        path: 'mcp',
         can: ['read', 'developerSettings'],
       },
       {

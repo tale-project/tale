@@ -43,6 +43,11 @@ export const TOOL_NAMES = [
   'conversation_read',
   'update_todos',
   'propose_memory',
+  'task_read',
+  'task_write',
+  'project_read',
+  'project_write',
+  'secret_read',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

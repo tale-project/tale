@@ -56,6 +56,8 @@ const projectRowValidator = v.object({
   description: v.optional(v.string()),
   icon: v.optional(v.string()),
   color: v.optional(v.string()),
+  key: v.optional(v.string()),
+  taskCounter: v.optional(v.number()),
   teamId: v.optional(v.string()),
   sharedWithTeamIds: v.optional(v.array(v.string())),
   instructions: v.optional(v.string()),
@@ -72,6 +74,7 @@ const projectRowValidator = v.object({
   createdAt: v.number(),
   updatedAt: v.number(),
   archivedAt: v.optional(v.number()),
+  pinnedAt: v.optional(v.number()),
 });
 
 const projectListItemValidator = v.object({
@@ -341,6 +344,13 @@ export const listProjectThreads = query({
       sharedWithProject: v.optional(v.boolean()),
       status: v.string(),
       agentSlug: v.optional(v.string()),
+      generationStatus: v.optional(
+        v.union(v.literal('generating'), v.literal('idle')),
+      ),
+      isShared: v.optional(v.boolean()),
+      pinnedAt: v.optional(v.number()),
+      lastReplyAt: v.optional(v.number()),
+      lastReadAt: v.optional(v.number()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -379,6 +389,11 @@ export const listProjectThreads = query({
         sharedWithProject: t.sharedWithProject,
         status: t.status,
         agentSlug: t.agentSlug,
+        generationStatus: t.generationStatus,
+        isShared: t.isShared,
+        pinnedAt: t.pinnedAt,
+        lastReplyAt: t.lastReplyAt,
+        lastReadAt: t.lastReadAt,
       });
     }
     return result;

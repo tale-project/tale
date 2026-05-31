@@ -1,13 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import {
-  cleanup,
-  render,
-  screen,
-  fireEvent,
-  act,
-} from '@testing-library/react';
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 
 import { ZoomPanViewer } from './zoom-pan-viewer';
 
@@ -23,8 +17,6 @@ vi.mock('@/lib/i18n/client', () => ({
     },
   }),
 }));
-
-afterEach(cleanup);
 
 describe('ZoomPanViewer', () => {
   const defaultProps = {
