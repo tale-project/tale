@@ -87,15 +87,17 @@ Sperren leben in ihrer eigenen Convex-Tabelle, gekeyt mit `(organizationId, reso
 - `207` — PROPFIND, PROPPATCH (Multi-Status-Hülle)
 - `400` — fehlerhafter `Destination` / `If` / `Lock-Token` / `Timeout`-Header
 - `401` — fehlende oder ungültige Basic-Auth
-- `403` — Depth: infinity abgelehnt; .trash-Schreibversuch; Root-Delete/Move; falscher App-Passwort-Besitzer bei UNLOCK; Benutzer kein Mitglied der Org
+- `403` — Depth: infinity abgelehnt; .trash-Schreibversuch; Root-Delete/Move; falscher App-Passwort-Besitzer bei UNLOCK; Benutzer kein Mitglied der Org; MOVE/COPY auf sich selbst oder in den eigenen Teilbaum; Cross-Org-`Destination`
 - `404` — Ressource nicht gefunden
-- `405` — GET auf eine Sammlung; MKCOL auf existierendem Pfad; Root-MKCOL
-- `409` — MKCOL wenn Eltern nicht existiert; PUT auf einen Sammlungs-Pfad
-- `412` — `If`-Token-Mismatch
+- `405` — GET auf eine Sammlung; PUT auf einen Sammlungs-Pfad; MKCOL auf existierendem Pfad; Root-MKCOL
+- `409` — MKCOL, MOVE oder COPY wenn das Ziel-Elternverzeichnis nicht existiert
+- `412` — `If`-Token-Mismatch; `If-Match` / `If-None-Match`-Vorbedingung fehlgeschlagen; MOVE/COPY mit `Overwrite: F` auf ein existierendes Ziel
 - `413` — PUT-Body über dem Größenlimit, oder ein XML-Request-Body (PROPFIND / PROPPATCH / MKCOL / LOCK) über 64 KB
 - `415` — MKCOL mit nicht-leerem XML-Body (extended MKCOL nicht implementiert)
 - `423` — Schreiben auf einem gesperrten Pfad ohne passendes `If`
-- `502` — Cross-Host- oder Cross-Org-`Destination`; Storage-Proxy-Fetch fehlgeschlagen
+- `502` — Cross-Host-`Destination`; Storage-Proxy-Fetch fehlgeschlagen
+- `503` — LOCK-Anzahl-Limit für das App-Passwort überschritten (mit `Retry-After`)
+- `507` — Ordner-Teilbaum zu groß zum Löschen, Verschieben oder Kopieren in einer einzigen Anfrage
 
 ## Compliance
 

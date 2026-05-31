@@ -87,15 +87,17 @@ Locks live in their own Convex table, keyed by `(organizationId, resourcePath)`.
 - `207` — PROPFIND, PROPPATCH (multi-status envelope)
 - `400` — malformed `Destination` / `If` / `Lock-Token` / `Timeout` header
 - `401` — missing or invalid Basic auth
-- `403` — Depth: infinity rejected; .trash write attempt; root delete/move; wrong app-password owner on UNLOCK; user not a member of the org
+- `403` — Depth: infinity rejected; .trash write attempt; root delete/move; wrong app-password owner on UNLOCK; user not a member of the org; MOVE/COPY onto itself or into its own subtree; cross-org `Destination`
 - `404` — resource not found
-- `405` — GET on a collection; MKCOL on existing path; root MKCOL
-- `409` — MKCOL when parent does not exist; PUT to a collection path
-- `412` — `If` token mismatch
+- `405` — GET on a collection; PUT to a collection path; MKCOL on existing path; root MKCOL
+- `409` — MKCOL, MOVE, or COPY when the destination parent does not exist
+- `412` — `If` token mismatch; `If-Match` / `If-None-Match` precondition failed; MOVE/COPY with `Overwrite: F` onto an existing destination
 - `413` — PUT body over the size cap, or an XML request body (PROPFIND / PROPPATCH / MKCOL / LOCK) over 64 KB
 - `415` — MKCOL with non-empty XML body (extended MKCOL not implemented)
 - `423` — write attempted on a locked path without matching `If`
-- `502` — cross-host or cross-org `Destination`; storage proxy fetch failed
+- `502` — cross-host `Destination`; storage proxy fetch failed
+- `503` — LOCK count cap exceeded for the app-password (with `Retry-After`)
+- `507` — folder subtree too large to delete, move, or copy in a single request
 
 ## Compliance
 

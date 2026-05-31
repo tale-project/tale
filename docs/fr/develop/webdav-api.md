@@ -87,15 +87,17 @@ Les verrous vivent dans leur propre table Convex, indexés par `(organizationId,
 - `207` — PROPFIND, PROPPATCH (enveloppe multi-status)
 - `400` — header `Destination` / `If` / `Lock-Token` / `Timeout` mal formé
 - `401` — Basic auth absente ou invalide
-- `403` — Depth: infinity rejeté ; tentative d’écriture .trash ; suppression/déplacement de la racine ; mauvais propriétaire de mot de passe applicatif sur UNLOCK ; utilisateur pas membre de l’org
+- `403` — Depth: infinity rejeté ; tentative d’écriture .trash ; suppression/déplacement de la racine ; mauvais propriétaire de mot de passe applicatif sur UNLOCK ; utilisateur pas membre de l’org ; MOVE/COPY sur lui-même ou dans son propre sous-arbre ; `Destination` cross-org
 - `404` — ressource introuvable
-- `405` — GET sur une collection ; MKCOL sur un chemin existant ; MKCOL racine
-- `409` — MKCOL quand le parent n’existe pas ; PUT sur un chemin de collection
-- `412` — non-correspondance de jeton `If`
+- `405` — GET sur une collection ; PUT sur un chemin de collection ; MKCOL sur un chemin existant ; MKCOL racine
+- `409` — MKCOL, MOVE ou COPY quand le parent de destination n’existe pas
+- `412` — non-correspondance de jeton `If` ; précondition `If-Match` / `If-None-Match` échouée ; MOVE/COPY avec `Overwrite: F` sur une destination existante
 - `413` — corps PUT au-delà de la limite de taille, ou un corps XML (PROPFIND / PROPPATCH / MKCOL / LOCK) au-delà de 64 Ko
 - `415` — MKCOL avec corps XML non vide (extended MKCOL non implémenté)
 - `423` — écriture tentée sur un chemin verrouillé sans `If` correspondant
-- `502` — `Destination` cross-host ou cross-org ; fetch proxy stockage échoué
+- `502` — `Destination` cross-host ; fetch proxy stockage échoué
+- `503` — limite du nombre de LOCK dépassée pour le mot de passe applicatif (avec `Retry-After`)
+- `507` — sous-arbre de dossier trop volumineux pour être supprimé, déplacé ou copié en une seule requête
 
 ## Conformité
 

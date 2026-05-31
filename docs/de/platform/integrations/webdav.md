@@ -17,7 +17,7 @@ Du benötigst außerdem den **Organisations-Slug** deiner Org und die **Site-URL
 
 ## App-Passwort generieren
 
-Öffne **Einstellungen > WebDAV** und tippe ein Label, das den Verwendungszweck beschreibt — `MacBook Finder`, `iPhone Files`, `ops-laptop rclone`. Klicke **Generieren**. Das vollständige Passwort erscheint einmal, mit einer Kopier-Schaltfläche daneben; kopiere es in den Verbindungsdialog deines Geräts oder in deinen Passwort-Manager, bevor du das Panel schließt. Nach dem Verwerfen sind nur die ersten vier Zeichen aus der Tabelle sichtbar, was reicht, um die Zeile beim späteren Widerruf zu identifizieren.
+Öffne **Einstellungen > WebDAV** und tippe ein Label, das den Verwendungszweck beschreibt — `MacBook Finder`, `iPhone Files`, `ops-laptop rclone`. Klicke **Erzeugen**. Das vollständige Passwort erscheint einmal, mit einer Kopier-Schaltfläche daneben; kopiere es in den Verbindungsdialog deines Geräts oder in deinen Passwort-Manager, bevor du das Panel schließt. Nach dem Verwerfen sind nur die ersten vier Zeichen aus der Tabelle sichtbar, was reicht, um die Zeile beim späteren Widerruf zu identifizieren.
 
 Du kannst beliebig viele App-Passwörter halten. Der Plan ist eines pro Gerät — verlierst du das Gerät oder nutzt es nicht mehr, widerrufst du diese Zeile, ohne einen anderen konfigurierten Client zu stören.
 
