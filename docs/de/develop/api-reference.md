@@ -35,7 +35,7 @@ Cookies authentifizieren die Browser-Session; API-Aufrufe aus dem Browser innerh
 | ------------------------------------------------ | ------------ | ----------------------------------- | ----------- | ---------------------------------------------------------- |
 | Agents                                           | verschiedene | `/api/v1/agents/...`                | API-Key     | List, get, run.                                            |
 | Chat                                             | verschiedene | `/api/v1/chat/...`                  | API-Key     | Stream Chat-Completions gegen einen Agent oder ein Modell. |
-| OpenAI-kompatibel                                | POST         | `/api/v1/openai/chat/completions`   | API-Key     | OpenAI-Chat-Completions-Form; bestehende SDKs nutzen.      |
+| OpenAI-kompatibel                                | POST         | `/api/v1/chat/completions`          | API-Key     | OpenAI-Chat-Completions-Form; bestehende SDKs nutzen.      |
 | Automatisierungen                                | verschiedene | `/api/v1/automations/...`           | API-Key     | List, get, trigger, executions.                            |
 | Workflow-Trigger                                 | POST         | `/api/v1/workflows/triggers/<name>` | Trigger-Key | Webhook-getriggerte Workflow-Auslösungen.                  |
 | Wissen — Dokumente                               | verschiedene | `/api/v1/documents/...`             | API-Key     | Upload, list, get, delete.                                 |
@@ -47,9 +47,9 @@ Exakte Feld-Formen für jeden Endpoint leben im OpenAPI-Dokument, das die Plattf
 
 ## OpenAI-kompatible Endpoints
 
-`POST /api/v1/openai/chat/completions` akzeptiert einen Payload in OpenAI-Chat-Completions-Form und gibt eine streaming- oder nicht-streaming-Antwort in derselben Form zurück. Das Feld `model` wird als Agent-ID interpretiert — übergib eine Agent-ID, um durch die Anweisungen, das Wissen und die Tools dieses Agents zu routen. Übergib einen rohen Modellnamen (z. B. `gpt-4o`), um Agents zu überspringen und den Provider direkt aufzurufen.
+`POST /api/v1/chat/completions` akzeptiert einen Payload in OpenAI-Chat-Completions-Form und gibt eine streaming- oder nicht-streaming-Antwort in derselben Form zurück. Das Feld `model` wird als Agent-ID interpretiert — übergib eine Agent-ID, um durch die Anweisungen, das Wissen und die Tools dieses Agents zu routen. Übergib einen rohen Modellnamen (z. B. `gpt-4o`), um Agents zu überspringen und den Provider direkt aufzurufen.
 
-Bestehende OpenAI-SDKs funktionieren mit einer Änderung: zeig die Base-URL auf `https://your-host.example.com/api/v1/openai` und tausch den API-Key. Streaming nutzt Server-Sent Events.
+Bestehende OpenAI-SDKs funktionieren mit einer Änderung: zeig die Base-URL auf `https://your-host.example.com/api/v1` und tausch den API-Key. Streaming nutzt Server-Sent Events.
 
 ## Fehlermodell
 

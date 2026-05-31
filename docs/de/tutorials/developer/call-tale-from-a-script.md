@@ -45,7 +45,7 @@ from openai import OpenAI
 import os
 
 client = OpenAI(
-    base_url=f"{os.environ['TALE_BASE_URL']}/api/v1/openai",
+    base_url=f"{os.environ['TALE_BASE_URL']}/api/v1",
     api_key=os.environ["TALE_API_KEY"],
 )
 reply = client.chat.completions.create(
