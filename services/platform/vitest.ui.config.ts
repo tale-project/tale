@@ -1,5 +1,21 @@
+import os from 'node:os';
+
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
+
+// Each test file holds a heavy jsdom + axe + React heap, so concurrency is the
+// memory/speed knob for this suite. `threads` is deliberate: a single heavy
+// file (e.g. the governance editors) can exceed a forked process's default
+// old-space and crash that worker, whereas thread workers reuse a roomier
+// shared heap.
+//
+// The worker count was pinned at 2 — right for CI's 2-core runner, but it left
+// a multi-core dev machine running the full suite in ~5 min. Scale it to the
+// host instead: floor of 2 keeps CI unchanged (2 cores ⇒ 2 workers), and the
+// cap of 6 bounds peak heap so more cores speed the run up (~5 min → ~2 min on
+// a 12-core box) without reintroducing the OOM an unbounded pool hit.
+const cpuCount = os.availableParallelism?.() ?? os.cpus().length;
+const uiMaxWorkers = Math.max(2, Math.min(cpuCount - 1, 6));
 
 export default defineConfig({
   plugins: [react()],
@@ -10,11 +26,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     pool: 'threads',
-    // Cap concurrency: each test file holds a heavy jsdom + axe + React heap,
-    // and worker threads share the process V8 old-space, so an unbounded pool
-    // pushes the large UI suite toward "JS heap out of memory". (`maxWorkers`
-    // is top-level in Vitest 4; `poolOptions` was removed.)
-    maxWorkers: 2,
+    // (`maxWorkers` is top-level in Vitest 4; `poolOptions` was removed.)
+    maxWorkers: uiMaxWorkers,
     // jsdom logs "Not implemented: getComputedStyle … pseudo-elements" on every
     // axe pseudo-element probe — thousands per run. Vitest buffers captured
     // console output, so dropping this known-noise keeps the buffer small.
