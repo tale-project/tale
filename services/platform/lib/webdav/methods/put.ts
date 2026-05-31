@@ -12,7 +12,7 @@ import {
   type WebDAVRequest,
   type WebDAVResponse,
 } from '../types';
-import { computeETag } from './get';
+import { computeETag, ifNoneMatchMatches } from './get';
 
 const ALLOW_ON_COLLECTION =
   'OPTIONS, PROPFIND, DELETE, MOVE, COPY, PROPPATCH, LOCK';
@@ -57,24 +57,58 @@ export async function handlePut(
     },
   );
 
-  // If the client sent an `[etag]` precondition in the If: header, resolve the
-  // target's current ETag so the lock check can evaluate it (RFC 4918 §10.4.4
-  // — optimistic concurrency on a locked overwrite). The `[` only appears for
-  // entity-tag terms, so this gates the extra query to the rare conditional
-  // case.
-  let resourceEtag: string | undefined;
+  // Resolve the target's current ETag once when any conditional needs it:
+  // the WebDAV If: header's `[etag]` term (RFC 4918 §10.4.4, evaluated by the
+  // lock check below), or the HTTP If-Match / If-None-Match preconditions
+  // (RFC 7232) evaluated immediately after. `If-None-Match: *` needs no ETag.
+  const docExists = resolved.exists && resolved.kind === 'document';
   const ifHeader = req.headers.get('if');
+  const ifMatch = req.headers.get('if-match');
+  const ifNoneMatch = req.headers.get('if-none-match');
+  let resourceEtag: string | undefined;
   if (
     resolved.exists &&
     resolved.kind === 'document' &&
-    ifHeader !== null &&
-    ifHeader.includes('[')
+    ((ifHeader !== null && ifHeader.includes('[')) ||
+      ifMatch !== null ||
+      (ifNoneMatch !== null && ifNoneMatch.trim() !== '*'))
   ) {
     const props = await ctx.convex.query(
       anyApi.webdav.tree_queries.getDocumentProps,
       { organizationId: auth.organizationId, documentId: resolved.documentId },
     );
     if (props) resourceEtag = computeETag(props);
+  }
+
+  // HTTP conditional preconditions (RFC 7232) — distinct from the WebDAV
+  // If: header. `If-None-Match: *` is the common "create only if absent"
+  // guard; `If-Match` enables a safe optimistic-concurrency overwrite. A
+  // failed precondition is 412 and the write does not proceed.
+  // (ifNoneMatchMatches doubles as the generic "ETag in list, or *" test.)
+  if (
+    ifNoneMatch !== null &&
+    docExists &&
+    ifNoneMatchMatches(ifNoneMatch, resourceEtag ?? '')
+  ) {
+    return {
+      status: 412,
+      headers: {},
+      body: 'If-None-Match precondition failed',
+    };
+  }
+  if (ifMatch !== null) {
+    const matched =
+      docExists &&
+      (ifMatch.trim() === '*' ||
+        (resourceEtag !== undefined &&
+          ifNoneMatchMatches(ifMatch, resourceEtag)));
+    if (!matched) {
+      return {
+        status: 412,
+        headers: {},
+        body: 'If-Match precondition failed',
+      };
+    }
   }
 
   // Lock enforcement applies to BOTH overwrite and create:
