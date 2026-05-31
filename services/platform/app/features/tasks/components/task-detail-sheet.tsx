@@ -28,7 +28,12 @@ import {
   useTaskActivity,
   useTaskComments,
 } from '../hooks/queries';
-import { TASK_STATUS_ORDER, type TaskStatus } from '../lib/display';
+import {
+  isTaskStatus,
+  TASK_ACTIVITY_LABEL_KEY,
+  TASK_STATUS_ORDER,
+  type TaskStatus,
+} from '../lib/display';
 import { AssigneeAvatar } from './assignee-avatar';
 import { TaskPriorityBadge } from './task-priority-badge';
 import { TaskStatusBadge } from './task-status-badge';
@@ -200,14 +205,24 @@ export function TaskDetailSheet({
                 {t('detail.activity')}
               </Text>
               <ul className="text-muted-foreground mt-2 flex flex-col gap-1 text-xs">
-                {activity.map((entry) => (
-                  <li key={entry._id}>
-                    {entry.action}
-                    {entry.fromValue || entry.toValue
-                      ? `: ${entry.fromValue ?? ''} → ${entry.toValue ?? ''}`
-                      : ''}
-                  </li>
-                ))}
+                {activity.map((entry) => {
+                  const labelKey = TASK_ACTIVITY_LABEL_KEY[entry.action];
+                  const label = labelKey ? t(labelKey) : entry.action;
+                  const from =
+                    entry.fromValue && isTaskStatus(entry.fromValue)
+                      ? t(`status.${entry.fromValue}`)
+                      : entry.fromValue;
+                  const to =
+                    entry.toValue && isTaskStatus(entry.toValue)
+                      ? t(`status.${entry.toValue}`)
+                      : entry.toValue;
+                  return (
+                    <li key={entry._id}>
+                      {label}
+                      {from || to ? `: ${from ?? ''} → ${to ?? ''}` : ''}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           </div>

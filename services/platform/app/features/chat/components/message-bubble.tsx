@@ -434,7 +434,7 @@ function MessageBubbleComponent({
             variant="ghost"
             size="icon"
             className="p-1"
-            aria-label={t('moreActions')}
+            aria-label={tChat('moreActions')}
           >
             <MoreHorizontal className="size-4" />
           </Button>

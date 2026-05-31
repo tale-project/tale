@@ -36,6 +36,7 @@ export function InboxPanel({ organizationId }: { organizationId: string }) {
             <Button
               size="sm"
               variant={unreadOnly ? 'secondary' : 'ghost'}
+              aria-pressed={unreadOnly}
               onClick={() => setUnreadOnly((v) => !v)}
             >
               {t('unreadOnly')}
@@ -57,7 +58,10 @@ export function InboxPanel({ organizationId }: { organizationId: string }) {
       ) : (
         <ul className="flex flex-col gap-1">
           {notifications.map((notif) => {
-            const params: Record<string, unknown> = notif.params ?? {};
+            // `params` is the i18n interpolation map. The backend stores it as
+            // `v.any()`, so narrow to the values `t()` accepts (no `unknown`,
+            // which would make `t()` resolve to its object-returning overload).
+            const params: Record<string, string | number> = notif.params ?? {};
             return (
               <li key={notif._id}>
                 <button

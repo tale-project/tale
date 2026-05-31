@@ -5412,6 +5412,20 @@
       "activity": "Aktivität",
       "subtasks": "Teilaufgaben",
       "parentCloseGuard": "Schließe alle Teilaufgaben ab, bevor du diese Aufgabe abschließt."
+    },
+    "assignee": {
+      "unassigned": "Nicht zugewiesen"
+    },
+    "activity": {
+      "created": "Erstellt",
+      "updated": "Aktualisiert",
+      "claimed": "Übernommen",
+      "archived": "Archiviert",
+      "restored": "Wiederhergestellt",
+      "reordered": "Neu sortiert",
+      "statusChanged": "Status geändert",
+      "assigneeChanged": "Zuständigkeit geändert",
+      "commentAdded": "Kommentar hinzugefügt"
     }
   },
   "tables": {

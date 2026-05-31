@@ -1,5 +1,6 @@
 import { Bot, User } from 'lucide-react';
 
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 /**
@@ -16,6 +17,7 @@ export function AssigneeAvatar({
   assigneeId?: string;
   size?: 'sm' | 'md';
 }) {
+  const { t } = useT('tasks');
   const dimension = size === 'md' ? 'size-7' : 'size-5';
   const icon = size === 'md' ? 'size-4' : 'size-3';
 
@@ -26,7 +28,7 @@ export function AssigneeAvatar({
           dimension,
           'inline-flex items-center justify-center rounded-full border border-dashed border-border text-muted-foreground',
         )}
-        aria-label="Unassigned"
+        aria-label={t('assignee.unassigned')}
       >
         <User className={icon} aria-hidden="true" />
       </span>
@@ -40,7 +42,7 @@ export function AssigneeAvatar({
       className={cn(
         dimension,
         'inline-flex items-center justify-center rounded-full',
-        isAgent ? 'bg-blue-100 text-blue-800' : 'bg-muted text-foreground',
+        isAgent ? 'bg-primary/10 text-primary' : 'bg-muted text-foreground',
       )}
     >
       {isAgent ? (

@@ -5413,6 +5413,20 @@
       "activity": "Activité",
       "subtasks": "Sous-tâches",
       "parentCloseGuard": "Terminez toutes les sous-tâches avant de clôturer cette tâche."
+    },
+    "assignee": {
+      "unassigned": "Non assigné"
+    },
+    "activity": {
+      "created": "Créé",
+      "updated": "Mis à jour",
+      "claimed": "Pris en charge",
+      "archived": "Archivé",
+      "restored": "Restauré",
+      "reordered": "Réordonné",
+      "statusChanged": "Statut modifié",
+      "assigneeChanged": "Responsable modifié",
+      "commentAdded": "Commentaire ajouté"
     }
   },
   "tables": {

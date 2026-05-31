@@ -18,6 +18,30 @@ export const TASK_STATUS_ORDER: TaskStatus[] = [
   'cancelled',
 ];
 
+const TASK_STATUS_SET = new Set<string>(TASK_STATUS_ORDER);
+
+/** Type guard: is `value` one of the known task statuses? */
+export function isTaskStatus(value: string): value is TaskStatus {
+  return TASK_STATUS_SET.has(value);
+}
+
+/**
+ * Maps a stored activity `action` (see convex/tasks/helpers.ts `recordActivity`)
+ * to its `tasks` i18n key. Unknown actions fall back to the raw string at the
+ * call site, so the timeline degrades gracefully if a new action ships.
+ */
+export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
+  created: 'activity.created',
+  updated: 'activity.updated',
+  claimed: 'activity.claimed',
+  archived: 'activity.archived',
+  restored: 'activity.restored',
+  reordered: 'activity.reordered',
+  'status.changed': 'activity.statusChanged',
+  'assignee.changed': 'activity.assigneeChanged',
+  'comment.added': 'activity.commentAdded',
+};
+
 type BadgeVariant =
   | 'outline'
   | 'destructive'

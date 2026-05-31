@@ -1,6 +1,7 @@
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   closestCorners,
   useSensor,
@@ -8,6 +9,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useCallback, useMemo, useState } from 'react';
 
 import { useMoveTask } from '../hooks/mutations';
@@ -44,6 +46,11 @@ export function KanbanBoard({
   const [activeTask, setActiveTask] = useState<TaskRow | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    // Keyboard drag-and-drop: focus a card and use Space to pick up, arrows to
+    // move between/within columns, Space to drop (WCAG — no pointer-only DnD).
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   );
 
   const groups = useMemo(() => groupByStatus(tasks), [tasks]);
@@ -69,29 +76,41 @@ export function KanbanBoard({
       const dragged = byId.get(String(active.id));
       if (!dragged) return;
 
+      const overId = String(over.id);
+      // Dropped onto itself — nothing moved.
+      if (overId === dragged._id) return;
+
       const rawStatus = over.data.current?.status;
       const targetStatus =
         TASK_STATUS_ORDER.find((s) => s === rawStatus) ?? null;
       if (!targetStatus) return;
 
-      // Target column order excluding the dragged card.
-      const column = groups[targetStatus].filter((t) => t._id !== dragged._id);
+      // Target column with the dragged card removed, so insert math ignores it.
+      const targetColumn = groups[targetStatus];
+      const column = targetColumn.filter((t) => t._id !== dragged._id);
 
       // Insert position: before the card we dropped onto, else append.
-      const overId = String(over.id);
       const overIndex = column.findIndex((t) => t._id === overId);
       const insertIndex = overIndex === -1 ? column.length : overIndex;
 
       const before = column[insertIndex - 1];
       const after = column[insertIndex];
 
-      // No-op: same status and same neighbours.
-      if (
-        dragged.status === targetStatus &&
-        before?._id === groups[targetStatus][insertIndex - 1]?._id &&
-        after?._id === dragged._id
-      ) {
-        return;
+      // No-op: dropped back into its current slot (same status, same
+      // neighbours). Compare the new neighbours to the dragged card's current
+      // ones in the *unfiltered* column so we don't fire a needless mutation.
+      if (dragged.status === targetStatus) {
+        const currentIndex = targetColumn.findIndex(
+          (t) => t._id === dragged._id,
+        );
+        const currentBefore = targetColumn[currentIndex - 1];
+        const currentAfter = targetColumn[currentIndex + 1];
+        if (
+          before?._id === currentBefore?._id &&
+          after?._id === currentAfter?._id
+        ) {
+          return;
+        }
       }
 
       moveTask.mutate({

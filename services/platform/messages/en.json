@@ -5674,6 +5674,20 @@
       "activity": "Activity",
       "subtasks": "Subtasks",
       "parentCloseGuard": "Finish all subtasks before closing this task."
+    },
+    "assignee": {
+      "unassigned": "Unassigned"
+    },
+    "activity": {
+      "created": "Created",
+      "updated": "Updated",
+      "claimed": "Claimed",
+      "archived": "Archived",
+      "restored": "Restored",
+      "reordered": "Reordered",
+      "statusChanged": "Status changed",
+      "assigneeChanged": "Assignee changed",
+      "commentAdded": "Comment added"
     }
   },
   "tables": {
