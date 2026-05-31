@@ -63,10 +63,7 @@ export function NotificationListPanel({
   const { t: tCommon } = useT('common');
   const { formatRelative, formatDate } = useFormatDate();
 
-  const { results, status, loadMore } = useNotificationsList(
-    organizationId,
-    filter,
-  );
+  const { results, status, loadMore } = useNotificationsList(organizationId);
   const { data: unread } = useNotificationsUnreadCount(organizationId);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
@@ -112,9 +109,15 @@ export function NotificationListPanel({
     }
   }, [results, hiddenIds]);
 
+  // Filter client-side so toggling Unread/All never changes the query key (a
+  // query reset would re-flash the skeleton). `hiddenIds` covers the optimistic
+  // "just marked read" gap before the server-side `read` flag catches up.
   const items = useMemo(
-    () => results.filter((n) => !hiddenIds.has(n._id)),
-    [results, hiddenIds],
+    () =>
+      results.filter(
+        (n) => !hiddenIds.has(n._id) && (filter === 'all' || !n.read),
+      ),
+    [results, hiddenIds, filter],
   );
   const unreadCount = unread ?? 0;
   const canLoadMore = status === 'CanLoadMore';
@@ -168,9 +171,9 @@ export function NotificationListPanel({
       <div className="flex-1 overflow-y-auto">
         {items.length === 0 ? (
           status === 'LoadingFirstPage' ? (
-            // Skeleton list mirroring the real row layout so switching the
-            // Unread/All filter (which re-queries from the first page) doesn't
-            // collapse the panel to a tiny "loading" label and shift everything.
+            // Skeleton list mirroring the real row layout for the genuine first
+            // load only. The Unread/All filter is client-side, so toggling it no
+            // longer resets the query — the skeleton won't reappear on switch.
             <Skeletonize loading label={t('loading')}>
               <ul role="list" className="divide-border divide-y" aria-hidden>
                 {Array.from({ length: 3 }).map((_, i) => (

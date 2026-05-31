@@ -32,7 +32,6 @@ export const list = query({
   args: {
     organizationId: v.string(),
     paginationOpts: paginationOptsValidator,
-    filter: v.optional(v.union(v.literal('all'), v.literal('unread'))),
   },
   returns: v.object({
     page: v.array(notificationDocValidator),
@@ -49,7 +48,6 @@ export const list = query({
       name: authUser.name,
     });
     const userId = String(authUser._id);
-    const filter = args.filter ?? 'all';
 
     const result = await ctx.db
       .query('notifications')
@@ -59,11 +57,10 @@ export const list = query({
       .order('desc')
       .paginate(args.paginationOpts);
 
-    // When filtering to unread we drop already-read rows from the returned
-    // page. The `isDone` / `continueCursor` still reflect the underlying
-    // pagination cursor, so pages can be shorter than `numItems` but the
-    // client can keep calling `loadMore` until the index is exhausted.
-    const mapped = result.page.map((n) => ({
+    // The full page is returned with a per-row `read` flag; the Unread/All
+    // filter is applied client-side so toggling it never changes the query
+    // arguments (which would reset pagination and re-flash the skeleton).
+    const page = result.page.map((n) => ({
       _id: n._id,
       _creationTime: n._creationTime,
       organizationId: n.organizationId,
@@ -80,7 +77,7 @@ export const list = query({
     return {
       isDone: result.isDone,
       continueCursor: result.continueCursor,
-      page: filter === 'unread' ? mapped.filter((n) => !n.read) : mapped,
+      page,
     };
   },
 });
