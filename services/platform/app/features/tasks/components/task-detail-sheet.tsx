@@ -8,10 +8,10 @@ import {
   ResponsiveDialogTitle,
 } from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
+import { ConvexError } from 'convex/values';
 import { Plus } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -30,19 +30,16 @@ import {
 } from '../hooks/mutations';
 import { useSubtasks, useTask, useTaskActivity } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
-import {
-  isTaskStatus,
-  TASK_ACTIVITY_LABEL_KEY,
-  TASK_PRIORITY_ORDER,
-  TASK_STATUS_ORDER,
-  type TaskPriority,
-} from '../lib/display';
+import { isTaskStatus, TASK_ACTIVITY_LABEL_KEY } from '../lib/display';
+import { subtaskProgress } from '../lib/subtasks';
+import { AssigneeAvatar } from './assignee-avatar';
 import { AssigneePicker } from './assignee-picker';
+import { PriorityPicker } from './priority-picker';
+import { StatusPicker } from './status-picker';
 import { TaskComments } from './task-comments';
-import { TaskPriorityIcon } from './task-priority-icon';
+import { TaskDependencies } from './task-dependencies';
+import { SubtaskProgress } from './task-indicators';
 import { TaskStatusBadge } from './task-status-badge';
-
-const NO_PRIORITY = 'none';
 
 export function TaskDetailSheet({
   taskId,
@@ -77,22 +74,22 @@ export function TaskDetailSheet({
 
   const [subtaskTitle, setSubtaskTitle] = useState('');
 
-  const statusOptions = useMemo(
-    () => TASK_STATUS_ORDER.map((s) => ({ value: s, label: t(`status.${s}`) })),
-    [t],
-  );
-  const priorityOptions = useMemo(
-    () => [
-      { value: NO_PRIORITY, label: '—' },
-      ...TASK_PRIORITY_ORDER.map((p) => ({
-        value: p,
-        label: t(`priority.${p}`),
-      })),
-    ],
-    [t],
-  );
+  const projectKey = project?.key ?? null;
+  const assigneeName =
+    task?.assigneeType && task.assigneeId
+      ? resolveActor(task.assigneeType, task.assigneeId).name
+      : t('assignee.unassigned');
+  const { done: subtasksDone, total: subtasksTotal } =
+    subtaskProgress(subtasks);
 
   const onMutationError = (error: unknown) => {
+    if (
+      error instanceof ConvexError &&
+      error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
+    ) {
+      toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });
+      return;
+    }
     console.error('[tasks] detail action failed', error);
     toast({ title: tCommon('errors.generic'), variant: 'destructive' });
   };
@@ -155,75 +152,65 @@ export function TaskDetailSheet({
             </div>
 
             {/* Properties */}
-            <div className="flex flex-col gap-3">
-              {canEdit ? (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Select
-                    id="detail-status"
-                    label={t('fields.status')}
-                    value={task.status}
-                    options={statusOptions}
-                    onValueChange={(value: string) => {
-                      if (!isTaskStatus(value)) return;
-                      void updateStatus
-                        .mutateAsync({ taskId: task._id, status: value })
-                        .catch(onMutationError);
-                    }}
-                  />
-                  <Select
-                    id="detail-priority"
-                    label={t('fields.priority')}
-                    value={task.priority ?? NO_PRIORITY}
-                    options={priorityOptions}
-                    onValueChange={(value: string) => {
-                      const priority =
-                        value === NO_PRIORITY
-                          ? null
-                          : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options derived from TASK_PRIORITY_ORDER
-                            (value as TaskPriority);
-                      void updateTask
-                        .mutateAsync({ taskId: task._id, priority })
-                        .catch(onMutationError);
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <TaskStatusBadge status={task.status} />
-                  {task.priority && (
-                    <TaskPriorityIcon priority={task.priority} showLabel />
-                  )}
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <Text as="span" variant="caption" className="w-20 shrink-0">
-                  {t('fields.assignee')}
-                </Text>
-                <AssigneePicker
-                  organizationId={task.organizationId}
-                  projectId={task.projectId}
-                  assigneeType={task.assigneeType}
-                  assigneeId={task.assigneeId}
-                  size="md"
+            <dl className="border-border bg-muted/20 flex flex-col gap-1 rounded-lg border p-2">
+              <PropertyRow label={t('fields.status')}>
+                <StatusPicker
+                  status={task.status}
                   disabled={!canEdit}
-                  onAssign={(assigneeType, assigneeId) =>
-                    void assignTask
-                      .mutateAsync({
-                        taskId: task._id,
-                        assigneeType,
-                        assigneeId,
-                      })
-                      .catch(onMutationError)
-                  }
-                  onUnassign={() =>
-                    void assignTask
-                      .mutateAsync({ taskId: task._id })
+                  onChange={(status) =>
+                    void updateStatus
+                      .mutateAsync({ taskId: task._id, status })
                       .catch(onMutationError)
                   }
                 />
-              </div>
-            </div>
+              </PropertyRow>
+              <PropertyRow label={t('fields.priority')}>
+                <div className="flex items-center gap-2">
+                  <PriorityPicker
+                    priority={task.priority ?? null}
+                    disabled={!canEdit}
+                    onChange={(priority) =>
+                      void updateTask
+                        .mutateAsync({ taskId: task._id, priority })
+                        .catch(onMutationError)
+                    }
+                  />
+                  <Text as="span" variant="body">
+                    {task.priority
+                      ? t(`priority.${task.priority}`)
+                      : t('priority.none')}
+                  </Text>
+                </div>
+              </PropertyRow>
+              <PropertyRow label={t('fields.assignee')}>
+                <div className="flex items-center gap-2">
+                  <AssigneePicker
+                    organizationId={task.organizationId}
+                    projectId={task.projectId}
+                    assigneeType={task.assigneeType}
+                    assigneeId={task.assigneeId}
+                    disabled={!canEdit}
+                    onAssign={(assigneeType, assigneeId) =>
+                      void assignTask
+                        .mutateAsync({
+                          taskId: task._id,
+                          assigneeType,
+                          assigneeId,
+                        })
+                        .catch(onMutationError)
+                    }
+                    onUnassign={() =>
+                      void assignTask
+                        .mutateAsync({ taskId: task._id })
+                        .catch(onMutationError)
+                    }
+                  />
+                  <Text as="span" variant="body">
+                    {assigneeName}
+                  </Text>
+                </div>
+              </PropertyRow>
+            </dl>
 
             {/* Description */}
             <section className="flex flex-col gap-1.5">
@@ -255,29 +242,77 @@ export function TaskDetailSheet({
               )}
             </section>
 
+            {/* Dependencies */}
+            <TaskDependencies
+              task={task}
+              canEdit={canEdit}
+              projectKey={projectKey}
+              onOpenTask={onOpenTask}
+            />
+
             {/* Subtasks */}
             <section className="flex flex-col gap-2">
-              <Text as="h3" variant="label">
-                {t('detail.subtasks')} ({subtasks.length})
-              </Text>
+              <div className="flex items-center gap-2">
+                <Text as="h3" variant="label">
+                  {t('detail.subtasks')}
+                </Text>
+                {subtasksTotal > 0 && (
+                  <SubtaskProgress done={subtasksDone} total={subtasksTotal} />
+                )}
+              </div>
               {subtasks.length > 0 && (
-                <ul className="flex flex-col gap-1">
-                  {subtasks.map((sub) => (
-                    <li key={sub._id}>
-                      <button
-                        type="button"
-                        onClick={() => onOpenTask?.(sub._id)}
-                        disabled={!onOpenTask}
-                        className={cn(
-                          'hover:bg-muted focus-visible:ring-ring flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none',
-                          !onOpenTask && 'cursor-default hover:bg-transparent',
-                        )}
-                      >
-                        <TaskStatusBadge status={sub.status} />
-                        <span className="truncate">{sub.title}</span>
-                      </button>
-                    </li>
-                  ))}
+                <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
+                  {subtasks.map((sub) => {
+                    const subIdentifier = formatTaskIdentifier(
+                      projectKey,
+                      sub.number,
+                    );
+                    const subAssignee =
+                      sub.assigneeType && sub.assigneeId
+                        ? resolveActor(sub.assigneeType, sub.assigneeId)
+                        : null;
+                    return (
+                      <li key={sub._id}>
+                        <button
+                          type="button"
+                          onClick={() => onOpenTask?.(sub._id)}
+                          disabled={!onOpenTask}
+                          className={cn(
+                            'hover:bg-muted focus-visible:ring-ring flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
+                            !onOpenTask &&
+                              'cursor-default hover:bg-transparent',
+                          )}
+                        >
+                          <TaskStatusBadge status={sub.status} />
+                          {subIdentifier && (
+                            <Text
+                              as="span"
+                              variant="caption"
+                              className="shrink-0 font-mono text-[11px] tracking-wide"
+                            >
+                              {subIdentifier}
+                            </Text>
+                          )}
+                          <span
+                            className={cn(
+                              'flex-1 truncate',
+                              sub.status === 'done' &&
+                                'text-muted-foreground line-through',
+                            )}
+                          >
+                            {sub.title}
+                          </span>
+                          {subAssignee && (
+                            <AssigneeAvatar
+                              assigneeType={subAssignee.type}
+                              assigneeId={subAssignee.id}
+                              name={subAssignee.name}
+                            />
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               {canEdit && (
@@ -323,7 +358,7 @@ export function TaskDetailSheet({
               <Text as="h3" variant="label">
                 {t('detail.activity')}
               </Text>
-              <ul className="text-muted-foreground mt-2 flex flex-col gap-1.5 text-xs">
+              <ul className="mt-3 flex flex-col gap-3">
                 {activity.map((entry) => {
                   const labelKey = TASK_ACTIVITY_LABEL_KEY[entry.action];
                   const label = labelKey ? t(labelKey) : entry.action;
@@ -336,22 +371,32 @@ export function TaskDetailSheet({
                     entry.toValue && isTaskStatus(entry.toValue)
                       ? t(`status.${entry.toValue}`)
                       : entry.toValue;
+                  // A transition shows "from → to"; a single-sided action (a
+                  // claim, an added/removed dependency) shows just its value.
+                  const detail = from && to ? `${from} → ${to}` : (to ?? from);
                   return (
-                    <li key={entry._id} className="flex flex-wrap gap-x-1">
-                      <span className="text-foreground font-medium">
-                        {actor.name}
-                      </span>
-                      <span>
-                        {label.toLowerCase()}
-                        {from || to ? `: ${from ?? ''} → ${to ?? ''}` : ''}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <time
-                        dateTime={new Date(entry.createdAt).toISOString()}
-                        title={formatDate(new Date(entry.createdAt), 'long')}
-                      >
-                        {formatRelative(new Date(entry.createdAt))}
-                      </time>
+                    <li key={entry._id} className="flex items-center gap-2">
+                      <AssigneeAvatar
+                        assigneeType={entry.actorType}
+                        assigneeId={entry.actorId}
+                        name={actor.name}
+                      />
+                      <div className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-xs">
+                        <span className="text-foreground font-medium">
+                          {actor.name}
+                        </span>
+                        <span>
+                          {label.toLowerCase()}
+                          {detail ? `: ${detail}` : ''}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <time
+                          dateTime={new Date(entry.createdAt).toISOString()}
+                          title={formatDate(new Date(entry.createdAt), 'long')}
+                        >
+                          {formatRelative(new Date(entry.createdAt))}
+                        </time>
+                      </div>
                     </li>
                   );
                 })}
@@ -363,6 +408,23 @@ export function TaskDetailSheet({
         )}
       </ResponsiveDialogContent>
     </ResponsiveDialog>
+  );
+}
+
+/** One labelled row in the task's property panel: a fixed-width caption beside
+ *  its control, aligned across rows. */
+function PropertyRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-9 items-center gap-3 px-1">
+      <dt className="text-muted-foreground w-24 shrink-0 text-sm">{label}</dt>
+      <dd className="min-w-0 flex-1">{children}</dd>
+    </div>
   );
 }
 

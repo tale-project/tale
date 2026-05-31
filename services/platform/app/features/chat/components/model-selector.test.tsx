@@ -51,6 +51,13 @@ vi.mock('../context/chat-layout-context', () => ({
   }),
 }));
 
+// The selector reads a project to honor model restrictions. These tests render
+// without a project (org-level chat), so stub it to "no project" — also avoids
+// pulling in the real Convex/react-query hook (no QueryClient in this harness).
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProject: () => ({ project: null }),
+}));
+
 vi.mock('../hooks/queries', () => ({
   useChatAgents: () => ({
     agents: [

@@ -12,8 +12,10 @@ import { useT } from '@/lib/i18n/client';
 import { TASK_PRIORITY_ORDER, type TaskPriority } from '../lib/display';
 import { TaskPriorityIcon } from './task-priority-icon';
 
-/** Dimmed bar glyph shown for legacy tasks that predate the required-priority
- *  rule. New tasks always carry a priority, so this is only ever a fallback. */
+const NO_PRIORITY = 'none';
+
+/** Dimmed bar glyph for the "No priority" state — the default for a new task
+ *  and a selectable option in the picker. */
 function NoPriorityGlyph() {
   return (
     <svg
@@ -87,12 +89,14 @@ export function PriorityPicker({
     );
   }
 
-  // Priority is required: the picker only offers real priorities (no "clear"
-  // option), so a task's priority can be changed but never unset.
-  const options: SearchableSelectOption[] = TASK_PRIORITY_ORDER.map((p) => ({
-    value: p,
-    label: t(`priority.${p}`),
-  }));
+  // "No priority" leads so a set priority can always be cleared back to it.
+  const options: SearchableSelectOption[] = [
+    { value: NO_PRIORITY, label: t('priority.none') },
+    ...TASK_PRIORITY_ORDER.map((p) => ({
+      value: p,
+      label: t(`priority.${p}`),
+    })),
+  ];
 
   const trigger = (
     <Button
@@ -124,8 +128,12 @@ export function PriorityPicker({
         onClick={(e) => e.stopPropagation()}
       >
         <SearchableSelect
-          value={priority ?? null}
+          value={priority ?? NO_PRIORITY}
           onValueChange={(val) => {
+            if (val === NO_PRIORITY) {
+              onChange(null);
+              return;
+            }
             const match = TASK_PRIORITY_ORDER.find((p) => p === val);
             if (match) onChange(match);
           }}
@@ -137,7 +145,11 @@ export function PriorityPicker({
           emptyText={tCommon('search.noResults')}
           optionAction={(opt) => {
             const match = TASK_PRIORITY_ORDER.find((p) => p === opt.value);
-            return match ? <TaskPriorityIcon priority={match} /> : null;
+            return match ? (
+              <TaskPriorityIcon priority={match} />
+            ) : (
+              <NoPriorityGlyph />
+            );
           }}
         />
       </span>

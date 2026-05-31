@@ -818,6 +818,7 @@ import type * as streaming_internal_mutations from "../streaming/internal_mutati
 import type * as streaming_validators from "../streaming/validators.js";
 import type * as tasks_access from "../tasks/access.js";
 import type * as tasks_audit_actions from "../tasks/audit_actions.js";
+import type * as tasks_dependencies from "../tasks/dependencies.js";
 import type * as tasks_directory from "../tasks/directory.js";
 import type * as tasks_helpers from "../tasks/helpers.js";
 import type * as tasks_internal_mutations from "../tasks/internal_mutations.js";
@@ -2016,6 +2017,7 @@ declare const fullApi: ApiFromModules<{
   "streaming/validators": typeof streaming_validators;
   "tasks/access": typeof tasks_access;
   "tasks/audit_actions": typeof tasks_audit_actions;
+  "tasks/dependencies": typeof tasks_dependencies;
   "tasks/directory": typeof tasks_directory;
   "tasks/helpers": typeof tasks_helpers;
   "tasks/internal_mutations": typeof tasks_internal_mutations;

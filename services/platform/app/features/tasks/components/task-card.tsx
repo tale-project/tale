@@ -4,7 +4,9 @@ import { Badge } from '@tale/ui/badge';
 import { Text } from '@tale/ui/text';
 import { GitBranch } from 'lucide-react';
 
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import type { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n/client';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
 
@@ -12,7 +14,12 @@ import { useAssignTask, useUpdateTask } from '../hooks/mutations';
 import { subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
-import { CommentCountIndicator, SubtaskProgress } from './task-indicators';
+import { useTaskBoardContext } from './task-board-context';
+import {
+  BlockedIndicator,
+  CommentCountIndicator,
+  SubtaskProgress,
+} from './task-indicators';
 
 export type TaskRow = Doc<'tasks'>;
 
@@ -31,10 +38,25 @@ export function TaskCard({
   dragging?: boolean;
   projectKey?: string | null;
 }) {
+  const { t } = useT('tasks');
   const identifier = formatTaskIdentifier(projectKey, task.number);
   const assignTask = useAssignTask();
   const updateTask = useUpdateTask();
+  const { isBlocked, getTask } = useTaskBoardContext();
+  const blocked = isBlocked(task._id);
   const { done, total } = subtaskProgress(subtasks);
+
+  // The subtask glyph names its parent ("Part of TAL-2") — fall back to the
+  // parent's title, then a generic label, when the id/parent isn't resolvable.
+  const parent = task.parentTaskId ? getTask(task.parentTaskId) : undefined;
+  const parentIdentifier = parent
+    ? formatTaskIdentifier(projectKey, parent.number)
+    : null;
+  const parentLabel = parentIdentifier
+    ? t('detail.partOf', { task: parentIdentifier })
+    : parent
+      ? t('detail.partOf', { task: parent.title })
+      : t('detail.subtask');
   const sortable = useSortable({ id: task._id, data: { status: task.status } });
   const style = {
     transform: CSS.Translate.toString(sortable.transform),
@@ -102,11 +124,16 @@ export function TaskCard({
             }
           />
           {task.parentTaskId && (
-            <GitBranch
-              className="text-muted-foreground size-3.5"
-              aria-hidden="true"
-            />
+            <Tooltip content={parentLabel}>
+              <span className="inline-flex" aria-label={parentLabel}>
+                <GitBranch
+                  className="text-muted-foreground size-3.5"
+                  aria-hidden="true"
+                />
+              </span>
+            </Tooltip>
           )}
+          <BlockedIndicator blocked={blocked} />
           {total > 0 && <SubtaskProgress done={done} total={total} />}
           <CommentCountIndicator count={task.commentCount} />
         </div>

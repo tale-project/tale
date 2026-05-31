@@ -49,6 +49,14 @@ export function useMoveTask() {
   return useConvexMutation(api.tasks.mutations.moveTask);
 }
 
+export function useAddTaskDependency() {
+  return useConvexMutation(api.tasks.mutations.addTaskDependency);
+}
+
+export function useRemoveTaskDependency() {
+  return useConvexMutation(api.tasks.mutations.removeTaskDependency);
+}
+
 export function useBulkUpdateTasks() {
   return useConvexMutation(api.tasks.mutations.bulkUpdateTasks);
 }

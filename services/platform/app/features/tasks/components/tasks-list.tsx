@@ -19,8 +19,13 @@ import { TASK_STATUS_ORDER, type TaskStatus } from '../lib/display';
 import { partitionSubtasks, subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
+import { useTaskBoardContext } from './task-board-context';
 import type { TaskRow } from './task-card';
-import { CommentCountIndicator, SubtaskProgress } from './task-indicators';
+import {
+  BlockedIndicator,
+  CommentCountIndicator,
+  SubtaskProgress,
+} from './task-indicators';
 import { TaskStatusBadge } from './task-status-badge';
 
 /**
@@ -195,6 +200,7 @@ function TaskListRow({
   const identifier = formatTaskIdentifier(projectKey, task.number);
   const assignTask = useAssignTask();
   const updateTask = useUpdateTask();
+  const blocked = useTaskBoardContext().isBlocked(task._id);
   const hasSubtasks = (subtasks?.length ?? 0) > 0;
   const { done, total } = subtaskProgress(subtasks);
 
@@ -286,6 +292,7 @@ function TaskListRow({
       {hasSubtasks && (
         <SubtaskProgress done={done} total={total} className="shrink-0" />
       )}
+      <BlockedIndicator blocked={blocked} className="shrink-0" />
       <CommentCountIndicator count={task.commentCount} className="shrink-0" />
       <PriorityPicker
         priority={task.priority ?? null}

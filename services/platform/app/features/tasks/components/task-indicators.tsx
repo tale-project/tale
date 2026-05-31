@@ -1,9 +1,38 @@
 'use client';
 
-import { MessageSquare } from 'lucide-react';
+import { Ban, MessageSquare } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+
+/**
+ * Amber "blocked" glyph shown on a task card/row when the task has at least one
+ * unfinished blocker (computed from dependency edges, see `lib/dependencies`).
+ * Renders nothing when the task isn't blocked. Colour is paired with the icon
+ * shape + label so it never relies on colour alone.
+ */
+export function BlockedIndicator({
+  blocked,
+  className,
+}: {
+  blocked: boolean;
+  className?: string;
+}) {
+  const { t } = useT('tasks');
+  if (!blocked) return null;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center text-amber-600 dark:text-amber-400',
+        className,
+      )}
+      title={t('detail.blocked')}
+      aria-label={t('detail.blocked')}
+    >
+      <Ban className="size-3.5 shrink-0" aria-hidden="true" />
+    </span>
+  );
+}
 
 /**
  * Small comment-count badge shown on a task card/row. Renders nothing when the

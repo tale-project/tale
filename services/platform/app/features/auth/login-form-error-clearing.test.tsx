@@ -74,8 +74,11 @@ describe('LogInPage – submit button state after failed login (#648)', () => {
   it('enables submit button when both fields are filled', async () => {
     const { user } = render(<LogInPage />);
 
-    await user.type(screen.getByLabelText('email'), 'user@example.com');
-    await user.type(screen.getByLabelText('password'), 'secret');
+    await user.type(
+      screen.getByLabelText('email', { exact: false }),
+      'user@example.com',
+    );
+    await user.type(screen.getByLabelText(/^password\b/i), 'secret');
 
     await waitFor(() => {
       expect(
@@ -93,8 +96,11 @@ describe('LogInPage – submit button state after failed login (#648)', () => {
 
     const { user } = render(<LogInPage />);
 
-    await user.type(screen.getByLabelText('email'), 'wrong@example.com');
-    await user.type(screen.getByLabelText('password'), 'wrongpassword');
+    await user.type(
+      screen.getByLabelText('email', { exact: false }),
+      'wrong@example.com',
+    );
+    await user.type(screen.getByLabelText(/^password\b/i), 'wrongpassword');
 
     await user.click(screen.getByRole('button', { name: 'login.loginButton' }));
 
@@ -104,7 +110,7 @@ describe('LogInPage – submit button state after failed login (#648)', () => {
     });
 
     // User edits the email field — onChange clears the error
-    fireEvent.change(screen.getByLabelText('email'), {
+    fireEvent.change(screen.getByLabelText('email', { exact: false }), {
       target: { value: 'correct@example.com' },
     });
 
@@ -127,8 +133,11 @@ describe('LogInPage – submit button state after failed login (#648)', () => {
 
     const { user } = render(<LogInPage />);
 
-    await user.type(screen.getByLabelText('email'), 'wrong@example.com');
-    await user.type(screen.getByLabelText('password'), 'wrongpassword');
+    await user.type(
+      screen.getByLabelText('email', { exact: false }),
+      'wrong@example.com',
+    );
+    await user.type(screen.getByLabelText(/^password\b/i), 'wrongpassword');
 
     await user.click(screen.getByRole('button', { name: 'login.loginButton' }));
 
@@ -137,7 +146,7 @@ describe('LogInPage – submit button state after failed login (#648)', () => {
     });
 
     // User corrects the password
-    fireEvent.change(screen.getByLabelText('password'), {
+    fireEvent.change(screen.getByLabelText(/^password\b/i), {
       target: { value: 'correctpassword' },
     });
 
@@ -161,8 +170,11 @@ describe('LogInPage – submit button state after failed login (#648)', () => {
 
     const { user } = render(<LogInPage />);
 
-    await user.type(screen.getByLabelText('email'), 'user@example.com');
-    await user.type(screen.getByLabelText('password'), 'wrongpassword');
+    await user.type(
+      screen.getByLabelText('email', { exact: false }),
+      'user@example.com',
+    );
+    await user.type(screen.getByLabelText(/^password\b/i), 'wrongpassword');
     await user.click(screen.getByRole('button', { name: 'login.loginButton' }));
 
     await waitFor(() => {

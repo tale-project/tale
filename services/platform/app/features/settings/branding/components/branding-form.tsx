@@ -239,7 +239,7 @@ export function BrandingForm({
 
           <Input
             id="branding-text-logo"
-            label={`${t('branding.textLogo')} ${t('branding.textLogoOptional')}`}
+            label={t('branding.textLogo')}
             placeholder={t('branding.textLogoPlaceholder')}
             {...register('textLogo')}
             wrapperClassName="w-full"

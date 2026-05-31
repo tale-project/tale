@@ -42,7 +42,15 @@ export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
   'status.changed': 'activity.statusChanged',
   'assignee.changed': 'activity.assigneeChanged',
   'comment.added': 'activity.commentAdded',
+  'dependency.added': 'activity.dependencyAdded',
+  'dependency.removed': 'activity.dependencyRemoved',
 };
+
+/** Statuses that count a blocker as resolved (no longer blocking its dependents). */
+export const TASK_TERMINAL_STATUSES = new Set<TaskStatus>([
+  'done',
+  'cancelled',
+]);
 
 type BadgeVariant =
   | 'outline'

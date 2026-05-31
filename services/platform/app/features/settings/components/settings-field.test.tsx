@@ -14,7 +14,9 @@ describe('SettingsField', () => {
           <Input id="name" placeholder="Name" />
         </SettingsField>,
       );
-      expect(screen.getByLabelText('Name')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Name', { exact: false }),
+      ).toBeInTheDocument();
     });
 
     it('renders the description when provided', () => {

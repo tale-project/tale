@@ -37,6 +37,7 @@ import {
   TASK_COMMENT_RESOURCE_TYPE,
   TASK_RESOURCE_TYPE,
 } from './audit_actions';
+import { type DependencyEdge, wouldCreateCycle } from './dependencies';
 import { buildMentionDirectory } from './directory';
 import {
   computeEndRank,
@@ -62,6 +63,11 @@ import {
 } from './schema';
 
 const BULK_UPDATE_MAX = 100;
+
+// Upper bound on dependency edges scanned per project when checking for cycles.
+// Mirrors the board's bounded-scan posture (`TASK_BOARD_CAP`); a project with
+// more edges than this is already pathological.
+const TASK_DEPENDENCIES_CAP = 5000;
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
@@ -620,6 +626,164 @@ export const claimTask = mutation({
     }
 
     return { claimed: true };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Dependencies (soft "blocked by" / "blocks" links between sibling tasks)
+// ---------------------------------------------------------------------------
+
+/** Load every dependency edge in a project (bounded), for cycle detection. */
+async function loadProjectDependencyEdges(
+  ctx: MutationCtx,
+  projectId: Id<'projects'>,
+): Promise<DependencyEdge[]> {
+  const edges: DependencyEdge[] = [];
+  for await (const edge of ctx.db
+    .query('taskDependencies')
+    .withIndex('by_project', (q) => q.eq('projectId', projectId))) {
+    edges.push({
+      blockerTaskId: String(edge.blockerTaskId),
+      blockedTaskId: String(edge.blockedTaskId),
+    });
+    if (edges.length >= TASK_DEPENDENCIES_CAP) break;
+  }
+  return edges;
+}
+
+/**
+ * Link two tasks so `blockerTaskId` blocks `blockedTaskId`. Both must live in
+ * the same project the caller can edit. Idempotent (a duplicate edge is a
+ * no-op) and cycle-safe (rejects an edge that would close a loop). The link is
+ * advisory — it never gates a status change.
+ */
+export const addTaskDependency = mutation({
+  args: {
+    blockerTaskId: v.id('tasks'),
+    blockedTaskId: v.id('tasks'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (args.blockerTaskId === args.blockedTaskId) {
+      throw new ConvexError({ code: 'TASK_DEPENDENCY_SELF' });
+    }
+    const blocked = await loadTaskOrThrow(ctx, args.blockedTaskId);
+    const blocker = await loadTaskOrThrow(ctx, args.blockerTaskId);
+    const project = await loadProjectOrThrow(ctx, blocked.projectId);
+    const auth = await getAuthContext(ctx, blocked.organizationId);
+    assertTaskWritable(project, auth);
+
+    if (blocker.projectId !== blocked.projectId) {
+      throw new ConvexError({ code: 'TASK_DEPENDENCY_PROJECT_MISMATCH' });
+    }
+
+    const existing = await ctx.db
+      .query('taskDependencies')
+      .withIndex('by_edge', (q) =>
+        q
+          .eq('blockerTaskId', args.blockerTaskId)
+          .eq('blockedTaskId', args.blockedTaskId),
+      )
+      .first();
+    if (existing) return null;
+
+    const edges = await loadProjectDependencyEdges(ctx, blocked.projectId);
+    if (
+      wouldCreateCycle(
+        edges,
+        String(args.blockerTaskId),
+        String(args.blockedTaskId),
+      )
+    ) {
+      throw new ConvexError({ code: 'TASK_DEPENDENCY_CYCLE' });
+    }
+
+    const now = Date.now();
+    await ctx.db.insert('taskDependencies', {
+      organizationId: blocked.organizationId,
+      projectId: blocked.projectId,
+      blockerTaskId: args.blockerTaskId,
+      blockedTaskId: args.blockedTaskId,
+      createdBy: auth.userId,
+      createdByType: 'user',
+      createdAt: now,
+    });
+    // Bump the blocked task so the board's updatedAt-ordered reads refresh.
+    await ctx.db.patch(args.blockedTaskId, { updatedAt: now });
+
+    await recordActivity(ctx, {
+      task: blocked,
+      actorType: 'user',
+      actorId: auth.userId,
+      action: 'dependency.added',
+      toValue: blocker.title,
+    });
+    await createAuditLog(ctx, {
+      organizationId: blocked.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: TASK_AUDIT_ACTIONS.dependencyAdded,
+      category: 'data',
+      resourceType: TASK_RESOURCE_TYPE,
+      resourceId: String(args.blockedTaskId),
+      resourceName: blocked.title,
+      metadata: { blockerTaskId: String(args.blockerTaskId) },
+      status: 'success',
+    });
+    return null;
+  },
+});
+
+/** Remove a `blockerTaskId → blockedTaskId` dependency edge (no-op if absent). */
+export const removeTaskDependency = mutation({
+  args: {
+    blockerTaskId: v.id('tasks'),
+    blockedTaskId: v.id('tasks'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const blocked = await loadTaskOrThrow(ctx, args.blockedTaskId);
+    const project = await loadProjectOrThrow(ctx, blocked.projectId);
+    const auth = await getAuthContext(ctx, blocked.organizationId);
+    assertTaskWritable(project, auth);
+
+    const edge = await ctx.db
+      .query('taskDependencies')
+      .withIndex('by_edge', (q) =>
+        q
+          .eq('blockerTaskId', args.blockerTaskId)
+          .eq('blockedTaskId', args.blockedTaskId),
+      )
+      .first();
+    if (!edge) return null;
+
+    const blocker = await ctx.db.get(args.blockerTaskId);
+    const now = Date.now();
+    await ctx.db.delete(edge._id);
+    await ctx.db.patch(args.blockedTaskId, { updatedAt: now });
+
+    await recordActivity(ctx, {
+      task: blocked,
+      actorType: 'user',
+      actorId: auth.userId,
+      action: 'dependency.removed',
+      toValue: blocker?.title,
+    });
+    await createAuditLog(ctx, {
+      organizationId: blocked.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: TASK_AUDIT_ACTIONS.dependencyRemoved,
+      category: 'data',
+      resourceType: TASK_RESOURCE_TYPE,
+      resourceId: String(args.blockedTaskId),
+      resourceName: blocked.title,
+      metadata: { blockerTaskId: String(args.blockerTaskId) },
+      status: 'success',
+    });
+    return null;
   },
 });
 
@@ -1287,6 +1451,17 @@ async function deleteTaskTree(
     .query('taskActivity')
     .withIndex('by_task', (q) => q.eq('taskId', taskId))) {
     await ctx.db.delete(activity._id);
+  }
+  // Drop dependency edges on both sides so neither direction dangles.
+  for await (const edge of ctx.db
+    .query('taskDependencies')
+    .withIndex('by_blocker', (q) => q.eq('blockerTaskId', taskId))) {
+    await ctx.db.delete(edge._id);
+  }
+  for await (const edge of ctx.db
+    .query('taskDependencies')
+    .withIndex('by_blocked', (q) => q.eq('blockedTaskId', taskId))) {
+    await ctx.db.delete(edge._id);
   }
   await ctx.db.delete(taskId);
   return deletedChildren;

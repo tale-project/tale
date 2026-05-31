@@ -16,6 +16,8 @@ export const TASK_AUDIT_ACTIONS = {
   commentCreated: 'task.comment.created',
   commentUpdated: 'task.comment.updated',
   commentDeleted: 'task.comment.deleted',
+  dependencyAdded: 'task.dependency.added',
+  dependencyRemoved: 'task.dependency.removed',
   archived: 'task.archived',
   restored: 'task.restored',
   deleted: 'task.deleted',

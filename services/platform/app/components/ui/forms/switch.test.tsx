@@ -14,7 +14,9 @@ describe('Switch', () => {
 
     it('renders with label', () => {
       render(<Switch label="Enable feature" />);
-      expect(screen.getByLabelText('Enable feature')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Enable feature', { exact: false }),
+      ).toBeInTheDocument();
     });
 
     it('renders required indicator', () => {

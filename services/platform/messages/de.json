@@ -5329,7 +5329,6 @@
       "appName": "App-Name",
       "appNamePlaceholder": "z. B. Acme GmbH",
       "textLogo": "Text-Logo",
-      "textLogoOptional": "(optional)",
       "textLogoPlaceholder": "z. B. Acme",
       "logo": "Logo",
       "logoDescription": "Lade dein Organisationslogo hoch",
@@ -5444,7 +5443,17 @@
       "addSubtask": "Teilaufgabe hinzufügen…",
       "addDescription": "Beschreibung hinzufügen…",
       "noDescription": "Keine Beschreibung.",
-      "parentCloseGuard": "Schließe alle Teilaufgaben ab, bevor du diese Aufgabe abschließt."
+      "parentCloseGuard": "Schließe alle Teilaufgaben ab, bevor du diese Aufgabe abschließt.",
+      "dependencies": "Abhängigkeiten",
+      "blockedBy": "Blockiert von",
+      "blocks": "Blockiert",
+      "blocked": "Blockiert",
+      "noDependencies": "Keine",
+      "linkTask": "Aufgabe verknüpfen…",
+      "dependencyCycle": "Das würde eine zirkuläre Abhängigkeit erzeugen.",
+      "removeDependency": "Abhängigkeit entfernen",
+      "partOf": "Teil von {task}",
+      "subtask": "Teilaufgabe"
     },
     "comment": {
       "edited": "bearbeitet",
@@ -5467,7 +5476,9 @@
       "reordered": "Neu sortiert",
       "statusChanged": "Status geändert",
       "assigneeChanged": "Zuständigkeit geändert",
-      "commentAdded": "Kommentar hinzugefügt"
+      "commentAdded": "Kommentar hinzugefügt",
+      "dependencyAdded": "Abhängigkeit hinzugefügt",
+      "dependencyRemoved": "Abhängigkeit entfernt"
     }
   },
   "tables": {

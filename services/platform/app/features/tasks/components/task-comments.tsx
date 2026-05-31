@@ -78,6 +78,19 @@ export function TaskComments({
     return { roots: rootList, repliesByParent: replies };
   }, [comments]);
 
+  const currentUser = currentUserId
+    ? resolveActor('user', currentUserId)
+    : null;
+
+  // Submit on ⌘/Ctrl+Enter; a bare Enter stays a newline (comments are prose).
+  const onModEnter =
+    (submit: () => void) => (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        submit();
+      }
+    };
+
   const onError = (error: unknown) => {
     console.error('[tasks] comment action failed', error);
     toast({ title: tCommon('errors.generic'), variant: 'destructive' });
@@ -161,6 +174,7 @@ export function TaskComments({
                 rows={2}
                 value={editDraft}
                 onChange={(e) => setEditDraft(e.target.value)}
+                onKeyDown={onModEnter(() => void submitEdit(c._id))}
                 autoFocus
               />
               <div className="flex gap-2">
@@ -260,6 +274,7 @@ export function TaskComments({
                     rows={2}
                     value={replyDraft}
                     onChange={(e) => setReplyDraft(e.target.value)}
+                    onKeyDown={onModEnter(() => void submitReply(root._id))}
                     placeholder={t('actions.reply')}
                     autoFocus
                   />
@@ -287,22 +302,32 @@ export function TaskComments({
       </ul>
 
       {canEdit && (
-        <div className="mt-4 flex flex-col gap-2">
-          <Textarea
-            id="new-comment"
-            rows={2}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder={t('actions.comment')}
-          />
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              disabled={draft.trim().length === 0}
-              onClick={() => void submitNew()}
-            >
-              {t('actions.comment')}
-            </Button>
+        <div className="mt-4 flex items-start gap-2">
+          {currentUser && (
+            <AssigneeAvatar
+              assigneeType="user"
+              assigneeId={currentUser.id}
+              name={currentUser.name}
+            />
+          )}
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <Textarea
+              id="new-comment"
+              rows={2}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={onModEnter(() => void submitNew())}
+              placeholder={t('actions.comment')}
+            />
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                disabled={draft.trim().length === 0}
+                onClick={() => void submitNew()}
+              >
+                {t('actions.comment')}
+              </Button>
+            </div>
           </div>
         </div>
       )}

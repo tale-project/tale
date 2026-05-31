@@ -13,9 +13,10 @@ import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useTasksByProject } from '../hooks/queries';
+import { useProjectDependencies, useTasksByProject } from '../hooks/queries';
 import { CreateTaskDialog } from './create-task-dialog';
 import { KanbanBoard } from './kanban-board';
+import { TaskBoardProvider } from './task-board-context';
 import type { TaskRow } from './task-card';
 import { TaskDetailSheet } from './task-detail-sheet';
 import { TasksList } from './tasks-list';
@@ -39,6 +40,7 @@ export function TasksWorkspace({
   const { t } = useT('tasks');
   const typedProjectId = asProjectId(projectId);
   const { tasks, isLoading } = useTasksByProject(typedProjectId);
+  const { edges } = useProjectDependencies(typedProjectId);
   const { project } = useProject(typedProjectId);
   const projectKey = project?.key ?? null;
 
@@ -82,30 +84,34 @@ export function TasksWorkspace({
             </Button>
           }
         />
-      ) : view === 'board' ? (
-        <div className="min-h-0 flex-1">
-          <KanbanBoard
-            tasks={tasks}
-            onOpenTask={handleOpenTask}
-            projectKey={projectKey}
-          />
-        </div>
-      ) : view === 'list' ? (
-        <div className="min-h-0 flex-1">
-          <TasksList
-            tasks={tasks}
-            onOpenTask={handleOpenTask}
-            projectKey={projectKey}
-          />
-        </div>
       ) : (
-        <div className="min-h-0 flex-1">
-          <TasksTable
-            tasks={tasks}
-            onOpenTask={handleOpenTask}
-            projectKey={projectKey}
-          />
-        </div>
+        <TaskBoardProvider tasks={tasks} dependencyEdges={edges}>
+          {view === 'board' ? (
+            <div className="min-h-0 flex-1">
+              <KanbanBoard
+                tasks={tasks}
+                onOpenTask={handleOpenTask}
+                projectKey={projectKey}
+              />
+            </div>
+          ) : view === 'list' ? (
+            <div className="min-h-0 flex-1">
+              <TasksList
+                tasks={tasks}
+                onOpenTask={handleOpenTask}
+                projectKey={projectKey}
+              />
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1">
+              <TasksTable
+                tasks={tasks}
+                onOpenTask={handleOpenTask}
+                projectKey={projectKey}
+              />
+            </div>
+          )}
+        </TaskBoardProvider>
       )}
 
       <CreateTaskDialog

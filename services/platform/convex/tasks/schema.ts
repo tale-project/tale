@@ -167,6 +167,30 @@ export const taskActivityTable = defineTable({
   .index('by_task', ['taskId', 'createdAt'])
   .index('by_organization', ['organizationId']);
 
+/**
+ * Directed "blocked by" dependency edge between two tasks in the SAME project.
+ * An edge `blockerTaskId → blockedTaskId` reads as "the blocker must finish
+ * before the blocked task can proceed". The relationship is advisory (soft):
+ * the board surfaces a "blocked" indicator while a blocker is unfinished, but a
+ * status change is never refused — unlike the hard parent-close guard for
+ * subtasks. Cycles are rejected at write time (see `tasks/dependencies.ts`), so
+ * the edge set stays a DAG. Both endpoints live in one project — there is no
+ * cross-project dependency, mirroring the same-project `parentTaskId` rule.
+ */
+export const taskDependenciesTable = defineTable({
+  organizationId: v.string(),
+  projectId: v.id('projects'),
+  blockerTaskId: v.id('tasks'),
+  blockedTaskId: v.id('tasks'),
+  createdBy: v.string(),
+  createdByType: taskActorTypeValidator,
+  createdAt: v.number(),
+})
+  .index('by_blocker', ['blockerTaskId'])
+  .index('by_blocked', ['blockedTaskId'])
+  .index('by_project', ['projectId'])
+  .index('by_edge', ['blockerTaskId', 'blockedTaskId']);
+
 export const boardViewScopeValidator = v.union(
   v.literal('personal'),
   v.literal('shared'),

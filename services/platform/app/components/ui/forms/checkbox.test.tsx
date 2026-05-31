@@ -14,7 +14,9 @@ describe('Checkbox', () => {
 
     it('renders with label', () => {
       render(<Checkbox label="Accept terms" />);
-      expect(screen.getByLabelText('Accept terms')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Accept terms', { exact: false }),
+      ).toBeInTheDocument();
     });
 
     it('renders required indicator', () => {

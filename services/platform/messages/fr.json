@@ -5330,7 +5330,6 @@
       "appName": "Nom de l'application",
       "appNamePlaceholder": "ex., Acme corp",
       "textLogo": "Logo texte",
-      "textLogoOptional": "(optionnel)",
       "textLogoPlaceholder": "ex., Acme",
       "logo": "Logo",
       "logoDescription": "Téléverse le logo de ton organisation",
@@ -5445,7 +5444,17 @@
       "addSubtask": "Ajouter une sous-tâche…",
       "addDescription": "Ajouter une description…",
       "noDescription": "Aucune description.",
-      "parentCloseGuard": "Terminez toutes les sous-tâches avant de clôturer cette tâche."
+      "parentCloseGuard": "Terminez toutes les sous-tâches avant de clôturer cette tâche.",
+      "dependencies": "Dépendances",
+      "blockedBy": "Bloqué par",
+      "blocks": "Bloque",
+      "blocked": "Bloqué",
+      "noDependencies": "Aucune",
+      "linkTask": "Lier une tâche…",
+      "dependencyCycle": "Cela créerait une dépendance circulaire.",
+      "removeDependency": "Supprimer la dépendance",
+      "partOf": "Partie de {task}",
+      "subtask": "Sous-tâche"
     },
     "comment": {
       "edited": "modifié",
@@ -5468,7 +5477,9 @@
       "reordered": "Réordonné",
       "statusChanged": "Statut modifié",
       "assigneeChanged": "Responsable modifié",
-      "commentAdded": "Commentaire ajouté"
+      "commentAdded": "Commentaire ajouté",
+      "dependencyAdded": "Dépendance ajoutée",
+      "dependencyRemoved": "Dépendance supprimée"
     }
   },
   "tables": {

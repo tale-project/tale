@@ -203,6 +203,72 @@ export const listSubtasks = query({
   },
 });
 
+/**
+ * Both sides of a task's dependency graph: `blockedBy` are the tasks that must
+ * finish before this one, `blocks` are the tasks waiting on this one. Each side
+ * returns the full linked task rows (callers render status/title and navigate
+ * into them). Edges whose linked task no longer exists are skipped.
+ */
+export const listTaskDependencies = query({
+  args: { taskId: v.id('tasks') },
+  returns: v.object({
+    blockedBy: v.array(taskRowValidator),
+    blocks: v.array(taskRowValidator),
+  }),
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task) return { blockedBy: [], blocks: [] };
+    await loadAccessibleProject(ctx, task.projectId);
+
+    const blockedBy: Doc<'tasks'>[] = [];
+    for await (const edge of ctx.db
+      .query('taskDependencies')
+      .withIndex('by_blocked', (q) => q.eq('blockedTaskId', args.taskId))) {
+      const blocker = await ctx.db.get(edge.blockerTaskId);
+      if (blocker) blockedBy.push(blocker);
+    }
+
+    const blocks: Doc<'tasks'>[] = [];
+    for await (const edge of ctx.db
+      .query('taskDependencies')
+      .withIndex('by_blocker', (q) => q.eq('blockerTaskId', args.taskId))) {
+      const dependent = await ctx.db.get(edge.blockedTaskId);
+      if (dependent) blocks.push(dependent);
+    }
+
+    return { blockedBy, blocks };
+  },
+});
+
+/**
+ * Every dependency edge in a project (bounded), so the board/list/table can
+ * derive which tasks are currently blocked from the task set already loaded.
+ */
+export const listProjectDependencies = query({
+  args: { projectId: v.id('projects') },
+  returns: v.array(
+    v.object({
+      blockerTaskId: v.id('tasks'),
+      blockedTaskId: v.id('tasks'),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    await loadAccessibleProject(ctx, args.projectId);
+    const edges: { blockerTaskId: Id<'tasks'>; blockedTaskId: Id<'tasks'> }[] =
+      [];
+    for await (const edge of ctx.db
+      .query('taskDependencies')
+      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))) {
+      edges.push({
+        blockerTaskId: edge.blockerTaskId,
+        blockedTaskId: edge.blockedTaskId,
+      });
+      if (edges.length >= TASK_BOARD_CAP) break;
+    }
+    return edges;
+  },
+});
+
 /** List a task's comments (oldest first), excluding soft-deleted ones. */
 export const listTaskComments = query({
   args: { taskId: v.id('tasks') },

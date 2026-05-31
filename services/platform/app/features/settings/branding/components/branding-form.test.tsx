@@ -63,7 +63,7 @@ describe('BrandingForm', () => {
       screen.getByLabelText('branding.appName', { exact: false }),
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText('branding.textLogo branding.textLogoOptional'),
+      screen.getByLabelText('branding.textLogo', { exact: false }),
     ).toBeInTheDocument();
     expect(screen.getByText('branding.logo')).toBeInTheDocument();
     expect(screen.getByText('branding.favicon')).toBeInTheDocument();
@@ -91,7 +91,7 @@ describe('BrandingForm', () => {
       screen.getByLabelText('branding.appName', { exact: false }),
     ).toHaveValue('Existing App');
     expect(
-      screen.getByLabelText('branding.textLogo branding.textLogoOptional'),
+      screen.getByLabelText('branding.textLogo', { exact: false }),
     ).toHaveValue('EA');
   });
 

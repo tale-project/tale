@@ -73,6 +73,7 @@ import {
   boardViewsTable,
   taskActivityTable,
   taskCommentsTable,
+  taskDependenciesTable,
   tasksTable,
 } from './tasks/schema';
 import { threadFilesTable } from './thread_files/schema';
@@ -175,6 +176,7 @@ export default defineSchema({
   tasks: tasksTable,
   taskComments: taskCommentsTable,
   taskActivity: taskActivityTable,
+  taskDependencies: taskDependenciesTable,
   boardViews: boardViewsTable,
   projectSecrets: projectSecretsTable,
   agentSecretAccess: agentSecretAccessTable,

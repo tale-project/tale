@@ -153,7 +153,13 @@ function AutomationDetailLayout() {
             real layout swaps in without a horizontal/vertical jump. The real
             step-card structure renders once here; with no steps yet during
             load we map a few placeholder cards, each masked in place. */}
-        <Skeletonize loading>
+        {/* `contents`: Skeletonize's wrapper <div> must not generate a box, or
+            its default `display:block`/auto-height breaks the flex chain from
+            PageLayout's column — the canvas would collapse to ~0px and the
+            absolutely-positioned toolbar/minimap/steps would pile at the top.
+            With `contents`, the row below is the direct flex child of the
+            column, exactly like the loaded layout. */}
+        <Skeletonize loading className="contents">
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
               <div className="relative flex w-full flex-1 justify-stretch overflow-auto">

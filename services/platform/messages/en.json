@@ -5590,7 +5590,6 @@
       "appName": "App name",
       "appNamePlaceholder": "e.g, Acme corp",
       "textLogo": "Text logo",
-      "textLogoOptional": "(optional)",
       "textLogoPlaceholder": "e.g, Acme",
       "logo": "Logo",
       "logoDescription": "Upload your organization logo",
@@ -5705,7 +5704,17 @@
       "addSubtask": "Add a subtask…",
       "addDescription": "Add a description…",
       "noDescription": "No description.",
-      "parentCloseGuard": "Finish all subtasks before closing this task."
+      "parentCloseGuard": "Finish all subtasks before closing this task.",
+      "dependencies": "Dependencies",
+      "blockedBy": "Blocked by",
+      "blocks": "Blocks",
+      "blocked": "Blocked",
+      "noDependencies": "None",
+      "linkTask": "Link a task…",
+      "dependencyCycle": "That would create a circular dependency.",
+      "removeDependency": "Remove dependency",
+      "partOf": "Part of {task}",
+      "subtask": "Subtask"
     },
     "comment": {
       "edited": "edited",
@@ -5728,7 +5737,9 @@
       "reordered": "Reordered",
       "statusChanged": "Status changed",
       "assigneeChanged": "Assignee changed",
-      "commentAdded": "Comment added"
+      "commentAdded": "Comment added",
+      "dependencyAdded": "Dependency added",
+      "dependencyRemoved": "Dependency removed"
     }
   },
   "tables": {

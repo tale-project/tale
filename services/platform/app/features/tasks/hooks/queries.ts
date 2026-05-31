@@ -55,6 +55,26 @@ export function useSubtasks(taskId: Id<'tasks'> | undefined) {
   return { subtasks: data ?? [], isLoading };
 }
 
+export function useTaskDependencies(taskId: Id<'tasks'> | undefined) {
+  const { data, isLoading } = useConvexQuery(
+    api.tasks.queries.listTaskDependencies,
+    taskId ? { taskId } : 'skip',
+  );
+  return {
+    blockedBy: data?.blockedBy ?? [],
+    blocks: data?.blocks ?? [],
+    isLoading,
+  };
+}
+
+export function useProjectDependencies(projectId: Id<'projects'> | undefined) {
+  const { data, isLoading } = useConvexQuery(
+    api.tasks.queries.listProjectDependencies,
+    projectId ? { projectId } : 'skip',
+  );
+  return { edges: data ?? [], isLoading };
+}
+
 export function useTaskComments(taskId: Id<'tasks'> | undefined) {
   const { data, isLoading } = useConvexQuery(
     api.tasks.queries.listTaskComments,

@@ -20,16 +20,21 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from '../lib/display';
+import { TaskPriorityIcon } from './task-priority-icon';
 
-// A task must always carry a status and a priority — there is no "no priority"
-// state. New tasks default to Medium (`p2`) so the field is never empty.
-const DEFAULT_PRIORITY: TaskPriority = 'p2';
+// Status and priority always carry a value, but the user never has to choose:
+// a new task defaults to the Backlog column with no priority. Both fields can
+// be changed up front, yet creating with just a title is the fast path.
+const DEFAULT_STATUS: TaskStatus = 'backlog';
+const NO_PRIORITY = 'none';
+
+type PriorityValue = TaskPriority | typeof NO_PRIORITY;
 
 interface CreateTaskFormData {
   title: string;
   description: string;
   status: TaskStatus;
-  priority: TaskPriority;
+  priority: PriorityValue;
 }
 
 export function CreateTaskDialog({
@@ -37,7 +42,7 @@ export function CreateTaskDialog({
   projectId,
   open,
   onOpenChange,
-  defaultStatus = 'backlog',
+  defaultStatus = DEFAULT_STATUS,
 }: {
   organizationId: string;
   projectId: Id<'projects'>;
@@ -54,11 +59,14 @@ export function CreateTaskDialog({
     [t],
   );
   const priorityOptions = useMemo(
-    () =>
-      TASK_PRIORITY_ORDER.map((p) => ({
+    () => [
+      { value: NO_PRIORITY, label: t('priority.none') },
+      ...TASK_PRIORITY_ORDER.map((p) => ({
         value: p,
         label: t(`priority.${p}`),
+        icon: <TaskPriorityIcon priority={p} />,
       })),
+    ],
     [t],
   );
 
@@ -75,7 +83,7 @@ export function CreateTaskDialog({
           'done',
           'cancelled',
         ]),
-        priority: z.enum(['p0', 'p1', 'p2', 'p3']),
+        priority: z.enum([NO_PRIORITY, 'p0', 'p1', 'p2', 'p3']),
       }),
     [],
   );
@@ -93,7 +101,7 @@ export function CreateTaskDialog({
       title: '',
       description: '',
       status: defaultStatus,
-      priority: DEFAULT_PRIORITY,
+      priority: NO_PRIORITY,
     },
   });
 
@@ -108,7 +116,7 @@ export function CreateTaskDialog({
         title: data.title.trim(),
         description: data.description.trim() || undefined,
         status: data.status,
-        priority: data.priority,
+        priority: data.priority === NO_PRIORITY ? undefined : data.priority,
       });
       toast({ title: t('actions.create'), variant: 'success' });
       reset();
@@ -146,32 +154,32 @@ export function CreateTaskDialog({
         {...register('description')}
         disabled={isSubmitting}
       />
-      <Select
-        id="task-status"
-        label={t('fields.status')}
-        value={status}
-        onValueChange={(value: string) =>
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options derived from TASK_STATUS_ORDER
-          setValue('status', value as TaskStatus, { shouldDirty: true })
-        }
-        disabled={isSubmitting}
-        options={statusOptions}
-        required
-      />
-      <Select
-        id="task-priority"
-        label={t('fields.priority')}
-        value={priority}
-        onValueChange={(value: string) =>
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options derived from TASK_PRIORITY_ORDER
-          setValue('priority', value as TaskPriority, {
-            shouldDirty: true,
-          })
-        }
-        disabled={isSubmitting}
-        options={priorityOptions}
-        required
-      />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Select
+          id="task-status"
+          label={t('fields.status')}
+          value={status}
+          onValueChange={(value: string) =>
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options derived from TASK_STATUS_ORDER
+            setValue('status', value as TaskStatus, { shouldDirty: true })
+          }
+          disabled={isSubmitting}
+          options={statusOptions}
+        />
+        <Select
+          id="task-priority"
+          label={t('fields.priority')}
+          value={priority}
+          onValueChange={(value: string) =>
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options derived from TASK_PRIORITY_ORDER + the no-priority sentinel
+            setValue('priority', value as PriorityValue, {
+              shouldDirty: true,
+            })
+          }
+          disabled={isSubmitting}
+          options={priorityOptions}
+        />
+      </div>
     </FormDialog>
   );
 }
