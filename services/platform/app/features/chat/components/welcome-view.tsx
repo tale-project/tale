@@ -48,7 +48,7 @@ export function WelcomeView({
 
   return (
     <Skeletonize loading={isLoading} label={t('skeleton.loadingWelcome')}>
-      <div className="flex w-full max-w-(--chat-max-width) flex-col gap-6 self-center">
+      <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-6">
         <Heading level={1} weight="semibold" className="text-[1.75rem]">
           <SkeletonBox>
             {hasStarters ? (

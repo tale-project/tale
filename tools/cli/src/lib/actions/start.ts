@@ -153,6 +153,14 @@ export async function start(options: StartOptions): Promise<void> {
     );
   }
 
+  // Resolve project ID from tale.json before any Docker-resource naming —
+  // and before the legacy-layout preflight, whose `migrateConfigLayout`
+  // derives the convex container name from `getProjectId()`. Resolving after
+  // the preflight would crash with "Project context not initialized" once the
+  // preflight reached its container-side phase, leaving the host dirs already
+  // moved. This only reads/writes tale.json (no Docker), so it is safe here.
+  await resolveOrAssignProjectContext(projectDir);
+
   // Detect legacy flat-layout dirs at the project root (`agents/`,
   // `workflows/`, …, `retention/`). Under the org-first layout these
   // belong under `default/<domain>/` — the platform's resolvers won't
@@ -167,9 +175,6 @@ export async function start(options: StartOptions): Promise<void> {
   });
 
   await assertDockerAvailable();
-
-  // Resolve project ID from tale.json before any Docker-resource naming.
-  await resolveOrAssignProjectContext(projectDir);
 
   // Ensure dev infrastructure under a project-scoped lock so parallel
   // `tale start` / `tale deploy` shells can't race on docker volumes.
