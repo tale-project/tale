@@ -1236,3 +1236,106 @@ describe('Cross-org auth boundary', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('conditional preconditions + conflict mapping (F17 / F19 / F62)', () => {
+  it('PUT If-None-Match: * on an existing resource → 412 (create-only guard)', async () => {
+    const ctx = makeStubCtx({
+      queries: {
+        'webdav/tree_queries:resolvePath': () => ({
+          exists: true,
+          kind: 'document' as const,
+          documentId: 'doc1',
+        }),
+        'webdav/lock_queries:findLockForPath': () => ({ lock: null }),
+      },
+    });
+    const res = await dispatch(
+      makeRequest({
+        method: 'PUT',
+        pathname: '/dav/myorg/documents/foo.txt',
+        headers: { 'If-None-Match': '*' },
+        authenticated: true,
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(412);
+  });
+
+  it('MOVE to a missing destination parent → 409 (not a misleading 412)', async () => {
+    const ctx = makeStubCtx({
+      queries: {
+        'webdav/lock_queries:findLockForPath': () => ({ lock: null }),
+        'webdav/tree_queries:resolvePath': () => ({
+          exists: true,
+          kind: 'document' as const,
+          documentId: 'doc1',
+        }),
+      },
+      mutations: {
+        'webdav/tree_mutations:moveResource': () => {
+          throw new ConvexError({ code: 'DEST_PARENT_MISSING' });
+        },
+      },
+    });
+    const res = await dispatch(
+      makeRequest({
+        method: 'MOVE',
+        pathname: '/dav/myorg/documents/foo.txt',
+        headers: { Destination: '/dav/myorg/documents/missing/bar.txt' },
+        authenticated: true,
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it('MOVE onto itself → 403', async () => {
+    const ctx = makeStubCtx({
+      queries: {
+        'webdav/lock_queries:findLockForPath': () => ({ lock: null }),
+        'webdav/tree_queries:resolvePath': () => ({
+          exists: true,
+          kind: 'document' as const,
+          documentId: 'doc1',
+        }),
+      },
+      mutations: {
+        'webdav/tree_mutations:moveResource': () => {
+          throw new ConvexError({ code: 'SELF_DESTINATION' });
+        },
+      },
+    });
+    const res = await dispatch(
+      makeRequest({
+        method: 'MOVE',
+        pathname: '/dav/myorg/documents/foo.txt',
+        headers: { Destination: '/dav/myorg/documents/foo.txt' },
+        authenticated: true,
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('failed auth that exhausts the throttle → 403 (rate limited)', async () => {
+    const ctx = makeStubCtx({
+      mutations: {
+        'webdav/app_password_queries:chargeWebdavAuthFailure': () => {
+          throw new ConvexError({ code: 'RATE_LIMITED' });
+        },
+      },
+    });
+    const res = await dispatch(
+      makeRequest({
+        method: 'PROPFIND',
+        pathname: '/dav/myorg/documents/',
+        headers: {
+          Authorization: `Basic ${btoa('webdav-user:totally-wrong')}`,
+          Depth: '0',
+        },
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(403);
+  });
+});
