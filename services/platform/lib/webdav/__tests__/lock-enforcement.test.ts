@@ -288,4 +288,52 @@ describe('WebDAV If: header ETag/AND evaluation', () => {
     // Token matches but the AND-ed etag does not → precondition failed.
     expect(res.status).toBe(412);
   });
+
+  it('MOVE into a collection whose parent holds a depth-0 lock → 423 (destination membership, F07)', async () => {
+    const ctx = makeStubCtx({
+      queries: {
+        // The destination's DIRECT parent is locked Depth 0. A MOVE adds a new
+        // member there, so the write must be blocked without the lock token.
+        'webdav/lock_queries:findLockForPath': lockAt(
+          '/documents/lockedfolder',
+          {
+            depth: '0',
+          },
+        ),
+      },
+    });
+    const res = await dispatch(
+      makeRequest({
+        method: 'MOVE',
+        pathname: '/dav/myorg/documents/foo.txt',
+        headers: { Destination: '/dav/myorg/documents/lockedfolder/bar.txt' },
+        authenticated: true,
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(423);
+  });
+
+  it('COPY into a collection whose parent holds a depth-0 lock → 423', async () => {
+    const ctx = makeStubCtx({
+      queries: {
+        'webdav/lock_queries:findLockForPath': lockAt(
+          '/documents/lockedfolder',
+          {
+            depth: '0',
+          },
+        ),
+      },
+    });
+    const res = await dispatch(
+      makeRequest({
+        method: 'COPY',
+        pathname: '/dav/myorg/documents/foo.txt',
+        headers: { Destination: '/dav/myorg/documents/lockedfolder/bar.txt' },
+        authenticated: true,
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(423);
+  });
 });
