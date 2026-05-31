@@ -36,9 +36,8 @@ function setup(initial: string[] = []) {
       placeholder="add tag"
     />,
   );
-  // Anchored at the start so the auto-appended "(optional)" hint is tolerated
-  // without also matching the per-chip remove buttons (aria-label contains
-  // "tagsInput").
+  // Anchored at the start so we match the input by its label without also
+  // matching the per-chip remove buttons (aria-label contains "tagsInput").
   const input = utils.getByLabelText(/^Tags\b/) as HTMLInputElement;
   return { input, onChange, ...utils };
 }

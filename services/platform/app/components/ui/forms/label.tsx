@@ -9,20 +9,22 @@ import { cn } from '@/lib/utils/cn';
 interface LabelProps extends ComponentPropsWithoutRef<
   typeof LabelPrimitive.Root
 > {
+  /**
+   * Controls the suffix shown after the label text. Optionality is opt-in:
+   * the consuming field passes this explicitly so non-field labels (group
+   * headings, decorative labels) stay clean by default.
+   * - `true` → red required asterisk (`*`)
+   * - `false` → muted `(optional)` hint
+   * - `undefined` (default) → nothing
+   */
   required?: boolean;
   error?: boolean;
-  /**
-   * Suppress the automatic "(optional)" hint that every non-required labelled
-   * field shows. Set on labels that aren't form inputs (group headings,
-   * decorative labels) or where optionality is irrelevant.
-   */
-  hideOptional?: boolean;
 }
 
 export const Label = forwardRef<
   ComponentRef<typeof LabelPrimitive.Root>,
   LabelProps
->(({ className, required, error, hideOptional, children, ...props }, ref) => {
+>(({ className, required, error, children, ...props }, ref) => {
   const { t } = useT('common');
   return (
     <LabelPrimitive.Root
@@ -35,18 +37,18 @@ export const Label = forwardRef<
       {...props}
     >
       {children}
-      {/* Required → red asterisk; otherwise a muted "(optional)" hint so every
-          optional field is labelled consistently without editing each form.
-          Opt out with `hideOptional` for non-field labels. */}
-      {required ? (
+      {/* Tri-state: `required` is only rendered when set explicitly. Required →
+          red asterisk; explicitly-optional → muted "(optional)" hint; left
+          undefined → no suffix (the default, for labels not tied to a field). */}
+      {required === true ? (
         <span className="ml-1 text-red-600" aria-label={t('aria.required')}>
           *
         </span>
-      ) : hideOptional ? null : (
+      ) : required === false ? (
         <span className="text-muted-foreground/70 ml-1 text-xs font-normal lowercase">
           ({t('optional')})
         </span>
-      )}
+      ) : null}
     </LabelPrimitive.Root>
   );
 });
