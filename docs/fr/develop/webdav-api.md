@@ -63,7 +63,7 @@ PROPFIND renvoie ces propriétés vivantes pour chaque ressource :
 - `supportedlock` — annonce le support des verrous d’écriture exclusifs.
 - `lockdiscovery` — présent sur les ressources avec verrous actifs.
 
-Les dead properties ne sont pas stockées. PROPPATCH renvoie 200 par propriété mais aucune valeur n’est persistée.
+Les dead properties ne sont pas stockées. PROPPATCH renvoie 200 pour une dead property définie seule, mais définir une propriété live/protégée renvoie un 403 par propriété (`cannot-modify-protected-property`), et toutes les dead properties de la même requête sont alors signalées en 424 Failed Dependency (RFC 4918 §9.2 atomicité). Aucune valeur n’est jamais persistée.
 
 ## Sémantique des verrous
 

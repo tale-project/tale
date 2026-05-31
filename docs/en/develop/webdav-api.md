@@ -63,7 +63,7 @@ PROPFIND returns these live properties for every resource:
 - `supportedlock` — advertises exclusive write-lock support.
 - `lockdiscovery` — present on resources with active locks.
 
-Dead properties are not stored. PROPPATCH returns 200 per-property but no value is persisted.
+Dead properties are not stored. PROPPATCH echoes 200 for a dead property set on its own, but setting a live/protected property returns a per-property 403 (`cannot-modify-protected-property`), and any dead properties in the same request are then reported as 424 Failed Dependency (RFC 4918 §9.2 atomicity). No value is ever persisted.
 
 ## Lock semantics
 

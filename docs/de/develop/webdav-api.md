@@ -63,7 +63,7 @@ PROPFIND gibt diese Live-Eigenschaften für jede Ressource zurück:
 - `supportedlock` — bewirbt exklusive Schreibsperren.
 - `lockdiscovery` — vorhanden bei Ressourcen mit aktiven Sperren.
 
-Dead Properties werden nicht gespeichert. PROPPATCH gibt 200 pro Eigenschaft zurück, aber kein Wert wird persistiert.
+Dead Properties werden nicht gespeichert. PROPPATCH gibt für eine allein gesetzte Dead Property 200 zurück, aber das Setzen einer Live-/geschützten Eigenschaft liefert pro Eigenschaft ein 403 (`cannot-modify-protected-property`), und alle Dead Properties derselben Anfrage werden dann als 424 Failed Dependency gemeldet (RFC 4918 §9.2 Atomarität). Es wird nie ein Wert persistiert.
 
 ## Sperrsemantik
 
