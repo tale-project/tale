@@ -4,6 +4,7 @@ import {
   paginateWithFilter,
   type CursorPaginatedResult,
 } from '../lib/pagination';
+import { isActiveDocument } from './_helpers';
 
 export interface QueryDocumentsArgs {
   organizationId: string;
@@ -39,5 +40,6 @@ export async function queryDocuments(
   return paginateWithFilter(buildQuery(ctx, args).order('desc'), {
     numItems: args.paginationOpts.numItems,
     cursor: args.paginationOpts.cursor,
+    filter: isActiveDocument,
   });
 }

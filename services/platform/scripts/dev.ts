@@ -23,6 +23,7 @@
 */
 
 import { type ChildProcess, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
@@ -125,6 +126,61 @@ function ensureBetterAuthSecret() {
     );
     process.env.BETTER_AUTH_SECRET =
       'local-dev-better-auth-secret-do-not-use-in-prod-0123456789abcdef';
+  }
+}
+
+// WebDAV app-password HMAC key. The `createAppPassword` mutation reads this
+// from the Convex deployment env via `requireHmacSecret()`, so it must be
+// pushed into Convex (see ORCHESTRATOR_MANAGED_KEYS in
+// sync-convex-env-from-dotenv.ts). We derive it deterministically from
+// INSTANCE_SECRET using the SAME formula as docker-entrypoint.sh
+// (sha256(secret || ':webdav-hmac:v1')) so a local dev key is stable across
+// restarts and identical to what a containerized run would produce. Must run
+// after ensureInstanceSecret() so INSTANCE_SECRET is populated. An explicit
+// .env value still wins — we only fill the gap.
+function ensureWebdavHmacKey() {
+  if (process.env.WEBDAV_APP_PASSWORD_HMAC_KEY) return;
+  const secret = process.env.INSTANCE_SECRET ?? '';
+  process.env.WEBDAV_APP_PASSWORD_HMAC_KEY = createHash('sha256')
+    .update(`${secret}:webdav-hmac:v1`)
+    .digest('hex');
+}
+
+// WebDAV's dev route (vite-plugins/serve-webdav.ts) talks to Convex with the
+// deployment ADMIN_KEY to call internal functions; without it the plugin
+// disables /dav/* and every request returns 503. Prod derives the key with the
+// `generate_key` binary in docker-entrypoint.sh, but the Convex CLI does NOT
+// download that binary for local dev — it instead writes the anonymous
+// deployment's admin key in cleartext to .convex/local/default/config.json.
+// Read it from there so `bun dev` enables WebDAV with zero manual setup. Only
+// meaningful for the local backend (the file is a local-CLI artifact); an
+// explicit ADMIN_KEY (.env) always wins. MUST run after waitForConvex() so the
+// CLI has created the config file.
+function ensureLocalAdminKey() {
+  if (process.env.ADMIN_KEY) return;
+  const configPath = join(platformRoot, '.convex/local/default/config.json');
+  if (!existsSync(configPath)) {
+    console.warn(
+      `[dev] ⚠️  ${configPath} not found; ADMIN_KEY unset, WebDAV /dav/* will 503.`,
+    );
+    return;
+  }
+  try {
+    const adminKey = JSON.parse(readFileSync(configPath, 'utf8'))?.adminKey;
+    if (typeof adminKey !== 'string' || adminKey.length === 0) {
+      console.warn(
+        '[dev] ⚠️  No adminKey in local Convex config; WebDAV /dav/* will 503.',
+      );
+      return;
+    }
+    process.env.ADMIN_KEY = adminKey;
+    console.log(
+      '[dev] 🔑 ADMIN_KEY loaded from local Convex config — WebDAV /dav/* enabled',
+    );
+  } catch (err) {
+    console.warn(
+      `[dev] ⚠️  Failed to read local Convex admin key (${configPath}); WebDAV /dav/* will 503. Underlying: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 
@@ -397,6 +453,7 @@ async function main() {
     envNormalizeCommon();
     ensureInstanceSecret();
     ensureBetterAuthSecret();
+    ensureWebdavHmacKey();
     const deployment = process.env.CONVEX_DEPLOYMENT;
     const hasLocalDeployment = deployment?.startsWith('anonymous:');
     if (deployment && !hasLocalDeployment) {
@@ -623,6 +680,13 @@ async function main() {
       console.log(
         `[dev] ℹ️  Picked up new deployment: ${freshEnv.CONVEX_DEPLOYMENT}`,
       );
+    }
+
+    // Load the local deployment's admin key now that `convex dev` has written
+    // it — enables the WebDAV /dav/* route in dev. External backends supply
+    // ADMIN_KEY via .env instead (no local config file to read).
+    if (!useExternalConvex) {
+      ensureLocalAdminKey();
     }
 
     console.log('[dev] 🔄 Syncing environment variables...');

@@ -71,7 +71,13 @@ function parseDotEnv(filePath: string): Record<string, string> {
 // populated before invoking the sync, so we include them here so they
 // (a) get pushed into Convex, and (b) are protected from the stale-cleanup
 // pass that removes Convex vars missing from the merged dotenv map.
-const ORCHESTRATOR_MANAGED_KEYS = ['BETTER_AUTH_SECRET'] as const;
+const ORCHESTRATOR_MANAGED_KEYS = [
+  'BETTER_AUTH_SECRET',
+  // Derived from INSTANCE_SECRET by the dev orchestrator (ensureWebdavHmacKey),
+  // not present in any .env file. Required by the webdav createAppPassword
+  // mutation via requireHmacSecret().
+  'WEBDAV_APP_PASSWORD_HMAC_KEY',
+] as const;
 
 function findEnv(): Record<string, string> {
   const repoEnvPath = join(repoRoot, '.env');

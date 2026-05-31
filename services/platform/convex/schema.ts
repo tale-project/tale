@@ -75,6 +75,7 @@ import {
 } from './users/schema';
 import { vendorsTable } from './vendors/schema';
 import { videoLinkJobsTable } from './video_links/schema';
+import { webdavAppPasswordsTable, webdavLocksTable } from './webdav/schema';
 import { websitesTable } from './websites/schema';
 import {
   wfDefinitionsTable,
@@ -163,6 +164,8 @@ export default defineSchema({
   skillUploadClaims: skillUploadClaimTable,
   skillUploadIntents: skillUploadIntentTable,
   videoLinkJobs: videoLinkJobsTable,
+  webdavAppPasswords: webdavAppPasswordsTable,
+  webdavLocks: webdavLocksTable,
   websites: websitesTable,
   wfApiKeys: wfApiKeysTable,
   wfDefinitions: wfDefinitionsTable,

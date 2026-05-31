@@ -1,5 +1,6 @@
 import {
   Building2,
+  HardDrive,
   KeyRound,
   Palette,
   Plug,
@@ -88,6 +89,12 @@ export function useSettingsMenuGroups(
         key: 'apiKeys',
         icon: KeyRound,
         path: 'api-keys',
+        can: ['read', 'developerSettings'],
+      },
+      {
+        key: 'webdav',
+        icon: HardDrive,
+        path: 'webdav',
         can: ['read', 'developerSettings'],
       },
     ];

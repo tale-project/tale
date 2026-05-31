@@ -37,6 +37,7 @@ import { Route as DashboardIdProjectsIndexRouteImport } from './routes/dashboard
 import { Route as DashboardIdChatIndexRouteImport } from './routes/dashboard/$id/chat/index';
 import { Route as DashboardIdAutomationsIndexRouteImport } from './routes/dashboard/$id/automations/index';
 import { Route as DashboardIdAgentsIndexRouteImport } from './routes/dashboard/$id/agents/index';
+import { Route as DashboardIdSettingsWebdavRouteImport } from './routes/dashboard/$id/settings/webdav';
 import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams';
 import { Route as DashboardIdSettingsSkillsRouteImport } from './routes/dashboard/$id/settings/skills';
 import { Route as DashboardIdSettingsProvidersRouteImport } from './routes/dashboard/$id/settings/providers';
@@ -241,6 +242,12 @@ const DashboardIdAgentsIndexRoute = DashboardIdAgentsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardIdAgentsRoute,
 } as any);
+const DashboardIdSettingsWebdavRoute =
+  DashboardIdSettingsWebdavRouteImport.update({
+    id: '/webdav',
+    path: '/webdav',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any);
 const DashboardIdSettingsTeamsRoute =
   DashboardIdSettingsTeamsRouteImport.update({
     id: '/teams',
@@ -649,6 +656,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren;
   '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsRouteWithChildren;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
+  '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
   '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute;
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute;
@@ -726,6 +734,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/personal': typeof DashboardIdSettingsPersonalRoute;
   '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
+  '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
   '/dashboard/$id/agents': typeof DashboardIdAgentsIndexRoute;
   '/dashboard/$id/automations': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat': typeof DashboardIdChatIndexRoute;
@@ -817,6 +826,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren;
   '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsRouteWithChildren;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
+  '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
   '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute;
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute;
@@ -907,6 +917,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/settings/teams'
+    | '/dashboard/$id/settings/webdav'
     | '/dashboard/$id/agents/'
     | '/dashboard/$id/automations/'
     | '/dashboard/$id/chat/'
@@ -984,6 +995,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/personal'
     | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/teams'
+    | '/dashboard/$id/settings/webdav'
     | '/dashboard/$id/agents'
     | '/dashboard/$id/automations'
     | '/dashboard/$id/chat'
@@ -1074,6 +1086,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/settings/teams'
+    | '/dashboard/$id/settings/webdav'
     | '/dashboard/$id/agents/'
     | '/dashboard/$id/automations/'
     | '/dashboard/$id/chat/'
@@ -1322,6 +1335,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/$id/agents/';
       preLoaderRoute: typeof DashboardIdAgentsIndexRouteImport;
       parentRoute: typeof DashboardIdAgentsRoute;
+    };
+    '/dashboard/$id/settings/webdav': {
+      id: '/dashboard/$id/settings/webdav';
+      path: '/webdav';
+      fullPath: '/dashboard/$id/settings/webdav';
+      preLoaderRoute: typeof DashboardIdSettingsWebdavRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
     };
     '/dashboard/$id/settings/teams': {
       id: '/dashboard/$id/settings/teams';
@@ -2005,6 +2025,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsProvidersRoute: typeof DashboardIdSettingsProvidersRouteWithChildren;
   DashboardIdSettingsSkillsRoute: typeof DashboardIdSettingsSkillsRouteWithChildren;
   DashboardIdSettingsTeamsRoute: typeof DashboardIdSettingsTeamsRoute;
+  DashboardIdSettingsWebdavRoute: typeof DashboardIdSettingsWebdavRoute;
   DashboardIdSettingsIndexRoute: typeof DashboardIdSettingsIndexRoute;
 }
 
@@ -2027,6 +2048,7 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
     DashboardIdSettingsProvidersRouteWithChildren,
   DashboardIdSettingsSkillsRoute: DashboardIdSettingsSkillsRouteWithChildren,
   DashboardIdSettingsTeamsRoute: DashboardIdSettingsTeamsRoute,
+  DashboardIdSettingsWebdavRoute: DashboardIdSettingsWebdavRoute,
   DashboardIdSettingsIndexRoute: DashboardIdSettingsIndexRoute,
 };
 

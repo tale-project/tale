@@ -12,6 +12,13 @@ import {
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
+import { fetchAdapter as webdavFetchAdapter } from './lib/webdav/adapters/fetch';
+import { makeWebdavCtx } from './lib/webdav/ctx';
+import {
+  ensureWebdavHmacKey,
+  WEBDAV_HMAC_KEY_MIN_LENGTH,
+} from './lib/webdav/hmac-key';
+import { WEBDAV_METHODS } from './lib/webdav/types';
 import {
   buildStatusFeed,
   probeServices,
@@ -343,14 +350,36 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     crossOriginOpenerPolicy: false,
     crossOriginResourcePolicy: false,
   });
+  // WebDAV-specific narrow variant: CSP is dropped (DAV bodies are raw
+  // blobs / XML, not HTML — CSP rewrites would confuse clients like
+  // Finder and rclone), but HSTS, X-Frame-Options, X-Content-Type-Options,
+  // and Referrer-Policy stay on. A WebDAV-served HTML upload SHOULD NOT
+  // execute as a same-origin document; nosniff + X-Frame-Options: DENY
+  // close that surface. CORS-relevant defaults stay off (no browser is
+  // expected to script-fetch /dav/*).
+  // Hono's `secureHeaders` accepts `ContentSecurityPolicyOptions` only —
+  // there's no `false` literal for the CSP key, so we omit it to disable
+  // CSP generation while keeping HSTS / nosniff / X-Frame-Options.
+  const secureForDav = secureHeaders({
+    strictTransportSecurity: isHttpsSite(env) ? 'max-age=15552000' : false,
+    xContentTypeOptions: 'nosniff',
+    xFrameOptions: 'DENY',
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false,
+  });
   // `secureHeaders` unconditionally rewrites `Content-Security-Policy`
   // after handlers run, so per-route permissive CSP cannot be set just by
   // header overrides. The Canvas preview shell needs its own permissive
   // CSP; bypass `secureHeaders` for that single path explicitly. Path
   // guard, not registration order — the latter is fragile to refactors.
-  app.use('*', async (c, next) =>
-    c.req.path === '/canvas-preview' ? next() : secure(c, next),
-  );
+  app.use('*', async (c, next) => {
+    if (c.req.path === '/canvas-preview') return next();
+    if (c.req.path.startsWith('/dav/') || c.req.path === '/dav')
+      return secureForDav(c, next);
+    return secure(c, next);
+  });
 
   app.post('/canvas-preview', async (c) => {
     const body = await c.req.parseBody();
@@ -508,6 +537,67 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       },
     });
   });
+
+  // WebDAV server (/dav/<orgSlug>/...). HTTP Basic auth with per-user
+  // app-passwords; Caddy default fallback already routes /dav/* here so
+  // no proxy rule is needed. Code lives in `lib/webdav/`; the same
+  // protocol layer is mirrored into Vite dev by `vite-plugins/serve-webdav.ts`.
+  //
+  // CSP / security-headers from `secureHeaders` would clobber blob
+  // responses on GET — webdav handlers set their own Content-Type and
+  // we want the raw bytes through. Skip the middleware on this path.
+  const webdavAdminKey = process.env.ADMIN_KEY ?? '';
+  // Dev parity: `docker-entrypoint.sh` derives this deterministically from
+  // INSTANCE_SECRET in prod; ensureWebdavHmacKey mirrors that derivation so
+  // `bun dev` works without an explicit operator step. An explicit env var
+  // always wins — operators rotating the HMAC key set it directly in
+  // .env.local.
+  const webdavHmacKey = ensureWebdavHmacKey() ?? '';
+  const webdavConvexUrl = process.env.CONVEX_URL ?? 'http://convex:3210';
+  // Boot-time visibility into the two preconditions for /dav/*. We log
+  // and continue instead of throwing so the rest of the platform serves
+  // even when the operator hasn't configured WebDAV yet; the per-request
+  // handler then 500s with an actionable message.
+  if (!webdavAdminKey) {
+    console.warn(
+      '[webdav] ADMIN_KEY unset — /dav/* will 500. Set via docker-entrypoint (prod) or .env.local (dev).',
+    );
+  }
+  if (!webdavHmacKey || webdavHmacKey.length < WEBDAV_HMAC_KEY_MIN_LENGTH) {
+    console.warn(
+      `[webdav] WEBDAV_APP_PASSWORD_HMAC_KEY unset or too short (need ${WEBDAV_HMAC_KEY_MIN_LENGTH} hex chars) — /dav/* will 500.`,
+    );
+  }
+  let webdavCtx: ReturnType<typeof makeWebdavCtx> | null = null;
+  function getWebdavCtx() {
+    if (!webdavAdminKey) {
+      throw new Error(
+        'ADMIN_KEY not set — required for /dav/* (webdav server reads Convex via admin auth)',
+      );
+    }
+    if (!webdavCtx) {
+      webdavCtx = makeWebdavCtx({
+        convexUrl: webdavConvexUrl,
+        adminKey: webdavAdminKey,
+        // Escape hatch for the GET storage-proxy fallback when the Convex
+        // site origin isn't `<backend host>:3211` — e.g. an external Convex
+        // on non-default ports or a single-origin HTTPS front. Defaults to
+        // the :3211 derivation when unset.
+        convexSiteUrl: process.env.WEBDAV_CONVEX_SITE_URL || undefined,
+      });
+    }
+    return webdavCtx;
+  }
+  const webdavHandler = (c: { req: { raw: Request } }) =>
+    webdavFetchAdapter(c.req.raw, getWebdavCtx());
+  // Hono's `Method` union covers RFC 7231 verbs only. WebDAV adds
+  // PROPFIND/PROPPATCH/MKCOL/MOVE/COPY/LOCK/UNLOCK, which Hono's router
+  // accepts at runtime via `app.on(string[], ...)` but the TS overload
+  // declares the narrower `Method[]`. Cast intentionally.
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  app.on(WEBDAV_METHODS as unknown as string[], '/dav/*', webdavHandler);
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  app.on(WEBDAV_METHODS as unknown as string[], '/dav', webdavHandler);
 
   // Static files + index.html fallback (TanStack Router SPA).
   app.get('*', async (c) => {

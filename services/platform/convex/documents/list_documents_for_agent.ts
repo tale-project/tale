@@ -16,6 +16,7 @@ import {
   levenshteinDistance,
 } from '../lib/fuzzy_match';
 import { hasTeamAccess } from '../lib/team_access';
+import { isActiveDocument } from './_helpers';
 
 const MAX_SCAN = 10_000;
 const DEFAULT_LIMIT = 20;
@@ -128,6 +129,10 @@ export async function listDocumentsForAgent(
     }
 
     if (!doc.fileId) continue;
+    // Trashed/expired docs (e.g. WebDAV DELETE) must not surface to the
+    // document_find agent tool — DELETE is a soft delete that leaves the row
+    // and its RAG vectors live.
+    if (!isActiveDocument(doc)) continue;
     if (folderIdSet && !folderIdSet.has(doc.folderId ?? '')) continue;
     if (args.extension && doc.extension !== args.extension) continue;
 

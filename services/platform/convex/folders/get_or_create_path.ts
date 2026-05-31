@@ -1,6 +1,8 @@
+import { ConvexError } from 'convex/values';
+
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import { validateFolderName } from './mutations';
+import { MAX_FOLDER_DEPTH, validateFolderName } from './mutations';
 
 export async function getOrCreateFolderPath(
   ctx: MutationCtx,
@@ -12,6 +14,11 @@ export async function getOrCreateFolderPath(
   const segments = pathSegments.filter((s) => s.trim().length > 0);
   if (segments.length === 0) {
     return undefined;
+  }
+  // Same cap enforced by the folder create mutation. Auto-vivification
+  // paths (OneDrive import, WebDAV MKCOL/PUT/MOVE) must not bypass it.
+  if (segments.length > MAX_FOLDER_DEPTH) {
+    throw new ConvexError({ code: 'CONFLICT' });
   }
 
   let parentId: Id<'folders'> | undefined;

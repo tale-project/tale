@@ -171,5 +171,61 @@
     "errors": {
       "RATE_LIMITED": "Das passiert grad zu oft. Versuch es gleich nochmal."
     }
+  },
+  "accessDenied": {
+    "webdav": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die WebDAV-Einstellungen zuzugreifen."
+  },
+  "metadata": {
+    "webdav": {
+      "title": "WebDAV",
+      "description": "Tale-Dokumente als Netzlaufwerk einhängen."
+    }
+  },
+  "navigation": {
+    "webdav": "WebDAV"
+  },
+  "webdav": {
+    "title": "WebDAV",
+    "description": "Hänge Tale-Dokumente als Netzlaufwerk im Finder, File Explorer oder einem beliebigen WebDAV-Client ein.",
+    "connectionDetails": {
+      "title": "Verbindungsdaten",
+      "description": "Verwende diese im Finder, File Explorer oder in einem beliebigen WebDAV-Client.",
+      "usernameLabel": "Benutzername",
+      "usernameHelp": "Deine Tale-Konto-E-Mail (oder dein Benutzername)",
+      "passwordLabel": "Passwort",
+      "passwordHelp": "Ein App-Passwort, das du unten erzeugst — nicht dein Konto-Passwort."
+    },
+    "create": {
+      "title": "Neues App-Passwort erzeugen",
+      "description": "Nutze eines pro Gerät. Das vollständige Passwort wird nur einmal angezeigt — kopiere es, bevor du diesen Dialog schliesst.",
+      "labelLabel": "Bezeichnung",
+      "labelPlaceholder": "z. B. MacBook Finder",
+      "submit": "Erzeugen",
+      "error": "App-Passwort konnte nicht erstellt werden",
+      "savedTitle": "Speichere dieses Passwort — es wird nicht erneut angezeigt.",
+      "copy": "Kopieren",
+      "dismiss": "Ich habe es gespeichert"
+    },
+    "list": {
+      "empty": "Noch keine App-Passwörter.",
+      "label": "Label",
+      "prefix": "Präfix",
+      "lastUsed": "Zuletzt genutzt",
+      "created": "Erstellt",
+      "neverUsed": "nie",
+      "revoked": "widerrufen",
+      "revoke": "Widerrufen",
+      "copy": "Kopieren",
+      "revokedToast": "Widerrufen",
+      "copiedToast": "Kopiert",
+      "revokeError": "Widerruf nicht möglich",
+      "copyError": "Konnte nicht kopieren"
+    },
+    "revokeDialog": {
+      "title": "Dieses App-Passwort widerrufen?",
+      "body": "Jedes Gerät, das mit diesem Passwort eingehängt ist, wird getrennt und aktive Lock-Tokens werden freigegeben.",
+      "confirm": "Widerrufen",
+      "cancel": "Abbrechen"
+    }
   }
 }

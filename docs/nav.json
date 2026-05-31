@@ -176,7 +176,8 @@
           "label": "integrations",
           "pages": [
             "platform/integrations/overview",
-            "platform/integrations/mcp-servers"
+            "platform/integrations/mcp-servers",
+            "platform/integrations/webdav"
           ]
         },
         {
@@ -256,6 +257,7 @@
         "develop/overview",
         "develop/api-reference",
         "develop/webhooks",
+        "develop/webdav-api",
         "develop/integrations",
         "develop/rate-limits",
         "develop/status-page",

@@ -9,6 +9,7 @@
 
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import { isActiveDocument } from './_helpers';
 import { transformDocumentsBatch } from './transform_to_document_item';
 import type { DocumentItemResponse } from './types';
 
@@ -64,7 +65,9 @@ export async function getDocumentByPath(
 
     let document = null;
     for await (const doc of docQuery) {
-      if (doc.title === fileName) {
+      // A trashed/expired doc at this path must resolve as "not found" — it is
+      // shown in Trash, not the live tree (e.g. after a WebDAV DELETE).
+      if (doc.title === fileName && isActiveDocument(doc)) {
         document = doc;
         break;
       }

@@ -9,6 +9,7 @@
     "skills": "Tu dois disposer des permissions Admin ou Développeur pour gérer les skills.",
     "branding": "Tu dois disposer des permissions Admin pour accéder aux paramètres de marque.",
     "knowledge": "Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.",
+    "webdav": "Tu dois disposer des permissions Admin ou Développeur pour accéder aux paramètres WebDAV.",
     "workspaceNotFound": "L'espace de travail que tu recherches n'existe pas ou a été supprimé.",
     "disabled": "Ton compte a été désactivé. Contacte le support pour obtenir de l'aide.",
     "noMembership": "Tu n'es pas membre de cet espace de travail. Merci de contacter un administrateur pour obtenir l'accès.",
@@ -3525,6 +3526,10 @@
     "shared-chat": {
       "title": "Chat partagé",
       "description": "Consulte une conversation de chat partagée."
+    },
+    "webdav": {
+      "title": "WebDAV",
+      "description": "Monte les documents Tale comme lecteur réseau."
     }
   },
   "navigation": {
@@ -3549,6 +3554,7 @@
     "account": "Compte",
     "agents": "Agents",
     "skills": "Skills",
+    "webdav": "WebDAV",
     "teamFilter": {
       "allTeams": "Toutes"
     },
@@ -5905,6 +5911,54 @@
     "editor": {
       "slugFallback": "indisponible",
       "slugEditorEmptyLockout": "Une liste vide bloque l'accès au projet pour tous les membres. Ajoute au moins un élément ou repasse à « Tous »."
+    }
+  },
+  "webdav": {
+    "title": "WebDAV",
+    "description": "Monte les documents Tale comme lecteur réseau dans Finder, File Explorer ou n'importe quel client WebDAV.",
+    "connectionDetails": {
+      "title": "Détails de connexion",
+      "description": "Utilise-les dans Finder, File Explorer ou n'importe quel client WebDAV.",
+      "usernameLabel": "Nom d'utilisateur",
+      "usernameHelp": "L'e-mail de ton compte Tale (ou ton nom d'utilisateur)",
+      "passwordLabel": "Mot de passe",
+      "passwordHelp": "Un mot de passe applicatif que tu génères ci-dessous — pas le mot de passe de ton compte."
+    },
+    "create": {
+      "title": "Générer un nouveau mot de passe applicatif",
+      "description": "Utilises-en un par appareil. Le mot de passe complet n'est affiché qu'une fois — copie-le avant de fermer ce dialogue.",
+      "labelLabel": "Libellé",
+      "labelPlaceholder": "p. ex. MacBook Finder",
+      "submit": "Générer",
+      "error": "Impossible de créer le mot de passe applicatif",
+      "errorLimit": "Tu as atteint le nombre maximum de mots de passe applicatifs. Révoque-en un inutilisé d’abord.",
+      "errorInvalidLabel": "Saisis un libellé de 1 à 64 caractères.",
+      "errorRateLimited": "Trop de mots de passe applicatifs créés récemment. Réessaie plus tard.",
+      "savedTitle": "Sauvegarde ce mot de passe — il ne sera plus affiché.",
+      "copy": "Copier",
+      "dismiss": "Je l'ai sauvegardé"
+    },
+    "list": {
+      "empty": "Aucun mot de passe applicatif pour l'instant.",
+      "label": "Libellé",
+      "prefix": "Préfixe",
+      "lastUsed": "Dernière utilisation",
+      "created": "Créé",
+      "neverUsed": "jamais",
+      "revoked": "révoqué",
+      "revoke": "Révoquer",
+      "copy": "Copier",
+      "revokedToast": "Révoqué",
+      "copiedToast": "Copié",
+      "revokeError": "Révocation impossible",
+      "revokeErrorNotFound": "Ce mot de passe applicatif n’existe plus.",
+      "copyError": "Impossible de copier"
+    },
+    "revokeDialog": {
+      "title": "Révoquer ce mot de passe applicatif ?",
+      "body": "Tout appareil monté avec ce mot de passe sera déconnecté et les verrous actifs seront libérés.",
+      "confirm": "Révoquer",
+      "cancel": "Annuler"
     }
   }
 }
