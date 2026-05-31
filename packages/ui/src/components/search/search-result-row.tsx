@@ -5,7 +5,7 @@ import {
   Hash,
   Type,
 } from 'lucide-react';
-import { type ComponentType, useMemo } from 'react';
+import type { ComponentType } from 'react';
 
 import { cn } from '../../lib/cn';
 import { Highlight } from './highlight';
@@ -57,32 +57,28 @@ export function SearchResultRow({
   resultIcon,
   getBreadcrumb,
 }: SearchResultRowProps) {
+  // Cheap per-render derivations — a row only renders for the handful of
+  // results on screen, so these stay inline (no memo overhead per the project's
+  // "profile-justified hooks only" rule).
+
   // Highlight the union of "what the index matched" + "what the user typed
   // that fired". Defensive against malformed results where these are missing.
-  const highlightTerms = useMemo(() => {
-    const matched = Array.isArray(result.matchedTerms)
-      ? result.matchedTerms
-      : [];
-    const queried = Array.isArray(result.queryTerms) ? result.queryTerms : [];
-    const merged = [...matched, ...queried];
-    if (merged.length === 0) return fallbackTerms;
-    return Array.from(new Set(merged));
-  }, [result.matchedTerms, result.queryTerms, fallbackTerms]);
+  const matched = Array.isArray(result.matchedTerms) ? result.matchedTerms : [];
+  const queried = Array.isArray(result.queryTerms) ? result.queryTerms : [];
+  const merged = [...matched, ...queried];
+  const highlightTerms =
+    merged.length === 0 ? fallbackTerms : Array.from(new Set(merged));
 
   // Secondary line: a highlighted snippet extracted from `body` (docs), else
   // the explicit `subtitle` (platform entities).
-  const secondary = useMemo(() => {
-    if (result.body) return extractSnippet(result.body, highlightTerms, 150);
-    return result.subtitle ?? '';
-  }, [result.body, result.subtitle, highlightTerms]);
+  const secondary = result.body
+    ? extractSnippet(result.body, highlightTerms, 150)
+    : (result.subtitle ?? '');
 
   const Icon =
     result.icon ?? resultIcon?.(result) ?? matchKindIcon(result) ?? FileText;
 
-  const breadcrumb = useMemo(
-    () => getBreadcrumb?.(result) ?? [],
-    [getBreadcrumb, result],
-  );
+  const breadcrumb = getBreadcrumb?.(result) ?? [];
 
   return (
     <li>

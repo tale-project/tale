@@ -10,7 +10,7 @@ export type SearchStatus = 'idle' | 'loading' | 'ready' | 'error';
  * (subtitle/icon/href/group/data). All rich fields are optional so a simple
  * source only sets `id` + `title`.
  */
-export interface SearchResult {
+export interface SearchResult<TData = object> {
   /** Stable unique id within a result set (doc slug, thread id, customer id). */
   id: string;
   /** Primary line. */
@@ -38,16 +38,18 @@ export interface SearchResult {
   match?: Record<string, string[]>;
   /** Final rerank score (docs). */
   score?: number;
-  /** Escape hatch: the original source row, for the caller's `onSelect`. */
-  data?: unknown;
+  /** The original source row, carried through to the caller's `onSelect`.
+   *  Defaults to `object` so simple sources can omit the type argument;
+   *  parameterise `SearchResult<MyRow>` to get a typed payload end-to-end. */
+  data?: TData;
 }
 
 /**
  * State a {@link SearchSource} returns each render. `loadMore`/`canLoadMore`
  * are omitted by sources that can't paginate (e.g. the static docs index).
  */
-export interface SearchSourceState {
-  results: SearchResult[];
+export interface SearchSourceState<TData = object> {
+  results: SearchResult<TData>[];
   status: SearchStatus;
   error?: Error | null;
   /** Highlight terms (docs supplies tokenised query terms; others may omit —
@@ -77,10 +79,10 @@ export interface SearchSourceContext {
  *   (memoise the mapping) — the controller keys keyboard-nav resets off the
  *   query, but stable arrays avoid needless re-grouping.
  */
-export type SearchSource = (
+export type SearchSource<TData = object> = (
   query: string,
   ctx: SearchSourceContext,
-) => SearchSourceState;
+) => SearchSourceState<TData>;
 
 export interface RecentSearch {
   /** Free-text query the user typed. */

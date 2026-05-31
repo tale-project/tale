@@ -1,5 +1,9 @@
 import type { OptimisticLocalStore } from 'convex/browser';
-import type { FunctionReference } from 'convex/server';
+import type {
+  FunctionReference,
+  PaginationOptions,
+  PaginationResult,
+} from 'convex/server';
 import { makeFunctionReference } from 'convex/server';
 import { describe, expect, it } from 'vitest';
 
@@ -10,7 +14,10 @@ import {
   updateDocumentQuery,
   updateItemInListQuery,
 } from './optimistic-updates';
-import { removeItemFromPaginatedQuery } from './use-convex-paginated-query';
+import {
+  removeItemFromPaginatedQuery,
+  updateItemInPaginatedQuery,
+} from './use-convex-paginated-query';
 
 // Minimal in-memory OptimisticLocalStore for exercising the helpers. The `as`
 // escapes are confined to satisfying Convex's generic store interface in tests.
@@ -180,5 +187,96 @@ describe('removeItemFromPaginatedQuery', () => {
     expect(
       store.getQuery(query, { organizationId: 'org1', folderId: 'f2' }),
     ).toEqual({ page: [{ _id: 'c' }], isDone: true, continueCursor: '' });
+  });
+});
+
+describe('updateItemInPaginatedQuery', () => {
+  // A concretely-typed paginated query ref so the update callback's item type
+  // resolves to the page element (not `unknown`). `paginationOpts` is part of
+  // the args contract for any real paginated query, so it's included here too.
+  const pageOpts: PaginationOptions = { numItems: 10, cursor: null };
+  type Customer = { _id: string; name: string };
+  const paginatedQuery = makeFunctionReference<
+    'query',
+    {
+      paginationOpts: PaginationOptions;
+      organizationId: string;
+      status?: string;
+    },
+    PaginationResult<Customer>
+  >('customers:listPaginated');
+
+  it('patches the matching item in place, leaving the rest untouched', () => {
+    const store = createFakeStore();
+    const args = { paginationOpts: pageOpts, organizationId: 'org1' };
+    store.setQuery(paginatedQuery, args, {
+      page: [
+        { _id: 'a', name: 'Alpha' },
+        { _id: 'b', name: 'Beta' },
+      ],
+      isDone: false,
+      continueCursor: '',
+    });
+    updateItemInPaginatedQuery(store, paginatedQuery, 'b', (item) => ({
+      ...item,
+      name: 'Beta!',
+    }));
+    expect(store.getQuery(paginatedQuery, args)).toEqual({
+      page: [
+        { _id: 'a', name: 'Alpha' },
+        { _id: 'b', name: 'Beta!' },
+      ],
+      isDone: false,
+      continueCursor: '',
+    });
+  });
+
+  it('updates the item across every loaded arg variant', () => {
+    const store = createFakeStore();
+    const activeArgs = {
+      paginationOpts: pageOpts,
+      organizationId: 'org1',
+      status: 'active',
+    };
+    const archivedArgs = {
+      paginationOpts: pageOpts,
+      organizationId: 'org1',
+      status: 'archived',
+    };
+    store.setQuery(paginatedQuery, activeArgs, {
+      page: [{ _id: 'a', name: 'Alpha' }],
+      isDone: true,
+      continueCursor: '',
+    });
+    store.setQuery(paginatedQuery, archivedArgs, {
+      page: [{ _id: 'a', name: 'Alpha' }],
+      isDone: true,
+      continueCursor: '',
+    });
+    updateItemInPaginatedQuery(store, paginatedQuery, 'a', (item) => ({
+      ...item,
+      name: 'Renamed',
+    }));
+    expect(store.getQuery(paginatedQuery, activeArgs)).toEqual({
+      page: [{ _id: 'a', name: 'Renamed' }],
+      isDone: true,
+      continueCursor: '',
+    });
+    expect(store.getQuery(paginatedQuery, archivedArgs)).toEqual({
+      page: [{ _id: 'a', name: 'Renamed' }],
+      isDone: true,
+      continueCursor: '',
+    });
+  });
+
+  it('is a no-op when the paginated query is absent', () => {
+    const store = createFakeStore();
+    updateItemInPaginatedQuery(store, paginatedQuery, 'a', (item) => item);
+    expect(
+      store.getQuery(paginatedQuery, {
+        paginationOpts: pageOpts,
+        organizationId: 'org1',
+      }),
+    ).toBeUndefined();
   });
 });

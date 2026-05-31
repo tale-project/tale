@@ -21,8 +21,10 @@ export async function runEntitySearch<T extends TableNames>(
   strategy: SearchStrategy<T>,
   args: EntitySearchArgs<T>,
 ): Promise<PaginationResult<Doc<T>>> {
-  if (strategy.engine === 'searchIndex' && strategy.searchIndexName) {
-    // FUTURE: route through `.withSearchIndex(strategy.searchIndexName, …)`.
+  if (strategy.engine === 'searchIndex') {
+    // The discriminated `SearchStrategy` guarantees `searchIndexName`/
+    // `searchIndexField` here, so a misconfigured strategy can't silently reach
+    // this branch. FUTURE: route through `.withSearchIndex(strategy.searchIndexName, …)`.
     // Single edit point — intentionally not implemented while the bootstrap
     // is disabled. Fall through to the scan engine until then.
     console.warn(

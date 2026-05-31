@@ -247,7 +247,14 @@ export function useChatScroll({
   // Scroll to bottom on thread initial load.
   const scrolledForThreadRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!threadId || messagesLength === 0) return;
+    if (!threadId) {
+      // Left a thread (→ new chat). Clear the guard so returning to the same
+      // thread re-runs the initial scroll-to-bottom even if this hook instance
+      // survives the round trip (it isn't always remounted).
+      scrolledForThreadRef.current = null;
+      return;
+    }
+    if (messagesLength === 0) return;
     if (scrolledForThreadRef.current === threadId) return;
 
     scrolledForThreadRef.current = threadId;

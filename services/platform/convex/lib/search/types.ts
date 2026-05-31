@@ -9,11 +9,8 @@ import type { Doc, TableNames } from '../../_generated/dataModel';
  */
 export type SearchEngine = 'scan' | 'searchIndex';
 
-/**
- * Per-entity descriptor consumed by {@link runEntitySearch}. The single place
- * that knows how a table is searched — call sites never branch on engine.
- */
-export interface SearchStrategy<T extends TableNames> {
+/** Fields shared by every engine variant of a {@link SearchStrategy}. */
+interface SearchStrategyBase<T extends TableNames> {
   table: T;
   /** Org-scoped base index used by the scan engine (e.g. `by_organizationId`). */
   orgIndex: string;
@@ -26,11 +23,23 @@ export interface SearchStrategy<T extends TableNames> {
   /** Drop soft-deleted rows (`lifecycleStatus !== 'active'`) when the table
    *  carries the field. */
   activeOnly?: boolean;
-  /** Active engine. `'scan'` today; flip to `'searchIndex'` once the
-   *  self-hosted bootstrap is fixed. */
-  engine: SearchEngine;
-  /** Future: name of the `.searchIndex()` to use when `engine === 'searchIndex'`. */
-  searchIndexName?: string;
-  /** Future: the search index's `searchField`. */
-  searchIndexField?: string;
 }
+
+/**
+ * Per-entity descriptor consumed by {@link runEntitySearch}. The single place
+ * that knows how a table is searched — call sites never branch on engine.
+ *
+ * Discriminated on `engine`: the `'searchIndex'` variant *requires*
+ * `searchIndexName`/`searchIndexField`, so a strategy can't compile with
+ * `engine: 'searchIndex'` but no index metadata (which would otherwise fall
+ * through to the scan engine silently). `'scan'` carries no index fields.
+ */
+export type SearchStrategy<T extends TableNames> =
+  | (SearchStrategyBase<T> & { engine: 'scan' })
+  | (SearchStrategyBase<T> & {
+      engine: 'searchIndex';
+      /** Name of the `.searchIndex()` to use. */
+      searchIndexName: string;
+      /** The search index's `searchField`. */
+      searchIndexField: string;
+    });

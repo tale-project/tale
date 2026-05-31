@@ -1,23 +1,26 @@
-import type { UseQueryResult } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
-import { QueryState } from './query-state';
+import { QueryState, type QueryStateInput } from './query-state';
 
 interface Data {
   items: string[];
 }
 
-function fakeResult(over: Partial<UseQueryResult<Data>>): UseQueryResult<Data> {
+// Build the narrow shape QueryState reads — no cast needed since the component's
+// prop is `QueryStateInput`, not the full `UseQueryResult`.
+function fakeResult(
+  over: Partial<QueryStateInput<Data>> = {},
+): QueryStateInput<Data> {
   return {
     isError: false,
     error: null,
     data: undefined,
     refetch: vi.fn(),
     ...over,
-  } as unknown as UseQueryResult<Data>;
+  };
 }
 
 describe('QueryState', () => {

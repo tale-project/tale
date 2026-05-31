@@ -1,6 +1,5 @@
 'use client';
 
-import type { UseQueryResult } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
@@ -13,13 +12,26 @@ type QueryStateView<Data> =
   | { status: 'success'; data: Data };
 
 /**
+ * The slice of a `useConvexQuery` / react-query result this boundary reads.
+ * Narrower than `UseQueryResult` so callers — and tests — can satisfy it with a
+ * plain object instead of casting; a real `UseQueryResult<Data>` is structurally
+ * assignable to it.
+ */
+export interface QueryStateInput<Data> {
+  isError: boolean;
+  error: Error | null;
+  data: Data | undefined;
+  refetch: () => void;
+}
+
+/**
  * Collapse a `useConvexQuery` result into a discriminated union. A Convex query
  * value is never `undefined` once loaded (absent values are `null`), so
  * `data === undefined` reliably means "still loading". Errors are never
  * conflated with empty data.
  */
 export function useQueryState<Data>(
-  result: UseQueryResult<Data>,
+  result: QueryStateInput<Data>,
 ): QueryStateView<Data> {
   if (result.isError) {
     return {
@@ -29,7 +41,7 @@ export function useQueryState<Data>(
           ? result.error
           : new Error(String(result.error)),
       retry: () => {
-        void result.refetch();
+        result.refetch();
       },
     };
   }
@@ -41,7 +53,7 @@ export function useQueryState<Data>(
 
 interface QueryStateProps<Data> {
   /** The result of a single `useConvexQuery` call. */
-  query: UseQueryResult<Data>;
+  query: QueryStateInput<Data>;
   /** Skeleton shown while the first result loads. */
   pending: ReactNode;
   /** Rendered once data has loaded. */

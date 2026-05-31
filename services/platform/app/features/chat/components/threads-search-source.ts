@@ -71,7 +71,11 @@ export function createThreadsSearchSource(
 
     return {
       results,
-      status: threads === undefined ? 'loading' : 'ready',
+      // While inactive (palette closed, or query below min length) `useThreads`
+      // is skipped, so `threads` is undefined — report `idle`, not `loading`, so
+      // opening the palette shows recents instead of a spinner (matters when a
+      // surface sets minQueryLength={1}).
+      status: !active ? 'idle' : threads === undefined ? 'loading' : 'ready',
     };
   };
 }

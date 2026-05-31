@@ -20,6 +20,11 @@ import { render } from '../../../test/utils/render';
 import { SearchCommand } from '../search-command';
 import type { SearchResult, SearchSource, SearchSourceState } from '../types';
 
+// Assert against the shipped translation values rather than hardcoded English
+// copy, so a copy tweak or locale-wiring change can't break these tests for the
+// wrong reason (project rule: never compare against an English literal).
+const L = enMessages.search;
+
 // --- a controllable mock source ------------------------------------------
 type MockMode =
   | { kind: 'ready'; results: SearchResult[] }
@@ -114,24 +119,24 @@ function renderCommand(
 describe('SearchCommand', () => {
   it('renders the search input from the i18n placeholder', () => {
     renderCommand();
-    expect(screen.getByPlaceholderText('Search…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(L.placeholder)).toBeInTheDocument();
   });
 
   it('shows the empty state when the query is empty', () => {
     renderCommand();
-    expect(screen.getByText('Start typing to search.')).toBeInTheDocument();
+    expect(screen.getByText(L.empty)).toBeInTheDocument();
   });
 
   it('shows the "keep typing" hint below minQueryLength', async () => {
     const { user } = renderCommand();
-    await user.type(screen.getByPlaceholderText('Search…'), 'a');
-    expect(screen.getByText('Keep typing to search…')).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'a');
+    expect(screen.getByText(L.keepTyping)).toBeInTheDocument();
   });
 
   it('renders results once the query reaches minQueryLength', async () => {
     respond = () => ({ kind: 'ready', results: [result({ id: '1' })] });
     const { user } = renderCommand();
-    await user.type(screen.getByPlaceholderText('Search…'), 'config');
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
     await waitFor(() =>
       expect(screen.getByText('Configuration')).toBeInTheDocument(),
     );
@@ -140,16 +145,16 @@ describe('SearchCommand', () => {
   it('renders the no-results state when the source returns []', async () => {
     respond = () => ({ kind: 'ready', results: [] });
     const { user } = renderCommand();
-    await user.type(screen.getByPlaceholderText('Search…'), 'xyz');
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'xyz');
     await waitFor(() =>
-      expect(screen.getByText('No results found')).toBeInTheDocument(),
+      expect(screen.getByText(L.noResultsTitle)).toBeInTheDocument(),
     );
   });
 
   it('shows the skeleton while loading with no stale results', async () => {
     respond = () => ({ kind: 'loading' });
     const { user } = renderCommand();
-    await user.type(screen.getByPlaceholderText('Search…'), 'config');
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
     await waitFor(() =>
       expect(screen.getByTestId('search-skeleton')).toBeInTheDocument(),
     );
@@ -163,7 +168,7 @@ describe('SearchCommand', () => {
     const onSelect = vi.fn();
     const onOpenChange = vi.fn();
     const { user } = renderCommand({ onSelect, onOpenChange });
-    await user.type(screen.getByPlaceholderText('Search…'), 'config');
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
     await waitFor(() => screen.getByRole('option'));
     await user.keyboard('{Enter}');
     expect(onSelect).toHaveBeenCalledWith(
@@ -183,7 +188,7 @@ describe('SearchCommand', () => {
       ],
     });
     const { user } = renderCommand();
-    await user.type(screen.getByPlaceholderText('Search…'), 'foo');
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'foo');
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(4));
     // Grouping clusters alpha then bravo: A1, A2, B1, B2.
     const titles = screen
@@ -209,7 +214,7 @@ describe('SearchCommand', () => {
     });
     const onSelect = vi.fn();
     const { user } = renderCommand({ onSelect });
-    await user.type(screen.getByPlaceholderText('Search…'), 'foo');
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'foo');
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(3));
     // Visual order: A1, A2, B1 → ArrowDown twice = B1.
     await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
@@ -220,7 +225,7 @@ describe('SearchCommand', () => {
 
   it('does not crash on arrow keys with no results', () => {
     renderCommand();
-    const input = screen.getByPlaceholderText('Search…');
+    const input = screen.getByPlaceholderText(L.placeholder);
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     fireEvent.keyDown(input, { key: 'ArrowUp' });
     fireEvent.keyDown(input, { key: 'Enter' });
@@ -233,7 +238,7 @@ describe('SearchCommand', () => {
       results: [result({ id: '1', title: 'Configuration', href: '/cfg' })],
     });
     const { user } = renderCommand();
-    await user.type(screen.getByPlaceholderText('Search…'), 'config');
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
     await waitFor(() => screen.getByRole('option'));
     await user.keyboard('{Enter}');
     const stored = JSON.parse(
@@ -255,15 +260,13 @@ describe('SearchCommand', () => {
   it('renders a localized error state when the source fails', async () => {
     respond = () => ({ kind: 'error' });
     const { user } = renderCommand();
-    await user.type(screen.getByPlaceholderText('Search…'), 'config');
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
     await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(
-        'Something went wrong',
-      ),
+      expect(screen.getByRole('alert')).toHaveTextContent(L.errorTitle),
     );
     // An error must not masquerade as loading or as an empty result set.
     expect(screen.queryByTestId('search-skeleton')).not.toBeInTheDocument();
-    expect(screen.queryByText('No results found')).not.toBeInTheDocument();
+    expect(screen.queryByText(L.noResultsTitle)).not.toBeInTheDocument();
   });
 
   it('fills the query when a recent search is picked', async () => {
@@ -273,7 +276,7 @@ describe('SearchCommand', () => {
     );
     const { user } = renderCommand();
     await user.click(screen.getByText('previous query'));
-    expect(screen.getByPlaceholderText('Search…')).toHaveValue(
+    expect(screen.getByPlaceholderText(L.placeholder)).toHaveValue(
       'previous query',
     );
   });
@@ -290,13 +293,13 @@ describe('SearchCommand', () => {
     expect(screen.getByText('alpha')).toBeInTheDocument();
     expect(screen.getByText('beta')).toBeInTheDocument();
 
-    await user.click(screen.getAllByLabelText('Remove from recent')[0]);
+    await user.click(screen.getAllByLabelText(L.removeRecent)[0]);
     expect(screen.queryByText('alpha')).not.toBeInTheDocument();
     expect(screen.getByText('beta')).toBeInTheDocument();
 
-    await user.click(screen.getByText('Clear'));
+    await user.click(screen.getByText(L.clearRecent));
     expect(screen.queryByText('beta')).not.toBeInTheDocument();
-    expect(screen.getByText('Start typing to search.')).toBeInTheDocument();
+    expect(screen.getByText(L.empty)).toBeInTheDocument();
   });
 
   it('labels the catch-all group when results have no group', async () => {
@@ -305,15 +308,17 @@ describe('SearchCommand', () => {
       results: [result({ id: '1', group: undefined })],
     });
     const { user } = renderCommand();
-    await user.type(screen.getByPlaceholderText('Search…'), 'config');
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
     await waitFor(() =>
-      expect(screen.getByText('Results')).toBeInTheDocument(),
+      expect(screen.getByText(L.resultsGroup)).toBeInTheDocument(),
     );
   });
 
   it('renders nothing when closed', () => {
     renderCommand({ open: false });
-    expect(screen.queryByPlaceholderText('Search…')).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText(L.placeholder),
+    ).not.toBeInTheDocument();
   });
 
   describe('accessibility', () => {

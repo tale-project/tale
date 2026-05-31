@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  FALLBACK_GROUP,
   flattenGroups,
   groupResults,
   humanizeGroupKey,
@@ -54,9 +55,24 @@ describe('groupResults', () => {
     expect(humanizeGroupKey('admin_panel')).toBe('Admin Panel');
   });
 
-  it('falls back to a single "Results" group when no group is set', () => {
-    const groups = groupResults([makeResult({ group: undefined })]);
-    expect(groups[0]?.label).toBe('Results');
+  it('clusters group-less results under the single fallback group key', () => {
+    const groups = groupResults([
+      makeResult({ id: 'a', group: undefined }),
+      makeResult({ id: 'b', group: undefined }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.key).toBe(FALLBACK_GROUP);
+  });
+
+  it('localises the fallback group label through getGroupLabel (no baked-in copy)', () => {
+    // The catch-all label is the caller's responsibility — the command passes a
+    // resolver that returns the translated `resultsGroup` string for this key.
+    const groups = groupResults(
+      [makeResult({ group: undefined })],
+      undefined,
+      (key) => (key === FALLBACK_GROUP ? 'Résultats' : humanizeGroupKey(key)),
+    );
+    expect(groups[0]?.label).toBe('Résultats');
   });
 });
 

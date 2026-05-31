@@ -17,10 +17,14 @@ export interface ResultGroup {
 
 export const FALLBACK_GROUP = '__other';
 
+/** Title-case a group key/path segment. Pure transform — it never emits a
+ *  user-facing label of its own (the catch-all {@link FALLBACK_GROUP} is
+ *  localised by the caller's `getGroupLabel`, e.g. the command's
+ *  `resolveGroupLabel`), so no English copy is baked in here. */
 export function humanizeGroupKey(key: string): string {
-  if (key === FALLBACK_GROUP) return 'Results';
   return key
     .split(/[-_]/)
+    .filter(Boolean)
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join(' ');
 }

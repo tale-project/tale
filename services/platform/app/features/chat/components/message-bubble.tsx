@@ -800,12 +800,13 @@ function MessageBubbleComponent({
 }
 
 /**
- * Value-compare attachments by fileId (their stable identity). The message
- * list rebuilds `attachments`/`fileParts` arrays with fresh references on every
- * streamed token (use-message-processing.ts re-maps the whole list), so a
- * reference check would re-render every attachment-bearing bubble on each tick.
- * A length + per-item identity check keeps those bubbles stable while still
- * catching genuine attachment changes.
+ * Value-compare attachments. The message list rebuilds `attachments`/`fileParts`
+ * arrays with fresh references on every streamed token (use-message-processing.ts
+ * re-maps the whole list), so a reference check would re-render every
+ * attachment-bearing bubble on each tick. A length + per-item value check keeps
+ * those bubbles stable while still catching genuine changes — crucially the
+ * render-driving fields (`previewUrl`/`fileName`/`fileType`), not just `fileId`,
+ * so a thumbnail resolving in place (same id, new previewUrl) still re-renders.
  */
 function sameAttachments(
   a: Message['attachments'],
@@ -815,7 +816,13 @@ function sameAttachments(
   if (!a || !b) return false;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    if (a[i].fileId !== b[i].fileId) return false;
+    if (
+      a[i].fileId !== b[i].fileId ||
+      a[i].fileType !== b[i].fileType ||
+      a[i].previewUrl !== b[i].previewUrl ||
+      a[i].fileName !== b[i].fileName
+    )
+      return false;
   }
   return true;
 }
@@ -828,7 +835,12 @@ function sameFileParts(
   if (!a || !b) return false;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    if (a[i].url !== b[i].url) return false;
+    if (
+      a[i].url !== b[i].url ||
+      a[i].mediaType !== b[i].mediaType ||
+      a[i].filename !== b[i].filename
+    )
+      return false;
   }
   return true;
 }
