@@ -89,7 +89,7 @@ export function emptyReasoningState(): ReasoningState {
   };
 }
 
-/** Population variance estimate for a bucket (0 when fewer than 2 samples). */
+/** Sample standard deviation for a bucket (0 when fewer than 2 samples). */
 export function bucketStd(bucket: BucketStats): number {
   if (bucket.count < 2) return 0;
   return Math.sqrt(Math.max(0, bucket.m2 / (bucket.count - 1)));
@@ -125,7 +125,13 @@ export function maxTier(a: ReasoningTier, b: ReasoningTier): ReasoningTier {
   return TIER_RANK[a] >= TIER_RANK[b] ? a : b;
 }
 
-/** Bucket a raw thinking-token budget back to the nearest canonical tier. */
+/**
+ * Bucket a raw thinking-token budget to a canonical tier. The boundaries sit
+ * deliberately *below* the midpoints between canonical budgets so a budget
+ * biases toward the higher tier (e.g. a "hard" prompt landing near the
+ * medium↔high seam still resolves to `high`) — under-reasoning a hard task is
+ * worse than spending a few extra tokens. Not a nearest-neighbour mapping.
+ */
 export function budgetToTier(budgetTokens: number): ReasoningTier {
   if (budgetTokens <= 0) return 'off';
   if (budgetTokens <= 3072) return 'low';

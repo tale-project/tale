@@ -9,6 +9,7 @@ import { onedriveAction } from './onedrive/onedrive_action';
 import { productAction } from './product/product_action';
 import { ragAction } from './rag/rag_action';
 import { setVariablesAction } from './set_variables_action';
+import { taskAction } from './task/task_action';
 import { websiteAction } from './website/website_action';
 import { workflowProcessingRecordsAction } from './workflow_processing_records/workflow_processing_records_action';
 
@@ -45,6 +46,7 @@ export const ACTIONS: AnyActionDefinition[] = [
   onedriveAction,
   crawlerAction,
   websiteAction,
+  taskAction,
 ];
 
 // Map for O(1) lookups by type

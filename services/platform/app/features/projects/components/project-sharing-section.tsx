@@ -41,6 +41,7 @@ export function ProjectSharingSection({
   canAdminister,
 }: ProjectSharingSectionProps) {
   const { t } = useT('projects');
+  const { t: tCommon } = useT('common');
   const { teams } = useOrgTeams();
   const { mutateAsync: updateSharing, isPending } = useUpdateProjectSharing();
 
@@ -226,7 +227,10 @@ export function ProjectSharingSection({
         }}
         title={t('overview.sharingHeading')}
         description={t('settings.sharingNarrowingWarning')}
-        confirmText={t('settings.saveButton')}
+        // A distinct "Confirm" (not "Save changes") so this access-narrowing
+        // confirmation isn't mistaken for the page's form-save / unsaved-changes
+        // prompt — they previously shared the exact "Save changes" wording.
+        confirmText={tCommon('actions.confirm')}
         isLoading={isPending}
         variant="destructive"
         onConfirm={() => {

@@ -13,6 +13,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import type { ComposerProfiles } from '@/lib/shared/composer-profiles';
 
 type GuardrailsBlockedCode =
   | 'pii.blocked'
@@ -78,6 +79,8 @@ interface UseSendMessageParams {
   onBeforeSend?: () => void;
   selectedAgent: SelectedAgent | null;
   modelId?: string;
+  /** Per-message response-tuning profiles from the composer "+" menu. */
+  composerProfiles?: ComposerProfiles;
   enabledCapabilities?: string[];
   userContext?: UserContext;
   arena?: ArenaParams;
@@ -139,6 +142,7 @@ export function useSendMessage({
   selectedAgent,
   modelId,
   enabledCapabilities = [],
+  composerProfiles,
   userContext,
   arena,
   teamId,
@@ -738,6 +742,15 @@ export function useSendMessage({
             modelId: modelId || undefined,
             capabilityBindings:
               enabledCapabilities.length > 0 ? enabledCapabilities : undefined,
+            // Only send profiles when at least one lever is a fixed override;
+            // all-adaptive means "no override" so we omit it entirely.
+            composerProfiles:
+              composerProfiles &&
+              (composerProfiles.effort !== 'adaptive' ||
+                composerProfiles.creativity !== 'adaptive' ||
+                composerProfiles.style !== 'adaptive')
+                ? composerProfiles
+                : undefined,
             attachments: mutationAttachments,
             userContext: userContext
               ? {
@@ -846,6 +859,7 @@ export function useSendMessage({
       selectedAgent,
       modelId,
       enabledCapabilities,
+      composerProfiles,
       userContext,
       navigate,
       t,

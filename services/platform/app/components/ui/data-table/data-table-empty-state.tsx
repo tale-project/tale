@@ -30,7 +30,14 @@ export function DataTableEmptyState({
           />
         )}
         <Text variant="label">{title}</Text>
-        {description && <Text variant="muted">{description}</Text>}
+        {/* `as="div"` (not the default <p>): empty-state descriptions can carry
+            rich content — links, buttons, doc CTAs wrapped in their own block
+            elements — and a <div> inside a <p> is invalid HTML (hydration error). */}
+        {description && (
+          <Text as="div" variant="muted">
+            {description}
+          </Text>
+        )}
       </VStack>
     </Center>
   );

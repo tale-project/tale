@@ -9,7 +9,7 @@ import {
 } from '@tale/ui/search';
 import { useNavigate } from '@tanstack/react-router';
 import {
-  Clock,
+  MessagesSquare,
   Download,
   Ellipsis,
   Search,
@@ -28,11 +28,9 @@ import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useVoiceModeEffective } from '../hooks/use-voice-output';
 import { ChatHistorySidebar } from './chat-history-sidebar';
 import { ExportChatDialog } from './export-chat-dialog';
 import { ShareChatDialog } from './share-chat-dialog';
-import { useThreadVoiceOutputCheckboxItem } from './thread-voice-output-switch';
 import { createThreadsSearchSource } from './threads-search-source';
 interface ChatHeaderProps {
   organizationId: string;
@@ -53,8 +51,6 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
   const { formatDateHeader } = useFormatDate();
   const teamFilter = useOptionalTeamFilter();
   const selectedTeamId = teamFilter?.selectedTeamId ?? undefined;
-
-  const voiceMode = useVoiceModeEffective(threadId);
 
   // Chat search now runs on the shared `@tale/ui` SearchCommand, backed by a
   // threads source. Chat-specific copy comes from the `dialogs.searchChat`
@@ -154,12 +150,10 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [isMac, handleToggleSearch, handleNewChat, handleToggleHistory]);
 
-  const voiceCheckboxItem = useThreadVoiceOutputCheckboxItem(
-    threadId,
-    voiceMode.enabled,
-  );
-  const headerMenuItems = useMemo<DropdownMenuGroup[]>(() => {
-    const groups: DropdownMenuGroup[] = [
+  // The per-thread voice toggle moved to the composer (next to dictation),
+  // so the header dropdown now only carries the export action.
+  const headerMenuItems = useMemo<DropdownMenuGroup[]>(
+    () => [
       [
         {
           type: 'item' as const,
@@ -168,17 +162,9 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
           onClick: () => setIsExportDialogOpen(true),
         },
       ],
-    ];
-    // The per-thread voice toggle is always available so a user can opt a
-    // single conversation in or out regardless of the master switch. Only
-    // an org-level governance veto (`source === 'org_policy'`) hides the
-    // control entirely — in that case no user override can re-enable
-    // voice, so a toggle would be misleading.
-    if (voiceCheckboxItem && voiceMode.source !== 'org_policy') {
-      groups.push([voiceCheckboxItem]);
-    }
-    return groups;
-  }, [tChat, voiceCheckboxItem, voiceMode.source]);
+    ],
+    [tChat],
+  );
 
   const baseIconClasses = 'size-5 text-muted-foreground p-0.25';
 
@@ -221,7 +207,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
             }
             className={cn(isHistoryOpen && 'bg-accent text-accent-foreground')}
           >
-            <Clock
+            <MessagesSquare
               className={cn(
                 baseIconClasses,
                 isHistoryOpen && 'text-accent-foreground',
@@ -314,7 +300,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
               isMobileHistoryOpen ? tChat('hideHistory') : tChat('showHistory')
             }
           >
-            <Clock
+            <MessagesSquare
               className={cn(
                 baseIconClasses,
                 isMobileHistoryOpen && 'text-accent-foreground',

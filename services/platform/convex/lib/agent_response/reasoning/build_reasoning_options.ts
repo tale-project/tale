@@ -25,7 +25,12 @@ import {
 import { adjustTarget } from './controller';
 import { decideTemperature } from './generation_params';
 import { scoreDifficulty, type DifficultySignals } from './signals';
-import type { DifficultyClass, ReasoningState, ReasoningTier } from './types';
+import {
+  TIER_BUDGET_TOKENS,
+  type DifficultyClass,
+  type ReasoningState,
+  type ReasoningTier,
+} from './types';
 
 /** Default thinking-budget ceiling when the model declares no output cap. */
 const DEFAULT_BUDGET_CEILING = 24576;
@@ -55,6 +60,18 @@ export interface BuildReasoningOptionsInput {
    * from the org's accumulated learning from turn one.
    */
   profile?: ReasoningState;
+  /**
+   * Composer-sourced FIXED reasoning tier. When set, the adaptive controller
+   * is bypassed and this tier (with its canonical budget) is used directly.
+   * `undefined` keeps the governor in charge.
+   */
+  effortOverride?: ReasoningTier;
+  /**
+   * Composer-sourced FIXED creativity score in [0, 1]. Overrides the
+   * difficulty-scaled creativity fed to `decideTemperature` (which still
+   * drops temperature for reasoning-only models). `undefined` = adaptive.
+   */
+  creativityOverride?: number;
 }
 
 export interface ReasoningDecision {
@@ -76,22 +93,33 @@ export interface ReasoningDecision {
 export function buildReasoningOptions(
   input: BuildReasoningOptionsInput,
 ): ReasoningDecision {
-  const { modelData, baseProviderOptions, signals, state, profile } = input;
+  const {
+    modelData,
+    baseProviderOptions,
+    signals,
+    state,
+    profile,
+    effortOverride,
+    creativityOverride,
+  } = input;
 
   const difficulty = scoreDifficulty(signals);
   const capability = resolveReasoningCapability(modelData);
 
-  // Controller-adjusted target when steerable; the raw prior otherwise.
-  const target = capability
-    ? adjustTarget(
-        difficulty.target,
-        difficulty.floorTier,
-        difficulty.difficultyClass,
-        state,
-        capability,
-        profile,
-      )
-    : difficulty.target;
+  // Fixed effort profile bypasses the adaptive controller entirely; otherwise
+  // use the controller-adjusted target (when steerable) / raw prior.
+  const target = effortOverride
+    ? { tier: effortOverride, budgetTokens: TIER_BUDGET_TOKENS[effortOverride] }
+    : capability
+      ? adjustTarget(
+          difficulty.target,
+          difficulty.floorTier,
+          difficulty.difficultyClass,
+          state,
+          capability,
+          profile,
+        )
+      : difficulty.target;
 
   const { overlay, applied } = capability
     ? buildOverlay(target.tier, target.budgetTokens, capability, modelData)
@@ -99,7 +127,7 @@ export function buildReasoningOptions(
 
   const reasoningActive = applied && target.tier !== 'off';
   const temperature = decideTemperature(
-    difficulty.creativity,
+    creativityOverride ?? difficulty.creativity,
     capability,
     reasoningActive,
   );

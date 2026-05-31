@@ -38,6 +38,9 @@ export function useApiKeysTableConfig(
       {
         id: 'key',
         header: tSettings('apiKeys.columns.key'),
+        // Progressive disclosure on narrow screens: name + actions always show;
+        // the key and dates reveal as the viewport widens.
+        meta: { className: 'hidden sm:table-cell' },
         cell: ({ row }) => {
           const head = row.original.start || row.original.prefix;
           const tail = row.original.suffix;
@@ -59,6 +62,7 @@ export function useApiKeysTableConfig(
         id: 'created',
         header: tSettings('apiKeys.columns.created'),
         size: 140,
+        meta: { className: 'hidden lg:table-cell' },
         cell: ({ row }) => (
           <TableDateCell date={row.original.createdAt} preset="short" />
         ),
@@ -67,6 +71,7 @@ export function useApiKeysTableConfig(
         id: 'lastUsed',
         header: tSettings('apiKeys.columns.lastUsed'),
         size: 140,
+        meta: { className: 'hidden md:table-cell' },
         cell: ({ row }) => (
           <TableDateCell
             date={row.original.lastRequest}

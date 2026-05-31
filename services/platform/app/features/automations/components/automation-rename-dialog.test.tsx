@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen, waitFor } from '@/test/utils/render';
@@ -25,8 +24,6 @@ describe('AutomationRenameDialog', () => {
     currentName: 'My Automation',
     onRename: vi.fn(),
   };
-
-  afterEach(cleanup);
 
   beforeEach(() => {
     vi.clearAllMocks();

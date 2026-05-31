@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod/v4';
 
@@ -11,12 +11,19 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import {
+  deriveProjectKey,
+  isValidProjectKey,
+  normalizeProjectKey,
+} from '@/lib/shared/project_key';
 
 import { useCreateProject } from '../hooks/mutations';
 
 type FormData = {
   name: string;
+  key: string;
   description?: string;
 };
 
@@ -24,12 +31,19 @@ interface ProjectCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
+  /**
+   * Called with the new project's id right after creation (before the dialog
+   * navigates to it). Lets a caller record local UI state for the new project
+   * — e.g. the chat sidebar pre-expands its folder.
+   */
+  onCreated?: (projectId: Id<'projects'>) => void;
 }
 
 export function ProjectCreateDialog({
   open,
   onOpenChange,
   organizationId,
+  onCreated,
 }: ProjectCreateDialogProps) {
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
@@ -49,6 +63,12 @@ export function ProjectCreateDialog({
             }),
           )
           .max(80, t('errors.PROJECT_NAME_INVALID')),
+        key: z
+          .string()
+          .trim()
+          .refine((value) => isValidProjectKey(normalizeProjectKey(value)), {
+            message: t('errors.PROJECT_KEY_INVALID'),
+          }),
         description: z.string().trim().max(500).optional(),
       }),
     [t, tCommon],
@@ -59,27 +79,46 @@ export function ProjectCreateDialog({
     handleSubmit,
     reset,
     setError,
+    setValue,
+    watch,
     formState: { isSubmitting, errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: { name: '', description: '' },
+    defaultValues: { name: '', key: '', description: '' },
   });
 
+  // The key auto-tracks the name (e.g. "Tale Platform" → "TAL") until the user
+  // types in the key field — after that it's theirs to control.
+  const keyEditedRef = useRef(false);
+  const name = watch('name');
   useEffect(() => {
-    if (!open) reset();
+    if (!keyEditedRef.current) {
+      setValue('key', deriveProjectKey(name), { shouldValidate: false });
+    }
+  }, [name, setValue]);
+
+  useEffect(() => {
+    if (!open) {
+      reset();
+      keyEditedRef.current = false;
+    }
   }, [open, reset]);
+
+  const keyField = register('key');
 
   const onSubmit = async (data: FormData) => {
     try {
       const projectId = await createProject({
         organizationId,
         name: data.name,
+        key: normalizeProjectKey(data.key),
         description: data.description || undefined,
       });
       toast({
         title: t('create.successToast'),
         variant: 'success',
       });
+      onCreated?.(projectId);
       onOpenChange(false);
       void navigate({
         to: '/dashboard/$id/projects/$projectId',
@@ -90,6 +129,14 @@ export function ProjectCreateDialog({
         const code = error.data?.code;
         if (code === 'PROJECT_NAME_INVALID') {
           setError('name', { message: t('errors.PROJECT_NAME_INVALID') });
+          return;
+        }
+        if (code === 'PROJECT_KEY_INVALID') {
+          setError('key', { message: t('errors.PROJECT_KEY_INVALID') });
+          return;
+        }
+        if (code === 'PROJECT_KEY_TAKEN') {
+          setError('key', { message: t('errors.PROJECT_KEY_TAKEN') });
           return;
         }
         if (code === 'RBAC_FORBIDDEN') {
@@ -124,6 +171,21 @@ export function ProjectCreateDialog({
         placeholder={t('create.namePlaceholder')}
         {...register('name')}
         errorMessage={errors.name?.message}
+      />
+      <Input
+        id="project-key"
+        label={t('create.keyLabel')}
+        description={t('create.keyDescription')}
+        placeholder="TAL"
+        maxLength={6}
+        autoComplete="off"
+        {...keyField}
+        onChange={(e) => {
+          keyEditedRef.current = true;
+          e.target.value = normalizeProjectKey(e.target.value);
+          void keyField.onChange(e);
+        }}
+        errorMessage={errors.key?.message}
       />
       <Textarea
         id="project-description"

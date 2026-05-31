@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, fireEvent } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 // Mock useT against the real en.json so tests match on rendered prose.
 // Resolves ICU placeholders like {fileName} so `aria-label="Remove foo.pdf"`
@@ -35,10 +35,7 @@ vi.mock('@/lib/i18n/client', () => ({
     },
   }),
 }));
-
 import { UploadFileRow } from './upload-file-row';
-
-afterEach(cleanup);
 
 describe('UploadFileRow', () => {
   const baseProps = {

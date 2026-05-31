@@ -1,14 +1,23 @@
 'use client';
 
-import { ActionRow } from '@tale/ui/action-row';
 import { Button } from '@tale/ui/button';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
-import { Archive, ArchiveRestore, Pencil, Trash2 } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import {
+  Archive,
+  ArchiveRestore,
+  FolderMinus,
+  MoreHorizontal,
+  Pencil,
+  Pin,
+  PinOff,
+  Trash2,
+} from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { useMoveThreadToProject } from '@/app/features/projects/hooks/mutations';
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -16,6 +25,7 @@ import { useT } from '@/lib/i18n/client';
 import {
   useArchiveThread,
   useDeleteThread,
+  useSetThreadPinned,
   useUnarchiveThread,
 } from '../hooks/mutations';
 
@@ -28,6 +38,11 @@ interface ChatActionsProps {
   organizationId: string;
   onRename?: () => void;
   isArchived?: boolean;
+  isPinned?: boolean;
+  /** The project this chat currently belongs to, if any. When set, the menu
+   * offers "Remove from project" (chats are otherwise only added to a project
+   * by dragging onto a folder). */
+  projectId?: string;
 }
 
 export function ChatActions({
@@ -36,6 +51,8 @@ export function ChatActions({
   organizationId,
   onRename,
   isArchived = false,
+  isPinned = false,
+  projectId,
 }: ChatActionsProps) {
   const navigate = useNavigate();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -48,7 +65,7 @@ export function ChatActions({
   // Read-only consultation so archive/delete can show "blocked by legal
   // hold". The query is reactive: a hold placed via the panel (which is
   // the only entry point for placing holds since the User+Org refactor)
-  // automatically disables these buttons. Cascade-includes user-custodian
+  // automatically disables these actions. Cascade-includes user-custodian
   // hits via the thread author.
   const { data: hold } = useLegalHoldByTarget({
     organizationId,
@@ -58,9 +75,25 @@ export function ChatActions({
   const isHeld = hold !== null && hold !== undefined;
 
   const { mutate: deleteThread, isPending: isDeleting } = useDeleteThread();
-  const { mutate: archiveThread, isPending: isArchiving } = useArchiveThread();
-  const { mutate: unarchiveThread, isPending: isUnarchiving } =
-    useUnarchiveThread();
+  const { mutate: archiveThread } = useArchiveThread();
+  const { mutate: unarchiveThread } = useUnarchiveThread();
+  const { mutate: setThreadPinned } = useSetThreadPinned();
+  const { mutate: moveThreadToProject } = useMoveThreadToProject();
+
+  const handleRemoveFromProject = useCallback(() => {
+    moveThreadToProject(
+      { threadId: chat.id, projectId: null },
+      {
+        onError: (error: unknown) => {
+          console.error('Failed to remove chat from project:', error);
+          toast({
+            title: tChat('removeFromProjectFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  }, [chat.id, moveThreadToProject, toast, tChat]);
 
   const handleDelete = useCallback(() => {
     deleteThread(
@@ -149,144 +182,135 @@ export function ChatActions({
     );
   }, [chat.id, unarchiveThread, toast, tChat]);
 
-  if (isArchived) {
-    return (
-      <>
-        <ActionRow gap={1}>
-          <Tooltip
-            content={
-              isHeld
-                ? tGovernance('legalHold.badges.blockedByHold')
-                : tChat('unarchive')
-            }
-            side="bottom"
-          >
-            <Button
-              variant="ghost"
-              className="p-1"
-              size="icon"
-              onClick={handleUnarchive}
-              disabled={isUnarchiving || isHeld}
-              aria-label={tChat('unarchive')}
-            >
-              <ArchiveRestore className="size-4" />
-            </Button>
-          </Tooltip>
-
-          <Tooltip
-            content={
-              isHeld
-                ? tGovernance('legalHold.badges.blockedByHold')
-                : tCommon('actions.delete')
-            }
-            side="bottom"
-          >
-            <Button
-              variant="ghost"
-              className="p-1"
-              size="icon"
-              onClick={() => setIsDeleteDialogOpen(true)}
-              disabled={isHeld}
-              aria-label={tCommon('actions.delete')}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </Tooltip>
-        </ActionRow>
-
-        <DeleteDialog
-          open={isDeleteDialogOpen}
-          onOpenChange={setIsDeleteDialogOpen}
-          title={tChat('deleteChat')}
-          description={
-            <>
-              {(() => {
-                const parts = tChat('deleteConfirmation', {
-                  title: '\x00',
-                }).split('\x00');
-                if (parts.length < 2) {
-                  return tChat('deleteConfirmation', { title: chat.title });
-                }
-                return (
-                  <>
-                    {parts[0]}
-                    <Text as="span" variant="body" className="font-semibold">
-                      {chat.title}
-                    </Text>
-                    {parts[1]}
-                  </>
-                );
-              })()}
-              <br />
-              <br />
-              <Text as="span" variant="muted">
-                {tChat('deletePermanentMessage')}
-              </Text>
-            </>
-          }
-          deleteText={tChat('deleteChat')}
-          isDeleting={isDeleting}
-          onDelete={handleDelete}
-        />
-      </>
+  const handleTogglePin = useCallback(() => {
+    setThreadPinned(
+      { threadId: chat.id, pinned: !isPinned },
+      {
+        onError: (error) => {
+          console.error('Failed to update pin:', error);
+          toast({ title: tChat('pinFailed'), variant: 'destructive' });
+        },
+      },
     );
-  }
+  }, [chat.id, isPinned, setThreadPinned, toast, tChat]);
+
+  const menuItems = useMemo<DropdownMenuGroup[]>(() => {
+    // Surface the legal-hold reason as a leading label so disabled
+    // archive/delete items aren't unexplained (the tooltip the old icon
+    // row carried is unavailable inside a menu).
+    const heldNotice: DropdownMenuGroup | null = isHeld
+      ? [
+          {
+            type: 'label' as const,
+            content: tGovernance('legalHold.badges.blockedByHold'),
+          },
+        ]
+      : null;
+
+    if (isArchived) {
+      return [
+        ...(heldNotice ? [heldNotice] : []),
+        [
+          {
+            type: 'item' as const,
+            label: tChat('unarchive'),
+            icon: ArchiveRestore,
+            disabled: isHeld,
+            onClick: handleUnarchive,
+          },
+        ],
+        [
+          {
+            type: 'item' as const,
+            label: tCommon('actions.delete'),
+            icon: Trash2,
+            destructive: true,
+            disabled: isHeld,
+            onClick: () => setIsDeleteDialogOpen(true),
+          },
+        ],
+      ];
+    }
+
+    return [
+      ...(heldNotice ? [heldNotice] : []),
+      [
+        {
+          type: 'item' as const,
+          label: isPinned ? tChat('unpinChat') : tChat('pinChat'),
+          icon: isPinned ? PinOff : Pin,
+          onClick: handleTogglePin,
+        },
+        ...(onRename
+          ? [
+              {
+                type: 'item' as const,
+                label: tCommon('actions.rename'),
+                icon: Pencil,
+                onClick: onRename,
+              },
+            ]
+          : []),
+        ...(projectId
+          ? [
+              {
+                type: 'item' as const,
+                label: tChat('removeFromProject'),
+                icon: FolderMinus,
+                onClick: handleRemoveFromProject,
+              },
+            ]
+          : []),
+        {
+          type: 'item' as const,
+          label: tChat('archive'),
+          icon: Archive,
+          disabled: isHeld,
+          onClick: handleArchive,
+        },
+      ],
+      [
+        {
+          type: 'item' as const,
+          label: tCommon('actions.delete'),
+          icon: Trash2,
+          destructive: true,
+          disabled: isHeld,
+          onClick: () => setIsDeleteDialogOpen(true),
+        },
+      ],
+    ];
+  }, [
+    isArchived,
+    isPinned,
+    isHeld,
+    onRename,
+    projectId,
+    handleTogglePin,
+    handleArchive,
+    handleUnarchive,
+    handleRemoveFromProject,
+    tChat,
+    tCommon,
+    tGovernance,
+  ]);
 
   return (
     <>
-      <ActionRow gap={1}>
-        <Tooltip content={tCommon('actions.rename')} side="bottom">
-          <Button
-            variant="ghost"
-            className="hidden p-1 md:inline-flex"
-            size="icon"
-            onClick={onRename}
-            aria-label={tCommon('actions.rename')}
-          >
-            <Pencil className="size-4" />
-          </Button>
-        </Tooltip>
-
-        <Tooltip
-          content={
-            isHeld
-              ? tGovernance('legalHold.badges.blockedByHold')
-              : tChat('archive')
-          }
-          side="bottom"
-        >
+      <DropdownMenu
+        align="end"
+        trigger={
           <Button
             variant="ghost"
             className="p-1"
             size="icon"
-            onClick={handleArchive}
-            disabled={isArchiving || isHeld}
-            aria-label={tChat('archive')}
+            aria-label={tChat('moreActions')}
           >
-            <Archive className="size-4" />
+            <MoreHorizontal className="size-4" />
           </Button>
-        </Tooltip>
-
-        <Tooltip
-          content={
-            isHeld
-              ? tGovernance('legalHold.badges.blockedByHold')
-              : tCommon('actions.delete')
-          }
-          side="bottom"
-        >
-          <Button
-            variant="ghost"
-            className="p-1"
-            size="icon"
-            onClick={() => setIsDeleteDialogOpen(true)}
-            disabled={isHeld}
-            aria-label={tCommon('actions.delete')}
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        </Tooltip>
-      </ActionRow>
+        }
+        items={menuItems}
+      />
 
       <DeleteDialog
         open={isDeleteDialogOpen}

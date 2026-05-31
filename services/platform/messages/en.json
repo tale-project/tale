@@ -537,7 +537,7 @@
           "editTitle": "Edit event trigger",
           "eventType": "Event type",
           "eventTypePlaceholder": "Select an event type",
-          "filtersLabel": "Filters (optional)",
+          "filtersLabel": "Filters",
           "filterAll": "All (no filter)",
           "filterAllPlaceholder": "Select a filter value"
         },
@@ -745,6 +745,23 @@
     "imageCounter": "{current} of {total}",
     "newChat": "New chat",
     "moreActions": "More actions",
+    "tryAgain": "Try again",
+    "regenerateFailed": "Couldn't regenerate response",
+    "speakOutLoud": "Speak out loud",
+    "pinChat": "Pin chat",
+    "unpinChat": "Unpin chat",
+    "pinProject": "Pin project",
+    "unpinProject": "Unpin project",
+    "pinned": "Pinned",
+    "pinFailed": "Couldn't update pin",
+    "newResponse": "New response",
+    "projectsSection": "Projects",
+    "chatsSection": "Chats",
+    "quote": {
+      "button": "Quote",
+      "label": "Quoted",
+      "remove": "Remove quote"
+    },
     "deleteChat": "Delete chat",
     "deleteConfirmation": "Are you sure you want to delete {title}?",
     "deletePermanentMessage": "Move chat to Trash. You can restore it for the org's grace period; after that retention permanently deletes the chat and its messages.",
@@ -755,6 +772,8 @@
     "archiveFailed": "Failed to archive chat",
     "unarchiveSuccess": "Chat unarchived",
     "unarchiveFailed": "Failed to unarchive chat",
+    "removeFromProject": "Remove from project",
+    "removeFromProjectFailed": "Failed to remove chat from project",
     "archived": {
       "title": "Archived"
     },
@@ -784,19 +803,19 @@
       "summaryReasoningOnly": "Showed its reasoning"
     },
     "tools": {
-      "customerRead": "Reading customer data",
-      "productRead": "Reading product catalog",
-      "ragSearch": "Searching knowledge base",
-      "web": "Fetching web content",
-      "pdf": "Processing PDF",
-      "image": "Analyzing image",
-      "pptx": "Processing presentation",
-      "docx": "Processing document",
-      "workflowRead": "Reading workflow",
-      "updateWorkflowStep": "Updating workflow step",
+      "customerRead": "Customer data",
+      "productRead": "Product catalog",
+      "ragSearch": "Knowledge base",
+      "web": "Web content",
+      "pdf": "PDF",
+      "image": "Images",
+      "pptx": "Presentation",
+      "docx": "Document",
+      "workflowRead": "Workflow",
+      "updateWorkflowStep": "Workflow step",
       "saveWorkflowDefinition": "Saving workflow",
       "validateWorkflowDefinition": "Validating workflow",
-      "excel": "Processing Excel file"
+      "excel": "Excel file"
     },
     "agentSelector": {
       "label": "Select agent",
@@ -812,6 +831,8 @@
       "auto": "Auto",
       "autoDescription": "Automatically selects the best available model with fallback",
       "noModelsAvailable": "No models available",
+      "recommended": "Recommended",
+      "noApiKey": "No API key configured for this model's provider — add one in Settings → API.",
       "tags": {
         "chat": "Chat",
         "embedding": "Embedding",
@@ -848,13 +869,17 @@
       "voiceOutputAnnounceBlocked": "Voice output blocked — activate the player to listen",
       "voiceOutputAnnounceError": "Voice output failed",
       "voiceOutputThreadSwitchLabel": "Voice output for this thread",
-      "voiceOutputThreadSaveFailed": "Couldn't save voice setting for this conversation"
+      "voiceOutputThreadSaveFailed": "Couldn't save voice setting for this conversation",
+      "voiceModeLabel": "Voice mode",
+      "voiceModeEnable": "Read replies aloud",
+      "voiceModeDisable": "Stop reading replies aloud"
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
-    "showHistory": "Show history",
-    "hideHistory": "Hide history",
-    "chatHistory": "History",
+    "showHistory": "Show chats",
+    "hideHistory": "Hide chats",
+    "chatHistory": "Chats",
+    "newProject": "New project",
     "typeMessageHere": "Type your message here…",
     "send": "Send message",
     "stopGenerating": "Stop generating",
@@ -1023,7 +1048,11 @@
       "contextTokens": "Tokens",
       "contextMessages": "Messages",
       "contextApprovals": "Approvals",
-      "showContext": "Show context window"
+      "showContext": "Show context window",
+      "throughput": "Throughput",
+      "tokensPerSecond": "{value} tok/s",
+      "cachedPercent": "{percent}% cached",
+      "copyId": "Copy message ID"
     },
     "toolDetails": {
       "title": "{tool} details",
@@ -1041,6 +1070,8 @@
       "loadingMore": "Loading...",
       "generating": "Generating response",
       "awaitingInput": "Awaiting your input",
+      "dropHereToAdd": "Drop a chat here",
+      "dropToChatsHint": "Drop here to move to Chats",
       "legalHold": {
         "heading": "On legal hold",
         "body": "Preserved for compliance — cannot be deleted, archived, or renamed.",
@@ -1234,6 +1265,7 @@
     "errorHintToolFailure": "The agent encountered an error while accessing data. Try rephrasing your request or asking for a smaller set of data."
   },
   "common": {
+    "optional": "optional",
     "dates": {
       "today": "Today",
       "yesterday": "Yesterday"
@@ -1460,10 +1492,27 @@
   "composer": {
     "openMenu": "Open composer menu",
     "addFiles": "Add photos & files",
+    "takeScreenshot": "Take screenshot",
+    "screenshotFailed": "Couldn't capture screenshot",
     "modeHeader": "Modes",
     "capabilityHeader": "Capabilities",
     "capabilityDisable": "Disable {name}",
-    "requiresIntegration": "Requires {name}"
+    "requiresIntegration": "Requires {name}",
+    "tuningHeader": "Response tuning",
+    "adaptive": "Adaptive",
+    "effort": "Effort",
+    "effortLow": "Low",
+    "effortMedium": "Medium",
+    "effortHigh": "High",
+    "creativity": "Creativity",
+    "creativityPrecise": "Precise",
+    "creativityBalanced": "Balanced",
+    "creativityCreative": "Creative",
+    "style": "Style",
+    "styleConcise": "Concise",
+    "styleDetailed": "Detailed",
+    "styleFormal": "Formal",
+    "styleFriendly": "Friendly"
   },
   "connectivity": {
     "reconnectingTitle": "Reconnecting…",
@@ -2674,6 +2723,7 @@
       "auditLogs": "Audit logs",
       "dataSubjectRequests": "Data subject requests",
       "policiesAndLimitsDescription": "Budgets, upload restrictions, data retention, feature flags, and voice output.",
+      "securityAndMonitoringDescription": "Sign-in, password, and two-factor authentication policies.",
       "runCodePolicy": "Run-code packages"
     },
     "runCodePolicy": {
@@ -2873,7 +2923,7 @@
           "orgConfirmDescription": "Required for organization-wide holds. The submit button stays disabled until the phrase matches exactly.",
           "reasonLabel": "Reason",
           "reasonPlaceholder": "e.g. Litigation hold for Acme v. Co. (matter #2026-04)",
-          "matterLabel": "Matter (optional)",
+          "matterLabel": "Matter",
           "matterPlaceholder": "Pick or create a matter",
           "matterCreateNew": "Create new matter…",
           "submit": "Place hold"
@@ -2902,8 +2952,8 @@
           "description": "Group related holds under one matter. Closing the matter later files release requests for every linked hold.",
           "nameLabel": "Name",
           "namePlaceholder": "e.g. Acme v. Co. (2026-04)",
-          "caseNumberLabel": "Case number (optional)",
-          "descriptionLabel": "Description (optional)",
+          "caseNumberLabel": "Case number",
+          "descriptionLabel": "Description",
           "submitCreate": "Create matter",
           "submitEdit": "Save"
         },
@@ -3295,7 +3345,6 @@
     "defaultReason": "The assistant needs your location to help with your request."
   },
   "mcpServers": {
-    "title": "MCP Servers",
     "description": "Connect to internal data sources and tools via the Model Context Protocol.",
     "addServer": "Add MCP server",
     "editServer": "Edit MCP server",
@@ -3503,8 +3552,8 @@
       "description": "Bind skills the agent can read at runtime."
     },
     "agentWebhook": {
-      "title": "Agent workers",
-      "description": "Manage worker URLs for your agent."
+      "title": "Agent webhooks",
+      "description": "Manage webhook URLs for your agent."
     },
     "agentDelegation": {
       "title": "Agent delegation",
@@ -3544,9 +3593,11 @@
     "people": "People",
     "teams": "Teams",
     "integrations": "Integrations",
-    "mcpServers": "MCP servers",
+    "mcp": "MCP",
     "providers": "AI providers",
     "apiKeys": "API keys",
+    "api": "API",
+    "apiRest": "REST",
     "branding": "Branding",
     "governance": "Governance",
     "personalization": "Preferences",
@@ -4073,6 +4124,8 @@
       "title": "Create project",
       "nameLabel": "Project name",
       "namePlaceholder": "e.g. Q2 Sales Hiring",
+      "keyLabel": "Project key",
+      "keyDescription": "Prefix for task IDs (e.g. TAL-1). Fixed — it can't be changed after the project is created.",
       "descriptionLabel": "Description",
       "descriptionPlaceholder": "Optional — what's this project for?",
       "teamLabel": "Owning team",
@@ -4213,7 +4266,6 @@
       "deleteError": "Couldn't delete project",
       "saveSuccess": "Saved",
       "saveError": "Couldn't save settings",
-      "saveButton": "Save changes",
       "saveSubmitting": "Saving…",
       "archiveDescription": "Hide this project from members. Files and chats are preserved; restore anytime.",
       "restoreDescription": "Make this project visible to members again.",
@@ -4268,6 +4320,8 @@
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} isn't available in this project. Pick another agent.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} isn't available in this project. Pick another model.",
       "PROJECT_NAME_INVALID": "Project name must be 1–80 characters.",
+      "PROJECT_KEY_INVALID": "Use 2–6 letters or digits, starting with a letter (e.g. TAL).",
+      "PROJECT_KEY_TAKEN": "That key is already used by another project. Pick a different one.",
       "PROJECT_DESCRIPTION_INVALID": "Description is too long.",
       "PROJECT_INSTRUCTIONS_TOO_LONG": "Instructions exceed the {cap}-character limit. Trim before saving.",
       "PROJECT_LEGAL_HOLD": "This project is under legal hold and cannot be deleted.",
@@ -4326,7 +4380,10 @@
         "description": "Logo, colors, and the name shown to your users."
       },
       "integrations": {
-        "description": "Connect external apps and MCP servers."
+        "description": "Connect external apps to your workspace."
+      },
+      "mcp": {
+        "description": "Connect MCP servers for tools and data."
       },
       "providers": {
         "description": "Bring your own API keys for OpenAI, Anthropic, and others."
@@ -4480,7 +4537,7 @@
         "tools": "Tools",
         "skills": "Skills",
         "knowledge": "Knowledge",
-        "webhook": "Workers",
+        "webhook": "Webhooks",
         "delegation": "Delegation",
         "conversationStarters": "Starters",
         "history": "History"
@@ -4651,38 +4708,38 @@
         "webSearchHintLink": "Manage websites"
       },
       "webhook": {
-        "title": "Workers",
+        "title": "Webhooks",
         "description": "Create unique URLs to chat with this agent from external systems.",
-        "notPublished": "Publish this agent to enable worker access.",
-        "createButton": "Create worker",
-        "createdTitle": "Worker created",
+        "notPublished": "Publish this agent to enable webhook access.",
+        "createButton": "Create webhook",
+        "createdTitle": "Webhook created",
         "urlWarning": "Copy this URL now. It will only be shown once.",
-        "webhookUrl": "Worker URL",
-        "copyUrl": "Copy worker URL",
+        "webhookUrl": "Webhook URL",
+        "copyUrl": "Copy webhook URL",
         "copyExample": "Copy example",
-        "deleteWebhook": "Delete worker",
-        "emptyTitle": "No workers yet",
-        "emptyDescription": "Create a worker to allow external systems to chat with this agent.",
+        "deleteWebhook": "Delete webhook",
+        "emptyTitle": "No webhooks yet",
+        "emptyDescription": "Create a webhook to allow external systems to chat with this agent.",
         "never": "Never",
         "columns": {
           "url": "URL",
           "active": "Active",
           "lastTriggered": "Last triggered"
         },
-        "deleteTitle": "Delete worker",
-        "deleteDescription": "Are you sure? Any systems using this worker URL will lose access.",
+        "deleteTitle": "Delete webhook",
+        "deleteDescription": "Are you sure? Any systems using this webhook URL will lose access.",
         "toast": {
-          "created": "Worker created",
-          "createFailed": "Failed to create worker",
-          "enabled": "Worker enabled",
-          "disabled": "Worker disabled",
-          "toggleFailed": "Failed to update worker",
-          "deleted": "Worker deleted",
-          "deleteFailed": "Failed to delete worker",
+          "created": "Webhook created",
+          "createFailed": "Failed to create webhook",
+          "enabled": "Webhook enabled",
+          "disabled": "Webhook disabled",
+          "toggleFailed": "Failed to update webhook",
+          "deleted": "Webhook deleted",
+          "deleteFailed": "Failed to delete webhook",
           "urlCopied": "URL copied"
         },
         "usageExamples": "Usage examples",
-        "usageExamplesDescription": "Send a POST request to the worker URL with a JSON body or multipart form data.",
+        "usageExamplesDescription": "Send a POST request to the webhook URL with a JSON body or multipart form data.",
         "exampleNonStreaming": "Non-streaming (JSON response)",
         "exampleStreaming": "Streaming (SSE response)",
         "exampleMultiTurn": "Multi-turn conversation",
@@ -4794,9 +4851,6 @@
       "tabs": {
         "all": "All integrations",
         "connected": "Connected"
-      },
-      "sections": {
-        "apps": "Apps"
       },
       "searchPlaceholder": "Search integrations...",
       "badge": {
@@ -5536,7 +5590,6 @@
       "appName": "App name",
       "appNamePlaceholder": "e.g, Acme corp",
       "textLogo": "Text logo",
-      "textLogoOptional": "(optional)",
       "textLogoPlaceholder": "e.g, Acme",
       "logo": "Logo",
       "logoDescription": "Upload your organization logo",
@@ -5552,6 +5605,141 @@
       "validation": {
         "appNameRequired": "App name is required"
       }
+    }
+  },
+  "inbox": {
+    "title": "Inbox",
+    "subtitle": "Assignments, status changes, comments, and mentions across your tasks.",
+    "empty": "You're all caught up.",
+    "markAllRead": "Mark all read",
+    "unreadOnly": "Unread only",
+    "taskAssigned": "Task assigned to you",
+    "taskAssignedBody": "You were assigned \"{{title}}\".",
+    "taskStatusChanged": "Task status changed",
+    "taskStatusChangedBody": "\"{{title}}\" moved from {{from}} to {{to}}.",
+    "taskCommented": "New comment",
+    "taskCommentedBody": "New comment on \"{{title}}\".",
+    "mention": "You were mentioned",
+    "mentionBody": "You were mentioned on \"{{title}}\"."
+  },
+  "projectSecrets": {
+    "title": "Secrets",
+    "description": "Encrypted credentials this project's agents can use. Values are never shown after saving.",
+    "addButton": "Add secret",
+    "empty": "No secrets yet.",
+    "agentAccessTitle": "Available to agents",
+    "agentAccessBody": "Agent runtimes (e.g. Hermes, OpenClaw) can use these secrets when they run tasks for this project — for example to sign in to external services on your behalf. Values are injected at runtime and are never shown to the chat model or revealed in the UI.",
+    "nameLabel": "Name",
+    "valueLabel": "Value",
+    "descriptionLabel": "Description",
+    "typeLabel": "Type",
+    "typeApiKey": "API key",
+    "typeBearer": "Bearer token",
+    "typeBasic": "Username & password",
+    "typeCustom": "Custom",
+    "apiKeyValueLabel": "API key",
+    "tokenLabel": "Token",
+    "usernameLabel": "Username",
+    "passwordLabel": "Password",
+    "basicNameHint": "Stored as two secrets — your name plus the _USERNAME and _PASSWORD suffixes.",
+    "encryptionNotConfigured": "Secret encryption isn't set up on this server (ENCRYPTION_SECRET_HEX is missing). Run `tale init`, then try again.",
+    "saveSuccess": "Secret saved",
+    "deleteSuccess": "Secret deleted"
+  },
+  "tasks": {
+    "title": "Tasks",
+    "entityLabel": "tasks",
+    "status": {
+      "backlog": "Backlog",
+      "todo": "To do",
+      "in_progress": "In progress",
+      "in_review": "In review",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    },
+    "priority": {
+      "p0": "Urgent",
+      "p1": "High",
+      "p2": "Medium",
+      "p3": "Low",
+      "none": "No priority"
+    },
+    "fields": {
+      "title": "Title",
+      "description": "Description",
+      "assignee": "Assignee",
+      "priority": "Priority",
+      "labels": "Labels",
+      "status": "Status",
+      "unassigned": "Unassigned",
+      "id": "ID"
+    },
+    "actions": {
+      "create": "Create task",
+      "comment": "Comment",
+      "reply": "Reply",
+      "assign": "Assign",
+      "add": "Add",
+      "archive": "Archive",
+      "restore": "Restore"
+    },
+    "views": {
+      "board": "Board",
+      "list": "List",
+      "table": "Table",
+      "timeline": "Timeline"
+    },
+    "board": {
+      "noTasks": "No tasks"
+    },
+    "empty": {
+      "description": "Create your first task to start tracking work."
+    },
+    "detail": {
+      "overview": "Overview",
+      "comments": "Comments",
+      "noComments": "No comments yet.",
+      "activity": "Activity",
+      "subtasks": "Subtasks",
+      "addSubtask": "Add a subtask…",
+      "addDescription": "Add a description…",
+      "noDescription": "No description.",
+      "parentCloseGuard": "Finish all subtasks before closing this task.",
+      "dependencies": "Dependencies",
+      "blockedBy": "Blocked by",
+      "blocks": "Blocks",
+      "blocked": "Blocked",
+      "noDependencies": "None",
+      "linkTask": "Link a task…",
+      "dependencyCycle": "That would create a circular dependency.",
+      "removeDependency": "Remove dependency",
+      "partOf": "Part of {task}",
+      "subtask": "Subtask"
+    },
+    "comment": {
+      "edited": "edited",
+      "deleteConfirm": "Delete this comment?"
+    },
+    "assignee": {
+      "unassigned": "Unassigned",
+      "assignToMe": "Assign to me",
+      "agents": "Agents",
+      "unassign": "Unassign",
+      "you": "You",
+      "search": "Search people…"
+    },
+    "activity": {
+      "created": "Created",
+      "updated": "Updated",
+      "claimed": "Claimed",
+      "archived": "Archived",
+      "restored": "Restored",
+      "reordered": "Reordered",
+      "statusChanged": "Status changed",
+      "assigneeChanged": "Assignee changed",
+      "commentAdded": "Comment added",
+      "dependencyAdded": "Dependency added",
+      "dependencyRemoved": "Dependency removed"
     }
   },
   "tables": {
@@ -5938,6 +6126,7 @@
       "dismiss": "I have saved it"
     },
     "list": {
+      "title": "App-passwords",
       "empty": "No app-passwords yet.",
       "label": "Label",
       "prefix": "Prefix",
@@ -5946,12 +6135,9 @@
       "neverUsed": "never",
       "revoked": "revoked",
       "revoke": "Revoke",
-      "copy": "Copy",
       "revokedToast": "Revoked",
-      "copiedToast": "Copied",
       "revokeError": "Could not revoke",
-      "revokeErrorNotFound": "This app-password no longer exists.",
-      "copyError": "Could not copy"
+      "revokeErrorNotFound": "This app-password no longer exists."
     },
     "revokeDialog": {
       "title": "Revoke this app-password?",

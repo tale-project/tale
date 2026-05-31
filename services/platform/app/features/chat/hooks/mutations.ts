@@ -76,6 +76,14 @@ export function useUpdateThread() {
   return useConvexMutation(api.threads.mutations.updateChatThread);
 }
 
+export function useSetThreadPinned() {
+  return useConvexMutation(api.threads.mutations.setThreadPinned);
+}
+
+export function useMarkThreadRead() {
+  return useConvexMutation(api.threads.mutations.markThreadRead);
+}
+
 export function useCancelGeneration() {
   return useConvexMutation(api.threads.mutations.cancelGeneration);
 }

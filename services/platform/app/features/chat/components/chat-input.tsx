@@ -22,14 +22,17 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
+import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT, isAudioOrVideo } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 
+import { useChatLayout } from '../context/chat-layout-context';
 import type { VideoLinkJob } from '../hooks/use-chat-video-links';
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
+import { captureScreenshot } from '../utils/capture-screenshot';
 import { AgentSelector } from './agent-selector';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaModelSelector } from './arena/arena-model-selector';
@@ -38,8 +41,10 @@ import { ComposerModeMenu } from './composer-mode-menu';
 import { DictationButton } from './dictation-button';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
+import { QuotedReferenceChip } from './quoted-reference-chip';
 import { SavePromptMenu } from './save-prompt-menu';
 import { VideoLinkChip } from './video-link-chip';
+import { VoiceModeToggle } from './voice-mode-toggle';
 
 // Web Speech requires a fully-qualified BCP-47 tag. Already-regional codes
 // (`de-CH`, future `fr-CA`) pass through; bare base locales pick the most
@@ -68,6 +73,8 @@ interface ChatInputProps extends Omit<
   value?: string;
   onChange?: (value: string) => void;
   organizationId: string;
+  /** Active thread id — drives the composer voice-mode toggle (per-thread). */
+  threadId?: string;
   attachments: FileAttachment[];
   uploadingFiles: string[];
   uploadFiles: (files: File[]) => Promise<void>;
@@ -133,6 +140,9 @@ interface ChatInputProps extends Omit<
    * attached but the selected model doesn't support editing). Pair with a
    * visible reason (e.g. the EditingBanner) so it isn't mysterious.
    */
+  /** Project the chat belongs to (if any) — restricts the agent/model pickers
+   *  to the project's allowed agents/models and surfaces its recommendations. */
+  projectId?: string;
   sendBlocked?: boolean;
   /** Tooltip shown on the send button when `sendBlocked` is true. */
   sendBlockedReason?: string;
@@ -148,6 +158,7 @@ export function ChatInput({
   disabledReason,
   placeholder,
   organizationId,
+  threadId,
   attachments,
   uploadingFiles,
   uploadFiles,
@@ -168,12 +179,14 @@ export function ChatInput({
   retryVideoJob,
   onSavePrompt,
   onOpenPromptLibrary,
+  projectId,
   sendBlocked = false,
   sendBlockedReason,
   ...restProps
 }: ChatInputProps) {
   const { t: tChat } = useT('chat');
   const { t: tDialogs } = useT('dialogs');
+  const { t: tComposer } = useT('composer');
   const { i18n } = useTranslation();
   const arenaContext = useArenaModeOptional();
   const isArenaMode = arenaContext?.isArenaMode ?? false;
@@ -223,6 +236,8 @@ export function ChatInput({
   const isUploading = uploadingFiles.length > 0;
   const inputDisabled = disabled || isLoading;
 
+  const { quotedText, setQuotedText } = useChatLayout();
+
   const handleSendMessage = () => {
     if (
       (!value.trim() && attachments.length === 0) ||
@@ -242,8 +257,38 @@ export function ChatInput({
     const attachmentsToSend =
       attachments.length > 0 ? clearAttachments() : undefined;
 
-    onSendMessage(value.trim(), attachmentsToSend);
+    // Prepend any staged quote as a markdown blockquote so the model sees
+    // the referenced passage above the user's message, then clear it.
+    const trimmed = value.trim();
+    const messageToSend = quotedText
+      ? `> ${quotedText.replace(/\n/g, '\n> ')}\n\n${trimmed}`
+      : trimmed;
+    if (quotedText) setQuotedText(null);
+
+    onSendMessage(messageToSend, attachmentsToSend);
   };
+
+  const screenshotSupported =
+    typeof navigator !== 'undefined' &&
+    !!navigator.mediaDevices?.getDisplayMedia;
+
+  const handleTakeScreenshot = useCallback(async () => {
+    try {
+      const file = await captureScreenshot();
+      if (file) await uploadFiles([file]);
+    } catch (err) {
+      // The user dismissing the OS picker rejects with NotAllowed/Abort —
+      // treat as a silent cancel, surface anything else.
+      if (
+        err instanceof DOMException &&
+        (err.name === 'NotAllowedError' || err.name === 'AbortError')
+      ) {
+        return;
+      }
+      console.error('[screenshot] capture failed', err);
+      toast({ title: tComposer('screenshotFailed'), variant: 'destructive' });
+    }
+  }, [uploadFiles, tComposer]);
 
   const imageAttachments = useMemo(
     () => attachments.filter((att) => att.fileType.startsWith('image/')),
@@ -736,6 +781,8 @@ export function ChatInput({
             </HStack>
           )}
 
+          <QuotedReferenceChip />
+
           <div className="relative">
             <label
               id={textareaLabelId}
@@ -812,6 +859,11 @@ export function ChatInput({
               <ComposerModeMenu
                 organizationId={organizationId}
                 onAttachFile={() => fileInputRef.current?.click()}
+                onTakeScreenshot={
+                  screenshotSupported && !fileUploadDisabled
+                    ? () => void handleTakeScreenshot()
+                    : undefined
+                }
                 fileUploadDisabled={fileUploadDisabled}
                 disabled={inputDisabled}
               />
@@ -827,13 +879,20 @@ export function ChatInput({
                 <ArenaModelSelector organizationId={organizationId} />
               ) : (
                 <HStack gap={0} align="center">
-                  <AgentSelector organizationId={organizationId} />
-                  <ModelSelector organizationId={organizationId} />
+                  <AgentSelector
+                    organizationId={organizationId}
+                    projectId={projectId}
+                  />
+                  <ModelSelector
+                    organizationId={organizationId}
+                    projectId={projectId}
+                  />
                 </HStack>
               )}
               <ComposerCapabilityPills organizationId={organizationId} />
             </HStack>
             <HStack gap={1} align="center" className="shrink-0">
+              <VoiceModeToggle threadId={threadId} disabled={inputDisabled} />
               <DictationButton
                 organizationId={organizationId}
                 disabled={inputDisabled}

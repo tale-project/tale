@@ -30,6 +30,8 @@ function ProjectDetailLayout() {
   const { id: organizationId, projectId } = Route.useParams();
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
+  const { t: tTasks } = useT('tasks');
+  const { t: tSecrets } = useT('projectSecrets');
 
   const { project, isLoading } = useProject(asProjectId(projectId));
 
@@ -49,6 +51,11 @@ function ProjectDetailLayout() {
         matchMode: 'exact',
       },
       {
+        label: tTasks('title'),
+        href: `/dashboard/${organizationId}/projects/${projectId}/tasks`,
+        matchMode: 'exact',
+      },
+      {
         label: t('navigation.instructions'),
         href: `/dashboard/${organizationId}/projects/${projectId}/instructions`,
         matchMode: 'exact',
@@ -63,11 +70,16 @@ function ProjectDetailLayout() {
         href: `/dashboard/${organizationId}/projects/${projectId}/agents`,
         matchMode: 'exact',
       },
+      {
+        label: tSecrets('title'),
+        href: `/dashboard/${organizationId}/projects/${projectId}/secrets`,
+        matchMode: 'exact',
+      },
       // U8: Settings tab merged into Overview. Identity edit + Sharing live
       // in the Overview header now; Archive/Delete are in the 3-dot row menu
       // on the projects list page.
     ],
-    [t, organizationId, projectId],
+    [t, tTasks, tSecrets, organizationId, projectId],
   );
 
   if (!isLoading && !project) {

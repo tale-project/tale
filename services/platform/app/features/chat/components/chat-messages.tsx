@@ -147,6 +147,8 @@ interface ChatMessagesProps {
   /** Map of messageId → promptId for messages that have been saved as prompts. */
   savedMessageMap?: Map<string, string>;
   onRetry?: () => void;
+  /** Regenerate a specific assistant message as a new branch (3-dots menu). */
+  onRegenerate?: (messageId: string) => void;
   editingMessageId?: string;
   editingMessageContent?: string;
   onEditSubmit?: (newContent: string) => Promise<void>;
@@ -193,6 +195,7 @@ export function ChatMessages({
   onUnsavePrompt,
   savedMessageMap,
   onRetry,
+  onRegenerate,
   editingMessageId,
   editingMessageContent,
   onEditSubmit,
@@ -559,6 +562,7 @@ export function ChatMessages({
                   ? onRetry
                   : undefined
               }
+              onRegenerate={!isUserMessage ? onRegenerate : undefined}
               onEdit={isUserMessage ? onEditMessage : undefined}
               onFork={onForkAtMessage}
               onSavePrompt={isUserMessage ? onSavePrompt : undefined}

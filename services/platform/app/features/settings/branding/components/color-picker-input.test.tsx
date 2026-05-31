@@ -1,13 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, fireEvent } from '@testing-library/react';
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
 
 import { ColorPickerInput } from './color-picker-input';
-
-afterEach(cleanup);
 
 describe('ColorPickerInput', () => {
   it('renders label and hex input', () => {

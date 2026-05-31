@@ -22,6 +22,7 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
       accessorKey: 'name',
       header: tTables('headers.product'),
       size: 400,
+      meta: { skeleton: { type: 'avatar-text' } },
       cell: ({ row }) => (
         <HStack gap={3}>
           <ProductImage

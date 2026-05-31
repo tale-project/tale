@@ -538,7 +538,7 @@
           "editTitle": "Modifier le déclencheur d'événement",
           "eventType": "Type d'événement",
           "eventTypePlaceholder": "Sélectionne un type d'événement",
-          "filtersLabel": "Filtres (optionnel)",
+          "filtersLabel": "Filtres",
           "filterAll": "Tous (sans filtre)",
           "filterAllPlaceholder": "Sélectionne une valeur de filtre"
         },
@@ -746,6 +746,23 @@
     "imageCounter": "{current} sur {total}",
     "newChat": "Nouveau chat",
     "moreActions": "Plus d'actions",
+    "tryAgain": "Réessayer",
+    "regenerateFailed": "Impossible de régénérer la réponse",
+    "speakOutLoud": "Lire à voix haute",
+    "pinChat": "Épingler le chat",
+    "unpinChat": "Détacher le chat",
+    "pinProject": "Épingler le projet",
+    "unpinProject": "Détacher le projet",
+    "pinned": "Épinglé",
+    "pinFailed": "Échec de l'épinglage",
+    "newResponse": "Nouvelle réponse",
+    "projectsSection": "Projets",
+    "chatsSection": "Chats",
+    "quote": {
+      "button": "Citer",
+      "label": "Citation",
+      "remove": "Supprimer la citation"
+    },
     "deleteChat": "Supprimer le chat",
     "deleteConfirmation": "Es-tu sûr de vouloir supprimer {title} ?",
     "deletePermanentMessage": "Déplacer le chat vers la corbeille. Tu peux le restaurer pendant la période de grâce de l'organisation ; ensuite la rétention supprime définitivement le chat et ses messages.",
@@ -756,6 +773,8 @@
     "archiveFailed": "Échec de l'archivage du chat",
     "unarchiveSuccess": "Chat désarchivé",
     "unarchiveFailed": "Échec du désarchivage du chat",
+    "removeFromProject": "Retirer du projet",
+    "removeFromProjectFailed": "Échec du retrait du chat du projet",
     "archived": {
       "title": "Archivés"
     },
@@ -785,19 +804,19 @@
       "summaryReasoningOnly": "A montré son raisonnement"
     },
     "tools": {
-      "customerRead": "Lecture des données client",
-      "productRead": "Lecture du catalogue de produits",
-      "ragSearch": "Recherche dans la base de connaissances",
-      "web": "Récupération du contenu web",
-      "pdf": "Traitement du PDF",
-      "image": "Analyse de l'image",
-      "pptx": "Traitement de la présentation",
-      "docx": "Traitement du document",
-      "workflowRead": "Lecture du workflow",
-      "updateWorkflowStep": "Mise à jour de l'étape du workflow",
-      "saveWorkflowDefinition": "Enregistrement du workflow",
-      "validateWorkflowDefinition": "Validation du workflow",
-      "excel": "Traitement du fichier Excel"
+      "customerRead": "Données client",
+      "productRead": "Catalogue produits",
+      "ragSearch": "Base de connaissances",
+      "web": "Contenu web",
+      "pdf": "PDF",
+      "image": "Images",
+      "pptx": "Présentation",
+      "docx": "Document",
+      "workflowRead": "Workflow",
+      "updateWorkflowStep": "Étape du workflow",
+      "saveWorkflowDefinition": "Enregistrer le workflow",
+      "validateWorkflowDefinition": "Valider le workflow",
+      "excel": "Fichier Excel"
     },
     "agentSelector": {
       "label": "Sélectionner un agent",
@@ -813,6 +832,8 @@
       "auto": "Auto",
       "autoDescription": "Sélectionne automatiquement le meilleur modèle disponible avec repli",
       "noModelsAvailable": "Aucun modèle disponible",
+      "recommended": "Recommandé",
+      "noApiKey": "Aucune clé API configurée pour le fournisseur de ce modèle — ajoutes-en une dans Paramètres → API.",
       "tags": {
         "chat": "Chat",
         "embedding": "Embedding",
@@ -849,13 +870,17 @@
       "voiceOutputAnnounceBlocked": "Lecture vocale bloquée — active la lecture pour écouter",
       "voiceOutputAnnounceError": "Échec de la sortie vocale",
       "voiceOutputThreadSwitchLabel": "Sortie vocale pour ce chat",
-      "voiceOutputThreadSaveFailed": "Impossible d'enregistrer le paramètre vocal pour ce chat"
+      "voiceOutputThreadSaveFailed": "Impossible d'enregistrer le paramètre vocal pour ce chat",
+      "voiceModeLabel": "Mode vocal",
+      "voiceModeEnable": "Lire les réponses à voix haute",
+      "voiceModeDisable": "Arrêter la lecture à voix haute"
     },
     "searchChat": "Rechercher dans le chat",
     "hideSearch": "Masquer la recherche",
     "showHistory": "Afficher l'historique",
     "hideHistory": "Masquer l'historique",
     "chatHistory": "Historique",
+    "newProject": "Nouveau projet",
     "typeMessageHere": "Saisis ton message ici…",
     "send": "Envoyer le message",
     "stopGenerating": "Arrêter la génération",
@@ -1024,7 +1049,11 @@
       "contextTokens": "Tokens",
       "contextMessages": "Messages",
       "contextApprovals": "Approbations",
-      "showContext": "Afficher la fenêtre de contexte"
+      "showContext": "Afficher la fenêtre de contexte",
+      "throughput": "Débit",
+      "tokensPerSecond": "{value} tok/s",
+      "cachedPercent": "{percent}% en cache",
+      "copyId": "Copier l'ID du message"
     },
     "toolDetails": {
       "title": "Détails de {tool}",
@@ -1042,6 +1071,8 @@
       "loadingMore": "Chargement...",
       "generating": "Génération de la réponse",
       "awaitingInput": "En attente de ta réponse",
+      "dropHereToAdd": "Dépose un chat ici",
+      "dropToChatsHint": "Dépose ici pour déplacer vers Chats",
       "legalHold": {
         "heading": "Sous conservation légale",
         "body": "Conservé pour conformité — ne peut pas être supprimé, archivé ou renommé.",
@@ -1235,6 +1266,7 @@
     "errorHintToolFailure": "L'agent a rencontré une erreur lors de l'accès aux données. Essaie de reformuler ta demande ou de demander un ensemble de données plus restreint."
   },
   "common": {
+    "optional": "facultatif",
     "dates": {
       "today": "Aujourd'hui",
       "yesterday": "Hier"
@@ -1464,7 +1496,24 @@
     "modeHeader": "Modes",
     "capabilityHeader": "Capacités",
     "capabilityDisable": "Désactiver {name}",
-    "requiresIntegration": "Nécessite {name}"
+    "requiresIntegration": "Nécessite {name}",
+    "takeScreenshot": "Faire une capture d'écran",
+    "screenshotFailed": "Impossible de faire la capture d'écran",
+    "tuningHeader": "Réglage des réponses",
+    "adaptive": "Adaptatif",
+    "effort": "Effort",
+    "effortLow": "Faible",
+    "effortMedium": "Moyen",
+    "effortHigh": "Élevé",
+    "creativity": "Créativité",
+    "creativityPrecise": "Précis",
+    "creativityBalanced": "Équilibré",
+    "creativityCreative": "Créatif",
+    "style": "Style",
+    "styleConcise": "Concis",
+    "styleDetailed": "Détaillé",
+    "styleFormal": "Formel",
+    "styleFriendly": "Amical"
   },
   "connectivity": {
     "reconnectingTitle": "Reconnexion…",
@@ -2675,6 +2724,7 @@
       "auditLogs": "Journaux d'audit",
       "dataSubjectRequests": "Personnes concernées",
       "policiesAndLimitsDescription": "Budgets, restrictions de téléversement, rétention des données, feature flags et sortie vocale.",
+      "securityAndMonitoringDescription": "Politiques de connexion, de mot de passe et d’authentification à deux facteurs.",
       "runCodePolicy": "Paquets run-code"
     },
     "runCodePolicy": {
@@ -2874,7 +2924,7 @@
           "orgConfirmDescription": "Obligatoire pour les conservations à l'échelle de l'organisation. Le bouton de soumission reste désactivé jusqu'à correspondance exacte.",
           "reasonLabel": "Raison",
           "reasonPlaceholder": "ex. Hold litige Acme c. Co. (dossier #2026-04)",
-          "matterLabel": "Dossier (optionnel)",
+          "matterLabel": "Dossier",
           "matterPlaceholder": "Choisir ou créer un dossier",
           "matterCreateNew": "Créer un nouveau dossier…",
           "submit": "Placer la conservation"
@@ -2903,8 +2953,8 @@
           "description": "Grouper les conservations connexes sous un dossier. À sa fermeture ultérieure, des demandes de libération seront déposées pour chaque conservation liée.",
           "nameLabel": "Nom",
           "namePlaceholder": "ex. Acme c. Co. (2026-04)",
-          "caseNumberLabel": "Numéro d'affaire (optionnel)",
-          "descriptionLabel": "Description (optionnel)",
+          "caseNumberLabel": "Numéro d'affaire",
+          "descriptionLabel": "Description",
           "submitCreate": "Créer le dossier",
           "submitEdit": "Enregistrer"
         },
@@ -3296,7 +3346,6 @@
     "defaultReason": "L'assistant a besoin de ta localisation pour répondre à ta demande."
   },
   "mcpServers": {
-    "title": "Serveurs MCP",
     "description": "Connecte-toi à des sources de données et outils internes via le Model Context Protocol.",
     "addServer": "Ajouter un serveur MCP",
     "editServer": "Modifier le serveur MCP",
@@ -3504,8 +3553,8 @@
       "description": "Lie les skills que l'agent peut lire à l'exécution."
     },
     "agentWebhook": {
-      "title": "Workers de l'agent",
-      "description": "Gère les URL de workers pour ton agent."
+      "title": "Webhooks de l'agent",
+      "description": "Gère les URL de webhooks pour ton agent."
     },
     "agentDelegation": {
       "title": "Délégation de l'agent",
@@ -3545,9 +3594,11 @@
     "people": "Personnes",
     "teams": "Équipes",
     "integrations": "Intégrations",
-    "mcpServers": "Serveurs MCP",
+    "mcp": "MCP",
     "providers": "Fournisseurs IA",
     "apiKeys": "Clés API",
+    "api": "API",
+    "apiRest": "REST",
     "branding": "Branding",
     "governance": "Gouvernance",
     "personalization": "Personnalisation",
@@ -4069,7 +4120,10 @@
         "description": "Logo, couleurs et nom affiché à tes utilisateurs."
       },
       "integrations": {
-        "description": "Connecte des applications externes et des serveurs MCP."
+        "description": "Connecte des applications externes à ton espace de travail."
+      },
+      "mcp": {
+        "description": "Connecte des serveurs MCP pour les outils et les données."
       },
       "providers": {
         "description": "Utilise tes propres clés API pour OpenAI, Anthropic et d'autres."
@@ -4223,7 +4277,7 @@
         "tools": "Outils",
         "skills": "Skills",
         "knowledge": "Base de connaissances",
-        "webhook": "Workers",
+        "webhook": "Webhooks",
         "delegation": "Délégation",
         "conversationStarters": "Amorces",
         "history": "Historique"
@@ -4394,38 +4448,38 @@
         "webSearchHintLink": "Gérer les sites web"
       },
       "webhook": {
-        "title": "Workers",
+        "title": "Webhooks",
         "description": "Crée des URL uniques pour discuter avec cet agent depuis des systèmes externes.",
-        "notPublished": "Publie cet agent pour activer l'accès par worker.",
-        "createButton": "Créer un worker",
-        "createdTitle": "Worker créé",
+        "notPublished": "Publie cet agent pour activer l'accès par webhook.",
+        "createButton": "Créer un webhook",
+        "createdTitle": "Webhook créé",
         "urlWarning": "Copie cette URL maintenant. Elle ne sera affichée qu'une seule fois.",
-        "webhookUrl": "URL du worker",
-        "copyUrl": "Copier l'URL du worker",
+        "webhookUrl": "URL du webhook",
+        "copyUrl": "Copier l'URL du webhook",
         "copyExample": "Copier l'exemple",
-        "deleteWebhook": "Supprimer le worker",
-        "emptyTitle": "Aucun worker pour l'instant",
-        "emptyDescription": "Crée un worker pour permettre aux systèmes externes de discuter avec cet agent.",
+        "deleteWebhook": "Supprimer le webhook",
+        "emptyTitle": "Aucun webhook pour l'instant",
+        "emptyDescription": "Crée un webhook pour permettre aux systèmes externes de discuter avec cet agent.",
         "never": "Jamais",
         "columns": {
           "url": "URL",
           "active": "Actif",
           "lastTriggered": "Dernier déclenchement"
         },
-        "deleteTitle": "Supprimer le worker",
-        "deleteDescription": "Es-tu sûr ? Tout système utilisant cette URL de worker perdra l'accès.",
+        "deleteTitle": "Supprimer le webhook",
+        "deleteDescription": "Es-tu sûr ? Tout système utilisant cette URL de webhook perdra l'accès.",
         "toast": {
-          "created": "Worker créé",
-          "createFailed": "Échec de la création du worker",
-          "enabled": "Worker activé",
-          "disabled": "Worker désactivé",
-          "toggleFailed": "Échec de la mise à jour du worker",
-          "deleted": "Worker supprimé",
-          "deleteFailed": "Échec de la suppression du worker",
+          "created": "Webhook créé",
+          "createFailed": "Échec de la création du webhook",
+          "enabled": "Webhook activé",
+          "disabled": "Webhook désactivé",
+          "toggleFailed": "Échec de la mise à jour du webhook",
+          "deleted": "Webhook supprimé",
+          "deleteFailed": "Échec de la suppression du webhook",
           "urlCopied": "URL copiée"
         },
         "usageExamples": "Exemples d'utilisation",
-        "usageExamplesDescription": "Envoie une requête POST à l'URL du worker avec un corps JSON ou des données multipart.",
+        "usageExamplesDescription": "Envoie une requête POST à l'URL du webhook avec un corps JSON ou des données multipart.",
         "exampleNonStreaming": "Sans streaming (réponse JSON)",
         "exampleStreaming": "Streaming (réponse SSE)",
         "exampleMultiTurn": "Conversation multi-tours",
@@ -4537,9 +4591,6 @@
       "tabs": {
         "all": "Toutes les intégrations",
         "connected": "Connectées"
-      },
-      "sections": {
-        "apps": "Apps"
       },
       "searchPlaceholder": "Rechercher des intégrations...",
       "badge": {
@@ -5279,7 +5330,6 @@
       "appName": "Nom de l'application",
       "appNamePlaceholder": "ex., Acme corp",
       "textLogo": "Logo texte",
-      "textLogoOptional": "(optionnel)",
       "textLogoPlaceholder": "ex., Acme",
       "logo": "Logo",
       "logoDescription": "Téléverse le logo de ton organisation",
@@ -5295,6 +5345,141 @@
       "validation": {
         "appNameRequired": "Le nom de l'application est requis"
       }
+    }
+  },
+  "inbox": {
+    "title": "Boîte de réception",
+    "subtitle": "Assignations, changements de statut, commentaires et mentions sur vos tâches.",
+    "empty": "Vous êtes à jour.",
+    "markAllRead": "Tout marquer comme lu",
+    "unreadOnly": "Non lus uniquement",
+    "taskAssigned": "Tâche qui vous est assignée",
+    "taskAssignedBody": "« {{title}} » vous a été assignée.",
+    "taskStatusChanged": "Statut de tâche modifié",
+    "taskStatusChangedBody": "« {{title}} » est passée de {{from}} à {{to}}.",
+    "taskCommented": "Nouveau commentaire",
+    "taskCommentedBody": "Nouveau commentaire sur « {{title}} ».",
+    "mention": "Vous avez été mentionné",
+    "mentionBody": "Vous avez été mentionné sur « {{title}} »."
+  },
+  "projectSecrets": {
+    "title": "Secrets",
+    "description": "Identifiants chiffrés que les agents de ce projet peuvent utiliser. Les valeurs ne sont jamais affichées après l'enregistrement.",
+    "addButton": "Ajouter un secret",
+    "empty": "Aucun secret pour le moment.",
+    "agentAccessTitle": "Accessible aux agents",
+    "agentAccessBody": "Les runtimes d'agents (par ex. Hermes, OpenClaw) peuvent utiliser ces secrets lorsqu'ils exécutent des tâches pour ce projet — par exemple pour se connecter à des services externes en ton nom. Les valeurs sont injectées à l'exécution et ne sont jamais montrées au modèle de chat ni affichées dans l'interface.",
+    "nameLabel": "Nom",
+    "valueLabel": "Valeur",
+    "descriptionLabel": "Description",
+    "typeLabel": "Type",
+    "typeApiKey": "Clé API",
+    "typeBearer": "Jeton Bearer",
+    "typeBasic": "Nom d'utilisateur et mot de passe",
+    "typeCustom": "Personnalisé",
+    "apiKeyValueLabel": "Clé API",
+    "tokenLabel": "Jeton",
+    "usernameLabel": "Nom d'utilisateur",
+    "passwordLabel": "Mot de passe",
+    "basicNameHint": "Enregistré sous forme de deux secrets — ton nom plus les suffixes _USERNAME et _PASSWORD.",
+    "encryptionNotConfigured": "Le chiffrement des secrets n'est pas configuré sur ce serveur (ENCRYPTION_SECRET_HEX manquant). Exécute `tale init`, puis réessaie.",
+    "saveSuccess": "Secret enregistré",
+    "deleteSuccess": "Secret supprimé"
+  },
+  "tasks": {
+    "title": "Tâches",
+    "entityLabel": "tâches",
+    "status": {
+      "backlog": "Backlog",
+      "todo": "À faire",
+      "in_progress": "En cours",
+      "in_review": "En revue",
+      "done": "Terminé",
+      "cancelled": "Annulé"
+    },
+    "priority": {
+      "p0": "Urgent",
+      "p1": "Élevée",
+      "p2": "Moyenne",
+      "p3": "Basse",
+      "none": "Aucune priorité"
+    },
+    "fields": {
+      "title": "Titre",
+      "description": "Description",
+      "assignee": "Assigné à",
+      "priority": "Priorité",
+      "labels": "Étiquettes",
+      "status": "Statut",
+      "unassigned": "Non assigné",
+      "id": "ID"
+    },
+    "actions": {
+      "create": "Créer une tâche",
+      "comment": "Commenter",
+      "reply": "Répondre",
+      "assign": "Assigner",
+      "add": "Ajouter",
+      "archive": "Archiver",
+      "restore": "Restaurer"
+    },
+    "views": {
+      "board": "Tableau",
+      "list": "Liste",
+      "table": "Table",
+      "timeline": "Chronologie"
+    },
+    "board": {
+      "noTasks": "Aucune tâche"
+    },
+    "empty": {
+      "description": "Créez votre première tâche pour suivre le travail."
+    },
+    "detail": {
+      "overview": "Aperçu",
+      "comments": "Commentaires",
+      "noComments": "Aucun commentaire pour le moment.",
+      "activity": "Activité",
+      "subtasks": "Sous-tâches",
+      "addSubtask": "Ajouter une sous-tâche…",
+      "addDescription": "Ajouter une description…",
+      "noDescription": "Aucune description.",
+      "parentCloseGuard": "Terminez toutes les sous-tâches avant de clôturer cette tâche.",
+      "dependencies": "Dépendances",
+      "blockedBy": "Bloqué par",
+      "blocks": "Bloque",
+      "blocked": "Bloqué",
+      "noDependencies": "Aucune",
+      "linkTask": "Lier une tâche…",
+      "dependencyCycle": "Cela créerait une dépendance circulaire.",
+      "removeDependency": "Supprimer la dépendance",
+      "partOf": "Partie de {task}",
+      "subtask": "Sous-tâche"
+    },
+    "comment": {
+      "edited": "modifié",
+      "deleteConfirm": "Supprimer ce commentaire ?"
+    },
+    "assignee": {
+      "unassigned": "Non assigné",
+      "assignToMe": "M’assigner",
+      "agents": "Agents",
+      "unassign": "Désassigner",
+      "you": "Vous",
+      "search": "Rechercher des personnes…"
+    },
+    "activity": {
+      "created": "Créé",
+      "updated": "Mis à jour",
+      "claimed": "Pris en charge",
+      "archived": "Archivé",
+      "restored": "Restauré",
+      "reordered": "Réordonné",
+      "statusChanged": "Statut modifié",
+      "assigneeChanged": "Responsable modifié",
+      "commentAdded": "Commentaire ajouté",
+      "dependencyAdded": "Dépendance ajoutée",
+      "dependencyRemoved": "Dépendance supprimée"
     }
   },
   "tables": {
@@ -5689,6 +5874,8 @@
       "title": "Créer un projet",
       "nameLabel": "Nom du projet",
       "namePlaceholder": "par ex. Q2 Sales Hiring",
+      "keyLabel": "Clé du projet",
+      "keyDescription": "Préfixe des identifiants de tâches (par ex. TAL-1). Fixe — impossible à modifier après la création du projet.",
       "descriptionLabel": "Description",
       "descriptionPlaceholder": "Optionnel — à quoi sert ce projet ?",
       "teamLabel": "Équipe propriétaire",
@@ -5829,7 +6016,6 @@
       "deleteError": "Impossible de supprimer le projet",
       "saveSuccess": "Enregistré",
       "saveError": "Impossible d'enregistrer les paramètres",
-      "saveButton": "Enregistrer les modifications",
       "saveSubmitting": "Enregistrement…",
       "archiveDescription": "Masque ce projet pour les membres. Les fichiers et les conversations sont conservés ; restauration possible à tout moment.",
       "restoreDescription": "Rend ce projet à nouveau visible pour les membres.",
@@ -5884,6 +6070,8 @@
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} n'est pas disponible dans ce projet. Choisis un autre agent.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} n'est pas disponible dans ce projet. Choisis un autre modèle.",
       "PROJECT_NAME_INVALID": "Le nom du projet doit faire entre 1 et 80 caractères.",
+      "PROJECT_KEY_INVALID": "Utilise 2 à 6 lettres ou chiffres, en commençant par une lettre (par ex. TAL).",
+      "PROJECT_KEY_TAKEN": "Cette clé est déjà utilisée par un autre projet. Choisis-en une autre.",
       "PROJECT_DESCRIPTION_INVALID": "La description est trop longue.",
       "PROJECT_INSTRUCTIONS_TOO_LONG": "Les instructions dépassent la limite de {cap} caractères. Raccourcis-les avant d'enregistrer.",
       "PROJECT_RECOMMENDED_NOT_SUBSET": "Les éléments recommandés doivent tous figurer dans la liste autorisée.",
@@ -5939,6 +6127,7 @@
       "dismiss": "Je l'ai sauvegardé"
     },
     "list": {
+      "title": "Mots de passe applicatifs",
       "empty": "Aucun mot de passe applicatif pour l'instant.",
       "label": "Libellé",
       "prefix": "Préfixe",
@@ -5947,12 +6136,9 @@
       "neverUsed": "jamais",
       "revoked": "révoqué",
       "revoke": "Révoquer",
-      "copy": "Copier",
       "revokedToast": "Révoqué",
-      "copiedToast": "Copié",
       "revokeError": "Révocation impossible",
-      "revokeErrorNotFound": "Ce mot de passe applicatif n’existe plus.",
-      "copyError": "Impossible de copier"
+      "revokeErrorNotFound": "Ce mot de passe applicatif n’existe plus."
     },
     "revokeDialog": {
       "title": "Révoquer ce mot de passe applicatif ?",

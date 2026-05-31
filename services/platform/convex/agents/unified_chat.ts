@@ -15,6 +15,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { composerProfilesValidator } from '../../lib/shared/composer-profiles';
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import { internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
@@ -77,6 +78,14 @@ export const chatWithAgent = action({
      * `moveThreadToProject` to retarget the thread.
      */
     projectId: v.optional(v.id('projects')),
+    /**
+     * Composer "response tuning" profiles. Each lever defaults to `adaptive`
+     * (omitted == adaptive); a fixed value overrides the corresponding
+     * adaptive algorithm for this turn — effort → reasoning tier, creativity
+     * → temperature, style → a system-prompt fragment. See
+     * `lib/shared/composer-profiles.ts`.
+     */
+    composerProfiles: v.optional(composerProfilesValidator),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
@@ -337,6 +346,7 @@ export const chatWithAgent = action({
         preAllocatedStreamId,
         capabilityBindings: args.capabilityBindings,
         projectId: args.projectId,
+        composerProfiles: args.composerProfiles,
       });
     } catch (err) {
       await rollbackGenerating();

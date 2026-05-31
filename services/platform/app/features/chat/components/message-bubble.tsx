@@ -1,17 +1,20 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import {
   CopyIcon,
   CheckIcon,
   GitFork,
   Info,
+  MoreHorizontal,
   Pencil,
   Bookmark,
   BookmarkCheck,
   TriangleAlert,
   RotateCcw,
   Square,
+  Volume2,
 } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
@@ -38,6 +41,7 @@ import {
 } from '../hooks/queries';
 import { useCitations } from '../hooks/use-citations';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
+import { useOnDemandSpeech } from '../hooks/use-on-demand-speech';
 import {
   useVoiceModeEffective,
   useVoiceOutputChunker,
@@ -70,6 +74,8 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   hideFeedback?: boolean;
   onSendFollowUp?: (message: string) => void;
   onRetry?: () => void;
+  /** Regenerate this assistant message as a new branch (behind the 3-dots menu). */
+  onRegenerate?: (messageId: string) => void;
   onEdit?: (messageId: string, content: string) => void;
   onFork?: (messageId: string) => void;
   onSavePrompt?: (messageId: string, content: string) => void;
@@ -157,6 +163,7 @@ function MessageBubbleComponent({
   hideFeedback,
   onSendFollowUp,
   onRetry,
+  onRegenerate,
   onEdit,
   onFork,
   onSavePrompt,
@@ -186,6 +193,16 @@ function MessageBubbleComponent({
     isStreaming: !!isAssistantStreaming,
     isFreshSinceMount,
   });
+  // On-demand "Speak out loud" (behind the message 3-dots): synthesizes this
+  // finished reply through the provider TTS pipeline regardless of thread
+  // voice mode, then force-enables the indicator below to play it.
+  const onDemandSpeech = useOnDemandSpeech({
+    messageId: message.id,
+    threadId: message.threadId,
+    organizationId,
+    text: message.content ?? '',
+  });
+  const voiceIndicatorEnabled = voiceMode.enabled || onDemandSpeech.requested;
 
   const handleEditClick = useCallback(() => {
     if (onEdit) onEdit(message.id, message.content);
@@ -374,6 +391,71 @@ function MessageBubbleComponent({
     setIsInfoDialogOpen(true);
   };
 
+  // "Something went wrong": a failed reply, or an aborted reply that
+  // surfaced an error. For these we collapse the toolbar to just Show Info
+  // (copy / fork / feedback / regenerate aren't useful on a broken turn —
+  // the inline Try-again button covers retry).
+  const isErrored =
+    !isUser && (!!message.isFailed || (!!message.isAborted && !!message.error));
+
+  // 3-dots overflow menu (assistant, non-error): Try again regenerates this
+  // turn as a branch; Speak out loud reads it via the provider TTS pipeline.
+  const canSpeak = !!organizationId && !!message.threadId;
+  const moreMenuGroups: DropdownMenuGroup[] = [
+    [
+      ...(onRegenerate
+        ? [
+            {
+              type: 'item' as const,
+              label: tChat('tryAgain'),
+              icon: RotateCcw,
+              onClick: () => onRegenerate(message.id),
+            },
+          ]
+        : []),
+      ...(canSpeak
+        ? [
+            {
+              type: 'item' as const,
+              label: tChat('speakOutLoud'),
+              icon: Volume2,
+              onClick: onDemandSpeech.speak,
+            },
+          ]
+        : []),
+    ],
+  ];
+  const moreMenu =
+    moreMenuGroups[0].length > 0 ? (
+      <DropdownMenu
+        align="end"
+        trigger={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="p-1"
+            aria-label={tChat('moreActions')}
+          >
+            <MoreHorizontal className="size-4" />
+          </Button>
+        }
+        items={moreMenuGroups}
+      />
+    ) : null;
+
+  const infoButton = (
+    <Tooltip content={t('actions.showInfo')} side="bottom">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="p-1"
+        onClick={handleInfoClick}
+      >
+        <Info className="size-4" />
+      </Button>
+    </Tooltip>
+  );
+
   return (
     <div
       className={cn(
@@ -442,7 +524,7 @@ function MessageBubbleComponent({
                    * Hidden entirely when voice mode is off; the message
                    * then renders with no extra chrome.
                    */}
-                  {voiceMode.enabled && message.threadId && (
+                  {voiceIndicatorEnabled && message.threadId && (
                     <div className="mb-2 flex items-center justify-start">
                       <VoiceOutputIndicator
                         enabled
@@ -616,8 +698,16 @@ function MessageBubbleComponent({
             })}
           </div>
         )}
+        {/* Errored turn: only Show Info is useful — collapse the toolbar. */}
+        {!isUser && !isAssistantStreaming && isErrored && (
+          <div className="animate-content-in flex items-start gap-1 pt-2">
+            {infoButton}
+          </div>
+        )}
+
         {!isUser &&
           !isAssistantStreaming &&
+          !isErrored &&
           (!!displayContent ||
             (message.fileParts && message.fileParts.length > 0)) && (
             // Fade the post-answer toolbar in (opacity-only, no layout shift)
@@ -649,31 +739,25 @@ function MessageBubbleComponent({
                           )}
                         </Button>
                       </Tooltip>
-                      <Tooltip content={t('actions.showInfo')} side="bottom">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="p-1"
-                          onClick={handleInfoClick}
-                        >
-                          <Info className="size-4" />
-                        </Button>
-                      </Tooltip>
+                      {infoButton}
                     </>
                   }
                   after={
-                    onFork ? (
-                      <Tooltip content={tChat('forkChat')} side="bottom">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="p-1"
-                          onClick={handleForkClick}
-                        >
-                          <GitFork className="size-4" />
-                        </Button>
-                      </Tooltip>
-                    ) : undefined
+                    <>
+                      {onFork && (
+                        <Tooltip content={tChat('forkChat')} side="bottom">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="p-1"
+                            onClick={handleForkClick}
+                          >
+                            <GitFork className="size-4" />
+                          </Button>
+                        </Tooltip>
+                      )}
+                      {moreMenu}
+                    </>
                   }
                 />
               ) : (
@@ -695,16 +779,7 @@ function MessageBubbleComponent({
                       )}
                     </Button>
                   </Tooltip>
-                  <Tooltip content={t('actions.showInfo')} side="bottom">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="p-1"
-                      onClick={handleInfoClick}
-                    >
-                      <Info className="size-4" />
-                    </Button>
-                  </Tooltip>
+                  {infoButton}
                   {onFork && (
                     <Tooltip content={tChat('forkChat')} side="bottom">
                       <Button
@@ -717,6 +792,7 @@ function MessageBubbleComponent({
                       </Button>
                     </Tooltip>
                   )}
+                  {moreMenu}
                 </div>
               )}
             </div>
@@ -899,6 +975,7 @@ export const MessageBubble = memo(
       prevProps.hideFeedback === nextProps.hideFeedback &&
       prevProps.onSendFollowUp === nextProps.onSendFollowUp &&
       prevProps.onRetry === nextProps.onRetry &&
+      prevProps.onRegenerate === nextProps.onRegenerate &&
       prevProps.onEdit === nextProps.onEdit &&
       prevProps.onFork === nextProps.onFork &&
       prevProps.isSavedPrompt === nextProps.isSavedPrompt &&

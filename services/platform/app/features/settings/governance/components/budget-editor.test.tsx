@@ -32,20 +32,34 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
 
 // Mutable, hoisted so the mock factory can read it (vi.mock is hoisted above
 // imports). Toggling `state` flips the editor between loading and loaded.
+//
+// `result` is the object the mocked hook hands back. It MUST be referentially
+// stable between renders: the real react-query/convex hook returns a stable
+// value until the data changes, and the editor's `savedConfig` memo (plus the
+// effect that seeds `rules` from it) is keyed on that reference. Returning a
+// fresh `{ data, isLoading }` object per render re-seeds `rules` every render,
+// which spins an unbounded re-render loop that exhausts the heap (the whole
+// worker OOMs). Rebuild the snapshot only when a scenario helper changes state.
 const { state } = vi.hoisted(() => ({
   state: {
     isLoading: false,
     config: { enabled: true, rules: [] as unknown[] } as
       | Record<string, unknown>
       | undefined,
+    result: undefined as unknown,
   },
 }));
 
-vi.mock('../hooks/queries', () => ({
-  useGovernancePolicy: () => ({
+function refreshPolicy() {
+  state.result = {
     data: state.isLoading ? undefined : { config: state.config },
     isLoading: state.isLoading,
-  }),
+  };
+}
+refreshPolicy();
+
+vi.mock('../hooks/queries', () => ({
+  useGovernancePolicy: () => state.result,
 }));
 
 const { BudgetEditor } = await import('./budget-editor');
@@ -53,10 +67,12 @@ const { BudgetEditor } = await import('./budget-editor');
 function setLoaded(rules: unknown[] = []) {
   state.isLoading = false;
   state.config = { enabled: true, rules };
+  refreshPolicy();
 }
 function setLoading() {
   state.isLoading = true;
   state.config = undefined;
+  refreshPolicy();
 }
 
 describe('BudgetEditor', () => {

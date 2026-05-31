@@ -15,7 +15,9 @@ describe('Input', () => {
 
     it('renders with label', () => {
       render(<Input label="Email" />);
-      expect(screen.getByLabelText('Email')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Email', { exact: false }),
+      ).toBeInTheDocument();
     });
 
     it('renders required indicator', () => {
@@ -40,7 +42,7 @@ describe('Input', () => {
   describe('password input', () => {
     it('renders password input with toggle', () => {
       render(<Input type="password" label="Password" />);
-      const input = screen.getByLabelText('Password');
+      const input = screen.getByLabelText(/^Password\b/);
       expect(input).toHaveAttribute('type', 'password');
       expect(
         screen.getByRole('button', { name: /show password/i }),
@@ -49,7 +51,7 @@ describe('Input', () => {
 
     it('toggles password visibility', async () => {
       const { user } = render(<Input type="password" label="Password" />);
-      const input = screen.getByLabelText('Password');
+      const input = screen.getByLabelText(/^Password\b/);
       const toggle = screen.getByRole('button', { name: /show password/i });
 
       expect(input).toHaveAttribute('type', 'password');
@@ -78,7 +80,7 @@ describe('Input', () => {
       const { user } = render(
         <Input type="password" label="Password" style={{ color: 'red' }} />,
       );
-      const input = screen.getByLabelText('Password');
+      const input = screen.getByLabelText(/^Password\b/);
       const toggle = screen.getByRole('button', { name: /show password/i });
 
       expect(input.style.color).toBe('red');
@@ -125,19 +127,19 @@ describe('Input', () => {
 
     it('is focusable', () => {
       render(<Input label="Email" />);
-      const input = screen.getByLabelText('Email');
+      const input = screen.getByLabelText('Email', { exact: false });
       expectFocusable(input);
     });
 
     it('has aria-invalid when error', () => {
       render(<Input label="Email" errorMessage="Invalid" />);
-      const input = screen.getByLabelText('Email');
+      const input = screen.getByLabelText('Email', { exact: false });
       expect(input).toHaveAttribute('aria-invalid', 'true');
     });
 
     it('has aria-describedby linked to error', () => {
       render(<Input label="Email" id="email" errorMessage="Invalid" />);
-      const input = screen.getByLabelText('Email');
+      const input = screen.getByLabelText('Email', { exact: false });
       const error = screen.getByRole('alert');
       expect(input).toHaveAttribute('aria-describedby', error.id);
     });
@@ -149,7 +151,7 @@ describe('Input', () => {
 
     it('label is associated with input', () => {
       render(<Input label="Email" id="email-input" />);
-      const input = screen.getByLabelText('Email');
+      const input = screen.getByLabelText('Email', { exact: false });
       expect(input).toHaveAttribute('id', 'email-input');
     });
 
@@ -166,20 +168,22 @@ describe('Input', () => {
   describe('error animation', () => {
     it('has transition classes', () => {
       render(<Input label="Email" />);
-      const input = screen.getByLabelText('Email');
+      const input = screen.getByLabelText('Email', { exact: false });
       expect(input.className).toContain('transition-');
     });
 
     it('applies shake class on error', async () => {
       const { rerender } = render(<Input label="Email" />);
-      const input = screen.getByLabelText('Email');
+      const input = screen.getByLabelText('Email', { exact: false });
 
       expect(input).not.toHaveClass('animate-shake');
 
       rerender(<Input label="Email" errorMessage="Invalid" />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText('Email')).toHaveClass('animate-shake');
+        expect(screen.getByLabelText('Email', { exact: false })).toHaveClass(
+          'animate-shake',
+        );
       });
     });
   });
@@ -187,7 +191,7 @@ describe('Input', () => {
   describe('autocomplete', () => {
     it('sets autocomplete for password', () => {
       render(<Input type="password" label="Password" />);
-      const input = screen.getByLabelText('Password');
+      const input = screen.getByLabelText(/^Password\b/);
       expect(input).toHaveAttribute('autocomplete', 'off');
     });
 
@@ -195,7 +199,7 @@ describe('Input', () => {
       render(
         <Input type="password" label="Password" autoComplete="new-password" />,
       );
-      const input = screen.getByLabelText('Password');
+      const input = screen.getByLabelText(/^Password\b/);
       expect(input).toHaveAttribute('autocomplete', 'new-password');
     });
   });
@@ -212,7 +216,7 @@ describe('Input', () => {
 
     it('toggles visibility on pre-filled field', async () => {
       const { user } = render(<PasswordForm />);
-      const input = screen.getByLabelText('Password');
+      const input = screen.getByLabelText(/^Password\b/);
       const toggle = screen.getByRole('button', { name: /show password/i });
 
       expect(input).toHaveAttribute('type', 'password');
@@ -225,7 +229,7 @@ describe('Input', () => {
 
     it('toggles back to masked after revealing', async () => {
       const { user } = render(<PasswordForm />);
-      const input = screen.getByLabelText('Password');
+      const input = screen.getByLabelText(/^Password\b/);
       const toggle = screen.getByRole('button', { name: /show password/i });
 
       await user.click(toggle);

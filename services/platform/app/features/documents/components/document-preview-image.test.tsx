@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, fireEvent } from '@testing-library/react';
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 
 import { DocumentPreviewImage } from './document-preview-image';
 
@@ -23,8 +23,6 @@ vi.mock('@/lib/i18n/client', () => ({
     },
   }),
 }));
-
-afterEach(cleanup);
 
 describe('DocumentPreviewImage', () => {
   it('renders an img element with the provided url', () => {

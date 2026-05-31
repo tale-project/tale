@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 
 import enMessages from '@/messages/en.json';
 import { checkAccessibility } from '@/test/utils/a11y';
@@ -46,8 +46,6 @@ vi.mock('@/app/components/ui/data-display/image', () => ({
     />
   ),
 }));
-
-afterEach(cleanup);
 
 describe('BrandingPreview', () => {
   it('renders with role="img" and aria-label', () => {

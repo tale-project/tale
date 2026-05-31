@@ -9,6 +9,12 @@
 import { createFunctionHandle, makeFunctionReference } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
+import {
+  composerProfilesValidator,
+  creativityToScoreOverride,
+  effortToTierOverride,
+  styleInstructionFragment,
+} from '../../lib/shared/composer-profiles';
 import { components } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
 import { startAgentChat } from '../lib/agent_chat';
@@ -58,6 +64,8 @@ export const startChat = internalMutation({
      * inherit the project context.
      */
     projectId: v.optional(v.id('projects')),
+    /** Composer response-tuning profiles (effort/creativity/style). */
+    composerProfiles: v.optional(composerProfilesValidator),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
@@ -89,10 +97,38 @@ export const startChat = internalMutation({
         }
       : undefined;
 
-    const mergedConfig = mergeCapabilityBindings(
+    let mergedConfig = mergeCapabilityBindings(
       args.agentConfig,
       args.capabilityBindings,
     );
+
+    // Composer "response tuning" profiles. Each lever is independent and
+    // `adaptive` (or absent) is a no-op that leaves the existing algorithms
+    // in charge. Style is applied here (appended to the agent instructions
+    // → system prompt); effort + creativity are forwarded to the generation
+    // layer as a reasoning override consumed by `buildReasoningOptions`.
+    const profiles = args.composerProfiles;
+    if (profiles?.style && profiles.style !== 'adaptive') {
+      const fragment = styleInstructionFragment(profiles.style);
+      if (fragment) {
+        const baseInstructions =
+          typeof mergedConfig.instructions === 'string'
+            ? mergedConfig.instructions
+            : '';
+        mergedConfig = {
+          ...mergedConfig,
+          instructions: baseInstructions
+            ? `${baseInstructions}\n\n${fragment}`
+            : fragment,
+        };
+      }
+    }
+    const effortTier = effortToTierOverride(profiles?.effort);
+    const creativityScore = creativityToScoreOverride(profiles?.creativity);
+    const reasoningOverride =
+      effortTier !== undefined || creativityScore !== undefined
+        ? { effort: effortTier, creativity: creativityScore }
+        : undefined;
 
     // Projects: persist `projectId` on the thread row if the caller
     // explicitly passed one. Enforce mismatch detection: if the thread
@@ -138,6 +174,7 @@ export const startChat = internalMutation({
       enableStreaming: true,
       preAllocatedStreamId: args.preAllocatedStreamId,
       hooks,
+      reasoningOverride,
     });
   },
 });

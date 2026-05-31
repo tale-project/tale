@@ -1,0 +1,75 @@
+import { describe, it, expect } from 'vitest';
+
+import {
+  extractMentions,
+  parseMentionTokens,
+  resolveMentions,
+  type MentionDirectoryEntry,
+} from './mentions';
+
+const directory: MentionDirectoryEntry[] = [
+  { type: 'user', id: 'user-alice', handles: ['alice', 'alice.smith'] },
+  { type: 'user', id: 'user-bob', handles: ['bob'] },
+  { type: 'agent', id: 'researcher', handles: ['researcher'] },
+];
+
+describe('parseMentionTokens', () => {
+  it('extracts tokens at the start of the string and after whitespace', () => {
+    expect(parseMentionTokens('@alice hello @bob')).toEqual(['alice', 'bob']);
+  });
+
+  it('ignores email addresses (no whitespace boundary before @)', () => {
+    expect(parseMentionTokens('contact me at user@example.com')).toEqual([]);
+  });
+
+  it('lowercases and de-dupes tokens preserving first-seen order', () => {
+    expect(parseMentionTokens('@Bob @alice @bob')).toEqual(['bob', 'alice']);
+  });
+
+  it('returns an empty array when there are no mentions', () => {
+    expect(parseMentionTokens('just some text')).toEqual([]);
+  });
+
+  it('supports dot/dash/underscore in handles', () => {
+    expect(parseMentionTokens('hi @alice.smith and @re-searcher_1')).toEqual([
+      'alice.smith',
+      're-searcher_1',
+    ]);
+  });
+});
+
+describe('resolveMentions', () => {
+  it('resolves known handles to {type,id} refs', () => {
+    expect(resolveMentions(['alice', 'researcher'], directory)).toEqual([
+      { type: 'user', id: 'user-alice' },
+      { type: 'agent', id: 'researcher' },
+    ]);
+  });
+
+  it('drops unknown tokens', () => {
+    expect(resolveMentions(['nobody', 'bob'], directory)).toEqual([
+      { type: 'user', id: 'user-bob' },
+    ]);
+  });
+
+  it('de-dupes when two handles map to the same actor', () => {
+    expect(resolveMentions(['alice', 'alice.smith'], directory)).toEqual([
+      { type: 'user', id: 'user-alice' },
+    ]);
+  });
+
+  it('returns empty for no tokens', () => {
+    expect(resolveMentions([], directory)).toEqual([]);
+  });
+});
+
+describe('extractMentions', () => {
+  it('parses and resolves in one pass', () => {
+    expect(
+      extractMentions('@alice please review, cc @researcher', directory),
+    ).toEqual([
+      { type: 'user', id: 'user-alice' },
+      { type: 'agent', id: 'researcher' },
+    ]);
+  });
+});

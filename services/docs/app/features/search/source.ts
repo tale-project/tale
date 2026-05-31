@@ -36,13 +36,15 @@ export function createDocsSearchSource(opts: {
   baseUrl?: string;
   limit?: number;
 }): SearchSource {
-  return (query, { active }) => {
+  return (query, { open }) => {
     const { results, terms, status, error } = useDocSearch({
       query,
       locale: opts.locale,
       baseUrl: opts.baseUrl,
       limit: opts.limit,
-      prefetch: active,
+      // Warm the index as soon as the dialog opens, before the first real
+      // query — `open` (not `active`, which also requires the min query length).
+      prefetch: open,
     });
     return {
       results: results.map(toSharedResult),

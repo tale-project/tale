@@ -24,6 +24,14 @@ export interface Thread {
   cancelledAt?: number;
   generationStartTime?: number;
   teamId?: string;
+  isShared?: boolean;
+  projectId?: string;
+  /** Epoch ms when the thread was pinned; `undefined` means not pinned. */
+  pinnedAt?: number;
+  /** Epoch ms of the last generation end (drives the unread badge). */
+  lastReplyAt?: number;
+  /** Epoch ms the owner last read the thread (drives the unread badge). */
+  lastReadAt?: number;
 }
 
 export interface ThreadMessage {

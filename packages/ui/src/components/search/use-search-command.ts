@@ -109,7 +109,10 @@ export function useSearchCommand({
   // debounced) cancels the source the instant the user deletes back below the
   // threshold, instead of letting it keep running the stale debounced query
   // whose results would be discarded anyway.
-  const sourceState = source(effectiveQuery, { active: open && meetsMin });
+  const sourceState = source(effectiveQuery, {
+    active: open && meetsMin,
+    open,
+  });
 
   // While a valid query is still settling through the debounce, the source is
   // running the previous (or empty) query — surface that as `loading` so we

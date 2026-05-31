@@ -11,6 +11,10 @@ import {
 
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import {
+  type ComposerProfiles,
+  DEFAULT_COMPOSER_PROFILES,
+} from '@/lib/shared/composer-profiles';
 
 interface PendingMessageAttachment {
   fileId: string;
@@ -86,6 +90,23 @@ interface ChatLayoutContextType {
   insertedPrompt: string | null;
   setInsertedPrompt: (content: string | null) => void;
   /**
+   * Text the user selected inside a chat message and chose to "quote" into
+   * their next message. Rendered as a removable chip above the composer and
+   * prepended as a markdown blockquote on send. Null when no quote is staged.
+   */
+  quotedText: string | null;
+  setQuotedText: (text: string | null) => void;
+  /**
+   * Per-user "response tuning" profiles (effort / creativity / style),
+   * persisted per user+org. Each defaults to `adaptive`; sent with every
+   * chatWithAgent call so a fixed profile overrides the adaptive algorithms.
+   */
+  composerProfiles: ComposerProfiles;
+  setComposerProfile: <K extends keyof ComposerProfiles>(
+    lever: K,
+    value: ComposerProfiles[K],
+  ) => void;
+  /**
    * Explicit editing target, set via ↻ Edit button or ThumbnailPicker. When
    * non-null, overrides the "latest image" auto-pick in EditingBanner.
    */
@@ -126,6 +147,7 @@ export function ChatLayoutProvider({
   );
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [insertedPrompt, setInsertedPrompt] = useState<string | null>(null);
+  const [quotedText, setQuotedText] = useState<string | null>(null);
   const [editingImageRef, setEditingImageRef] =
     useState<EditingImageRef | null>(null);
   const [dismissedImageKey, setDismissedImageKey] = useState<string | null>(
@@ -205,11 +227,39 @@ export function ChatLayoutProvider({
     [setEnabledCapabilitiesRaw],
   );
 
+  const composerProfilesKey = user?.userId
+    ? `composer-profiles-${user.userId}-${organizationId}`
+    : `composer-profiles-${organizationId}`;
+  const [rawComposerProfiles, setRawComposerProfiles] = usePersistedState(
+    composerProfilesKey,
+    DEFAULT_COMPOSER_PROFILES,
+  );
+  // Defensive merge so a persisted partial (from an older build) still yields
+  // a complete profiles object with `adaptive` defaults.
+  const composerProfiles = useMemo<ComposerProfiles>(
+    () => ({ ...DEFAULT_COMPOSER_PROFILES, ...rawComposerProfiles }),
+    [rawComposerProfiles],
+  );
+  const setComposerProfile = useCallback(
+    <K extends keyof ComposerProfiles>(
+      lever: K,
+      value: ComposerProfiles[K],
+    ) => {
+      setRawComposerProfiles((prev) => ({
+        ...DEFAULT_COMPOSER_PROFILES,
+        ...prev,
+        [lever]: value,
+      }));
+    },
+    [setRawComposerProfiles],
+  );
+
   const clearChatState = useCallback(() => {
     setPendingThreadId(null);
     setPendingMessage(null);
     setEditingImageRef(null);
     setDismissedImageKey(null);
+    setQuotedText(null);
   }, []);
 
   const value = useMemo(
@@ -229,6 +279,10 @@ export function ChatLayoutProvider({
       setCapabilityEnabled,
       insertedPrompt,
       setInsertedPrompt,
+      quotedText,
+      setQuotedText,
+      composerProfiles,
+      setComposerProfile,
       editingImageRef,
       setEditingImageRef,
       dismissedImageKey,
@@ -246,6 +300,9 @@ export function ChatLayoutProvider({
       enabledCapabilities,
       setCapabilityEnabled,
       insertedPrompt,
+      quotedText,
+      composerProfiles,
+      setComposerProfile,
       editingImageRef,
       dismissedImageKey,
     ],

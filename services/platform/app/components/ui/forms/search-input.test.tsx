@@ -17,7 +17,9 @@ describe('SearchInput', () => {
 
     it('renders with label', () => {
       render(<SearchInput value="" onChange={vi.fn()} label="Search" />);
-      expect(screen.getByLabelText('Search')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Search', { exact: false }),
+      ).toBeInTheDocument();
     });
 
     it('renders required indicator', () => {
@@ -116,7 +118,7 @@ describe('SearchInput', () => {
 
     it('is focusable', () => {
       render(<SearchInput value="" onChange={vi.fn()} label="Search" />);
-      const input = screen.getByLabelText('Search');
+      const input = screen.getByLabelText('Search', { exact: false });
       expectFocusable(input);
     });
 
@@ -129,7 +131,7 @@ describe('SearchInput', () => {
           errorMessage="Invalid"
         />,
       );
-      const input = screen.getByLabelText('Search');
+      const input = screen.getByLabelText('Search', { exact: false });
       expect(input).toHaveAttribute('aria-invalid', 'true');
     });
 
@@ -143,7 +145,7 @@ describe('SearchInput', () => {
           errorMessage="Invalid"
         />,
       );
-      const input = screen.getByLabelText('Search');
+      const input = screen.getByLabelText('Search', { exact: false });
       const error = screen.getByRole('alert');
       expect(input).toHaveAttribute('aria-describedby', error.id);
     });
@@ -169,7 +171,7 @@ describe('SearchInput', () => {
           id="search-input"
         />,
       );
-      const input = screen.getByLabelText('Search');
+      const input = screen.getByLabelText('Search', { exact: false });
       expect(input).toHaveAttribute('id', 'search-input');
     });
   });
@@ -190,7 +192,9 @@ describe('SearchInput', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByLabelText('Search')).toHaveClass('animate-shake');
+        expect(screen.getByLabelText('Search', { exact: false })).toHaveClass(
+          'animate-shake',
+        );
       });
     });
   });

@@ -2,12 +2,11 @@
 
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
-import { Heading } from '@tale/ui/heading';
 import { IconButton } from '@tale/ui/icon-button';
 import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useAction } from 'convex/react';
-import { Plus, Server, X } from 'lucide-react';
+import { Server, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
@@ -25,9 +24,16 @@ import type { McpServerListItem } from './types';
 
 interface McpServersProps {
   organizationId: string;
+  /** Controls the "Add MCP server" sheet; the trigger lives in the page header. */
+  addDialogOpen: boolean;
+  onAddDialogOpenChange: (open: boolean) => void;
 }
 
-export function McpServers({ organizationId }: McpServersProps) {
+export function McpServers({
+  organizationId,
+  addDialogOpen,
+  onAddDialogOpenChange,
+}: McpServersProps) {
   const { t } = useT('mcpServers');
   const { t: tCommon } = useT('common');
 
@@ -35,7 +41,6 @@ export function McpServers({ organizationId }: McpServersProps) {
   const createAction = useAction(api.mcp_servers.public_mutations.create);
   const removeAction = useAction(api.mcp_servers.public_mutations.remove);
 
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [openInEditMode, setOpenInEditMode] = useState(false);
@@ -62,7 +67,7 @@ export function McpServers({ organizationId }: McpServersProps) {
           oauth2Config: data.oauth2Config,
         });
         toast({ title: t('saved'), variant: 'success' });
-        setAddDialogOpen(false);
+        onAddDialogOpenChange(false);
         void refetch();
       } catch {
         toast({ title: t('error'), variant: 'destructive' });
@@ -70,7 +75,7 @@ export function McpServers({ organizationId }: McpServersProps) {
         setIsCreating(false);
       }
     },
-    [createAction, organizationId, t, refetch],
+    [createAction, organizationId, t, refetch, onAddDialogOpenChange],
   );
 
   const handleCardClick = useCallback((server: McpServerListItem) => {
@@ -111,19 +116,6 @@ export function McpServers({ organizationId }: McpServersProps) {
 
   return (
     <Stack gap={0} className="pb-8">
-      <HStack wrap justify="between" align="start" className="pb-5">
-        <Stack gap={1}>
-          <Heading level={2} size="lg" tracking="tight">
-            {t('title')}
-          </Heading>
-          <Text variant="muted">{t('description')}</Text>
-        </Stack>
-        <Button onClick={() => setAddDialogOpen(true)}>
-          <Plus className="mr-2 size-4" />
-          {t('addServer')}
-        </Button>
-      </HStack>
-
       {serverList.length > 0 ? (
         <Grid cols={1} md={2} lg={3}>
           {serverList.map((server) => (
@@ -146,7 +138,7 @@ export function McpServers({ organizationId }: McpServersProps) {
 
       <Sheet
         open={addDialogOpen}
-        onOpenChange={setAddDialogOpen}
+        onOpenChange={onAddDialogOpenChange}
         title={t('addServer')}
         size="md"
         hideClose
@@ -164,7 +156,7 @@ export function McpServers({ organizationId }: McpServersProps) {
             icon={X}
             aria-label={tCommon('aria.close')}
             variant="ghost"
-            onClick={() => setAddDialogOpen(false)}
+            onClick={() => onAddDialogOpenChange(false)}
           />
         </HStack>
         <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
@@ -179,7 +171,7 @@ export function McpServers({ organizationId }: McpServersProps) {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => setAddDialogOpen(false)}
+            onClick={() => onAddDialogOpenChange(false)}
             disabled={isCreating}
           >
             {t('form.cancel')}

@@ -43,6 +43,20 @@ export const projectsTable = defineTable({
   icon: v.optional(v.string()),
   color: v.optional(v.string()),
 
+  /**
+   * Immutable short key prefixing human-readable task identifiers (e.g. `TAL`
+   * → tasks `TAL-1`, `TAL-2`). Set once at creation (derived from the name or
+   * chosen by the user), unique within the organization, never editable after.
+   * Optional only for backward-compat with projects created before keys.
+   */
+  key: v.optional(v.string()),
+  /**
+   * Monotonic per-project counter backing task numbering. Incremented on every
+   * task insert; a task's `number` is the value it claimed. Never decremented
+   * (deleting a task does not recycle its number), so identifiers are stable.
+   */
+  taskCounter: v.optional(v.number()),
+
   // Sharing — matches agentBindings
   teamId: v.optional(v.string()),
   sharedWithTeamIds: v.optional(v.array(v.string())),
@@ -71,7 +85,14 @@ export const projectsTable = defineTable({
   createdAt: v.number(),
   updatedAt: v.number(),
   archivedAt: v.optional(v.number()),
+  /**
+   * When set, the project is pinned in the chat-history sidebar and sorts
+   * above unpinned projects (most-recently-pinned first). `undefined`
+   * means not pinned. Toggled via `setProjectPinned`.
+   */
+  pinnedAt: v.optional(v.number()),
 })
   .index('by_organization', ['organizationId'])
   .index('by_organization_archived', ['organizationId', 'archivedAt'])
+  .index('by_organization_key', ['organizationId', 'key'])
   .index('by_organization_updatedAt', ['organizationId', 'updatedAt']);

@@ -61,9 +61,13 @@ export interface SearchSourceState<TData = object> {
 }
 
 export interface SearchSourceContext {
-  /** Whether the command is open. Sources should skip work / unsubscribe
-   *  (e.g. pass Convex `'skip'`) when inactive. */
+  /** Whether the source should run queries — the command is open AND the query
+   *  meets the minimum length. Sources should skip work / unsubscribe (e.g.
+   *  pass Convex `'skip'`) when inactive. */
   active: boolean;
+  /** Whether the command is open, regardless of query length. Use this to
+   *  pre-warm/prefetch the index on open, before the first real query. */
+  open: boolean;
 }
 
 /**
@@ -116,7 +120,6 @@ export interface SearchCommandLabels {
   recent: string;
   clearRecent: string;
   removeRecent: string;
-  tipsTitle: string;
   tipNavigate: string;
   tipSelect: string;
   tipClose: string;

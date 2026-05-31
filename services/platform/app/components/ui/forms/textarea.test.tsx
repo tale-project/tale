@@ -14,7 +14,9 @@ describe('Textarea', () => {
 
     it('renders with label', () => {
       render(<Textarea label="Description" />);
-      expect(screen.getByLabelText('Description')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Description', { exact: false }),
+      ).toBeInTheDocument();
     });
 
     it('renders required indicator', () => {
@@ -66,19 +68,19 @@ describe('Textarea', () => {
 
     it('is focusable', () => {
       render(<Textarea label="Description" />);
-      const textarea = screen.getByLabelText('Description');
+      const textarea = screen.getByLabelText('Description', { exact: false });
       expectFocusable(textarea);
     });
 
     it('has aria-invalid when error', () => {
       render(<Textarea label="Message" errorMessage="Invalid" />);
-      const textarea = screen.getByLabelText('Message');
+      const textarea = screen.getByLabelText('Message', { exact: false });
       expect(textarea).toHaveAttribute('aria-invalid', 'true');
     });
 
     it('has aria-describedby linked to error', () => {
       render(<Textarea label="Message" id="msg" errorMessage="Invalid" />);
-      const textarea = screen.getByLabelText('Message');
+      const textarea = screen.getByLabelText('Message', { exact: false });
       const error = screen.getByRole('alert');
       expect(textarea).toHaveAttribute('aria-describedby', error.id);
     });
@@ -92,20 +94,22 @@ describe('Textarea', () => {
   describe('error animation', () => {
     it('has transition classes', () => {
       render(<Textarea label="Message" />);
-      const textarea = screen.getByLabelText('Message');
+      const textarea = screen.getByLabelText('Message', { exact: false });
       expect(textarea.className).toContain('transition-');
     });
 
     it('applies shake class on error', async () => {
       const { rerender } = render(<Textarea label="Message" />);
-      const textarea = screen.getByLabelText('Message');
+      const textarea = screen.getByLabelText('Message', { exact: false });
 
       expect(textarea).not.toHaveClass('animate-shake');
 
       rerender(<Textarea label="Message" errorMessage="Invalid" />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText('Message')).toHaveClass('animate-shake');
+        expect(screen.getByLabelText('Message', { exact: false })).toHaveClass(
+          'animate-shake',
+        );
       });
     });
   });
@@ -113,13 +117,13 @@ describe('Textarea', () => {
   describe('styling', () => {
     it('applies custom className', () => {
       render(<Textarea label="Message" className="custom-class" />);
-      const textarea = screen.getByLabelText('Message');
+      const textarea = screen.getByLabelText('Message', { exact: false });
       expect(textarea).toHaveClass('custom-class');
     });
 
     it('applies error styling', () => {
       render(<Textarea label="Message" errorMessage="Error" />);
-      const textarea = screen.getByLabelText('Message');
+      const textarea = screen.getByLabelText('Message', { exact: false });
       expect(textarea.className).toContain('border-destructive');
     });
   });

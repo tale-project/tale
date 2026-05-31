@@ -17,6 +17,10 @@ export async function updateChatThread(
     .first();
 
   if (existing) {
-    await ctx.db.patch(existing._id, { title, updatedAt: Date.now() });
+    // Rename is a metadata edit, NOT chat activity — deliberately do NOT bump
+    // `updatedAt`. The sidebar derives a thread's relative time and recency
+    // ordering from `updatedAt` (which is bumped on generation), so renaming
+    // must not reorder the list or change the "Xm ago" label.
+    await ctx.db.patch(existing._id, { title });
   }
 }

@@ -121,38 +121,30 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
     const reason = errorMessageForCode(player.errorCode, t);
     const category = classifyErrorCode(player.errorCode);
     if (category === 'config') {
-      const linkBody = (
-        <span className="flex items-center gap-1">
-          <Settings className="size-4" aria-hidden />
-          <span className="text-xs">
-            {t('voice.voiceOutputErrorOpenSettings')}
+      // Surface the reason as visible inline text in the message (not just a
+      // hover tooltip): a hover-only tooltip is invisible on touch and to
+      // anyone not hovering, so the user never learns *why* voice failed. The
+      // settings link follows inline when we can build it.
+      return (
+        <div
+          className="text-destructive flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs"
+          role="status"
+        >
+          <span className="inline-flex items-center gap-1">
+            <AlertCircle className="size-4 shrink-0" aria-hidden />
+            <span>{reason}</span>
           </span>
-        </span>
-      );
-      if (props.organizationId) {
-        return (
-          <Tooltip content={reason} side="bottom">
+          {props.organizationId && (
             <Link
               to="/dashboard/$id/settings/providers"
               params={{ id: props.organizationId }}
-              className="text-destructive hover:text-destructive/80 inline-flex min-h-11 min-w-11 items-center justify-center underline"
-              aria-label={`${reason}. ${t('voice.voiceOutputErrorOpenSettings')}`}
+              className="hover:text-destructive/80 inline-flex items-center gap-1 underline"
             >
-              {linkBody}
+              <Settings className="size-3.5 shrink-0" aria-hidden />
+              {t('voice.voiceOutputErrorOpenSettings')}
             </Link>
-          </Tooltip>
-        );
-      }
-      // Without an `organizationId` the link can't be built; render the
-      // reason inline on the badge so keyboard / touch users still see it.
-      // No Tooltip wrapper: the badge text already carries the reason,
-      // and a hover-only Tooltip on a non-focusable element is
-      // unreachable by keyboard (round-1 / round-2 HIGH #32).
-      return (
-        <Badge variant="destructive" className="text-xs" role="status">
-          <AlertCircle className="text-destructive size-4" aria-hidden />
-          <span className="ml-1">{reason}</span>
-        </Badge>
+          )}
+        </div>
       );
     }
     if (category === 'terminal') {

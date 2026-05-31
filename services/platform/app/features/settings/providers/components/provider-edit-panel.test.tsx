@@ -88,13 +88,13 @@ async function clickGermanTab(user: ReturnType<typeof userEvent.setup>) {
 
 function getDisplayNameInput() {
   return screen.getByRole('textbox', {
-    name: /^settings\.providers\.displayName$/i,
+    name: /^settings\.providers\.displayName\b/i,
   });
 }
 
 function getDescriptionInput() {
   return screen.getByRole('textbox', {
-    name: /^settings\.providers\.description_field$/i,
+    name: /^settings\.providers\.description_field\b/i,
   });
 }
 

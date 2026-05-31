@@ -100,6 +100,21 @@ export const threadMetadataTable = defineTable({
    * user default for this conversation only.
    */
   voiceOutputOverride: v.optional(v.boolean()),
+  /**
+   * When set, the thread is pinned in the chat-history sidebar and sorts
+   * above unpinned threads (most-recently-pinned first). `undefined` (or
+   * row missing) means not pinned. Toggled via `setThreadPinned`.
+   */
+  pinnedAt: v.optional(v.number()),
+  /**
+   * Unread tracking for the chat-history "new response" badge. `lastReplyAt`
+   * is bumped whenever generation ends (clearGenerationStatus); `lastReadAt`
+   * is set when the owner opens / finishes viewing the thread. The sidebar
+   * badges a thread when `lastReplyAt > lastReadAt` and it isn't the open
+   * thread. Both optional for backward-compat (missing == never).
+   */
+  lastReplyAt: v.optional(v.number()),
+  lastReadAt: v.optional(v.number()),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [

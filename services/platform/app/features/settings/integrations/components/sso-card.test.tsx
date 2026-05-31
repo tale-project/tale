@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
 import { checkAccessibility } from '@/test/utils/a11y';
@@ -33,8 +33,6 @@ vi.mock('./sso-config-dialog', () => ({
       </div>
     ) : null,
 }));
-
-afterEach(cleanup);
 
 describe('SSOCard', () => {
   it('renders SSO card with title', () => {

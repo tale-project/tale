@@ -4,7 +4,10 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { internalMutation, mutation } from '../_generated/server';
 import { authComponent } from '../auth';
-import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
+import {
+  assertThreadAccess,
+  canAccessThread,
+} from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { cascadeDeleteMessageChildren } from '../tts/cascade_helpers';
 import {
@@ -260,6 +263,64 @@ export const unarchiveChatThread = mutation({
     await assertThreadAccess(ctx, args.threadId, identity);
 
     await unarchiveChatThreadHelper(ctx, args.threadId);
+    return null;
+  },
+});
+
+export const setThreadPinned = mutation({
+  args: {
+    threadId: v.string(),
+    pinned: v.boolean(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
+      throw new Error('Unauthenticated');
+    }
+
+    // Cross-tenant gate, same rationale as the other thread mutations in
+    // this file: the row is looked up by threadId and is otherwise blind
+    // to caller identity, so without this any signed-in user could pin
+    // another tenant's thread by guessing the id.
+    await assertThreadAccess(ctx, args.threadId, identity);
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    if (metadata) {
+      await ctx.db.patch(metadata._id, {
+        pinnedAt: args.pinned ? Date.now() : undefined,
+      });
+    }
+    return null;
+  },
+});
+
+export const markThreadRead = mutation({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
+      throw new Error('Unauthenticated');
+    }
+
+    // Best-effort unread tracking — never throw. `markThreadRead` fires on
+    // navigation and can race a delete/archive or target a thread the caller
+    // can only transiently see; a thrown `forbidden` surfaced as an uncaught
+    // mutation error in the console. It's also the *owner's* read state, so
+    // only the owner updates `lastReadAt`; non-owners (shared viewers) no-op.
+    const metadata = await canAccessThread(ctx, args.threadId, identity);
+    if (!metadata || metadata.userId !== identity.userId) {
+      return null;
+    }
+
+    await ctx.db.patch(metadata._id, { lastReadAt: Date.now() });
     return null;
   },
 });

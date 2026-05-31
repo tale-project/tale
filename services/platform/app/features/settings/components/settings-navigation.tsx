@@ -20,8 +20,7 @@ type SettingsLabelKey =
   | 'integrations'
   | 'providers'
   | 'skills'
-  | 'apiKeys'
-  | 'webdav'
+  | 'api'
   | 'branding'
   | 'governance'
   | 'personalization'
@@ -79,6 +78,13 @@ export function SettingsNavigation({
       can: ['read', 'orgSettings'],
     },
     {
+      labelKey: 'providers',
+      label: t('providers'),
+      href: `/dashboard/${organizationId}/settings/providers`,
+      can: ['read', 'developerSettings'],
+      matchMode: 'startsWith',
+    },
+    {
       labelKey: 'integrations',
       label: t('integrations'),
       href: `/dashboard/${organizationId}/settings/integrations`,
@@ -93,23 +99,12 @@ export function SettingsNavigation({
       matchMode: 'startsWith',
     },
     {
-      labelKey: 'providers',
-      label: t('providers'),
-      href: `/dashboard/${organizationId}/settings/providers`,
+      // Consolidated REST (API keys) / MCP / WebDAV section.
+      labelKey: 'api',
+      label: t('api'),
+      href: `/dashboard/${organizationId}/settings/api`,
       can: ['read', 'developerSettings'],
       matchMode: 'startsWith',
-    },
-    {
-      labelKey: 'apiKeys',
-      label: t('apiKeys'),
-      href: `/dashboard/${organizationId}/settings/api-keys`,
-      can: ['read', 'developerSettings'],
-    },
-    {
-      labelKey: 'webdav',
-      label: t('webdav'),
-      href: `/dashboard/${organizationId}/settings/webdav`,
-      can: ['read', 'developerSettings'],
     },
     {
       labelKey: 'governance',

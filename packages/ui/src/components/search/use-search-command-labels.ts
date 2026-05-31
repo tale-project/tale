@@ -35,7 +35,6 @@ export function useSearchCommandLabels(
       recent: overrides?.recent ?? t('recent'),
       clearRecent: overrides?.clearRecent ?? t('clearRecent'),
       removeRecent: overrides?.removeRecent ?? t('removeRecent'),
-      tipsTitle: overrides?.tipsTitle ?? t('tipsTitle'),
       tipNavigate: overrides?.tipNavigate ?? t('tipNavigate'),
       tipSelect: overrides?.tipSelect ?? t('tipSelect'),
       tipClose: overrides?.tipClose ?? t('tipClose'),

@@ -80,7 +80,16 @@ function AgentDetailLayout() {
         </Link>
         <span className="text-foreground">
           <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-          <Skeletonize loading={isLoading} label={t('agents.title')}>
+          {/* `contents` so the Skeletonize wrapper adds no block box — its
+              default <div> is block-level and would drop the agent name onto a
+              second line inside this inline breadcrumb. With `contents` the
+              name flows inline and the truncating <Heading> keeps it to one
+              line. */}
+          <Skeletonize
+            loading={isLoading}
+            label={t('agents.title')}
+            className="contents"
+          >
             <SkeletonBox>
               {resolvedDisplayName || (
                 <span className="inline-block h-4 w-32 align-middle" />
@@ -149,15 +158,20 @@ function AgentDetailLayout() {
               standalone={false}
               ariaLabel={tCommon('aria.agentsNavigation')}
             >
-              <Skeletonize loading label={t('agents.title')}>
-                <div className="ml-auto flex items-center gap-2">
-                  <SkeletonBox>
-                    <div className="h-8 w-14 rounded-md" />
-                  </SkeletonBox>
-                  <SkeletonBox>
-                    <div className="h-8 w-20 rounded-md" />
-                  </SkeletonBox>
-                </div>
+              {/* `ml-auto` on the Skeletonize wrapper itself — its rendered
+                  <div> is the flex child of the tab nav, so the alignment must
+                  live there (an `ml-auto` on an inner block does nothing). */}
+              <Skeletonize
+                loading
+                label={t('agents.title')}
+                className="ml-auto flex items-center gap-2"
+              >
+                <SkeletonBox>
+                  <div className="h-8 w-14 rounded-md" />
+                </SkeletonBox>
+                <SkeletonBox>
+                  <div className="h-8 w-20 rounded-md" />
+                </SkeletonBox>
               </Skeletonize>
             </TabNavigation>
           </>

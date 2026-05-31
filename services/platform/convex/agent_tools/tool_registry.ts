@@ -30,6 +30,11 @@ import { proposeMemoryTool } from './memory/propose_memory_tool';
 import { productReadTool } from './products/product_read_tool';
 import { ragSearchTool } from './rag/rag_search_tool';
 import { runCodeTool } from './run_code_tool';
+import { secretReadTool } from './secrets/secret_read_tool';
+import { projectReadTool } from './tasks/project_read_tool';
+import { projectWriteTool } from './tasks/project_write_tool';
+import { taskReadTool } from './tasks/task_read_tool';
+import { taskWriteTool } from './tasks/task_write_tool';
 import type { ToolName } from './tool_names';
 import type { ToolDefinition } from './types';
 import { updateTodosTool } from './update_todos/update_todos_tool';
@@ -81,6 +86,11 @@ export const TOOL_REGISTRY = [
   conversationReadTool,
   updateTodosTool,
   proposeMemoryTool,
+  taskReadTool,
+  taskWriteTool,
+  projectReadTool,
+  projectWriteTool,
+  secretReadTool,
 ] as const;
 
 /**

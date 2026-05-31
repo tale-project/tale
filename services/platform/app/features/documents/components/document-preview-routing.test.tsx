@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeAll, describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { beforeAll, describe, it, expect, vi } from 'vitest';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({
@@ -74,7 +74,6 @@ vi.mock('@/lib/utils/lazy-component', () => ({
     };
   },
 }));
-
 import { DocumentPreview } from './document-preview';
 
 // Resolve all lazy component factories before tests run.
@@ -83,8 +82,6 @@ import { DocumentPreview } from './document-preview';
 beforeAll(async () => {
   await Promise.all(lazyPromises);
 });
-
-afterEach(cleanup);
 
 describe('DocumentPreview routing', () => {
   it.each(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'avif'])(

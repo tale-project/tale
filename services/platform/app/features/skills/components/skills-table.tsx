@@ -130,7 +130,8 @@ export function SkillsTable({
       data: isLoading ? undefined : skills,
     },
     pageSize,
-    approxRowCount: pageSize,
+    // Omit approxRowCount so the table shows the shared default skeleton-row
+    // count while the first page loads (matches agents/other tables).
     search: {
       fields: ['name', 'slug', 'description'],
       placeholder: searchPlaceholder,

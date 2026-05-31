@@ -126,6 +126,10 @@ export const ResponsiveDialogContent = forwardRef<
         ref={ref}
         className={cn(
           'bg-background fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border p-6 shadow-lg',
+          // Never exceed the viewport: cap at 90dvh and scroll internally so a
+          // tall dialog (long form, comment/activity feeds) stays fully usable
+          // instead of overflowing off-screen.
+          'max-h-[90dvh] overflow-x-hidden overflow-y-auto',
           'data-[state=open]:animate-in data-[state=closed]:animate-out',
           'motion-reduce:animate-none',
           className,

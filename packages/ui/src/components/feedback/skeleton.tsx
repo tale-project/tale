@@ -3,9 +3,22 @@ import type { ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { useSkeleton } from './skeleton-context';
 
-/** Shared pulse appearance — reused by every skeleton primitive. */
+/**
+ * Solid pulsing fill for {@link SkeletonText} word shapes — there is no real
+ * content behind a masked line (the text is an invisible zero-width glyph), so
+ * a plain opacity pulse is fine here. Box/circle masks instead layer a static
+ * opaque base under the pulse (see below) so the content never shows through.
+ */
 export const SKELETON_PULSE =
   'animate-pulse bg-muted motion-reduce:animate-none';
+
+/**
+ * The pulse layer for box/circle masks: a faint shimmer that fades over the
+ * opaque base. Kept as a separate, *non*-opaque tint so the base underneath
+ * always hides the content even at the trough of the animation.
+ */
+const SKELETON_SHIMMER =
+  'absolute inset-0 animate-pulse bg-muted-foreground/10 motion-reduce:animate-none';
 
 interface SkeletonWrapProps {
   /**
@@ -24,9 +37,13 @@ interface SkeletonWrapProps {
  * The universal masking primitive — `<SkeletonBox>{value}</SkeletonBox>`.
  *
  * Renders the real value as-is. While loading (`useSkeleton()` is true, i.e.
- * inside a `<Skeletonize loading>`) an opaque pulse overlay covers it at its
- * natural size and intercepts pointer events so masked controls aren't
- * interactive. When *not* loading the wrapper is `display: contents`, so it
+ * inside a `<Skeletonize loading>`) a static opaque base covers it with a pulse
+ * shimmer layered on top — the base never animates, so the content stays hidden
+ * even at the trough of the pulse. The base is inset by a negative 2px so it
+ * slightly overhangs the content on every side — anti-aliased glyph/border
+ * edges can't peek out from under the mask. It also intercepts pointer events so
+ * masked controls aren't interactive. When *not* loading the wrapper is
+ * `display: contents`, so it
  * adds no box and can't tangle layout — wrap any dynamic value (text, a number,
  * a control) unconditionally and leave it in place.
  *
@@ -53,9 +70,9 @@ export function SkeletonBox({ children, fullWidth }: SkeletonWrapProps) {
     >
       {children}
       {loading && (
-        <span
-          className={cn('absolute inset-0 rounded-[inherit]', SKELETON_PULSE)}
-        />
+        <span className="bg-muted absolute -inset-0.5 overflow-hidden rounded-[inherit]">
+          <span className={SKELETON_SHIMMER} />
+        </span>
       )}
     </span>
   );
@@ -82,7 +99,9 @@ export function SkeletonCircle({ children, fullWidth }: SkeletonWrapProps) {
     >
       {children}
       {loading && (
-        <span className={cn('absolute inset-0 rounded-full', SKELETON_PULSE)} />
+        <span className="bg-muted absolute -inset-0.5 overflow-hidden rounded-full">
+          <span className={SKELETON_SHIMMER} />
+        </span>
       )}
     </span>
   );
@@ -109,7 +128,11 @@ function seeded(n: number): number {
  * word spacing.
  */
 function SkeletonLineFill({ seed }: { seed: number }) {
-  const segments = 5 + Math.floor(seeded(seed) * 6); // 5..10
+  // Fewer words + tighter spacing so a line reads as nearly-full text. The old
+  // 5–10 words each with a 0.4em gap and a 1.5rem floor left visibly short,
+  // sparse lines — especially in narrow containers (table cells, small fields)
+  // where the cumulative gaps and the min-width floor overflowed and clipped.
+  const segments = 4 + Math.floor(seeded(seed) * 4); // 4..7
   const weights = Array.from(
     { length: segments },
     (_, j) => 0.5 + seeded(seed * 7 + j * 17 + 1) * 1.5,
@@ -124,10 +147,11 @@ function SkeletonLineFill({ seed }: { seed: number }) {
           <span
             // eslint-disable-next-line react/no-array-index-key
             key={j}
-            className="h-[0.66em] shrink-0 pr-[0.4em] last:pr-0"
+            className="h-[0.7em] shrink-0 pr-[0.28em] last:pr-0"
             // max(min, w%): widths share 100% but never collapse below a
-            // realistic word width; overflow is clipped by the parent.
-            style={{ width: `max(1.5rem, ${pct}%)` }}
+            // realistic word width; a small floor keeps narrow containers from
+            // overflowing (which clipped trailing words and shortened the line).
+            style={{ width: `max(0.75rem, ${pct}%)` }}
           >
             <span
               className={cn('block size-full rounded-md', SKELETON_PULSE)}

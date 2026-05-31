@@ -1,4 +1,4 @@
-import { Grid } from '@tale/ui/layout';
+import { Grid, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
@@ -188,81 +188,90 @@ function ConfigurationPage() {
             disabled={isLoading || editor.isLoading || editor.isSaving}
             className="contents"
           >
-            <Input
-              id="name"
-              label={tAutomations('configuration.name')}
-              placeholder={tAutomations('configuration.namePlaceholder')}
-              errorMessage={errors.name?.message}
-              {...register('name')}
-            />
-
-            <Textarea
-              id="description"
-              label={tAutomations('configuration.description')}
-              placeholder={tAutomations('configuration.descriptionPlaceholder')}
-              rows={4}
-              errorMessage={errors.description?.message}
-              {...register('description')}
-            />
-
-            <Grid cols={2} gap={4}>
-              <FormSection>
-                <Input
-                  id="timeout"
-                  type="number"
-                  label={tAutomations('configuration.timeout')}
-                  min={1000}
-                  errorMessage={errors.timeout?.message}
-                  {...register('timeout', { valueAsNumber: true })}
-                />
-                <Text variant="caption">
-                  {tAutomations('configuration.timeoutHelp')}
-                </Text>
-              </FormSection>
-
-              <FormSection>
-                <Input
-                  id="maxRetries"
-                  type="number"
-                  label={tAutomations('configuration.maxRetries')}
-                  min={0}
-                  max={10}
-                  errorMessage={errors.maxRetries?.message}
-                  {...register('maxRetries', { valueAsNumber: true })}
-                />
-                <Text variant="caption">
-                  {tAutomations('configuration.maxRetriesHelp')}
-                </Text>
-              </FormSection>
-            </Grid>
-
-            <FormSection>
+            {/* The fieldset is `display:contents` (so it can disable the whole
+                form without adding a box), which means `space-y` on the form
+                can't reach these fields — wrap them in a Stack so every field,
+                including the timeout / max-retries grid, gets consistent
+                vertical spacing instead of butting together. */}
+            <Stack gap={5}>
               <Input
-                id="backoffMs"
-                type="number"
-                label={tAutomations('configuration.backoff')}
-                min={100}
-                errorMessage={errors.backoffMs?.message}
-                {...register('backoffMs', { valueAsNumber: true })}
+                id="name"
+                label={tAutomations('configuration.name')}
+                placeholder={tAutomations('configuration.namePlaceholder')}
+                errorMessage={errors.name?.message}
+                {...register('name')}
               />
-              <Text variant="caption">
-                {tAutomations('configuration.backoffHelp')}
-              </Text>
-            </FormSection>
 
-            <JsonInput
-              id="variables"
-              label={tAutomations('configuration.variables')}
-              value={variables ?? ''}
-              onChange={(next) =>
-                setValue('variables', next, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-              description={tAutomations('configuration.variablesHelp')}
-              errorMessage={errors.variables?.message}
-            />
+              <Textarea
+                id="description"
+                label={tAutomations('configuration.description')}
+                placeholder={tAutomations(
+                  'configuration.descriptionPlaceholder',
+                )}
+                rows={4}
+                errorMessage={errors.description?.message}
+                {...register('description')}
+              />
+
+              <Grid cols={2} gap={4}>
+                <FormSection>
+                  <Input
+                    id="timeout"
+                    type="number"
+                    label={tAutomations('configuration.timeout')}
+                    min={1000}
+                    errorMessage={errors.timeout?.message}
+                    {...register('timeout', { valueAsNumber: true })}
+                  />
+                  <Text variant="caption">
+                    {tAutomations('configuration.timeoutHelp')}
+                  </Text>
+                </FormSection>
+
+                <FormSection>
+                  <Input
+                    id="maxRetries"
+                    type="number"
+                    label={tAutomations('configuration.maxRetries')}
+                    min={0}
+                    max={10}
+                    errorMessage={errors.maxRetries?.message}
+                    {...register('maxRetries', { valueAsNumber: true })}
+                  />
+                  <Text variant="caption">
+                    {tAutomations('configuration.maxRetriesHelp')}
+                  </Text>
+                </FormSection>
+              </Grid>
+
+              <FormSection>
+                <Input
+                  id="backoffMs"
+                  type="number"
+                  label={tAutomations('configuration.backoff')}
+                  min={100}
+                  errorMessage={errors.backoffMs?.message}
+                  {...register('backoffMs', { valueAsNumber: true })}
+                />
+                <Text variant="caption">
+                  {tAutomations('configuration.backoffHelp')}
+                </Text>
+              </FormSection>
+
+              <JsonInput
+                id="variables"
+                label={tAutomations('configuration.variables')}
+                value={variables ?? ''}
+                onChange={(next) =>
+                  setValue('variables', next, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+                description={tAutomations('configuration.variablesHelp')}
+                errorMessage={errors.variables?.message}
+              />
+            </Stack>
           </fieldset>
         </form>
       </ContentArea>

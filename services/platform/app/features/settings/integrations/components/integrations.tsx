@@ -1,14 +1,11 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
-import { Heading } from '@tale/ui/heading';
 import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
-import { Text } from '@tale/ui/text';
 import { Search, Unplug } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -85,6 +82,9 @@ interface IntegrationsProps {
    * page chrome instead of swapping in from a separate page-level skeleton.
    */
   isLoading?: boolean;
+  /** Controls the "Add integration" upload dialog; the trigger lives in the page header. */
+  addDialogOpen: boolean;
+  onAddDialogOpenChange: (open: boolean) => void;
 }
 
 export function Integrations({
@@ -96,11 +96,12 @@ export function Integrations({
   initialSlug,
   onInitialSlugConsumed,
   isLoading = false,
+  addDialogOpen,
+  onAddDialogOpenChange,
 }: IntegrationsProps) {
   const { t } = useT('settings');
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [managingIntegration, setManagingIntegration] =
     useState<IntegrationListItem | null>(null);
   const tabItems = useMemo(
@@ -171,18 +172,6 @@ export function Integrations({
 
   return (
     <Stack gap={0} className="pb-8">
-      <HStack wrap justify="between" align="start" className="pb-3">
-        <Stack gap={1}>
-          <Heading level={2} size="lg" tracking="tight">
-            {t('integrations.title')}
-          </Heading>
-          <Text variant="muted">{t('integrations.pageSubtitle')}</Text>
-        </Stack>
-        <Button onClick={() => setUploadDialogOpen(true)}>
-          {t('integrations.addCustomIntegration')}
-        </Button>
-      </HStack>
-
       <HStack wrap justify="between" align="center" className="mb-4">
         <Tabs items={tabItems} value={tab} onValueChange={onTabChange} />
         <SearchInput
@@ -234,8 +223,8 @@ export function Integrations({
       )}
 
       <IntegrationUploadDialog
-        open={uploadDialogOpen}
-        onOpenChange={setUploadDialogOpen}
+        open={addDialogOpen}
+        onOpenChange={onAddDialogOpenChange}
         organizationId={organizationId}
       />
 

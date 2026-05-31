@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { IconButton } from '@tale/ui/icon-button';
 import { Stack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
@@ -19,6 +20,7 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
+import { formatRelativeTime } from '@/lib/utils/format/relative-time';
 
 import type { MessageMetadata, ToolUsage } from '../hooks/queries';
 
@@ -210,6 +212,7 @@ export function MessageInfoDialog({
   const { formatDate, locale } = useFormatDate();
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
+  const { copied: idCopied, onClick: handleCopyId } = useCopyButton(messageId);
   // Skip the query while the dialog is closed — most opens-close cycles
   // wouldn't ever look at the section, and TTS chunks subscribe is cheap
   // enough that gating on `isOpen` keeps the steady-state cost at zero.
@@ -248,10 +251,32 @@ export function MessageInfoDialog({
           (entry): entry is [number, string] =>
             entry[0] != null && entry[0] > 0,
         )
-        .map(([value, key]) => ({
-          label: t(`messageInfo.${key}`),
-          value: <Text>{formatNumber(value, locale)}</Text>,
-        })),
+        .map(([value, key]) => {
+          // For cached input tokens, show what share of the input was a
+          // cache hit — the headline cost lever for repeated prompts.
+          if (
+            key === 'cached' &&
+            metadata?.inputTokens != null &&
+            metadata.inputTokens > 0
+          ) {
+            const percent = Math.round((value / metadata.inputTokens) * 100);
+            return {
+              label: t(`messageInfo.${key}`),
+              value: (
+                <Text>
+                  {formatNumber(value, locale)}{' '}
+                  <Text as="span" variant="muted" className="text-xs">
+                    ({t('messageInfo.cachedPercent', { percent })})
+                  </Text>
+                </Text>
+              ),
+            };
+          }
+          return {
+            label: t(`messageInfo.${key}`),
+            value: <Text>{formatNumber(value, locale)}</Text>,
+          };
+        }),
       ...(metadata?.costEstimateCents != null
         ? [
             {
@@ -268,21 +293,48 @@ export function MessageInfoDialog({
     [metadata, t, tCommon, locale],
   );
 
-  const perfItems = useMemo<StatGridItem[]>(
-    () =>
-      (
-        [
-          [metadata?.durationMs, 'duration'],
-          [metadata?.timeToFirstTokenMs, 'timeToFirstToken'],
-        ] as [number | undefined, string][]
-      )
-        .filter((entry): entry is [number, string] => entry[0] != null)
-        .map(([value, key]) => ({
-          label: t(`messageInfo.${key}`),
-          value: <Text>{(value / 1000).toFixed(2)}s</Text>,
-        })),
-    [metadata?.durationMs, metadata?.timeToFirstTokenMs, t],
-  );
+  const perfItems = useMemo<StatGridItem[]>(() => {
+    const items = (
+      [
+        [metadata?.durationMs, 'duration'],
+        [metadata?.timeToFirstTokenMs, 'timeToFirstToken'],
+      ] as [number | undefined, string][]
+    )
+      .filter((entry): entry is [number, string] => entry[0] != null)
+      .map(([value, key]) => ({
+        label: t(`messageInfo.${key}`),
+        value: <Text>{(value / 1000).toFixed(2)}s</Text>,
+      }));
+
+    // Derived throughput: output tokens per second of generation. Only when
+    // both signals exist and duration is non-zero.
+    if (
+      metadata?.outputTokens != null &&
+      metadata.outputTokens > 0 &&
+      metadata.durationMs != null &&
+      metadata.durationMs > 0
+    ) {
+      const tps = metadata.outputTokens / (metadata.durationMs / 1000);
+      items.push({
+        label: t('messageInfo.throughput'),
+        value: (
+          <Text>
+            {t('messageInfo.tokensPerSecond', {
+              value: formatNumber(Math.round(tps), locale),
+            })}
+          </Text>
+        ),
+      });
+    }
+
+    return items;
+  }, [
+    metadata?.durationMs,
+    metadata?.timeToFirstTokenMs,
+    metadata?.outputTokens,
+    t,
+    locale,
+  ]);
 
   return (
     <ViewDialog
@@ -295,21 +347,41 @@ export function MessageInfoDialog({
       <FieldGroup gap={4} className="min-w-0 overflow-hidden">
         <Field label={t('messageInfo.timestamp')}>
           <Text as="div">{formatDate(timestamp, 'long')}</Text>
+          <Text as="div" variant="muted" className="text-xs">
+            {formatRelativeTime(timestamp, locale)}
+          </Text>
         </Field>
 
         <Field label={t('messageInfo.messageId')}>
-          <Text as="div" variant="code" className="bg-muted rounded px-2 py-1">
-            {messageId}
-          </Text>
+          <div className="flex items-center gap-1">
+            <Text
+              as="div"
+              variant="code"
+              className="bg-muted min-w-0 flex-1 truncate rounded px-2 py-1"
+            >
+              {messageId}
+            </Text>
+            <IconButton
+              icon={idCopied ? Check : Copy}
+              aria-label={
+                idCopied ? tCommon('actions.copied') : t('messageInfo.copyId')
+              }
+              onClick={handleCopyId}
+            />
+          </div>
         </Field>
 
         {metadata ? (
           <>
             <Field label={t('messageInfo.model')}>
-              <Text as="div">
-                {metadata.model}
-                {metadata.provider ? ` (${metadata.provider})` : ''}
-              </Text>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge variant="outline">{metadata.model}</Badge>
+                {metadata.provider && (
+                  <Text as="span" variant="muted" className="text-xs">
+                    {metadata.provider}
+                  </Text>
+                )}
+              </div>
             </Field>
 
             {tokenItems.length > 0 && (

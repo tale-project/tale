@@ -21,6 +21,10 @@ import { narrowStringUnion } from '@/lib/utils/type-guards';
 
 import type { ImportType } from './types';
 
+// Radix <Select.Item> rejects an empty-string value, so the "org-wide" choice
+// uses a sentinel that maps back to `undefined` (no team) on selection.
+const ORG_WIDE_TEAM = '__org_wide__';
+
 interface OneDriveSettingsStageProps {
   selectedItemCount: number;
   importType: ImportType;
@@ -160,12 +164,14 @@ export function OneDriveSettingsStage({
             </EmptyPlaceholder>
           ) : (
             <Select
-              value={selectedTeamId ?? ''}
-              onValueChange={(value) => onSelectTeam(value || undefined)}
+              value={selectedTeamId ?? ORG_WIDE_TEAM}
+              onValueChange={(value) =>
+                onSelectTeam(value === ORG_WIDE_TEAM ? undefined : value)
+              }
               disabled={isImporting}
               options={[
                 {
-                  value: '',
+                  value: ORG_WIDE_TEAM,
                   label: t('teamTags.orgWide'),
                 },
                 ...teams.map((team) => ({

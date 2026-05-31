@@ -191,3 +191,15 @@ settings.agents.unsavedChanges.description
 settings.agents.unsavedChanges.leave
 settings.agents.unsavedChanges.stay
 settings.agents.unsavedChanges.title
+
+# Inbox: per-user content notifications. titleKey/bodyKey are stored on the
+# userNotifications row and looked up dynamically at render (t(row.titleKey)),
+# so the scanner can't tie them to a callsite. Driven by convex/collab/notify.ts.
+inbox
+
+# Tasks feature (Milestone 0 backend; board/table UI lands in Milestone 1).
+# status/priority/views labels are enum-driven dynamic lookups
+# (`t(`tasks.status.${status}`)` etc., driven by the taskStatus/taskPriority
+# unions in convex/tasks/schema.ts); the rest land ahead of the UI so
+# translators can work in parallel. Remove once the board UI ships.
+tasks

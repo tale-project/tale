@@ -1,4 +1,12 @@
 {
+  "de:develop/webdav-api": {
+    "slug": "develop/webdav-api",
+    "locale": "de",
+    "frontmatter": {
+      "title": "WebDAV-API",
+      "description": "Protokoll-Referenz für Tales WebDAV-Server — URL-Schema, Authentifizierung, unterstützte Methoden, Eigenschaftsliste, Sperrsemantik und Limits."
+    }
+  },
   "de:develop/overview": {
     "slug": "develop/overview",
     "locale": "de",
@@ -470,6 +478,14 @@
     "frontmatter": {
       "title": "Integrationen",
       "description": "Drittsysteme, aus denen Tale liest und in die es schreibt — Kommunikation, Speicher, Identität, Entwicklung, Wissen — und wie sich die Integrations-Oberfläche von MCP unterscheidet."
+    }
+  },
+  "de:platform/integrations/webdav": {
+    "slug": "platform/integrations/webdav",
+    "locale": "de",
+    "frontmatter": {
+      "title": "WebDAV",
+      "description": "Hänge den Dokumentenspeicher deiner Organisation als Netzlaufwerk im Finder, Datei-Explorer oder einem beliebigen WebDAV-Client ein. Erzeuge ein App-Passwort unter Einstellungen > WebDAV und verbinde dich vom Gerät aus."
     }
   },
   "de:platform/integrations/mcp-servers": {
@@ -983,6 +999,14 @@
       "noindex": true
     }
   },
+  "fr:develop/webdav-api": {
+    "slug": "develop/webdav-api",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "API WebDAV",
+      "description": "Référence de protocole pour le serveur WebDAV de Tale — schéma d’URL, authentification, méthodes supportées, liste de propriétés, sémantique des verrous et limites."
+    }
+  },
   "fr:develop/overview": {
     "slug": "develop/overview",
     "locale": "fr",
@@ -1454,6 +1478,14 @@
     "frontmatter": {
       "title": "Intégrations",
       "description": "Systèmes tiers que Tale lit et écrit — communication, stockage, identité, dev, connaissances — et en quoi la surface des intégrations diffère de MCP."
+    }
+  },
+  "fr:platform/integrations/webdav": {
+    "slug": "platform/integrations/webdav",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "WebDAV",
+      "description": "Monte le dépôt de documents de ton organisation comme lecteur réseau dans Finder, Explorateur de fichiers ou n’importe quel client WebDAV. Génère un mot de passe applicatif sous Paramètres > WebDAV, puis connecte-toi depuis ton appareil."
     }
   },
   "fr:platform/integrations/mcp-servers": {
@@ -1967,6 +1999,14 @@
       "noindex": true
     }
   },
+  "en:develop/webdav-api": {
+    "slug": "develop/webdav-api",
+    "locale": "en",
+    "frontmatter": {
+      "title": "WebDAV API",
+      "description": "Protocol reference for Tale's WebDAV server — URL scheme, authentication, supported methods, property list, lock semantics, and limits."
+    }
+  },
   "en:develop/overview": {
     "slug": "develop/overview",
     "locale": "en",
@@ -2438,6 +2478,14 @@
     "frontmatter": {
       "title": "Integrations",
       "description": "Third-party systems Tale can read from and write to — communication, storage, identity, dev, knowledge — plus how the integration surface differs from MCP."
+    }
+  },
+  "en:platform/integrations/webdav": {
+    "slug": "platform/integrations/webdav",
+    "locale": "en",
+    "frontmatter": {
+      "title": "WebDAV",
+      "description": "Mount your organisation's documents as a network drive in Finder, File Explorer, or any WebDAV client. Set up an app-password under Settings > WebDAV, then connect from your device."
     }
   },
   "en:platform/integrations/mcp-servers": {

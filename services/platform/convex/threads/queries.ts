@@ -234,6 +234,34 @@ export const getThreadStatus = query({
   },
 });
 
+/**
+ * The project a thread belongs to (if any), gated on thread access. Lets the
+ * chat composer apply the project's model/agent restrictions + recommendations
+ * for existing project chats (where the projectId isn't in the URL).
+ */
+export const getThreadProject = query({
+  args: {
+    threadId: v.string(),
+    organizationId: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({ projectId: v.union(v.id('projects'), v.null()) }),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+    const metadata = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
+    if (!metadata) return null;
+    return { projectId: metadata.projectId ?? null };
+  },
+});
+
 export { getSharedThread } from './get_shared_thread';
 
 export const getThreadBranches = query({

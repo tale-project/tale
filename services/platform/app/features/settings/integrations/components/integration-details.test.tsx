@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
 
@@ -27,8 +27,6 @@ vi.mock('@/app/hooks/use-toast', () => ({
 vi.mock('./integration-manage/integration-related-automations', () => ({
   IntegrationRelatedAutomations: () => null,
 }));
-
-afterEach(cleanup);
 
 // Minimal integration fixture matching Doc<'integrations'> shape
 function makeIntegration(

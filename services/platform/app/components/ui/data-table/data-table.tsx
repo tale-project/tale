@@ -62,6 +62,11 @@ import type {
   DataTableSortingConfig,
 } from './data-table-types';
 
+/** Skeleton rows rendered when the row count is unknown (consistent default). */
+const DEFAULT_SKELETON_ROWS = 6;
+/** Upper bound so a large known count doesn't paint hundreds of skeleton rows. */
+const MAX_SKELETON_ROWS = 12;
+
 interface ColumnMeta {
   isAction?: boolean;
   hasAvatar?: boolean;
@@ -76,6 +81,12 @@ interface ColumnMeta {
       | 'switch';
   };
   align?: 'left' | 'center' | 'right';
+  /**
+   * Extra classes applied to this column's header AND body cells (and the
+   * matching skeleton cell). Use responsive utilities like `hidden md:table-cell`
+   * to drop low-priority columns on small screens.
+   */
+  className?: string;
 }
 
 export interface DataTableProps<TData, TValue = unknown> {
@@ -380,12 +391,14 @@ export function DataTable<TData, TValue = unknown>({
   const isSkeleton =
     tableBodyState === 'loading' || tableBodyState === 'skeleton';
 
-  // Number of skeleton rows to render based on current state
+  // Number of skeleton rows to render based on current state. When the count
+  // is unknown we render a consistent default block; when it's known we render
+  // that many, capped so a huge table doesn't paint hundreds of skeleton rows.
   const skeletonRowCount =
     tableBodyState === 'loading'
-      ? 5
+      ? DEFAULT_SKELETON_ROWS
       : tableBodyState === 'skeleton'
-        ? (approxRowCount ?? 0)
+        ? Math.min(approxRowCount ?? 0, MAX_SKELETON_ROWS)
         : 0;
 
   // If error prop provided, show error display instead of table
@@ -434,7 +447,12 @@ export function DataTable<TData, TValue = unknown>({
               {headerGroup.headers.map((headerCell) => (
                 <TableHead
                   key={headerCell.id}
-                  className="text-sm font-medium"
+                  className={cn(
+                    'text-sm font-medium',
+                    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+                    (headerCell.column.columnDef.meta as ColumnMeta | undefined)
+                      ?.className,
+                  )}
                   style={{
                     width:
                       headerCell.column.getSize() !== 150
@@ -463,7 +481,6 @@ export function DataTable<TData, TValue = unknown>({
                 {columns.map((col, colIndex) => {
                   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
                   const meta = col.meta as ColumnMeta | undefined;
-                  const isFirstColumn = colIndex === 0;
                   const isActionCol = meta?.isAction === true;
                   const skeletonType = meta?.skeleton?.type;
                   const hasAvatar = meta?.hasAvatar;
@@ -494,9 +511,11 @@ export function DataTable<TData, TValue = unknown>({
                   } else if (skeletonType === 'id-copy') {
                     cellContent = (
                       <HStack gap={2}>
-                        <SkeletonBox>
-                          <div className="h-3.5 max-w-[120px] flex-1" />
-                        </SkeletonBox>
+                        <div className="min-w-0 flex-1">
+                          <SkeletonBox fullWidth>
+                            <div className="h-3.5 max-w-[120px]" />
+                          </SkeletonBox>
+                        </div>
                         <SkeletonBox>
                           <div className="size-6 shrink-0 rounded-md" />
                         </SkeletonBox>
@@ -504,19 +523,23 @@ export function DataTable<TData, TValue = unknown>({
                     );
                   } else if (
                     hasAvatar === true ||
-                    skeletonType === 'avatar-text' ||
-                    (isFirstColumn && hasAvatar !== false)
+                    skeletonType === 'avatar-text'
                   ) {
+                    // Avatar + two text lines — only when a column explicitly
+                    // opts in (via `hasAvatar`/`avatar-text`). Previously the
+                    // FIRST column defaulted to this shape, which painted a
+                    // phantom avatar on every text-first table (API keys, MCP,
+                    // automations, …) — the "skeleton doesn't match content" bug.
                     cellContent = (
                       <HStack gap={3}>
                         <SkeletonBox>
                           <div className="size-8 shrink-0 rounded-md" />
                         </SkeletonBox>
-                        <Stack gap={1} className="flex-1">
-                          <SkeletonBox>
+                        <Stack gap={1} className="min-w-0 flex-1">
+                          <SkeletonBox fullWidth>
                             <div className="h-3.5 w-full max-w-48" />
                           </SkeletonBox>
-                          <SkeletonBox>
+                          <SkeletonBox fullWidth>
                             <div className="h-3 w-2/3 max-w-24" />
                           </SkeletonBox>
                         </Stack>
@@ -528,9 +551,11 @@ export function DataTable<TData, TValue = unknown>({
                         <SkeletonBox>
                           <div className="size-4 shrink-0 rounded" />
                         </SkeletonBox>
-                        <SkeletonBox>
-                          <div className="h-3.5 w-full max-w-48" />
-                        </SkeletonBox>
+                        <div className="min-w-0 flex-1">
+                          <SkeletonBox fullWidth>
+                            <div className="h-3.5 w-full max-w-48" />
+                          </SkeletonBox>
+                        </div>
                       </HStack>
                     );
                   } else if (align === 'right') {
@@ -551,7 +576,7 @@ export function DataTable<TData, TValue = unknown>({
                     );
                   } else {
                     cellContent = (
-                      <SkeletonBox>
+                      <SkeletonBox fullWidth>
                         <div className="h-3.5 w-full max-w-[80%]" />
                       </SkeletonBox>
                     );
@@ -560,6 +585,7 @@ export function DataTable<TData, TValue = unknown>({
                   return (
                     <TableCell
                       key={colIndex}
+                      className={meta?.className}
                       style={{
                         width:
                           col.size !== undefined && col.size !== 150
@@ -644,6 +670,11 @@ export function DataTable<TData, TValue = unknown>({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
+                        className={
+                          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+                          (cell.column.columnDef.meta as ColumnMeta | undefined)
+                            ?.className
+                        }
                         style={{
                           width:
                             cell.column.getSize() !== 150
@@ -811,9 +842,7 @@ export function DataTable<TData, TValue = unknown>({
       )}
     >
       <div className={cn('flex flex-col flex-1 min-h-0 min-w-0', className)}>
-        {headerContent && (
-          <div className="flex-shrink-0 pb-4">{headerContent}</div>
-        )}
+        {headerContent && <div className="shrink-0 pb-4">{headerContent}</div>}
         <div
           ref={scrollContainerRef}
           className="border-border min-h-0 overflow-auto overscroll-contain rounded-lg border"
@@ -823,7 +852,7 @@ export function DataTable<TData, TValue = unknown>({
           {entityCountFooter}
         </div>
         {paginationContent && (
-          <div className="flex-shrink-0 pt-6">{paginationContent}</div>
+          <div className="shrink-0 pt-6">{paginationContent}</div>
         )}
         {footer}
       </div>

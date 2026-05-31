@@ -1,0 +1,236 @@
+'use client';
+
+import { Button } from '@tale/ui/button';
+import { Text } from '@tale/ui/text';
+import { ConvexError } from 'convex/values';
+import { Plus, X } from 'lucide-react';
+import { useMemo } from 'react';
+
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/app/components/ui/forms/searchable-select';
+import { toast } from '@/app/hooks/use-toast';
+import type { Doc, Id } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n/client';
+import { formatTaskIdentifier } from '@/lib/shared/project_key';
+import { cn } from '@/lib/utils/cn';
+
+import {
+  useAddTaskDependency,
+  useRemoveTaskDependency,
+} from '../hooks/mutations';
+import { useTaskDependencies, useTasksByProject } from '../hooks/queries';
+import { TaskStatusBadge } from './task-status-badge';
+
+type TaskRow = Doc<'tasks'>;
+
+/**
+ * "Blocked by" / "Blocks" editor for a task. Both directions write the same
+ * directed edge (blocker → blocked) via {@link useAddTaskDependency}; the link
+ * is advisory — it surfaces a blocked indicator on the board but never gates a
+ * status change. The picker only offers same-project tasks not already linked,
+ * and the backend rejects any edge that would close a cycle (surfaced here as a
+ * friendly toast).
+ */
+export function TaskDependencies({
+  task,
+  canEdit,
+  projectKey,
+  onOpenTask,
+}: {
+  task: TaskRow;
+  canEdit: boolean;
+  projectKey?: string | null;
+  onOpenTask?: (taskId: Id<'tasks'>) => void;
+}) {
+  const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
+  const { blockedBy, blocks } = useTaskDependencies(task._id);
+  const { tasks: projectTasks } = useTasksByProject(task.projectId);
+  const addDependency = useAddTaskDependency();
+  const removeDependency = useRemoveTaskDependency();
+
+  const onMutationError = (error: unknown) => {
+    if (
+      error instanceof ConvexError &&
+      error.data?.code === 'TASK_DEPENDENCY_CYCLE'
+    ) {
+      toast({ title: t('detail.dependencyCycle'), variant: 'destructive' });
+      return;
+    }
+    console.error('[tasks] dependency action failed', error);
+    toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+  };
+
+  // Exclude self and anything already linked in either direction — the inverse
+  // link would just be a two-node cycle the backend rejects anyway.
+  const candidates = useMemo(() => {
+    const excluded = new Set<string>([
+      task._id,
+      ...blockedBy.map((b) => b._id),
+      ...blocks.map((b) => b._id),
+    ]);
+    return projectTasks.filter((p) => !excluded.has(p._id) && !p.archivedAt);
+  }, [projectTasks, blockedBy, blocks, task._id]);
+
+  if (!canEdit && blockedBy.length === 0 && blocks.length === 0) return null;
+
+  return (
+    <section className="flex flex-col gap-3">
+      <Text as="h3" variant="label">
+        {t('detail.dependencies')}
+      </Text>
+      <DependencyGroup
+        label={t('detail.blockedBy')}
+        items={blockedBy}
+        candidates={candidates}
+        canEdit={canEdit}
+        projectKey={projectKey}
+        onOpenTask={onOpenTask}
+        onAdd={(blockerTaskId) =>
+          void addDependency
+            .mutateAsync({ blockerTaskId, blockedTaskId: task._id })
+            .catch(onMutationError)
+        }
+        onRemove={(blockerTaskId) =>
+          void removeDependency
+            .mutateAsync({ blockerTaskId, blockedTaskId: task._id })
+            .catch(onMutationError)
+        }
+      />
+      <DependencyGroup
+        label={t('detail.blocks')}
+        items={blocks}
+        candidates={candidates}
+        canEdit={canEdit}
+        projectKey={projectKey}
+        onOpenTask={onOpenTask}
+        onAdd={(blockedTaskId) =>
+          void addDependency
+            .mutateAsync({ blockerTaskId: task._id, blockedTaskId })
+            .catch(onMutationError)
+        }
+        onRemove={(blockedTaskId) =>
+          void removeDependency
+            .mutateAsync({ blockerTaskId: task._id, blockedTaskId })
+            .catch(onMutationError)
+        }
+      />
+    </section>
+  );
+}
+
+function DependencyGroup({
+  label,
+  items,
+  candidates,
+  canEdit,
+  projectKey,
+  onOpenTask,
+  onAdd,
+  onRemove,
+}: {
+  label: string;
+  items: TaskRow[];
+  candidates: TaskRow[];
+  canEdit: boolean;
+  projectKey?: string | null;
+  onOpenTask?: (taskId: Id<'tasks'>) => void;
+  onAdd: (taskId: Id<'tasks'>) => void;
+  onRemove: (taskId: Id<'tasks'>) => void;
+}) {
+  const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
+
+  if (!canEdit && items.length === 0) return null;
+
+  const options: SearchableSelectOption[] = candidates.map((c) => ({
+    value: c._id,
+    label: c.title,
+    description: formatTaskIdentifier(projectKey, c.number) ?? undefined,
+  }));
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <Text as="span" variant="caption">
+          {label}
+        </Text>
+        {canEdit && candidates.length > 0 && (
+          <SearchableSelect
+            value={null}
+            onValueChange={(value) => {
+              const match = candidates.find((c) => c._id === value);
+              if (match) onAdd(match._id);
+            }}
+            options={options}
+            align="end"
+            searchPlaceholder={t('detail.linkTask')}
+            emptyText={tCommon('search.noResults')}
+            aria-label={label}
+            optionAction={(opt) => {
+              const match = candidates.find((c) => c._id === opt.value);
+              return match ? <TaskStatusBadge status={match.status} /> : null;
+            }}
+            trigger={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon={Plus}
+                className="text-muted-foreground -mr-1 h-auto px-1.5 py-0.5"
+              >
+                {t('actions.add')}
+              </Button>
+            }
+          />
+        )}
+      </div>
+      {items.length > 0 ? (
+        <ul className="flex flex-col gap-1">
+          {items.map((item) => (
+            <li key={item._id} className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => onOpenTask?.(item._id)}
+                disabled={!onOpenTask}
+                className={cn(
+                  'hover:bg-muted focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none',
+                  !onOpenTask && 'cursor-default hover:bg-transparent',
+                )}
+              >
+                <TaskStatusBadge status={item.status} />
+                {formatTaskIdentifier(projectKey, item.number) && (
+                  <Text
+                    as="span"
+                    variant="caption"
+                    className="shrink-0 font-mono text-[11px] tracking-wide"
+                  >
+                    {formatTaskIdentifier(projectKey, item.number)}
+                  </Text>
+                )}
+                <span className="truncate">{item.title}</span>
+              </button>
+              {canEdit && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  icon={X}
+                  aria-label={t('detail.removeDependency')}
+                  className="text-muted-foreground hover:text-foreground size-7 shrink-0"
+                  onClick={() => onRemove(item._id)}
+                />
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Text as="p" variant="muted" className="text-xs">
+          {t('detail.noDependencies')}
+        </Text>
+      )}
+    </div>
+  );
+}

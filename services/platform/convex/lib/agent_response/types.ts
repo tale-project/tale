@@ -181,6 +181,17 @@ export interface GenerateResponseArgs {
   /** Governance-resolved max context tokens (overrides agent default) */
   maxContextTokens?: number;
   /**
+   * Composer-sourced override of the Adaptive Reasoning Governor. Each field
+   * is independent; `undefined` leaves that lever adaptive.
+   *   - `effort` → forced reasoning tier (skips adaptive tier selection)
+   *   - `creativity` → forced creativity score in [0, 1] (overrides the
+   *     difficulty-scaled value fed to `decideTemperature`)
+   */
+  reasoningOverride?: {
+    effort?: 'low' | 'medium' | 'high';
+    creativity?: number;
+  };
+  /**
    * When true, the error path skips saving a failed message, marking the
    * stream as error, and clearing the generation status. Used by the
    * fallback retry loop so the caller can handle cleanup itself without

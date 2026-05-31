@@ -215,11 +215,8 @@
       "neverUsed": "nie",
       "revoked": "widerrufen",
       "revoke": "Widerrufen",
-      "copy": "Kopieren",
       "revokedToast": "Widerrufen",
-      "copiedToast": "Kopiert",
-      "revokeError": "Widerruf nicht möglich",
-      "copyError": "Konnte nicht kopieren"
+      "revokeError": "Widerruf nicht möglich"
     },
     "revokeDialog": {
       "title": "Dieses App-Passwort widerrufen?",

@@ -174,6 +174,7 @@ export const runAgentGeneration = internalAction({
     maxSteps: v.optional(v.number()),
     deadlineMs: v.optional(v.number()),
     generationParams: v.optional(v.any()),
+    reasoningOverride: v.optional(v.any()),
     maxContextTokens: v.optional(v.number()),
     threadTeamId: v.optional(v.string()),
   },
@@ -207,6 +208,7 @@ export const runAgentGeneration = internalAction({
       maxSteps,
       deadlineMs,
       generationParams,
+      reasoningOverride,
       maxContextTokens,
     } = args;
 
@@ -520,6 +522,7 @@ export const runAgentGeneration = internalAction({
               maxSteps,
               deadlineMs,
               generationParams,
+              reasoningOverride,
               // Suppress error cleanup (stream error, generation status clear,
               // failed message) when there are more fallback models to try.
               // The fallback loop handles cleanup itself.

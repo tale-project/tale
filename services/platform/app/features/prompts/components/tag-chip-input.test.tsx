@@ -36,7 +36,10 @@ function setup(initial: string[] = []) {
       placeholder="add tag"
     />,
   );
-  const input = utils.getByLabelText('Tags') as HTMLInputElement;
+  // Anchored at the start so the auto-appended "(optional)" hint is tolerated
+  // without also matching the per-chip remove buttons (aria-label contains
+  // "tagsInput").
+  const input = utils.getByLabelText(/^Tags\b/) as HTMLInputElement;
   return { input, onChange, ...utils };
 }
 
@@ -113,7 +116,7 @@ describe('TagChipInput', () => {
         label="tags"
       />,
     );
-    const input = screen.getByLabelText('tags');
+    const input = screen.getByLabelText(/^tags\b/);
     fireEvent.keyDown(input, { key: 'Backspace' });
     expect(onChange).toHaveBeenCalledWith(['a', 'b']);
   });
