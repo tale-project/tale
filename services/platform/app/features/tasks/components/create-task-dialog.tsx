@@ -21,11 +21,16 @@ import {
   type TaskStatus,
 } from '../lib/display';
 
+// Radix <Select.Item> forbids an empty-string value (it's reserved for
+// "clear selection"), so the "no priority" choice uses an explicit sentinel
+// that maps back to `undefined` on submit.
+const NO_PRIORITY = 'none';
+
 interface CreateTaskFormData {
   title: string;
   description: string;
   status: TaskStatus;
-  priority: TaskPriority | '';
+  priority: TaskPriority | typeof NO_PRIORITY;
 }
 
 export function CreateTaskDialog({
@@ -51,7 +56,7 @@ export function CreateTaskDialog({
   );
   const priorityOptions = useMemo(
     () => [
-      { value: '', label: '—' },
+      { value: NO_PRIORITY, label: '—' },
       ...TASK_PRIORITY_ORDER.map((p) => ({
         value: p,
         label: t(`priority.${p}`),
@@ -73,7 +78,7 @@ export function CreateTaskDialog({
           'done',
           'cancelled',
         ]),
-        priority: z.enum(['', 'p0', 'p1', 'p2', 'p3']),
+        priority: z.enum([NO_PRIORITY, 'p0', 'p1', 'p2', 'p3']),
       }),
     [],
   );
@@ -91,7 +96,7 @@ export function CreateTaskDialog({
       title: '',
       description: '',
       status: defaultStatus,
-      priority: '',
+      priority: NO_PRIORITY,
     },
   });
 
@@ -106,7 +111,7 @@ export function CreateTaskDialog({
         title: data.title.trim(),
         description: data.description.trim() || undefined,
         status: data.status,
-        priority: data.priority === '' ? undefined : data.priority,
+        priority: data.priority === NO_PRIORITY ? undefined : data.priority,
       });
       toast({ title: t('actions.create'), variant: 'success' });
       reset();
@@ -160,8 +165,8 @@ export function CreateTaskDialog({
         label={t('fields.priority')}
         value={priority}
         onValueChange={(value: string) =>
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options derived from TASK_PRIORITY_ORDER
-          setValue('priority', value as TaskPriority | '', {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options derived from TASK_PRIORITY_ORDER + NO_PRIORITY sentinel
+          setValue('priority', value as TaskPriority | typeof NO_PRIORITY, {
             shouldDirty: true,
           })
         }

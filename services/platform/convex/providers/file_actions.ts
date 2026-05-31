@@ -347,10 +347,15 @@ export const readProvider = action({
         }
       }
     } catch (err) {
-      console.warn(
-        `Provider "${args.providerName}": failed to read model key overrides`,
-        sanitizeError(err),
-      );
+      // Missing secrets file → no per-model key overrides (normal); only warn
+      // on unexpected read/parse failures.
+      const reason = err instanceof Error ? err.message : String(err);
+      if (!/ENOENT/i.test(reason)) {
+        console.warn(
+          `Provider "${args.providerName}": failed to read model key overrides`,
+          sanitizeError(err),
+        );
+      }
     }
 
     return { ...result, maskedModelKeys };
@@ -388,18 +393,28 @@ export const listProviders = action({
         if (!validateProviderName(name)) return null;
         const result = await readProviderFile(orgSlug, name);
         if (result.ok) {
-          // Try reading secrets to detect per-model API key overrides
+          // Try reading secrets to detect per-model API key overrides AND
+          // whether the provider has a usable API key at all (the schema
+          // requires a non-empty `apiKey`, so a successful parse ⇒ configured).
           let modelKeys: Record<string, string> | undefined;
+          let hasApiKey = false;
           try {
             const secretsPath = resolveProviderSecretsPath(orgSlug, name);
             const raw = await decryptSecretsFile(secretsPath);
             const secrets = parseProviderSecrets(raw);
             modelKeys = secrets.modelKeys;
+            hasApiKey = true;
           } catch (err) {
-            console.warn(
-              `Provider "${name}": failed to read model key overrides`,
-              sanitizeError(err),
-            );
+            // A missing secrets file just means this provider has no per-model
+            // key overrides — the normal case for most providers. Stay quiet on
+            // ENOENT; only warn on unexpected read/parse failures.
+            const reason = err instanceof Error ? err.message : String(err);
+            if (!/ENOENT/i.test(reason)) {
+              console.warn(
+                `Provider "${name}": failed to read model key overrides`,
+                sanitizeError(err),
+              );
+            }
           }
 
           return {
@@ -409,6 +424,10 @@ export const listProviders = action({
             baseUrl: result.config.baseUrl,
             modelCount: result.config.models.length,
             defaults: result.config.defaults,
+            // Whether this provider has an API key configured — lets the chat
+            // composer disable "send" early with a clear reason instead of
+            // failing at dispatch time.
+            hasApiKey,
             models: result.config.models.map((m) => ({
               id: m.id,
               displayName: m.displayName,

@@ -537,7 +537,7 @@
           "editTitle": "Ereignis-Trigger bearbeiten",
           "eventType": "Ereignistyp",
           "eventTypePlaceholder": "Ereignistyp auswählen",
-          "filtersLabel": "Filter (optional)",
+          "filtersLabel": "Filter",
           "filterAll": "Alle (kein Filter)",
           "filterAllPlaceholder": "Filterwert auswählen"
         },
@@ -772,6 +772,8 @@
     "archiveFailed": "Chat konnte nicht archiviert werden",
     "unarchiveSuccess": "Chat dearchiviert",
     "unarchiveFailed": "Chat konnte nicht dearchiviert werden",
+    "removeFromProject": "Aus Projekt entfernen",
+    "removeFromProjectFailed": "Chat konnte nicht aus dem Projekt entfernt werden",
     "archived": {
       "title": "Archiviert"
     },
@@ -829,6 +831,8 @@
       "auto": "Auto",
       "autoDescription": "Wählt automatisch das beste verfügbare Modell mit Fallback",
       "noModelsAvailable": "Keine Modelle verfügbar",
+      "recommended": "Empfohlen",
+      "noApiKey": "Für den Anbieter dieses Modells ist kein API-Schlüssel konfiguriert — füge in Einstellungen → API einen hinzu.",
       "tags": {
         "chat": "Chat",
         "embedding": "Embedding",
@@ -1066,8 +1070,8 @@
       "loadingMore": "Lädt...",
       "generating": "Antwort wird generiert",
       "awaitingInput": "Wartet auf deine Eingabe",
-      "removeFromProjectHint": "Hier ablegen, um aus dem Projekt zu entfernen",
       "dropHereToAdd": "Chat hier ablegen",
+      "dropToChatsHint": "Hier ablegen, um zu Chats zu verschieben",
       "legalHold": {
         "heading": "Auf Legal Hold",
         "body": "Aus Compliance-Gründen aufbewahrt — kann nicht gelöscht, archiviert oder umbenannt werden.",
@@ -1261,6 +1265,7 @@
     "errorHintToolFailure": "Der Agent hat beim Datenzugriff einen Fehler festgestellt. Versuche, deine Anfrage umzuformulieren oder weniger Daten anzufordern."
   },
   "common": {
+    "optional": "optional",
     "dates": {
       "today": "Heute",
       "yesterday": "Gestern"
@@ -2917,7 +2922,7 @@
           "orgConfirmDescription": "Pflicht für organisationsweite Holds. Der Senden-Button bleibt deaktiviert, bis die Phrase exakt übereinstimmt.",
           "reasonLabel": "Begründung",
           "reasonPlaceholder": "z. B. Beweissicherungs-Hold für Acme./. Co. (Az. 2026-04)",
-          "matterLabel": "Fall (optional)",
+          "matterLabel": "Fall",
           "matterPlaceholder": "Fall auswählen oder anlegen",
           "matterCreateNew": "Neuen Fall anlegen…",
           "submit": "Hold setzen"
@@ -2946,8 +2951,8 @@
           "description": "Verwandte Holds unter einem Fall gruppieren. Beim späteren Schließen werden Freigabeanträge für alle verknüpften Holds eingereicht.",
           "nameLabel": "Name",
           "namePlaceholder": "z. B. Acme./. Co. (2026-04)",
-          "caseNumberLabel": "Aktenzeichen (optional)",
-          "descriptionLabel": "Beschreibung (optional)",
+          "caseNumberLabel": "Aktenzeichen",
+          "descriptionLabel": "Beschreibung",
           "submitCreate": "Fall anlegen",
           "submitEdit": "Speichern"
         },
@@ -3546,8 +3551,8 @@
       "description": "Skills binden, die der Agent zur Laufzeit lesen kann."
     },
     "agentWebhook": {
-      "title": "Agent-Workers",
-      "description": "Worker-URLs für deinen Agent verwalten."
+      "title": "Agent-Webhooks",
+      "description": "Webhook-URLs für deinen Agent verwalten."
     },
     "agentDelegation": {
       "title": "Agent-Delegation",
@@ -3590,6 +3595,8 @@
     "mcp": "MCP",
     "providers": "KI-Anbieter",
     "apiKeys": "API-Schlüssel",
+    "api": "API",
+    "apiRest": "REST",
     "branding": "Branding",
     "governance": "Richtlinien",
     "personalization": "Personalisierung",
@@ -4268,7 +4275,7 @@
         "tools": "Tools",
         "skills": "Skills",
         "knowledge": "Wissen",
-        "webhook": "Worker",
+        "webhook": "Webhook",
         "delegation": "Delegation",
         "conversationStarters": "Gesprächseinstiege",
         "history": "Verlauf"
@@ -4439,38 +4446,38 @@
         "webSearchHintLink": "Websites verwalten"
       },
       "webhook": {
-        "title": "Worker",
+        "title": "Webhook",
         "description": "Eindeutige URLs erstellen, um mit diesem Agent von externen Systemen zu chatten.",
-        "notPublished": "Veröffentliche diesen Agent, um Worker-Zugriff zu aktivieren.",
-        "createButton": "Worker erstellen",
-        "createdTitle": "Worker erstellt",
+        "notPublished": "Veröffentliche diesen Agent, um Webhook-Zugriff zu aktivieren.",
+        "createButton": "Webhook erstellen",
+        "createdTitle": "Webhook erstellt",
         "urlWarning": "Kopiere diese URL jetzt — sie wird nur einmal angezeigt.",
-        "webhookUrl": "Worker-URL",
-        "copyUrl": "Worker-URL kopieren",
+        "webhookUrl": "Webhook-URL",
+        "copyUrl": "Webhook-URL kopieren",
         "copyExample": "Beispiel kopieren",
-        "deleteWebhook": "Worker löschen",
-        "emptyTitle": "Noch keine Worker",
-        "emptyDescription": "Erstelle einen Worker, damit externe Systeme mit diesem Agent chatten können.",
+        "deleteWebhook": "Webhook löschen",
+        "emptyTitle": "Noch keine Webhook",
+        "emptyDescription": "Erstelle einen Webhook, damit externe Systeme mit diesem Agent chatten können.",
         "never": "Nie",
         "columns": {
           "url": "URL",
           "active": "Aktiv",
           "lastTriggered": "Zuletzt ausgelöst"
         },
-        "deleteTitle": "Worker löschen",
-        "deleteDescription": "Bist du sicher? Alle Systeme, die diese Worker-URL verwenden, verlieren den Zugriff.",
+        "deleteTitle": "Webhook löschen",
+        "deleteDescription": "Bist du sicher? Alle Systeme, die diese Webhook-URL verwenden, verlieren den Zugriff.",
         "toast": {
-          "created": "Worker erstellt",
-          "createFailed": "Worker konnte nicht erstellt werden",
-          "enabled": "Worker aktiviert",
-          "disabled": "Worker deaktiviert",
-          "toggleFailed": "Worker konnte nicht aktualisiert werden",
-          "deleted": "Worker gelöscht",
-          "deleteFailed": "Worker konnte nicht gelöscht werden",
+          "created": "Webhook erstellt",
+          "createFailed": "Webhook konnte nicht erstellt werden",
+          "enabled": "Webhook aktiviert",
+          "disabled": "Webhook deaktiviert",
+          "toggleFailed": "Webhook konnte nicht aktualisiert werden",
+          "deleted": "Webhook gelöscht",
+          "deleteFailed": "Webhook konnte nicht gelöscht werden",
           "urlCopied": "URL kopiert"
         },
         "usageExamples": "Verwendungsbeispiele",
-        "usageExamplesDescription": "Sende einen POST-Request an die Worker-URL mit einem JSON-Body oder Multipart-Formulardaten.",
+        "usageExamplesDescription": "Sende einen POST-Request an die Webhook-URL mit einem JSON-Body oder Multipart-Formulardaten.",
         "exampleNonStreaming": "Nicht-Streaming (JSON-Antwort)",
         "exampleStreaming": "Streaming (SSE-Antwort)",
         "exampleMultiTurn": "Mehrstufige Konversation",
@@ -5363,7 +5370,18 @@
     "agentAccessBody": "Agent-Runtimes (z. B. Hermes, OpenClaw) können diese Secrets nutzen, wenn sie Aufgaben für dieses Projekt ausführen — etwa um sich in deinem Namen bei externen Diensten anzumelden. Werte werden zur Laufzeit eingefügt und niemals dem Chat-Modell gezeigt oder in der Oberfläche angezeigt.",
     "nameLabel": "Name",
     "valueLabel": "Wert",
-    "descriptionLabel": "Beschreibung (optional)",
+    "descriptionLabel": "Beschreibung",
+    "typeLabel": "Typ",
+    "typeApiKey": "API-Schlüssel",
+    "typeBearer": "Bearer-Token",
+    "typeBasic": "Benutzername & Passwort",
+    "typeCustom": "Benutzerdefiniert",
+    "apiKeyValueLabel": "API-Schlüssel",
+    "tokenLabel": "Token",
+    "usernameLabel": "Benutzername",
+    "passwordLabel": "Passwort",
+    "basicNameHint": "Wird als zwei Secrets gespeichert — dein Name plus die Suffixe _USERNAME und _PASSWORD.",
+    "encryptionNotConfigured": "Die Secret-Verschlüsselung ist auf diesem Server nicht eingerichtet (ENCRYPTION_SECRET_HEX fehlt). Führe `tale init` aus und versuche es erneut.",
     "saveSuccess": "Secret gespeichert",
     "deleteSuccess": "Secret gelöscht"
   },
@@ -5403,8 +5421,15 @@
     },
     "views": {
       "board": "Board",
+      "list": "Liste",
       "table": "Tabelle",
       "timeline": "Zeitachse"
+    },
+    "board": {
+      "noTasks": "Keine Aufgaben"
+    },
+    "empty": {
+      "description": "Erstelle deine erste Aufgabe, um die Arbeit zu verfolgen."
     },
     "detail": {
       "overview": "Übersicht",
@@ -6074,6 +6099,7 @@
       "dismiss": "Ich habe es gespeichert"
     },
     "list": {
+      "title": "App-Passwörter",
       "empty": "Noch keine App-Passwörter.",
       "label": "Label",
       "prefix": "Präfix",
@@ -6082,12 +6108,9 @@
       "neverUsed": "nie",
       "revoked": "widerrufen",
       "revoke": "Widerrufen",
-      "copy": "Kopieren",
       "revokedToast": "Widerrufen",
-      "copiedToast": "Kopiert",
       "revokeError": "Widerruf nicht möglich",
-      "revokeErrorNotFound": "Dieses App-Passwort existiert nicht mehr.",
-      "copyError": "Konnte nicht kopieren"
+      "revokeErrorNotFound": "Dieses App-Passwort existiert nicht mehr."
     },
     "revokeDialog": {
       "title": "Dieses App-Passwort widerrufen?",

@@ -1,6 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { SkeletonBox, SkeletonCircle, SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
 import { CheckCheck, ChevronLeft, Inbox } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -166,9 +168,35 @@ export function NotificationListPanel({
       <div className="flex-1 overflow-y-auto">
         {items.length === 0 ? (
           status === 'LoadingFirstPage' ? (
-            <div className="text-muted-foreground px-4 py-8 text-center text-sm">
-              {t('loading')}
-            </div>
+            // Skeleton list mirroring the real row layout so switching the
+            // Unread/All filter (which re-queries from the first page) doesn't
+            // collapse the panel to a tiny "loading" label and shift everything.
+            <Skeletonize loading label={t('loading')}>
+              <ul role="list" className="divide-border divide-y" aria-hidden>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <li key={i} className="flex items-start gap-3 px-4 py-3">
+                    <SkeletonCircle>
+                      <span className="mt-1.5 block size-2 rounded-full" />
+                    </SkeletonCircle>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <SkeletonBox>
+                          <span className="text-sm font-medium">
+                            Notification title preview
+                          </span>
+                        </SkeletonBox>
+                        <SkeletonBox>
+                          <span className="text-[10px]">2h</span>
+                        </SkeletonBox>
+                      </div>
+                      <div className="mt-1">
+                        <SkeletonText lines={2} seed={i + 1} />
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Skeletonize>
           ) : (
             <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
               {filter === 'unread' ? (

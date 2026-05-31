@@ -7,6 +7,7 @@ import { useNavigate } from '@tanstack/react-router';
 import {
   Archive,
   ArchiveRestore,
+  FolderMinus,
   MoreHorizontal,
   Pencil,
   Pin,
@@ -16,6 +17,7 @@ import {
 import { useCallback, useMemo, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import { useMoveThreadToProject } from '@/app/features/projects/hooks/mutations';
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -37,6 +39,10 @@ interface ChatActionsProps {
   onRename?: () => void;
   isArchived?: boolean;
   isPinned?: boolean;
+  /** The project this chat currently belongs to, if any. When set, the menu
+   * offers "Remove from project" (chats are otherwise only added to a project
+   * by dragging onto a folder). */
+  projectId?: string;
 }
 
 export function ChatActions({
@@ -46,6 +52,7 @@ export function ChatActions({
   onRename,
   isArchived = false,
   isPinned = false,
+  projectId,
 }: ChatActionsProps) {
   const navigate = useNavigate();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -71,6 +78,22 @@ export function ChatActions({
   const { mutate: archiveThread } = useArchiveThread();
   const { mutate: unarchiveThread } = useUnarchiveThread();
   const { mutate: setThreadPinned } = useSetThreadPinned();
+  const { mutate: moveThreadToProject } = useMoveThreadToProject();
+
+  const handleRemoveFromProject = useCallback(() => {
+    moveThreadToProject(
+      { threadId: chat.id, projectId: null },
+      {
+        onError: (error: unknown) => {
+          console.error('Failed to remove chat from project:', error);
+          toast({
+            title: tChat('removeFromProjectFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  }, [chat.id, moveThreadToProject, toast, tChat]);
 
   const handleDelete = useCallback(() => {
     deleteThread(
@@ -228,6 +251,16 @@ export function ChatActions({
               },
             ]
           : []),
+        ...(projectId
+          ? [
+              {
+                type: 'item' as const,
+                label: tChat('removeFromProject'),
+                icon: FolderMinus,
+                onClick: handleRemoveFromProject,
+              },
+            ]
+          : []),
         {
           type: 'item' as const,
           label: tChat('archive'),
@@ -252,9 +285,11 @@ export function ChatActions({
     isPinned,
     isHeld,
     onRename,
+    projectId,
     handleTogglePin,
     handleArchive,
     handleUnarchive,
+    handleRemoveFromProject,
     tChat,
     tCommon,
     tGovernance,

@@ -196,10 +196,15 @@ export function ChatDndProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** The lifted card that follows the cursor during a drag. */
+/**
+ * The lifted card that follows the cursor during a drag. Deliberately styled
+ * as an elevated popover-surface card (not the `bg-accent` used for the active
+ * row) with a slight tilt + strong shadow, so a dragged chat never looks like
+ * the currently-selected chat.
+ */
 function ChatDragPreview({ title }: { title: string }) {
   return (
-    <div className="bg-accent text-accent-foreground ring-border flex max-w-[15rem] cursor-grabbing items-center gap-2 rounded-md px-2 py-1.5 text-sm shadow-lg ring-1">
+    <div className="bg-popover text-popover-foreground border-border flex max-w-[15rem] rotate-2 cursor-grabbing items-center gap-2 rounded-md border px-2 py-1.5 text-sm shadow-xl">
       <span className="truncate">{title}</span>
     </div>
   );

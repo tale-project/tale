@@ -128,7 +128,11 @@ function seeded(n: number): number {
  * word spacing.
  */
 function SkeletonLineFill({ seed }: { seed: number }) {
-  const segments = 5 + Math.floor(seeded(seed) * 6); // 5..10
+  // Fewer words + tighter spacing so a line reads as nearly-full text. The old
+  // 5–10 words each with a 0.4em gap and a 1.5rem floor left visibly short,
+  // sparse lines — especially in narrow containers (table cells, small fields)
+  // where the cumulative gaps and the min-width floor overflowed and clipped.
+  const segments = 4 + Math.floor(seeded(seed) * 4); // 4..7
   const weights = Array.from(
     { length: segments },
     (_, j) => 0.5 + seeded(seed * 7 + j * 17 + 1) * 1.5,
@@ -143,10 +147,11 @@ function SkeletonLineFill({ seed }: { seed: number }) {
           <span
             // eslint-disable-next-line react/no-array-index-key
             key={j}
-            className="h-[0.66em] shrink-0 pr-[0.4em] last:pr-0"
+            className="h-[0.7em] shrink-0 pr-[0.28em] last:pr-0"
             // max(min, w%): widths share 100% but never collapse below a
-            // realistic word width; overflow is clipped by the parent.
-            style={{ width: `max(1.5rem, ${pct}%)` }}
+            // realistic word width; a small floor keeps narrow containers from
+            // overflowing (which clipped trailing words and shortened the line).
+            style={{ width: `max(0.75rem, ${pct}%)` }}
           >
             <span
               className={cn('block size-full rounded-md', SKELETON_PULSE)}

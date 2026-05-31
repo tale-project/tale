@@ -56,7 +56,12 @@ export const Heading = forwardRef<HTMLHeadingElement, HeadingProps>(
         ref={ref}
         className={cn(
           headingVariants({ size, weight, tracking }),
-          truncate && 'truncate',
+          // `min-w-0` lets a truncating heading actually shrink (and therefore
+          // clip with an ellipsis) when it is a flex child — e.g. a breadcrumb
+          // title inside a flex header row. Without it the heading keeps its
+          // full intrinsic width and overflows / wraps the row instead of
+          // truncating to a single line.
+          truncate && 'min-w-0 truncate',
           className,
         )}
         {...props}

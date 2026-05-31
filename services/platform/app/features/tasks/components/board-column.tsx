@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils/cn';
 
 import type { TaskStatus } from '../lib/display';
 import { TaskCard, type TaskRow } from './task-card';
+import { TaskStatusBadge } from './task-status-badge';
 
 export function BoardColumn({
   status,
@@ -30,20 +31,18 @@ export function BoardColumn({
   });
 
   return (
-    <div className="bg-muted/40 flex w-72 shrink-0 flex-col rounded-xl">
-      <div className="flex items-center justify-between px-3 py-2">
-        <Text as="span" variant="label" className="text-muted-foreground">
-          {t(`status.${status}`)}
-        </Text>
-        <Text as="span" variant="muted" className="text-xs">
+    <section className="bg-muted/40 flex w-[80vw] max-w-72 shrink-0 snap-start flex-col rounded-lg sm:w-72">
+      <div className="flex items-center justify-between gap-2 px-2.5 py-2">
+        <TaskStatusBadge status={status} />
+        <Text as="span" variant="caption" className="pr-1 tabular-nums">
           {tasks.length}
         </Text>
       </div>
       <div
         ref={setNodeRef}
         className={cn(
-          'flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto p-2',
-          isOver && 'rounded-lg bg-accent/30 ring-1 ring-inset ring-border',
+          'flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-2 pt-0.5 pb-2',
+          isOver && 'bg-accent/40 ring-border rounded-lg ring-1 ring-inset',
         )}
       >
         <SortableContext
@@ -59,7 +58,12 @@ export function BoardColumn({
             />
           ))}
         </SortableContext>
+        {tasks.length === 0 && (
+          <div className="border-border text-muted-foreground m-1 flex flex-1 items-center justify-center rounded-lg border border-dashed px-3 py-6 text-center text-xs">
+            {t('board.noTasks')}
+          </div>
+        )}
       </div>
-    </div>
+    </section>
   );
 }

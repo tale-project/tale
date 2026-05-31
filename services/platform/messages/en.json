@@ -537,7 +537,7 @@
           "editTitle": "Edit event trigger",
           "eventType": "Event type",
           "eventTypePlaceholder": "Select an event type",
-          "filtersLabel": "Filters (optional)",
+          "filtersLabel": "Filters",
           "filterAll": "All (no filter)",
           "filterAllPlaceholder": "Select a filter value"
         },
@@ -772,6 +772,8 @@
     "archiveFailed": "Failed to archive chat",
     "unarchiveSuccess": "Chat unarchived",
     "unarchiveFailed": "Failed to unarchive chat",
+    "removeFromProject": "Remove from project",
+    "removeFromProjectFailed": "Failed to remove chat from project",
     "archived": {
       "title": "Archived"
     },
@@ -829,6 +831,8 @@
       "auto": "Auto",
       "autoDescription": "Automatically selects the best available model with fallback",
       "noModelsAvailable": "No models available",
+      "recommended": "Recommended",
+      "noApiKey": "No API key configured for this model's provider — add one in Settings → API.",
       "tags": {
         "chat": "Chat",
         "embedding": "Embedding",
@@ -1066,8 +1070,8 @@
       "loadingMore": "Loading...",
       "generating": "Generating response",
       "awaitingInput": "Awaiting your input",
-      "removeFromProjectHint": "Drop here to remove from project",
       "dropHereToAdd": "Drop a chat here",
+      "dropToChatsHint": "Drop here to move to Chats",
       "legalHold": {
         "heading": "On legal hold",
         "body": "Preserved for compliance — cannot be deleted, archived, or renamed.",
@@ -1261,6 +1265,7 @@
     "errorHintToolFailure": "The agent encountered an error while accessing data. Try rephrasing your request or asking for a smaller set of data."
   },
   "common": {
+    "optional": "optional",
     "dates": {
       "today": "Today",
       "yesterday": "Yesterday"
@@ -2917,7 +2922,7 @@
           "orgConfirmDescription": "Required for organization-wide holds. The submit button stays disabled until the phrase matches exactly.",
           "reasonLabel": "Reason",
           "reasonPlaceholder": "e.g. Litigation hold for Acme v. Co. (matter #2026-04)",
-          "matterLabel": "Matter (optional)",
+          "matterLabel": "Matter",
           "matterPlaceholder": "Pick or create a matter",
           "matterCreateNew": "Create new matter…",
           "submit": "Place hold"
@@ -2946,8 +2951,8 @@
           "description": "Group related holds under one matter. Closing the matter later files release requests for every linked hold.",
           "nameLabel": "Name",
           "namePlaceholder": "e.g. Acme v. Co. (2026-04)",
-          "caseNumberLabel": "Case number (optional)",
-          "descriptionLabel": "Description (optional)",
+          "caseNumberLabel": "Case number",
+          "descriptionLabel": "Description",
           "submitCreate": "Create matter",
           "submitEdit": "Save"
         },
@@ -3546,8 +3551,8 @@
       "description": "Bind skills the agent can read at runtime."
     },
     "agentWebhook": {
-      "title": "Agent workers",
-      "description": "Manage worker URLs for your agent."
+      "title": "Agent webhooks",
+      "description": "Manage webhook URLs for your agent."
     },
     "agentDelegation": {
       "title": "Agent delegation",
@@ -3590,6 +3595,8 @@
     "mcp": "MCP",
     "providers": "AI providers",
     "apiKeys": "API keys",
+    "api": "API",
+    "apiRest": "REST",
     "branding": "Branding",
     "governance": "Governance",
     "personalization": "Preferences",
@@ -4530,7 +4537,7 @@
         "tools": "Tools",
         "skills": "Skills",
         "knowledge": "Knowledge",
-        "webhook": "Workers",
+        "webhook": "Webhooks",
         "delegation": "Delegation",
         "conversationStarters": "Starters",
         "history": "History"
@@ -4701,38 +4708,38 @@
         "webSearchHintLink": "Manage websites"
       },
       "webhook": {
-        "title": "Workers",
+        "title": "Webhooks",
         "description": "Create unique URLs to chat with this agent from external systems.",
-        "notPublished": "Publish this agent to enable worker access.",
-        "createButton": "Create worker",
-        "createdTitle": "Worker created",
+        "notPublished": "Publish this agent to enable webhook access.",
+        "createButton": "Create webhook",
+        "createdTitle": "Webhook created",
         "urlWarning": "Copy this URL now. It will only be shown once.",
-        "webhookUrl": "Worker URL",
-        "copyUrl": "Copy worker URL",
+        "webhookUrl": "Webhook URL",
+        "copyUrl": "Copy webhook URL",
         "copyExample": "Copy example",
-        "deleteWebhook": "Delete worker",
-        "emptyTitle": "No workers yet",
-        "emptyDescription": "Create a worker to allow external systems to chat with this agent.",
+        "deleteWebhook": "Delete webhook",
+        "emptyTitle": "No webhooks yet",
+        "emptyDescription": "Create a webhook to allow external systems to chat with this agent.",
         "never": "Never",
         "columns": {
           "url": "URL",
           "active": "Active",
           "lastTriggered": "Last triggered"
         },
-        "deleteTitle": "Delete worker",
-        "deleteDescription": "Are you sure? Any systems using this worker URL will lose access.",
+        "deleteTitle": "Delete webhook",
+        "deleteDescription": "Are you sure? Any systems using this webhook URL will lose access.",
         "toast": {
-          "created": "Worker created",
-          "createFailed": "Failed to create worker",
-          "enabled": "Worker enabled",
-          "disabled": "Worker disabled",
-          "toggleFailed": "Failed to update worker",
-          "deleted": "Worker deleted",
-          "deleteFailed": "Failed to delete worker",
+          "created": "Webhook created",
+          "createFailed": "Failed to create webhook",
+          "enabled": "Webhook enabled",
+          "disabled": "Webhook disabled",
+          "toggleFailed": "Failed to update webhook",
+          "deleted": "Webhook deleted",
+          "deleteFailed": "Failed to delete webhook",
           "urlCopied": "URL copied"
         },
         "usageExamples": "Usage examples",
-        "usageExamplesDescription": "Send a POST request to the worker URL with a JSON body or multipart form data.",
+        "usageExamplesDescription": "Send a POST request to the webhook URL with a JSON body or multipart form data.",
         "exampleNonStreaming": "Non-streaming (JSON response)",
         "exampleStreaming": "Streaming (SSE response)",
         "exampleMultiTurn": "Multi-turn conversation",
@@ -5625,7 +5632,18 @@
     "agentAccessBody": "Agent runtimes (e.g. Hermes, OpenClaw) can use these secrets when they run tasks for this project — for example to sign in to external services on your behalf. Values are injected at runtime and are never shown to the chat model or revealed in the UI.",
     "nameLabel": "Name",
     "valueLabel": "Value",
-    "descriptionLabel": "Description (optional)",
+    "descriptionLabel": "Description",
+    "typeLabel": "Type",
+    "typeApiKey": "API key",
+    "typeBearer": "Bearer token",
+    "typeBasic": "Username & password",
+    "typeCustom": "Custom",
+    "apiKeyValueLabel": "API key",
+    "tokenLabel": "Token",
+    "usernameLabel": "Username",
+    "passwordLabel": "Password",
+    "basicNameHint": "Stored as two secrets — your name plus the _USERNAME and _PASSWORD suffixes.",
+    "encryptionNotConfigured": "Secret encryption isn't set up on this server (ENCRYPTION_SECRET_HEX is missing). Run `tale init`, then try again.",
     "saveSuccess": "Secret saved",
     "deleteSuccess": "Secret deleted"
   },
@@ -5665,8 +5683,15 @@
     },
     "views": {
       "board": "Board",
+      "list": "List",
       "table": "Table",
       "timeline": "Timeline"
+    },
+    "board": {
+      "noTasks": "No tasks"
+    },
+    "empty": {
+      "description": "Create your first task to start tracking work."
     },
     "detail": {
       "overview": "Overview",
@@ -6074,6 +6099,7 @@
       "dismiss": "I have saved it"
     },
     "list": {
+      "title": "App-passwords",
       "empty": "No app-passwords yet.",
       "label": "Label",
       "prefix": "Prefix",
@@ -6082,12 +6108,9 @@
       "neverUsed": "never",
       "revoked": "revoked",
       "revoke": "Revoke",
-      "copy": "Copy",
       "revokedToast": "Revoked",
-      "copiedToast": "Copied",
       "revokeError": "Could not revoke",
-      "revokeErrorNotFound": "This app-password no longer exists.",
-      "copyError": "Could not copy"
+      "revokeErrorNotFound": "This app-password no longer exists."
     },
     "revokeDialog": {
       "title": "Revoke this app-password?",

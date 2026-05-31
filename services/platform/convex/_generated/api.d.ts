@@ -867,6 +867,7 @@ import type * as threads_mutations from "../threads/mutations.js";
 import type * as threads_queries from "../threads/queries.js";
 import type * as threads_rest_api from "../threads/rest_api.js";
 import type * as threads_restore_chat_thread from "../threads/restore_chat_thread.js";
+import type * as threads_search_messages from "../threads/search_messages.js";
 import type * as threads_share_thread from "../threads/share_thread.js";
 import type * as threads_truncate_message_content from "../threads/truncate_message_content.js";
 import type * as threads_types from "../threads/types.js";
@@ -2064,6 +2065,7 @@ declare const fullApi: ApiFromModules<{
   "threads/queries": typeof threads_queries;
   "threads/rest_api": typeof threads_rest_api;
   "threads/restore_chat_thread": typeof threads_restore_chat_thread;
+  "threads/search_messages": typeof threads_search_messages;
   "threads/share_thread": typeof threads_share_thread;
   "threads/truncate_message_content": typeof threads_truncate_message_content;
   "threads/types": typeof threads_types;

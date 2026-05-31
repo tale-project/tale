@@ -136,7 +136,9 @@ export function createCreationTimeColumn<
       </span>
     ),
     size: options?.size ?? 140,
-    meta: { headerLabel: tTables('headers.created') },
+    // Right-aligned short date → skeleton renders a narrow right-aligned bar
+    // that matches the cell instead of a full-width text bar.
+    meta: { headerLabel: tTables('headers.created'), align: 'right' },
     cell: ({ row }) => (
       <TableTimestampCell
         timestamp={row.original._creationTime}
@@ -171,7 +173,10 @@ export function createDateColumn<TData, K extends keyof TData>(
         )
       : tTables(headerKey),
     size: options?.size ?? 140,
-    meta: { headerLabel: tTables(headerKey) },
+    meta: {
+      headerLabel: tTables(headerKey),
+      align: alignRight ? 'right' : undefined,
+    },
     cell: ({ row }) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- date column accessor value is always a date-compatible type
       const date = row.original[accessorKey] as number | Date | string;
@@ -227,6 +232,8 @@ export function createLocaleColumn<TData extends { locale?: string | null }>(
     accessorKey: 'locale',
     header: () => <LocaleIcon className="text-muted-foreground size-4" />,
     size: options?.size ?? 100,
+    // A single flag glyph — center a small bar rather than a full-width one.
+    meta: { align: 'center' },
     cell: ({ row }) => {
       const locale = row.original.locale || 'en';
       const flag = getCountryFlag(locale);

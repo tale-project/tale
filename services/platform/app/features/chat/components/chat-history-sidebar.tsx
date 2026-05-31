@@ -17,6 +17,7 @@ import {
   Pin,
   PinOff,
   Share2Icon,
+  SquarePen,
 } from 'lucide-react';
 import {
   type ComponentPropsWithoutRef,
@@ -121,6 +122,39 @@ function useChatRowContext() {
   const ctx = useContext(ChatRowContext);
   if (!ctx) throw new Error('ChatRow must be rendered inside ChatRowContext');
   return ctx;
+}
+
+/**
+ * Uppercase section label ("PROJECTS" / "CHATS") with an optional right-aligned
+ * action slot. Fixed height so a header with an action button doesn't sit taller
+ * than one without.
+ */
+function SidebarSectionHeader({
+  label,
+  action,
+  className,
+}: {
+  label: string;
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex h-7 items-center justify-between gap-1 px-2',
+        className,
+      )}
+    >
+      <Text
+        as="div"
+        variant="caption"
+        className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+      >
+        {label}
+      </Text>
+      {action}
+    </div>
+  );
 }
 
 interface ChatHistorySidebarProps extends ComponentPropsWithoutRef<'div'> {
@@ -433,6 +467,23 @@ export function ChatHistorySidebar({
   const showSkeleton = !isMounted || isLoadingFirstPage;
   const isEmpty = (chats?.length ?? 0) === 0;
 
+  // Defined once and reused by both the empty-state and populated headers so
+  // the "new project" affordance always lives on the right of the PROJECTS
+  // header row (and never as a tiny icon floating in the panel header).
+  const newProjectButton = (
+    <Tooltip content={t('newProject')} side="bottom" contentClassName="py-1.5">
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={() => setCreateProjectOpen(true)}
+        aria-label={t('newProject')}
+        className="text-muted-foreground -my-1 size-7 shrink-0"
+      >
+        <FolderPlus className="size-4" />
+      </Button>
+    </Tooltip>
+  );
+
   return (
     <div
       className={cn(
@@ -449,34 +500,9 @@ export function ChatHistorySidebar({
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <section className="flex flex-col">
-          <div className="flex items-center justify-between gap-1 px-2 pt-1 pb-2">
-            <Text
-              as="div"
-              variant="caption"
-              className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
-            >
-              {t('chatHistory')}
-            </Text>
-            <Tooltip
-              content={t('newProject')}
-              side="bottom"
-              contentClassName="py-1.5"
-            >
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => setCreateProjectOpen(true)}
-                aria-label={t('newProject')}
-                className="text-muted-foreground size-6 shrink-0"
-              >
-                <FolderPlus className="size-4" />
-              </Button>
-            </Tooltip>
-          </div>
-
           {showSkeleton ? (
             <Skeletonize loading>
-              <Stack gap={1} className="pb-2">
+              <Stack gap={1} className="pt-1 pb-2">
                 {Array.from({ length: 7 }).map((_, i) => (
                   <div key={i} className="flex items-center px-2 py-1.5">
                     <SkeletonBox>
@@ -489,45 +515,45 @@ export function ChatHistorySidebar({
                 ))}
               </Stack>
             </Skeletonize>
-          ) : isEmpty ? (
-            <div className="flex flex-col items-center justify-center gap-1 px-6 py-10 text-center">
-              <MessageSquareDashedIcon
-                className="text-muted-foreground/60 mb-1 size-8"
-                aria-hidden
+          ) : isEmpty && sortedProjects.length === 0 ? (
+            <>
+              <SidebarSectionHeader
+                label={t('projectsSection')}
+                action={newProjectButton}
               />
-              <Text
-                as="div"
-                variant="muted"
-                className="text-foreground font-medium text-nowrap"
-              >
-                {t('history.empty')}
-              </Text>
-              <Text as="div" variant="caption" className="text-nowrap">
-                {t('history.emptySubtitle')}
-              </Text>
-            </div>
+              <div className="flex flex-col items-center justify-center gap-1 px-6 py-10 text-center">
+                <MessageSquareDashedIcon
+                  className="text-muted-foreground/60 mb-1 size-8"
+                  aria-hidden
+                />
+                <Text
+                  as="div"
+                  variant="muted"
+                  className="text-foreground font-medium text-nowrap"
+                >
+                  {t('history.empty')}
+                </Text>
+                <Text as="div" variant="caption" className="text-nowrap">
+                  {t('history.emptySubtitle')}
+                </Text>
+              </div>
+            </>
           ) : (
             <ChatRowContext.Provider value={rowContext}>
               <ChatDndProvider>
                 <Stack gap={1} className="pb-2">
-                  {/* Projects render first, visually split from the flat chat
-                      list below. The "Projects" / "Chats" group labels only
-                      appear when there are projects — otherwise the loose
-                      chats sit directly under the panel header with no
-                      redundant heading. */}
-                  {sortedProjects.length > 0 && (
-                    <Text
-                      as="div"
-                      variant="caption"
-                      className="text-muted-foreground px-2 pt-1 text-xs font-medium tracking-wide uppercase"
-                    >
-                      {t('projectsSection')}
-                    </Text>
-                  )}
+                  {/* PROJECTS — always rendered (even empty) so the section
+                      never appears/disappears on drag and the "new project"
+                      action always has a home. Each folder is a drop target. */}
+                  <SidebarSectionHeader
+                    label={t('projectsSection')}
+                    action={newProjectButton}
+                  />
                   {sortedProjects.map((project) => (
                     <ProjectFolder
                       key={project._id}
                       project={project}
+                      organizationId={organizationId}
                       currentThreadId={currentThreadId}
                       explicitCollapsed={collapsedProjects[project._id]}
                       onSetCollapsed={(collapsed) =>
@@ -536,20 +562,19 @@ export function ChatHistorySidebar({
                     />
                   ))}
 
-                  {sortedProjects.length > 0 && looseChats.length > 0 && (
-                    <Text
-                      as="div"
-                      variant="caption"
-                      className="border-border text-muted-foreground mt-2 border-t px-2 pt-2.5 text-xs font-medium tracking-wide uppercase"
-                    >
-                      {t('chatsSection')}
-                    </Text>
-                  )}
-                  <NoProjectDropZone hasChats={looseChats.length > 0}>
+                  {/* CHATS — loose chats not filed under any project. Also a
+                      drop target: a chat dragged here (from a project) is moved
+                      back out to "Chats". Always rendered so that target exists
+                      even when every chat currently lives in a project. */}
+                  <SidebarSectionHeader
+                    label={t('chatsSection')}
+                    className="border-border mt-1.5 border-t pt-2.5"
+                  />
+                  <LooseChatsDropZone hasChats={looseChats.length > 0}>
                     {looseChats.map((chat) => (
                       <ChatRow key={chat._id} chat={chat} />
                     ))}
-                  </NoProjectDropZone>
+                  </LooseChatsDropZone>
 
                   {canLoadMore && (
                     <button
@@ -673,11 +698,13 @@ export function ChatHistorySidebar({
 
 function ProjectFolder({
   project,
+  organizationId,
   currentThreadId,
   explicitCollapsed,
   onSetCollapsed,
 }: {
   project: ProjectListItem;
+  organizationId: string;
   currentThreadId?: string;
   /** Persisted user choice for this folder; `undefined` until toggled. */
   explicitCollapsed?: boolean;
@@ -685,7 +712,7 @@ function ProjectFolder({
 }) {
   const { t } = useT('chat');
   const { toast } = useToast();
-  const { isDragging } = useChatDndState();
+  const navigate = useNavigate();
   const { threads } = useProjectThreads(project._id, 'mine');
   const { mutate: setProjectPinned } = useSetProjectPinned();
   const isPinned = !!project.pinnedAt;
@@ -702,9 +729,25 @@ function ProjectFolder({
     );
   }, [project._id, isPinned, setProjectPinned, toast, t]);
 
+  // Start a new chat already filed under this project (the chat surface reads
+  // the `projectId` search param — same path the project Overview's CTA uses).
+  const handleNewChat = useCallback(() => {
+    void navigate({
+      to: '/dashboard/$id/chat',
+      params: { id: organizationId },
+      search: { projectId: String(project._id) },
+    });
+  }, [navigate, organizationId, project._id]);
+
   const menuItems = useMemo<DropdownMenuGroup[]>(
     () => [
       [
+        {
+          type: 'item' as const,
+          label: t('newChat'),
+          icon: SquarePen,
+          onClick: handleNewChat,
+        },
         {
           type: 'item' as const,
           label: isPinned ? t('unpinProject') : t('pinProject'),
@@ -713,7 +756,7 @@ function ProjectFolder({
         },
       ],
     ],
-    [isPinned, handleTogglePin, t],
+    [isPinned, handleTogglePin, handleNewChat, t],
   );
 
   const chats = useMemo<ChatItem[]>(
@@ -744,12 +787,9 @@ function ProjectFolder({
   // toggles it. Until then, the folder holding the open chat starts expanded.
   const collapsed = explicitCollapsed ?? !containsCurrentChat;
 
-  // Empty folders stay hidden to keep the list tidy, but appear while dragging
-  // (so a chat can be dropped in) and when explicitly kept open — e.g. a
-  // project just created from the button above, before it has any chats.
-  if (chats.length === 0 && !isDragging && explicitCollapsed !== false) {
-    return null;
-  }
+  // Projects are always shown — even empty ones — so the list doesn't shift
+  // when a drag begins and the PROJECTS section stays stable. An empty folder
+  // simply shows a "drop here" hint once expanded.
 
   return (
     <div ref={setNodeRef} className={dropZoneClassName(isOver)}>
@@ -837,7 +877,12 @@ function ProjectFolder({
   );
 }
 
-function NoProjectDropZone({
+/**
+ * The "Chats" (no-project) section as a drop target. Dropping a chat here moves
+ * it out of whatever project it was in. When the flat list is empty, a hint
+ * appears while dragging so there's still a visible place to drop.
+ */
+function LooseChatsDropZone({
   hasChats,
   children,
 }: {
@@ -849,10 +894,8 @@ function NoProjectDropZone({
   const { setNodeRef, isOver } = useProjectDropZone(null);
 
   return (
-    <div ref={setNodeRef} className={dropZoneClassName(isOver && hasChats)}>
+    <div ref={setNodeRef} className={dropZoneClassName(isOver)}>
       <Stack gap={1}>{children}</Stack>
-      {/* When every chat lives in a folder there's no flat list to drop onto,
-          so surface an explicit "remove from project" target while dragging. */}
       {isDragging && !hasChats && (
         <div
           className={cn(
@@ -860,7 +903,7 @@ function NoProjectDropZone({
             isOver ? 'border-primary bg-accent/40' : 'border-border/70',
           )}
         >
-          {t('history.removeFromProjectHint')}
+          {t('history.dropToChatsHint')}
         </div>
       )}
     </div>
@@ -917,8 +960,12 @@ function ChatRow({ chat }: { chat: ChatItem }) {
         'group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
         !isEditing &&
           'cursor-pointer hover:bg-accent hover:text-accent-foreground',
+        // Active row highlight — suppressed while THIS row is the drag source
+        // so a dragged chat (faded placeholder) is never confused with the
+        // selected chat, and its solid fill can't bleed over a drop-zone ring.
         ctx.currentThreadId === chat._id &&
           !isEditing &&
+          !isDragging &&
           'bg-accent text-accent-foreground',
         isGenerating && 'animate-pulse',
         isDragging && 'opacity-40',
@@ -1031,6 +1078,7 @@ function ChatRow({ chat }: { chat: ChatItem }) {
               organizationId={ctx.organizationId}
               onRename={() => ctx.onStartRename(chat._id)}
               isPinned={!!chat.pinnedAt}
+              projectId={chat.projectId}
             />
           </div>
         </>

@@ -140,6 +140,9 @@ interface ChatInputProps extends Omit<
    * attached but the selected model doesn't support editing). Pair with a
    * visible reason (e.g. the EditingBanner) so it isn't mysterious.
    */
+  /** Project the chat belongs to (if any) — restricts the agent/model pickers
+   *  to the project's allowed agents/models and surfaces its recommendations. */
+  projectId?: string;
   sendBlocked?: boolean;
   /** Tooltip shown on the send button when `sendBlocked` is true. */
   sendBlockedReason?: string;
@@ -176,6 +179,7 @@ export function ChatInput({
   retryVideoJob,
   onSavePrompt,
   onOpenPromptLibrary,
+  projectId,
   sendBlocked = false,
   sendBlockedReason,
   ...restProps
@@ -875,8 +879,14 @@ export function ChatInput({
                 <ArenaModelSelector organizationId={organizationId} />
               ) : (
                 <HStack gap={0} align="center">
-                  <AgentSelector organizationId={organizationId} />
-                  <ModelSelector organizationId={organizationId} />
+                  <AgentSelector
+                    organizationId={organizationId}
+                    projectId={projectId}
+                  />
+                  <ModelSelector
+                    organizationId={organizationId}
+                    projectId={projectId}
+                  />
                 </HStack>
               )}
               <ComposerCapabilityPills organizationId={organizationId} />

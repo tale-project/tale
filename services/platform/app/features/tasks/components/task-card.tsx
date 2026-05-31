@@ -46,20 +46,22 @@ export function TaskCard({
         }
       }}
       className={cn(
-        'group cursor-pointer rounded-lg border border-border bg-card p-3 text-left shadow-sm transition-colors hover:border-border-strong',
+        'group border-border bg-card cursor-pointer rounded-lg border p-3 text-left shadow-sm transition-colors',
+        'hover:border-border-strong focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
         (sortable.isDragging || dragging) && 'opacity-50',
+        dragging && 'shadow-md',
       )}
     >
       {identifier && (
         <Text
           as="span"
-          variant="muted"
+          variant="caption"
           className="font-mono text-[10px] tracking-wide"
         >
           {identifier}
         </Text>
       )}
-      <Text as="p" variant="label" className="line-clamp-2">
+      <Text as="p" variant="label" className="line-clamp-2 leading-snug">
         {task.title}
       </Text>
 
@@ -70,6 +72,11 @@ export function TaskCard({
               {label}
             </Badge>
           ))}
+          {task.labels.length > 4 && (
+            <Badge variant="outline" className="text-[10px]">
+              +{task.labels.length - 4}
+            </Badge>
+          )}
         </div>
       )}
 

@@ -60,13 +60,14 @@ async function loadAccessibleProject(
   return { project, auth, canEdit: access.canEdit };
 }
 
-const taskRowValidator = v.object({
+export const taskRowValidator = v.object({
   _id: v.id('tasks'),
   _creationTime: v.number(),
   organizationId: v.string(),
   projectId: v.id('projects'),
   title: v.string(),
   description: v.optional(v.string()),
+  number: v.optional(v.number()),
   status: taskStatusValidator,
   priority: v.optional(taskPriorityValidator),
   labels: v.optional(v.array(v.string())),
@@ -74,6 +75,9 @@ const taskRowValidator = v.object({
   assigneeId: v.optional(v.string()),
   parentTaskId: v.optional(v.id('tasks')),
   rank: v.string(),
+  externalSystem: v.optional(v.string()),
+  externalId: v.optional(v.string()),
+  externalUrl: v.optional(v.string()),
   createdBy: v.string(),
   createdByType: taskActorTypeValidator,
   claimedAt: v.optional(v.number()),

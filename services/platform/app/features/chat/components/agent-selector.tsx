@@ -9,6 +9,8 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { CreateAgentDialog } from '@/app/features/agents/components/agent-create-dialog';
+import { useProject } from '@/app/features/projects/hooks/queries';
+import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDialogSearchParam } from '@/app/hooks/use-dialog-search-param';
 import { useT } from '@/lib/i18n/client';
@@ -23,9 +25,15 @@ import { useEffectiveAgent } from '../hooks/use-effective-agent';
 
 interface AgentSelectorProps {
   organizationId: string;
+  /** When the chat belongs to a project that restricts agents, show only the
+   *  project's `allowedAgentSlugs`. */
+  projectId?: string;
 }
 
-export function AgentSelector({ organizationId }: AgentSelectorProps) {
+export function AgentSelector({
+  organizationId,
+  projectId,
+}: AgentSelectorProps) {
   const { t } = useT('chat');
   const { t: tComposer } = useT('composer');
   const navigate = useNavigate();
@@ -34,6 +42,10 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const { agent: effectiveAgent, isLoading: isAgentLoading } =
     useEffectiveAgent(organizationId);
   const { agents: allAgents } = useChatAgents(organizationId);
+  const { project } = useProject(
+    projectId ? asProjectId(projectId) : undefined,
+  );
+  const allowedAgentSlugs = project?.allowedAgentSlugs;
   const readiness = useIntegrationReadiness(organizationId);
   const canManageAgents = ability.can('write', 'agents');
   const [open, setOpen] = useState(false);
@@ -44,7 +56,14 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const options = useMemo(() => {
     if (!allAgents) return [];
 
-    return [...allAgents]
+    // Project restriction: when the project pins an allowed-agents list, only
+    // those agents are selectable here.
+    const visibleAgents =
+      allowedAgentSlugs && allowedAgentSlugs.length > 0
+        ? allAgents.filter((agent) => allowedAgentSlugs.includes(agent.name))
+        : allAgents;
+
+    return [...visibleAgents]
       .map((agent) => {
         const missing = getAgentMissingIntegrations(agent, readiness);
         const missingTitle = missing[0]
@@ -68,7 +87,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
         if (b.isDefaultChat) return 1;
         return a.label.localeCompare(b.label);
       });
-  }, [allAgents, readiness, tComposer]);
+  }, [allAgents, allowedAgentSlugs, readiness, tComposer]);
 
   const currentValue = effectiveAgent?.name ?? null;
 

@@ -297,6 +297,27 @@ export function ChatInterface({
     activeModelInfo?.tags?.includes('image-edit'),
   );
   const currentModelLabel = activeModelInfo?.displayName;
+
+  // Early "missing API key" gate: the provider that owns the selected model.
+  const activeProvider = useMemo(() => {
+    if (!activeModelRef) return undefined;
+    const plain = stripModelRefQualifier(activeModelRef);
+    return providersForEdit.find(
+      (p) =>
+        !!p &&
+        'models' in p &&
+        Array.isArray(p.models) &&
+        p.models.some((mdl) => mdl.id === plain),
+    );
+  }, [activeModelRef, providersForEdit]);
+  // Block only when we resolved the provider AND it definitively has no key
+  // (and the model has no per-model override key) — never for unresolved refs,
+  // so a valid send is never falsely blocked.
+  const activeModelMissingApiKey =
+    !!activeProvider &&
+    'hasApiKey' in activeProvider &&
+    !activeProvider.hasApiKey &&
+    !activeModelInfo?.hasApiKeyOverride;
   const { active: activeEditingImage } = useEffectiveEditingImage(threadImages);
   const { setEditingImageRef, setDismissedImageKey } = useChatLayout();
 
@@ -449,6 +470,15 @@ export function ChatInterface({
     chatSearch && typeof chatSearch.projectId === 'string'
       ? chatSearch.projectId
       : undefined;
+
+  // For an EXISTING project chat the projectId isn't in the URL — read it from
+  // the thread so the composer applies the project's agent/model restrictions
+  // and recommendations either way.
+  const { data: threadProject } = useConvexQuery(
+    api.threads.queries.getThreadProject,
+    dataThreadId ? { threadId: dataThreadId, organizationId } : 'skip',
+  );
+  const currentProjectId = threadProject?.projectId ?? projectIdFromUrl;
 
   const { sendMessage } = useSendMessage({
     organizationId,
@@ -999,6 +1029,7 @@ export function ChatInterface({
                       : undefined
                 }
                 organizationId={organizationId}
+                projectId={currentProjectId}
                 threadId={dataThreadId}
                 attachments={attachments}
                 uploadingFiles={uploadingFiles}
@@ -1019,16 +1050,19 @@ export function ChatInterface({
                 cancelVideoJob={cancelVideoJob}
                 retryVideoJob={retryVideoJob}
                 sendBlocked={
-                  isImageGenAgent &&
-                  !!activeEditingImage &&
-                  !currentModelSupportsEdit
+                  (isImageGenAgent &&
+                    !!activeEditingImage &&
+                    !currentModelSupportsEdit) ||
+                  activeModelMissingApiKey
                 }
                 sendBlockedReason={
                   isImageGenAgent &&
                   !!activeEditingImage &&
                   !currentModelSupportsEdit
                     ? t('imageEdit.modelCannotEdit')
-                    : undefined
+                    : activeModelMissingApiKey
+                      ? t('modelSelector.noApiKey')
+                      : undefined
                 }
                 onSavePrompt={(content) =>
                   setSavePromptData({ messageId: '', content })

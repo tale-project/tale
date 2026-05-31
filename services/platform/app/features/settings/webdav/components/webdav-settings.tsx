@@ -1,16 +1,21 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
-import { SkeletonBox } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Copy, Key, Trash2 } from 'lucide-react';
+import { Text } from '@tale/ui/text';
+import type { ColumnDef } from '@tanstack/react-table';
+import { Key, KeyRound, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
+import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
+import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { Input } from '@/app/components/ui/forms/input';
 import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
-import { useCopyButton } from '@/app/hooks/use-copy';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -28,118 +33,234 @@ interface WebdavSettingsProps {
   siteOrigin: string;
 }
 
+type RevealedPassword = { password: string; prefix: string } | null;
+
+/**
+ * WebDAV settings — rebuilt on the shared settings UI (SettingsSection,
+ * CopyableField, DataTable, FormDialog, DeleteDialog) so it matches every
+ * other settings page instead of carrying bespoke table / form / copy chrome.
+ */
 export function WebdavSettings(props: WebdavSettingsProps) {
+  const { t } = useT('webdav');
   const rows = useWebdavAppPasswords(props.organizationId);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [revealed, setRevealed] = useState<RevealedPassword>(null);
+
+  const url = `${props.siteOrigin}/dav/${props.orgSlug}/documents/`;
+
   return (
-    <Stack gap={6}>
-      <ConnectionDetailsPanel
-        orgSlug={props.orgSlug}
-        siteOrigin={props.siteOrigin}
+    <Stack gap={8}>
+      <SettingsSection
+        title={t('connectionDetails.title')}
+        description={t('connectionDetails.description')}
+      >
+        <Stack gap={4}>
+          <CopyableField label="URL" value={url} mono />
+          <div className="flex flex-col gap-1">
+            <Text as="span" variant="label">
+              {t('connectionDetails.usernameLabel')}
+            </Text>
+            <Text as="span" variant="muted" className="text-sm">
+              {t('connectionDetails.usernameHelp')}
+            </Text>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Text as="span" variant="label">
+              {t('connectionDetails.passwordLabel')}
+            </Text>
+            <Text as="span" variant="muted" className="text-sm">
+              {t('connectionDetails.passwordHelp')}
+            </Text>
+          </div>
+        </Stack>
+      </SettingsSection>
+
+      <SettingsSection
+        title={t('list.title')}
+        description={t('create.description')}
+        action={
+          <Button size="sm" icon={KeyRound} onClick={() => setCreateOpen(true)}>
+            {t('create.submit')}
+          </Button>
+        }
+      >
+        <WebdavAppPasswordsTable rows={rows} />
+      </SettingsSection>
+
+      <CreateAppPasswordDialog
+        organizationId={props.organizationId}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={setRevealed}
       />
-      <CreateAppPasswordForm organizationId={props.organizationId} />
-      <AppPasswordsTable organizationId={props.organizationId} rows={rows} />
+      <RevealedPasswordDialog
+        revealed={revealed}
+        onClose={() => setRevealed(null)}
+      />
     </Stack>
   );
 }
 
-function ConnectionDetailsPanel(props: {
-  orgSlug: string;
-  siteOrigin: string;
+function WebdavAppPasswordsTable({
+  rows,
+}: {
+  rows: WebdavAppPasswordRow[] | undefined;
 }) {
   const { t } = useT('webdav');
-  const url = `${props.siteOrigin}/dav/${props.orgSlug}/documents/`;
+  const isLoading = rows === undefined;
+
+  // Newest first — the just-generated row is the one users most want to find.
+  const sortedRows = useMemo(
+    () => (rows ? [...rows].sort((a, b) => b.createdAt - a.createdAt) : []),
+    [rows],
+  );
+
+  const columns = useMemo<ColumnDef<WebdavAppPasswordRow>[]>(
+    () => [
+      {
+        accessorKey: 'label',
+        header: t('list.label'),
+        cell: ({ row }) => (
+          <span className="flex items-center gap-2">
+            <Text as="span" variant="label">
+              {row.original.label}
+            </Text>
+            {row.original.revokedAt !== undefined && (
+              <Badge variant="outline">{t('list.revoked')}</Badge>
+            )}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'prefix',
+        header: t('list.prefix'),
+        size: 140,
+        cell: ({ row }) => (
+          <Text as="span" variant="muted" className="font-mono text-xs">
+            {row.original.prefix}…
+          </Text>
+        ),
+      },
+      {
+        id: 'lastUsed',
+        header: t('list.lastUsed'),
+        size: 150,
+        meta: { align: 'right' },
+        cell: ({ row }) => (
+          <TableDateCell
+            date={row.original.lastUsedAt}
+            preset="short"
+            alignRight
+            emptyText={t('list.neverUsed')}
+          />
+        ),
+      },
+      {
+        id: 'created',
+        header: t('list.created'),
+        size: 140,
+        meta: { align: 'right' },
+        cell: ({ row }) => (
+          <TableDateCell
+            date={row.original.createdAt}
+            preset="short"
+            alignRight
+          />
+        ),
+      },
+      {
+        id: 'actions',
+        size: 44,
+        meta: { isAction: true },
+        cell: ({ row }) => <WebdavRowActions row={row.original} />,
+      },
+    ],
+    [t],
+  );
+
   return (
-    <section className="rounded-md border p-4">
-      <h2 className="mb-2 text-base font-medium">
-        {t('connectionDetails.title', 'Connection details')}
-      </h2>
-      <p className="text-muted-foreground mb-3 text-sm">
-        {t(
-          'connectionDetails.description',
-          'Use these in Finder, File Explorer, or any WebDAV client.',
-        )}
-      </p>
-      <KeyValue label="URL" value={url} />
-      <KeyValue
-        label={t('connectionDetails.usernameLabel', 'Username')}
-        value={t(
-          'connectionDetails.usernameHelp',
-          'Your Tale account email (or username)',
-        )}
-      />
-      <KeyValue
-        label={t('connectionDetails.passwordLabel', 'Password')}
-        value={t(
-          'connectionDetails.passwordHelp',
-          'An app-password you generate below — not your account password.',
-        )}
-      />
-    </section>
+    <DataTable
+      columns={columns}
+      data={sortedRows}
+      isLoading={isLoading}
+      approxRowCount={3}
+      getRowId={(row) => row._id}
+      emptyState={{ icon: Key, title: t('list.empty') }}
+    />
   );
 }
 
-function KeyValue(props: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline gap-2 py-1 text-sm">
-      <span className="w-24 shrink-0 font-medium">{props.label}:</span>
-      <code className="flex-1 break-all">{props.value}</code>
-      <CopyButton value={props.value} />
-    </div>
-  );
-}
-
-/**
- * Single copy button wired through `useCopyButton` from app/hooks/use-copy.
- * Surfaces `webdav.list.copiedToast` / `webdav.list.copyError` instead of
- * the shared `common.errors.failedToCopy` so wording matches this panel.
- */
-function CopyButton(props: {
-  value: string;
-  variant?: 'ghost' | 'secondary';
-  label?: string;
-}) {
+function WebdavRowActions({ row }: { row: WebdavAppPasswordRow }) {
   const { t } = useT('webdav');
   const { toast } = useToast();
-  const copySuccessTitle = t('list.copiedToast', 'Copied');
-  const copyErrorTitle = t('list.copyError', 'Could not copy');
-  const copyAriaLabel = t('list.copy', 'Copy');
-  const { onClick } = useCopyButton(props.value, {
-    showErrorToast: false,
-    onSuccess: () => {
-      toast({ title: copySuccessTitle });
-    },
-    onError: (err: Error) => {
-      console.error('webdav: copy failed', err);
-      toast({ title: copyErrorTitle, variant: 'destructive' });
-    },
-  });
+  const revoke = useRevokeWebdavAppPassword();
+  const [open, setOpen] = useState(false);
+  const [isRevoking, setIsRevoking] = useState(false);
+
+  if (row.revokedAt !== undefined) return null;
+
+  const handleRevoke = async () => {
+    if (isRevoking) return;
+    setIsRevoking(true);
+    try {
+      await revoke({ id: row._id as WebdavAppPasswordId });
+      toast({ title: t('list.revokedToast') });
+      setOpen(false);
+    } catch (err) {
+      console.error('webdav: revoke app-password failed', err);
+      const code = extractErrorCode(err);
+      toast({
+        title:
+          code === 'NOT_FOUND'
+            ? t('list.revokeErrorNotFound')
+            : t('list.revokeError'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRevoking(false);
+    }
+  };
+
   return (
-    <Button
-      size="sm"
-      variant={props.variant ?? 'ghost'}
-      aria-label={copyAriaLabel}
-      onClick={onClick}
-    >
-      <Copy className={props.label ? 'mr-1 h-3.5 w-3.5' : 'h-3.5 w-3.5'} />
-      {props.label}
-    </Button>
+    <>
+      <Button
+        size="icon"
+        variant="ghost"
+        icon={Trash2}
+        aria-label={t('list.revoke')}
+        disabled={isRevoking}
+        onClick={() => setOpen(true)}
+      />
+      <DeleteDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={t('revokeDialog.title')}
+        description={t('revokeDialog.body')}
+        deleteText={t('revokeDialog.confirm')}
+        cancelText={t('revokeDialog.cancel')}
+        isDeleting={isRevoking}
+        onDelete={handleRevoke}
+      />
+    </>
   );
 }
 
-function CreateAppPasswordForm(props: { organizationId: string }) {
+function CreateAppPasswordDialog(props: {
+  organizationId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (revealed: NonNullable<RevealedPassword>) => void;
+}) {
   const { t } = useT('webdav');
   const { toast } = useToast();
   const [label, setLabel] = useState('');
-  const [revealed, setRevealed] = useState<{
-    password: string;
-    prefix: string;
-  } | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const create = useCreateWebdavAppPassword();
 
-  // Drop any revealed secret when the active org changes — the password is
-  // org-scoped and must never leak across route navigations.
-  useEffect(() => () => setRevealed(null), [props.organizationId]);
+  // Never let a label leak across org switches.
+  useEffect(() => () => setLabel(''), [props.organizationId]);
+
+  const reset = () => setLabel('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,30 +272,20 @@ function CreateAppPasswordForm(props: { organizationId: string }) {
         organizationId: props.organizationId,
         label: trimmed,
       });
-      setRevealed(result);
-      setLabel('');
+      props.onCreated(result);
+      reset();
+      props.onOpenChange(false);
     } catch (err) {
       console.error('webdav: create app-password failed', err);
-      // Map the server's ConvexError code to a localized message instead of
-      // surfacing the raw (English, code-shaped) error text to the user.
       const code = extractErrorCode(err);
       const title =
         code === 'LIMIT_EXCEEDED'
-          ? t(
-              'create.errorLimit',
-              'You have reached the maximum number of app-passwords. Revoke an unused one first.',
-            )
+          ? t('create.errorLimit')
           : code === 'INVALID_LABEL'
-            ? t(
-                'create.errorInvalidLabel',
-                'Enter a label between 1 and 64 characters.',
-              )
+            ? t('create.errorInvalidLabel')
             : code === 'rate_limited'
-              ? t(
-                  'create.errorRateLimited',
-                  'Too many app-passwords created recently. Please try again later.',
-                )
-              : t('create.error', 'Failed to create app-password');
+              ? t('create.errorRateLimited')
+              : t('create.error');
       toast({ title, variant: 'destructive' });
     } finally {
       setIsCreating(false);
@@ -182,53 +293,35 @@ function CreateAppPasswordForm(props: { organizationId: string }) {
   };
 
   return (
-    <>
-      <section className="rounded-md border p-4">
-        <h2 className="mb-2 text-base font-medium">
-          {t('create.title', 'Generate a new app-password')}
-        </h2>
-        <p className="text-muted-foreground mb-3 text-sm">
-          {t(
-            'create.description',
-            'Use one per device. The full password is only shown once — copy it before closing this dialog.',
-          )}
-        </p>
-        <form className="flex items-end gap-2" onSubmit={handleSubmit}>
-          <div className="flex flex-1 flex-col gap-1">
-            <label htmlFor="webdav-label" className="text-xs font-medium">
-              {t('create.labelLabel', 'Label')}
-            </label>
-            <input
-              id="webdav-label"
-              className="rounded border px-2 py-1 text-sm"
-              placeholder={t('create.labelPlaceholder', 'e.g. MacBook Finder')}
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              maxLength={64}
-              disabled={isCreating}
-            />
-          </div>
-          <Button
-            type="submit"
-            disabled={!label.trim() || isCreating}
-            aria-busy={isCreating}
-          >
-            <Key className="mr-1 h-4 w-4" />
-            {t('create.submit', 'Generate')}
-          </Button>
-        </form>
-      </section>
-
-      <RevealedPasswordDialog
-        revealed={revealed}
-        onClose={() => setRevealed(null)}
+    <FormDialog
+      open={props.open}
+      onOpenChange={(next) => {
+        if (!next) reset();
+        props.onOpenChange(next);
+      }}
+      title={t('create.title')}
+      description={t('create.description')}
+      submitText={t('create.submit')}
+      isSubmitting={isCreating}
+      isDirty={label.trim().length > 0}
+      onSubmit={handleSubmit}
+    >
+      <Input
+        id="webdav-label"
+        label={t('create.labelLabel')}
+        placeholder={t('create.labelPlaceholder')}
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        maxLength={64}
+        disabled={isCreating}
+        required
       />
-    </>
+    </FormDialog>
   );
 }
 
 function RevealedPasswordDialog(props: {
-  revealed: { password: string; prefix: string } | null;
+  revealed: RevealedPassword;
   onClose: () => void;
 }) {
   const { t } = useT('webdav');
@@ -241,11 +334,7 @@ function RevealedPasswordDialog(props: {
       onOpenChange={(next) => {
         if (!next) props.onClose();
       }}
-      title={t(
-        'create.savedTitle',
-        'Save this password — it will not be shown again.',
-      )}
-      submitText={t('create.dismiss', 'I have saved it')}
+      title={t('create.savedTitle')}
       isSubmitting={false}
       onSubmit={(e) => {
         e.preventDefault();
@@ -253,168 +342,14 @@ function RevealedPasswordDialog(props: {
       }}
       customFooter={
         <Button type="button" onClick={props.onClose}>
-          {t('create.dismiss', 'I have saved it')}
+          {t('create.dismiss')}
         </Button>
       }
     >
-      <p className="text-muted-foreground text-sm">
-        {t(
-          'create.description',
-          'Use one per device. The full password is only shown once — copy it before closing this dialog.',
-        )}
-      </p>
-      <div className="flex items-center gap-2">
-        <code className="bg-muted flex-1 rounded p-2 font-mono text-xs break-all">
-          {password}
-        </code>
-        <CopyButton
-          value={password}
-          variant="secondary"
-          label={t('create.copy', 'Copy')}
-        />
-      </div>
+      <Text as="p" variant="muted" className="text-sm">
+        {t('create.description')}
+      </Text>
+      <CopyableField value={password} mono copyAriaLabel={t('create.copy')} />
     </FormDialog>
-  );
-}
-
-function AppPasswordsTable(props: {
-  organizationId: string;
-  rows: WebdavAppPasswordRow[] | undefined;
-}) {
-  const { t } = useT('webdav');
-  const isLoading = props.rows === undefined;
-  // Newest first — the just-generated row is the one users most likely want
-  // to identify or revoke. Memo runs unconditionally (rules of hooks); the
-  // empty branch below short-circuits before render.
-  const sortedRows = useMemo(
-    () =>
-      props.rows
-        ? [...props.rows].sort((a, b) => b.createdAt - a.createdAt)
-        : [],
-    [props.rows],
-  );
-
-  if (props.rows !== undefined && props.rows.length === 0) {
-    return (
-      <section className="text-muted-foreground rounded-md border p-4 text-sm">
-        {t('list.empty', 'No app-passwords yet.')}
-      </section>
-    );
-  }
-
-  // While loading, render the SAME table shell with placeholder rows wrapped in
-  // `<Skeletonize>` (so the masked cells announce "Loading" once) — never a
-  // hand-rolled bar stack whose sizing drifts from the real table.
-  return (
-    <Skeletonize loading={isLoading} className="rounded-md border">
-      <table className="w-full text-sm">
-        <thead className="border-b text-left">
-          <tr>
-            <th className="p-3 font-medium">{t('list.label', 'Label')}</th>
-            <th className="p-3 font-medium">{t('list.prefix', 'Prefix')}</th>
-            <th className="p-3 font-medium">
-              {t('list.lastUsed', 'Last used')}
-            </th>
-            <th className="p-3 font-medium">{t('list.created', 'Created')}</th>
-            <th className="p-3"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {isLoading
-            ? Array.from({ length: 3 }).map((_, i) => (
-                <tr key={i} className="border-b last:border-b-0">
-                  {Array.from({ length: 5 }).map((__, j) => (
-                    <td key={j} className="p-3">
-                      <SkeletonBox>
-                        <div className="h-3.5 w-full max-w-24" />
-                      </SkeletonBox>
-                    </td>
-                  ))}
-                </tr>
-              ))
-            : sortedRows.map((row) => <Row key={row._id} row={row} />)}
-        </tbody>
-      </table>
-    </Skeletonize>
-  );
-}
-
-function Row({ row }: { row: WebdavAppPasswordRow }) {
-  const { t } = useT('webdav');
-  const { toast } = useToast();
-  const revoke = useRevokeWebdavAppPassword();
-  const [isRevokeDialogOpen, setIsRevokeDialogOpen] = useState(false);
-  const [isRevoking, setIsRevoking] = useState(false);
-  const isRevoked = row.revokedAt !== undefined;
-  const revokeAriaLabel = t('list.revoke', 'Revoke');
-
-  const handleRevoke = async () => {
-    if (isRevoking) return;
-    setIsRevoking(true);
-    try {
-      await revoke({ id: row._id as WebdavAppPasswordId });
-      toast({ title: t('list.revokedToast', 'Revoked') });
-      setIsRevokeDialogOpen(false);
-    } catch (err) {
-      console.error('webdav: revoke app-password failed', err);
-      const code = extractErrorCode(err);
-      const title =
-        code === 'NOT_FOUND'
-          ? t('list.revokeErrorNotFound', 'This app-password no longer exists.')
-          : t('list.revokeError', 'Could not revoke');
-      toast({ title, variant: 'destructive' });
-    } finally {
-      setIsRevoking(false);
-    }
-  };
-
-  return (
-    <tr className="border-b last:border-b-0">
-      <td className="p-3">
-        {row.label}
-        {isRevoked && (
-          <span className="bg-muted ml-2 rounded px-1.5 py-0.5 text-xs">
-            {t('list.revoked', 'revoked')}
-          </span>
-        )}
-      </td>
-      <td className="p-3 font-mono text-xs">{row.prefix}…</td>
-      <td className="text-muted-foreground p-3 text-xs">
-        {row.lastUsedAt
-          ? new Date(row.lastUsedAt).toLocaleString()
-          : t('list.neverUsed', 'never')}
-      </td>
-      <td className="text-muted-foreground p-3 text-xs">
-        {new Date(row.createdAt).toLocaleDateString()}
-      </td>
-      <td className="p-3 text-right">
-        {!isRevoked && (
-          <>
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-label={revokeAriaLabel}
-              disabled={isRevoking}
-              onClick={() => setIsRevokeDialogOpen(true)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-            <DeleteDialog
-              open={isRevokeDialogOpen}
-              onOpenChange={setIsRevokeDialogOpen}
-              title={t('revokeDialog.title', 'Revoke this app-password?')}
-              description={t(
-                'revokeDialog.body',
-                'Any device mounted with this password will be disconnected and active locks released.',
-              )}
-              deleteText={t('revokeDialog.confirm', 'Revoke')}
-              cancelText={t('revokeDialog.cancel', 'Cancel')}
-              isDeleting={isRevoking}
-              onDelete={handleRevoke}
-            />
-          </>
-        )}
-      </td>
-    </tr>
   );
 }

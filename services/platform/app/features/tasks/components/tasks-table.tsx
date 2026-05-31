@@ -1,3 +1,11 @@
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
@@ -23,23 +31,27 @@ export function TasksTable({
   );
 
   return (
-    <div className="border-border overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="border-border bg-muted/40 text-muted-foreground border-b text-left">
-          <tr>
+    <div className="border-border h-full min-h-0 overflow-auto overscroll-contain rounded-lg border">
+      <Table stickyLayout>
+        <TableHeader sticky>
+          <TableRow>
             {showIdColumn && (
-              <th className="px-3 py-2 font-medium">{t('fields.id')}</th>
+              <TableHead className="hidden sm:table-cell">
+                {t('fields.id')}
+              </TableHead>
             )}
-            <th className="px-3 py-2 font-medium">{t('fields.title')}</th>
-            <th className="px-3 py-2 font-medium">{t('fields.status')}</th>
-            <th className="px-3 py-2 font-medium">{t('fields.priority')}</th>
-            <th className="px-3 py-2 font-medium">{t('fields.assignee')}</th>
-          </tr>
-        </thead>
-        <tbody>
+            <TableHead>{t('fields.title')}</TableHead>
+            <TableHead>{t('fields.status')}</TableHead>
+            <TableHead className="hidden sm:table-cell">
+              {t('fields.priority')}
+            </TableHead>
+            <TableHead className="text-right">{t('fields.assignee')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {tasks.map((task) => (
             // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- table row open affordance; keyboard activation handled via onKeyDown
-            <tr
+            <TableRow
               key={task._id}
               tabIndex={0}
               onClick={() => onOpenTask?.(task)}
@@ -49,38 +61,40 @@ export function TasksTable({
                   onOpenTask?.(task);
                 }
               }}
-              className="border-border hover:bg-muted/30 cursor-pointer border-b last:border-0"
+              className="focus-visible:bg-muted focus-visible:ring-ring/50 cursor-pointer focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
             >
               {showIdColumn && (
-                <td className="text-muted-foreground px-3 py-2 font-mono text-xs whitespace-nowrap">
+                <TableCell className="text-muted-foreground hidden font-mono text-xs whitespace-nowrap sm:table-cell">
                   {formatTaskIdentifier(projectKey, task.number) ?? '—'}
-                </td>
+                </TableCell>
               )}
-              <td className="px-3 py-2">
-                <Text as="span" variant="label">
+              <TableCell>
+                <Text as="span" variant="label" className="line-clamp-1">
                   {task.title}
                 </Text>
-              </td>
-              <td className="px-3 py-2">
+              </TableCell>
+              <TableCell>
                 <TaskStatusBadge status={task.status} />
-              </td>
-              <td className="px-3 py-2">
+              </TableCell>
+              <TableCell className="hidden sm:table-cell">
                 {task.priority ? (
                   <TaskPriorityBadge priority={task.priority} />
                 ) : (
                   <span className="text-muted-foreground">—</span>
                 )}
-              </td>
-              <td className="px-3 py-2">
-                <AssigneeAvatar
-                  assigneeType={task.assigneeType}
-                  assigneeId={task.assigneeId}
-                />
-              </td>
-            </tr>
+              </TableCell>
+              <TableCell>
+                <div className="flex justify-end">
+                  <AssigneeAvatar
+                    assigneeType={task.assigneeType}
+                    assigneeId={task.assigneeId}
+                  />
+                </div>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

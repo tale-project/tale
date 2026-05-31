@@ -1,13 +1,15 @@
 'use client';
 
+import { useMatch } from '@tanstack/react-router';
 import {
   createContext,
   useCallback,
   useContext,
   useMemo,
-  useState,
   type ReactNode,
 } from 'react';
+
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
 
 interface WorkspaceState {
   isOpen: boolean;
@@ -45,26 +47,47 @@ interface WorkspaceProviderProps {
 }
 
 export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
-  const [state, setState] = useState(INITIAL_STATE);
+  // Persist the canvas open/active-file state PER CHAT so reopening a thread
+  // restores whether its canvas was open. `usePersistedState` re-reads the new
+  // key's value when `threadId` changes, so switching chats restores each
+  // thread's own state. New chats (no threadId) share a transient slot that
+  // `resetWorkspace` clears on thread→new transitions.
+  const threadMatch = useMatch({
+    from: '/dashboard/$id/chat/$threadId',
+    shouldThrow: false,
+  });
+  const threadId = threadMatch?.params?.threadId;
+  const [state, setState, clearState] = usePersistedState(
+    threadId
+      ? `tale.platform.chat.${threadId}.canvas`
+      : 'tale.platform.chat.new.canvas',
+    INITIAL_STATE,
+  );
 
-  const openWorkspace = useCallback((path?: string) => {
-    setState((prev) => ({
-      isOpen: true,
-      activeFilePath: path ?? prev.activeFilePath,
-    }));
-  }, []);
+  const openWorkspace = useCallback(
+    (path?: string) => {
+      setState((prev) => ({
+        isOpen: true,
+        activeFilePath: path ?? prev.activeFilePath,
+      }));
+    },
+    [setState],
+  );
 
   const closeWorkspace = useCallback(() => {
     setState((prev) => ({ ...prev, isOpen: false }));
-  }, []);
+  }, [setState]);
 
   const resetWorkspace = useCallback(() => {
-    setState(INITIAL_STATE);
-  }, []);
+    clearState();
+  }, [clearState]);
 
-  const setActiveFilePath = useCallback((path: string | null) => {
-    setState((prev) => ({ ...prev, activeFilePath: path }));
-  }, []);
+  const setActiveFilePath = useCallback(
+    (path: string | null) => {
+      setState((prev) => ({ ...prev, activeFilePath: path }));
+    },
+    [setState],
+  );
 
   const value = useMemo(
     () => ({

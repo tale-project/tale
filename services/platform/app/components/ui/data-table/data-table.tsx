@@ -62,6 +62,11 @@ import type {
   DataTableSortingConfig,
 } from './data-table-types';
 
+/** Skeleton rows rendered when the row count is unknown (consistent default). */
+const DEFAULT_SKELETON_ROWS = 6;
+/** Upper bound so a large known count doesn't paint hundreds of skeleton rows. */
+const MAX_SKELETON_ROWS = 12;
+
 interface ColumnMeta {
   isAction?: boolean;
   hasAvatar?: boolean;
@@ -380,12 +385,14 @@ export function DataTable<TData, TValue = unknown>({
   const isSkeleton =
     tableBodyState === 'loading' || tableBodyState === 'skeleton';
 
-  // Number of skeleton rows to render based on current state
+  // Number of skeleton rows to render based on current state. When the count
+  // is unknown we render a consistent default block; when it's known we render
+  // that many, capped so a huge table doesn't paint hundreds of skeleton rows.
   const skeletonRowCount =
     tableBodyState === 'loading'
-      ? 5
+      ? DEFAULT_SKELETON_ROWS
       : tableBodyState === 'skeleton'
-        ? (approxRowCount ?? 0)
+        ? Math.min(approxRowCount ?? 0, MAX_SKELETON_ROWS)
         : 0;
 
   // If error prop provided, show error display instead of table
@@ -463,7 +470,6 @@ export function DataTable<TData, TValue = unknown>({
                 {columns.map((col, colIndex) => {
                   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
                   const meta = col.meta as ColumnMeta | undefined;
-                  const isFirstColumn = colIndex === 0;
                   const isActionCol = meta?.isAction === true;
                   const skeletonType = meta?.skeleton?.type;
                   const hasAvatar = meta?.hasAvatar;
@@ -504,9 +510,13 @@ export function DataTable<TData, TValue = unknown>({
                     );
                   } else if (
                     hasAvatar === true ||
-                    skeletonType === 'avatar-text' ||
-                    (isFirstColumn && hasAvatar !== false)
+                    skeletonType === 'avatar-text'
                   ) {
+                    // Avatar + two text lines — only when a column explicitly
+                    // opts in (via `hasAvatar`/`avatar-text`). Previously the
+                    // FIRST column defaulted to this shape, which painted a
+                    // phantom avatar on every text-first table (API keys, MCP,
+                    // automations, …) — the "skeleton doesn't match content" bug.
                     cellContent = (
                       <HStack gap={3}>
                         <SkeletonBox>

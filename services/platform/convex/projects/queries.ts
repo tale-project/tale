@@ -369,7 +369,17 @@ export const listProjectThreads = query({
 
     const result = [];
     for await (const t of threadsQuery) {
-      if (t.status === 'deleted') continue;
+      // A deleted/trashed/expired chat leaves the project entirely (parity
+      // with the chat list): deleting a project chat removes it from the
+      // project view. `archived` is intentionally KEPT so an archived chat
+      // stays reachable through its project.
+      if (
+        t.status === 'deleted' ||
+        t.status === 'trashed' ||
+        t.status === 'expired'
+      ) {
+        continue;
+      }
       if (args.scope === 'mine' && t.userId !== auth.userId) continue;
       if (args.scope === 'shared' && t.sharedWithProject !== true) continue;
       if (

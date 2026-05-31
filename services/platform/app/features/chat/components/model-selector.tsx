@@ -19,6 +19,8 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
+import { useProject } from '@/app/features/projects/hooks/queries';
+import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useT } from '@/lib/i18n/client';
@@ -41,6 +43,9 @@ const AUTO_MODEL = 'auto';
 
 interface ModelSelectorProps {
   organizationId: string;
+  /** When the chat belongs to a project, restrict the list to the project's
+   *  `allowedModels` and float its `recommendedModels` to the top. */
+  projectId?: string;
 }
 
 function getModelShortName(modelId: string): string {
@@ -48,12 +53,24 @@ function getModelShortName(modelId: string): string {
   return slash >= 0 ? modelId.slice(slash + 1) : modelId;
 }
 
-export function ModelSelector({ organizationId }: ModelSelectorProps) {
+export function ModelSelector({
+  organizationId,
+  projectId,
+}: ModelSelectorProps) {
   const { t } = useT('chat');
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents, isLoading: agentsLoading } = useChatAgents(organizationId);
   const { providers, isLoading: providersLoading } =
     useListProviders(organizationId);
+  const { project } = useProject(
+    projectId ? asProjectId(projectId) : undefined,
+  );
+  const allowedModels = project?.allowedModels;
+  const recommendedModels = project?.recommendedModels;
+  const recommendedSet = useMemo(
+    () => new Set(recommendedModels ?? []),
+    [recommendedModels],
+  );
   const { locale } = useLocale();
   const { selectedModelOverrides, setSelectedModelOverride } = useChatLayout();
   const [open, setOpen] = useState(false);
@@ -152,12 +169,21 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   );
 
   const filteredModels = useMemo(() => {
-    if (!accessibleModelIds) return chatModels;
-    const accessible = new Set(accessibleModelIds);
-    return chatModels.filter((ref) =>
-      accessible.has(stripModelRefQualifier(ref)),
-    );
-  }, [chatModels, accessibleModelIds]);
+    let models = chatModels;
+    if (accessibleModelIds) {
+      const accessible = new Set(accessibleModelIds);
+      models = models.filter((ref) =>
+        accessible.has(stripModelRefQualifier(ref)),
+      );
+    }
+    // Project restriction: when the chat belongs to a project that pins an
+    // allowed-models list, drop anything outside it.
+    if (allowedModels && allowedModels.length > 0) {
+      const allowed = new Set(allowedModels);
+      models = models.filter((ref) => allowed.has(stripModelRefQualifier(ref)));
+    }
+    return models;
+  }, [chatModels, accessibleModelIds, allowedModels]);
 
   const getDisplayName = useCallback(
     (ref: string) => {
@@ -290,33 +316,44 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
       ? t('modelSelector.auto')
       : getDisplayName(currentModelId);
 
-  const modelOptions = filteredModels.map((ref) => {
-    const info = modelInfoMap.get(stripModelRefQualifier(ref));
-    const providerSlug = getProviderSlug(ref);
-    const { quantization } = parseModelRef(ref);
-    const providerBadge = providerSlug ? (
-      <Badge variant="outline" className="text-[10px] font-normal">
-        {startCase(providerSlug)}
-      </Badge>
-    ) : null;
-    const variantBadge = quantization ? (
-      <Badge variant="outline" className="text-[10px] font-normal">
-        {getVariantBadgeLabel(quantization)}
-      </Badge>
-    ) : null;
-    return {
-      value: ref,
-      label: getDisplayName(ref),
-      labelBadge:
-        providerBadge || variantBadge ? (
-          <>
-            {providerBadge}
-            {variantBadge}
-          </>
-        ) : undefined,
-      description: info?.description,
-    };
-  });
+  const modelOptions = filteredModels
+    .map((ref) => {
+      const info = modelInfoMap.get(stripModelRefQualifier(ref));
+      const providerSlug = getProviderSlug(ref);
+      const { quantization } = parseModelRef(ref);
+      const isRecommended = recommendedSet.has(stripModelRefQualifier(ref));
+      const recommendedBadge = isRecommended ? (
+        <Badge variant="green" className="text-[10px] font-normal">
+          {t('modelSelector.recommended')}
+        </Badge>
+      ) : null;
+      const providerBadge = providerSlug ? (
+        <Badge variant="outline" className="text-[10px] font-normal">
+          {startCase(providerSlug)}
+        </Badge>
+      ) : null;
+      const variantBadge = quantization ? (
+        <Badge variant="outline" className="text-[10px] font-normal">
+          {getVariantBadgeLabel(quantization)}
+        </Badge>
+      ) : null;
+      return {
+        value: ref,
+        label: getDisplayName(ref),
+        isRecommended,
+        labelBadge:
+          recommendedBadge || providerBadge || variantBadge ? (
+            <>
+              {recommendedBadge}
+              {providerBadge}
+              {variantBadge}
+            </>
+          ) : undefined,
+        description: info?.description,
+      };
+    })
+    // Project-recommended models float to the top; order is otherwise stable.
+    .sort((a, b) => Number(b.isRecommended) - Number(a.isRecommended));
 
   // Auto option only makes sense for chat agents (see comment on isImageGenAgent).
   const options: SearchableSelectOption[] = isImageGenAgent

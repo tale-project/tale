@@ -1,11 +1,9 @@
-import {
-  rankTokens,
-  scoreText,
-  type SearchResult,
-  type SearchSource,
-} from '@tale/ui/search';
+import { type SearchResult, type SearchSource } from '@tale/ui/search';
 import { MessageSquare } from 'lucide-react';
 import { useMemo } from 'react';
+
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
 
 import { type Thread, useThreads } from '../hooks/queries';
 
@@ -19,47 +17,61 @@ interface ThreadsSearchSourceConfig {
   formatGroup: (creationTime: number) => string;
 }
 
+// Below this length we don't run the (heavier) message-content search — a
+// 1-char query just narrows the recents list by title.
+const MIN_MESSAGE_QUERY = 2;
+
 /**
- * Build a {@link SearchSource} over the user's chat threads. Threads are a
- * bounded, whole-collection query, so this ranks titles client-side with the
- * shared multi-token matcher (the controller debounces) and groups by a
- * localised date bucket. Mirrors
- * the docs factory pattern — returned from a `useMemo` so its identity stays
- * stable across renders.
+ * Build a {@link SearchSource} over the user's chats. A real query (≥2 chars)
+ * runs a backend search over message **content** and surfaces the chat title
+ * with the matched message as the snippet; a blank/1-char query falls back to
+ * the recent chats filtered by title (so opening the palette shows recents).
  *
- * (Cross-page server-side thread search is a follow-up; swapping the client
- * filter for a backend `searchThreads` query is a one-line change here.)
+ * Returned from a `useMemo` so its identity stays stable across renders.
  */
 export function createThreadsSearchSource(
   config: ThreadsSearchSourceConfig,
 ): SearchSource {
   const { organizationId, teamId, untitledLabel, formatGroup } = config;
   return (query, { active }) => {
+    const trimmed = query.trim();
+    const searchingMessages = active && trimmed.length >= MIN_MESSAGE_QUERY;
+
+    // Recents (titles) — skipped once we're doing a message search so the two
+    // queries never run at once. Both hooks are still called every render.
     const { threads } = useThreads({
-      skip: !active,
+      skip: !active || searchingMessages,
       teamId,
       organizationId,
     });
 
+    // Message-content search — skipped until the query is long enough.
+    const { data: matches } = useConvexQuery(
+      api.threads.search_messages.searchThreadMessages,
+      searchingMessages ? { organizationId, query: trimmed, teamId } : 'skip',
+    );
+
     const results = useMemo<SearchResult[]>(() => {
-      if (!threads) return [];
-      // Multi-token, word-prefix-aware match + rank over titles, so "alpha
-      // launch" finds "Launch plan: Alpha". A blank query keeps every thread
-      // (score 1) in newest-first order.
-      const tokens = rankTokens(query);
-      return threads
-        .map((thread: Thread) => ({
-          thread,
-          score: scoreText(thread.title ?? '', tokens),
-        }))
-        .filter((scored) => scored.score > 0)
-        .sort(
-          (a, b) =>
-            b.score - a.score ||
-            b.thread._creationTime - a.thread._creationTime,
+      if (searchingMessages) {
+        return (matches ?? []).map(
+          (m): SearchResult => ({
+            id: m.threadId,
+            title: m.title ?? untitledLabel,
+            // `body` drives the highlighted snippet (the matched message).
+            body: m.snippet || undefined,
+            group: formatGroup(m.createdAt),
+            icon: MessageSquare,
+          }),
+        );
+      }
+      const q = trimmed.toLowerCase();
+      return (threads ?? [])
+        .filter(
+          (thread: Thread) =>
+            !q || (thread.title ?? '').toLowerCase().includes(q),
         )
         .map(
-          ({ thread }): SearchResult => ({
+          (thread: Thread): SearchResult => ({
             id: thread._id,
             title: thread.title ?? untitledLabel,
             group: formatGroup(thread._creationTime),
@@ -67,15 +79,21 @@ export function createThreadsSearchSource(
             data: thread,
           }),
         );
-    }, [threads, query]);
+      // `untitledLabel` / `formatGroup` come from the source factory's config
+      // closure (stable for the source's lifetime), so they're intentionally
+      // omitted from the reactive deps.
+    }, [searchingMessages, matches, threads, trimmed]);
 
-    return {
-      results,
-      // While inactive (palette closed, or query below min length) `useThreads`
-      // is skipped, so `threads` is undefined — report `idle`, not `loading`, so
-      // opening the palette shows recents instead of a spinner (matters when a
-      // surface sets minQueryLength={1}).
-      status: !active ? 'idle' : threads === undefined ? 'loading' : 'ready',
-    };
+    const status = !active
+      ? 'idle'
+      : searchingMessages
+        ? matches === undefined
+          ? 'loading'
+          : 'ready'
+        : threads === undefined
+          ? 'loading'
+          : 'ready';
+
+    return { results, status };
   };
 }

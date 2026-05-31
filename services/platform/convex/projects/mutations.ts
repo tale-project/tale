@@ -1012,10 +1012,12 @@ export const moveThreadToProject = mutation({
     if (thread.projectId) previousProjectId = thread.projectId;
 
     if (args.projectId === null) {
+      // Moving between projects is a metadata edit, not chat activity — don't
+      // bump `updatedAt`, or the sidebar would reorder the row and reset its
+      // "Xm ago" label (which must track the last message only).
       await ctx.db.patch(thread._id, {
         projectId: undefined,
         sharedWithProject: undefined,
-        updatedAt: Date.now(),
       });
     } else {
       const project = await loadProjectOrThrow(ctx, args.projectId);
@@ -1029,7 +1031,7 @@ export const moveThreadToProject = mutation({
         projectId: args.projectId,
         // Default to personal-in-project — explicit share via setThreadSharedWithProject.
         sharedWithProject: false,
-        updatedAt: Date.now(),
+        // Metadata edit, not activity — leave `updatedAt` untouched (see above).
       });
     }
 

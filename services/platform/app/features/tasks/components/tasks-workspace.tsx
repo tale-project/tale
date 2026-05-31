@@ -18,9 +18,16 @@ import { CreateTaskDialog } from './create-task-dialog';
 import { KanbanBoard } from './kanban-board';
 import type { TaskRow } from './task-card';
 import { TaskDetailSheet } from './task-detail-sheet';
+import { TasksList } from './tasks-list';
 import { TasksTable } from './tasks-table';
 
-type TaskView = 'board' | 'table';
+type TaskView = 'board' | 'list' | 'table';
+
+const TASK_VIEWS: readonly TaskView[] = ['board', 'list', 'table'];
+
+function isTaskView(value: string): value is TaskView {
+  return (TASK_VIEWS as readonly string[]).includes(value);
+}
 
 export function TasksWorkspace({
   organizationId,
@@ -51,10 +58,11 @@ export function TasksWorkspace({
           variant="pill"
           value={view}
           onValueChange={(value) => {
-            if (value === 'board' || value === 'table') setView(value);
+            if (isTaskView(value)) setView(value);
           }}
           items={[
             { value: 'board', label: t('views.board') },
+            { value: 'list', label: t('views.list') },
             { value: 'table', label: t('views.table') },
           ]}
         />
@@ -67,7 +75,12 @@ export function TasksWorkspace({
         <EmptyState
           icon={ListTodo}
           title={t('title')}
-          description={t('actions.create')}
+          description={t('empty.description')}
+          action={
+            <Button size="sm" icon={Plus} onClick={() => setCreateOpen(true)}>
+              {t('actions.create')}
+            </Button>
+          }
         />
       ) : view === 'board' ? (
         <div className="min-h-0 flex-1">
@@ -77,12 +90,22 @@ export function TasksWorkspace({
             projectKey={projectKey}
           />
         </div>
+      ) : view === 'list' ? (
+        <div className="min-h-0 flex-1">
+          <TasksList
+            tasks={tasks}
+            onOpenTask={handleOpenTask}
+            projectKey={projectKey}
+          />
+        </div>
       ) : (
-        <TasksTable
-          tasks={tasks}
-          onOpenTask={handleOpenTask}
-          projectKey={projectKey}
-        />
+        <div className="min-h-0 flex-1">
+          <TasksTable
+            tasks={tasks}
+            onOpenTask={handleOpenTask}
+            projectKey={projectKey}
+          />
+        </div>
       )}
 
       <CreateTaskDialog

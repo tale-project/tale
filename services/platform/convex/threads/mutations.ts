@@ -4,7 +4,10 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { internalMutation, mutation } from '../_generated/server';
 import { authComponent } from '../auth';
-import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
+import {
+  assertThreadAccess,
+  canAccessThread,
+} from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { cascadeDeleteMessageChildren } from '../tts/cascade_helpers';
 import {
@@ -307,16 +310,17 @@ export const markThreadRead = mutation({
       throw new Error('Unauthenticated');
     }
 
-    await assertThreadAccess(ctx, args.threadId, identity);
-
-    const metadata = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-
-    if (metadata) {
-      await ctx.db.patch(metadata._id, { lastReadAt: Date.now() });
+    // Best-effort unread tracking — never throw. `markThreadRead` fires on
+    // navigation and can race a delete/archive or target a thread the caller
+    // can only transiently see; a thrown `forbidden` surfaced as an uncaught
+    // mutation error in the console. It's also the *owner's* read state, so
+    // only the owner updates `lastReadAt`; non-owners (shared viewers) no-op.
+    const metadata = await canAccessThread(ctx, args.threadId, identity);
+    if (!metadata || metadata.userId !== identity.userId) {
+      return null;
     }
+
+    await ctx.db.patch(metadata._id, { lastReadAt: Date.now() });
     return null;
   },
 });

@@ -18,11 +18,9 @@ type SettingsLabelKey =
   | 'organization'
   | 'people'
   | 'integrations'
-  | 'mcp'
   | 'providers'
   | 'skills'
-  | 'apiKeys'
-  | 'webdav'
+  | 'api'
   | 'branding'
   | 'governance'
   | 'personalization'
@@ -94,12 +92,6 @@ export function SettingsNavigation({
       matchMode: 'startsWith',
     },
     {
-      labelKey: 'mcp',
-      label: t('mcp'),
-      href: `/dashboard/${organizationId}/settings/mcp`,
-      can: ['read', 'developerSettings'],
-    },
-    {
       labelKey: 'skills',
       label: t('skills'),
       href: `/dashboard/${organizationId}/settings/skills`,
@@ -107,16 +99,12 @@ export function SettingsNavigation({
       matchMode: 'startsWith',
     },
     {
-      labelKey: 'apiKeys',
-      label: t('apiKeys'),
-      href: `/dashboard/${organizationId}/settings/api-keys`,
+      // Consolidated REST (API keys) / MCP / WebDAV section.
+      labelKey: 'api',
+      label: t('api'),
+      href: `/dashboard/${organizationId}/settings/api`,
       can: ['read', 'developerSettings'],
-    },
-    {
-      labelKey: 'webdav',
-      label: t('webdav'),
-      href: `/dashboard/${organizationId}/settings/webdav`,
-      can: ['read', 'developerSettings'],
+      matchMode: 'startsWith',
     },
     {
       labelKey: 'governance',
