@@ -252,4 +252,180 @@ describe('webdav tree_mutations.ingestPutBlob content-type derivation (convex-te
     );
     expect(mimeType).toBe('application/octet-stream');
   });
+
+  it('a second PUT to the same path overwrites in place (created:false)', async () => {
+    const t = convexTest(schema, modules);
+    const first = await ingest(t, 'dup.txt', 'text/plain');
+    expect(first.result.created).toBe(true);
+    const second = await ingest(t, 'dup.txt', 'text/plain');
+    expect(second.result.created).toBe(false);
+    // Still exactly one active document at that path — not a duplicate row.
+    const active = await t.run(async (ctx) => {
+      const rows = await ctx.db.query('documents').collect();
+      return rows.filter(
+        (r) =>
+          r.title === 'dup.txt' && (r.lifecycleStatus ?? 'active') === 'active',
+      );
+    });
+    expect(active).toHaveLength(1);
+  });
+});
+
+describe('webdav tree_mutations.copyResource (convex-test)', () => {
+  it('copies a document into a new row sharing the storage id; source stays active', async () => {
+    const t = convexTest(schema, modules);
+    const { srcDocId, storageId } = await t.run(async (ctx) => {
+      const sid = await ctx.storage.store(new Blob(['x']));
+      const id = await ctx.db.insert('documents', {
+        organizationId: ORG,
+        title: 'orig.txt',
+        fileId: sid,
+        lifecycleStatus: 'active',
+      });
+      return { srcDocId: id, storageId: sid };
+    });
+
+    const result = await t.mutation(
+      internal.webdav.tree_mutations.copyResource,
+      {
+        organizationId: ORG,
+        src: { kind: 'document', id: srcDocId },
+        destParentSegments: [],
+        destName: 'copy.txt',
+        overwrite: false,
+        userId: USER,
+      },
+    );
+    expect(result.created).toBe(true);
+
+    const docs = await t.run(async (ctx) =>
+      ctx.db.query('documents').collect(),
+    );
+    const src = docs.find((d) => d._id === srcDocId);
+    const copy = docs.find((d) => d.title === 'copy.txt');
+    expect(src?.lifecycleStatus).toBe('active'); // source untouched
+    expect(copy).toBeTruthy();
+    expect(copy?.fileId).toBe(storageId); // content-addressed: same blob
+  });
+
+  it('copies a folder recursively, duplicating child documents', async () => {
+    const t = convexTest(schema, modules);
+    const { folderId: srcId } = await mkcol(t, [], 'src');
+    await t.run(async (ctx) =>
+      ctx.db.insert('documents', {
+        organizationId: ORG,
+        title: 'child.txt',
+        folderId: srcId,
+        lifecycleStatus: 'active',
+      }),
+    );
+
+    await t.mutation(internal.webdav.tree_mutations.copyResource, {
+      organizationId: ORG,
+      src: { kind: 'folder', id: srcId },
+      destParentSegments: [],
+      destName: 'dst',
+      overwrite: false,
+      userId: USER,
+    });
+
+    const folders = await t.run(async (ctx) =>
+      ctx.db.query('folders').collect(),
+    );
+    expect(folders.map((f) => f.name).sort()).toEqual(['dst', 'src']);
+    const docs = await t.run(async (ctx) =>
+      ctx.db.query('documents').collect(),
+    );
+    // The child document now exists under both the source and the copy.
+    expect(docs.filter((d) => d.title === 'child.txt')).toHaveLength(2);
+  });
+
+  it('refuses to copy onto an existing destination without Overwrite (DEST_EXISTS)', async () => {
+    const t = convexTest(schema, modules);
+    const srcId = await t.run(async (ctx) =>
+      ctx.db.insert('documents', {
+        organizationId: ORG,
+        title: 'a.txt',
+        lifecycleStatus: 'active',
+      }),
+    );
+    await t.run(async (ctx) =>
+      ctx.db.insert('documents', {
+        organizationId: ORG,
+        title: 'b.txt',
+        lifecycleStatus: 'active',
+      }),
+    );
+    await expectCode(
+      t.mutation(internal.webdav.tree_mutations.copyResource, {
+        organizationId: ORG,
+        src: { kind: 'document', id: srcId },
+        destParentSegments: [],
+        destName: 'b.txt',
+        overwrite: false,
+        userId: USER,
+      }),
+      'DEST_EXISTS',
+    );
+  });
+});
+
+describe('webdav tree_mutations.deleteFolderCascade (convex-test)', () => {
+  it('trashes every descendant document and removes the folder rows', async () => {
+    const t = convexTest(schema, modules);
+    const { folderId: parent } = await mkcol(t, [], 'parent');
+    const { folderId: child } = await mkcol(t, ['parent'], 'child');
+    const docId = await t.run(async (ctx) =>
+      ctx.db.insert('documents', {
+        organizationId: ORG,
+        title: 'deep.txt',
+        folderId: child,
+        lifecycleStatus: 'active',
+      }),
+    );
+
+    await t.mutation(internal.webdav.tree_mutations.deleteFolderCascade, {
+      organizationId: ORG,
+      folderId: parent,
+    });
+
+    const doc = await t.run(async (ctx) => ctx.db.get(docId));
+    expect(doc?.lifecycleStatus).toBe('trashed');
+    const folders = await t.run(async (ctx) =>
+      ctx.db.query('folders').collect(),
+    );
+    expect(folders).toHaveLength(0); // both parent + child folder rows gone
+  });
+
+  it('refuses the cascade under an org legal hold, leaving the subtree intact', async () => {
+    const t = convexTest(schema, modules);
+    const { folderId: parent } = await mkcol(t, [], 'held');
+    const docId = await t.run(async (ctx) => {
+      await ctx.db.insert('legalHolds', {
+        organizationId: ORG,
+        targetType: 'org',
+        targetId: ORG,
+        targetLabel: 'Test Org',
+        reason: 'litigation',
+        placedBy: 'admin',
+        placedAt: 0,
+      });
+      return ctx.db.insert('documents', {
+        organizationId: ORG,
+        title: 'frozen.txt',
+        folderId: parent,
+        lifecycleStatus: 'active',
+      });
+    });
+
+    await expectCode(
+      t.mutation(internal.webdav.tree_mutations.deleteFolderCascade, {
+        organizationId: ORG,
+        folderId: parent,
+      }),
+      'LEGAL_HOLD_ACTIVE',
+    );
+    const doc = await t.run(async (ctx) => ctx.db.get(docId));
+    expect(doc?.lifecycleStatus).toBe('active'); // pre-walk refused before trashing
+  });
 });
