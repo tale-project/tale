@@ -332,7 +332,7 @@ export const moveResource = internalMutation({
         args.organizationId,
         destParentSegments,
       );
-      if (!found) throw new ConvexError({ code: 'CONFLICT' });
+      if (!found) throw new ConvexError({ code: 'DEST_PARENT_MISSING' });
       destFolderId = found;
     }
 
@@ -349,7 +349,7 @@ export const moveResource = internalMutation({
       collision.kind === args.src.kind &&
       collision.id === args.src.id
     ) {
-      throw new ConvexError({ code: 'CONFLICT' });
+      throw new ConvexError({ code: 'SELF_DESTINATION' });
     }
 
     // Folder-into-own-descendant guard. Walk parentId up from the
@@ -359,7 +359,7 @@ export const moveResource = internalMutation({
     }
 
     if (collision && !args.overwrite) {
-      throw new ConvexError({ code: 'CONFLICT' });
+      throw new ConvexError({ code: 'DEST_EXISTS' });
     }
     if (collision && args.overwrite) {
       // Route through softDeleteDocument / cascadeDeleteFolderRecursive
@@ -456,7 +456,7 @@ export const copyResource = internalMutation({
         args.organizationId,
         destParentSegments,
       );
-      if (!found) throw new ConvexError({ code: 'CONFLICT' });
+      if (!found) throw new ConvexError({ code: 'DEST_PARENT_MISSING' });
       destFolderId = found;
     }
 
@@ -474,14 +474,14 @@ export const copyResource = internalMutation({
       collision.kind === args.src.kind &&
       collision.id === args.src.id
     ) {
-      throw new ConvexError({ code: 'CONFLICT' });
+      throw new ConvexError({ code: 'SELF_DESTINATION' });
     }
     if (args.src.kind === 'folder' && destFolderId) {
       await assertNotDescendantOf(ctx, destFolderId, args.src.id);
     }
 
     if (collision && !args.overwrite) {
-      throw new ConvexError({ code: 'CONFLICT' });
+      throw new ConvexError({ code: 'DEST_EXISTS' });
     }
     if (collision && args.overwrite) {
       if (collision.kind === 'document') {
@@ -733,7 +733,7 @@ async function assertNotDescendantOf(
   for (let i = 0; i < MAX_FOLDER_DEPTH; i++) {
     if (!cursor) return;
     if (cursor === ancestorId) {
-      throw new ConvexError({ code: 'CONFLICT' });
+      throw new ConvexError({ code: 'DEST_IS_DESCENDANT' });
     }
     const row: { parentId?: Id<'folders'> } | null = await ctx.db.get(cursor);
     if (!row) return;

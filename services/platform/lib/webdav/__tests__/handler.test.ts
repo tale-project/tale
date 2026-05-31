@@ -735,7 +735,9 @@ describe('MOVE', () => {
       },
       mutations: {
         'webdav/tree_mutations:moveResource': () => {
-          throw new ConvexError({ code: 'CONFLICT' });
+          // Overwrite:F + existing destination throws DEST_EXISTS, which the
+          // handler maps to 412 (distinct from a missing-parent 409).
+          throw new ConvexError({ code: 'DEST_EXISTS' });
         },
       },
     });

@@ -234,15 +234,40 @@ async function doMoveOrCopy(
         body: 'Destination is under legal hold',
       };
     }
+    if (code === 'DEST_EXISTS') {
+      // Destination exists and Overwrite: F (RFC 4918 §9.8.5/§9.9.4).
+      return {
+        status: 412,
+        headers: {},
+        body: 'Destination exists (Overwrite: F)',
+      };
+    }
+    if (code === 'SELF_DESTINATION') {
+      // Source and destination are the same resource — not retriable.
+      return {
+        status: 403,
+        headers: {},
+        body: 'Source and destination are the same',
+      };
+    }
+    if (code === 'DEST_IS_DESCENDANT') {
+      // A collection moved/copied into its own subtree (RFC §9.9.4).
+      return {
+        status: 403,
+        headers: {},
+        body: 'Cannot move or copy a collection into itself',
+      };
+    }
+    if (code === 'DEST_PARENT_MISSING') {
+      // Intermediate collection absent; the server does not auto-vivify.
+      return {
+        status: 409,
+        headers: {},
+        body: 'Destination parent collection does not exist',
+      };
+    }
     if (code === 'CONFLICT') {
-      // CONFLICT covers self-move, move-into-descendant, missing
-      // destination parent, and existing-without-overwrite. Map to
-      // 412 when overwrite=F is the cause; 409 for missing parent;
-      // 403 for self/descendant. We can't always tell which path
-      // got hit, so prefer 409 except when overwrite was disabled.
-      if (!overwrite) {
-        return { status: 412, headers: {}, body: 'Destination exists' };
-      }
+      // Residual conflict (e.g. folder depth cap).
       return { status: 409, headers: {}, body: 'Conflict' };
     }
     if (code === 'NOT_FOUND') {
