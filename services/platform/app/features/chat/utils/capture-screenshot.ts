@@ -8,6 +8,49 @@
  * user cancellation (`NotAllowedError` / `AbortError`) — callers should
  * treat those as a silent no-op.
  */
+
+// `requestVideoFrameCallback` isn't in the DOM lib types everywhere yet.
+type VideoWithFrameCallback = HTMLVideoElement & {
+  requestVideoFrameCallback?: (callback: () => void) => number;
+};
+
+/**
+ * Resolve once the video element actually has a decoded frame ready to draw.
+ * `play()` resolving only means playback *started* — the first frame may not
+ * be painted yet, and drawing too early is what produces a black capture.
+ *
+ * Prefer `requestVideoFrameCallback` (fires precisely when a frame is
+ * presentable). Fall back to the `loadeddata` event plus two animation frames
+ * so the frame is committed before we read it. A timeout backstop keeps us
+ * from hanging if neither ever fires.
+ */
+function waitForVideoFrame(video: HTMLVideoElement): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    const rvfc = (video as VideoWithFrameCallback).requestVideoFrameCallback;
+    if (typeof rvfc === 'function') {
+      rvfc.call(video, finish);
+    } else {
+      const onReady = () =>
+        requestAnimationFrame(() => requestAnimationFrame(finish));
+      if (video.readyState >= 2 /* HAVE_CURRENT_DATA */) {
+        onReady();
+      } else {
+        video.addEventListener('loadeddata', onReady, { once: true });
+      }
+    }
+
+    // Backstop: never wait forever for a frame callback that doesn't arrive.
+    setTimeout(finish, 1000);
+  });
+}
+
 export async function captureScreenshot(): Promise<File | null> {
   if (
     typeof navigator === 'undefined' ||
@@ -25,11 +68,11 @@ export async function captureScreenshot(): Promise<File | null> {
     const video = document.createElement('video');
     video.srcObject = stream;
     video.muted = true;
+    video.playsInline = true;
     await video.play();
-    // One rAF lets the first frame paint into the element before we draw it.
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => resolve()),
-    );
+    // Wait for a real decoded frame — drawing before one exists yields a
+    // black rectangle.
+    await waitForVideoFrame(video);
 
     const width = video.videoWidth;
     const height = video.videoHeight;
