@@ -992,13 +992,41 @@ export const deleteTaskComment = mutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch(args.commentId, { deletedAt: now, updatedAt: now });
 
-    // Soft-delete drops the comment from the live set, so the denormalized
-    // count must follow. Clamp at 0 so a stale/missing baseline can't go
-    // negative.
+    // Deleting a comment must take its replies down with it — otherwise the
+    // thread is left pointing at a deleted parent. Threading is single-level
+    // today (replies re-root to their thread root), but we walk the
+    // parent → child links transitively so a deeper chain can never strand
+    // orphaned replies. Build the link map from the task's live comments first.
+    const childrenByParent = new Map<string, Id<'taskComments'>[]>();
+    for await (const c of ctx.db
+      .query('taskComments')
+      .withIndex('by_task_createdAt', (q) => q.eq('taskId', comment.taskId))) {
+      if (c.deletedAt || !c.parentCommentId) continue;
+      const parentKey = c.parentCommentId as string;
+      const siblings = childrenByParent.get(parentKey) ?? [];
+      siblings.push(c._id);
+      childrenByParent.set(parentKey, siblings);
+    }
+
+    // Breadth-first walk from the target comment, appending descendants as we
+    // go. Each comment has a single parent, so it is enqueued at most once.
+    const toDelete: Id<'taskComments'>[] = [args.commentId];
+    for (let i = 0; i < toDelete.length; i++) {
+      for (const childId of childrenByParent.get(toDelete[i] as string) ?? []) {
+        toDelete.push(childId);
+      }
+    }
+
+    for (const id of toDelete) {
+      await ctx.db.patch(id, { deletedAt: now, updatedAt: now });
+    }
+
+    // Soft-delete drops the comment (and every cascaded reply) from the live
+    // set, so the denormalized count must follow. Clamp at 0 so a stale/missing
+    // baseline can't go negative.
     await ctx.db.patch(comment.taskId, {
-      commentCount: Math.max(0, (task.commentCount ?? 0) - 1),
+      commentCount: Math.max(0, (task.commentCount ?? 0) - toDelete.length),
     });
 
     await createAuditLog(ctx, {
@@ -1011,7 +1039,10 @@ export const deleteTaskComment = mutation({
       resourceType: TASK_COMMENT_RESOURCE_TYPE,
       resourceId: String(args.commentId),
       resourceName: task.title,
-      metadata: { taskId: String(comment.taskId) },
+      metadata: {
+        taskId: String(comment.taskId),
+        cascadedReplyCount: toDelete.length - 1,
+      },
       status: 'success',
     });
 
