@@ -214,10 +214,14 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
         return { task, created: result.created };
       }
 
-      default:
+      default: {
+        // Exhaustiveness: if a new operation is added to the union without a
+        // case above, this assignment fails to compile.
+        const unhandled: never = params;
         throw new Error(
-          `Unsupported task operation: ${(params as { operation: string }).operation}`,
+          `Unsupported task operation: ${JSON.stringify(unhandled)}`,
         );
+      }
     }
   },
 };

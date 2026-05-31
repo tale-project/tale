@@ -178,18 +178,24 @@ export const listProjectSecretMetaInternal = internalQuery({
   ): Promise<
     Array<{ name: string; description?: string; updatedAt: number }>
   > => {
-    const rows = await ctx.db
+    const meta: Array<{
+      name: string;
+      description?: string;
+      updatedAt: number;
+    }> = [];
+    for await (const row of ctx.db
       .query('projectSecrets')
       .withIndex('by_project', (q) =>
         q
           .eq('organizationId', args.organizationId)
           .eq('projectId', args.projectId),
-      )
-      .collect();
-    return rows.map((row) => ({
-      name: row.name,
-      description: row.description,
-      updatedAt: row.updatedAt,
-    }));
+      )) {
+      meta.push({
+        name: row.name,
+        description: row.description,
+        updatedAt: row.updatedAt,
+      });
+    }
+    return meta;
   },
 });

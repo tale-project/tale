@@ -44,19 +44,26 @@ export const listProjectSecrets = query({
     await assertProjectAdmin(ctx, args.projectId);
     const project = await ctx.db.get(args.projectId);
     if (!project) return [];
-    const rows = await ctx.db
+    const secrets: Array<{
+      name: string;
+      description?: string;
+      updatedAt: number;
+      updatedBy: string;
+    }> = [];
+    for await (const row of ctx.db
       .query('projectSecrets')
       .withIndex('by_project', (q) =>
         q
           .eq('organizationId', project.organizationId)
           .eq('projectId', args.projectId),
-      )
-      .collect();
-    return rows.map((row) => ({
-      name: row.name,
-      description: row.description,
-      updatedAt: row.updatedAt,
-      updatedBy: row.updatedBy,
-    }));
+      )) {
+      secrets.push({
+        name: row.name,
+        description: row.description,
+        updatedAt: row.updatedAt,
+        updatedBy: row.updatedBy,
+      });
+    }
+    return secrets;
   },
 });

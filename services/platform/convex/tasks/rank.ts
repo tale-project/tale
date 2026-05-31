@@ -67,7 +67,7 @@ export function rankBetween(before?: string, after?: string): string {
     const mid = Math.floor((lo + hi) / 2);
     if (mid > lo) {
       result += ALPHABET[mid];
-      return result;
+      break;
     }
 
     // Adjacent digits (hi === lo + 1): no room here. Keep the lower bound's
@@ -75,12 +75,30 @@ export function rankBetween(before?: string, after?: string): string {
     result += ALPHABET[lo];
     i += 1;
   }
+
+  // Post-condition. The midpoint walk can land *outside* the open interval when
+  // `after` ends in the minimum digit — e.g. no string sorts strictly between
+  // 'a' and 'a0', so the walk would otherwise return 'a0…' (> after). Keys this
+  // function generates never end in '0', so this only fires on corrupted or
+  // externally-supplied ranks; surfacing it lets callers fall back to an
+  // end-of-column or rebalanced rank instead of persisting an out-of-order key.
+  if (
+    (before != null && result <= before) ||
+    (after != null && result >= after)
+  ) {
+    throw new Error(
+      `rankBetween: no key strictly between ${String(before)} and ${String(after)}`,
+    );
+  }
+  return result;
 }
 
 /**
- * Re-sequence an ordered list of keys to evenly spaced ranks. Fallback for the
- * rare case where repeated midpoint inserts exhaust precision at one position;
- * callers persist the returned key for each id in order.
+ * Re-sequence an ordered list into `count` strictly increasing ranks (each the
+ * append-after of the previous). Fallback for the rare case where repeated
+ * midpoint inserts exhaust precision at one position; callers persist the
+ * returned key for each id in order. Keys are short and ordered, though not
+ * uniformly distributed across the keyspace.
  */
 export function rebalanceRanks(count: number): string[] {
   if (count <= 0) return [];

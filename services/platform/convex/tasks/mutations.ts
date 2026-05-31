@@ -841,8 +841,10 @@ export const moveTask = mutation({
         beforeRank == null && afterRank == null
           ? await computeEndRank(ctx, task.projectId, args.status)
           : rankBetween(beforeRank, afterRank);
-    } catch {
-      // Neighbours out of order / stale — fall back to end of column.
+    } catch (error) {
+      // Neighbours out of order / stale (or no key fits between them) — fall
+      // back to the end of the column rather than persisting a bad rank.
+      console.warn('[tasks] moveTask: rankBetween failed, appending', error);
       rank = await computeEndRank(ctx, task.projectId, args.status);
     }
 
@@ -941,11 +943,21 @@ export const bulkUpdateTasks = mutation({
       const projectKey = String(task.projectId);
       let canEdit = projectAccessCache.get(projectKey);
       if (canEdit === undefined) {
-        const project = await ctx.db.get(task.projectId);
-        const auth = await getAuthContext(ctx, task.organizationId);
-        canEdit = project
-          ? checkProjectAccess(project, auth.teamIds, auth.role).canEdit
-          : false;
+        try {
+          const project = await ctx.db.get(task.projectId);
+          const auth = await getAuthContext(ctx, task.organizationId);
+          canEdit = project
+            ? checkProjectAccess(project, auth.teamIds, auth.role).canEdit
+            : false;
+        } catch (error) {
+          // The caller isn't a member of this task's org (getAuthContext
+          // throws). Skip the task rather than aborting the whole batch.
+          console.warn(
+            '[tasks] bulkUpdate: auth failed for task org, skipping',
+            error,
+          );
+          canEdit = false;
+        }
         projectAccessCache.set(projectKey, canEdit);
       }
       if (!canEdit) {
@@ -1118,12 +1130,16 @@ async function deleteTaskTree(
   taskId: Id<'tasks'>,
 ): Promise<number> {
   let deletedChildren = 0;
-  const children = await ctx.db
+  // Collect child ids first, then recurse — deleting rows while iterating the
+  // same `by_parent` cursor would mutate what we're scanning.
+  const childIds: Id<'tasks'>[] = [];
+  for await (const child of ctx.db
     .query('tasks')
-    .withIndex('by_parent', (q) => q.eq('parentTaskId', taskId))
-    .collect();
-  for (const child of children) {
-    deletedChildren += 1 + (await deleteTaskTree(ctx, child._id));
+    .withIndex('by_parent', (q) => q.eq('parentTaskId', taskId))) {
+    childIds.push(child._id);
+  }
+  for (const childId of childIds) {
+    deletedChildren += 1 + (await deleteTaskTree(ctx, childId));
   }
 
   for await (const comment of ctx.db

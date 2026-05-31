@@ -18,6 +18,7 @@ import {
   deriveProjectKey,
   isValidProjectKey,
   normalizeProjectKey,
+  PROJECT_KEY_MAX,
 } from '../../lib/shared/project_key';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
@@ -166,6 +167,38 @@ async function resolveProjectKey(
     throw new ConvexError({ code: 'PROJECT_KEY_TAKEN' });
   }
   return key;
+}
+
+/**
+ * Pick a unique, valid key for a *duplicated* project. Derives from the new
+ * name like {@link resolveProjectKey}, but appends a numeric suffix until the
+ * per-org uniqueness index clears instead of throwing — duplication has no key
+ * input, so the user can't resolve a collision themselves. Returns `undefined`
+ * when no valid key can be derived (e.g. a name with no letters); the copy is
+ * then keyless, matching pre-key-migration projects.
+ */
+async function resolveDuplicateProjectKey(
+  ctx: MutationCtx,
+  organizationId: string,
+  name: string,
+): Promise<string | undefined> {
+  const base = deriveProjectKey(name);
+  if (!isValidProjectKey(base)) return undefined;
+  for (let n = 0; n < 1000; n += 1) {
+    const candidate =
+      n === 0
+        ? base
+        : `${base.slice(0, PROJECT_KEY_MAX - String(n).length)}${n}`;
+    if (!isValidProjectKey(candidate)) continue;
+    const clash = await ctx.db
+      .query('projects')
+      .withIndex('by_organization_key', (q) =>
+        q.eq('organizationId', organizationId).eq('key', candidate),
+      )
+      .first();
+    if (!clash) return candidate;
+  }
+  return undefined;
 }
 
 function validateInstructions(instructions: string): string {
@@ -1379,10 +1412,18 @@ export const duplicateProject = mutation({
       nextName = `${base}${suffix}`;
     }
 
+    const key = await resolveDuplicateProjectKey(
+      ctx,
+      source.organizationId,
+      nextName,
+    );
+
     const now = Date.now();
     const newProjectId = await ctx.db.insert('projects', {
       organizationId: source.organizationId,
       name: nextName,
+      key,
+      taskCounter: 0,
       description: source.description,
       icon: source.icon,
       color: source.color,

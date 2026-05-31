@@ -186,10 +186,12 @@ export const listSubtasks = query({
     const parent = await ctx.db.get(args.taskId);
     if (!parent) return [];
     await loadAccessibleProject(ctx, parent.projectId);
-    const children = await ctx.db
+    const children: Doc<'tasks'>[] = [];
+    for await (const child of ctx.db
       .query('tasks')
-      .withIndex('by_parent', (q) => q.eq('parentTaskId', args.taskId))
-      .collect();
+      .withIndex('by_parent', (q) => q.eq('parentTaskId', args.taskId))) {
+      children.push(child);
+    }
     children.sort((a, b) => a.rank.localeCompare(b.rank));
     return children;
   },
@@ -234,13 +236,15 @@ export const listBoardViews = query({
   returns: v.array(boardViewRowValidator),
   handler: async (ctx, args) => {
     const { auth } = await loadAccessibleProject(ctx, args.projectId);
-    const views = await ctx.db
+    const views: Doc<'boardViews'>[] = [];
+    for await (const view of ctx.db
       .query('boardViews')
-      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
-      .collect();
-    return views.filter(
-      (view) => view.scope === 'shared' || view.ownerId === auth.userId,
-    );
+      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))) {
+      if (view.scope === 'shared' || view.ownerId === auth.userId) {
+        views.push(view);
+      }
+    }
+    return views;
   },
 });
 

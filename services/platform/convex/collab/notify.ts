@@ -117,13 +117,15 @@ async function taskSubscriberUserIds(
   ctx: MutationCtx,
   taskId: Id<'tasks'>,
 ): Promise<string[]> {
-  const subs = await ctx.db
+  const ids: string[] = [];
+  for await (const sub of ctx.db
     .query('taskSubscriptions')
-    .withIndex('by_task', (q) => q.eq('taskId', taskId))
-    .collect();
-  return subs
-    .filter((s) => s.subscriberType === 'user' && !s.muted)
-    .map((s) => s.subscriberId);
+    .withIndex('by_task', (q) => q.eq('taskId', taskId))) {
+    if (sub.subscriberType === 'user' && !sub.muted) {
+      ids.push(sub.subscriberId);
+    }
+  }
+  return ids;
 }
 
 /** Exclude the actor (only when the actor is a human). */

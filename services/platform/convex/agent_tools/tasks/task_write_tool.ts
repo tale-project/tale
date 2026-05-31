@@ -129,6 +129,19 @@ Typical loop: task_read 'list' to find unassigned work → 'claim' it → 'updat
       }
 
       if (args.operation === 'assign') {
+        // Both-or-none: a discriminatedUnion member can't carry a Zod
+        // `.refine`, so guard the half-specified LLM payload here instead.
+        if (
+          (args.assigneeType === undefined) !==
+          (args.assigneeId === undefined)
+        ) {
+          return {
+            operation: 'assign',
+            assigned: false,
+            reason:
+              'Provide both assigneeType and assigneeId, or omit both to unassign.',
+          };
+        }
         const result = await ctx.runMutation(
           internal.tasks.internal_mutations.agentAssignTask,
           {

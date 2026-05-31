@@ -73,6 +73,25 @@ describe('rankBetween', () => {
     expect(() => rankBetween('r', 'i')).toThrow();
     expect(() => rankBetween('i', 'i')).toThrow();
   });
+
+  it('still descends below `after` when room exists past a 0 digit', () => {
+    const r = rankBetween('a', 'a05');
+    expect(r > 'a').toBe(true);
+    expect(r < 'a05').toBe(true);
+  });
+
+  it('never returns a key outside the open interval (no out-of-order keys)', () => {
+    // `after` ending in the minimum digit leaves no key strictly between the
+    // two — the walk must throw, not return a key that sorts past `after`.
+    for (const [a, b] of [
+      ['a', 'a0'],
+      [undefined, '0'],
+      ['1', '10'],
+      ['ab', 'ab0'],
+    ] as const) {
+      expect(() => rankBetween(a, b)).toThrow();
+    }
+  });
 });
 
 describe('rebalanceRanks', () => {
