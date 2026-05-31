@@ -62,6 +62,7 @@
   --animate-fade-in: fade-in 480ms var(--ease-out-quint) both;
   --animate-rise: rise 600ms var(--ease-out-quint) both;
   --animate-marquee: marquee 32s linear infinite;
+  --animate-skeleton-pulse: skeleton-pulse 1.6s ease-in-out infinite;
 
   /* HSL legacy token aliases (platform / shadcn-style components). */
   --color-background: hsl(var(--background));
@@ -166,6 +167,9 @@
   --secondary-foreground: 240 5.9% 10%;
   --muted: 240 4.8% 95.9%;
   --muted-foreground: 240 3.8% 46.1%;
+  /* Opaque trough shade for the skeleton pulse — a touch darker than --muted
+     so the mask "breathes" without ever fading toward transparent. */
+  --skeleton-shade: 240 5% 89%;
   --accent: 240 4.8% 95.9%;
   --accent-foreground: 240 5.9% 10%;
   --destructive: 0 84.2% 60.2%;
@@ -223,6 +227,8 @@
   --secondary-foreground: 0 0% 100%;
   --muted: 0 0% 14.9%;
   --muted-foreground: 218 11% 65%;
+  /* Lighter trough shade in dark mode (see --skeleton-shade in :root). */
+  --skeleton-shade: 0 0% 23%;
   --accent: 217 19% 17%;
   --accent-foreground: 0 0% 100%;
   --destructive: 0 91% 71%;
@@ -250,6 +256,7 @@
     --animate-fade-in: none;
     --animate-rise: none;
     --animate-marquee: none;
+    --animate-skeleton-pulse: none;
   }
 }
 
@@ -359,6 +366,19 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+/* The mask stays fully opaque the whole cycle — it animates between two solid
+   shades rather than fading opacity, so the real content underneath is never
+   revealed mid-pulse. */
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    background-color: hsl(var(--muted));
+  }
+  50% {
+    background-color: hsl(var(--skeleton-shade));
   }
 }
 

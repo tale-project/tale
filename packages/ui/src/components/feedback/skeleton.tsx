@@ -3,9 +3,15 @@ import type { ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { useSkeleton } from './skeleton-context';
 
-/** Shared pulse appearance — reused by every skeleton primitive. */
+/**
+ * Shared pulse appearance — reused by every skeleton primitive. The pulse
+ * animates between two opaque shades (see `skeleton-pulse` in globals.css)
+ * rather than fading opacity, so the masked content underneath is never
+ * revealed at the trough of the animation. `bg-muted` is the resting fill for
+ * `motion-reduce` (and the first paint before the animation starts).
+ */
 export const SKELETON_PULSE =
-  'animate-pulse bg-muted motion-reduce:animate-none';
+  'animate-skeleton-pulse bg-muted motion-reduce:animate-none';
 
 interface SkeletonWrapProps {
   /**
@@ -24,8 +30,10 @@ interface SkeletonWrapProps {
  * The universal masking primitive — `<SkeletonBox>{value}</SkeletonBox>`.
  *
  * Renders the real value as-is. While loading (`useSkeleton()` is true, i.e.
- * inside a `<Skeletonize loading>`) an opaque pulse overlay covers it at its
- * natural size and intercepts pointer events so masked controls aren't
+ * inside a `<Skeletonize loading>`) an opaque pulse overlay covers it. The
+ * overlay is inset by a negative 2px so it slightly overhangs the content on
+ * every side — anti-aliased glyph/border edges can't peek out from under the
+ * mask. It also intercepts pointer events so masked controls aren't
  * interactive. When *not* loading the wrapper is `display: contents`, so it
  * adds no box and can't tangle layout — wrap any dynamic value (text, a number,
  * a control) unconditionally and leave it in place.
@@ -54,7 +62,10 @@ export function SkeletonBox({ children, fullWidth }: SkeletonWrapProps) {
       {children}
       {loading && (
         <span
-          className={cn('absolute inset-0 rounded-[inherit]', SKELETON_PULSE)}
+          className={cn(
+            'absolute -inset-0.5 rounded-[inherit]',
+            SKELETON_PULSE,
+          )}
         />
       )}
     </span>
@@ -82,7 +93,9 @@ export function SkeletonCircle({ children, fullWidth }: SkeletonWrapProps) {
     >
       {children}
       {loading && (
-        <span className={cn('absolute inset-0 rounded-full', SKELETON_PULSE)} />
+        <span
+          className={cn('absolute -inset-0.5 rounded-full', SKELETON_PULSE)}
+        />
       )}
     </span>
   );
