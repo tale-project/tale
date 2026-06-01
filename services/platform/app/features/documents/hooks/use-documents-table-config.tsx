@@ -48,6 +48,21 @@ function getSourceInfo(
       title: t('sourceType.uploaded'),
     };
   }
+  if (sourceProvider === 'confluence') {
+    return {
+      title: t('sourceType.confluence'),
+    };
+  }
+  if (sourceProvider === 'google_drive') {
+    return {
+      title: t('sourceType.googleDrive'),
+    };
+  }
+  if (sourceProvider === 'webdav') {
+    return {
+      title: t('sourceType.webDav'),
+    };
+  }
   return null;
 }
 
