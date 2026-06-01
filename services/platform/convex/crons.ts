@@ -51,6 +51,19 @@ crons.cron(
   {},
 );
 
+// Audit-log integrity monitoring (#1505) — the hash-chain + checkpoint
+// verification previously ran only as an on-demand admin query. Run it daily
+// across every org with an audit chain and alert (a structured console.error
+// plus a security-category audit row) on any chain break, truncation,
+// checkpoint mismatch, or unsigned PII scrub. 02:00 avoids the 01:00
+// legal-hold release sweep and the 04:00 retention sweep.
+crons.cron(
+  'verify audit-log integrity (daily)',
+  '0 2 * * *',
+  internal.audit_logs.integrity_check.runAuditIntegrityCheck,
+  {},
+);
+
 // Plan-review TTL - cancel pending human_input approvals older than 30 min
 // so research runs never hang indefinitely on user input.
 crons.cron(
