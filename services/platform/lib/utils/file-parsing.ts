@@ -10,6 +10,33 @@ export type FileParseResult<T> = {
   errors: string[];
 };
 
+/**
+ * A column the import file must contain. `label` is the canonical name shown
+ * to the user; `aliases` are the accepted (case-insensitive) header spellings.
+ */
+export type RequiredColumn = { label: string; aliases: string[] };
+
+/**
+ * Returns the labels of required columns that are absent from `headers`.
+ * A column counts as present when any of its aliases matches a header.
+ * Returns [] when there is nothing to validate (no headers / no requirements).
+ */
+function detectMissingColumns(
+  headers: string[] | null,
+  required?: RequiredColumn[],
+): string[] {
+  if (!required || required.length === 0 || !headers) return [];
+  const present = new Set(headers.map((h) => h.trim().toLowerCase()));
+  return required
+    .filter((col) => !col.aliases.some((a) => present.has(a.toLowerCase())))
+    .map((col) => col.label);
+}
+
+function missingColumnsError(missing: string[], headers: string[]): string {
+  const found = headers.length > 0 ? headers.join(', ') : '(none)';
+  return `Missing required column(s): ${missing.join(', ')}. Found columns: ${found}.`;
+}
+
 type CSVParseOptions = {
   /** Column delimiter (default: comma) */
   delimiter?: string;
@@ -111,15 +138,29 @@ export function parseCSVWithMapper<T>(
   mapper: (row: string[], index: number) => T | null,
   options: CSVParseOptions & {
     recordMapper?: (record: Record<string, unknown>) => T | null;
+    /** When set (header mode), the parse fails loudly if a required column is absent. */
+    requiredColumns?: RequiredColumn[];
   } = {},
 ): FileParseResult<T> {
-  const { recordMapper, ...csvOptions } = options;
+  const { recordMapper, requiredColumns, ...csvOptions } = options;
   const { headers, rows } = parseCSVText(csvText, {
     ...csvOptions,
     hasHeaders: !!recordMapper,
   });
   const data: T[] = [];
   const errors: string[] = [];
+
+  // Fail loudly when the header row is missing a required column, instead of
+  // silently dropping rows or importing partial data (see #1312, #1323).
+  if (recordMapper) {
+    const missing = detectMissingColumns(headers, requiredColumns);
+    if (missing.length > 0) {
+      return {
+        data: [],
+        errors: [missingColumnsError(missing, headers ?? [])],
+      };
+    }
+  }
 
   rows.forEach((row, index) => {
     try {
@@ -230,6 +271,7 @@ export async function parseImportFile<T>(
   file: File,
   csvMapper: (row: string[], index: number) => T | null,
   excelMapper: (record: Record<string, unknown>) => T | null,
+  options: { requiredColumns?: RequiredColumn[] } = {},
 ): Promise<FileParseResult<T>> {
   const errors: string[] = [];
   const data: T[] = [];
@@ -239,10 +281,20 @@ export async function parseImportFile<T>(
       const text = await readFileAsText(file);
       const result = parseCSVWithMapper(text, csvMapper, {
         recordMapper: excelMapper,
+        requiredColumns: options.requiredColumns,
       });
       return result;
     } else if (isExcelFile(file)) {
       const records = await parseExcelFile(file);
+
+      // Validate the header row (the keys of the first record) so a
+      // mismatched schema fails loudly rather than dropping data silently.
+      const headerKeys = records.length > 0 ? Object.keys(records[0]) : [];
+      const missing = detectMissingColumns(headerKeys, options.requiredColumns);
+      if (missing.length > 0) {
+        return { data: [], errors: [missingColumnsError(missing, headerKeys)] };
+      }
+
       records.forEach((record, index) => {
         try {
           const mapped = excelMapper(record);

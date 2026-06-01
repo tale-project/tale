@@ -5913,6 +5913,7 @@
     "importForm": {
       "manualEntry": "Manual entry",
       "upload": "Upload",
+      "formatHint": "Format: email, name (optional), locale (optional). One vendor per line.",
       "localeHint": "Locale can be any valid BCP 47 tag (e.g. en, en-US, de-DE, zh-Hans).",
       "expectedColumns": "Expected columns: email, name, locale"
     },
