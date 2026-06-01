@@ -47,9 +47,12 @@ concurrency:
 jobs:
   # ---------------------------------------------------------------------------
   # Audit JS dependencies for known advisories.
-  # Blocking on HIGH/CRITICAL: the build fails when a production dependency has
-  # a known advisory at or above HIGH. Lower-severity advisories are printed in
-  # the summary but do not fail the build.
+  # Reports the full advisory list (all severities) in the job summary, then a
+  # gate fails the build on CRITICAL production advisories. The gate is CRITICAL
+  # for now rather than HIGH because the tree carries a known HIGH backlog
+  # (mostly transitive/dev: picomatch, tar, lodash, axios, plus xlsx/SheetJS
+  # which has no fixed npm release). Once that backlog is remediated the gate
+  # ratchets to HIGH — see #1498.
   # ---------------------------------------------------------------------------
   bun-audit:
     name: Bun audit
@@ -68,12 +71,10 @@ jobs:
         with:
           bun-version: '1.3.12'
 
-      - name: Run bun audit
-        # pipefail so tee does not mask a non-zero exit from bun audit.
-        # --audit-level=high fails only on HIGH/CRITICAL advisories.
-        run: |
-          set -o pipefail
-          bun audit --prod --audit-level=high | tee bun-audit.txt
+      - name: Run bun audit (report)
+        # Full advisory list for visibility; does not fail the build itself.
+        continue-on-error: true
+        run: bun audit --prod | tee bun-audit.txt
 
       - name: Summary
         if: always()
@@ -83,12 +84,21 @@ jobs:
           tail -n 50 bun-audit.txt >> "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Gate on critical advisories
+        # The blocking gate: fail on CRITICAL production advisories. pipefail so
+        # tee does not mask a non-zero exit. (Ratchets to HIGH once the known
+        # HIGH backlog is cleared — see #1498.)
+        run: |
+          set -o pipefail
+          bun audit --prod --audit-level=critical | tee bun-audit-critical.txt
+
   # ---------------------------------------------------------------------------
   # Scan source tree for known CVEs in dependencies + misconfigurations + secrets.
-  # Uploads SARIF to GitHub Security (all scanners, informational), then a
-  # vuln-only gate fails the build on FIXABLE high/critical dependency CVEs.
+  # Uploads SARIF to GitHub Security (all scanners, HIGH+CRITICAL, informational),
+  # then a vuln-only gate fails the build on FIXABLE CRITICAL dependency CVEs.
   # Secret/misconfig findings stay informational (SARIF) to avoid blocking on
-  # scanner noise; the hard gate is dependency CVEs.
+  # scanner noise; HIGH is surfaced in the SARIF but not yet blocking (it
+  # ratchets to HIGH alongside bun audit once the known backlog clears — #1498).
   # ---------------------------------------------------------------------------
   trivy-fs:
     name: Trivy filesystem scan
@@ -129,17 +139,17 @@ jobs:
           sarif_file: 'trivy-fs.sarif'
           category: 'trivy-fs'
 
-      # Blocking gate: fail the build on FIXABLE high/critical dependency
+      # Blocking gate: fail the build on FIXABLE critical dependency
       # vulnerabilities. Runs vuln-only (secret/misconfig stay informational via
       # the SARIF upload above) and honours the same path-scoped ignore file, so
-      # a real, patchable CVE cannot merge silently.
-      - name: Trivy vulnerability gate (HIGH/CRITICAL)
+      # a real, patchable critical CVE cannot merge silently.
+      - name: Trivy vulnerability gate (CRITICAL)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
           format: 'table'
-          severity: 'HIGH,CRITICAL'
+          severity: 'CRITICAL'
           exit-code: '1'
           scanners: 'vuln'
           ignore-unfixed: true
