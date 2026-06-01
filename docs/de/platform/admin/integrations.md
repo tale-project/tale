@@ -36,6 +36,14 @@ Beide Hebel werden zur Anfrage-Zeit erzwungen, nicht zur Installations-Zeit — 
 
 Klick auf die Zeile, dann auf **Trennen**. Eine getrennte Integration hört sofort auf zu authentifizieren; Agents und Workflows, die von ihr abhängen, melden beim nächsten Aufruf einen Konfigurationsfehler. Die Zeile bleibt mit einem Getrennt-Badge in der Liste, damit der Audit-Pfad überlebt. Erneutes Verbinden geht den Anmelde-Fluss von Grund auf neu.
 
+## Slack-Bot und Benachrichtigungen
+
+Slack ist zweigerichtet. Über den Agent, der Slack aufruft (Nachrichten posten, Kanäle lesen), hinaus kann die Organisation Leute aus Slack heraus mit einem Agent sprechen lassen und System-Events in einen Kanal pushen. Beides wird auf der verbundenen Slack-Zeile konfiguriert, und beides nutzt dieselbe OAuth-Anmeldung — keine zweite Verbindung.
+
+Jede Organisation bringt ihre eigene Slack-App mit, vollständig über die Slack-Zeile konfiguriert — auf dem Deployment ist nichts zu setzen. Wenn du Slack verbindest, zeigt die Zeile ein Panel **Slack-App einrichten** mit einem fertig einfügbaren App-Manifest und den beiden URLs, auf die es verweist: die Request-URL für Event Subscriptions (`/api/integrations/slack/events`) und die OAuth-Redirect-URL. Das Manifest füllt die Bot-Berechtigungen, die Events `app_mention` und `message.im` sowie beide URLs vor, sodass das Erstellen der App auf api.slack.com/apps nur ein paar Klicks dauert. Füge **Client-ID**, **Client-Secret** und **Signing-Secret** der App zurück in die Zeile ein und autorisiere dann per OAuth. Das Signing-Secret verifiziert eingehende Events, also bleibt der Bot stumm, bis es gesetzt ist; eingehende Nachrichten werden über den Slack-Workspace zurück an die richtige Organisation geroutet.
+
+Auf der verbundenen Slack-Zeile wählt ein Admin, **welcher Agent auf Slack antwortet** (eine Erwähnung in einem Kanal oder eine Direktnachricht startet eine Thread-Antwort dieses Agents) und **welche Kanäle Benachrichtigungen erhalten**, mit einem Schalter pro Event. Die ausgelieferten Events sind Workflow fehlgeschlagen, Workflow abgeschlossen und Sicherheitswarnungen; ein Slack-Thread bildet sich auf ein Agent-Gespräch ab, und der Slack-Autor bleibt darauf erhalten, statt als System verbucht zu werden.
+
 ## Integrationen versus MCP-Server
 
 Zwei Oberflächen lassen einen Agent über Tale hinausgreifen. **Integrationen** sind die hier dokumentierten anbieterspezifischen Erstanbieter-Konnektoren. **MCP-Server** sind externe Prozesse, die das Model Context Protocol freilegen; die Organisation registriert sie unter **Einstellungen > MCP-Server** und genehmigt jedes Tool beim ersten Aufruf. Greif zu einer Integration, wenn eine für das Zielsystem existiert; greif zu [MCP-Servern](/de/platform/integrations/mcp-servers), wenn keine Integration deckt, was du brauchst.

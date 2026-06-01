@@ -32,6 +32,7 @@ import {
 } from './documents/rest_api';
 import { imageProxyHandler } from './images/http_actions';
 import { integrationOAuth2CallbackHandler } from './integrations/oauth2_callback';
+import { slackEventsHandler } from './integrations/slack/http_actions';
 import {
   checkIpRateLimit,
   RateLimitExceededError,
@@ -493,6 +494,15 @@ http.route({
   path: '/api/integrations/oauth2/callback',
   method: 'GET',
   handler: integrationOAuth2CallbackHandler,
+});
+
+// Slack Events API — single Request URL for the shared Slack App. Verifies the
+// request signature, answers the URL-verification challenge, and routes events
+// to the installing org by team_id.
+http.route({
+  path: '/api/integrations/slack/events',
+  method: 'POST',
+  handler: slackEventsHandler,
 });
 
 http.route({

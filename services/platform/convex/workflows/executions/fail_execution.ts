@@ -3,9 +3,42 @@
  */
 
 import { internal } from '../../_generated/api';
+import type { Doc } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { STORAGE_RETENTION_MS } from './cleanup_execution_storage';
 import type { FailExecutionArgs } from './types';
+
+/**
+ * Emit a `workflow.failed` notification exactly once for an execution,
+ * regardless of which failure path drove it there. Idempotent via the
+ * `failureNotifiedAt` marker, so the engine callback, the stuck-recovery
+ * watchdog, the start-failure path, and the dynamic next-step pre-mark can all
+ * call it without double-notifying. Best-effort (scheduled fire-and-forget) so
+ * it never blocks the failing transition.
+ *
+ * `workflow.failed` is default-on in the notification catalog; this is the
+ * single chokepoint that guarantees those alerts actually fire. REST
+ * cancellation and the `canceled` engine outcome do NOT route through here, so
+ * they are correctly excluded from failure alerts.
+ */
+export async function notifyWorkflowFailedOnce(
+  ctx: MutationCtx,
+  execution: Doc<'wfExecutions'> | null,
+  error: string | undefined,
+): Promise<void> {
+  if (!execution || execution.failureNotifiedAt != null) return;
+
+  await ctx.db.patch(execution._id, { failureNotifiedAt: Date.now() });
+  await ctx.scheduler.runAfter(
+    0,
+    internal.notifications.dispatch_notification.dispatchNotificationAction,
+    {
+      organizationId: execution.organizationId,
+      eventType: 'workflow.failed',
+      params: { workflowSlug: execution.workflowSlug ?? 'workflow', error },
+    },
+  );
+}
 
 export async function failExecution(
   ctx: MutationCtx,
@@ -18,6 +51,9 @@ export async function failExecution(
     metadata: JSON.stringify({ error: args.error }),
     updatedAt: Date.now(),
   });
+
+  // Fire the default-on failure notification once for this execution.
+  await notifyWorkflowFailedOnce(ctx, execution, args.error);
 
   // Schedule delayed cleanup of storage blobs after 30 days
   const variablesStorageId = execution?.variablesStorageId;

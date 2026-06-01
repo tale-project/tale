@@ -1,3 +1,4 @@
+import { internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_SEVERITIES } from './schema';
 
@@ -42,5 +43,28 @@ export async function writeNotificationForOrgs(
       createdAt: now,
       readBy: [],
     });
+  }
+
+  // Mirror security alerts to external notification channels (Slack today).
+  // The dispatcher/sink decide per-org whether Slack is connected and the
+  // event enabled, so this stays an unconditional best-effort fan-out. We pass
+  // the i18n KEYS plus the interpolation params (NOT pre-rendered text) so the
+  // dispatcher can render in each org's locale — matching the in-app bell.
+  if (args.category === 'security') {
+    for (const organizationId of args.organizationIds) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.notifications.dispatch_notification.dispatchNotificationAction,
+        {
+          organizationId,
+          eventType: 'security.alert',
+          params: {
+            titleKey: args.titleKey,
+            bodyKey: args.bodyKey,
+            params: args.params,
+          },
+        },
+      );
+    }
   }
 }

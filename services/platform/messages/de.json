@@ -4601,6 +4601,34 @@
       "title": "Integrationen",
       "pageSubtitle": "Drittanbieter-Dienste mit deinem Workspace verbinden.",
       "addCustomIntegration": "Integration hinzufügen",
+      "slackNotify": {
+        "title": "Slack-Bot & Benachrichtigungen",
+        "agentLabel": "Agent, der auf Slack antwortet",
+        "agentPlaceholder": "Agent auswählen",
+        "agentMissing": "nicht gefunden",
+        "channelsLabel": "Benachrichtigungskanäle",
+        "channelsHint": "Kommagetrennte Slack-Kanal-IDs (z. B. C0123ABCD), die Systembenachrichtigungen erhalten.",
+        "eventsLabel": "Benachrichtigen bei",
+        "save": "Slack-Einstellungen speichern",
+        "saving": "Speichern…",
+        "saved": "Slack-Einstellungen gespeichert",
+        "saveFailed": "Slack-Einstellungen konnten nicht gespeichert werden",
+        "events": {
+          "workflowFailed": "Workflow fehlgeschlagen",
+          "workflowCompleted": "Workflow abgeschlossen",
+          "securityAlert": "Sicherheitswarnung"
+        }
+      },
+      "slackSetup": {
+        "title": "Slack-App einrichten",
+        "intro": "Erstelle deine eigene Slack-App aus dem Manifest unten und füge dann oben deine Client-ID, dein Client-Secret und dein Signing-Secret ein. Das Manifest füllt Berechtigungen, Events und URLs automatisch aus.",
+        "openSlackApps": "Slack-Apps öffnen",
+        "manifest": "App-Manifest",
+        "requestUrl": "Request-URL für Event Subscriptions",
+        "requestUrlHelp": "Trage dies als Request-URL unter „Event Subscriptions“ in deiner Slack-App ein.",
+        "redirectUrl": "OAuth-Redirect-URL",
+        "redirectUrlHelp": "Füge dies unter „OAuth & Permissions“ → „Redirect URLs“ in deiner Slack-App hinzu."
+      },
       "tabs": {
         "all": "Alle Integrationen",
         "connected": "Verbunden"
@@ -4693,6 +4721,8 @@
         "optional": "Optional",
         "clientId": "Client-ID",
         "clientSecret": "Client-Secret",
+        "signingSecret": "Signing-Secret",
+        "signingSecretHelp": "Das Signing-Secret deiner Slack-App, mit dem eingehende Events verifiziert werden. Leer lassen, um den gespeicherten Wert zu behalten.",
         "scopes": "Berechtigungen",
         "savingCredentials": "Speichern...",
         "credentialsSaved": "Zugangsdaten gespeichert",

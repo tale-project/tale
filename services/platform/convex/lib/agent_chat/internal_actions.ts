@@ -688,12 +688,25 @@ export const runAgentGeneration = internalAction({
         ),
       });
 
-      // Stream cleanup (persistent text stream + agent SDK streams) is handled
-      // by generateAgentResponse's catch block. This outer catch only ensures
-      // a failed assistant message exists for the frontend.
-
-      // Clear generation status so the UI stops showing "Thinking..."
+      // generateAgentResponse's own catch terminalizes the stream for failures
+      // raised inside it. Failures BEFORE it runs (tool building, model
+      // resolution) reach here with the stream still 'pending'/'streaming',
+      // which would leave non-streaming pollers (e.g. the Slack processor)
+      // hanging until their own timeout. Mark it errored here too — idempotent
+      // if it was already terminalized.
       if (streamId) {
+        try {
+          await ctx.runMutation(
+            internal.streaming.internal_mutations.errorStream,
+            { streamId },
+          );
+        } catch (streamError) {
+          console.error(
+            '[runAgentGeneration] Failed to error stream:',
+            streamError,
+          );
+        }
+        // Clear generation status so the UI stops showing "Thinking..."
         try {
           await ctx.runMutation(
             internal.threads.internal_mutations.clearGenerationStatus,

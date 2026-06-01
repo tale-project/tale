@@ -34,7 +34,11 @@ export function CollapsibleGuide({
       <div
         className={cn(
           markdownWrapperStyles,
-          'border-border max-w-none border-t px-3 py-2 text-xs leading-relaxed',
+          'border-border min-w-0 max-w-none border-t px-3 py-2 text-xs leading-relaxed',
+          // Never let content force a horizontal scrollbar on the panel: wrap
+          // normal prose, and break long inline-code tokens (URLs, callback
+          // paths, BASE_PATH) at any point rather than overflowing.
+          'break-words [&_code]:[overflow-wrap:anywhere] [&_code]:break-words',
         )}
       >
         <ReactMarkdown
@@ -55,6 +59,9 @@ export function CollapsibleGuide({
                 {...rest}
                 className={cn(
                   'bg-muted/60 border-border my-2 overflow-x-auto rounded-md border p-3 font-mono text-[11px] leading-relaxed',
+                  // Wrap long lines instead of overflowing the panel; whitespace
+                  // is still preserved (pre-wrap), unbreakable tokens break.
+                  'break-words whitespace-pre-wrap [overflow-wrap:anywhere]',
                   className,
                 )}
               >

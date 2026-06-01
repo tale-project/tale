@@ -36,6 +36,14 @@ Both levers are enforced at request time, not at install time — changing a lev
 
 Click the row, then **Disconnect**. A disconnected integration stops authenticating immediately; agents and workflows that depend on it surface a configuration error on the next call. The row stays in the list with a disconnected badge so the audit trail survives. Reconnecting walks the credential flow again from scratch.
 
+## Slack bot and notifications
+
+Slack is two-directional. Beyond the agent calling Slack (posting messages, reading channels), the org can let people talk to an agent from inside Slack and have system events pushed to a channel. Both are configured on the connected Slack row, and both ride the single OAuth credential — no second connection.
+
+Each org brings its own Slack app, configured entirely from the Slack row — there is nothing to set on the deployment. When you connect Slack, the row shows a **Set up your Slack app** panel with a ready-to-paste app manifest and the two URLs it references: the Event Subscriptions Request URL (`/api/integrations/slack/events`) and the OAuth redirect URL. The manifest pre-fills the bot scopes, the `app_mention` and `message.im` events, and both URLs, so creating the app at api.slack.com/apps takes a couple of clicks. Paste the app's **Client ID**, **Client Secret**, and **Signing Secret** back into the row, then authorize with OAuth. The signing secret is what verifies inbound events, so the bot stays silent until it is set; inbound messages route back to the right org by Slack workspace.
+
+On the connected Slack row an Admin picks **which agent answers Slack** (a mention in a channel or a direct message starts a threaded reply from that agent) and **which channels receive notifications**, with a per-event toggle. The shipped events are workflow failed, workflow completed, and security alerts; a Slack thread maps to one agent conversation, and the Slack author is preserved on it rather than recorded as the system.
+
 ## Integrations versus MCP servers
 
 Two surfaces let an agent reach beyond Tale. **Integrations** are the first-party, vendor-specific connectors documented here. **MCP servers** are external processes exposing the Model Context Protocol; the org registers them under **Settings > MCP servers** and approves each tool the first time it is called. Reach for an integration when one exists for the target system; reach for [MCP servers](/platform/integrations/mcp-servers) when no integration covers what you need.

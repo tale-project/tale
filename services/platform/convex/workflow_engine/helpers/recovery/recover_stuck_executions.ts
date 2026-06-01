@@ -13,6 +13,7 @@ import { internal } from '../../../_generated/api';
 import type { Doc } from '../../../_generated/dataModel';
 import type { MutationCtx } from '../../../_generated/server';
 import { STORAGE_RETENTION_MS } from '../../../workflows/executions/cleanup_execution_storage';
+import { notifyWorkflowFailedOnce } from '../../../workflows/executions/fail_execution';
 import { safeShardIndex } from '../engine/shard';
 
 const DEFAULT_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -120,15 +121,17 @@ export async function recoverStuckExecutions(
 
     if (execution.updatedAt < cutoffMs) {
       await cancelComponentWorkflow(ctx, execution, managers);
+      const timeoutError = `Execution timed out after ${timeoutMs / 60_000} minutes (stuck recovery)`;
       await ctx.db.patch(execution._id, {
         status: 'failed',
         updatedAt: Date.now(),
         metadata: JSON.stringify({
-          error: `Execution timed out after ${timeoutMs / 60_000} minutes (stuck recovery)`,
+          error: timeoutError,
           recoveredAt: Date.now(),
           previousStatus: 'running',
         }),
       });
+      await notifyWorkflowFailedOnce(ctx, execution, timeoutError);
       await scheduleStorageCleanup(ctx, execution);
       recovered++;
     }
@@ -147,15 +150,17 @@ export async function recoverStuckExecutions(
 
     if (execution.updatedAt < cutoffMs) {
       await cancelComponentWorkflow(ctx, execution, managers);
+      const timeoutError = `Execution timed out in pending state after ${timeoutMs / 60_000} minutes (stuck recovery)`;
       await ctx.db.patch(execution._id, {
         status: 'failed',
         updatedAt: Date.now(),
         metadata: JSON.stringify({
-          error: `Execution timed out in pending state after ${timeoutMs / 60_000} minutes (stuck recovery)`,
+          error: timeoutError,
           recoveredAt: Date.now(),
           previousStatus: 'pending',
         }),
       });
+      await notifyWorkflowFailedOnce(ctx, execution, timeoutError);
       await scheduleStorageCleanup(ctx, execution);
       recovered++;
     }

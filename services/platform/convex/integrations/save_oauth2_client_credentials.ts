@@ -3,6 +3,12 @@
  *
  * Encrypts the clientSecret before storing. Also persists any user-edited
  * authorizationUrl / tokenUrl / scopes overrides.
+ *
+ * `signingSecret` is Slack-only (the app's request-signing secret). When it is
+ * provided it is encrypted and stored; when omitted, any previously stored
+ * `signingSecretEncrypted` is carried forward so re-saving the client
+ * id/secret with the signing-secret field left blank does not wipe it
+ * (mirrors the "leave the client secret blank to keep it" UX).
  */
 
 import { internal } from '../_generated/api';
@@ -17,6 +23,7 @@ interface SaveOAuth2ClientCredentialsArgs {
   scopes?: string[];
   clientId: string;
   clientSecret: string;
+  signingSecret?: string;
 }
 
 export async function saveOAuth2ClientCredentials(
@@ -34,6 +41,10 @@ export async function saveOAuth2ClientCredentials(
 
   const clientSecretEncrypted = await encryptString(args.clientSecret);
 
+  const signingSecretEncrypted = args.signingSecret
+    ? await encryptString(args.signingSecret)
+    : credential.oauth2Config?.signingSecretEncrypted;
+
   await ctx.runMutation(
     internal.integrations.credential_mutations.updateCredentialsInternal,
     {
@@ -44,6 +55,7 @@ export async function saveOAuth2ClientCredentials(
         scopes: args.scopes,
         clientId: args.clientId,
         clientSecretEncrypted,
+        signingSecretEncrypted,
       },
     },
   );

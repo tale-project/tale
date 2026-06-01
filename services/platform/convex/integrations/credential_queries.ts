@@ -110,6 +110,31 @@ export const verifyCredentialAccess = internalQuery({
   },
 });
 
+/**
+ * Whether a user is a member of an org. Used by actions that authorize on an
+ * organizationId rather than a specific credential (e.g. Slack setup info,
+ * which must be available before any credential exists).
+ */
+export const verifyOrgMembership = internalQuery({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'member',
+      paginationOpts: { cursor: null, numItems: 1 },
+      where: [
+        {
+          field: 'organizationId',
+          value: args.organizationId,
+          operator: 'eq',
+        },
+        { field: 'userId', value: args.userId, operator: 'eq' },
+      ],
+    });
+    return !!result && result.page.length > 0;
+  },
+});
+
 export const listInternal = internalQuery({
   args: {
     organizationId: v.string(),
@@ -124,5 +149,27 @@ export const listInternal = internalQuery({
       credentials.push(cred);
     }
     return credentials;
+  },
+});
+
+/**
+ * Every stored Slack signing secret (encrypted), across all orgs. Used only by
+ * the inbound events endpoint for the `url_verification` handshake, whose
+ * payload carries no team_id/api_app_id and so cannot be routed to one org.
+ * Reads credentials directly: the slackInstallations routing row does not exist
+ * until OAuth completes, which is after the handshake.
+ */
+export const listSlackSigningSecrets = internalQuery({
+  args: {},
+  returns: v.array(v.string()),
+  handler: async (ctx) => {
+    const secrets: string[] = [];
+    for await (const cred of ctx.db
+      .query('integrationCredentials')
+      .withIndex('by_slug', (q) => q.eq('slug', 'slack'))) {
+      const enc = cred.oauth2Config?.signingSecretEncrypted;
+      if (enc) secrets.push(enc);
+    }
+    return secrets;
   },
 });

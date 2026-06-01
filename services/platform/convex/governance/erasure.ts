@@ -712,6 +712,9 @@ const perCategoryValidator = v.object({
     skippedByHold: v.number(),
   }),
   notifications: rowsAndHoldValidator,
+  userNotifications: rowsAndHoldValidator,
+  notificationPreferences: rowsAndHoldValidator,
+  taskSubscriptions: rowsAndHoldValidator,
   wfExecutions: rowsAndHoldValidator,
   promptTemplates: rowsAndHoldValidator,
 });
@@ -1032,6 +1035,92 @@ export const eraseSubjectUserPreferences = internalMutation({
         .query('userPreferences')
         .withIndex('by_userId_organizationId', (q) =>
           q.eq('userId', args.userId).eq('organizationId', args.organizationId),
+        );
+    const guard = await countOrSkip(
+      ctx,
+      args.organizationId,
+      args.userId,
+      iter,
+    );
+    if (guard.heldByOrgOrUser)
+      return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
+      await ctx.db.delete(row._id);
+      rows++;
+    }
+    return { rows, skippedByHold: 0 };
+  },
+});
+
+export const eraseSubjectUserNotifications = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
+  handler: async (ctx, args) => {
+    const iter = () =>
+      ctx.db
+        .query('userNotifications')
+        .withIndex('by_user_org_created', (q) =>
+          q.eq('userId', args.userId).eq('organizationId', args.organizationId),
+        );
+    const guard = await countOrSkip(
+      ctx,
+      args.organizationId,
+      args.userId,
+      iter,
+    );
+    if (guard.heldByOrgOrUser)
+      return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
+      await ctx.db.delete(row._id);
+      rows++;
+    }
+    return { rows, skippedByHold: 0 };
+  },
+});
+
+export const eraseSubjectNotificationPreferences = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
+  handler: async (ctx, args) => {
+    const iter = () =>
+      ctx.db
+        .query('notificationPreferences')
+        .withIndex('by_userId_organizationId', (q) =>
+          q.eq('userId', args.userId).eq('organizationId', args.organizationId),
+        );
+    const guard = await countOrSkip(
+      ctx,
+      args.organizationId,
+      args.userId,
+      iter,
+    );
+    if (guard.heldByOrgOrUser)
+      return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
+      await ctx.db.delete(row._id);
+      rows++;
+    }
+    return { rows, skippedByHold: 0 };
+  },
+});
+
+export const eraseSubjectTaskSubscriptions = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
+  handler: async (ctx, args) => {
+    // Only the subject's OWN subscriptions: by_subscriber is
+    // (organizationId, subscriberType, subscriberId); 'agent' rows are skipped.
+    const iter = () =>
+      ctx.db
+        .query('taskSubscriptions')
+        .withIndex('by_subscriber', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('subscriberType', 'user')
+            .eq('subscriberId', args.userId),
         );
     const guard = await countOrSkip(
       ctx,
@@ -1733,6 +1822,9 @@ export const processErasureRequest = internalAction({
         skippedByHold: 0,
       },
       notifications: { rows: 0, skippedByHold: 0 },
+      userNotifications: { rows: 0, skippedByHold: 0 },
+      notificationPreferences: { rows: 0, skippedByHold: 0 },
+      taskSubscriptions: { rows: 0, skippedByHold: 0 },
       wfExecutions: { rows: 0, skippedByHold: 0 },
       promptTemplates: { rows: 0, skippedByHold: 0 },
     };
@@ -1860,6 +1952,27 @@ export const processErasureRequest = internalAction({
       );
       perCategory.userPreferences = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectUserPreferences,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      perCategory.userNotifications = await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectUserNotifications,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      perCategory.notificationPreferences = await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectNotificationPreferences,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      perCategory.taskSubscriptions = await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectTaskSubscriptions,
         {
           organizationId: state.organizationId,
           userId: state.targetUserId,
@@ -2087,6 +2200,9 @@ interface PerCategoryCounts {
   onedrive: RowsAndHold;
   loginAttempts: LoginAttemptsCounts;
   notifications: RowsAndHold;
+  userNotifications: RowsAndHold;
+  notificationPreferences: RowsAndHold;
+  taskSubscriptions: RowsAndHold;
   wfExecutions: RowsAndHold;
   promptTemplates: RowsAndHold;
 }

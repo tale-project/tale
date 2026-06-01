@@ -16,6 +16,7 @@ import { startCase } from '@/lib/utils/string';
 
 import type { Integration } from '../../hooks/use-integration-manage';
 import { SENSITIVE_KEYS, maskValue } from '../../hooks/use-integration-manage';
+import { SlackSetupGuide } from './slack-setup-guide';
 import { TestResultFeedback } from './test-result-feedback';
 
 interface IntegrationCredentialsFormProps {
@@ -33,6 +34,7 @@ interface IntegrationCredentialsFormProps {
     tokenUrl: string;
     clientId: string;
     clientSecret: string;
+    signingSecret: string;
     scopes: string;
   };
   oauth2FieldsComplete: boolean;
@@ -90,6 +92,7 @@ export function IntegrationCredentialsForm({
 }: IntegrationCredentialsFormProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
+  const isSlack = integration.name === 'slack';
 
   return (
     <>
@@ -165,10 +168,21 @@ export function IntegrationCredentialsForm({
           </>
         )}
 
+        {isSlack &&
+          selectedAuthMethod === 'oauth2' &&
+          hasOAuth2Config &&
+          !(hasOAuth2Credentials && !isEditingOAuth2) &&
+          integration.organizationId && (
+            <SlackSetupGuide organizationId={integration.organizationId} />
+          )}
+
         {selectedAuthMethod === 'oauth2' &&
           hasOAuth2Config &&
           (hasOAuth2Credentials && !isEditingOAuth2 ? (
-            <OAuth2CredentialsSummary integration={integration} />
+            <OAuth2CredentialsSummary
+              integration={integration}
+              isSlack={isSlack}
+            />
           ) : (
             <OAuth2CredentialsEditor
               oauth2Fields={oauth2Fields}
@@ -176,6 +190,7 @@ export function IntegrationCredentialsForm({
               isEditingOAuth2={isEditingOAuth2}
               busy={busy}
               isSavingOAuth2={isSavingOAuth2}
+              isSlack={isSlack}
               onFieldChange={onOAuth2FieldChange}
               onSave={onSaveOAuth2}
               onCancelEdit={() => onEditOAuth2(false)}
@@ -315,8 +330,10 @@ function SqlConnectionSection({
 
 function OAuth2CredentialsSummary({
   integration,
+  isSlack,
 }: {
   integration: Integration;
+  isSlack: boolean;
 }) {
   const { t } = useT('settings');
 
@@ -338,6 +355,16 @@ function OAuth2CredentialsSummary({
           {'\u00d7'.repeat(8)}
         </Text>
       </HStack>
+      {isSlack && integration.oauth2Config?.signingSecretEncrypted && (
+        <HStack gap={2} className="text-muted-foreground items-center text-sm">
+          <Text as="span" variant="body-sm" className="w-20 shrink-0">
+            {t('integrations.manageDialog.signingSecret')}
+          </Text>
+          <Text as="span" variant="code">
+            {'\u00d7'.repeat(8)}
+          </Text>
+        </HStack>
+      )}
       {integration.oauth2Config?.scopes &&
         integration.oauth2Config.scopes.length > 0 && (
           <HStack gap={2} className="text-muted-foreground items-start text-sm">
@@ -359,6 +386,7 @@ function OAuth2CredentialsEditor({
   isEditingOAuth2,
   busy,
   isSavingOAuth2,
+  isSlack,
   onFieldChange,
   onSave,
   onCancelEdit,
@@ -368,12 +396,14 @@ function OAuth2CredentialsEditor({
     tokenUrl: string;
     clientId: string;
     clientSecret: string;
+    signingSecret: string;
     scopes: string;
   };
   oauth2FieldsComplete: boolean;
   isEditingOAuth2: boolean;
   busy: boolean;
   isSavingOAuth2: boolean;
+  isSlack: boolean;
   onFieldChange: (field: keyof typeof oauth2Fields, value: string) => void;
   onSave: () => void;
   onCancelEdit: () => void;
@@ -399,6 +429,18 @@ function OAuth2CredentialsEditor({
         onChange={(e) => onFieldChange('clientSecret', e.target.value)}
         disabled={busy}
       />
+      {isSlack && (
+        <Input
+          id="manage-oauth2-signing-secret"
+          label={t('integrations.manageDialog.signingSecret')}
+          type="password"
+          placeholder="••••••••"
+          description={t('integrations.manageDialog.signingSecretHelp')}
+          value={oauth2Fields.signingSecret}
+          onChange={(e) => onFieldChange('signingSecret', e.target.value)}
+          disabled={busy}
+        />
+      )}
       <Textarea
         id="manage-oauth2-scopes"
         label={t('integrations.manageDialog.scopes')}

@@ -159,7 +159,7 @@ export function McpServers({
             onClick={() => onAddDialogOpenChange(false)}
           />
         </HStack>
-        <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
           <McpServerForm
             formId="add-mcp-server"
             hideActions

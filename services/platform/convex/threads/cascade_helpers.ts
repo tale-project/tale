@@ -20,9 +20,10 @@
  *   7. chatFilterEvents (by_org_threadId_createdAt)
  *   8. artifacts + artifactRevisions (two-step lookup via by_artifact)
  *   9. agentWebhookUserThreads (by_threadId)
- *  10. sub-threads — recurse via parsed parent summary
- *  11. agent-component thread (`components.agent.threads.deleteAllForThreadIdAsync`)
- *  12. threadMetadata row (db.delete)
+ *  10. slackThreads (by_threadId) — the Slack-conversation → thread mapping
+ *  11. sub-threads — recurse via parsed parent summary
+ *  12. agent-component thread (`components.agent.threads.deleteAllForThreadIdAsync`)
+ *  13. threadMetadata row (db.delete)
  *
  * `messageMetadata.organizationId` is not yet a field (Phase 10 backfill);
  * we look it up via `threadId` which is sufficient for cascade.
@@ -453,7 +454,21 @@ export async function cascadeDeleteThreadChildren(
     return { done: false, remaining: 1 };
   }
 
-  // 9. sub-threads — schedule cascade for each. Sub-threads are themselves
+  // 9. slackThreads — the Slack-conversation → Tale-thread mapping. Removing it
+  // here prevents a dangling threadId from being reused by a later Slack message
+  // (which would resurrect an erased conversation under the same id).
+  const slackThreadsPage = await ctx.db
+    .query('slackThreads')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+    .take(PAGE_SIZE);
+  for (const row of slackThreadsPage) {
+    await ctx.db.delete(row._id);
+  }
+  if (slackThreadsPage.length === PAGE_SIZE) {
+    return { done: false, remaining: 1 };
+  }
+
+  // 10. sub-threads — schedule cascade for each. Sub-threads are themselves
   // threadMetadata rows; the cleanupOrphanedSubThreads internal mutation
   // handles them via its own scheduling logic. We trigger here (best-effort)
   // before deleting the parent so its summary is still parseable.

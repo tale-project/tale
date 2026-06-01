@@ -331,6 +331,36 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 50,
   },
+  // Inbound Slack Events API endpoint backstop. Used two ways as independent
+  // buckets (distinct key prefixes): keyed by Slack team_id for SIGNED traffic
+  // (per-workspace flood backstop — on overflow the handler ACKs 200 and drops,
+  // never 429, since a non-2xx counts toward Slack's endpoint auto-disable),
+  // and keyed by client IP for FORGED/unsigned requests (401, or 429 under
+  // flood). Signature verification authenticates signed traffic, so it is never
+  // 429'd. Intentionally generous — a flood backstop, not a per-user limit.
+  'integration:slack-events': {
+    kind: 'token bucket',
+    rate: 120,
+    period: MINUTE,
+    capacity: 240,
+    // Shard the bucket (rate/capacity split across shards, aggregate unchanged
+    // at 240 / 120-per-min) so concurrent same-key requests — a busy workspace's
+    // signed events keyed by team_id, or a forged flood keyed by IP — spread
+    // their writes across rows instead of serializing on one and tripping OCC
+    // write-conflicts. Mirrors notify:slack.
+    shards: 4,
+  },
+  // Per-org backstop on OUTBOUND system-notification posts to Slack
+  // (notifications/notify_slack). Bounds a workflow-event burst from flooding
+  // Slack and tripping Slack's own per-app limits. Token bucket gives a 60-burst
+  // headroom for a batch of near-simultaneous alerts, settling at 30/min/org.
+  'notify:slack': {
+    kind: 'token bucket',
+    rate: 30,
+    period: MINUTE,
+    capacity: 60,
+    shards: 4,
+  },
   'openai:chat': {
     kind: 'token bucket',
     rate: 30,
@@ -402,6 +432,15 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   // 90 days; older terminal rows are reclaimed here instead of via a
   // crons.ts entry (see feedback_lazy_cleanup_over_cron).
   'cleanup:sandbox': {
+    kind: 'token bucket',
+    rate: 1,
+    period: HOUR,
+    capacity: 1,
+  },
+  // Lazy cleanup of expired slackEventDedup rows. Gated from claimSlackEvent so
+  // a busy workspace sweeps at most once per hour. Token-bucket (not
+  // fixed-window) for the same minute-boundary reason as cleanup:tts.
+  'cleanup:slack-dedup': {
     kind: 'token bucket',
     rate: 1,
     period: HOUR,

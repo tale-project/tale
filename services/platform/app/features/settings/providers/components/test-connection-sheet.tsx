@@ -121,7 +121,7 @@ export function TestConnectionSheet({
         />
       </HStack>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
         {systemError ? (
           <HStack gap={2} align="start" className="text-destructive text-sm">
             <CircleAlert className="mt-0.5 size-4 shrink-0" />

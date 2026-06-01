@@ -9,6 +9,7 @@
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import type { QueryCtx } from '../_generated/server';
+import { isExternalOwnerId } from '../identities/external_identities';
 
 /**
  * Batch fetch user display names for multiple user IDs
@@ -30,6 +31,28 @@ export async function getUserNamesBatch(
     return result;
   }
 
+  // External / sentinel owners (e.g. `slack:U123`) are not Better Auth users —
+  // resolve their display name from externalIdentities and skip the adapter
+  // (which throws on non-Convex-id strings). `'system'` has no display name.
+  const externalIds = uniqueIds.filter((id) => isExternalOwnerId(id));
+  const internalIds = uniqueIds.filter((id) => !isExternalOwnerId(id));
+
+  await Promise.all(
+    externalIds.map(async (ownerId) => {
+      const identity = await ctx.db
+        .query('externalIdentities')
+        .withIndex('by_ownerId', (q) => q.eq('ownerId', ownerId))
+        .first();
+      if (identity?.displayName) {
+        result.set(ownerId, identity.displayName);
+      }
+    }),
+  );
+
+  if (internalIds.length === 0) {
+    return result;
+  }
+
   // Fetch all users in parallel batches
   // Better Auth adapter findMany doesn't support IN queries, so we need to batch individual lookups
   // But we can parallelize them for efficiency
@@ -37,7 +60,7 @@ export async function getUserNamesBatch(
   // `{field: '_id'}` lookups through `ctx.db.get(id)`, which throws on any
   // non-Convex-ID string. A single legacy row in usageLedger with a malformed
   // userId would take down the whole usage page — catch per-id and skip.
-  const userPromises = uniqueIds.map(async (userId) => {
+  const userPromises = internalIds.map(async (userId) => {
     try {
       const userRes = await ctx.runQuery(
         components.betterAuth.adapter.findMany,

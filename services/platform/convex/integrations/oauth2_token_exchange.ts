@@ -19,11 +19,32 @@ import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations OAuth2]');
 
 interface TokenResponse {
+  // Slack's Web API (incl. oauth.v2.access) returns HTTP 200 even on failure,
+  // signalling the error only via `ok:false` + `error` in the body. Standard
+  // RFC-6749 providers omit these (they 4xx instead), so the check is a no-op
+  // for them.
+  ok?: boolean;
+  error?: string;
   access_token: string;
   refresh_token?: string;
   token_type: string;
   expires_in?: number;
   scope?: string;
+  // Slack `oauth.v2.access` non-standard extras (optional; ignored by other
+  // providers). Used to route inbound Slack events back to the installing org
+  // and to drop the bot's own messages. Slack omits `expires_in` for
+  // non-rotating bot tokens, so the generic refresh path treats them as
+  // non-expiring — no special handling needed.
+  bot_user_id?: string;
+  app_id?: string;
+  team?: { id: string; name?: string };
+  enterprise?: { id: string; name?: string } | null;
+  authed_user?: {
+    id: string;
+    scope?: string;
+    access_token?: string;
+    token_type?: string;
+  };
 }
 
 export const handleOAuth2Callback = internalAction({
@@ -91,6 +112,17 @@ export const handleOAuth2Callback = internalAction({
 
     const tokens = await fetchJson<TokenResponse>(response);
 
+    // Slack-style HTTP-200 failure (and a guard for any provider that adopts the
+    // same shape). Surface the real reason instead of a generic message.
+    if (tokens.ok === false) {
+      console.error(
+        `[OAuth2 Token Exchange] provider returned ok:false (${tokens.error ?? 'unknown'}) for credential ${args.credentialId}`,
+      );
+      throw new Error(
+        `Authorization failed: ${tokens.error ?? 'unknown error'}. Please try authorizing again.`,
+      );
+    }
+
     if (!tokens.access_token) {
       console.error(
         `[OAuth2 Token Exchange] Response missing access_token for credential ${args.credentialId}`,
@@ -109,7 +141,47 @@ export const handleOAuth2Callback = internalAction({
       ? Math.floor(Date.now() / 1000) + tokens.expires_in
       : undefined;
 
-    const scopes = tokens.scope ? tokens.scope.split(' ') : undefined;
+    // Slack returns a comma-separated scope string; RFC-6749 uses spaces. Split
+    // on either so granted scopes are stored as distinct elements.
+    const scopes = tokens.scope
+      ? tokens.scope.split(/[\s,]+/).filter(Boolean)
+      : undefined;
+
+    // Slack-specific: secure workspace routing/ownership BEFORE activating the
+    // credential, so a cross-org conflict (or an unroutable enterprise-grid
+    // install) fails closed — leaving the credential inactive with no usable bot
+    // token rather than an active credential a losing org could post through.
+    if (credential.slug === 'slack') {
+      if (!tokens.team?.id) {
+        // Enterprise Grid org-wide install: `team` is null, only `enterprise` is
+        // set. Inbound routing keys on team_id, so this credential could never
+        // answer — reject loudly instead of reporting a healthy connection.
+        console.warn(
+          `[OAuth2 Token Exchange] Slack enterprise-grid/org-wide install for credential ${args.credentialId} (enterprise ${tokens.enterprise?.id ?? 'unknown'}) — no team_id; rejecting.`,
+        );
+        throw new Error(
+          'Slack Enterprise Grid org-wide installs are not yet supported. Please install the app to a specific workspace.',
+        );
+      }
+      // Throws if this workspace is already mapped to a different org — before
+      // any token is activated.
+      await ctx.runMutation(
+        internal.integrations.slack_installations.upsertInstallation,
+        {
+          teamId: tokens.team.id,
+          teamName: tokens.team.name,
+          enterpriseId: tokens.enterprise?.id,
+          organizationId: credential.organizationId,
+          slug: credential.slug,
+          botUserId: tokens.bot_user_id,
+          appId: tokens.app_id,
+          credentialId: args.credentialId,
+        },
+      );
+      debugLog(
+        `Recorded Slack installation for team ${tokens.team.id} (org ${credential.organizationId})`,
+      );
+    }
 
     await ctx.runMutation(
       internal.integrations.credential_mutations.updateCredentialsInternal,

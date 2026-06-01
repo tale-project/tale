@@ -47,8 +47,14 @@ import {
   retentionRunsTable,
   usageLedgerTable,
 } from './governance/schema';
+import { externalIdentitiesTable } from './identities/external_identities_schema';
 import { integrationCredentialsTable } from './integrations/credentials_schema';
 import { integrationsTable } from './integrations/schema';
+import {
+  slackEventDedupTable,
+  slackThreadsTable,
+} from './integrations/slack/schema';
+import { slackInstallationsTable } from './integrations/slack_installations_schema';
 import { llmResponseCacheTable } from './lib/response_cache/schema';
 import {
   loginAttemptsTable,
@@ -151,6 +157,10 @@ export default defineSchema({
   integrationCredentials: integrationCredentialsTable,
   /** @deprecated Retained for backward compatibility with existing data. Use integrationCredentials + file-based config. */
   integrations: integrationsTable,
+  slackInstallations: slackInstallationsTable,
+  slackThreads: slackThreadsTable,
+  slackEventDedup: slackEventDedupTable,
+  externalIdentities: externalIdentitiesTable,
   /** @deprecated Retained only for schema-validation compatibility on deployments with prior cache rows. Read/write code removed in 83a3c28da. */
   llmResponseCache: llmResponseCacheTable,
   loginAttempts: loginAttemptsTable,

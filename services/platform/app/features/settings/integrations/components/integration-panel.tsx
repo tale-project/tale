@@ -23,6 +23,7 @@ import { IntegrationActiveView } from './integration-manage/integration-active-v
 import { IntegrationCredentialsForm } from './integration-manage/integration-credentials-form';
 import { IntegrationIconUpload } from './integration-manage/integration-icon-upload';
 import { IntegrationUpdateSection } from './integration-manage/integration-update-section';
+import { SlackNotificationConfig } from './integration-manage/slack-notification-config';
 
 interface IntegrationPanelProps {
   open: boolean;
@@ -115,7 +116,7 @@ export function IntegrationPanel({
       title={panelTitle}
       size="md"
       hideClose
-      className="flex flex-col gap-0 p-0"
+      className="flex flex-col gap-0 overflow-y-hidden p-0"
     >
       <HStack
         justify="between"
@@ -133,7 +134,7 @@ export function IntegrationPanel({
         />
       </HStack>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
         <Stack gap={6}>
           <Stack gap={3}>
             <IntegrationIconUpload
@@ -180,19 +181,27 @@ export function IntegrationPanel({
           </Stack>
 
           {isDetailsMode ? (
-            <IntegrationActiveView
-              integration={integration}
-              isSql={manage.isSql}
-              busy={manage.busy}
-              isSavingOAuth2={manage.isSavingOAuth2}
-              isTesting={manage.isTesting}
-              hasOAuth2Config={manage.hasOAuth2Config}
-              testResult={manage.testResult}
-              editableConfigFields={manage.editableConfigFields}
-              onReauthorize={manage.handleReauthorize}
-              onTestConnection={manage.handleTestConnection}
-              onDismissTestResult={() => manage.setTestResult(null)}
-            />
+            <Stack gap={3}>
+              <IntegrationActiveView
+                integration={integration}
+                isSql={manage.isSql}
+                busy={manage.busy}
+                isSavingOAuth2={manage.isSavingOAuth2}
+                isTesting={manage.isTesting}
+                hasOAuth2Config={manage.hasOAuth2Config}
+                testResult={manage.testResult}
+                editableConfigFields={manage.editableConfigFields}
+                onReauthorize={manage.handleReauthorize}
+                onTestConnection={manage.handleTestConnection}
+                onDismissTestResult={() => manage.setTestResult(null)}
+              />
+              {integration.name === 'slack' && (
+                <SlackNotificationConfig
+                  integration={integration}
+                  organizationId={organizationId}
+                />
+              )}
+            </Stack>
           ) : (
             <IntegrationCredentialsForm
               integration={integration}
