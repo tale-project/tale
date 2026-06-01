@@ -266,6 +266,23 @@ export const vendorMappers = {
   },
 };
 
+// Accepted (lowercase) header spellings for the product columns that gate a
+// valid import. `name` mirrors the record mapper's name/title fallback.
+const PRODUCT_NAME_HEADER_ALIASES = ['name', 'title'];
+
+/**
+ * Required columns for product imports. A file whose header row is missing the
+ * product name, price, or stock column is rejected with a clear error instead
+ * of silently importing misaligned data or zero-filled defaults (see #1308).
+ * Optional columns (description, imageUrl, currency, category, status) keep
+ * their per-field defaults and are not gated here.
+ */
+export const PRODUCT_REQUIRED_COLUMNS: RequiredColumn[] = [
+  { label: 'name', aliases: PRODUCT_NAME_HEADER_ALIASES },
+  { label: 'price', aliases: ['price'] },
+  { label: 'stock', aliases: ['stock'] },
+];
+
 /**
  * Product import mapper utilities.
  * Creates products with full field support including status, stock, currency, category.
