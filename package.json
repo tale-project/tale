@@ -104,7 +104,7 @@
     "postcss": "8.5.10",
     "postcss-load-config": "6.0.1",
     "storybook": "10.3.5",
-    "turbo": "2.9.5",
+    "turbo": "2.9.14",
     "typescript": "6.0.2",
     "vite": "8.0.8",
     "vitest": "4.1.4",
