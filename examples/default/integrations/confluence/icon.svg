@@ -1,0 +1,14 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="confluence-a" x1="23" y1="19.5" x2="8.5" y2="13.3" gradientUnits="userSpaceOnUse">
+      <stop offset="0.18" stop-color="#0052CC" />
+      <stop offset="1" stop-color="#2684FF" />
+    </linearGradient>
+    <linearGradient id="confluence-b" x1="1" y1="4.5" x2="15.5" y2="10.7" gradientUnits="userSpaceOnUse">
+      <stop offset="0.18" stop-color="#0052CC" />
+      <stop offset="1" stop-color="#2684FF" />
+    </linearGradient>
+  </defs>
+  <path fill="url(#confluence-a)" d="M.87 18.26c-.25.38-.53.87-.76 1.24a.76.76 0 0 0 .25 1.04l4.97 3.06a.76.76 0 0 0 1.06-.26c.2-.33.45-.77.73-1.22 1.97-3.25 3.95-2.85 7.51-1.15l4.96 2.34a.76.76 0 0 0 1.03-.38l2.36-5.35a.76.76 0 0 0-.38-1c-1.05-.49-3.13-1.47-5-2.36C9.54 9.76 4.83 9.99.87 18.26z" />
+  <path fill="url(#confluence-b)" d="M23.13 5.74c.25-.38.53-.87.76-1.24a.76.76 0 0 0-.25-1.04L18.67.4a.76.76 0 0 0-1.06.26c-.2.33-.45.77-.73 1.22-1.97 3.25-3.95 2.85-7.51 1.15L4.42.69a.76.76 0 0 0-1.03.38L1.03 6.42a.76.76 0 0 0 .38 1c1.05.49 3.13 1.47 5 2.36 7.39 3.55 12.1 3.33 16.06-4.94z" />
+</svg>

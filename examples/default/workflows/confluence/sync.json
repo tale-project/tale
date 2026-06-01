@@ -1,0 +1,232 @@
+{
+  "name": "Confluence Sync",
+  "description": "Sync pages from a Confluence space into Tale documents and RAG. Each scheduled run lists every current page in the configured space (mirroring the page hierarchy under targetFolderPath/<spaceKey>), fetches any that are new or whose version changed, converts them to plain text, and upserts documents by page ID. This sync is additive: pages removed or archived in Confluence are NOT deleted from Tale — remove them in the Tale UI if needed. (Archiving a page in Confluence keeps its ID but hides it from the page listing, so automatic deletion would wrongly purge archived pages.)",
+  "version": "1.0.0",
+  "config": {
+    "timeout": 600000,
+    "retryPolicy": {
+      "maxRetries": 2,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "workflowId": "confluence_sync"
+    }
+  },
+  "requires": {
+    "integrations": [
+      {
+        "name": "confluence",
+        "operations": ["list_pages", "get_page"]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {
+        "inputSchema": {
+          "properties": {
+            "spaceKey": {
+              "description": "Confluence space key — the <KEY> in https://<site>.atlassian.net/wiki/spaces/<KEY>/overview (e.g. ENG), not the display name.",
+              "type": "string"
+            },
+            "label": {
+              "description": "Optional label to filter pages (CQL label). Leave empty to sync every page in the space.",
+              "type": "string"
+            },
+            "targetFolderPath": {
+              "description": "Tale documents path where synced pages land. Pages are placed under \"<targetFolderPath>/<spaceKey>\" mirroring their ancestor hierarchy. Defaults to \"Confluence\" if omitted.",
+              "type": "string"
+            }
+          },
+          "required": ["spaceKey"]
+        }
+      },
+      "nextSteps": {
+        "success": "list_pages"
+      }
+    },
+    {
+      "stepSlug": "list_pages",
+      "name": "List Confluence Pages",
+      "stepType": "action",
+      "config": {
+        "parameters": {
+          "name": "confluence",
+          "operation": "list_pages",
+          "params": {
+            "spaceKey": "{{input.spaceKey}}",
+            "label": "{{input.label}}"
+          }
+        },
+        "type": "integration"
+      },
+      "nextSteps": {
+        "success": "check_has_pages"
+      }
+    },
+    {
+      "stepSlug": "check_has_pages",
+      "name": "Skip Loop If Space Listing Is Empty",
+      "stepType": "condition",
+      "config": {
+        "expression": "(steps.list_pages.output.data.result.data.pages | length) > 0",
+        "description": "Loop steps throw on an empty items array, and the throw isn't covered by continueOnError, so an empty listing would abort the workflow. Route the empty case straight to done."
+      },
+      "nextSteps": {
+        "true": "loop_pages",
+        "false": "noop"
+      }
+    },
+    {
+      "stepSlug": "loop_pages",
+      "name": "Loop Through Pages",
+      "stepType": "loop",
+      "config": {
+        "continueOnError": true,
+        "itemVariable": "page",
+        "items": "{{steps.list_pages.output.data.result.data.pages}}"
+      },
+      "nextSteps": {
+        "done": "noop",
+        "loop": "lookup_existing"
+      }
+    },
+    {
+      "stepSlug": "lookup_existing",
+      "name": "Look Up Existing Document",
+      "stepType": "action",
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "find_by_external_id",
+          "externalItemId": "{{loop.item.id}}",
+          "folderPath": "{{(input.targetFolderPath || 'Confluence') + '/' + input.spaceKey + (loop.item.ancestorPath ? '/' + loop.item.ancestorPath : '')}}",
+          "folderPathPrefix": "{{(input.targetFolderPath || 'Confluence') + '/' + input.spaceKey}}"
+        }
+      },
+      "nextSteps": {
+        "success": "check_unchanged"
+      }
+    },
+    {
+      "stepSlug": "check_unchanged",
+      "name": "Skip If Unchanged",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.lookup_existing.output.data.exists == true && steps.lookup_existing.output.data.contentHash == (loop.item.version | string)",
+        "description": "If a document with the same page id and version already exists in the target folder, skip the fetch. A Confluence rename or edit bumps version.number, so it falls through to get_page and the upsert rewrites title + content."
+      },
+      "nextSteps": {
+        "true": "loop_pages",
+        "false": "get_page"
+      }
+    },
+    {
+      "stepSlug": "get_page",
+      "name": "Fetch Page Content",
+      "stepType": "action",
+      "config": {
+        "parameters": {
+          "name": "confluence",
+          "operation": "get_page",
+          "params": {
+            "pageId": "{{loop.item.id}}",
+            "title": "{{loop.item.title}}"
+          }
+        },
+        "type": "integration"
+      },
+      "nextSteps": {
+        "success": "create_document"
+      }
+    },
+    {
+      "stepSlug": "create_document",
+      "name": "Create or Update Document",
+      "stepType": "action",
+      "config": {
+        "parameters": {
+          "operation": "create",
+          "sourceProvider": "confluence",
+          "externalItemId": "{{loop.item.id}}",
+          "title": "{{loop.item.title}}",
+          "fileId": "{{steps.get_page.output.data.result.data.fileId}}",
+          "contentHash": "{{loop.item.version | string}}",
+          "driveId": "{{input.spaceKey}}",
+          "folderPath": "{{(input.targetFolderPath || 'Confluence') + '/' + input.spaceKey + (loop.item.ancestorPath ? '/' + loop.item.ancestorPath : '')}}",
+          "folderPathPrefix": "{{(input.targetFolderPath || 'Confluence') + '/' + input.spaceKey}}",
+          "metadata": {
+            "confluencePageId": "{{loop.item.id}}",
+            "spaceKey": "{{input.spaceKey}}",
+            "version": "{{loop.item.version}}",
+            "size": "{{steps.get_page.output.data.result.data.size}}",
+            "extension": "txt",
+            "mimeType": "text/plain",
+            "sourceModifiedAt": "{{loop.item.modifiedAt}}",
+            "ancestorPath": "{{loop.item.ancestorPath}}",
+            "webUrl": "{{loop.item.webUrl}}",
+            "syncedAt": "{{now}}"
+          }
+        },
+        "type": "document"
+      },
+      "nextSteps": {
+        "success": "check_doc_changed"
+      }
+    },
+    {
+      "stepSlug": "check_doc_changed",
+      "name": "Skip RAG If Unchanged",
+      "stepType": "condition",
+      "config": {
+        "description": "Re-index only when the page's content actually changed. A metadata-only patch (e.g. an ancestor moved) returns action='updated' with contentChanged=false and must not re-upload to RAG.",
+        "expression": "steps.create_document.output.data.contentChanged == true"
+      },
+      "nextSteps": {
+        "false": "loop_pages",
+        "true": "index_in_rag"
+      }
+    },
+    {
+      "stepSlug": "index_in_rag",
+      "name": "Index in RAG",
+      "stepType": "action",
+      "config": {
+        "parameters": {
+          "documentId": "{{steps.create_document.output.data.documentId}}",
+          "operation": "index_in_rag"
+        },
+        "type": "document"
+      },
+      "nextSteps": {
+        "success": "finalize_content_hash"
+      }
+    },
+    {
+      "stepSlug": "finalize_content_hash",
+      "name": "Commit Content Hash",
+      "stepType": "action",
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "update",
+          "fileId": "{{steps.get_page.output.data.result.data.fileId}}",
+          "contentHash": "{{loop.item.version | string}}"
+        }
+      },
+      "nextSteps": {
+        "success": "loop_pages"
+      }
+    },
+    {
+      "stepSlug": "noop",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}
