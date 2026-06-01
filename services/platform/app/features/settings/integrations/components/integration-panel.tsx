@@ -116,7 +116,7 @@ export function IntegrationPanel({
       title={panelTitle}
       size="md"
       hideClose
-      className="flex flex-col gap-0 p-0"
+      className="flex flex-col gap-0 overflow-y-hidden p-0"
     >
       <HStack
         justify="between"
@@ -134,7 +134,7 @@ export function IntegrationPanel({
         />
       </HStack>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
         <Stack gap={6}>
           <Stack gap={3}>
             <IntegrationIconUpload

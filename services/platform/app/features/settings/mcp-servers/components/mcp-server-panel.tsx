@@ -226,7 +226,7 @@ export function McpServerPanel({
           </HStack>
         </HStack>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
           {isEditing ? (
             <McpServerForm
               formId="edit-mcp-server"

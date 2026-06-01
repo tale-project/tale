@@ -116,7 +116,7 @@ export function SSOConfigDialog({
         />
       </HStack>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
         <Stack gap={4}>
           <HStack gap={3} align="center">
             <Center className="border-border size-10 rounded-md border">
