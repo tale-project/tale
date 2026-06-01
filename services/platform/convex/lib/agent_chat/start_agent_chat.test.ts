@@ -73,7 +73,7 @@ const { resolveFeatureFlags } =
   await import('../../governance/feature_enforcement');
 const mockedResolveFeatureFlags = vi.mocked(resolveFeatureFlags);
 
-const { startAgentChat } = await import('./start_agent_chat');
+const { startAgentChat, buildTitleSource } = await import('./start_agent_chat');
 
 function createMockCtx(
   threadMeta: {
@@ -311,5 +311,38 @@ describe('startAgentChat — feature flag enforcement', () => {
     await startAgentChat(createDefaultArgs(ctx));
 
     expect(ctx.scheduler.runAfter).toHaveBeenCalled();
+  });
+});
+
+// Regression test for #1468: an attachment-only message used to generate the
+// thread title from the raw attachment markdown/fileId metadata block. The
+// title source must be the user's words, or the file names when there is no
+// text — never the metadata block.
+describe('buildTitleSource (#1468)', () => {
+  it('uses the user message when present', () => {
+    expect(buildTitleSource('How do I reset my budget?', undefined)).toBe(
+      'How do I reset my budget?',
+    );
+  });
+
+  it('prefers the user message over attachment names', () => {
+    expect(
+      buildTitleSource('Summarize this', [{ fileName: 'report.md' }]),
+    ).toBe('Summarize this');
+  });
+
+  it('falls back to attachment file names for an attachment-only message', () => {
+    expect(buildTitleSource('', [{ fileName: 'report.md' }])).toBe('report.md');
+    expect(
+      buildTitleSource('   ', [
+        { fileName: 'q3.xlsx' },
+        { fileName: 'notes.md' },
+      ]),
+    ).toBe('q3.xlsx, notes.md');
+  });
+
+  it('returns an empty string when there is neither text nor attachments', () => {
+    expect(buildTitleSource('', undefined)).toBe('');
+    expect(buildTitleSource('', [])).toBe('');
   });
 });

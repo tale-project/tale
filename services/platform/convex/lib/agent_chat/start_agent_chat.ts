@@ -339,7 +339,11 @@ export async function startAgentChat(
     await ctx.scheduler.runAfter(
       0,
       internal.threads.generate_thread_title.generateThreadTitle,
-      { threadId, firstMessage: messageContent, organizationId },
+      {
+        threadId,
+        firstMessage: buildTitleSource(trimmedMessage, attachments),
+        organizationId,
+      },
     );
   }
 
@@ -422,6 +426,25 @@ export async function startAgentChat(
 /**
  * Check if a file is a text file based on type or extension.
  */
+/**
+ * Pick the text used to generate the thread title. Prefer the user's actual
+ * words; fall back to the attachment file names when the message is
+ * attachment-only — never the attachment markdown/fileId metadata block, which
+ * would otherwise become the title of an attachment-only chat (#1468).
+ */
+export function buildTitleSource(
+  trimmedMessage: string,
+  attachments: readonly Pick<FileAttachment, 'fileName'>[] | undefined,
+): string {
+  if (trimmedMessage.trim()) return trimmedMessage;
+  return (
+    attachments
+      ?.map((a) => a.fileName)
+      .filter(Boolean)
+      .join(', ') ?? ''
+  );
+}
+
 function isTextFile(attachment: FileAttachment): boolean {
   return (
     attachment.fileType.startsWith('text/plain') ||
