@@ -49,6 +49,8 @@ export function createUploadAndCreateDocDeps(
           fileName,
           contentType,
           size,
+          // Provenance is finalized by linkDocumentToFile from the document's
+          // sourceProvider ('onedrive' / 'sharepoint').
           source: 'user',
         },
       );

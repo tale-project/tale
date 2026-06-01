@@ -244,6 +244,7 @@ export const upsertDocumentByExternalId = internalMutation({
     title: v.string(),
     fileId: v.optional(v.id('_storage')),
     mimeType: v.optional(v.string()),
+    extension: v.optional(v.string()),
     sourceProvider: v.optional(v.string()),
     contentHash: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),

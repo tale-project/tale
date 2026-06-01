@@ -8,6 +8,7 @@ import { useState, useMemo } from 'react';
 
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { mimeToExtension } from '@/lib/shared/file-types';
 import { getFileExtension } from '@/lib/utils/document-helpers';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 import { isTextBasedFile } from '@/lib/utils/text-file-types';
@@ -78,16 +79,27 @@ const IMAGE_EXTENSIONS: ReadonlySet<string> = new Set([
 export interface DocumentPreviewProps {
   url: string;
   fileName?: string;
+  /** Authoritative content type, preferred over the filename suffix so that
+   * synced documents with clean, extension-less titles still route correctly. */
+  mimeType?: string;
 }
 
-export function DocumentPreview({ url, fileName }: DocumentPreviewProps) {
+export function DocumentPreview({
+  url,
+  fileName,
+  mimeType,
+}: DocumentPreviewProps) {
   const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
   const { t } = useT('documents');
 
+  // Prefer the authoritative mimeType (synced docs keep clean, extension-less
+  // titles), falling back to the filename suffix when the mime is generic.
   const extension = useMemo(() => {
+    const fromMime = mimeType ? mimeToExtension(mimeType) : undefined;
+    if (fromMime) return fromMime.toUpperCase();
     return getFileExtension(fileName || url);
-  }, [fileName, url]);
+  }, [fileName, url, mimeType]);
 
   const handleDownload = async () => {
     try {
@@ -145,7 +157,7 @@ export function DocumentPreview({ url, fileName }: DocumentPreviewProps) {
     return <DocumentPreviewImage url={url} fileName={fileName} />;
   }
 
-  if (isTextBasedFile(fileName || url)) {
+  if (isTextBasedFile(fileName || url, mimeType)) {
     return <DocumentPreviewText url={url} fileName={fileName} />;
   }
 

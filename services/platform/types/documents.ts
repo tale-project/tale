@@ -12,6 +12,10 @@ export interface DocumentItem {
   name?: string;
   type: 'file' | 'folder';
   size?: number;
+  /** Authoritative content type, e.g. 'text/plain', 'application/pdf'. */
+  mimeType?: string;
+  /** File extension without the dot, e.g. 'txt', 'pdf'. */
+  extension?: string;
   folderId?: string;
   /**
    * Source provider — integration slug for integration-sourced docs

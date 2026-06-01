@@ -2016,6 +2016,9 @@
       }
     },
     "sourceType": {
+      "confluence": "Confluence",
+      "googleDrive": "Google Drive",
+      "webDav": "WebDAV",
       "oneDrive": "OneDrive",
       "oneDriveSynced": "OneDrive (synchronisé)",
       "sharePoint": "SharePoint",
