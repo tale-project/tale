@@ -45,6 +45,7 @@ import type {
   BeforeContextResult,
   BeforeGenerateResult,
 } from '../agent_response/types';
+import { userContextValidator } from '../agent_response/validators';
 import { buildInlineMultiModalPrompt } from '../attachments/build_inline_multi_modal_prompt';
 import {
   estimateTokens,
@@ -151,12 +152,7 @@ export const runAgentGeneration = internalAction({
      */
     originalUserText: v.optional(v.string()),
     additionalContext: v.optional(v.record(v.string(), v.string())),
-    userContext: v.optional(
-      v.object({
-        timezone: v.string(),
-        language: v.string(),
-      }),
-    ),
+    userContext: v.optional(userContextValidator),
     parentThreadId: v.optional(v.string()),
     agentOptions: v.optional(v.any()),
     attachments: v.optional(

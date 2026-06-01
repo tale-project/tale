@@ -11,6 +11,7 @@ import { ConvexError, v } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
+import { userContextValidator } from '../lib/agent_response/validators';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 
 /**
@@ -57,12 +58,7 @@ export const editAndBranch = action({
     organizationId: v.string(),
     agentSlug: v.string(),
     modelId: v.optional(v.string()),
-    userContext: v.optional(
-      v.object({
-        timezone: v.string(),
-        language: v.string(),
-      }),
-    ),
+    userContext: v.optional(userContextValidator),
   },
   returns: v.object({
     branchThreadId: v.string(),

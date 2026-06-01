@@ -24,6 +24,7 @@ import {
   sanitizeMessage,
 } from '../governance/sanitize';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
+import { userContextValidator } from '../lib/agent_response/validators';
 import { readJsonFile } from '../lib/file_io';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { applyModelOverride, toSerializableConfig } from './config';
@@ -61,13 +62,7 @@ export const chatWithAgent = action({
      */
     capabilityBindings: v.optional(v.array(v.string())),
     additionalContext: v.optional(v.record(v.string(), v.string())),
-    userContext: v.optional(
-      v.object({
-        timezone: v.string(),
-        language: v.string(),
-        uiLanguage: v.optional(v.string()),
-      }),
-    ),
+    userContext: v.optional(userContextValidator),
     /**
      * Projects feature: when the chat is sent from inside a project,
      * the client passes the `projectId`. The server validates access

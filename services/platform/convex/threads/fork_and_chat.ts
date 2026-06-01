@@ -11,6 +11,7 @@ import { ConvexError, v } from 'convex/values';
 
 import { api, internal } from '../_generated/api';
 import { action } from '../_generated/server';
+import { userContextValidator } from '../lib/agent_response/validators';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 
 export const forkAndChat = action({
@@ -20,12 +21,7 @@ export const forkAndChat = action({
     agentSlug: v.string(),
     organizationId: v.string(),
     modelId: v.optional(v.string()),
-    userContext: v.optional(
-      v.object({
-        timezone: v.string(),
-        language: v.string(),
-      }),
-    ),
+    userContext: v.optional(userContextValidator),
   },
   returns: v.object({
     threadId: v.string(),
