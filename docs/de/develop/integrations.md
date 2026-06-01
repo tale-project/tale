@@ -40,6 +40,8 @@ integrations/
 
 Die Operation taucht auf Agents als Tool-Familie auf, sobald die Org Credentials hinterlegt. Die Connector-Datei ist optional — greif darauf zurück, wenn die Response-Form geflacht werden muss oder Paginierungs-Schleifen nötig sind, die das Manifest nicht ausdrücken kann.
 
+Für einen OAuth2-Connector (`"auth": { "type": "oauth2", … }`) registriere Tales Callback-URL als erlaubte Redirect-URI in der Upstream-OAuth-App, sonst scheitert der Consent-Schritt mit einem `redirect_uri`-Mismatch. Der Callback ist `${SITE_URL}/api/integrations/oauth2/callback` (mit `BASE_PATH` vorangestellt, falls gesetzt). Für lokale Entwicklung ist dieser Origin deine Dev-URL — `http://localhost:3000/api/integrations/oauth2/callback`, kein `https://`-Host.
+
 ## Wahl der Oberfläche
 
 | Oberfläche    | Greif darauf zurück, wenn                                                                                                               |
