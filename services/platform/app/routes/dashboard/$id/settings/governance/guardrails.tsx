@@ -15,7 +15,7 @@ function GuardrailsRoute() {
   const { id: organizationId } = Route.useParams();
 
   return (
-    <div className="divide-border flex flex-col divide-y">
+    <div className="divide-border flex flex-col divide-y pb-8">
       <div className="pb-7">
         <GuardrailsOverview organizationId={organizationId} />
       </div>
