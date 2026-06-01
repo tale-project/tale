@@ -103,7 +103,7 @@
         "parameters": {
           "operation": "find_by_external_id",
           "externalItemId": "{{loop.item.id}}",
-          "folderPath": "{{(input.targetFolderPath || 'Confluence') + '/' + input.spaceKey + (loop.item.ancestorPath ? '/' + loop.item.ancestorPath : '')}}",
+          "folderPath": "{{(input.targetFolderPath || 'Confluence') + '/' + input.spaceKey + (loop.item.folderSubPath ? '/' + loop.item.folderSubPath : '')}}",
           "folderPathPrefix": "{{(input.targetFolderPath || 'Confluence') + '/' + input.spaceKey}}"
         }
       },
@@ -156,7 +156,7 @@
           "fileId": "{{steps.get_page.output.data.result.data.fileId}}",
           "contentHash": "{{loop.item.version | string}}",
           "driveId": "{{input.spaceKey}}",
-          "folderPath": "{{(input.targetFolderPath || 'Confluence') + '/' + input.spaceKey + (loop.item.ancestorPath ? '/' + loop.item.ancestorPath : '')}}",
+          "folderPath": "{{(input.targetFolderPath || 'Confluence') + '/' + input.spaceKey + (loop.item.folderSubPath ? '/' + loop.item.folderSubPath : '')}}",
           "folderPathPrefix": "{{(input.targetFolderPath || 'Confluence') + '/' + input.spaceKey}}",
           "metadata": {
             "confluencePageId": "{{loop.item.id}}",

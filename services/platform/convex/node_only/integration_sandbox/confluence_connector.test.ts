@@ -143,6 +143,65 @@ describe('Confluence connector', () => {
     });
   });
 
+  it('list_pages nests a container page into its own folder (page-as-folder)', async () => {
+    const base = 'https://mysite.atlassian.net/wiki';
+    const ver = { number: 1, when: '2026-01-01T00:00:00Z' };
+    seqFetch([
+      json({
+        results: [
+          // Parent page "10" (Overview) — referenced as an ancestor by "11".
+          {
+            id: '10',
+            title: 'Overview',
+            version: ver,
+            ancestors: [],
+            space: { key: 'ENG' },
+            _links: { webui: '/spaces/ENG/pages/10' },
+          },
+          // Leaf child "11" lists Overview (id 10) as its ancestor.
+          {
+            id: '11',
+            title: 'Child',
+            version: ver,
+            ancestors: [{ id: '10', title: 'Overview' }],
+            space: { key: 'ENG' },
+            _links: { webui: '/spaces/ENG/pages/11' },
+          },
+        ],
+        _links: { base },
+      }),
+    ]);
+
+    const out = await executeIntegrationImpl({
+      code: connectorCode,
+      operation: 'list_pages',
+      params: { spaceKey: 'ENG' },
+      variables: {},
+      secrets: SECRETS,
+      allowedHosts: ALLOWED,
+      timeoutMs: 5000,
+    });
+
+    expect(out.success).toBe(true);
+    const result = out.result as {
+      data: {
+        pages: Array<{
+          id: string;
+          hasChildren: boolean;
+          folderSubPath: string;
+        }>;
+      };
+    };
+    const overview = result.data.pages.find((p) => p.id === '10');
+    const child = result.data.pages.find((p) => p.id === '11');
+    // The container page becomes a folder named after itself — its own content
+    // and its children both live under "Overview/" (no same-named sibling).
+    expect(overview?.hasChildren).toBe(true);
+    expect(overview?.folderSubPath).toBe('Overview');
+    expect(child?.hasChildren).toBe(false);
+    expect(child?.folderSubPath).toBe('Overview');
+  });
+
   it('get_page converts rendered HTML to plain text and returns the Drive-shaped envelope', async () => {
     seqFetch([
       json({

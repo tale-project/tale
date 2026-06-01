@@ -244,7 +244,7 @@ interface ConfluencePageRef {
   type?: string;
   title: string;
   version?: { number?: number; when?: string };
-  ancestors?: Array<{ title?: string }>;
+  ancestors?: Array<{ id?: string; title?: string }>;
   space?: { key?: string };
   _links?: { webui?: string };
 }
@@ -261,17 +261,31 @@ interface OutputPage {
   modifiedAt: string | undefined;
   spaceKey: string | undefined;
   ancestorPath: string;
+  hasChildren: boolean;
+  // Path under the space folder where this page's document lives. A container
+  // page (one that has children) nests into a folder named after itself, so its
+  // own content and its children share that folder — instead of the page doc
+  // colliding with a same-named sibling folder.
+  folderSubPath: string;
   webUrl: string | undefined;
 }
 
 function toOutputPage(
   r: ConfluencePageRef,
   base: string | undefined,
+  parentIds: Record<string, boolean>,
 ): OutputPage {
   const ancestors = Array.isArray(r.ancestors) ? r.ancestors : [];
   const ancestorPath = ancestors
     .map((a) => sanitizeFolderName(a && a.title ? a.title : ''))
     .join('/');
+  const hasChildren = !!(r.id && parentIds[r.id]);
+  const selfSegment = sanitizeFolderName(r.title);
+  const folderSubPath = hasChildren
+    ? ancestorPath
+      ? ancestorPath + '/' + selfSegment
+      : selfSegment
+    : ancestorPath;
   return {
     id: r.id,
     title: r.title,
@@ -279,6 +293,8 @@ function toOutputPage(
     modifiedAt: r.version ? r.version.when : undefined,
     spaceKey: r.space ? r.space.key : undefined,
     ancestorPath: ancestorPath,
+    hasChildren: hasChildren,
+    folderSubPath: folderSubPath,
     webUrl:
       base && r._links && r._links.webui ? base + r._links.webui : undefined,
   };
@@ -304,7 +320,11 @@ function listPages(
     '&expand=version,ancestors,space&limit=' +
     PAGE_LIMIT;
 
-  const pages: OutputPage[] = [];
+  // First pass: collect the raw refs (paginated). We can only decide which
+  // pages are containers once the whole set is known, so map to OutputPage in a
+  // second pass below.
+  const rawPages: ConfluencePageRef[] = [];
+  let base: string | undefined;
   let truncated = false;
   let fetched = 0;
 
@@ -314,9 +334,11 @@ function listPages(
 
     const data = response.json() as ConfluenceSearchPage;
     const results = Array.isArray(data.results) ? data.results : [];
-    const base = data._links ? data._links.base : undefined;
+    if (base === undefined && data._links) {
+      base = data._links.base;
+    }
     for (let i = 0; i < results.length; i++) {
-      pages.push(toOutputPage(results[i], base));
+      rawPages.push(results[i]);
     }
     fetched++;
 
@@ -340,6 +362,26 @@ function listPages(
     } else {
       url = auth.origin + '/wiki' + next;
     }
+  }
+
+  // A page is a container (becomes a folder) iff it is an ancestor of another
+  // page in the set.
+  const parentIds: Record<string, boolean> = {};
+  for (let i = 0; i < rawPages.length; i++) {
+    const anc = rawPages[i].ancestors;
+    if (Array.isArray(anc)) {
+      for (let j = 0; j < anc.length; j++) {
+        const a = anc[j];
+        if (a && a.id) {
+          parentIds[a.id] = true;
+        }
+      }
+    }
+  }
+
+  const pages: OutputPage[] = [];
+  for (let i = 0; i < rawPages.length; i++) {
+    pages.push(toOutputPage(rawPages[i], base, parentIds));
   }
 
   console.log(
