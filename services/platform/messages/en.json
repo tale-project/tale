@@ -1918,6 +1918,7 @@
       "filesCompletedSummary": "{completed} of {total} files completed",
       "filesCompletedWithFailures": "{completed} of {total} files completed · {failed} failed",
       "selectTeams": "Assign to teams",
+      "teamLockedToFolder": "Files uploaded here are assigned to this folder’s team.",
       "selectTeamsDescription": "Choose which team the uploaded documents belong to",
       "noTeamsAvailable": "You are not a member of any teams",
       "allMembersHint": "Organization-wide documents are accessible to everyone in the organization.",

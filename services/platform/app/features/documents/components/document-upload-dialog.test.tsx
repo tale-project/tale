@@ -47,6 +47,12 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: mockTeams, isLoading: false }),
 }));
 
+// Destination folder lookup (#1469). Default: no folder / no team binding.
+let mockFolderData: { teamId?: string } | undefined = undefined;
+vi.mock('../hooks/queries', () => ({
+  useFolder: () => ({ data: mockFolderData }),
+}));
+
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useUploadPolicy: () => ({
     maxFileSize: 10 * 1024 * 1024,
@@ -107,6 +113,7 @@ import { DocumentUploadDialog } from './document-upload-dialog';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockFolderData = undefined;
   mockHookState = {
     isUploading: false,
     trackedFiles: [],
@@ -143,6 +150,22 @@ describe('DocumentUploadDialog', () => {
       screen.getByText('documents.upload.selectTeams'),
     ).toBeInTheDocument();
     expect(screen.getByText('documents.teamTags.orgWide')).toBeInTheDocument();
+  });
+
+  // Regression test for #1469: uploading into a team-scoped folder must lock
+  // the team selection to that folder's team (the create mutation forces it),
+  // instead of presenting a freely-editable selector.
+  it('locks the team selection to the folder team when uploading into a team folder', () => {
+    mockFolderData = { teamId: 'team-1' };
+    render(<DocumentUploadDialog {...defaultProps} folderId="folder-1" />);
+
+    // The folder's team (Sales) is pre-selected and the inheritance hint shows.
+    expect(screen.getByText('Sales')).toBeInTheDocument();
+    expect(
+      screen.getByText('documents.upload.teamLockedToFolder'),
+    ).toBeInTheDocument();
+    // No hint / free selection for an org-wide folder is covered by the
+    // default-props test above (mockFolderData undefined).
   });
 
   it('renders drop zone description with file types', () => {

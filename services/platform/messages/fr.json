@@ -1919,6 +1919,7 @@
       "filesCompletedSummary": "{completed} sur {total} fichiers terminés",
       "filesCompletedWithFailures": "{completed} sur {total} fichiers terminés · {failed} échoués",
       "selectTeams": "Assigner aux équipes",
+      "teamLockedToFolder": "Les fichiers téléversés ici sont assignés à l'équipe de ce dossier.",
       "selectTeamsDescription": "Choisis à quelle équipe les documents téléversés appartiennent",
       "noTeamsAvailable": "Tu n'es membre d'aucune équipe",
       "allMembersHint": "Les documents accessibles à toute l'organisation sont disponibles pour tous les membres de l'organisation.",

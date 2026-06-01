@@ -1918,6 +1918,7 @@
       "filesCompletedSummary": "{completed} von {total} Dateien abgeschlossen",
       "filesCompletedWithFailures": "{completed} von {total} Dateien abgeschlossen - {failed} fehlgeschlagen",
       "selectTeams": "Teams zuweisen",
+      "teamLockedToFolder": "Hier hochgeladene Dateien werden dem Team dieses Ordners zugewiesen.",
       "selectTeamsDescription": "Wähle, welchem Team die hochgeladenen Dokumente zugeordnet werden",
       "noTeamsAvailable": "Du bist kein Mitglied eines Teams",
       "allMembersHint": "Organisationsweite Dokumente sind für alle in der Organisation zugänglich.",
