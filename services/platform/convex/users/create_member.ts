@@ -2,6 +2,8 @@
  * Create member - Business logic
  */
 
+import { ConvexError } from 'convex/values';
+
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
@@ -147,9 +149,14 @@ export async function createMember(
     };
   }
 
-  // User doesn't exist — create a new account
+  // User doesn't exist — create a new account. Surface a structured code so
+  // the add-member dialog can show a field-level error on the password input
+  // instead of a generic "failed" toast (#1470).
   if (!args.password) {
-    throw new Error('Password is required when creating a new user');
+    throw new ConvexError({
+      code: 'PASSWORD_REQUIRED',
+      message: 'Password is required when creating a new user',
+    });
   }
 
   const auth = createAuth(ctx);

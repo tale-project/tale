@@ -1,9 +1,14 @@
-import { describe, it, vi } from 'vitest';
+import { ConvexError } from 'convex/values';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
-import { render } from '@/test/utils/render';
+import { render, screen, waitFor } from '@/test/utils/render';
 
 import { AddMemberDialog } from './member-add-dialog';
+
+const { createMemberMock } = vi.hoisted(() => ({
+  createMemberMock: vi.fn(),
+}));
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
@@ -14,7 +19,7 @@ vi.mock('@/app/hooks/use-toast', () => ({
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useCreateMember: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCreateMember: () => ({ mutateAsync: createMemberMock, isPending: false }),
 }));
 
 vi.mock('@/app/features/settings/governance/hooks/queries', async () => {
@@ -47,6 +52,43 @@ describe('AddMemberDialog', () => {
         />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  // Regression test for #1470: creating a new user without a password failed
+  // with a generic toast. The backend now returns a PASSWORD_REQUIRED code and
+  // the dialog shows a field-level error on the password input.
+  describe('missing password for a new user (#1470)', () => {
+    it('shows a password field error when the backend requires a password', async () => {
+      createMemberMock.mockRejectedValueOnce(
+        new ConvexError({
+          code: 'PASSWORD_REQUIRED',
+          message: 'Password is required when creating a new user',
+        }),
+      );
+
+      const { user } = render(
+        <AddMemberDialog
+          organizationId="org-1"
+          open={true}
+          onOpenChange={vi.fn()}
+        />,
+      );
+
+      const email = document.querySelector(
+        'input[name="email"]',
+      ) as HTMLInputElement;
+      await user.type(email, 'new.user@example.com');
+
+      const submit = document.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+
+      // The specific error is surfaced on the field, not as a generic toast.
+      await screen.findByText('Password is required to create a new user');
+      expect(createMemberMock).toHaveBeenCalledTimes(1);
     });
   });
 });
