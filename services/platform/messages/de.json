@@ -5648,6 +5648,7 @@
     "importForm": {
       "manualEntry": "Manuelle Eingabe",
       "upload": "Upload",
+      "formatHint": "Format: E-Mail, Name (optional), Sprache (optional). Ein Lieferant pro Zeile.",
       "localeHint": "Sprache kann ein beliebiger BCP 47-Tag sein (z. B. en, en-US, de-DE, zh-Hans).",
       "expectedColumns": "Erwartete Spalten: email, name, locale"
     },

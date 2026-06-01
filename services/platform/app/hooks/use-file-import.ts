@@ -6,6 +6,7 @@ import {
   parseImportFile,
   parseCSVWithMapper,
   type FileParseResult,
+  type RequiredColumn,
 } from '@/lib/utils/file-parsing';
 
 export interface UseFileImportOptions<T> {
@@ -13,6 +14,12 @@ export interface UseFileImportOptions<T> {
   csvMapper: (row: string[], index: number) => T | null;
   /** Function to map Excel records to objects */
   excelMapper: (record: Record<string, unknown>) => T | null;
+  /**
+   * Columns the uploaded file's header row must contain. When provided, a
+   * file/CSV whose headers are missing a required column fails with a clear
+   * error rather than silently dropping rows.
+   */
+  requiredColumns?: RequiredColumn[];
 }
 
 export interface UseFileImportReturn<T> {
@@ -55,6 +62,7 @@ export interface UseFileImportReturn<T> {
 export function useFileImport<T>({
   csvMapper,
   excelMapper,
+  requiredColumns,
 }: UseFileImportOptions<T>): UseFileImportReturn<T> {
   const [isParsing, setIsParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +73,9 @@ export function useFileImport<T>({
       setError(null);
 
       try {
-        const result = await parseImportFile(file, csvMapper, excelMapper);
+        const result = await parseImportFile(file, csvMapper, excelMapper, {
+          requiredColumns,
+        });
 
         if (result.errors.length > 0 && result.data.length === 0) {
           setError(result.errors[0]);
@@ -81,7 +91,7 @@ export function useFileImport<T>({
         setIsParsing(false);
       }
     },
-    [csvMapper, excelMapper],
+    [csvMapper, excelMapper, requiredColumns],
   );
 
   const parseCSV = useCallback(
@@ -134,6 +144,52 @@ function getNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+// Accepted (lowercase) header spellings for contact imports. Headers are
+// already lowercased/trimmed by the parser, so a file with "Email Address"
+// or "Company" maps correctly instead of silently dropping the field.
+const EMAIL_HEADER_ALIASES = [
+  'email',
+  'e-mail',
+  'emailaddress',
+  'email address',
+  'e-mail address',
+  'mail',
+];
+const NAME_HEADER_ALIASES = [
+  'name',
+  'full name',
+  'fullname',
+  'display name',
+  'contact',
+  'contact name',
+  'company',
+  'company name',
+  'vendor name',
+  'customer name',
+];
+const LOCALE_HEADER_ALIASES = ['locale', 'language', 'lang'];
+
+/** Return the first non-empty value among the given header aliases. */
+function pickField(
+  record: Record<string, unknown>,
+  aliases: string[],
+): string | undefined {
+  for (const alias of aliases) {
+    const value = getString(record[alias]);
+    if (value) return value;
+  }
+  return undefined;
+}
+
+/**
+ * Required columns for customer/vendor imports. Email is the only hard
+ * requirement; a file whose header row has no email-like column is rejected
+ * with a clear error instead of importing partial/empty data.
+ */
+export const CONTACT_REQUIRED_COLUMNS: RequiredColumn[] = [
+  { label: 'email', aliases: EMAIL_HEADER_ALIASES },
+];
+
 /**
  * Customer import mapper utilities.
  */
@@ -160,13 +216,13 @@ export const customerMappers = {
     };
   },
   excel: (record: Record<string, unknown>) => {
-    const email = getString(record.email);
+    const email = pickField(record, EMAIL_HEADER_ALIASES);
     if (!email) return null;
 
     return {
       email,
-      name: getString(record.name) || undefined,
-      locale: getString(record.locale) || 'en',
+      name: pickField(record, NAME_HEADER_ALIASES),
+      locale: pickField(record, LOCALE_HEADER_ALIASES) || 'en',
       status: 'active' as const,
       source: 'file_upload' as const,
     };
@@ -198,13 +254,13 @@ export const vendorMappers = {
     };
   },
   excel: (record: Record<string, unknown>) => {
-    const email = getString(record.email);
+    const email = pickField(record, EMAIL_HEADER_ALIASES);
     if (!email) return null;
 
     return {
       email,
-      name: getString(record.name) || undefined,
-      locale: getString(record.locale) || 'en',
+      name: pickField(record, NAME_HEADER_ALIASES),
+      locale: pickField(record, LOCALE_HEADER_ALIASES) || 'en',
       source: 'file_upload' as const,
     };
   },

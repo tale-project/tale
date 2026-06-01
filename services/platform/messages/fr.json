@@ -5649,6 +5649,7 @@
     "importForm": {
       "manualEntry": "Saisie manuelle",
       "upload": "Téléversement",
+      "formatHint": "Format : email, nom (optionnel), locale (optionnel). Un fournisseur par ligne.",
       "localeHint": "La locale peut être n'importe quelle balise BCP 47 valide (ex. en, en-US, de-DE, zh-Hans).",
       "expectedColumns": "Colonnes attendues : email, name, locale"
     },

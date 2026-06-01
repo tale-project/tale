@@ -120,6 +120,31 @@ describe('vendorMappers.excel', () => {
     const result = vendorMappers.excel({ name: 'Acme Corp' });
     expect(result).toBeNull();
   });
+
+  // Regression test for #1323: a vendor file whose columns are named
+  // differently ("Email Address", "Company", "Language") must still map
+  // every field instead of silently dropping the name/locale.
+  it('maps aliased header columns (email address / company / language)', () => {
+    const result = vendorMappers.excel({
+      'email address': 'vendor@example.com',
+      company: 'Acme Corp',
+      language: 'de',
+    });
+    expect(result).toEqual({
+      email: 'vendor@example.com',
+      name: 'Acme Corp',
+      locale: 'de',
+      source: 'file_upload',
+    });
+  });
+
+  it('maps "vendor name" alias to name', () => {
+    const result = vendorMappers.excel({
+      email: 'vendor@example.com',
+      'vendor name': 'Beta LLC',
+    });
+    expect(result).toMatchObject({ name: 'Beta LLC' });
+  });
 });
 
 describe('customerMappers.excel', () => {
@@ -152,6 +177,22 @@ describe('customerMappers.excel', () => {
   it('returns null when email is missing', () => {
     const result = customerMappers.excel({ name: 'John Doe' });
     expect(result).toBeNull();
+  });
+
+  // Regression test for #1312: aliased header columns must still map.
+  it('maps aliased header columns (e-mail / full name / lang)', () => {
+    const result = customerMappers.excel({
+      'e-mail': 'user@example.com',
+      'full name': 'John Doe',
+      lang: 'fr',
+    });
+    expect(result).toEqual({
+      email: 'user@example.com',
+      name: 'John Doe',
+      locale: 'fr',
+      status: 'active',
+      source: 'file_upload',
+    });
   });
 });
 

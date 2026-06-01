@@ -6,7 +6,11 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { useFileImport, vendorMappers } from '@/app/hooks/use-file-import';
+import {
+  CONTACT_REQUIRED_COLUMNS,
+  useFileImport,
+  vendorMappers,
+} from '@/app/hooks/use-file-import';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -50,6 +54,7 @@ export function ImportVendorsDialog({
   const { parseFile, parseCSV } = useFileImport<ParsedVendor>({
     csvMapper: vendorMappers.csv,
     excelMapper: vendorMappers.excel,
+    requiredColumns: CONTACT_REQUIRED_COLUMNS,
   });
 
   // Create Zod schema with translated validation messages
@@ -120,14 +125,17 @@ export function ImportVendorsDialog({
     async (values: FormValues) => {
       try {
         let vendors: ParsedVendor[] = [];
+        let parseErrors: string[] = [];
 
         // Handle different data sources using shared utilities
         if (values.dataSource === 'manual_import' && values.vendors) {
           const result = parseCSV(values.vendors);
           vendors = result.data;
+          parseErrors = result.errors;
         } else if (values.dataSource === 'file_upload' && values.file) {
           const result = await parseFile(values.file);
           vendors = result.data;
+          parseErrors = result.errors;
         } else {
           toast({
             title: t('import.provideData'),
@@ -139,6 +147,9 @@ export function ImportVendorsDialog({
         if (vendors.length === 0) {
           toast({
             title: t('noValidData'),
+            // Surface the specific parse failure (e.g. a missing required
+            // column) instead of a generic message, so the user can fix it.
+            description: parseErrors[0],
             variant: 'destructive',
           });
           return;

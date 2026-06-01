@@ -6,7 +6,11 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { useFileImport, customerMappers } from '@/app/hooks/use-file-import';
+import {
+  CONTACT_REQUIRED_COLUMNS,
+  customerMappers,
+  useFileImport,
+} from '@/app/hooks/use-file-import';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -52,6 +56,7 @@ export function ImportCustomersDialog({
   const { parseFile, parseCSV } = useFileImport<ParsedCustomer>({
     csvMapper: customerMappers.csv,
     excelMapper: customerMappers.excel,
+    requiredColumns: CONTACT_REQUIRED_COLUMNS,
   });
 
   // Create Zod schema with translated validation messages
@@ -122,6 +127,7 @@ export function ImportCustomersDialog({
     async (values: FormValues) => {
       try {
         let customers: ParsedCustomer[] = [];
+        let parseErrors: string[] = [];
 
         // Handle different data sources
         if (values.dataSource === 'circuly') {
@@ -134,9 +140,11 @@ export function ImportCustomersDialog({
         } else if (values.dataSource === 'manual_import' && values.customers) {
           const result = parseCSV(values.customers);
           customers = result.data;
+          parseErrors = result.errors;
         } else if (values.dataSource === 'file_upload' && values.file) {
           const result = await parseFile(values.file);
           customers = result.data;
+          parseErrors = result.errors;
         } else {
           toast({
             title: tCustomers('import.provideData'),
@@ -148,6 +156,9 @@ export function ImportCustomersDialog({
         if (customers.length === 0) {
           toast({
             title: tCustomers('import.noValidData'),
+            // Surface the specific parse failure (e.g. a missing required
+            // column) instead of a generic message, so the user can fix it.
+            description: parseErrors[0],
             variant: 'destructive',
           });
           return;
