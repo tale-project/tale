@@ -3938,7 +3938,9 @@
       "searchPlaceholder": "Rechercher des prompts...",
       "loading": "Chargement des prompts...",
       "loadMore": "Charger plus",
-      "loadingMore": "Chargement..."
+      "loadingMore": "Chargement...",
+      "teamContextLabel": "Équipe",
+      "noTeamsHint": "Tu ne fais encore partie d'aucune équipe. Demande à une administratrice de t'ajouter pour utiliser les prompts d'équipe."
     },
     "emptyState": {
       "title": "Aucun prompt pour le moment",

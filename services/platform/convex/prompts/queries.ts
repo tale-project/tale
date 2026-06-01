@@ -90,6 +90,9 @@ export const listPrompts = queryWithRLS({
   args: {
     organizationId: v.string(),
     scope: v.optional(promptScopeValidator),
+    /** Restrict team-scope results to a single team (the active team context
+     * in the Prompt Library "Team" tab). Ignored for other scopes. */
+    teamId: v.optional(v.string()),
     search: v.optional(v.string()),
     /**
      * Legacy string-based facet filter. Kept for backward compatibility
@@ -154,8 +157,12 @@ export const listPrompts = queryWithRLS({
         .order('desc')
         .paginate(paginationOpts);
       // Team membership filter can't be expressed in the index — must
-      // post-filter. Acceptable: team prompt counts are bounded.
-      postFilter = (p) => isActivePrompt(p) && hasTeamAccess(p, userTeamIds);
+      // post-filter. Acceptable: team prompt counts are bounded. When a
+      // specific team is requested, narrow to it too.
+      postFilter = (p) =>
+        isActivePrompt(p) &&
+        hasTeamAccess(p, userTeamIds) &&
+        (!args.teamId || p.teamId === args.teamId);
     } else if (args.scope === 'global') {
       result = await ctx.db
         .query('promptTemplates')

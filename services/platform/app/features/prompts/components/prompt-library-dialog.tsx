@@ -10,6 +10,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Input } from '@/app/components/ui/forms/input';
+import { Select } from '@/app/components/ui/forms/select';
+import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useDebounce } from '@/app/hooks/use-debounce';
@@ -60,6 +62,18 @@ function PromptLibraryDialogContent({
 
   const [activeTab, setActiveTab] = useState<TabValue>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const { teams } = useTeams();
+  const [selectedTeamId, setSelectedTeamId] = useState<string | undefined>(
+    undefined,
+  );
+
+  // Give the "Team" tab a default team context: select the user's first team
+  // once teams load, so the tab doesn't open with no active team (#1465).
+  useEffect(() => {
+    if (!selectedTeamId && teams && teams.length > 0) {
+      setSelectedTeamId(teams[0].id);
+    }
+  }, [teams, selectedTeamId]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<
     Id<'promptCategories'>[]
   >([]);
@@ -85,6 +99,7 @@ function PromptLibraryDialogContent({
   const { prompts, isLoading, canLoadMore, isLoadingMore, loadMore } =
     usePrompts(organizationId ?? '', {
       scope: scopeArg,
+      teamId: selectedTeamId,
       search: debouncedSearch || undefined,
       categoryIds: selectedCategoryIds,
       categories: selectedLegacyCategories,
@@ -323,6 +338,23 @@ function PromptLibraryDialogContent({
               </Button>
             }
           />
+
+          {activeTab === 'team' &&
+            (teams && teams.length > 0 ? (
+              <Select
+                value={selectedTeamId ?? ''}
+                onValueChange={setSelectedTeamId}
+                aria-label={t('library.teamContextLabel')}
+                options={teams.map((team) => ({
+                  value: team.id,
+                  label: team.name,
+                }))}
+              />
+            ) : (
+              <Text variant="caption" className="text-muted-foreground">
+                {t('library.noTeamsHint')}
+              </Text>
+            ))}
 
           <HStack gap={2} align="center">
             <div className="relative flex-1">

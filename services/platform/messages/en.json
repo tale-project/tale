@@ -3937,7 +3937,9 @@
       "searchPlaceholder": "Search prompts...",
       "loading": "Loading prompts...",
       "loadMore": "Load more",
-      "loadingMore": "Loading..."
+      "loadingMore": "Loading...",
+      "teamContextLabel": "Team",
+      "noTeamsHint": "You're not a member of any team yet. Ask an admin to add you to one to use team prompts."
     },
     "emptyState": {
       "title": "No prompts yet",
