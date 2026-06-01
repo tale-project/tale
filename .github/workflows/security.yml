@@ -47,7 +47,9 @@ concurrency:
 jobs:
   # ---------------------------------------------------------------------------
   # Audit JS dependencies for known advisories.
-  # Non-blocking: we upload findings, we don't fail the build on them.
+  # Blocking on HIGH/CRITICAL: the build fails when a production dependency has
+  # a known advisory at or above HIGH. Lower-severity advisories are printed in
+  # the summary but do not fail the build.
   # ---------------------------------------------------------------------------
   bun-audit:
     name: Bun audit
@@ -67,8 +69,11 @@ jobs:
           bun-version: '1.3.12'
 
       - name: Run bun audit
-        continue-on-error: true
-        run: bun audit --prod | tee bun-audit.txt
+        # pipefail so tee does not mask a non-zero exit from bun audit.
+        # --audit-level=high fails only on HIGH/CRITICAL advisories.
+        run: |
+          set -o pipefail
+          bun audit --prod --audit-level=high | tee bun-audit.txt
 
       - name: Summary
         if: always()
@@ -80,7 +85,10 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Scan source tree for known CVEs in dependencies + misconfigurations + secrets.
-  # Uploads SARIF to GitHub Security so findings surface in the code-scanning tab.
+  # Uploads SARIF to GitHub Security (all scanners, informational), then a
+  # vuln-only gate fails the build on FIXABLE high/critical dependency CVEs.
+  # Secret/misconfig findings stay informational (SARIF) to avoid blocking on
+  # scanner noise; the hard gate is dependency CVEs.
   # ---------------------------------------------------------------------------
   trivy-fs:
     name: Trivy filesystem scan
@@ -120,6 +128,23 @@ jobs:
         with:
           sarif_file: 'trivy-fs.sarif'
           category: 'trivy-fs'
+
+      # Blocking gate: fail the build on FIXABLE high/critical dependency
+      # vulnerabilities. Runs vuln-only (secret/misconfig stay informational via
+      # the SARIF upload above) and honours the same path-scoped ignore file, so
+      # a real, patchable CVE cannot merge silently.
+      - name: Trivy vulnerability gate (HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+          scanners: 'vuln'
+          ignore-unfixed: true
+          trivyignores: '.trivyignore.yaml'
+          skip-files: 'tools/plop/templates/**/Dockerfile.hbs'
 
       - name: Summary
         if: always()

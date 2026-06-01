@@ -13,6 +13,14 @@
   "prHourlyLimit": 2,
   "schedule": ["before 9am on monday"],
   "timezone": "Europe/Zurich",
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "minimumReleaseAge": null,
+    "schedule": [],
+    "prCreation": "immediate",
+    "labels": ["dependencies", "security"]
+  },
+  "osvVulnerabilityAlerts": true,
   "packageRules": [
     {
       "description": "Patch updates: 30 day stabilization, grouped",
