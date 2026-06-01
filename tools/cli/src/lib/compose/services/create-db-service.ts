@@ -14,15 +14,24 @@ export function createDbService(config: ServiceConfig): ComposeService {
     ],
     env_file: ['.env'],
     restart: 'unless-stopped',
+    // Gate dependents on BOTH PostgreSQL accepting connections AND the
+    // post-start init scripts finishing (they create `tale_knowledge` +
+    // extensions and run migrations in the background, so `pg_isready` alone
+    // races init on a fresh volume / slow disk). The tale-db image touches
+    // `/tmp/.db_ready` once init completes (services/db/docker-entrypoint.sh).
+    // Without the marker + a long enough start_period, the first cold boot
+    // could flip the db `unhealthy` and abort `docker compose up` with
+    // "dependency failed to start: container ...-db is unhealthy" (#1411).
+    // Keep this in lockstep with the canonical compose.yml db healthcheck.
     healthcheck: {
       test: [
         'CMD-SHELL',
-        'pg_isready -U ${POSTGRES_USER:-tale} -d ${POSTGRES_DB:-tale}',
+        'pg_isready -U ${POSTGRES_USER:-tale} -d ${POSTGRES_DB:-tale} && [ -f /tmp/.db_ready ]',
       ],
-      interval: '30s',
+      interval: '5s',
       timeout: '10s',
       retries: 3,
-      start_period: '60s',
+      start_period: '120s',
     },
     logging: DEFAULT_LOGGING,
     networks: ['internal'],
