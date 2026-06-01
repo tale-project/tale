@@ -27,6 +27,7 @@ import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
+import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
 
@@ -238,6 +239,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
   const { t: tAuth } = useT('auth');
   const { t: tToast } = useT('toast');
   const { mutateAsync: updatePassword } = useUpdatePassword();
+  const { signOut } = useAuth();
   const { toast } = useToast();
   const organizationId = useOrganizationId();
   const policy = usePasswordPolicy(organizationId);
@@ -297,20 +299,28 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
         currentPassword: data.currentPassword,
         newPassword: data.newPassword,
       });
-
-      toast({
-        title: tToast('success.passwordChanged'),
-        variant: 'success',
-      });
-
-      reset();
-      onOpenChange(false);
     } catch {
       toast({
         title: tToast('error.passwordChangeFailed'),
         variant: 'destructive',
       });
+      return;
     }
+
+    // Changing the password revokes/rotates the user's sessions server-side,
+    // so the current client token is now stale — every subsequent query would
+    // fail with "Unauthenticated" and a manual refresh would bounce the user to
+    // login mid-action (#1255). Sign the user out and hard-navigate to login so
+    // they re-authenticate with the new password. Hard navigation (not the
+    // router) avoids the stale-auth query race documented in the sign-out flow.
+    reset();
+    onOpenChange(false);
+    try {
+      await signOut();
+    } catch (error) {
+      console.warn('Sign-out after password change failed', error);
+    }
+    window.location.href = getEnv('BASE_PATH') || '/';
   };
 
   const handleOpenChange = (isOpen: boolean) => {
