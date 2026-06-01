@@ -3,6 +3,7 @@
  * a trusted-headers user, including account switching semantics.
  */
 
+import { sessionExpiryMs } from '../../../lib/shared/session-idle';
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
@@ -82,7 +83,7 @@ export async function createSessionForTrustedUser(
           input: {
             model: 'session',
             update: {
-              expiresAt: now + 24 * 60 * 60 * 1000,
+              expiresAt: sessionExpiryMs(now, 24 * 60 * 60 * 1000),
               updatedAt: now,
               trustedRole: args.trustedRole ?? null,
               trustedTeams: args.trustedTeams ?? null,
@@ -138,7 +139,7 @@ export async function createSessionForTrustedUser(
         input: {
           model: 'session',
           update: {
-            expiresAt: now + 24 * 60 * 60 * 1000,
+            expiresAt: sessionExpiryMs(now, 24 * 60 * 60 * 1000),
             updatedAt: now,
             trustedRole: args.trustedRole ?? null,
             trustedTeams: args.trustedTeams ?? null,
@@ -163,7 +164,7 @@ export async function createSessionForTrustedUser(
   // No valid session found - create a new one
   // Use Web Crypto API instead of Node's `crypto` module so this runs in Convex's V8 runtime.
   const sessionToken = globalThis.crypto.randomUUID();
-  const expiresAt = now + 24 * 60 * 60 * 1000;
+  const expiresAt = sessionExpiryMs(now, 24 * 60 * 60 * 1000);
 
   await ctx.runMutation(components.betterAuth.adapter.create, {
     input: {
