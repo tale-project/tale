@@ -54,6 +54,7 @@
               "label": "observability",
               "pages": [
                 "self-hosted/operate/observability/operations",
+                "self-hosted/operate/observability/prometheus-grafana",
                 "self-hosted/operate/observability/troubleshooting"
               ]
             },

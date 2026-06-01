@@ -956,6 +956,14 @@
       "description": "Symptomorientierter Index für die Probleme, die Operator auf Tale-Instanzen tatsächlich getroffen haben — was der Benutzer meldet, was kaputt ist und was zu tun ist."
     }
   },
+  "de:self-hosted/operate/observability/prometheus-grafana": {
+    "slug": "self-hosted/operate/observability/prometheus-grafana",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Prometheus und Grafana",
+      "description": "Ein Copy-paste-Stack aus Prometheus und Grafana, der Tales vier Metrics-Endpoints scrapt — plus ein Starter-Dashboard und eine erste Alert-Regel."
+    }
+  },
   "de:self-hosted/operate/release-notes/format": {
     "slug": "self-hosted/operate/release-notes/format",
     "locale": "de",
@@ -1956,6 +1964,14 @@
       "description": "Index par symptôme pour les problèmes que les opérateurs ont réellement rencontrés sur des instances Tale — ce que l'utilisateur rapporte, ce qui est cassé et quoi faire à ce sujet."
     }
   },
+  "fr:self-hosted/operate/observability/prometheus-grafana": {
+    "slug": "self-hosted/operate/observability/prometheus-grafana",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Prometheus et Grafana",
+      "description": "Un stack Prometheus et Grafana en copier-coller qui scrape les quatre endpoints de métriques de Tale, plus un tableau de bord de départ et une première règle d'alerte."
+    }
+  },
   "fr:self-hosted/operate/release-notes/format": {
     "slug": "self-hosted/operate/release-notes/format",
     "locale": "fr",
@@ -2954,6 +2970,14 @@
     "frontmatter": {
       "title": "Troubleshooting",
       "description": "Symptom-first index for the issues operators have actually hit on Tale instances — what the user reports, what is broken, and what to do about it."
+    }
+  },
+  "en:self-hosted/operate/observability/prometheus-grafana": {
+    "slug": "self-hosted/operate/observability/prometheus-grafana",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Prometheus and Grafana",
+      "description": "A copy-paste Prometheus and Grafana stack that scrapes Tale's four metrics endpoints, plus a starter dashboard and a first alert rule."
     }
   },
   "en:self-hosted/operate/release-notes/format": {
