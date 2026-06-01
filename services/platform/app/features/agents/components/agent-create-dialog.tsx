@@ -119,9 +119,12 @@ export function CreateAgentDialog({
     handleSubmit,
     reset,
     setError,
-    formState: { isSubmitting, errors },
+    formState: { isSubmitting, errors, isValid },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    // Validate on change so the Continue button can gate on validity
+    // (required fields filled) instead of only after a submit attempt.
+    mode: 'onChange',
     defaultValues: {
       name: '',
       displayName: '',
@@ -198,6 +201,7 @@ export function CreateAgentDialog({
       submitText={t('agents.createDialog.continue')}
       submittingText={t('agents.createDialog.creating')}
       isSubmitting={isSubmitting}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input

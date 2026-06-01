@@ -83,9 +83,12 @@ function BlankTabContent({
     register,
     handleSubmit,
     setError,
-    formState: { isSubmitting, errors },
+    formState: { isSubmitting, errors, isValid },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    // Validate on change so Continue stays disabled until the required
+    // name is filled, instead of only failing after a submit attempt.
+    mode: 'onChange',
   });
 
   const onSubmit = useCallback(
@@ -181,7 +184,7 @@ function BlankTabContent({
         >
           {tCommon('actions.cancel')}
         </Button>
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting || !isValid}>
           {isSubmitting
             ? t('createDialog.creating')
             : t('createDialog.continue')}
