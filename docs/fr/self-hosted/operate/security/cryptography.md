@@ -17,6 +17,12 @@ Tale chiffre deux classes de secrets au repos, avec deux mécanismes différents
 
 Le magasin de données Convex et les volumes Postgres sont protégés par l'hôte : fais-les tourner sur un système de fichiers chiffré (LUKS, ou le chiffrement de volume de ton fournisseur cloud). Tale ne stocke pas d'identifiants en clair — une clé de fournisseur ou un token OAuth est soit chiffré par SOPS sur le disque, soit chiffré en AES-256-GCM en base, jamais écrit en clair.
 
+**Les données personnelles des clients et les enregistrements applicatifs** — noms, adresses e-mail et postales, contenu des conversations — sont protégés au repos par les mêmes couches qui protègent la base dans son ensemble : le chiffrement au repos de Convex, TLS 1.3 en transit, et la sécurité au niveau des lignes (RLS) qui restreint chaque lecture à l'organisation de l'appelant.
+
+Le chiffrement applicatif au niveau des champs est conçu pour les secrets — clés de fournisseur et tokens OAuth, écrits une fois et lus par un unique chemin de code. Les données personnelles sont différentes : elles sont filtrées, triées et recherchées par valeur exacte, et la table des clients est indexée par organisation et e-mail. Chiffrer ces colonnes au niveau des champs casserait les recherches par égalité et l'indexation — sauf à les coupler à un schéma de hachage recherchable qui révèle l'égalité même qu'il est censé masquer — au prix d'une rotation des clés et sans protection que le système de fichiers hôte chiffré sous l'application n'offre déjà contre un volume volé.
+
+Si ta réglementation de conformité exige en plus un chiffrement des données personnelles au niveau des champs, c'est une modification applicative délibérée plutôt qu'un défaut livré par Tale.
+
 ## Données en transit
 
 Tout le trafic navigateur et API termine TLS au reverse proxy (Caddy), qui négocie TLS 1.3 (avec TLS 1.2 comme plancher) et obtient les certificats automatiquement. Les suites de chiffrement sont les défauts modernes du proxy — AES-256-GCM et ChaCha20-Poly1305 avec échange de clés ECDHE. Configure le domaine et la source de certificat dans [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains) ; le trafic entre conteneurs reste sur le réseau Docker interne de l'hôte.
