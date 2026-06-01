@@ -7,17 +7,14 @@ import {
   Outlet,
   useRouterState,
 } from '@tanstack/react-router';
-import {
-  ChevronLeft,
-  ChevronRight,
-  HardDrive,
-  KeyRound,
-  Server,
-  type LucideIcon,
-} from 'lucide-react';
+import { HardDrive, KeyRound, Server, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import {
+  TabNavigation,
+  type TabNavigationItem,
+} from '@/app/components/ui/navigation/tab-navigation';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -56,7 +53,6 @@ function ApiSettingsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t: tAccessDenied } = useT('accessDenied');
   const { t: tNav } = useT('navigation');
-  const { t: tCommon } = useT('common');
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -64,7 +60,6 @@ function ApiSettingsLayout() {
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const basePath = `/dashboard/${organizationId}/settings/api`;
-  const isAtIndex = pathname === basePath || pathname === `${basePath}/`;
 
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -85,6 +80,13 @@ function ApiSettingsLayout() {
         };
       }),
     [basePath, pathname, tNav],
+  );
+
+  // Mobile swaps the desktop sidebar for a horizontal tab strip so users can
+  // hop between subpages without bouncing back to the settings list.
+  const tabItems = useMemo<TabNavigationItem[]>(
+    () => navItems.map((item) => ({ label: item.label, href: item.href })),
+    [navItems],
   );
 
   const sidebar = (
@@ -124,66 +126,17 @@ function ApiSettingsLayout() {
     return <AccessDenied message={tAccessDenied('apiKeys')} />;
   }
 
-  if (isMobile && isAtIndex) {
-    return (
-      <nav aria-label={tNav('api')} className="flex flex-col gap-2">
-        <ul
-          role="list"
-          className="border-border bg-card flex flex-col rounded-lg border"
-        >
-          {navItems.map((item, index) => {
-            const Icon = item.icon;
-            const isFirst = index === 0;
-            const isLast = index === navItems.length - 1;
-            return (
-              <li
-                key={item.slug}
-                className={cn(
-                  index > 0 && 'border-border border-t',
-                  isFirst && 'rounded-t-lg',
-                  isLast && 'rounded-b-lg',
-                )}
-              >
-                <Link
-                  to={item.href}
-                  className={cn(
-                    'hover:bg-muted/40 flex min-h-12 items-center gap-3 px-3 py-2.5 transition-colors',
-                    isFirst && 'rounded-t-lg',
-                    isLast && 'rounded-b-lg',
-                  )}
-                >
-                  <Icon
-                    aria-hidden="true"
-                    className="text-muted-foreground size-5 shrink-0"
-                  />
-                  <span className="text-foreground flex-1 text-sm font-medium">
-                    {item.label}
-                  </span>
-                  <ChevronRight
-                    aria-hidden="true"
-                    className="text-muted-foreground size-4 shrink-0"
-                  />
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-    );
-  }
-
   return (
     <div className={LAYOUT_ROOT_CLASSNAME}>
       {sidebar}
       <div ref={contentRef} className={CONTENT_CLASSNAME}>
         {isMobile && (
-          <Link
-            to={basePath}
-            className="text-muted-foreground hover:text-foreground border-border mb-4 flex items-center gap-1.5 border-b px-1 pb-3 text-sm font-medium"
-          >
-            <ChevronLeft aria-hidden="true" className="size-4" />
-            {tCommon('actions.back')}
-          </Link>
+          <TabNavigation
+            items={tabItems}
+            matchMode="startsWith"
+            ariaLabel={tNav('api')}
+            className="mb-4 grid grid-flow-col items-stretch px-0 md:hidden"
+          />
         )}
         <Outlet />
       </div>

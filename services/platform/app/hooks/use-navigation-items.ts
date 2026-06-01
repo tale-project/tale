@@ -10,10 +10,45 @@ import {
   Folder,
   Settings as SettingsIcon,
 } from 'lucide-react';
-import { useMemo } from 'react';
+import { createElement, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
+
+/**
+ * Organization-settings nav icon: the org Building2 glyph with a small gear
+ * badge in the bottom-right corner, marking it as *settings* for the org (vs.
+ * the plain gear used for personal settings). The gear sits on a small disc
+ * filled with the surrounding surface color so it reads cleanly over the
+ * building outline. Accepts the same `{ className, style }` props as a Lucide
+ * icon so it drops straight into `NavItem.icon`.
+ */
+function OrgSettingsIcon({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return createElement(
+    'span',
+    { className: 'relative inline-flex shrink-0' },
+    createElement(Building2, { className, style }),
+    createElement(
+      'span',
+      {
+        // Disc punches a hole in the building outline so the gear stays legible.
+        className:
+          'bg-background absolute -right-1 -bottom-1 flex items-center justify-center rounded-full',
+        'aria-hidden': true,
+      },
+      createElement(SettingsIcon, {
+        className: 'size-3 shrink-0',
+        style,
+      }),
+    ),
+  );
+}
 
 export interface NavItem {
   label: string;
@@ -183,7 +218,7 @@ export function useNavigationItems(businessId: string): NavigationItems {
           to: '/dashboard/$id/settings',
           params: { id: businessId },
           href: `/dashboard/${businessId}/settings`,
-          icon: Building2,
+          icon: OrgSettingsIcon,
           isActivePath: (pathname) => {
             const base = `/dashboard/${businessId}/settings`;
             if (pathname !== base && !pathname.startsWith(`${base}/`))

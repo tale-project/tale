@@ -3617,6 +3617,7 @@
     "skills": "Skills",
     "webdav": "WebDAV",
     "teamFilter": {
+      "label": "Team",
       "allTeams": "All"
     },
     "orgSwitcher": {
@@ -4411,6 +4412,9 @@
       "apiKeys": {
         "description": "Programmatic access tokens for the Tale API."
       },
+      "api": {
+        "description": "Programmatic access — REST keys, MCP, and WebDAV."
+      },
       "governance": {
         "description": "Policies, security, audit logs, and data retention."
       }
@@ -4574,7 +4578,10 @@
         "model": "Model",
         "modelPlaceholder": "Select a model",
         "modelSearch": "Search models…",
-        "modelEmpty": "No models found"
+        "modelEmpty": "No models found",
+        "noModelsTitle": "No models available",
+        "noModelsDescription": "An agent needs a model to run. Configure a provider with at least one model first.",
+        "noModelsLink": "Add a provider"
       },
       "uploadDialog": {
         "menuItem": "Upload from file…",

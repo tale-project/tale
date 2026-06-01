@@ -126,7 +126,7 @@ export function SettingsNavigation({
       items={navigationItems}
       matchMode="exact"
       standalone={false}
-      className="h-12 py-3"
+      className="h-13 py-3"
       ariaLabel={tCommon('aria.settingsNavigation')}
     >
       <SettingsEditorActionsSlot />

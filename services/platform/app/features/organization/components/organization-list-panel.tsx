@@ -17,11 +17,18 @@ import { cn } from '@/lib/utils/cn';
 interface OrganizationListPanelProps {
   currentOrganizationId: string | null;
   onAfterAction?: () => void;
+  /**
+   * Hide the "Organization" section header. Use when the panel is rendered
+   * under a row that already labels it (e.g. the account menu's inline
+   * Organization picker), where the header would be redundant.
+   */
+  hideHeader?: boolean;
 }
 
 export function OrganizationListPanel({
   currentOrganizationId,
   onAfterAction,
+  hideHeader = false,
 }: OrganizationListPanelProps) {
   const { t: tSettings } = useT('settings');
   const { t: tNav } = useT('navigation');
@@ -128,9 +135,11 @@ export function OrganizationListPanel({
 
   return (
     <div className="flex flex-col">
-      <div className="text-muted-foreground px-3 pt-2 pb-1.5 text-xs font-medium tracking-wide uppercase">
-        {tNav('orgSwitcher.label')}
-      </div>
+      {!hideHeader && (
+        <div className="text-muted-foreground px-3 pt-2 pb-1.5 text-xs font-medium tracking-wide uppercase">
+          {tNav('orgSwitcher.label')}
+        </div>
+      )}
 
       <ul className="max-h-72 overflow-y-auto py-1">
         {orgs.map((org) => {

@@ -231,6 +231,25 @@ describe('UserButton', () => {
     expect(getDropdownTrigger(container)).toBeInTheDocument();
   });
 
+  it('renders without crashing when teams are present', () => {
+    // Exercises the org / team / language picker rows, which render as
+    // inline collapsibles on mobile and Radix sub-menu popups on larger
+    // screens. Regression guard that the responsive branch builds without
+    // crashing when teams are present.
+    mockTeamFilter = {
+      teams: [
+        { id: 'team-1', name: 'Engineering' },
+        { id: 'team-2', name: 'Design' },
+      ],
+      selectedTeamId: 'team-1',
+      setSelectedTeamId: vi.fn(),
+      isLoadingTeams: false,
+      filterByTeam: <T,>(items: T[]) => items,
+    };
+    const { container } = render(<UserButton />);
+    expect(getDropdownTrigger(container)).toBeInTheDocument();
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(<UserButton />);

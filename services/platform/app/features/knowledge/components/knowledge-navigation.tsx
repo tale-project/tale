@@ -57,7 +57,7 @@ export function KnowledgeNavigation({
     <TabNavigation
       items={navigationItems}
       standalone={false}
-      className="h-12 py-3"
+      className="py-3"
       ariaLabel={tCommon('aria.knowledgeNavigation')}
     />
   );

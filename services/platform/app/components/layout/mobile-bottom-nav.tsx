@@ -36,8 +36,6 @@ interface PrimaryTab {
   activePrefix: string;
   /** Optional CASL gate. */
   gate?: () => boolean;
-  /** Render with featured styling (always-on pill, larger icon). */
-  featured?: boolean;
 }
 
 const PERSONAL_SETTINGS_SEGMENTS = new Set([
@@ -70,9 +68,10 @@ interface OverflowItem {
  * (not inside) the hamburger drawer so secondary navigation (org switcher,
  * account, sub-routes) stays available without crowding the tab bar.
  *
- * Layout: four nav destinations flank a centered, featured Chat tab. A "More"
- * tab opens a bottom sheet listing the destinations that don't fit (Knowledge,
- * Automations) — the standard iOS overflow pattern.
+ * Layout: a row of primary nav destinations followed by a "More" tab that
+ * opens a bottom sheet listing the destinations that don't fit (Knowledge,
+ * Automations) — the standard iOS overflow pattern. Each tab highlights only
+ * when its route is active.
  */
 export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const navigate = useNavigate();
@@ -112,7 +111,6 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         icon: MessageCircle,
         to: `/dashboard/${organizationId}/chat`,
         activePrefix: `/dashboard/${organizationId}/chat`,
-        featured: true,
       },
       {
         key: 'agents',
@@ -183,7 +181,6 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
           label: tab.label,
           icon: tab.icon,
           active,
-          featured: tab.featured,
           accentColor: active && accentColor ? accentColor : undefined,
           onSelect: () => {
             void navigate({ to: tab.to });

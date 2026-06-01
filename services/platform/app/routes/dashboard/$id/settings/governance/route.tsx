@@ -10,8 +10,6 @@ import {
 import {
   AlertOctagon,
   Brain,
-  ChevronLeft,
-  ChevronRight,
   ClipboardList,
   MessagesSquare,
   Scale,
@@ -26,6 +24,10 @@ import {
 import { useEffect, useMemo, useRef } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import {
+  TabNavigation,
+  type TabNavigationItem,
+} from '@/app/components/ui/navigation/tab-navigation';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -107,7 +109,6 @@ function GovernanceLayout() {
   const { id: organizationId } = Route.useParams();
   const { t: tAccessDenied } = useT('accessDenied');
   const { t } = useT('governance');
-  const { t: tCommon } = useT('common');
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -115,7 +116,6 @@ function GovernanceLayout() {
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const basePath = `/dashboard/${organizationId}/settings/governance`;
-  const isAtIndex = pathname === basePath || pathname === `${basePath}/`;
 
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -137,6 +137,13 @@ function GovernanceLayout() {
         };
       }),
     [basePath, pathname, t],
+  );
+
+  // Mobile swaps the desktop sidebar for a horizontal tab strip so users can
+  // hop between subpages without bouncing back to the settings list.
+  const tabItems = useMemo<TabNavigationItem[]>(
+    () => navItems.map((item) => ({ label: item.label, href: item.href })),
+    [navItems],
   );
 
   // The access check (and therefore the `<Outlet/>`) can't render until the
@@ -176,55 +183,6 @@ function GovernanceLayout() {
     return <AccessDenied message={tAccessDenied('organization')} />;
   }
 
-  // Mobile + at the governance index: render the iOS-style group list.
-  if (isMobile && isAtIndex) {
-    return (
-      <nav aria-label={t('title')} className="flex flex-col gap-2">
-        <ul
-          role="list"
-          className="border-border bg-card flex flex-col rounded-lg border"
-        >
-          {navItems.map((item, index) => {
-            const Icon = item.icon;
-            const isFirst = index === 0;
-            const isLast = index === navItems.length - 1;
-            return (
-              <li
-                key={item.slug}
-                className={cn(
-                  index > 0 && 'border-border border-t',
-                  isFirst && 'rounded-t-lg',
-                  isLast && 'rounded-b-lg',
-                )}
-              >
-                <Link
-                  to={item.href}
-                  className={cn(
-                    'hover:bg-muted/40 flex min-h-12 items-center gap-3 px-3 py-2.5 transition-colors',
-                    isFirst && 'rounded-t-lg',
-                    isLast && 'rounded-b-lg',
-                  )}
-                >
-                  <Icon
-                    aria-hidden="true"
-                    className="text-muted-foreground size-5 shrink-0"
-                  />
-                  <span className="text-foreground flex-1 text-sm font-medium">
-                    {item.label}
-                  </span>
-                  <ChevronRight
-                    aria-hidden="true"
-                    className="text-muted-foreground size-4 shrink-0"
-                  />
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-    );
-  }
-
   return (
     <div className={LAYOUT_ROOT_CLASSNAME}>
       <nav aria-label={t('title')} className={SIDEBAR_CLASSNAME}>
@@ -246,13 +204,12 @@ function GovernanceLayout() {
       </nav>
       <div ref={contentRef} className={CONTENT_CLASSNAME}>
         {isMobile && (
-          <Link
-            to={basePath}
-            className="text-muted-foreground hover:text-foreground border-border mb-4 flex items-center gap-1.5 border-b px-1 pb-3 text-sm font-medium"
-          >
-            <ChevronLeft aria-hidden="true" className="size-4" />
-            {tCommon('actions.back')}
-          </Link>
+          <TabNavigation
+            items={tabItems}
+            matchMode="startsWith"
+            ariaLabel={t('title')}
+            className="mb-4 grid grid-flow-col items-stretch px-0 md:hidden"
+          />
         )}
         <Outlet />
       </div>
