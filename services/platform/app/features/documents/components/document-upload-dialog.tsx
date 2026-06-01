@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
 
 import { useDocumentUpload } from '../hooks/mutations';
+import { useFolder } from '../hooks/queries';
 import { TeamMultiSelect } from './team-multi-select';
 import { UploadFileRow } from './upload-file-row';
 
@@ -58,6 +59,20 @@ export function DocumentUploadDialog({
 
   const { teams, isLoading: isLoadingTeams } = useTeams();
   const policyLimits = useUploadPolicy(organizationId);
+
+  // A team-scoped folder forces its team on every document created inside it
+  // (the create mutation overrides teamId with the folder's). Lock the team
+  // selector to that team so the UI reflects what actually happens instead of
+  // implying the upload can be assigned elsewhere (#1469).
+  const { data: folder } = useFolder(folderId);
+  const folderTeamId = folder?.teamId ?? undefined;
+  const isTeamLockedToFolder = !!folderTeamId;
+
+  useEffect(() => {
+    if (folderTeamId) {
+      setSelectedTeamIds([folderTeamId]);
+    }
+  }, [folderTeamId]);
 
   const effectiveMaxFileSize = policyLimits.policyEnabled
     ? policyLimits.documentMaxFileSize
@@ -109,11 +124,23 @@ export function DocumentUploadDialog({
       if (!newOpen && isUploading) return; // Block close while uploading
       if (!newOpen) {
         clearTrackedFiles();
-        setSelectedTeamIds(selectedTeamId ? [selectedTeamId] : []);
+        setSelectedTeamIds(
+          folderTeamId
+            ? [folderTeamId]
+            : selectedTeamId
+              ? [selectedTeamId]
+              : [],
+        );
       }
       onOpenChange(newOpen);
     },
-    [onOpenChange, isUploading, clearTrackedFiles, selectedTeamId],
+    [
+      onOpenChange,
+      isUploading,
+      clearTrackedFiles,
+      folderTeamId,
+      selectedTeamId,
+    ],
   );
 
   const processFiles = useCallback(
@@ -289,8 +316,13 @@ export function DocumentUploadDialog({
               selectedTeamIds={selectedTeamIds}
               onSelectionChange={handleTeamSelectionChange}
               orgWideLabel={tDocuments('teamTags.orgWide')}
-              disabled={isUploading || allCompleted}
+              disabled={isUploading || allCompleted || isTeamLockedToFolder}
             />
+          )}
+          {isTeamLockedToFolder && (
+            <span className="text-muted-foreground text-[13px]">
+              {tDocuments('upload.teamLockedToFolder')}
+            </span>
           )}
         </div>
 
