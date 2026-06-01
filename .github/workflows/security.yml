@@ -8,8 +8,8 @@ on:
       - 'bun.lock'
       - 'package.json'
       - 'services/*/package.json'
-      - 'services/rag/uv.lock'
-      - 'services/rag/pyproject.toml'
+      - 'services/*/uv.lock'
+      - 'services/*/pyproject.toml'
       - 'packages/*/pyproject.toml'
       # Dockerfile + dockerignore changes alter what trivy's misconfig
       # scanner sees on the fs-scan path; .trivyignore.yaml changes can
@@ -28,8 +28,8 @@ on:
       - 'bun.lock'
       - 'package.json'
       - 'services/*/package.json'
-      - 'services/rag/uv.lock'
-      - 'services/rag/pyproject.toml'
+      - 'services/*/uv.lock'
+      - 'services/*/pyproject.toml'
       - 'packages/*/pyproject.toml'
       - 'services/*/Dockerfile'
       - 'services/*/Dockerfile.dockerignore'
