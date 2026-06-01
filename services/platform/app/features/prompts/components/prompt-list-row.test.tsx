@@ -27,6 +27,13 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: toastMock }),
 }));
 
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useTeams: () => ({
+    teams: [{ id: 'team-1', name: 'Sales' }],
+    isLoading: false,
+  }),
+}));
+
 import { PromptListRow } from './prompt-list-row';
 
 const prompt: PromptTemplate = {
@@ -109,5 +116,26 @@ describe('PromptListRow', () => {
     expect(
       screen.getByRole('button', { name: 'prompts.actions.more' }),
     ).toBeInTheDocument();
+  });
+
+  // Regression test for #1475: tags and the assigned team must be shown.
+  it('shows the assigned team name and tags', () => {
+    render(
+      <PromptListRow
+        prompt={{
+          ...prompt,
+          scope: 'team',
+          teamId: 'team-1',
+          tags: ['marketing', 'email'],
+        }}
+        onUse={vi.fn()}
+        canModify={false}
+        isLast
+      />,
+    );
+
+    expect(screen.getByText('Sales')).toBeInTheDocument();
+    expect(screen.getByText('marketing')).toBeInTheDocument();
+    expect(screen.getByText('email')).toBeInTheDocument();
   });
 });

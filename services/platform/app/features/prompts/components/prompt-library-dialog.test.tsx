@@ -31,6 +31,13 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { role: 'admin' } }),
 }));
 
+// PromptListRow (rendered inside the dialog) resolves team-scoped prompts'
+// team name via useTeams; mock it so the rows don't hit the real query (no
+// QueryClient in this test).
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useTeams: () => ({ teams: [], isLoading: false }),
+}));
+
 // Mutable mock so individual tests can override the usePrompts result.
 const defaultPrompt = {
   _id: 'prompt-1',

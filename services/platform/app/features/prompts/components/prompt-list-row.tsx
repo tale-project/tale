@@ -8,6 +8,7 @@ import { Text } from '@tale/ui/text';
 import { Copy, History, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -35,7 +36,18 @@ export function PromptListRow({
 }: PromptListRowProps) {
   const { t } = useT('prompts');
   const { toast } = useToast();
+  const { teams } = useTeams();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Surface the assigned team + tags on the row (#1475). The list query
+  // returns teamId only, so resolve the name from the (shared, cached) teams
+  // query; fall back to a generic "Team" label if it isn't loaded yet.
+  const teamLabel =
+    prompt.scope === 'team' && prompt.teamId
+      ? (teams?.find((team) => team.id === prompt.teamId)?.name ??
+        t('scope.team'))
+      : undefined;
+  const tags = prompt.tags ?? [];
 
   const handleUse = useCallback(() => {
     onUse(prompt);
@@ -132,6 +144,32 @@ export function PromptListRow({
         >
           {prompt.content}
         </Text>
+        {(teamLabel || tags.length > 0) && (
+          <span className="mt-1 flex flex-wrap items-center gap-1">
+            {teamLabel && (
+              <Badge
+                variant="blue"
+                className="px-1.5 py-0 text-[10px] font-normal"
+              >
+                {teamLabel}
+              </Badge>
+            )}
+            {tags.slice(0, 4).map((tag) => (
+              <Badge
+                key={tag}
+                variant="outline"
+                className="px-1.5 py-0 text-[10px] font-normal"
+              >
+                {tag}
+              </Badge>
+            ))}
+            {tags.length > 4 && (
+              <Text as="span" variant="muted" className="text-[10px]">
+                +{tags.length - 4}
+              </Text>
+            )}
+          </span>
+        )}
       </button>
 
       <HStack
