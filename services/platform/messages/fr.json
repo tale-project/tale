@@ -2165,6 +2165,7 @@
       "enabled": "Activer la politique de téléversement",
       "allowedExtensions": "Extensions de fichiers autorisées",
       "blockedExtensions": "Extensions de fichiers bloquées",
+      "conflictingExtensions": "Ces extensions sont à la fois autorisées et bloquées : {extensions}. Retire-les de l'une des listes.",
       "allowedMimeTypes": "Types MIME autorisés",
       "maxFileSize": "Taille maximale de fichier",
       "maxVolumePerUser": "Volume total maximum par utilisateur",
