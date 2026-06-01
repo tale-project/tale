@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
-import { render } from '@/test/utils/render';
+import { render, waitFor } from '@/test/utils/render';
 
 import { ScheduleCreateDialog } from './schedule-create-dialog';
 
@@ -59,6 +59,58 @@ describe('ScheduleCreateDialog', () => {
         />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  // Regression test for #1426: Create must stay disabled until a valid
+  // cron expression is entered.
+  describe('submit gating (#1426)', () => {
+    it('keeps Create disabled until a valid cron expression is entered', async () => {
+      const { user } = render(
+        <ScheduleCreateDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          workflowRootId="wf-root-1"
+          organizationId="test-org-id"
+          workflowSlug="my-workflow"
+        />,
+      );
+
+      // The dialog renders in a Radix portal (document.body).
+      const submit = document.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      expect(submit).toBeDisabled();
+
+      const cronInput = document.querySelector(
+        'input[name="cronExpression"]',
+      ) as HTMLInputElement;
+      await user.type(cronInput, '0 * * * *');
+
+      await waitFor(() => expect(submit).toBeEnabled());
+    });
+
+    it('keeps Create disabled for an invalid cron expression', async () => {
+      const { user } = render(
+        <ScheduleCreateDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          workflowRootId="wf-root-1"
+          organizationId="test-org-id"
+          workflowSlug="my-workflow"
+        />,
+      );
+
+      // The dialog renders in a Radix portal (document.body).
+      const submit = document.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      const cronInput = document.querySelector(
+        'input[name="cronExpression"]',
+      ) as HTMLInputElement;
+      await user.type(cronInput, 'not-a-cron');
+
+      await waitFor(() => expect(submit).toBeDisabled());
     });
   });
 });

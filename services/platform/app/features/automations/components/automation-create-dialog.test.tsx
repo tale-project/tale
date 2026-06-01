@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
-import { render } from '@/test/utils/render';
+import { render, waitFor } from '@/test/utils/render';
 
 import { CreateAutomationDialog } from './automation-create-dialog';
 
@@ -36,6 +36,34 @@ describe('CreateAutomationDialog', () => {
         />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  // Regression test for #1425: Continue must stay disabled until the
+  // required name field is filled.
+  describe('submit gating (#1425)', () => {
+    it('keeps Continue disabled until the name is filled', async () => {
+      const { user } = render(
+        <CreateAutomationDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+
+      // The dialog renders in a Radix portal (document.body), not inside
+      // the render container.
+      const submit = document.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      expect(submit).toBeDisabled();
+
+      const nameInput = document.querySelector(
+        'input[name="name"]',
+      ) as HTMLInputElement;
+      await user.type(nameInput, 'My Automation');
+
+      await waitFor(() => expect(submit).toBeEnabled());
     });
   });
 });

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
-import { render } from '@/test/utils/render';
+import { render, screen, waitFor } from '@/test/utils/render';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -58,6 +58,63 @@ describe('CreateAgentDialog', () => {
         />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  // Regression test for #1466: the Continue button must stay disabled
+  // until the required fields (name, displayName) are valid, instead of
+  // only failing after a submit attempt.
+  describe('submit gating (#1466)', () => {
+    it('keeps Continue disabled until required fields are valid', async () => {
+      const { user } = render(
+        <CreateAgentDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+
+      const submit = screen.getByRole('button', {
+        name: 'settings.agents.createDialog.continue',
+      });
+      expect(submit).toBeDisabled();
+
+      await user.type(
+        screen.getByLabelText('settings.agents.form.name'),
+        'support-bot',
+      );
+      await user.type(
+        screen.getByLabelText('settings.agents.form.displayName'),
+        'Support Bot',
+      );
+
+      await waitFor(() => expect(submit).toBeEnabled());
+    });
+
+    it('keeps Continue disabled when name violates the slug pattern', async () => {
+      const { user } = render(
+        <CreateAgentDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+
+      const submit = screen.getByRole('button', {
+        name: 'settings.agents.createDialog.continue',
+      });
+
+      // Uppercase/spaces violate the ^[a-z0-9][a-z0-9_-]*$ slug rule.
+      await user.type(
+        screen.getByLabelText('settings.agents.form.name'),
+        'Invalid Name',
+      );
+      await user.type(
+        screen.getByLabelText('settings.agents.form.displayName'),
+        'Support Bot',
+      );
+
+      await waitFor(() => expect(submit).toBeDisabled());
     });
   });
 });
