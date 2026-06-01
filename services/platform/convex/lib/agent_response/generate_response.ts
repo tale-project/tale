@@ -1037,15 +1037,36 @@ export async function generateAgentResponse(
       structuredResponsesEnabled === true
         ? `${resolvedInstructions}\n\n${STRUCTURED_RESPONSE_INSTRUCTIONS}`
         : resolvedInstructions;
+    // Response language follows the user (#1621). The model mirrors the
+    // language they write in; only when the input is ambiguous does it fall
+    // back, in priority order: UI language (chosen in the app) → browser
+    // locale (navigator.language) → org "Default language (for agents)". The
+    // org query runs only when neither client locale is present (e.g. a
+    // server/workflow-triggered run). Resolved once and passed to all three
+    // prompt assemblies below (shared scope) so a multi-step loop stays in
+    // one language.
+    const fallbackLocale =
+      userContext?.uiLanguage ??
+      userContext?.language ??
+      (organizationId
+        ? await ctx.runQuery(
+            internal.organizations.internal_queries
+              .getOrganizationDefaultLocale,
+            { organizationId },
+          )
+        : undefined);
+
     // System prompt order: agent identity → user personalization (custom
-    // instructions + approved memories) → thread context. Personalization
-    // sits between the stable agent prefix and the volatile thread tail so
-    // it doesn't bust upstream prompt caches when memories don't change.
+    // instructions + approved memories) → thread context → response language.
+    // Personalization sits between the stable agent prefix and the volatile
+    // thread tail so it doesn't bust upstream prompt caches when memories
+    // don't change.
     const systemPrompt = buildSystemPrompt(
       agentInstructions,
       userPersonalization,
       structuredThreadContext.threadContext,
       projectInstructionsBlock,
+      fallbackLocale,
     );
 
     // Record the injection (one row per turn, with the IDs that were
@@ -1531,6 +1552,7 @@ export async function generateAgentResponse(
             userPersonalization,
             continueContext.threadContext,
             projectInstructionsBlock,
+            fallbackLocale,
           );
 
           const continuePrompt = hasToolResults
@@ -1773,6 +1795,7 @@ export async function generateAgentResponse(
             userPersonalization,
             recoveryContext.threadContext,
             projectInstructionsBlock,
+            fallbackLocale,
           );
 
           // Cap recovery timeout by action deadline
