@@ -14,7 +14,13 @@ import { cn } from '@/lib/utils/cn';
 import { Label } from './label';
 
 const selectContentVariants = cva(
-  'relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-muted text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+  // Cap the dropdown at the smaller of 24rem (the historical max) and the space
+  // Radix measures between the trigger and the viewport edge. Without this the
+  // content kept a fixed 24rem height and, near the bottom of a short viewport,
+  // could extend past the edge and clip its first option (e.g. "End workflow")
+  // behind the scroll buttons. The `,24rem` fallback keeps the cap for the
+  // `item-aligned` position, where Radix does not expose the available-height var.
+  'relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height,24rem))] min-w-[8rem] overflow-hidden rounded-md border bg-muted text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
   {
     variants: {
       position: {
@@ -170,6 +176,9 @@ const SelectBase = forwardRef<
             className={selectContentVariants({ position })}
             position={position}
             sideOffset={sideOffset}
+            // Keep a small gap from the viewport edge so the dropdown (and its
+            // first option) is never flush against / clipped by the edge (#1492).
+            collisionPadding={8}
           >
             <SelectPrimitive.ScrollUpButton className="flex cursor-default items-center justify-center py-1">
               <ChevronUp className="size-4" aria-hidden="true" />
