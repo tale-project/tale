@@ -4822,7 +4822,17 @@
         "testPassed": "Valide",
         "testing": "Test en cours...",
         "title": "Configuration SSO",
-        "updating": "Mise à jour..."
+        "updating": "Mise à jour...",
+        "providerTypeLabel": "Type de fournisseur",
+        "providerTypeHelp": "Microsoft Entra ID utilise Microsoft Graph pour la synchronisation des équipes et de OneDrive. OIDC générique fonctionne avec n'importe quel fournisseur OpenID Connect et lit ses points de terminaison depuis la configuration publiée par l'émetteur.",
+        "providerTypeEntra": "Microsoft Entra ID",
+        "providerTypeGeneric": "OIDC générique",
+        "descriptionGeneric": "Connecte-toi avec n'importe quel fournisseur d'identité OpenID Connect, comme Keycloak, Auth0, Okta ou Google.",
+        "issuerHelpGeneric": "L'URL de l'émetteur OIDC. Tale lit les points de terminaison d'autorisation, de jeton et userinfo depuis le document .well-known/openid-configuration de l'émetteur.",
+        "clientIdHelpGeneric": "L'ID client fourni par ton fournisseur OIDC",
+        "clientSecretHelpGeneric": "Le secret client fourni par ton fournisseur OIDC",
+        "connectedToGeneric": "Connecté à ton fournisseur OIDC",
+        "autoProvisionRoleHelpGeneric": "Attribuer automatiquement des rôles selon les claims renvoyés par ton fournisseur OIDC"
       }
     },
     "providers": {

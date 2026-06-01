@@ -4821,7 +4821,17 @@
         "testPassed": "Gültig",
         "testing": "Wird getestet...",
         "title": "SSO-Konfiguration",
-        "updating": "Aktualisiere..."
+        "updating": "Aktualisiere...",
+        "providerTypeLabel": "Anbietertyp",
+        "providerTypeHelp": "Microsoft Entra ID nutzt Microsoft Graph für die Team- und OneDrive-Synchronisierung. Generisches OIDC funktioniert mit jedem OpenID-Connect-Anbieter und liest dessen Endpunkte aus der Konfiguration, die der Aussteller veröffentlicht.",
+        "providerTypeEntra": "Microsoft Entra ID",
+        "providerTypeGeneric": "Generisches OIDC",
+        "descriptionGeneric": "Melde dich mit einem beliebigen OpenID-Connect-Anbieter an, etwa Keycloak, Auth0, Okta oder Google.",
+        "issuerHelpGeneric": "Die OIDC-Aussteller-URL. Tale liest die Authorization-, Token- und Userinfo-Endpunkte aus dem .well-known/openid-configuration-Dokument des Ausstellers.",
+        "clientIdHelpGeneric": "Die Client-ID deines OIDC-Anbieters",
+        "clientSecretHelpGeneric": "Das Client-Secret deines OIDC-Anbieters",
+        "connectedToGeneric": "Mit deinem OIDC-Anbieter verbunden",
+        "autoProvisionRoleHelpGeneric": "Rollen automatisch anhand der Claims deines OIDC-Anbieters zuweisen"
       }
     },
     "providers": {

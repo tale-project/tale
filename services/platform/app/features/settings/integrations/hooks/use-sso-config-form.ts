@@ -18,7 +18,7 @@ import {
   useUpsertSsoProvider,
 } from './actions';
 
-const DEFAULT_SCOPES = [
+const ENTRA_SCOPES = [
   'openid',
   'email',
   'profile',
@@ -26,6 +26,17 @@ const DEFAULT_SCOPES = [
   'https://graph.microsoft.com/GroupMember.Read.All',
   'https://graph.microsoft.com/Files.Read',
 ];
+
+// Generic OIDC: the adapter always forces `openid`; request the standard
+// identity scopes so the userinfo endpoint returns the email/profile claims
+// that role mapping reads.
+const GENERIC_OIDC_SCOPES = ['openid', 'email', 'profile'];
+
+export type SsoProviderType = 'entra-id' | 'generic-oidc';
+
+function scopesForProvider(type: SsoProviderType): string[] {
+  return type === 'generic-oidc' ? GENERIC_OIDC_SCOPES : ENTRA_SCOPES;
+}
 
 const DEFAULT_MAPPING_RULES: RoleMappingRule[] = [
   { source: 'jobTitle', pattern: '*admin*', targetRole: 'admin' },
@@ -62,6 +73,7 @@ export function useSsoConfigForm({
     [t],
   );
 
+  const [providerType, setProviderType] = useState<SsoProviderType>('entra-id');
   const [issuer, setIssuer] = useState('');
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
@@ -79,6 +91,7 @@ export function useSsoConfigForm({
   } | null>(null);
 
   const originalConfigRef = useRef<{
+    providerType: SsoProviderType;
     issuer: string;
     clientId: string;
     autoProvisionTeam: boolean;
@@ -110,6 +123,7 @@ export function useSsoConfigForm({
 
     const orig = originalConfigRef.current;
     const basicFieldsChanged =
+      providerType !== orig.providerType ||
       issuer !== orig.issuer ||
       clientId !== orig.clientId ||
       autoProvisionTeam !== orig.autoProvisionTeam ||
@@ -130,6 +144,7 @@ export function useSsoConfigForm({
       );
     });
   }, [
+    providerType,
     issuer,
     clientId,
     clientSecret,
@@ -157,6 +172,11 @@ export function useSsoConfigForm({
                       r.source === 'jobTitle' || r.source === 'appRole',
                   )
                 : DEFAULT_MAPPING_RULES;
+            const loadedType: SsoProviderType =
+              config.providerId === 'generic-oidc'
+                ? 'generic-oidc'
+                : 'entra-id';
+            setProviderType(loadedType);
             setIssuer(config.issuer);
             setClientId(config.clientId);
             setAutoProvisionTeam(entraFeatures?.autoProvisionTeam ?? false);
@@ -168,6 +188,7 @@ export function useSsoConfigForm({
               entraFeatures?.enableOneDriveAccess ?? false,
             );
             originalConfigRef.current = {
+              providerType: loadedType,
               issuer: config.issuer,
               clientId: config.clientId,
               autoProvisionTeam: entraFeatures?.autoProvisionTeam ?? false,
@@ -190,6 +211,7 @@ export function useSsoConfigForm({
           });
         });
     } else if (!existingProvider) {
+      setProviderType('entra-id');
       setIssuer('');
       setClientId('');
       setClientSecret('');
@@ -214,27 +236,33 @@ export function useSsoConfigForm({
       return;
     }
 
+    const isGeneric = providerType === 'generic-oidc';
+
     try {
       await upsertSSOProvider({
         organizationId,
-        providerId: 'entra-id',
+        providerId: providerType,
         issuer,
         clientId,
         clientSecret,
-        scopes: DEFAULT_SCOPES,
+        scopes: scopesForProvider(providerType),
         autoProvisionRole,
         roleMappingRules,
         defaultRole,
-        providerFeatures: {
-          entraId: {
-            enableOneDriveAccess,
-            autoProvisionTeam,
-            excludeGroups: excludeGroups
-              .split(',')
-              .map((g) => g.trim())
-              .filter(Boolean),
-          },
-        },
+        // OneDrive and Entra group→team sync ride Microsoft Graph, so they
+        // apply only to the Entra provider; generic OIDC persists no features.
+        providerFeatures: isGeneric
+          ? undefined
+          : {
+              entraId: {
+                enableOneDriveAccess,
+                autoProvisionTeam,
+                excludeGroups: excludeGroups
+                  .split(',')
+                  .map((g) => g.trim())
+                  .filter(Boolean),
+              },
+            },
       });
 
       toast({
@@ -258,6 +286,7 @@ export function useSsoConfigForm({
     }
   }, [
     isConnected,
+    providerType,
     issuer,
     clientId,
     clientSecret,
@@ -316,6 +345,8 @@ export function useSsoConfigForm({
             issuer,
             clientId,
             clientSecret,
+            providerId: providerType,
+            scopes: scopesForProvider(providerType),
           });
 
       setTestResult(result);
@@ -353,6 +384,7 @@ export function useSsoConfigForm({
     }
   }, [
     isConnected,
+    providerType,
     clientSecret,
     issuer,
     clientId,
@@ -385,6 +417,8 @@ export function useSsoConfigForm({
     t,
     tCommon,
     platformRoles,
+    providerType,
+    setProviderType,
     issuer,
     setIssuer,
     clientId,

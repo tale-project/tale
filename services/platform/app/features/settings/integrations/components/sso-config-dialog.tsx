@@ -7,7 +7,7 @@ import { IconButton } from '@tale/ui/icon-button';
 import { Center, HStack, Stack } from '@tale/ui/layout';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
-import { CheckCircle, Loader2, X, XCircle } from 'lucide-react';
+import { CheckCircle, KeyRound, Loader2, X, XCircle } from 'lucide-react';
 
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { FormSection } from '@/app/components/ui/forms/form-section';
@@ -21,7 +21,10 @@ import type {
 } from '@/lib/shared/schemas/sso_providers';
 import { narrowStringUnion } from '@/lib/utils/type-guards';
 
-import { useSsoConfigForm } from '../hooks/use-sso-config-form';
+import {
+  type SsoProviderType,
+  useSsoConfigForm,
+} from '../hooks/use-sso-config-form';
 import { RoleMappingSection } from './sso-config/role-mapping-section';
 
 interface SSOConfigDialogProps {
@@ -41,6 +44,8 @@ export function SSOConfigDialog({
     t,
     tCommon,
     platformRoles,
+    providerType,
+    setProviderType,
     issuer,
     setIssuer,
     clientId,
@@ -75,6 +80,8 @@ export function SSOConfigDialog({
     organizationId,
     existingProvider,
   });
+
+  const isGeneric = providerType === 'generic-oidc';
 
   const isFormValid = isConnected
     ? !!issuer?.trim() && !!clientId?.trim()
@@ -120,7 +127,11 @@ export function SSOConfigDialog({
         <Stack gap={4}>
           <HStack gap={3} align="center">
             <Center className="border-border size-10 rounded-md border">
-              <MicrosoftIcon className="size-5" />
+              {isGeneric ? (
+                <KeyRound className="size-5" />
+              ) : (
+                <MicrosoftIcon className="size-5" />
+              )}
             </Center>
             <Stack gap={1}>
               <Text variant="label">{t('integrations.sso.name')}</Text>
@@ -137,21 +148,60 @@ export function SSOConfigDialog({
           </HStack>
 
           <Text variant="muted" className="text-sm leading-relaxed">
-            {t('integrations.sso.description')}
+            {isGeneric
+              ? t('integrations.sso.descriptionGeneric')
+              : t('integrations.sso.description')}
           </Text>
 
           {isConnected && (
             <StatusIndicator variant="success">
-              {t('integrations.sso.connectedToEntra')}
+              {isGeneric
+                ? t('integrations.sso.connectedToGeneric')
+                : t('integrations.sso.connectedToEntra')}
             </StatusIndicator>
           )}
 
           <FormSection>
+            <Select
+              id="sso-provider-type"
+              label={t('integrations.sso.providerTypeLabel')}
+              description={t('integrations.sso.providerTypeHelp')}
+              value={providerType}
+              onValueChange={(value) => {
+                const narrowed = narrowStringUnion<SsoProviderType>(value, [
+                  'entra-id',
+                  'generic-oidc',
+                ] as const);
+                if (narrowed) {
+                  setProviderType(narrowed);
+                }
+              }}
+              disabled={isSubmitting || isLoadingConfig || isConnected}
+              options={[
+                {
+                  value: 'entra-id',
+                  label: t('integrations.sso.providerTypeEntra'),
+                },
+                {
+                  value: 'generic-oidc',
+                  label: t('integrations.sso.providerTypeGeneric'),
+                },
+              ]}
+            />
+
             <Input
               id="sso-issuer"
               label={t('integrations.sso.issuerLabel')}
-              description={t('integrations.sso.issuerHelp')}
-              placeholder="https://login.microsoftonline.com/{tenant-id}/v2.0"
+              description={
+                isGeneric
+                  ? t('integrations.sso.issuerHelpGeneric')
+                  : t('integrations.sso.issuerHelp')
+              }
+              placeholder={
+                isGeneric
+                  ? 'https://idp.example.com'
+                  : 'https://login.microsoftonline.com/{tenant-id}/v2.0'
+              }
               value={issuer}
               onChange={(e) => setIssuer(e.target.value)}
               disabled={isSubmitting || isLoadingConfig}
@@ -160,11 +210,17 @@ export function SSOConfigDialog({
             <Input
               id="sso-client-id"
               label={t('integrations.sso.clientIdLabel')}
-              description={t('integrations.sso.clientIdHelp')}
+              description={
+                isGeneric
+                  ? t('integrations.sso.clientIdHelpGeneric')
+                  : t('integrations.sso.clientIdHelp')
+              }
               placeholder={
                 isLoadingConfig
                   ? tCommon('actions.loading')
-                  : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+                  : isGeneric
+                    ? 'your-client-id'
+                    : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
               }
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
@@ -175,7 +231,11 @@ export function SSOConfigDialog({
               id="sso-client-secret"
               type="password"
               label={t('integrations.sso.clientSecretLabel')}
-              description={t('integrations.sso.clientSecretHelp')}
+              description={
+                isGeneric
+                  ? t('integrations.sso.clientSecretHelpGeneric')
+                  : t('integrations.sso.clientSecretHelp')
+              }
               placeholder={isConnected ? '••••••••••••••••' : ''}
               value={clientSecret}
               onChange={(e) => setClientSecret(e.target.value)}
@@ -221,40 +281,48 @@ export function SSOConfigDialog({
               )}
             </ActionRow>
 
-            <Switch
-              id="onedrive-access-toggle"
-              label={t('integrations.sso.oneDriveAccessLabel')}
-              description={t('integrations.sso.oneDriveAccessHelp')}
-              checked={enableOneDriveAccess}
-              onCheckedChange={setEnableOneDriveAccess}
-              disabled={isSubmitting || isLoadingConfig}
-            />
+            {!isGeneric && (
+              <>
+                <Switch
+                  id="onedrive-access-toggle"
+                  label={t('integrations.sso.oneDriveAccessLabel')}
+                  description={t('integrations.sso.oneDriveAccessHelp')}
+                  checked={enableOneDriveAccess}
+                  onCheckedChange={setEnableOneDriveAccess}
+                  disabled={isSubmitting || isLoadingConfig}
+                />
 
-            <Switch
-              id="auto-provision-team-toggle"
-              label={t('integrations.sso.autoProvisionTeamLabel')}
-              description={t('integrations.sso.autoProvisionTeamHelp')}
-              checked={autoProvisionTeam}
-              onCheckedChange={setAutoProvisionTeam}
-              disabled={isSubmitting || isLoadingConfig}
-            />
+                <Switch
+                  id="auto-provision-team-toggle"
+                  label={t('integrations.sso.autoProvisionTeamLabel')}
+                  description={t('integrations.sso.autoProvisionTeamHelp')}
+                  checked={autoProvisionTeam}
+                  onCheckedChange={setAutoProvisionTeam}
+                  disabled={isSubmitting || isLoadingConfig}
+                />
 
-            {autoProvisionTeam && (
-              <Input
-                id="sso-exclude-groups"
-                label={t('integrations.sso.excludeGroupsLabel')}
-                description={t('integrations.sso.excludeGroupsHelp')}
-                placeholder="All-Employees, Domain-Users"
-                value={excludeGroups}
-                onChange={(e) => setExcludeGroups(e.target.value)}
-                disabled={isSubmitting || isLoadingConfig}
-              />
+                {autoProvisionTeam && (
+                  <Input
+                    id="sso-exclude-groups"
+                    label={t('integrations.sso.excludeGroupsLabel')}
+                    description={t('integrations.sso.excludeGroupsHelp')}
+                    placeholder="All-Employees, Domain-Users"
+                    value={excludeGroups}
+                    onChange={(e) => setExcludeGroups(e.target.value)}
+                    disabled={isSubmitting || isLoadingConfig}
+                  />
+                )}
+              </>
             )}
 
             <Switch
               id="auto-provision-role-toggle"
               label={t('integrations.sso.autoProvisionRoleLabel')}
-              description={t('integrations.sso.autoProvisionRoleHelp')}
+              description={
+                isGeneric
+                  ? t('integrations.sso.autoProvisionRoleHelpGeneric')
+                  : t('integrations.sso.autoProvisionRoleHelp')
+              }
               checked={autoProvisionRole}
               onCheckedChange={setAutoProvisionRole}
               disabled={isSubmitting || isLoadingConfig}

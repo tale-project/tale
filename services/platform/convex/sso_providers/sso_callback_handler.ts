@@ -192,21 +192,20 @@ export async function ssoCallbackHandler(
     const clientId = await decryptString(provider.clientIdEncrypted);
     const clientSecret = await decryptString(provider.clientSecretEncrypted);
 
-    const tokens = await adapter.exchangeCodeForTokens(
-      {
-        providerId: provider.providerId,
-        issuer: provider.issuer,
-        clientId,
-        clientSecret,
-        scopes: provider.scopes,
-      },
-      {
-        code,
-        redirectUri: state.redirectUri,
-      },
-    );
+    const ssoConfig = {
+      providerId: provider.providerId,
+      issuer: provider.issuer,
+      clientId,
+      clientSecret,
+      scopes: provider.scopes,
+    };
 
-    const userInfo = await adapter.getUserInfo(tokens.accessToken);
+    const tokens = await adapter.exchangeCodeForTokens(ssoConfig, {
+      code,
+      redirectUri: state.redirectUri,
+    });
+
+    const userInfo = await adapter.getUserInfo(ssoConfig, tokens.accessToken);
 
     if (tokens.idToken) {
       const authContext = parseIdTokenAuthContext(tokens.idToken);
@@ -218,7 +217,7 @@ export async function ssoCallbackHandler(
     let appRoles: string[] = [];
     if (provider.autoProvisionRole && adapter.getAppRoles) {
       try {
-        appRoles = await adapter.getAppRoles(tokens.accessToken);
+        appRoles = await adapter.getAppRoles(ssoConfig, tokens.accessToken);
       } catch (e) {
         console.warn('[SSO] Failed to fetch app roles:', e);
       }
