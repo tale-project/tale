@@ -620,6 +620,7 @@ export function useSendMessage({
               ? {
                   timezone: userContext.timezone,
                   language: userContext.language,
+                  uiLanguage: userContext.uiLanguage,
                 }
               : undefined,
             // History is copied when Thread B is created (arena enable),
@@ -756,6 +757,7 @@ export function useSendMessage({
               ? {
                   timezone: userContext.timezone,
                   language: userContext.language,
+                  uiLanguage: userContext.uiLanguage,
                 }
               : undefined,
             // projectId from URL query is a string; chatWithAgent expects

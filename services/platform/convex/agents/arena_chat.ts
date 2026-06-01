@@ -34,6 +34,7 @@ export const arenaChat = action({
       v.object({
         timezone: v.string(),
         language: v.string(),
+        uiLanguage: v.optional(v.string()),
       }),
     ),
     copyHistoryToB: v.optional(v.boolean()),

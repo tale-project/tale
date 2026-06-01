@@ -65,6 +65,7 @@ export const chatWithAgent = action({
       v.object({
         timezone: v.string(),
         language: v.string(),
+        uiLanguage: v.optional(v.string()),
       }),
     ),
     /**
