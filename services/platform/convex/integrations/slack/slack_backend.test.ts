@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import schema from '../../schema';
+import { __test } from './internal_actions';
 
 // convex-test needs a module map keyed relative to the convex/ root. This file
 // lives at convex/integrations/slack/, so glob from two levels up and strip the
@@ -153,5 +154,61 @@ describe('slack event dedup', () => {
 
     expect(first.claimed).toBe(true);
     expect(second.claimed).toBe(false);
+  });
+});
+
+describe('awaitStreamSettle (liveness grace re-poll)', () => {
+  const noSleep = async () => {};
+  function bodySeq(seq: Array<{ status: string; text: string }>) {
+    let i = 0;
+    return async () => seq[Math.min(i++, seq.length - 1)];
+  }
+
+  it('returns the real text when the stream finalizes within the grace window', async () => {
+    // Models the race: status flips to idle, then the stream commits 'done' a
+    // couple of polls later. We must surface the real answer, not the fallback.
+    const getBody = bodySeq([
+      { status: 'streaming', text: '' },
+      { status: 'streaming', text: 'partial' },
+      { status: 'done', text: 'final answer' },
+    ]);
+    const settled = await __test.awaitStreamSettle(getBody, noSleep, {
+      gracePolls: 20,
+      intervalMs: 1,
+    });
+    expect(settled).toBe('final answer');
+  });
+
+  it('returns undefined when the stream errors (keep fallback)', async () => {
+    const getBody = bodySeq([{ status: 'error', text: '' }]);
+    const settled = await __test.awaitStreamSettle(getBody, noSleep, {
+      gracePolls: 20,
+      intervalMs: 1,
+    });
+    expect(settled).toBeUndefined();
+  });
+
+  it('returns undefined when the stream never finalizes within the window', async () => {
+    // Genuine short-circuit (e.g. budget block): stream never terminalizes.
+    let calls = 0;
+    const getBody = async () => {
+      calls++;
+      return { status: 'streaming', text: '' };
+    };
+    const settled = await __test.awaitStreamSettle(getBody, noSleep, {
+      gracePolls: 3,
+      intervalMs: 1,
+    });
+    expect(settled).toBeUndefined();
+    expect(calls).toBe(3);
+  });
+
+  it('treats a done-but-empty stream as no reply (fallback)', async () => {
+    const getBody = bodySeq([{ status: 'done', text: '' }]);
+    const settled = await __test.awaitStreamSettle(getBody, noSleep, {
+      gracePolls: 5,
+      intervalMs: 1,
+    });
+    expect(settled).toBeUndefined();
   });
 });

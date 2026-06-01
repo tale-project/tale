@@ -28,7 +28,12 @@ export const getSlackAgentSlug = internalQuery({
         q.eq('organizationId', organizationId).eq('slug', 'slack'),
       )
       .first();
-    const cfg = cred?.connectionConfig;
+    // A deactivated (but not deleted) credential must not answer inbound — the
+    // outbound sink already gates on isActive (see notifications/notify_slack),
+    // so honour it here too. Returning null makes processSlackEvent drop the
+    // event before any reply/generation.
+    if (!cred || !cred.isActive) return null;
+    const cfg = cred.connectionConfig;
     return isRecord(cfg) ? (getString(cfg, 'slackAgentSlug') ?? null) : null;
   },
 });

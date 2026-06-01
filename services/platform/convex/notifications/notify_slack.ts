@@ -12,9 +12,55 @@ import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
+import {
+  checkOrganizationRateLimit,
+  RateLimitExceededError,
+} from '../lib/rate_limiter/helpers';
 import type { NotificationMessage } from './event_catalog_meta';
 
 const debugLog = createDebugLog('DEBUG_SLACK_NOTIFY', '[SlackNotify]');
+
+const SLACK_RATE_LIMIT_RETRY_MS = 1_500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Run `send` once; on a Slack 429 ("rate limited" / 429) back off and retry
+ * exactly once, mirroring the inbound `postSlackReply` discipline so the two
+ * Slack write paths behave the same. Errors are logged and swallowed — a Slack
+ * delivery failure must never fail the workflow/approval that triggered the
+ * notification. `sleep` is injectable so the retry is unit-testable without a
+ * real delay.
+ */
+export async function sendWithSlack429Retry(
+  send: () => Promise<unknown>,
+  meta: { organizationId: string; channel: string },
+  deps: { sleep?: (ms: number) => Promise<void> } = {},
+): Promise<void> {
+  const doSleep = deps.sleep ?? sleep;
+  try {
+    await send();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/rate.?limit|\b429\b/i.test(message)) {
+      console.warn('[SlackNotify] send rate-limited; retrying once', meta);
+      await doSleep(SLACK_RATE_LIMIT_RETRY_MS);
+      try {
+        await send();
+        return;
+      } catch (retryErr) {
+        console.error('[SlackNotify] send failed after 429 retry', {
+          ...meta,
+          error: retryErr instanceof Error ? retryErr.message : retryErr,
+        });
+        return;
+      }
+    }
+    console.error('[SlackNotify] send failed', { ...meta, error: message });
+  }
+}
 
 /**
  * Per-event opt-in resolution: an explicit org override (a boolean in
@@ -88,30 +134,44 @@ export async function notifySlack(
     return;
   }
 
-  for (const channel of channels) {
-    try {
-      await ctx.runAction(
-        internal.agent_tools.integrations.internal_actions.executeIntegration,
-        {
-          organizationId: args.organizationId,
-          integrationName: 'slack',
-          operation: 'send_message',
-          params: {
-            channel,
-            text: args.message.text,
-            ...(args.message.blocks ? { blocks: args.message.blocks } : {}),
-          },
-          skipApprovalCheck: true,
-        },
+  // Per-org backstop so a burst of notification events can't flood Slack. Best
+  // effort: on overflow drop this delivery (log) rather than throwing into the
+  // fire-and-forget dispatcher. The security fan-out already schedules one
+  // dispatch per org, so each org is bounded independently.
+  try {
+    await checkOrganizationRateLimit(ctx, 'notify:slack', args.organizationId);
+  } catch (err) {
+    if (err instanceof RateLimitExceededError) {
+      console.warn(
+        '[SlackNotify] org over notify rate limit; dropping',
+        args.eventType,
+        args.organizationId,
       );
-    } catch (err) {
-      // Log, never swallow, never re-throw — a Slack delivery failure must not
-      // fail the workflow/approval that triggered the notification.
-      console.error('[SlackNotify] send failed', {
-        organizationId: args.organizationId,
-        channel,
-        error: err instanceof Error ? err.message : err,
-      });
+      return;
     }
+    throw err;
+  }
+
+  for (const channel of channels) {
+    // Per-channel error isolation lives in sendWithSlack429Retry (log, never
+    // rethrow), which also retries once on a Slack 429 — matching postSlackReply.
+    await sendWithSlack429Retry(
+      () =>
+        ctx.runAction(
+          internal.agent_tools.integrations.internal_actions.executeIntegration,
+          {
+            organizationId: args.organizationId,
+            integrationName: 'slack',
+            operation: 'send_message',
+            params: {
+              channel,
+              text: args.message.text,
+              ...(args.message.blocks ? { blocks: args.message.blocks } : {}),
+            },
+            skipApprovalCheck: true,
+          },
+        ),
+      { organizationId: args.organizationId, channel },
+    );
   }
 }

@@ -344,6 +344,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 240,
   },
+  // Per-org backstop on OUTBOUND system-notification posts to Slack
+  // (notifications/notify_slack). Bounds a workflow-event burst from flooding
+  // Slack and tripping Slack's own per-app limits. Token bucket gives a 60-burst
+  // headroom for a batch of near-simultaneous alerts, settling at 30/min/org.
+  'notify:slack': {
+    kind: 'token bucket',
+    rate: 30,
+    period: MINUTE,
+    capacity: 60,
+    shards: 4,
+  },
   'openai:chat': {
     kind: 'token bucket',
     rate: 30,

@@ -13,6 +13,10 @@ const POLL_INTERVAL_MS = 100;
 // Check thread generationStatus every Nth poll (~1s) to catch a generation that
 // ended without terminalizing the stream (e.g. budget short-circuit).
 const LIVENESS_POLL_EVERY = 10;
+// When liveness shows generation is no longer active, keep polling the stream
+// this many times (~2s) for a terminal status before falling back — closes the
+// race where 'idle' is observed a beat before the stream commits 'done'.
+const LIVENESS_GRACE_POLLS = 20;
 const IDENTITY_REFRESH_MS = 24 * 60 * 60 * 1000;
 const SLACK_RATE_LIMIT_RETRY_MS = 1_500;
 
@@ -26,6 +30,32 @@ function sleep(ms: number): Promise<void> {
 /** Strip Slack mention tokens like `<@U123>` and trim. */
 function stripMentions(text: string): string {
   return text.replace(/<@[A-Z0-9]+>/g, '').trim();
+}
+
+/**
+ * After the liveness check observes generation is no longer active, poll the
+ * persistent stream a bounded grace window for a terminal status. Returns the
+ * final text once the stream is `done`, or undefined if it errored/timed out or
+ * never finalized within the window (the caller keeps the fallback reply).
+ *
+ * This closes a race: on the success path `clearGenerationStatus` (status
+ * `idle`) and `completeStream` (stream `done`) commit independently, so `idle`
+ * can be seen a beat before `done`. A genuinely short-circuited generation
+ * (e.g. budget block) never finalizes the stream, so the window expires and we
+ * fall back. `getBody`/`sleepFn` are injected so the logic is unit-testable.
+ */
+async function awaitStreamSettle(
+  getBody: () => Promise<{ status: string; text: string }>,
+  sleepFn: (ms: number) => Promise<void>,
+  opts: { gracePolls: number; intervalMs: number },
+): Promise<string | undefined> {
+  for (let g = 0; g < opts.gracePolls; g++) {
+    const body = await getBody();
+    if (body.status === 'done') return body.text || undefined;
+    if (body.status === 'error' || body.status === 'timeout') return undefined;
+    await sleepFn(opts.intervalMs);
+  }
+  return undefined;
 }
 
 /**
@@ -283,7 +313,21 @@ export const processSlackEvent = internalAction({
               internal.threads.internal_queries.getThreadMetadata,
               { threadId, callerOrgId: organizationId },
             );
-            if (meta && meta.generationStatus !== 'generating') break;
+            if (meta && meta.generationStatus !== 'generating') {
+              // Don't fall back immediately: a just-finished generation may have
+              // flipped status to 'idle' a beat before the stream commits
+              // 'done'. Grace-poll the stream for a terminal state first.
+              const settled = await awaitStreamSettle(
+                () => persistentStreaming.getStreamBody(ctx, typedStreamId),
+                sleep,
+                {
+                  gracePolls: LIVENESS_GRACE_POLLS,
+                  intervalMs: POLL_INTERVAL_MS,
+                },
+              );
+              if (settled !== undefined) replyText = settled;
+              break;
+            }
           }
           await sleep(POLL_INTERVAL_MS);
         }
@@ -322,3 +366,6 @@ export const processSlackEvent = internalAction({
     return null;
   },
 });
+
+// Exported for unit tests.
+export const __test = { awaitStreamSettle, stripMentions };
