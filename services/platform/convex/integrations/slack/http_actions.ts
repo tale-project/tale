@@ -3,9 +3,10 @@ import { internal } from '../../_generated/api';
 import { httpAction } from '../../_generated/server';
 import {
   checkIpRateLimit,
+  checkTeamRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate_limiter/helpers';
-import { extractClientIp } from '../../workflows/triggers/helpers/validate';
+import { getClientIp, loadTrustedProxies } from '../../lib/utils/client_ip';
 import { verifySlackSignature } from './verify_signature';
 
 function emptyAck(): Response {
@@ -13,10 +14,14 @@ function emptyAck(): Response {
   return new Response(null, { status: 200 });
 }
 
-function textResponse(body: string, status: number): Response {
+function textResponse(
+  body: string,
+  status: number,
+  headers?: Record<string, string>,
+): Response {
   return new Response(body, {
     status,
-    headers: { 'Content-Type': 'text/plain' },
+    headers: { 'Content-Type': 'text/plain', ...headers },
   });
 }
 
@@ -64,20 +69,15 @@ function parseEvent(event: Record<string, unknown>): ParsedEvent | null {
 /**
  * Single Slack Events API Request URL for the shared Slack App. Verifies the
  * request signature, answers the URL-verification challenge, and hands valid
- * message events to an async processor (ACKing Slack within 3s). Always returns
- * 200 for authenticated requests — Slack disables endpoints that 5xx/time out.
+ * message events to an async processor (ACKing Slack within 3s).
+ *
+ * Rate limiting is applied AFTER signature verification so signed Slack
+ * deliveries are never thrown a non-2xx (which Slack treats as a failed
+ * delivery and can disable the endpoint over): forged/unsigned requests are
+ * throttled by client IP (401, or 429 under flood), while signed traffic has a
+ * per-workspace backstop that ACKs 200 and drops on overflow.
  */
 export const slackEventsHandler = httpAction(async (ctx, req) => {
-  const ip = extractClientIp(req.headers);
-  try {
-    await checkIpRateLimit(ctx, 'integration:slack-events', ip);
-  } catch (error) {
-    if (error instanceof RateLimitExceededError) {
-      return textResponse('Rate limit exceeded', 429);
-    }
-    throw error;
-  }
-
   const signingSecret = process.env.SLACK_SIGNING_SECRET;
   if (!signingSecret) {
     console.error(
@@ -95,6 +95,21 @@ export const slackEventsHandler = httpAction(async (ctx, req) => {
     rawBody,
   });
   if (!verification.ok) {
+    // Throttle forged/unsigned floods by (spoof-resistant) client IP. Tokens
+    // are consumed only on failure, so legitimate signed traffic never depletes
+    // this bucket.
+    try {
+      const trusted = await loadTrustedProxies(ctx);
+      const ip = getClientIp(req.headers, trusted);
+      await checkIpRateLimit(ctx, 'integration:slack-events', ip);
+    } catch (error) {
+      if (error instanceof RateLimitExceededError) {
+        return textResponse('Rate limit exceeded', 429, {
+          'Retry-After': String(Math.ceil(error.retryAfter / 1000)),
+        });
+      }
+      throw error;
+    }
     return textResponse('Invalid signature', 401);
   }
 
@@ -133,10 +148,30 @@ export const slackEventsHandler = httpAction(async (ctx, req) => {
     return emptyAck();
   }
 
-  const retryNumHeader = req.headers.get('X-Slack-Retry-Num');
-  const retryNum = retryNumHeader
-    ? Number.parseInt(retryNumHeader, 10)
-    : undefined;
+  // Per-workspace flood backstop for SIGNED traffic. On overflow, ACK 200 and
+  // drop — never 429 — because Slack counts a non-2xx toward disabling the
+  // endpoint. Keyed by team_id so one noisy workspace can't starve others.
+  try {
+    await checkTeamRateLimit(ctx, 'integration:slack-events', teamId);
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      console.warn(
+        `[slack:events] team ${teamId} over rate limit; dropping event ${eventId}`,
+      );
+      return emptyAck();
+    }
+    throw error;
+  }
+
+  // Slack re-delivers on a slow ACK; we ACK 200 below before any work, so a
+  // retry header just signals a prior slow round-trip — log it, nothing more.
+  if (req.headers.get('X-Slack-Retry-Num')) {
+    console.warn(
+      `[slack:events] Slack retried event ${eventId} (reason: ${
+        req.headers.get('X-Slack-Retry-Reason') ?? 'unknown'
+      })`,
+    );
+  }
 
   await ctx.scheduler.runAfter(
     0,
@@ -150,7 +185,6 @@ export const slackEventsHandler = httpAction(async (ctx, req) => {
       text: parsed.text,
       slackUserId: parsed.slackUserId,
       eventType: parsed.eventType,
-      retryNum: Number.isFinite(retryNum) ? retryNum : undefined,
     },
   );
 

@@ -59,7 +59,9 @@ export async function verifySlackSignature(args: {
     return { ok: false, reason: 'stale' };
   }
 
-  const basestring = `${SLACK_SIGNATURE_VERSION}:${timestamp}:${rawBody}`;
+  // Sign over the EXACT header value (not the re-stringified integer) so the
+  // base string is byte-identical to what Slack signed.
+  const basestring = `${SLACK_SIGNATURE_VERSION}:${timestampHeader}:${rawBody}`;
   const key = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(signingSecret),

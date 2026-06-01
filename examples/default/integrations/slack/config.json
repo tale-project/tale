@@ -16,7 +16,6 @@
       "groups:read",
       "groups:history",
       "im:read",
-      "im:write",
       "im:history",
       "mpim:read",
       "mpim:history",

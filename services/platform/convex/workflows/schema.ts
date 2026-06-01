@@ -175,6 +175,10 @@ export const wfExecutionsTable = defineTable({
   metadata: v.optional(v.string()),
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
+  // Set once the first transition-to-failed has emitted a `workflow.failed`
+  // notification, so the various failure paths (engine callback, stuck-recovery
+  // watchdog, start-failure, dynamic next-step) notify exactly once.
+  failureNotifiedAt: v.optional(v.number()),
 })
   .index('by_org', ['organizationId'])
   .index('by_org_lifecycleStatus', ['organizationId', 'lifecycleStatus'])

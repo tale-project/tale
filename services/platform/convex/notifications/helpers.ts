@@ -47,7 +47,9 @@ export async function writeNotificationForOrgs(
 
   // Mirror security alerts to external notification channels (Slack today).
   // The dispatcher/sink decide per-org whether Slack is connected and the
-  // event enabled, so this stays an unconditional best-effort fan-out.
+  // event enabled, so this stays an unconditional best-effort fan-out. We pass
+  // the i18n KEYS plus the interpolation params (NOT pre-rendered text) so the
+  // dispatcher can render in each org's locale — matching the in-app bell.
   if (args.category === 'security') {
     for (const organizationId of args.organizationIds) {
       await ctx.scheduler.runAfter(
@@ -56,7 +58,11 @@ export async function writeNotificationForOrgs(
         {
           organizationId,
           eventType: 'security.alert',
-          params: { title: args.titleKey, body: args.bodyKey },
+          params: {
+            titleKey: args.titleKey,
+            bodyKey: args.bodyKey,
+            params: args.params,
+          },
         },
       );
     }

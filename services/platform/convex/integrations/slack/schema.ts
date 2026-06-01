@@ -8,9 +8,13 @@ import { v } from 'convex/values';
  * `getOrCreateSlackThread`, race-free under Convex OCC.
  *
  * `slackUserId` is the initiating author; the thread owner on `threadMetadata`
- * is the namespaced external identity `slack:<slackUserId>` (see
- * `identities/external_identities_schema.ts`). `slackUserName` is denormalized
- * here for convenience / display.
+ * is the org-scoped external identity `slack:<organizationId>:<slackUserId>`
+ * (see `identities/external_identities_schema.ts`). `slackUserName` is
+ * denormalized here for convenience / display.
+ *
+ * `by_threadId` backs both the cascade cleanup (`cascadeDeleteThreadChildren`)
+ * and the dangling-mapping guard in `getOrCreateSlackThread`; `by_organizationId`
+ * backs org-teardown cleanup.
  */
 export const slackThreadsTable = defineTable({
   organizationId: v.string(),
@@ -19,7 +23,6 @@ export const slackThreadsTable = defineTable({
   // mention. Stable key for "this Slack thread".
   conversationTs: v.string(),
   threadId: v.string(),
-  agentSlug: v.optional(v.string()),
   slackUserId: v.string(),
   slackUserName: v.optional(v.string()),
   createdAt: v.number(),
@@ -33,11 +36,11 @@ export const slackThreadsTable = defineTable({
  * Slack retries deliveries (X-Slack-Retry-Num), so the async processor claims
  * an event here before doing any work — a duplicate/retry finds the row and is
  * dropped. Rows expire after a short TTL and are reaped opportunistically
- * (rate-limiter-gated) inside `claimSlackEvent`; there is no cron.
+ * (rate-limiter-gated, self-draining) inside `claimSlackEvent`; there is no
+ * cron. Use the built-in `_creationTime` for insertion time.
  */
 export const slackEventDedupTable = defineTable({
   eventId: v.string(),
-  createdAt: v.number(),
   expiresAt: v.number(),
 })
   .index('by_eventId', ['eventId'])

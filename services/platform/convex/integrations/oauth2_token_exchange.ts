@@ -19,6 +19,12 @@ import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations OAuth2]');
 
 interface TokenResponse {
+  // Slack's Web API (incl. oauth.v2.access) returns HTTP 200 even on failure,
+  // signalling the error only via `ok:false` + `error` in the body. Standard
+  // RFC-6749 providers omit these (they 4xx instead), so the check is a no-op
+  // for them.
+  ok?: boolean;
+  error?: string;
   access_token: string;
   refresh_token?: string;
   token_type: string;
@@ -106,6 +112,17 @@ export const handleOAuth2Callback = internalAction({
 
     const tokens = await fetchJson<TokenResponse>(response);
 
+    // Slack-style HTTP-200 failure (and a guard for any provider that adopts the
+    // same shape). Surface the real reason instead of a generic message.
+    if (tokens.ok === false) {
+      console.error(
+        `[OAuth2 Token Exchange] provider returned ok:false (${tokens.error ?? 'unknown'}) for credential ${args.credentialId}`,
+      );
+      throw new Error(
+        `Authorization failed: ${tokens.error ?? 'unknown error'}. Please try authorizing again.`,
+      );
+    }
+
     if (!tokens.access_token) {
       console.error(
         `[OAuth2 Token Exchange] Response missing access_token for credential ${args.credentialId}`,
@@ -124,29 +141,30 @@ export const handleOAuth2Callback = internalAction({
       ? Math.floor(Date.now() / 1000) + tokens.expires_in
       : undefined;
 
-    const scopes = tokens.scope ? tokens.scope.split(' ') : undefined;
+    // Slack returns a comma-separated scope string; RFC-6749 uses spaces. Split
+    // on either so granted scopes are stored as distinct elements.
+    const scopes = tokens.scope
+      ? tokens.scope.split(/[\s,]+/).filter(Boolean)
+      : undefined;
 
-    await ctx.runMutation(
-      internal.integrations.credential_mutations.updateCredentialsInternal,
-      {
-        credentialId: args.credentialId,
-        oauth2Auth: {
-          accessTokenEncrypted,
-          refreshTokenEncrypted,
-          tokenExpiry,
-          scopes,
-        },
-        status: 'active',
-        isActive: true,
-        errorMessage: undefined,
-      },
-    );
-
-    // Slack-specific: capture the workspace routing identity from the same
-    // token response (no extra round trip). The generic exchange above already
-    // stored the bot token; this records team_id → org so inbound events can
-    // be routed, plus the bot user id for self-message loop prevention.
-    if (credential.slug === 'slack' && tokens.team?.id) {
+    // Slack-specific: secure workspace routing/ownership BEFORE activating the
+    // credential, so a cross-org conflict (or an unroutable enterprise-grid
+    // install) fails closed — leaving the credential inactive with no usable bot
+    // token rather than an active credential a losing org could post through.
+    if (credential.slug === 'slack') {
+      if (!tokens.team?.id) {
+        // Enterprise Grid org-wide install: `team` is null, only `enterprise` is
+        // set. Inbound routing keys on team_id, so this credential could never
+        // answer — reject loudly instead of reporting a healthy connection.
+        console.warn(
+          `[OAuth2 Token Exchange] Slack enterprise-grid/org-wide install for credential ${args.credentialId} (enterprise ${tokens.enterprise?.id ?? 'unknown'}) — no team_id; rejecting.`,
+        );
+        throw new Error(
+          'Slack Enterprise Grid org-wide installs are not yet supported. Please install the app to a specific workspace.',
+        );
+      }
+      // Throws if this workspace is already mapped to a different org — before
+      // any token is activated.
       await ctx.runMutation(
         internal.integrations.slack_installations.upsertInstallation,
         {
@@ -164,6 +182,22 @@ export const handleOAuth2Callback = internalAction({
         `Recorded Slack installation for team ${tokens.team.id} (org ${credential.organizationId})`,
       );
     }
+
+    await ctx.runMutation(
+      internal.integrations.credential_mutations.updateCredentialsInternal,
+      {
+        credentialId: args.credentialId,
+        oauth2Auth: {
+          accessTokenEncrypted,
+          refreshTokenEncrypted,
+          tokenExpiry,
+          scopes,
+        },
+        status: 'active',
+        isActive: true,
+        errorMessage: undefined,
+      },
+    );
 
     debugLog(
       `OAuth2 token exchange successful for credential ${args.credentialId}`,

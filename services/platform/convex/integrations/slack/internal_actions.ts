@@ -10,6 +10,9 @@ import { persistentStreaming } from '../../streaming/helpers';
 
 const MAX_POLL_MS = 540_000; // aligns with the generation hard limit (9 min)
 const POLL_INTERVAL_MS = 100;
+// Check thread generationStatus every Nth poll (~1s) to catch a generation that
+// ended without terminalizing the stream (e.g. budget short-circuit).
+const LIVENESS_POLL_EVERY = 10;
 const IDENTITY_REFRESH_MS = 24 * 60 * 60 * 1000;
 const SLACK_RATE_LIMIT_RETRY_MS = 1_500;
 
@@ -131,7 +134,6 @@ export const processSlackEvent = internalAction({
     text: v.string(),
     slackUserId: v.string(),
     eventType: v.union(v.literal('app_mention'), v.literal('message_im')),
-    retryNum: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -144,134 +146,178 @@ export const processSlackEvent = internalAction({
       return null;
     }
 
-    // 2. Route to the installing org.
-    const route = await ctx.runQuery(
-      internal.integrations.slack_installations.resolveOrgBySlackTeamId,
-      { teamId: args.teamId },
-    );
-    if (!route) {
-      console.warn(
-        `[slack:process] no installation for team ${args.teamId} (event ${args.eventId})`,
+    const conversationTs = args.threadTs ?? args.messageTs;
+    // The dedup row is already committed and this action is at-most-once (Convex
+    // does not retry it). So everything below runs under a guard: an unexpected
+    // throw is logged and — once we know where to reply — surfaced as a friendly
+    // fallback, never a silently dropped message.
+    let organizationId: string | undefined;
+    try {
+      // 2. Route to the installing org.
+      const route = await ctx.runQuery(
+        internal.integrations.slack_installations.resolveOrgBySlackTeamId,
+        { teamId: args.teamId },
       );
-      return null;
-    }
-    const { organizationId } = route;
+      if (!route) {
+        console.warn(
+          `[slack:process] no installation for team ${args.teamId} (event ${args.eventId})`,
+        );
+        return null;
+      }
+      organizationId = route.organizationId;
 
-    // 3. Loop guard — never answer the bot's own messages.
-    if (route.botUserId && args.slackUserId === route.botUserId) {
-      return null;
-    }
+      // 3. Loop guard — never answer the bot's own messages.
+      if (route.botUserId && args.slackUserId === route.botUserId) {
+        return null;
+      }
 
-    // 4. Which agent answers Slack for this org?
-    const agentSlug = await ctx.runQuery(
-      internal.integrations.slack_config_queries.getSlackAgentSlug,
-      { organizationId },
-    );
-    if (!agentSlug) {
-      console.warn(
-        `[slack:process] org ${organizationId} has no slackAgentSlug configured; dropping event ${args.eventId}`,
+      // 4. Which agent answers Slack for this org?
+      const agentSlug = await ctx.runQuery(
+        internal.integrations.slack_config_queries.getSlackAgentSlug,
+        { organizationId },
       );
-      return null;
-    }
+      if (!agentSlug) {
+        console.warn(
+          `[slack:process] org ${organizationId} has no slackAgentSlug configured; dropping event ${args.eventId}`,
+        );
+        return null;
+      }
 
-    // 5. Clean the message (drop the bot mention token).
-    const cleanedText = stripMentions(args.text);
-    if (!cleanedText) {
-      return null;
-    }
+      // 5. Clean the message (drop the bot mention token).
+      const cleanedText = stripMentions(args.text);
+      if (!cleanedText) {
+        return null;
+      }
 
-    // 6. Resolve + record the Slack author identity (lazy refresh).
-    const ownerId = buildExternalOwnerId('slack', args.slackUserId);
-    const existingIdentity = await ctx.runQuery(
-      internal.identities.external_identities.getByOwnerId,
-      { ownerId },
-    );
-    const stale =
-      !existingIdentity ||
-      existingIdentity.updatedAt < Date.now() - IDENTITY_REFRESH_MS;
-    let displayName = existingIdentity?.displayName ?? undefined;
-    if (stale) {
-      const fetched = await fetchSlackDisplayName(
-        ctx,
-        organizationId,
+      // 6. Resolve + record the Slack author identity (lazy refresh). The owner
+      //    id is org-scoped, so a shared Slack user maps to a per-org row.
+      const ownerId = buildExternalOwnerId(
+        'slack',
         args.slackUserId,
+        organizationId,
       );
-      displayName = fetched ?? displayName;
-      await ctx.runMutation(
-        internal.identities.external_identities.upsertExternalIdentity,
-        {
-          source: 'slack',
+      const existingIdentity = await ctx.runQuery(
+        internal.identities.external_identities.getByOwnerId,
+        { ownerId },
+      );
+      // Refresh when we have never resolved a name yet, or the name is stale.
+      // (A still-missing name keeps retrying every message until we get one,
+      // since a failed fetch never bumps the freshness window.)
+      const stale =
+        !existingIdentity ||
+        !existingIdentity.displayName ||
+        existingIdentity.updatedAt < Date.now() - IDENTITY_REFRESH_MS;
+      let displayName = existingIdentity?.displayName ?? undefined;
+      if (stale) {
+        const fetched = await fetchSlackDisplayName(
+          ctx,
           organizationId,
-          externalUserId: args.slackUserId,
-          displayName,
+          args.slackUserId,
+        );
+        if (fetched) displayName = fetched;
+        // Pass only the freshly fetched value; upsert preserves the existing
+        // name and leaves `updatedAt` untouched when the fetch came back empty.
+        await ctx.runMutation(
+          internal.identities.external_identities.upsertExternalIdentity,
+          {
+            source: 'slack',
+            organizationId,
+            externalUserId: args.slackUserId,
+            displayName: fetched,
+          },
+        );
+      }
+
+      // 7. Map to a stable Tale thread (a Slack thread === one Tale thread).
+      const { threadId } = await ctx.runMutation(
+        internal.integrations.slack.internal_mutations.getOrCreateSlackThread,
+        {
+          organizationId,
+          channel: args.channel,
+          conversationTs,
+          slackUserId: args.slackUserId,
+          slackUserName: displayName,
         },
       );
-    }
 
-    // 7. Map to a stable Tale thread (a Slack thread === one Tale thread).
-    const conversationTs = args.threadTs ?? args.messageTs;
-    const { threadId } = await ctx.runMutation(
-      internal.integrations.slack.internal_mutations.getOrCreateSlackThread,
-      {
+      // 8. Resolve the agent config + start generation.
+      let replyText = FALLBACK_REPLY;
+      try {
+        const agentConfig = await ctx.runAction(
+          internal.agents.file_actions.resolveAgentConfig,
+          { agentSlug, organizationId },
+        );
+        const { streamId } = await ctx.runMutation(
+          internal.integrations.slack.internal_mutations.startSlackChat,
+          {
+            organizationId,
+            agentSlug,
+            threadId,
+            message: cleanedText,
+            agentConfig,
+          },
+        );
+
+        // 9. Poll the stream to completion.
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StreamId is a branded string from the persistent-streaming SDK; runMutation returns plain string
+        const typedStreamId = streamId as StreamId;
+        const maxPolls = Math.ceil(MAX_POLL_MS / POLL_INTERVAL_MS);
+        for (let i = 0; i < maxPolls; i++) {
+          const body = await persistentStreaming.getStreamBody(
+            ctx,
+            typedStreamId,
+          );
+          if (body.status === 'done') {
+            replyText = body.text || FALLBACK_REPLY;
+            break;
+          }
+          if (body.status === 'error' || body.status === 'timeout') {
+            break; // keep FALLBACK_REPLY; never leak raw error text to Slack
+          }
+          // Liveness: a short-circuited generation (e.g. budget block) saves a
+          // message and flips generationStatus off 'generating' but never writes
+          // the stream, which would otherwise leave us polling the full 9 min.
+          // Detect it (cheaply, ~1/s) and bail to the fallback instead.
+          if (i % LIVENESS_POLL_EVERY === 0) {
+            const meta = await ctx.runQuery(
+              internal.threads.internal_queries.getThreadMetadata,
+              { threadId, callerOrgId: organizationId },
+            );
+            if (meta && meta.generationStatus !== 'generating') break;
+          }
+          await sleep(POLL_INTERVAL_MS);
+        }
+      } catch (err) {
+        console.error(
+          `[slack:process] generation failed (event ${args.eventId}):`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+
+      // 10. Post the reply back into the Slack thread. postSlackReply guards its
+      //     own errors, so it never throws into the outer catch.
+      await postSlackReply(ctx, {
         organizationId,
         channel: args.channel,
-        conversationTs,
-        agentSlug,
-        slackUserId: args.slackUserId,
-        slackUserName: displayName,
-      },
-    );
-
-    // 8. Resolve the agent config + start generation.
-    let replyText = FALLBACK_REPLY;
-    try {
-      const agentConfig = await ctx.runAction(
-        internal.agents.file_actions.resolveAgentConfig,
-        { agentSlug, organizationId },
-      );
-      const { streamId } = await ctx.runMutation(
-        internal.integrations.slack.internal_mutations.startSlackChat,
-        {
-          organizationId,
-          agentSlug,
-          threadId,
-          message: cleanedText,
-          agentConfig,
-        },
-      );
-
-      // 9. Poll the stream to completion.
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StreamId is a branded string from the persistent-streaming SDK; runMutation returns plain string
-      const typedStreamId = streamId as StreamId;
-      const maxPolls = Math.ceil(MAX_POLL_MS / POLL_INTERVAL_MS);
-      for (let i = 0; i < maxPolls; i++) {
-        const body = await persistentStreaming.getStreamBody(
-          ctx,
-          typedStreamId,
-        );
-        if (body.status === 'done') {
-          replyText = body.text || FALLBACK_REPLY;
-          break;
-        }
-        if (body.status === 'error' || body.status === 'timeout') {
-          break; // keep FALLBACK_REPLY; never leak raw error text to Slack
-        }
-        await sleep(POLL_INTERVAL_MS);
-      }
+        threadTs: conversationTs,
+        text: replyText,
+      });
     } catch (err) {
       console.error(
-        `[slack:process] generation failed (event ${args.eventId}):`,
+        `[slack:process] unhandled failure (event ${args.eventId}):`,
         err instanceof Error ? err.message : err,
       );
+      // Best-effort friendly reply so a waiting user isn't left hanging when a
+      // pre-generation step threw after we already claimed the event.
+      if (organizationId) {
+        await postSlackReply(ctx, {
+          organizationId,
+          channel: args.channel,
+          threadTs: conversationTs,
+          text: FALLBACK_REPLY,
+        });
+      }
     }
-
-    // 10. Post the reply back into the Slack thread.
-    await postSlackReply(ctx, {
-      organizationId,
-      channel: args.channel,
-      threadTs: conversationTs,
-      text: replyText,
-    });
 
     return null;
   },

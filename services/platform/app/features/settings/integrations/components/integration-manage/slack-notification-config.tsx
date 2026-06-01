@@ -3,19 +3,19 @@
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
-import { Input } from '@tale/ui/input';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 
+import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { useListAgents } from '@/app/features/agents/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import {
   listNotificationEventTypes,
-  NOTIFICATION_EVENTS,
-} from '@/convex/notifications/event_catalog';
+  NOTIFICATION_EVENT_META,
+} from '@/convex/notifications/event_catalog_meta';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateCredentials } from '../../hooks/mutations';
@@ -40,6 +40,7 @@ export function SlackNotificationConfig({
   const { t } = useT('settings');
   const { agents } = useListAgents(organizationId);
   const { mutateAsync: updateCredentials } = useUpdateCredentials();
+  const eventsLabelId = useId();
 
   const cfg: Record<string, unknown> = integration.connectionConfig ?? {};
   const initialAgentSlug =
@@ -62,21 +63,32 @@ export function SlackNotificationConfig({
   const [saving, setSaving] = useState(false);
 
   const agentOptions = useMemo(() => {
-    const list = Array.isArray(agents) ? agents : [];
-    return list.flatMap((a) => {
+    // `agents` is undefined while loading; only treat an empty list as
+    // authoritative once it has resolved.
+    const loaded = Array.isArray(agents);
+    const options = (loaded ? agents : []).flatMap((a) => {
       if (!a) return [];
       const label =
         'displayName' in a && a.displayName ? a.displayName : a.name;
       return [{ value: a.name, label }];
     });
-  }, [agents]);
+    // Surface a configured-but-missing agent so the field doesn't silently look
+    // unconfigured (it would otherwise fall back to the placeholder).
+    if (loaded && agentSlug && !options.some((o) => o.value === agentSlug)) {
+      options.unshift({
+        value: agentSlug,
+        label: `${agentSlug} (${t('integrations.slackNotify.agentMissing')})`,
+      });
+    }
+    return options;
+  }, [agents, agentSlug, t]);
 
   const eventTypes = useMemo(() => listNotificationEventTypes(), []);
 
   const isEnabled = (type: (typeof eventTypes)[number]) =>
     typeof notifyEvents[type] === 'boolean'
       ? notifyEvents[type]
-      : NOTIFICATION_EVENTS[type].defaultEnabled;
+      : NOTIFICATION_EVENT_META[type].defaultEnabled;
 
   const handleSave = async () => {
     setSaving(true);
@@ -119,44 +131,40 @@ export function SlackNotificationConfig({
           options={agentOptions}
         />
 
-        <Stack gap={1}>
-          <Text variant="label" className="text-sm">
-            {t('integrations.slackNotify.channelsLabel')}
-          </Text>
-          <Input
-            value={channelsText}
-            onChange={(e) => setChannelsText(e.target.value)}
-            placeholder="C0123ABCD, C0456EFGH"
-          />
-          <Text variant="muted" className="text-xs">
-            {t('integrations.slackNotify.channelsHint')}
-          </Text>
-        </Stack>
+        <Input
+          label={t('integrations.slackNotify.channelsLabel')}
+          description={t('integrations.slackNotify.channelsHint')}
+          value={channelsText}
+          onChange={(e) => setChannelsText(e.target.value)}
+          placeholder="C0123ABCD, C0456EFGH"
+        />
 
         <Stack gap={2}>
-          <Text variant="label" className="text-sm">
+          <Text id={eventsLabelId} variant="label" className="text-sm">
             {t('integrations.slackNotify.eventsLabel')}
           </Text>
-          {eventTypes.map((type) => (
-            <HStack key={type} gap={2} align="center">
-              <Checkbox
-                id={`slack-notify-${type}`}
-                checked={isEnabled(type)}
-                onCheckedChange={(checked) =>
-                  setNotifyEvents((prev) => ({
-                    ...prev,
-                    [type]: checked === true,
-                  }))
-                }
-              />
-              <label
-                htmlFor={`slack-notify-${type}`}
-                className="cursor-pointer text-sm"
-              >
-                {t(NOTIFICATION_EVENTS[type].titleKey)}
-              </label>
-            </HStack>
-          ))}
+          <Stack gap={2} role="group" aria-labelledby={eventsLabelId}>
+            {eventTypes.map((type) => (
+              <HStack key={type} gap={2} align="center">
+                <Checkbox
+                  id={`slack-notify-${type}`}
+                  checked={isEnabled(type)}
+                  onCheckedChange={(checked) =>
+                    setNotifyEvents((prev) => ({
+                      ...prev,
+                      [type]: checked === true,
+                    }))
+                  }
+                />
+                <label
+                  htmlFor={`slack-notify-${type}`}
+                  className="cursor-pointer text-sm"
+                >
+                  {t(NOTIFICATION_EVENT_META[type].titleKey)}
+                </label>
+              </HStack>
+            ))}
+          </Stack>
         </Stack>
 
         <HStack justify="end">

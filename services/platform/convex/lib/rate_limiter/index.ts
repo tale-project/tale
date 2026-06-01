@@ -331,9 +331,13 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 50,
   },
-  // Inbound Slack Events API endpoint, keyed by client IP. All deliveries come
-  // from Slack's egress, and a busy workspace can burst many events, so this is
-  // intentionally generous — it's a flood backstop, not a per-user limit.
+  // Inbound Slack Events API endpoint backstop. Used two ways as independent
+  // buckets (distinct key prefixes): keyed by Slack team_id for SIGNED traffic
+  // (per-workspace flood backstop — on overflow the handler ACKs 200 and drops,
+  // never 429, since a non-2xx counts toward Slack's endpoint auto-disable),
+  // and keyed by client IP for FORGED/unsigned requests (401, or 429 under
+  // flood). Signature verification authenticates signed traffic, so it is never
+  // 429'd. Intentionally generous — a flood backstop, not a per-user limit.
   'integration:slack-events': {
     kind: 'token bucket',
     rate: 120,

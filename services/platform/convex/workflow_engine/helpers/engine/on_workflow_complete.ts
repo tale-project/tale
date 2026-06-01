@@ -63,6 +63,19 @@ export async function handleWorkflowComplete(
           output,
         },
       );
+      // Opt-in completion notification (workflow.completed is default-off),
+      // gated to the first completion so re-invocation doesn't double-notify.
+      // The failure notification is owned by failExecution (so every failure
+      // path notifies once); completion only happens here.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.notifications.dispatch_notification.dispatchNotificationAction,
+        {
+          organizationId: exec.organizationId,
+          eventType: 'workflow.completed',
+          params: { workflowSlug: exec.workflowSlug ?? 'workflow' },
+        },
+      );
     }
     const updatedExec = await ctx.db.get(exec._id);
     if (updatedExec) {
@@ -99,44 +112,7 @@ export async function handleWorkflowComplete(
     if (kind !== 'canceled') {
       await postCompletionMessageToThread(ctx, exec, kind, result);
     }
-    // Mirror the outcome to any configured external notification channels
-    // (Slack today). Gated on first completion so re-invocation doesn't
-    // double-notify.
-    await maybeNotifyWorkflowOutcome(ctx, exec, kind, result);
   }
-}
-
-/**
- * Emit a notification event for a workflow's terminal outcome. Catalog-driven
- * (workflow.completed is opt-in, workflow.failed is on by default); the
- * dispatcher decides per-org delivery. Best-effort and non-blocking.
- */
-async function maybeNotifyWorkflowOutcome(
-  ctx: MutationCtx,
-  exec: Doc<'wfExecutions'>,
-  kind: string | undefined,
-  result: ComponentRunResult,
-): Promise<void> {
-  const eventType =
-    kind === 'success'
-      ? 'workflow.completed'
-      : kind === 'failed'
-        ? 'workflow.failed'
-        : undefined;
-  if (!eventType) return;
-
-  const params: Record<string, unknown> = {
-    workflowSlug: exec.workflowSlug ?? 'workflow',
-  };
-  if (eventType === 'workflow.failed') {
-    params.error = result.kind === 'failed' ? result.error : undefined;
-  }
-
-  await ctx.scheduler.runAfter(
-    0,
-    internal.notifications.dispatch_notification.dispatchNotificationAction,
-    { organizationId: exec.organizationId, eventType, params },
-  );
 }
 
 async function updateTriggeringApprovalStatus(

@@ -4598,6 +4598,7 @@
         "title": "Slack-Bot & Benachrichtigungen",
         "agentLabel": "Agent, der auf Slack antwortet",
         "agentPlaceholder": "Agent auswählen",
+        "agentMissing": "nicht gefunden",
         "channelsLabel": "Benachrichtigungskanäle",
         "channelsHint": "Kommagetrennte Slack-Kanal-IDs (z. B. C0123ABCD), die Systembenachrichtigungen erhalten.",
         "eventsLabel": "Benachrichtigen bei",

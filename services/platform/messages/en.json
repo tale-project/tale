@@ -4859,6 +4859,7 @@
         "title": "Slack bot & notifications",
         "agentLabel": "Agent that answers Slack",
         "agentPlaceholder": "Select an agent",
+        "agentMissing": "not found",
         "channelsLabel": "Notification channels",
         "channelsHint": "Comma-separated Slack channel IDs (e.g. C0123ABCD) that receive system notifications.",
         "eventsLabel": "Notify on",

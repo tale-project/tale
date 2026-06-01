@@ -108,7 +108,7 @@ describe('failExecution', () => {
     );
   });
 
-  it('should not schedule cleanup if no storage IDs', async () => {
+  it('should not schedule storage cleanup if no storage IDs', async () => {
     const ctx = createMockCtx();
 
     await failExecution(ctx as unknown as MutationCtx, {
@@ -117,7 +117,12 @@ describe('failExecution', () => {
     });
 
     expect(ctx.storage.delete).not.toHaveBeenCalled();
-    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+    // No storage-cleanup job is scheduled (the only scheduled job is the
+    // workflow.failed notification failExecution now emits).
+    const storageJobs = ctx._scheduledJobs.filter(
+      (j) => 'variablesStorageId' in j.args || 'outputStorageId' in j.args,
+    );
+    expect(storageJobs).toHaveLength(0);
   });
 });
 

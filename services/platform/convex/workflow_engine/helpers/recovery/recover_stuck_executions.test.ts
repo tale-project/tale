@@ -328,7 +328,15 @@ describe('recoverStuckExecutions', () => {
 
     expect(result.recovered).toBe(1);
     expect(_cancelCalls).toHaveLength(0);
-    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+    // No storage cleanup is scheduled (the only scheduled job is the
+    // workflow.failed notification this branch now emits).
+    const storageJobs = ctx._schedulerCalls.filter((c) => {
+      const a = c.args as Record<string, unknown> | undefined;
+      return (
+        a !== undefined && ('variablesStorageId' in a || 'outputStorageId' in a)
+      );
+    });
+    expect(storageJobs).toHaveLength(0);
   });
 
   it('should schedule storage cleanup when recovered execution has storage IDs', async () => {

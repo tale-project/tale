@@ -2,18 +2,25 @@
  * Delivery-agnostic notification dispatcher.
  *
  * Source hooks emit `(organizationId, eventType, params)` — they know nothing
- * about Slack. The dispatcher renders the message via the catalog and fans out
- * to delivery sinks (v1: Slack only; email/Teams/webhook plug in here later,
- * each reading its own config + enabled-state).
+ * about Slack. The dispatcher resolves the org's locale, renders the message via
+ * the catalog, and fans out to delivery sinks (v1: Slack only; email/Teams/
+ * webhook plug in here later, each reading its own config + enabled-state).
+ *
+ * Best-effort: both callers schedule this fire-and-forget, so a delivery failure
+ * cannot fail the workflow/approval that triggered it. The sink isolates its own
+ * errors too (see notify_slack).
  */
 
 import { v } from 'convex/values';
 
+import { isRecord } from '../../lib/utils/type-guards';
+import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import {
-  NOTIFICATION_EVENTS,
+  buildNotificationMessage,
   isKnownNotificationEventType,
+  NOTIFICATION_EVENT_META,
 } from './event_catalog';
 import { notifySlack } from './notify_slack';
 
@@ -30,14 +37,18 @@ export async function dispatchNotification(
     return;
   }
 
-  const entry = NOTIFICATION_EVENTS[args.eventType];
-  const message = entry.buildMessage(args.params);
+  const meta = NOTIFICATION_EVENT_META[args.eventType];
+  const locale = await ctx.runQuery(
+    internal.organizations.internal_queries.getOrganizationDefaultLocale,
+    { organizationId: args.organizationId },
+  );
+  const message = buildNotificationMessage(args.eventType, args.params, locale);
 
   // Fan out to delivery sinks. Add new sinks here.
   await notifySlack(ctx, {
     organizationId: args.organizationId,
     eventType: args.eventType,
-    defaultEnabled: entry.defaultEnabled,
+    defaultEnabled: meta.defaultEnabled,
     message,
   });
 }
@@ -51,8 +62,9 @@ export const dispatchNotificationAction = internalAction({
   returns: v.null(),
   handler: async (ctx, args) => {
     // args.params is `any` (v.optional(v.any())); normalize to a plain object.
-    const params: Record<string, unknown> =
-      args.params && typeof args.params === 'object' ? args.params : {};
+    const params: Record<string, unknown> = isRecord(args.params)
+      ? args.params
+      : {};
     await dispatchNotification(ctx, {
       organizationId: args.organizationId,
       eventType: args.eventType,

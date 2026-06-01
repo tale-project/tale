@@ -118,6 +118,30 @@ export async function checkIpRateLimit(
 }
 
 /**
+ * Check and consume a rate limit token for an external workspace/team-scoped
+ * operation (e.g. inbound Slack events keyed by Slack team_id). Throws
+ * RateLimitExceededError if the limit is exceeded.
+ */
+export async function checkTeamRateLimit(
+  ctx: MutationCtx | ActionCtx,
+  name: RateLimitName,
+  teamId: string,
+  count: number = 1,
+): Promise<void> {
+  const result = await limitRate(ctx, name, {
+    key: `team:${teamId}`,
+    count,
+  });
+
+  if (!result.ok) {
+    throw new RateLimitExceededError(
+      `Rate limit exceeded. Try again in ${Math.ceil(result.retryAfter / 1000)} seconds.`,
+      result.retryAfter,
+    );
+  }
+}
+
+/**
  * Check rate limit without consuming tokens (for pre-flight checks).
  */
 export async function canPerformAction(

@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import { internal } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
 import { internalMutation } from '../../_generated/server';
 import { buildExternalOwnerId } from '../../identities/external_identities';
@@ -9,14 +10,37 @@ import { createChatThread } from '../../threads/create_chat_thread';
 
 // Slack retries deliveries for a few minutes; a 1h TTL is generously past that.
 const DEDUP_TTL_MS = 60 * 60 * 1000;
-// Bounded per-sweep delete count so the gated cleanup stays a quick mutation.
+// Bounded per-sweep delete count so each cleanup stays a quick mutation.
 const DEDUP_GC_PER_SWEEP = 1000;
 
 /**
- * Opportunistic, rate-limiter-gated GC of expired dedup rows. Runs at most once
- * per hour deployment-wide (token bucket, capacity 1). Best-effort: a missing
- * limiter component (e.g. a test ctx) skips the sweep rather than crashing the
- * claim. No cron — mirrors `cleanup:sandbox` / `cleanup:tts`.
+ * Delete up to `DEDUP_GC_PER_SWEEP` expired dedup rows. Returns true when the
+ * cap was hit and more expired rows likely remain (so the caller can continue
+ * draining). Kept small and bounded so it never becomes a long mutation.
+ */
+async function sweepExpiredDedup(ctx: MutationCtx): Promise<boolean> {
+  const now = Date.now();
+  let deleted = 0;
+  for await (const row of ctx.db
+    .query('slackEventDedup')
+    .withIndex('by_expiresAt', (q) => q.lte('expiresAt', now))
+    .order('asc')) {
+    await ctx.db.delete(row._id);
+    deleted += 1;
+    if (deleted >= DEDUP_GC_PER_SWEEP) break;
+  }
+  return deleted >= DEDUP_GC_PER_SWEEP;
+}
+
+/**
+ * Opportunistic, rate-limiter-gated GC of expired dedup rows, run from the hot
+ * claim path. The gate (token bucket, capacity 1) admits at most one sweep per
+ * hour deployment-wide; when a single bounded sweep can't clear the backlog
+ * (sustained high inbound volume), it schedules follow-up `drainSlackDedup`
+ * mutations that keep draining WITHOUT re-consuming the hourly token — so the
+ * table is reclaimed in minutes rather than capped at 1000 rows/hour. Stays
+ * lazy/opportunistic: no cron. Best-effort — a missing limiter component
+ * (e.g. a test ctx) skips the sweep rather than crashing the claim.
  */
 async function maybeRunSlackDedupCleanup(ctx: MutationCtx): Promise<void> {
   let gate: { ok: boolean };
@@ -31,17 +55,37 @@ async function maybeRunSlackDedupCleanup(ctx: MutationCtx): Promise<void> {
   }
   if (!gate.ok) return;
 
-  const now = Date.now();
-  let deleted = 0;
-  for await (const row of ctx.db
-    .query('slackEventDedup')
-    .withIndex('by_expiresAt', (q) => q.lte('expiresAt', now))
-    .order('asc')) {
-    await ctx.db.delete(row._id);
-    deleted += 1;
-    if (deleted >= DEDUP_GC_PER_SWEEP) break;
+  const moreRemain = await sweepExpiredDedup(ctx);
+  if (moreRemain) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.integrations.slack.internal_mutations.drainSlackDedup,
+      {},
+    );
   }
 }
+
+/**
+ * Continuation of the opportunistic dedup sweep. Drains the expired backlog in
+ * bounded batches, rescheduling itself until empty. Not rate-limited — it only
+ * runs after `maybeRunSlackDedupCleanup` has already spent the hourly token and
+ * found more than one batch to reap.
+ */
+export const drainSlackDedup = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const moreRemain = await sweepExpiredDedup(ctx);
+    if (moreRemain) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.integrations.slack.internal_mutations.drainSlackDedup,
+        {},
+      );
+    }
+    return null;
+  },
+});
 
 /**
  * Authoritative idempotency gate for inbound Slack events. Query-then-insert in
@@ -59,11 +103,9 @@ export const claimSlackEvent = internalMutation({
       .first();
     if (existing) return { claimed: false };
 
-    const now = Date.now();
     await ctx.db.insert('slackEventDedup', {
       eventId,
-      createdAt: now,
-      expiresAt: now + DEDUP_TTL_MS,
+      expiresAt: Date.now() + DEDUP_TTL_MS,
     });
     await maybeRunSlackDedupCleanup(ctx);
     return { claimed: true };
@@ -72,17 +114,16 @@ export const claimSlackEvent = internalMutation({
 
 /**
  * Lookup-or-create the stable Tale thread for a Slack conversation
- * (org + channel + root ts). Owner is the namespaced external identity
- * `slack:<slackUserId>` (see identities/external_identities) so the Slack
- * author is preserved in history/attribution rather than collapsed to
- * `'system'`. Race-free under OCC, mirroring `getOrCreateUserThread`.
+ * (org + channel + root ts). Owner is the org-scoped external identity
+ * `slack:<organizationId>:<slackUserId>` (see identities/external_identities)
+ * so the Slack author is preserved in history/attribution rather than collapsed
+ * to `'system'`. Race-free under OCC, mirroring `getOrCreateUserThread`.
  */
 export const getOrCreateSlackThread = internalMutation({
   args: {
     organizationId: v.string(),
     channel: v.string(),
     conversationTs: v.string(),
-    agentSlug: v.optional(v.string()),
     slackUserId: v.string(),
     slackUserName: v.optional(v.string()),
   },
@@ -97,9 +138,25 @@ export const getOrCreateSlackThread = internalMutation({
           .eq('conversationTs', args.conversationTs),
       )
       .first();
-    if (existing) return { threadId: existing.threadId, created: false };
+    if (existing) {
+      // Guard against a dangling mapping: if the underlying Tale thread was
+      // physically purged (retention Pass B / GDPR erasure), reusing its
+      // threadId would silently resurrect an erased conversation. Re-validate
+      // against threadMetadata; if it's gone, drop the stale row and
+      // re-provision a fresh thread below.
+      const meta = await ctx.db
+        .query('threadMetadata')
+        .withIndex('by_threadId', (q) => q.eq('threadId', existing.threadId))
+        .first();
+      if (meta) return { threadId: existing.threadId, created: false };
+      await ctx.db.delete(existing._id);
+    }
 
-    const ownerId = buildExternalOwnerId('slack', args.slackUserId);
+    const ownerId = buildExternalOwnerId(
+      'slack',
+      args.slackUserId,
+      args.organizationId,
+    );
     const title = args.slackUserName
       ? `Slack · @${args.slackUserName}`
       : `Slack · ${args.slackUserId}`;
@@ -119,7 +176,6 @@ export const getOrCreateSlackThread = internalMutation({
       channel: args.channel,
       conversationTs: args.conversationTs,
       threadId,
-      agentSlug: args.agentSlug,
       slackUserId: args.slackUserId,
       slackUserName: args.slackUserName,
       createdAt: Date.now(),
