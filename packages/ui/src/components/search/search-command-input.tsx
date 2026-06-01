@@ -61,7 +61,7 @@ export function SearchCommandInput({
         onKeyDown={onKeyDown}
         autoFocus
         placeholder={placeholder}
-        className="text-fg-base placeholder:text-fg-muted h-12 flex-1 bg-transparent text-sm outline-none focus:outline-none focus-visible:outline-none"
+        className="text-fg-base placeholder:text-fg-muted h-12 flex-1 bg-transparent text-base outline-none focus:outline-none focus-visible:outline-none"
         aria-label={placeholder}
         role="combobox"
         aria-autocomplete="list"

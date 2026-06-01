@@ -3615,6 +3615,7 @@
     "skills": "Skills",
     "webdav": "WebDAV",
     "teamFilter": {
+      "label": "Équipe",
       "allTeams": "Toutes"
     },
     "orgSwitcher": {
@@ -4148,6 +4149,9 @@
       "apiKeys": {
         "description": "Jetons d'accès programmatique à l'API Tale."
       },
+      "api": {
+        "description": "Accès programmatique — clés REST, MCP et WebDAV."
+      },
       "governance": {
         "description": "Politiques, sécurité, journaux d'audit et conservation des données."
       }
@@ -4311,7 +4315,10 @@
         "model": "Modèle",
         "modelPlaceholder": "Sélectionner un modèle",
         "modelSearch": "Rechercher des modèles…",
-        "modelEmpty": "Aucun modèle trouvé"
+        "modelEmpty": "Aucun modèle trouvé",
+        "noModelsTitle": "Aucun modèle disponible",
+        "noModelsDescription": "Un agent a besoin d'un modèle pour fonctionner. Configurez d'abord un fournisseur avec au moins un modèle.",
+        "noModelsLink": "Ajouter un fournisseur"
       },
       "uploadDialog": {
         "menuItem": "Téléverser depuis un fichier…",

@@ -1,9 +1,10 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Alert } from '@tale/ui/alert';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Text } from '@tale/ui/text';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -41,7 +42,8 @@ export function CreateAgentDialog({
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const { mutateAsync: saveAgent } = useSaveAgent();
-  const { providers } = useListProviders(organizationId);
+  const { providers, isLoading: providersLoading } =
+    useListProviders(organizationId);
   const { locale } = useLocale();
 
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -78,6 +80,11 @@ export function CreateAgentDialog({
       }),
     }));
   }, [providers, t, locale]);
+
+  // No models means no provider is configured (or none exposes a model).
+  // An agent must reference a real model, so creation can't proceed until one
+  // exists — we surface this explicitly instead of letting submit no-op.
+  const hasModels = modelOptions.length > 0;
 
   // Auto-select first model when providers load and no selection exists
   useEffect(() => {
@@ -201,7 +208,7 @@ export function CreateAgentDialog({
       submitText={t('agents.createDialog.continue')}
       submittingText={t('agents.createDialog.creating')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={isValid && hasModels}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input
@@ -231,19 +238,38 @@ export function CreateAgentDialog({
         rows={3}
       />
 
-      <SearchableSelect
-        id="model-select"
-        label={t('agents.createDialog.model')}
-        placeholder={t('agents.createDialog.modelPlaceholder')}
-        value={selectedModelId}
-        onValueChange={handleModelChange}
-        options={modelOptions}
-        open={modelSelectOpen}
-        onOpenChange={setModelSelectOpen}
-        searchPlaceholder={t('agents.createDialog.modelSearch')}
-        emptyText={t('agents.createDialog.modelEmpty')}
-        aria-label={t('agents.createDialog.model')}
-      />
+      {!providersLoading && !hasModels ? (
+        <Alert
+          variant="warning"
+          title={t('agents.createDialog.noModelsTitle')}
+          description={
+            <Text variant="caption">
+              {t('agents.createDialog.noModelsDescription')}{' '}
+              <Link
+                to="/dashboard/$id/settings/providers"
+                params={{ id: organizationId }}
+                className="text-primary underline underline-offset-2"
+              >
+                {t('agents.createDialog.noModelsLink')}
+              </Link>
+            </Text>
+          }
+        />
+      ) : (
+        <SearchableSelect
+          id="model-select"
+          label={t('agents.createDialog.model')}
+          placeholder={t('agents.createDialog.modelPlaceholder')}
+          value={selectedModelId}
+          onValueChange={handleModelChange}
+          options={modelOptions}
+          open={modelSelectOpen}
+          onOpenChange={setModelSelectOpen}
+          searchPlaceholder={t('agents.createDialog.modelSearch')}
+          emptyText={t('agents.createDialog.modelEmpty')}
+          aria-label={t('agents.createDialog.model')}
+        />
+      )}
     </FormDialog>
   );
 }

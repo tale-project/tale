@@ -27,6 +27,10 @@ const TOP_LEVEL_SUFFIXES = new Set([
   'agents',
   'documents',
   'automations',
+  // Settings overview lists are themselves reachable from the "More" tab, so
+  // they're top-level (no back button) — only their sub-pages get one.
+  'settings',
+  'settings/personal',
 ]);
 
 interface MobileBackButtonProps {
@@ -35,9 +39,15 @@ interface MobileBackButtonProps {
 
 /**
  * Renders an iOS-style back chevron on the left of the mobile top bar for
- * sub-pages only. Prefers `router.history.back()` when there's app history,
- * else falls back to the natural parent route — so deep links from
- * notifications/email don't strand the user.
+ * sub-pages only.
+ *
+ * Settings sub-pages (`settings/*`) always return to the settings list
+ * (`settings`) rather than walking the history stack — the list is their one
+ * canonical parent, so back is predictable no matter how the user arrived
+ * (deep link, tab switch, in-page navigation). Everywhere else we prefer
+ * `router.history.back()` when there's app history, else fall back to the
+ * natural parent route so deep links from notifications/email don't strand
+ * the user.
  */
 export function MobileBackButton({ organizationId }: MobileBackButtonProps) {
   const location = useLocation();
@@ -45,6 +55,7 @@ export function MobileBackButton({ organizationId }: MobileBackButtonProps) {
   const { t } = useT('common');
 
   const orgRoot = `/dashboard/${organizationId}`;
+  const settingsRoot = `${orgRoot}/settings`;
   const pathSuffix = useMemo(() => {
     if (!location.pathname.startsWith(orgRoot)) return null;
     const tail = location.pathname.slice(orgRoot.length);
@@ -53,7 +64,14 @@ export function MobileBackButton({ organizationId }: MobileBackButtonProps) {
 
   const isTopLevel = pathSuffix === null || TOP_LEVEL_SUFFIXES.has(pathSuffix);
 
+  // A settings sub-page: under `settings/` but not the `settings` index itself.
+  const isSettingsSubPage = pathSuffix?.startsWith('settings/') ?? false;
+
   const handleBack = useCallback(() => {
+    if (isSettingsSubPage) {
+      router.history.push(settingsRoot);
+      return;
+    }
     if (router.history.canGoBack()) {
       router.history.back();
       return;
@@ -69,7 +87,7 @@ export function MobileBackButton({ organizationId }: MobileBackButtonProps) {
     segments.pop();
     const parent = segments.join('/');
     router.history.push(parent ? `${orgRoot}/${parent}` : orgRoot);
-  }, [router, pathSuffix, orgRoot]);
+  }, [router, pathSuffix, orgRoot, isSettingsSubPage, settingsRoot]);
 
   if (isTopLevel) return null;
 

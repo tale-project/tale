@@ -3614,6 +3614,7 @@
     "skills": "Skills",
     "webdav": "WebDAV",
     "teamFilter": {
+      "label": "Team",
       "allTeams": "Alle"
     },
     "orgSwitcher": {
@@ -4147,6 +4148,9 @@
       "apiKeys": {
         "description": "Programmatische Zugriffstoken für die Tale-API."
       },
+      "api": {
+        "description": "Programmatischer Zugriff – REST-Schlüssel, MCP und WebDAV."
+      },
       "governance": {
         "description": "Richtlinien, Sicherheit, Audit-Logs und Datenaufbewahrung."
       }
@@ -4310,7 +4314,10 @@
         "model": "Modell",
         "modelPlaceholder": "Modell auswählen",
         "modelSearch": "Modelle suchen…",
-        "modelEmpty": "Keine Modelle gefunden"
+        "modelEmpty": "Keine Modelle gefunden",
+        "noModelsTitle": "Keine Modelle verfügbar",
+        "noModelsDescription": "Ein Agent benötigt ein Modell zum Ausführen. Richten Sie zuerst einen Anbieter mit mindestens einem Modell ein.",
+        "noModelsLink": "Anbieter hinzufügen"
       },
       "uploadDialog": {
         "menuItem": "Aus Datei hochladen…",

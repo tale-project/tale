@@ -1,10 +1,8 @@
 import {
   Building2,
-  HardDrive,
   KeyRound,
   Palette,
   Plug,
-  Server,
   Shield,
   SlidersHorizontal,
   Sparkles,
@@ -87,21 +85,9 @@ export function useSettingsMenuGroups(
         can: ['read', 'developerSettings'],
       },
       {
-        key: 'mcp',
-        icon: Server,
-        path: 'mcp',
-        can: ['read', 'developerSettings'],
-      },
-      {
-        key: 'apiKeys',
+        key: 'api',
         icon: KeyRound,
-        path: 'api-keys',
-        can: ['read', 'developerSettings'],
-      },
-      {
-        key: 'webdav',
-        icon: HardDrive,
-        path: 'webdav',
+        path: 'api',
         can: ['read', 'developerSettings'],
       },
     ];

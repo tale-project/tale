@@ -9,6 +9,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
+import { useIsMobile } from '@tale/ui/use-is-mobile';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import {
   LogOut,
@@ -21,14 +22,23 @@ import {
   Languages,
   Building2,
   Download,
+  ChevronRight,
+  Check,
 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import {
+  type ComponentType,
+  type ReactNode,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react';
 
 import { IosInstallSheet } from '@/app/components/pwa/ios-install-sheet';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { OrganizationListPanel } from '@/app/features/organization/components/organization-list-panel';
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
+import { TeamListPanel } from '@/app/features/settings/teams/components/team-list-panel';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -46,6 +56,81 @@ const LANGUAGE_FLAGS: Record<string, string> = {
   de: '\u{1F1E9}\u{1F1EA}', // DE
   fr: '\u{1F1EB}\u{1F1F7}', // FR
 };
+
+/**
+ * The current-selection pill shown after a picker row's static label (e.g. the
+ * active org / team name). Shared by the mobile inline collapsible rows and the
+ * desktop sub-menu triggers so both read identically.
+ */
+function MenuRowBadge({ children }: { children: ReactNode }) {
+  return (
+    <span className="bg-muted text-muted-foreground ml-auto max-w-[9rem] truncate rounded-full px-2 py-0.5 text-xs">
+      {children}
+    </span>
+  );
+}
+
+interface MenuRowCollapsibleProps {
+  icon: ComponentType<{ className?: string }>;
+  /** Static primary label (e.g. "Organization", "Team", "Language"). */
+  label: string;
+  /**
+   * Current selection, rendered as a small badge after the label — e.g. the
+   * active org / team name. Omit for rows with no single current value.
+   */
+  badge?: string;
+  children: ReactNode;
+}
+
+/**
+ * A dropdown-menu row whose options expand inline, in place, pushing the rows
+ * below it down — used for the wide org / team / language pickers.
+ *
+ * We deliberately do NOT use a side flyout here (Radix menu sub-menu or a
+ * side-anchored Popover). The account menu sits hard against a screen edge
+ * (right edge in the header, left edge in the sidebar), and a fixed-width
+ * 18rem panel has nowhere to go: Radix runs `shift` before `flip`, so it
+ * either clips off the far edge or slides behind the parent menu. Expanding
+ * inline removes the second layer entirely, so the picker can never leak or
+ * be occluded, on any viewport width.
+ *
+ * Lives inside an open DropdownMenu; the toggle row and option rows are plain
+ * buttons (not menu items) and stop event propagation so a click expands /
+ * selects without closing the menu.
+ */
+function MenuRowCollapsible({
+  icon: Icon,
+  label,
+  badge,
+  children,
+}: MenuRowCollapsibleProps) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        className="focus:bg-accent hover:bg-accent flex w-full cursor-default items-center gap-2 rounded-md px-2 py-2.5 text-sm outline-none [&_svg]:size-4 [&_svg]:shrink-0"
+      >
+        <Icon />
+        <span className="shrink-0">{label}</span>
+        {badge != null && <MenuRowBadge>{badge}</MenuRowBadge>}
+        <ChevronRight
+          className={cn(
+            'transition-transform',
+            badge == null && 'ml-auto',
+            open && 'rotate-90',
+          )}
+        />
+      </button>
+      {open && <div className="mt-0.5 mb-1 ml-2 border-l pl-2">{children}</div>}
+    </div>
+  );
+}
 
 export interface UserButtonProps {
   align?: 'start' | 'end';
@@ -78,6 +163,10 @@ export function UserButton({
   const organizationId = params.id;
   const { theme, setTheme } = useTheme();
   const { locale, setLocale } = useLocale();
+  // The org / team / language pickers expand inline on mobile (no room for a
+  // side flyout against the screen edge) but use Radix sub-menu popups on
+  // larger screens, where there's space to anchor them.
+  const isMobile = useIsMobile();
   const teamFilter = useOptionalTeamFilter();
   const teams = teamFilter?.teams;
   const selectedTeamId = teamFilter?.selectedTeamId ?? null;
@@ -227,75 +316,116 @@ export function UserButton({
     ]);
 
     if (!loading && user && organizationId) {
-      // Organization switcher — uses a sub-menu so the dropdown stays
-      // compact for users with many orgs. The trigger row shows the current
-      // org name; opening the sub reveals the full searchable / scrollable
-      // panel of organizations.
+      // Organization switcher. On mobile it expands inline (MenuRowCollapsible)
+      // because the menu sits hard against a screen edge where a fixed-width
+      // side flyout can't stay on-screen. On larger screens we keep the Radix
+      // sub-menu popup, which has room to anchor and reveals the full
+      // scrollable panel without pushing the rest of the menu down.
       const currentOrgName = currentOrg?.name ?? tNav('orgSwitcher.label');
       groups.push([
-        {
-          type: 'sub',
-          label: currentOrgName,
-          icon: Building2,
-          items: [
-            [
-              {
-                type: 'custom',
-                content: (
+        isMobile
+          ? {
+              type: 'custom',
+              content: (
+                <MenuRowCollapsible
+                  icon={Building2}
+                  label={tNav('orgSwitcher.label')}
+                  badge={currentOrgName}
+                >
                   <OrganizationListPanel
                     currentOrganizationId={organizationId}
+                    hideHeader
                   />
-                ),
-              },
-            ],
-          ],
-          className: 'py-2.5',
-          contentClassName: 'min-w-72',
-        },
+                </MenuRowCollapsible>
+              ),
+            }
+          : {
+              type: 'sub',
+              label: tNav('orgSwitcher.label'),
+              icon: Building2,
+              trailing: <MenuRowBadge>{currentOrgName}</MenuRowBadge>,
+              items: [
+                [
+                  {
+                    type: 'custom',
+                    content: (
+                      <OrganizationListPanel
+                        currentOrganizationId={organizationId}
+                      />
+                    ),
+                  },
+                ],
+              ],
+              className: 'py-2.5',
+              contentClassName: 'min-w-72',
+            },
       ]);
 
-      // Team filter — also a sub-menu so a user with many teams isn't faced
-      // with a 50-row dropdown. The trigger shows the currently selected
-      // team; the sub-menu has the full list.
-      if (teams && teams.length > 0) {
+      // Team filter — mirrors the org switcher: inline collapsible on mobile,
+      // Radix sub-menu popup on larger screens. Always shown once the teams
+      // query has resolved, even with zero teams: the panel then surfaces an
+      // empty state plus a "Create team" action, so the section never silently
+      // disappears for orgs that haven't set up teams yet.
+      if (teams) {
         const selectedTeamName = selectedTeamId
           ? (teams.find((team) => team.id === selectedTeamId)?.name ??
             tNav('teamFilter.allTeams'))
           : tNav('teamFilter.allTeams');
 
+        const selectTeam = (teamId: string | null) => {
+          setSelectedTeamId?.(teamId);
+          if (organizationId) {
+            void navigate({
+              to: '/dashboard/$id/chat',
+              params: { id: organizationId },
+            });
+            onNavigate?.();
+          }
+        };
+
         groups.push([
-          {
-            type: 'sub',
-            label: selectedTeamName,
-            icon: UsersRound,
-            items: [
-              [
-                {
-                  type: 'radio-group',
-                  value: selectedTeamId ?? '',
-                  onValueChange: (val) => {
-                    setSelectedTeamId?.(val || null);
-                    if (organizationId) {
-                      void navigate({
-                        to: '/dashboard/$id/chat',
-                        params: { id: organizationId },
-                      });
-                      onNavigate?.();
-                    }
-                  },
-                  options: [
-                    { value: '', label: tNav('teamFilter.allTeams') },
-                    ...teams.map((team) => ({
-                      value: team.id,
-                      label: team.name,
-                    })),
+          isMobile
+            ? {
+                type: 'custom',
+                content: (
+                  <MenuRowCollapsible
+                    icon={UsersRound}
+                    label={tNav('teamFilter.label')}
+                    badge={selectedTeamName}
+                  >
+                    <TeamListPanel
+                      organizationId={organizationId}
+                      teams={teams}
+                      selectedTeamId={selectedTeamId}
+                      onSelectTeam={selectTeam}
+                      hideHeader
+                    />
+                  </MenuRowCollapsible>
+                ),
+              }
+            : {
+                type: 'sub',
+                label: tNav('teamFilter.label'),
+                icon: UsersRound,
+                trailing: <MenuRowBadge>{selectedTeamName}</MenuRowBadge>,
+                items: [
+                  [
+                    {
+                      type: 'custom',
+                      content: (
+                        <TeamListPanel
+                          organizationId={organizationId}
+                          teams={teams}
+                          selectedTeamId={selectedTeamId}
+                          onSelectTeam={selectTeam}
+                        />
+                      ),
+                    },
                   ],
-                },
-              ],
-            ],
-            className: 'py-2.5',
-            contentClassName: 'min-w-72',
-          },
+                ],
+                className: 'py-2.5',
+                contentClassName: 'w-72',
+              },
         ]);
       }
     }
@@ -351,28 +481,62 @@ export function UserButton({
     );
 
     groups.push([
-      {
-        type: 'sub',
-        label: t('userButton.language'),
-        icon: Languages,
-        items: [
-          [
-            {
-              type: 'radio-group',
-              value: currentLocaleValue,
-              onValueChange: (val) => {
-                if (val) setLocale(val);
-              },
-              options: [
-                { value: 'en', label: renderLanguageOption('en') },
-                { value: 'de', label: renderLanguageOption('de') },
-                { value: 'fr', label: renderLanguageOption('fr') },
+      isMobile
+        ? {
+            type: 'custom',
+            content: (
+              <MenuRowCollapsible
+                icon={Languages}
+                label={t('userButton.language')}
+              >
+                <div role="radiogroup" aria-label={t('userButton.language')}>
+                  {(['en', 'de', 'fr'] as const).map((value) => {
+                    const checked = currentLocaleValue === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLocale(value);
+                        }}
+                        className="focus:bg-accent hover:bg-accent relative flex w-full cursor-default items-center gap-2 rounded-md py-1.5 pr-8 pl-2 text-left text-sm outline-none"
+                      >
+                        {renderLanguageOption(value)}
+                        {checked && (
+                          <Check className="absolute right-2 size-3.5" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </MenuRowCollapsible>
+            ),
+          }
+        : {
+            type: 'sub',
+            label: t('userButton.language'),
+            icon: Languages,
+            items: [
+              [
+                {
+                  type: 'radio-group',
+                  value: currentLocaleValue,
+                  onValueChange: (val) => {
+                    if (val) setLocale(val);
+                  },
+                  options: [
+                    { value: 'en', label: renderLanguageOption('en') },
+                    { value: 'de', label: renderLanguageOption('de') },
+                    { value: 'fr', label: renderLanguageOption('fr') },
+                  ],
+                },
               ],
-            },
-          ],
-        ],
-        className: 'py-2.5',
-      },
+            ],
+            className: 'py-2.5',
+          },
     ]);
 
     const helpGroup: DropdownMenuGroup = [];
@@ -415,6 +579,7 @@ export function UserButton({
     currentOrg,
     teams,
     selectedTeamId,
+    isMobile,
     theme,
     locale,
     t,

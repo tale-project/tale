@@ -193,7 +193,7 @@ export function TabNavigation({
     <nav
       ref={navRef}
       className={cn(
-        'scrollbar-hide relative border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 shrink-0 overflow-x-auto',
+        'scrollbar-hide relative border-b border-border min-h-10 flex items-center gap-4 shrink-0 overflow-x-auto px-4',
         standalone && 'bg-background z-10',
         className,
       )}
@@ -220,7 +220,7 @@ export function TabNavigation({
             preload={prefetch ? 'render' : false}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
-              "relative h-full flex items-center gap-1.5 py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0 rounded-sm focus-visible:outline-none focus-visible:after:content-[''] focus-visible:after:absolute focus-visible:after:-inset-x-1 focus-visible:after:inset-y-0.5 focus-visible:after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset focus-visible:after:pointer-events-none",
+              "relative h-full flex items-center gap-1.5 py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0 rounded-sm focus-visible:outline-none focus-visible:after:content-[''] focus-visible:after:absolute focus-visible:after:-inset-x-1 focus-visible:after:inset-y-0.5 focus-visible:after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset focus-visible:after:pointer-events-none justify-center",
               isActive
                 ? 'text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
@@ -254,7 +254,9 @@ export function TabNavigation({
         />
       )}
 
-      {children}
+      {children && (
+        <div className="ml-auto flex items-center gap-2">{children}</div>
+      )}
     </nav>
   );
 }
