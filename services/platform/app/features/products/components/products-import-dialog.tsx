@@ -6,7 +6,11 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { useFileImport, productMappers } from '@/app/hooks/use-file-import';
+import {
+  useFileImport,
+  productMappers,
+  PRODUCT_REQUIRED_COLUMNS,
+} from '@/app/hooks/use-file-import';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -93,6 +97,7 @@ export function ProductsImportDialog({
   const { parseFile } = useFileImport<ParsedProduct>({
     csvMapper: productMappers.csv,
     excelMapper: recordMapper,
+    requiredColumns: PRODUCT_REQUIRED_COLUMNS,
   });
 
   const resetForm = useCallback(() => {

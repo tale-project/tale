@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
+import { parseCSVWithMapper } from '@/lib/utils/file-parsing';
+
 import {
   customerMappers,
   productMappers,
+  PRODUCT_REQUIRED_COLUMNS,
   vendorMappers,
 } from './use-file-import';
 
@@ -245,6 +248,45 @@ describe('productMappers.record', () => {
     expect(result).toMatchObject({
       imageUrl: 'https://example.com/pic.png',
     });
+  });
+});
+
+describe('product import column validation (PRODUCT_REQUIRED_COLUMNS)', () => {
+  const parse = (csv: string) =>
+    parseCSVWithMapper(csv, productMappers.csv, {
+      recordMapper: productMappers.record,
+      requiredColumns: PRODUCT_REQUIRED_COLUMNS,
+    });
+
+  it('imports rows when all required headers are present', () => {
+    const result = parse('name,price,stock\nWidget,9.99,100\nGadget,5,0');
+    expect(result.errors).toEqual([]);
+    expect(result.data).toHaveLength(2);
+    expect(result.data[0]).toMatchObject({ name: 'Widget', price: 9.99 });
+  });
+
+  it('accepts the title alias in place of name', () => {
+    const result = parse('title,price,stock\nGizmo,1.5,3');
+    expect(result.errors).toEqual([]);
+    expect(result.data[0]).toMatchObject({ name: 'Gizmo' });
+  });
+
+  it('fails with a clear error when headers are wrong/misnamed', () => {
+    const result = parse('col1,col2,col3\nWidget,9.99,100');
+    expect(result.data).toHaveLength(0);
+    expect(result.errors[0]).toContain('Missing required column(s)');
+    expect(result.errors[0]).toContain('name');
+    expect(result.errors[0]).toContain('price');
+    expect(result.errors[0]).toContain('stock');
+    // Surfaces what was actually found so the user can correct the file.
+    expect(result.errors[0]).toContain('col1');
+  });
+
+  it('reports only the specific missing required column', () => {
+    const result = parse('name,price\nWidget,9.99');
+    expect(result.data).toHaveLength(0);
+    expect(result.errors[0]).toContain('stock');
+    expect(result.errors[0]).not.toContain('Missing required column(s): name');
   });
 });
 
