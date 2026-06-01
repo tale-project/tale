@@ -82,6 +82,9 @@ export const oauth2ConfigStoredValidator = v.object({
   scopes: v.optional(v.array(v.string())),
   clientId: v.optional(v.string()),
   clientSecretEncrypted: v.optional(v.string()),
+  // Slack-only: app signing secret (encrypted) for inbound Events API
+  // verification. Undefined for every other OAuth2 integration.
+  signingSecretEncrypted: v.optional(v.string()),
 });
 
 /**

@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { encryptString } from '../../lib/crypto/encrypt_string';
 import schema from '../../schema';
 import { __test } from './http_actions';
 
@@ -26,6 +27,8 @@ for (const [key, loader] of Object.entries(rawModules)) {
 
 const SECRET = 'test-signing-secret';
 const SLACK_EVENTS_PATH = '/api/integrations/slack/events';
+// A valid 32-byte key so `encryptString`/`decryptString` resolve a secret key.
+const ENCRYPTION_SECRET = Buffer.alloc(32, 7).toString('base64url');
 
 function signedHeaders(body: string): Record<string, string> {
   const ts = Math.floor(Date.now() / 1000);
@@ -39,32 +42,45 @@ function signedHeaders(body: string): Record<string, string> {
   };
 }
 
+/** Seed a slug='slack' credential carrying an encrypted signing secret. */
+async function seedSlackCredential(
+  t: ReturnType<typeof convexTest>,
+): Promise<void> {
+  const signingSecretEncrypted = await encryptString(SECRET);
+  await t.run(async (ctx) => {
+    await ctx.db.insert('integrationCredentials', {
+      organizationId: 'org_test',
+      slug: 'slack',
+      status: 'active',
+      isActive: true,
+      authMethod: 'oauth2',
+      oauth2Config: {
+        authorizationUrl: 'https://slack.com/oauth/v2/authorize',
+        tokenUrl: 'https://slack.com/api/oauth.v2.access',
+        signingSecretEncrypted,
+      },
+    });
+  });
+}
+
 describe('slackEventsHandler (httpAction)', () => {
   beforeEach(() => {
-    process.env.SLACK_SIGNING_SECRET = SECRET;
+    process.env.ENCRYPTION_SECRET = ENCRYPTION_SECRET;
   });
   afterEach(() => {
-    delete process.env.SLACK_SIGNING_SECRET;
+    delete process.env.ENCRYPTION_SECRET;
   });
 
-  it('returns 500 when the signing secret is unset', async () => {
-    delete process.env.SLACK_SIGNING_SECRET;
-    const t = convexTest(schema, modules);
-    const res = await t.fetch(SLACK_EVENTS_PATH, {
-      method: 'POST',
-      body: '{}',
-    });
-    expect(res.status).toBe(500);
-  });
-
-  // Note: the bad-signature (→ IP rate-limit) and signed-event_callback
+  // Note: the no-match / bad-signature (→ IP rate-limit) and signed-event_callback
   // (→ team rate-limit) branches reach the betterAuth/rateLimiter Convex
   // components, which convex-test does not register, so they can't be driven
   // here. They're covered by the verify_signature unit suite + the rate-limiter
-  // config; below we exercise the handler branches that don't cross a component.
+  // config; below we exercise the url_verification happy path, which verifies the
+  // request against the per-org signing secret resolved from the credential row.
 
-  it('answers the url_verification challenge', async () => {
+  it('answers the url_verification challenge against a stored signing secret', async () => {
     const t = convexTest(schema, modules);
+    await seedSlackCredential(t);
     const body = '{"type":"url_verification","challenge":"abc123"}';
     const res = await t.fetch(SLACK_EVENTS_PATH, {
       method: 'POST',
@@ -73,17 +89,6 @@ describe('slackEventsHandler (httpAction)', () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ challenge: 'abc123' });
-  });
-
-  it('rejects malformed JSON (valid signature) with 400', async () => {
-    const t = convexTest(schema, modules);
-    const body = 'not json';
-    const res = await t.fetch(SLACK_EVENTS_PATH, {
-      method: 'POST',
-      headers: signedHeaders(body),
-      body,
-    });
-    expect(res.status).toBe(400);
   });
 });
 

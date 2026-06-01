@@ -15,10 +15,11 @@ import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { encryptCredentials } from './encrypt_credentials';
 import { generateOAuth2AuthUrl } from './generate_oauth2_auth_url';
 import { saveOAuth2ClientCredentials as saveOAuth2ClientCredentialsHandler } from './save_oauth2_client_credentials';
-import { seedSlackOAuth2Config } from './seed_slack_oauth2_config';
+import { buildSlackAppManifestJson } from './slack/build_app_manifest';
 import { testConnection as testConnectionHandler } from './test_connection';
 import {
   apiKeyAuthValidator,
@@ -125,17 +126,6 @@ export const generateOAuth2Url = action({
     );
     if (!cred) throw new Error('Credential not found or access denied');
 
-    // The shared Slack App's client credentials are seeded from deployment env
-    // vars (not pasted per-org), so populate them before building the auth URL,
-    // which requires clientId on the credential row.
-    if (cred.slug === 'slack') {
-      await seedSlackOAuth2Config(ctx, {
-        credentialId: args.credentialId,
-        organizationId: args.organizationId,
-        existingOAuth2Config: cred.oauth2Config,
-      });
-    }
-
     return await generateOAuth2AuthUrl(ctx, args);
   },
 });
@@ -148,6 +138,9 @@ export const saveOAuth2ClientCredentials = action({
     scopes: v.optional(v.array(v.string())),
     clientId: v.string(),
     clientSecret: v.string(),
+    // Slack-only: the app's signing secret. Optional; when omitted on re-save,
+    // the previously stored value is preserved by the handler.
+    signingSecret: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -162,5 +155,54 @@ export const saveOAuth2ClientCredentials = action({
 
     await saveOAuth2ClientCredentialsHandler(ctx, args);
     return null;
+  },
+});
+
+/**
+ * Setup info for the per-org "bring your own Slack app" flow: the Events API
+ * Request URL and OAuth redirect URL (derived from SITE_URL/BASE_PATH), the bot
+ * scopes from the integration's file config, and a ready-to-paste Slack App
+ * Manifest. Returns no secrets. The admin creates a Slack app from the manifest,
+ * then pastes the resulting Client ID / Secret / Signing Secret back here.
+ */
+export const getSlackSetupInfo = action({
+  args: { organizationId: v.string() },
+  returns: v.object({
+    eventsUrl: v.string(),
+    redirectUrl: v.string(),
+    scopes: v.array(v.string()),
+    manifest: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const isMember = await ctx.runQuery(
+      internal.integrations.credential_queries.verifyOrgMembership,
+      { organizationId: args.organizationId, userId: String(authUser._id) },
+    );
+    if (!isMember) throw new Error('Access denied');
+
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const fileResult = await ctx.runAction(
+      internal.integrations.file_actions.readIntegrationForExecution,
+      { orgSlug, slug: 'slack' },
+    );
+    const scopes: string[] = fileResult?.ok
+      ? (fileResult.config?.oauth2Config?.scopes ?? [])
+      : [];
+
+    const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
+    const basePath = process.env.BASE_PATH || '';
+    const eventsUrl = `${siteUrl}${basePath}/api/integrations/slack/events`;
+    const redirectUrl = `${siteUrl}${basePath}/api/integrations/oauth2/callback`;
+
+    const manifest = buildSlackAppManifestJson({
+      scopes,
+      eventsUrl,
+      redirectUrl,
+    });
+
+    return { eventsUrl, redirectUrl, scopes, manifest };
   },
 });

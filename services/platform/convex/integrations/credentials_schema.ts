@@ -66,6 +66,10 @@ export const integrationCredentialsTable = defineTable({
       scopes: v.optional(v.array(v.string())),
       clientId: v.optional(v.string()),
       clientSecretEncrypted: v.optional(v.string()),
+      // Slack-only: the app's signing secret, used to verify inbound Events API
+      // requests (HMAC over the raw body). Stored encrypted; other OAuth2
+      // integrations leave it undefined.
+      signingSecretEncrypted: v.optional(v.string()),
     }),
   ),
   // connectionConfig is integration-specific — each integration may store
@@ -124,4 +128,5 @@ export const integrationCredentialsTable = defineTable({
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_slug', ['organizationId', 'slug'])
+  .index('by_slug', ['slug'])
   .index('by_status', ['status']);

@@ -4613,6 +4613,16 @@
           "securityAlert": "Alerte de sécurité"
         }
       },
+      "slackSetup": {
+        "title": "Configurer votre application Slack",
+        "intro": "Créez votre propre application Slack à partir du manifeste ci-dessous, puis collez son ID client, son secret client et son secret de signature ci-dessus. Le manifeste pré-remplit les portées, les événements et les URL.",
+        "openSlackApps": "Ouvrir les applications Slack",
+        "manifest": "Manifeste de l'application",
+        "requestUrl": "URL de requête des abonnements aux événements",
+        "requestUrlHelp": "Définissez ceci comme URL de requête sous « Event Subscriptions » dans votre application Slack.",
+        "redirectUrl": "URL de redirection OAuth",
+        "redirectUrlHelp": "Ajoutez ceci sous « OAuth & Permissions » → « Redirect URLs » dans votre application Slack."
+      },
       "tabs": {
         "all": "Toutes les intégrations",
         "connected": "Connectées"
@@ -4705,6 +4715,8 @@
         "optional": "Optionnel",
         "clientId": "ID client",
         "clientSecret": "Secret client",
+        "signingSecret": "Secret de signature",
+        "signingSecretHelp": "Le secret de signature de votre application Slack, utilisé pour vérifier les événements entrants. Laissez vide pour conserver la valeur enregistrée.",
         "scopes": "Portées",
         "savingCredentials": "Enregistrement...",
         "credentialsSaved": "Identifiants enregistrés avec succès",

@@ -64,6 +64,8 @@ export type Integration = Record<string, unknown> & {
     tokenUrl?: string;
     clientId?: string;
     clientSecret?: string;
+    // Slack-only; ciphertext, never displayed — only its presence is checked.
+    signingSecretEncrypted?: string;
     scopes?: string[];
     [key: string]: unknown;
   };
@@ -224,6 +226,9 @@ export function useIntegrationManage(
     tokenUrl: '',
     clientId: '',
     clientSecret: '',
+    // Slack-only: app signing secret. Never prefilled (it's a secret) — leaving
+    // it blank on re-save preserves the stored value server-side.
+    signingSecret: '',
     scopes: '',
   });
   const [isSavingOAuth2, setIsSavingOAuth2] = useState(false);
@@ -237,6 +242,7 @@ export function useIntegrationManage(
       tokenUrl: config?.tokenUrl ?? '',
       clientId: config?.clientId ?? '',
       clientSecret: '',
+      signingSecret: '',
       scopes: config?.scopes?.join(', ') ?? '',
     });
     setIsEditingOAuth2(false);
@@ -770,9 +776,15 @@ export function useIntegrationManage(
         scopes: parsedScopes.length > 0 ? parsedScopes : undefined,
         clientId: oauth2Fields.clientId.trim(),
         clientSecret: oauth2Fields.clientSecret.trim(),
+        // Slack-only; blank means "keep the stored signing secret" server-side.
+        signingSecret: oauth2Fields.signingSecret.trim() || undefined,
       });
 
-      setOAuth2Fields((prev) => ({ ...prev, clientSecret: '' }));
+      setOAuth2Fields((prev) => ({
+        ...prev,
+        clientSecret: '',
+        signingSecret: '',
+      }));
       setIsEditingOAuth2(false);
       setOAuth2SavedOptimistic(true);
 

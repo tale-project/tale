@@ -4873,6 +4873,16 @@
           "securityAlert": "Security alert"
         }
       },
+      "slackSetup": {
+        "title": "Set up your Slack app",
+        "intro": "Create your own Slack app from the manifest below, then paste its Client ID, Client Secret, and Signing Secret above. The manifest pre-fills the scopes, events, and URLs.",
+        "openSlackApps": "Open Slack apps",
+        "manifest": "App manifest",
+        "requestUrl": "Event Subscriptions Request URL",
+        "requestUrlHelp": "Set this as the Request URL under Event Subscriptions in your Slack app.",
+        "redirectUrl": "OAuth redirect URL",
+        "redirectUrlHelp": "Add this under OAuth & Permissions → Redirect URLs in your Slack app."
+      },
       "tabs": {
         "all": "All integrations",
         "connected": "Connected"
@@ -4965,6 +4975,8 @@
         "optional": "Optional",
         "clientId": "Client ID",
         "clientSecret": "Client secret",
+        "signingSecret": "Signing secret",
+        "signingSecretHelp": "Your Slack app's signing secret, used to verify inbound events. Leave blank to keep the stored value.",
         "scopes": "Scopes",
         "savingCredentials": "Saving...",
         "credentialsSaved": "Credentials saved successfully",

@@ -1,6 +1,8 @@
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
+import type { ActionCtx } from '../../_generated/server';
 import { httpAction } from '../../_generated/server';
+import { decryptString } from '../../lib/crypto/decrypt_string';
 import {
   checkIpRateLimit,
   checkTeamRateLimit,
@@ -23,6 +25,31 @@ function textResponse(
     status,
     headers: { 'Content-Type': 'text/plain', ...headers },
   });
+}
+
+/**
+ * Reject a request we could not verify as a signed Slack delivery. Throttles
+ * forged/unsigned floods by (spoof-resistant) client IP — tokens are consumed
+ * only here, on failure, so legitimate signed traffic never depletes the
+ * bucket. Returns 429 under flood, otherwise 401.
+ */
+async function throttleAndReject(
+  ctx: ActionCtx,
+  req: Request,
+): Promise<Response> {
+  try {
+    const trusted = await loadTrustedProxies(ctx);
+    const ip = getClientIp(req.headers, trusted);
+    await checkIpRateLimit(ctx, 'integration:slack-events', ip);
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      return textResponse('Rate limit exceeded', 429, {
+        'Retry-After': String(Math.ceil(error.retryAfter / 1000)),
+      });
+    }
+    throw error;
+  }
+  return textResponse('Invalid signature', 401);
 }
 
 type ParsedEvent = {
@@ -67,79 +94,124 @@ function parseEvent(event: Record<string, unknown>): ParsedEvent | null {
 }
 
 /**
- * Single Slack Events API Request URL for the shared Slack App. Verifies the
- * request signature, answers the URL-verification challenge, and hands valid
- * message events to an async processor (ACKing Slack within 3s).
+ * Single Slack Events API Request URL for every org's Slack App. Each org
+ * brings its own Slack app (client id/secret + signing secret are pasted in the
+ * admin UI and stored encrypted on the per-org credential — there are no
+ * deployment-wide SLACK_* env vars). The handler therefore resolves the signing
+ * secret per request before verifying the HMAC:
+ *   - `event_callback` carries a `team_id`, which routes to the installing org
+ *     (slackInstallations) and its stored signing secret.
+ *   - `url_verification` carries no team_id/api_app_id and fires during setup
+ *     (before any OAuth install exists), so it is verified by trying every
+ *     configured Slack signing secret and echoing the challenge on a match.
  *
- * Rate limiting is applied AFTER signature verification so signed Slack
- * deliveries are never thrown a non-2xx (which Slack treats as a failed
- * delivery and can disable the endpoint over): forged/unsigned requests are
- * throttled by client IP (401, or 429 under flood), while signed traffic has a
- * per-workspace backstop that ACKs 200 and drops on overflow.
+ * The untrusted body is parsed first ONLY to extract that routing key; nothing
+ * from it is acted on until verifySlackSignature (which also enforces the
+ * timestamp/replay window) passes over the original raw bytes.
+ *
+ * Rate limiting: forged/unsigned requests are throttled by client IP (401, or
+ * 429 under flood) — tokens consumed only on failure; verified signed traffic
+ * has a per-workspace backstop that ACKs 200 and drops on overflow (Slack
+ * counts a non-2xx toward disabling the endpoint).
  */
 export const slackEventsHandler = httpAction(async (ctx, req) => {
-  const signingSecret = process.env.SLACK_SIGNING_SECRET;
-  if (!signingSecret) {
-    console.error(
-      '[slack:events] SLACK_SIGNING_SECRET is not configured; rejecting request',
-    );
-    return textResponse('Slack is not configured', 500);
-  }
-
   // Read the raw body BEFORE parsing — the HMAC is over the exact bytes.
   const rawBody = await req.text();
-  const verification = await verifySlackSignature({
-    signingSecret,
-    signatureHeader: req.headers.get('X-Slack-Signature'),
-    timestampHeader: req.headers.get('X-Slack-Request-Timestamp'),
-    rawBody,
-  });
-  if (!verification.ok) {
-    // Throttle forged/unsigned floods by (spoof-resistant) client IP. Tokens
-    // are consumed only on failure, so legitimate signed traffic never depletes
-    // this bucket.
-    try {
-      const trusted = await loadTrustedProxies(ctx);
-      const ip = getClientIp(req.headers, trusted);
-      await checkIpRateLimit(ctx, 'integration:slack-events', ip);
-    } catch (error) {
-      if (error instanceof RateLimitExceededError) {
-        return textResponse('Rate limit exceeded', 429, {
-          'Retry-After': String(Math.ceil(error.retryAfter / 1000)),
-        });
-      }
-      throw error;
-    }
-    return textResponse('Invalid signature', 401);
-  }
 
   let body: unknown;
   try {
     body = JSON.parse(rawBody);
   } catch {
-    return textResponse('Invalid JSON body', 400);
+    // A malformed body cannot be a signed Slack delivery — treat as forged.
+    return throttleAndReject(ctx, req);
   }
   if (!isRecord(body)) {
-    return textResponse('Invalid body', 400);
+    return throttleAndReject(ctx, req);
   }
 
-  // URL verification handshake (also signed).
+  const signatureHeader = req.headers.get('X-Slack-Signature');
+  const timestampHeader = req.headers.get('X-Slack-Request-Timestamp');
+
+  // URL-verification handshake: no team_id to route by, so verify against every
+  // configured Slack signing secret (read directly — no install row exists yet)
+  // and echo the challenge on the first match.
   if (body.type === 'url_verification') {
-    const challenge = getString(body, 'challenge') ?? '';
-    return new Response(JSON.stringify({ challenge }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    const encryptedSecrets = await ctx.runQuery(
+      internal.integrations.credential_queries.listSlackSigningSecrets,
+      {},
+    );
+    for (const enc of encryptedSecrets) {
+      let signingSecret: string;
+      try {
+        signingSecret = await decryptString(enc);
+      } catch (error) {
+        console.error(
+          '[slack:events] failed to decrypt a Slack signing secret',
+          error,
+        );
+        continue;
+      }
+      const verification = await verifySlackSignature({
+        signingSecret,
+        signatureHeader,
+        timestampHeader,
+        rawBody,
+      });
+      if (verification.ok) {
+        const challenge = getString(body, 'challenge') ?? '';
+        return new Response(JSON.stringify({ challenge }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    }
+    return throttleAndReject(ctx, req);
   }
+
+  // Every other delivery (event_callback, app_rate_limited, …) carries a
+  // team_id. Resolve the per-org signing secret and verify before trusting it.
+  const teamId = getString(body, 'team_id');
+  if (!teamId) {
+    return throttleAndReject(ctx, req);
+  }
+
+  const encryptedSecret = await ctx.runQuery(
+    internal.integrations.slack_installations.resolveSlackSigningSecretByTeamId,
+    { teamId },
+  );
+  if (!encryptedSecret) {
+    return throttleAndReject(ctx, req);
+  }
+  let signingSecret: string;
+  try {
+    signingSecret = await decryptString(encryptedSecret);
+  } catch (error) {
+    console.error(
+      `[slack:events] failed to decrypt signing secret for team ${teamId}`,
+      error,
+    );
+    return throttleAndReject(ctx, req);
+  }
+  const verification = await verifySlackSignature({
+    signingSecret,
+    signatureHeader,
+    timestampHeader,
+    rawBody,
+  });
+  if (!verification.ok) {
+    return throttleAndReject(ctx, req);
+  }
+
+  // --- The request is now verified as a signed delivery from this workspace. ---
 
   if (body.type !== 'event_callback') {
+    // e.g. app_rate_limited — signed, but nothing to process.
     return emptyAck();
   }
 
   const event = isRecord(body.event) ? body.event : undefined;
   const eventId = getString(body, 'event_id');
-  const teamId = getString(body, 'team_id');
-  if (!event || !eventId || !teamId) {
+  if (!event || !eventId) {
     return emptyAck();
   }
 

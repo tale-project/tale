@@ -95,6 +95,31 @@ export const resolveOrgBySlackTeamId = internalQuery({
 });
 
 /**
+ * Resolve the (encrypted) signing secret of the Slack app that owns a workspace,
+ * so the inbound events endpoint can verify the request HMAC against the per-org
+ * secret. Returns null when the workspace is not installed or the credential has
+ * no signing secret stored.
+ *
+ * Deliberately NOT gated on `isActive`: a deactivated integration's signed
+ * deliveries must still verify and ACK 200 (then get dropped by
+ * processSlackEvent) — returning null here would make the handler 401, which
+ * Slack counts toward disabling the endpoint.
+ */
+export const resolveSlackSigningSecretByTeamId = internalQuery({
+  args: { teamId: v.string() },
+  returns: v.union(v.null(), v.string()),
+  handler: async (ctx, { teamId }) => {
+    const row = await ctx.db
+      .query('slackInstallations')
+      .withIndex('by_team', (q) => q.eq('teamId', teamId))
+      .first();
+    if (!row) return null;
+    const cred = await ctx.db.get(row.credentialId);
+    return cred?.oauth2Config?.signingSecretEncrypted ?? null;
+  },
+});
+
+/**
  * Cascade helper: delete every routing row owned by a credential. Called inline
  * from the credential delete mutations when a Slack integration is disconnected
  * so the workspace stops routing.
