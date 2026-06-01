@@ -34,6 +34,25 @@ interface SkeletonWrapProps {
 }
 
 /**
+ * While loading, render the real content inside a `display: contents` wrapper
+ * that carries `visibility: hidden`. `contents` generates no box (so layout is
+ * identical to rendering `children` bare — the skeleton still sizes to the
+ * content), while `visibility: hidden` inherits down to every leaf so nothing
+ * can peek out from under the opaque mask, and masked controls drop out of the
+ * focus/hit-test order. When not loading the content renders untouched.
+ */
+function MaskedContent({
+  loading,
+  children,
+}: {
+  loading: boolean;
+  children: ReactNode;
+}) {
+  if (!loading) return children;
+  return <span className="invisible contents">{children}</span>;
+}
+
+/**
  * The universal masking primitive — `<SkeletonBox>{value}</SkeletonBox>`.
  *
  * Renders the real value as-is. While loading (`useSkeleton()` is true, i.e.
@@ -68,7 +87,7 @@ export function SkeletonBox({ children, fullWidth }: SkeletonWrapProps) {
           : 'contents'
       }
     >
-      {children}
+      <MaskedContent loading={loading}>{children}</MaskedContent>
       {loading && (
         <span className="bg-muted absolute -inset-0.5 overflow-hidden rounded-[inherit]">
           <span className={SKELETON_SHIMMER} />
@@ -97,7 +116,7 @@ export function SkeletonCircle({ children, fullWidth }: SkeletonWrapProps) {
           : 'contents'
       }
     >
-      {children}
+      <MaskedContent loading={loading}>{children}</MaskedContent>
       {loading && (
         <span className="bg-muted absolute -inset-0.5 overflow-hidden rounded-full">
           <span className={SKELETON_SHIMMER} />

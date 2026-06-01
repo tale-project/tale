@@ -33,8 +33,11 @@ describe('SkeletonBox', () => {
         </SkeletonBox>
       </Skeletonize>,
     );
-    // The real content stays in the tree; an opaque overlay covers it.
-    expect(screen.getByTestId('value')).toBeInTheDocument();
+    // The real content stays in the tree (so the mask sizes to it) but is
+    // visibility-hidden behind the opaque overlay — it can't peek through.
+    const value = screen.getByTestId('value');
+    expect(value).toBeInTheDocument();
+    expect(value.parentElement).toHaveClass('invisible', 'contents');
   });
 });
 
