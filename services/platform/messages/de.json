@@ -5513,6 +5513,8 @@
       "product": "Produkt",
       "scanned": "Gescannt",
       "stock": "Bestand",
+      "price": "Preis",
+      "category": "Kategorie",
       "title": "Titel",
       "website": "Website"
     },

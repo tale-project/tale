@@ -5774,6 +5774,8 @@
       "product": "Product",
       "scanned": "Scanned",
       "stock": "Stock",
+      "price": "Price",
+      "category": "Category",
       "title": "Title",
       "website": "Website"
     },

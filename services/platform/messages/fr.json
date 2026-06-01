@@ -5514,6 +5514,8 @@
       "product": "Produit",
       "scanned": "Analysé",
       "stock": "Stock",
+      "price": "Prix",
+      "category": "Catégorie",
       "title": "Titre",
       "website": "Site web"
     },
