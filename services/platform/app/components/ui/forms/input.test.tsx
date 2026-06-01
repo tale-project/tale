@@ -165,6 +165,17 @@ describe('Input', () => {
     });
   });
 
+  describe('border visibility', () => {
+    // Regression test for #1478: the resting field edge was barely visible in
+    // light mode. The input ring must use the stronger --color-border-input
+    // token rather than the faint generic border.
+    it('uses the input border token for its ring', () => {
+      render(<Input label="Email" />);
+      const input = screen.getByLabelText('Email', { exact: false });
+      expect(input.className).toContain('--color-border-input');
+    });
+  });
+
   describe('error animation', () => {
     it('has transition classes', () => {
       render(<Input label="Email" />);

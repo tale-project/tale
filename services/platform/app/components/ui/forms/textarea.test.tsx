@@ -91,6 +91,17 @@ describe('Textarea', () => {
     });
   });
 
+  describe('border visibility', () => {
+    // Regression test for #1478: the resting field edge was barely visible in
+    // light mode. The textarea border must use the stronger --color-border-input
+    // token rather than the faint generic border.
+    it('uses the input border token', () => {
+      render(<Textarea label="Message" />);
+      const textarea = screen.getByLabelText('Message', { exact: false });
+      expect(textarea.className).toContain('--color-border-input');
+    });
+  });
+
   describe('error animation', () => {
     it('has transition classes', () => {
       render(<Textarea label="Message" />);
