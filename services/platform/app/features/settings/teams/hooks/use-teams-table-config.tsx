@@ -1,5 +1,6 @@
 'use client';
 
+import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
@@ -67,11 +68,13 @@ export function useTeamsTableConfig(
         size: 44,
         meta: { isAction: true },
         cell: ({ row }) => (
-          <TeamRowActions
-            team={row.original}
-            organizationId={organizationId}
-            onView={onViewTeam ? () => onViewTeam(row.original) : undefined}
-          />
+          <HStack justify="end">
+            <TeamRowActions
+              team={row.original}
+              organizationId={organizationId}
+              onView={onViewTeam ? () => onViewTeam(row.original) : undefined}
+            />
+          </HStack>
         ),
       },
     ],
