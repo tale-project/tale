@@ -124,11 +124,17 @@ export function DocumentUploadDialog({
       if (!newOpen && isUploading) return; // Block close while uploading
       if (!newOpen) {
         clearTrackedFiles();
-        setSelectedTeamIds(selectedTeamId ? [selectedTeamId] : []);
+        setSelectedTeamIds(
+          folderTeamId
+            ? [folderTeamId]
+            : selectedTeamId
+              ? [selectedTeamId]
+              : [],
+        );
       }
       onOpenChange(newOpen);
     },
-    [onOpenChange, isUploading, clearTrackedFiles, selectedTeamId],
+    [onOpenChange, isUploading, clearTrackedFiles, folderTeamId, selectedTeamId],
   );
 
   const processFiles = useCallback(

@@ -164,6 +164,11 @@ describe('DocumentUploadDialog', () => {
     expect(
       screen.getByText('documents.upload.teamLockedToFolder'),
     ).toBeInTheDocument();
+
+    // The TeamMultiSelect control must be disabled to enforce the lock.
+    const teamSelector = screen.getByRole('combobox');
+    expect(teamSelector).toHaveAttribute('aria-disabled', 'true');
+
     // No hint / free selection for an org-wide folder is covered by the
     // default-props test above (mockFolderData undefined).
   });
