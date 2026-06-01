@@ -17,6 +17,12 @@ Tale encrypts two classes of secret at rest, with two different mechanisms.
 
 The Convex data store and Postgres volumes are protected by the host: run them on an encrypted filesystem (LUKS, or your cloud provider's volume encryption). Tale does not store credentials in plaintext — a provider key or OAuth token is either SOPS-encrypted on disk or AES-256-GCM-encrypted in the database, never written in the clear.
 
+**Customer PII and application records** — names, email and postal addresses, conversation content — are protected at rest by the same layers that protect the database as a whole: Convex's at-rest encryption, TLS 1.3 in transit, and row-level security that scopes every read to the caller's organisation.
+
+Application-level field encryption is purpose-built for secrets — provider keys and OAuth tokens, written once and read by a single code path. PII is different: it is filtered, sorted, and looked up by exact value, and the customer table is indexed by organisation and email. Encrypting those columns at the field level would break equality lookups and indexed search — unless paired with a searchable-hash scheme that leaks the very equality it is meant to hide — while adding a key-rotation cost and no protection the encrypted host disk beneath the application doesn't already provide against a stolen volume.
+
+If your compliance regime calls for field-level PII encryption on top of these layers, that is a deliberate application change rather than a default Tale ships.
+
 ## Data in transit
 
 All browser and API traffic terminates TLS at the reverse proxy (Caddy), which negotiates TLS 1.3 (with TLS 1.2 as the floor) and obtains certificates automatically. The cipher suites are the proxy's modern defaults — AES-256-GCM and ChaCha20-Poly1305 with ECDHE key exchange. Configure the domain and certificate source in [TLS and domains](/self-hosted/configuration/tls-and-domains); traffic between containers stays on the host's internal Docker network.

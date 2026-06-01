@@ -17,6 +17,12 @@ Tale verschlüsselt zwei Klassen von Secrets im Ruhezustand, mit zwei verschiede
 
 Der Convex-Datenspeicher und die Postgres-Volumes werden vom Host geschützt: betreibe sie auf einem verschlüsselten Dateisystem (LUKS oder die Volume-Verschlüsselung deines Cloud-Anbieters). Tale speichert Credentials nicht im Klartext — ein Provider-Schlüssel oder OAuth-Token ist entweder SOPS-verschlüsselt auf der Festplatte oder AES-256-GCM-verschlüsselt in der Datenbank, nie im Klartext geschrieben.
 
+**Kunden-PII und Anwendungsdaten** — Namen, E-Mail- und Postadressen, Gesprächsinhalte — sind im Ruhezustand durch dieselben Schichten geschützt, die die Datenbank als Ganzes schützen: Convex' Verschlüsselung im Ruhezustand, TLS 1.3 bei der Übertragung und zeilenbasierte Sicherheitsregeln (RLS), die jeden Lesezugriff auf die Organisation des Aufrufers begrenzen.
+
+Anwendungsseitige Feldverschlüsselung ist gezielt für Secrets gemacht — Provider-Schlüssel und OAuth-Tokens, die einmal geschrieben und von einem einzigen Code-Pfad gelesen werden. PII ist anders: Sie wird gefiltert, sortiert und über den exakten Wert nachgeschlagen, und die Kundentabelle ist nach Organisation und E-Mail indiziert. Diese Spalten auf Feldebene zu verschlüsseln würde Gleichheitsabfragen und indizierte Suche brechen — sofern nicht mit einem suchbaren Hash-Verfahren kombiniert, das genau die Gleichheit preisgibt, die es verbergen soll — bei zusätzlichen Kosten für die Schlüsselrotation und ohne Schutz, den die verschlüsselte Host-Festplatte unter der Anwendung gegen ein gestohlenes Volume nicht ohnehin bietet.
+
+Wenn dein Compliance-Regime zusätzlich Feldverschlüsselung für PII verlangt, ist das eine bewusste Anwendungsänderung statt eines Standards, den Tale mitliefert.
+
 ## Daten bei der Übertragung
 
 Aller Browser- und API-Verkehr terminiert TLS am Reverse-Proxy (Caddy), der TLS 1.3 (mit TLS 1.2 als Untergrenze) aushandelt und Zertifikate automatisch bezieht. Die Cipher-Suites sind die modernen Defaults des Proxys — AES-256-GCM und ChaCha20-Poly1305 mit ECDHE-Schlüsselaustausch. Konfiguriere Domain und Zertifikatsquelle in [TLS und Domains](/de/self-hosted/configuration/tls-and-domains); der Verkehr zwischen Containern bleibt im internen Docker-Netz des Hosts.
