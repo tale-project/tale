@@ -3942,7 +3942,9 @@
       "searchPlaceholder": "Prompts suchen...",
       "loading": "Prompts werden geladen...",
       "loadMore": "Mehr laden",
-      "loadingMore": "Lädt..."
+      "loadingMore": "Lädt...",
+      "teamContextLabel": "Team",
+      "noTeamsHint": "Du bist noch in keinem Team. Bitte eine Administratorin, dich hinzuzufügen, um Team-Prompts zu nutzen."
     },
     "emptyState": {
       "title": "Noch keine Prompts",

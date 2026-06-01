@@ -77,6 +77,8 @@ export interface CategoriesBucketed {
 
 interface UsePromptsOptions {
   scope?: 'global' | 'team' | 'personal';
+  /** Active team context for the "Team" scope; ignored for other scopes. */
+  teamId?: string;
   search?: string;
   /** Legacy string filter; clients should prefer `categoryIds`. */
   categories?: string[];
@@ -99,6 +101,7 @@ export function usePrompts(
     ? {
         organizationId,
         scope: options.scope,
+        teamId: options.scope === 'team' ? options.teamId : undefined,
         search: options.search,
         categories:
           options.categories && options.categories.length > 0
