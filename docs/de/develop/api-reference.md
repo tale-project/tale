@@ -36,6 +36,7 @@ Cookies authentifizieren die Browser-Session; API-Aufrufe aus dem Browser innerh
 | Agents                                           | verschiedene | `/api/v1/agents/...`                | API-Key     | List, get, run.                                            |
 | Chat                                             | verschiedene | `/api/v1/chat/...`                  | API-Key     | Stream Chat-Completions gegen einen Agent oder ein Modell. |
 | OpenAI-kompatibel                                | POST         | `/api/v1/chat/completions`          | API-Key     | OpenAI-Chat-Completions-Form; bestehende SDKs nutzen.      |
+| OpenAI-kompatibel                                | GET          | `/api/v1/models`                    | API-Key     | Verfügbare Modelle im OpenAI-Format auflisten.             |
 | Automatisierungen                                | verschiedene | `/api/v1/automations/...`           | API-Key     | List, get, trigger, executions.                            |
 | Workflow-Trigger                                 | POST         | `/api/v1/workflows/triggers/<name>` | Trigger-Key | Webhook-getriggerte Workflow-Auslösungen.                  |
 | Wissen — Dokumente                               | verschiedene | `/api/v1/documents/...`             | API-Key     | Upload, list, get, delete.                                 |

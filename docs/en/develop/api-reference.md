@@ -36,6 +36,7 @@ Cookies authenticate the browser session; API calls from the browser inside the 
 | Agents                                             | various | `/api/v1/agents/...`                | API key       | List, get, run.                                    |
 | Chat                                               | various | `/api/v1/chat/...`                  | API key       | Stream chat completions against an agent or model. |
 | OpenAI-compatible                                  | POST    | `/api/v1/chat/completions`          | API key       | OpenAI Chat Completions shape; use existing SDKs.  |
+| OpenAI-compatible                                  | GET     | `/api/v1/models`                    | API key       | List available models in OpenAI format.            |
 | Automations                                        | various | `/api/v1/automations/...`           | API key       | List, get, trigger, executions.                    |
 | Workflow triggers                                  | POST    | `/api/v1/workflows/triggers/<name>` | Trigger key   | Webhook-triggered workflow invocations.            |
 | Knowledge — Documents                              | various | `/api/v1/documents/...`             | API key       | Upload, list, get, delete.                         |

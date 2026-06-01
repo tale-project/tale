@@ -36,6 +36,7 @@ Les cookies authentifient la session navigateur ; les appels API depuis le navig
 | Agents                                                     | diverses | `/api/v1/agents/...`               | Clé API         | List, get, run.                                            |
 | Chat                                                       | diverses | `/api/v1/chat/...`                 | Clé API         | Stream de complétions chat contre un agent ou un modèle.   |
 | Compatible OpenAI                                          | POST     | `/api/v1/chat/completions`         | Clé API         | Forme Chat Completions OpenAI ; utilise les SDK existants. |
+| Compatible OpenAI                                          | GET      | `/api/v1/models`                   | Clé API         | Liste les modèles disponibles au format OpenAI.            |
 | Automatisations                                            | diverses | `/api/v1/automations/...`          | Clé API         | List, get, trigger, executions.                            |
 | Déclencheurs de workflow                                   | POST     | `/api/v1/workflows/triggers/<nom>` | Clé déclencheur | Invocations de workflow déclenchées par webhook.           |
 | Connaissances — Documents                                  | diverses | `/api/v1/documents/...`            | Clé API         | Upload, list, get, delete.                                 |
