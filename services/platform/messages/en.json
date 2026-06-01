@@ -692,6 +692,10 @@
     "tester": {
       "inputLabel": "Test input (JSON)",
       "inputDescription": "Provide input data in JSON format for the automation execution",
+      "validation": {
+        "invalidJson": "Enter valid JSON to run this automation.",
+        "missingRequired": "Configure required field(s) before running: {fields}"
+      },
       "tip": "💡 Dry run simulates execution without side effects. Execute creates real runs visible in Executions tab.",
       "execute": "Execute",
       "executing": "Executing...",

@@ -22,7 +22,11 @@ import { cn } from '@/lib/utils/cn';
 
 import { useStartWorkflowFromFile } from '../hooks/file-mutations';
 import { useReadWorkflow } from '../hooks/file-queries';
-import { buildInputTemplateFromSchema } from '../utils/input-schema-template';
+import {
+  buildInputTemplateFromSchema,
+  getMissingRequiredFields,
+  type InputSchema,
+} from '../utils/input-schema-template';
 
 interface AutomationTesterProps {
   organizationId: string;
@@ -58,16 +62,21 @@ export function AutomationTester({
 
   const { data: workflowRead } = useReadWorkflow(organizationId, workflowSlug);
 
-  const inputTemplate = useMemo(() => {
-    if (!workflowRead?.ok) return '{}';
+  const inputSchema = useMemo<InputSchema | undefined>(() => {
+    if (!workflowRead?.ok) return undefined;
     const startStep = workflowRead.config.steps?.find(
       (s) => s.stepType === 'start',
     );
     const startConfig = startStep?.config as
-      | { inputSchema?: Parameters<typeof buildInputTemplateFromSchema>[0] }
+      | { inputSchema?: InputSchema }
       | undefined;
-    return buildInputTemplateFromSchema(startConfig?.inputSchema);
+    return startConfig?.inputSchema;
   }, [workflowRead]);
+
+  const inputTemplate = useMemo(
+    () => buildInputTemplateFromSchema(inputSchema),
+    [inputSchema],
+  );
 
   // Persist per (org, workflow) so a tester reopening the panel sees the
   // last input they ran with — typical iteration is "tweak, run, tweak, run"
@@ -102,6 +111,16 @@ export function AutomationTester({
       return null;
     }
   })();
+
+  // Gate execution: the input must be valid JSON and every required field
+  // from the start node's inputSchema must be configured. Without this, the
+  // buttons fire with missing/invalid input and the run only fails downstream.
+  const isJsonValid = parsedInput !== null;
+  const missingRequiredFields = getMissingRequiredFields(
+    inputSchema,
+    parsedInput,
+  );
+  const canRun = isJsonValid && missingRequiredFields.length === 0;
 
   // TODO: Migrate dry run to file-based workflow system
   const handleDryRun = async () => {
@@ -293,43 +312,54 @@ export function AutomationTester({
         </BorderedSection>
       </Stack>
 
-      <HStack gap={2} className="border-border border-t p-3">
-        <Button
-          variant="secondary"
-          onClick={handleDryRun}
-          disabled={isExecuting || isDryRunning}
-          className="flex-1"
-        >
-          {isDryRunning ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" />
-              {t('tester.dryRunning')}
-            </>
-          ) : (
-            <>
-              <Search className="mr-2 size-4" />
-              {t('tester.dryRun.button')}
-            </>
-          )}
-        </Button>
-        <Button
-          onClick={handleExecute}
-          disabled={isExecuting || isDryRunning}
-          className="flex-1"
-        >
-          {isExecuting ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" />
-              {t('tester.executing')}
-            </>
-          ) : (
-            <>
-              <Play className="mr-2 size-4" />
-              {t('tester.execute')}
-            </>
-          )}
-        </Button>
-      </HStack>
+      <Stack gap={2} className="border-border border-t p-3">
+        {!canRun && (
+          <Text variant="error-sm" role="alert">
+            {!isJsonValid
+              ? t('tester.validation.invalidJson')
+              : t('tester.validation.missingRequired', {
+                  fields: missingRequiredFields.join(', '),
+                })}
+          </Text>
+        )}
+        <HStack gap={2}>
+          <Button
+            variant="secondary"
+            onClick={handleDryRun}
+            disabled={isExecuting || isDryRunning || !canRun}
+            className="flex-1"
+          >
+            {isDryRunning ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                {t('tester.dryRunning')}
+              </>
+            ) : (
+              <>
+                <Search className="mr-2 size-4" />
+                {t('tester.dryRun.button')}
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={handleExecute}
+            disabled={isExecuting || isDryRunning || !canRun}
+            className="flex-1"
+          >
+            {isExecuting ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                {t('tester.executing')}
+              </>
+            ) : (
+              <>
+                <Play className="mr-2 size-4" />
+                {t('tester.execute')}
+              </>
+            )}
+          </Button>
+        </HStack>
+      </Stack>
     </VStack>
   );
 }

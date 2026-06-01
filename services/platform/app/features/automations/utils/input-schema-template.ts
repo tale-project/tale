@@ -36,7 +36,7 @@ interface InputSchemaProperty {
   required?: string[];
 }
 
-interface InputSchema {
+export interface InputSchema {
   properties: Record<string, InputSchemaProperty>;
   required?: string[];
 }
@@ -86,4 +86,38 @@ export function buildInputTemplateFromSchema(
   }
 
   return JSON.stringify(template, null, 2);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A required value counts as "unconfigured" when it's absent, null/undefined,
+ * a blank string, or an empty collection. Numbers (`0`) and booleans (`false`)
+ * are accepted as configured — they're indistinguishable from a deliberate
+ * value, so we don't block on them.
+ */
+function isUnconfigured(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === 'object') return Object.keys(value).length === 0;
+  return false;
+}
+
+/**
+ * Return the names of the schema's required top-level fields that are not
+ * configured in `value`. Used to gate the test panel's Execute/Dry-run
+ * buttons so an automation can't be run with missing required inputs. When
+ * `value` isn't an object, every required field is considered missing.
+ */
+export function getMissingRequiredFields(
+  schema: InputSchema | undefined,
+  value: unknown,
+): string[] {
+  const required = schema?.required ?? [];
+  if (required.length === 0) return [];
+  if (!isRecord(value)) return [...required];
+  return required.filter((key) => isUnconfigured(value[key]));
 }

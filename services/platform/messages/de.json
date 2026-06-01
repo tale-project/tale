@@ -692,6 +692,10 @@
     "tester": {
       "inputLabel": "Testeingabe (JSON)",
       "inputDescription": "Gib Eingabedaten im JSON-Format für die Automatisierungsausführung an",
+      "validation": {
+        "invalidJson": "Gib gültiges JSON ein, um diese Automatisierung auszuführen.",
+        "missingRequired": "Konfiguriere die erforderlichen Felder, bevor du ausführst: {fields}"
+      },
       "tip": "Probelauf simuliert die Ausführung ohne Nebeneffekte. Ausführen erstellt echte Läufe, die im Tab Ausführungen sichtbar sind.",
       "execute": "Ausführen",
       "executing": "Wird ausgeführt...",
