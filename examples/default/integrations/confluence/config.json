@@ -14,7 +14,7 @@
     {
       "name": "list_pages",
       "title": "List Pages in Space",
-      "description": "List current pages in a Confluence space. Cursor pagination is handled internally — the operation returns the complete page list in one call (soft-capped at 4000 pages; beyond that the result is truncated and `truncated: true` is set). Each page reports its version number (for change detection), last-modified time, space key, ancestor path, and canonical web URL.",
+      "description": "List a Confluence space's pages. Cursor pagination is handled internally (soft-capped; `truncated: true` beyond the cap). Returns `pages` — the current pages, each with version number (for change detection), last-modified time, space key, ancestor path, folder sub-path, and canonical web URL — plus `presentIds`, the IDs of all current AND archived pages (collected in a second id-only pass) so a delete-reconcile can distinguish genuinely-removed pages from merely-archived ones.",
       "operationType": "read",
       "parametersSchema": {
         "type": "object",

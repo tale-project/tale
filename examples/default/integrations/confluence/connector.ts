@@ -70,6 +70,11 @@ interface TestConnectionContext {
 // result. Spaces larger than this need workflow-layer pagination (see plan).
 const PAGE_LIMIT = 100;
 const MAX_LIST_PAGES = 40;
+// Archived pages are fetched id-only in a second pass to keep them in the
+// present-id set (so delete-reconcile preserves them). Kept small — the
+// combined current+archived request count must stay under the sandbox pass
+// budget (MAX_PASSES=50): 40 + 8 leaves margin.
+const MAX_ARCHIVED_PAGES = 8;
 
 // Below this many characters of extracted text we treat `export_view` as having
 // rendered to a husk (a page that is mostly dynamic/Connect macros — Jira issue
@@ -300,6 +305,58 @@ function toOutputPage(
   };
 }
 
+interface SearchResult {
+  results: ConfluencePageRef[];
+  base: string | undefined;
+  truncated: boolean;
+}
+
+// Run a paginated /content/search, following `_links.next` until exhausted or
+// `maxRequests` is hit (which sets truncated). `next` is relative to
+// `_links.base` (which carries the "/wiki" prefix) — resolve against base
+// verbatim; do NOT prepend apiBase (doubles "/rest/api") or origin (drops
+// "/wiki"). Capping below the sandbox pass budget keeps a thrown-incomplete
+// pass from surfacing as a silent empty result.
+function paginateContentSearch(
+  http: HttpApi,
+  auth: ConfluenceAuth,
+  startUrl: string,
+  maxRequests: number,
+): SearchResult {
+  const results: ConfluencePageRef[] = [];
+  let base: string | undefined;
+  let truncated = false;
+  let fetched = 0;
+  let url = startUrl;
+
+  while (true) {
+    const response = http.get(url, { headers: auth.headers });
+    handleError(response, 'list pages');
+
+    const data = response.json() as ConfluenceSearchPage;
+    const page = Array.isArray(data.results) ? data.results : [];
+    if (base === undefined && data._links) {
+      base = data._links.base;
+    }
+    for (let i = 0; i < page.length; i++) {
+      results.push(page[i]);
+    }
+    fetched++;
+
+    const next = data._links ? data._links.next : undefined;
+    if (!next) {
+      break;
+    }
+    if (fetched >= maxRequests) {
+      truncated = true;
+      break;
+    }
+    url = base ? base + next : auth.origin + '/wiki' + next;
+  }
+
+  return { results: results, base: base, truncated: truncated };
+}
+
 function listPages(
   http: HttpApi,
   auth: ConfluenceAuth,
@@ -313,62 +370,22 @@ function listPages(
     typeof params.label === 'string' && params.label ? params.label : undefined;
 
   const cql = buildCql(spaceKey, label);
-  let url =
+
+  // Pass 1 — current pages, fully expanded. These become Tale documents.
+  const currentUrl =
     auth.apiBase +
     '/content/search?cql=' +
     encodeURIComponent(cql) +
     '&expand=version,ancestors,space&limit=' +
     PAGE_LIMIT;
-
-  // First pass: collect the raw refs (paginated). We can only decide which
-  // pages are containers once the whole set is known, so map to OutputPage in a
-  // second pass below.
-  const rawPages: ConfluencePageRef[] = [];
-  let base: string | undefined;
-  let truncated = false;
-  let fetched = 0;
-
-  while (true) {
-    const response = http.get(url, { headers: auth.headers });
-    handleError(response, 'list pages');
-
-    const data = response.json() as ConfluenceSearchPage;
-    const results = Array.isArray(data.results) ? data.results : [];
-    if (base === undefined && data._links) {
-      base = data._links.base;
-    }
-    for (let i = 0; i < results.length; i++) {
-      rawPages.push(results[i]);
-    }
-    fetched++;
-
-    const next = data._links ? data._links.next : undefined;
-    if (!next) {
-      break;
-    }
-    if (fetched >= MAX_LIST_PAGES) {
-      // Stop before the sandbox pass budget bites. The page set is incomplete,
-      // so flag it: the workflow skips delete-style cleanup on a truncated list
-      // (and v1 is additive-only regardless).
-      truncated = true;
-      break;
-    }
-    // `next` is relative to `_links.base` (e.g. "/rest/api/content/search?...")
-    // and omits the "/wiki" prefix that base carries. Resolve against base
-    // verbatim; do NOT prepend apiBase (doubles "/rest/api") or origin (drops
-    // "/wiki").
-    if (base) {
-      url = base + next;
-    } else {
-      url = auth.origin + '/wiki' + next;
-    }
-  }
+  const current = paginateContentSearch(http, auth, currentUrl, MAX_LIST_PAGES);
+  const base = current.base;
 
   // A page is a container (becomes a folder) iff it is an ancestor of another
   // page in the set.
   const parentIds: Record<string, boolean> = {};
-  for (let i = 0; i < rawPages.length; i++) {
-    const anc = rawPages[i].ancestors;
+  for (let i = 0; i < current.results.length; i++) {
+    const anc = current.results[i].ancestors;
     if (Array.isArray(anc)) {
       for (let j = 0; j < anc.length; j++) {
         const a = anc[j];
@@ -380,15 +397,59 @@ function listPages(
   }
 
   const pages: OutputPage[] = [];
-  for (let i = 0; i < rawPages.length; i++) {
-    pages.push(toOutputPage(rawPages[i], base, parentIds));
+  for (let i = 0; i < current.results.length; i++) {
+    pages.push(toOutputPage(current.results[i], base, parentIds));
   }
 
+  // Pass 2 — archived page ids only. Archived pages are NOT materialized as
+  // documents, but their ids must remain in `presentIds` so delete-reconcile
+  // PRESERVES their documents (archive != delete) and only removes pages that
+  // are genuinely gone (trashed/purged → absent from both passes). CQL has no
+  // `status` field (HTTP 400); the supported mechanism is the cqlcontext param.
+  const archivedUrl =
+    auth.apiBase +
+    '/content/search?cql=' +
+    encodeURIComponent(cql) +
+    '&cqlcontext=' +
+    encodeURIComponent(JSON.stringify({ contentStatuses: ['archived'] })) +
+    '&limit=' +
+    PAGE_LIMIT;
+  const archived = paginateContentSearch(
+    http,
+    auth,
+    archivedUrl,
+    MAX_ARCHIVED_PAGES,
+  );
+
+  // presentIds = current ∪ archived (deduped). The reconcile step deletes docs
+  // whose page id is absent from this set.
+  const presentSeen: Record<string, boolean> = {};
+  const presentIds: string[] = [];
+  for (let i = 0; i < pages.length; i++) {
+    const id = pages[i].id;
+    if (id && !presentSeen[id]) {
+      presentSeen[id] = true;
+      presentIds.push(id);
+    }
+  }
+  for (let i = 0; i < archived.results.length; i++) {
+    const id = archived.results[i].id;
+    if (id && !presentSeen[id]) {
+      presentSeen[id] = true;
+      presentIds.push(id);
+    }
+  }
+
+  // If either pass truncated, presentIds is incomplete → reconcile must skip.
+  const truncated = current.truncated || archived.truncated;
+
   console.log(
-    'Listed Confluence pages: count=' +
+    'Listed Confluence pages: current=' +
       pages.length +
-      ', requests=' +
-      fetched +
+      ', archived=' +
+      archived.results.length +
+      ', present=' +
+      presentIds.length +
       ', truncated=' +
       truncated,
   );
@@ -398,6 +459,7 @@ function listPages(
     operation: 'list_pages',
     data: {
       pages: pages,
+      presentIds: presentIds,
       truncated: truncated,
     },
     count: pages.length,

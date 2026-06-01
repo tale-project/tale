@@ -100,6 +100,8 @@ describe('Confluence connector', () => {
     const calls = seqFetch([
       json({ results: [page('1', 3)], _links: { base, next } }),
       json({ results: [page('2', 7)], _links: { base } }),
+      // Second pass: archived-page ids (empty here).
+      json({ results: [], _links: { base } }),
     ]);
 
     const out = await executeIntegrationImpl({
@@ -113,16 +115,20 @@ describe('Confluence connector', () => {
     });
 
     expect(out.success).toBe(true);
-    expect(calls).toHaveLength(2);
+    // 2 current-pass requests (cursor pagination) + 1 archived-pass request.
+    expect(calls).toHaveLength(3);
     expect(calls[0]).toContain('/wiki/rest/api/content/search?cql=');
     // CQL must NOT carry a `status` field — Confluence rejects it with HTTP 400.
     const cql = decodeURIComponent(calls[0].split('cql=')[1].split('&')[0]);
     expect(cql).toBe('space="ENG" and type=page');
     expect(calls[1]).toBe(base + next);
+    // The archived pass selects status via the cqlcontext param, not a CQL field.
+    expect(calls[2]).toContain('cqlcontext=');
 
     const result = out.result as {
       data: {
         truncated: boolean;
+        presentIds: string[];
         pages: Array<{
           id: string;
           version: number;
@@ -134,6 +140,7 @@ describe('Confluence connector', () => {
     };
     expect(result.data.truncated).toBe(false);
     expect(result.data.pages).toHaveLength(2);
+    expect(result.data.presentIds).toEqual(['1', '2']);
     expect(result.data.pages[0]).toMatchObject({
       id: '1',
       version: 3,
@@ -170,6 +177,8 @@ describe('Confluence connector', () => {
         ],
         _links: { base },
       }),
+      // Archived pass (empty).
+      json({ results: [], _links: { base } }),
     ]);
 
     const out = await executeIntegrationImpl({
@@ -200,6 +209,47 @@ describe('Confluence connector', () => {
     expect(overview?.folderSubPath).toBe('Overview');
     expect(child?.hasChildren).toBe(false);
     expect(child?.folderSubPath).toBe('Overview');
+  });
+
+  it('presentIds = current ∪ archived; archived pages are not materialized as documents', async () => {
+    const base = 'https://mysite.atlassian.net/wiki';
+    const ver = { number: 1, when: '2026-01-01T00:00:00Z' };
+    seqFetch([
+      // Current pass: one live page "1".
+      json({ results: [page('1', 1)], _links: { base } }),
+      // Archived pass: one archived page "9".
+      json({
+        results: [
+          {
+            id: '9',
+            title: 'Archived page',
+            version: ver,
+            space: { key: 'ENG' },
+            _links: { webui: '/spaces/ENG/pages/9' },
+          },
+        ],
+        _links: { base },
+      }),
+    ]);
+
+    const out = await executeIntegrationImpl({
+      code: connectorCode,
+      operation: 'list_pages',
+      params: { spaceKey: 'ENG' },
+      variables: {},
+      secrets: SECRETS,
+      allowedHosts: ALLOWED,
+      timeoutMs: 5000,
+    });
+
+    expect(out.success).toBe(true);
+    const result = out.result as {
+      data: { pages: Array<{ id: string }>; presentIds: string[] };
+    };
+    // Only the live page becomes a document...
+    expect(result.data.pages.map((p) => p.id)).toEqual(['1']);
+    // ...but the archived id stays in presentIds so reconcile won't delete it.
+    expect(result.data.presentIds.sort()).toEqual(['1', '9']);
   });
 
   it('get_page converts rendered HTML to plain text and returns the Drive-shaped envelope', async () => {
