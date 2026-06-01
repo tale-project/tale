@@ -5,6 +5,7 @@ import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import schema from '../../schema';
 import { __test } from './internal_actions';
+import { isReusableThreadMeta } from './internal_mutations';
 
 // convex-test needs a module map keyed relative to the convex/ root. This file
 // lives at convex/integrations/slack/, so glob from two levels up and strip the
@@ -154,6 +155,82 @@ describe('slack event dedup', () => {
 
     expect(first.claimed).toBe(true);
     expect(second.claimed).toBe(false);
+  });
+});
+
+describe('getOrCreateSlackThread (dangling/tombstone guard)', () => {
+  // Seed a Slack-conversation → threadId mapping plus its threadMetadata row.
+  async function seedMapping(
+    t: ReturnType<typeof convexTest>,
+    threadId: string,
+    status: 'active' | 'trashed',
+  ): Promise<void> {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('slackThreads', {
+        organizationId: ORG_A,
+        channel: 'C1',
+        conversationTs: '100.0001',
+        threadId,
+        slackUserId: 'U1',
+        createdAt: 1,
+      });
+      await ctx.db.insert('threadMetadata', {
+        threadId,
+        userId: `slack:${ORG_A}:U1`,
+        chatType: 'general',
+        status,
+        createdAt: 1,
+      });
+    });
+  }
+
+  it('reuses the mapped thread when it is still active', async () => {
+    const t = convexTest(schema, modules);
+    await seedMapping(t, 'thread_active', 'active');
+
+    const res = await t.mutation(
+      internal.integrations.slack.internal_mutations.getOrCreateSlackThread,
+      {
+        organizationId: ORG_A,
+        channel: 'C1',
+        conversationTs: '100.0001',
+        slackUserId: 'U1',
+      },
+    );
+
+    expect(res).toEqual({ threadId: 'thread_active', created: false });
+    // The mapping is untouched — no stale-row drop, no re-provision.
+    const rows = await t.run(async (ctx) =>
+      ctx.db.query('slackThreads').collect(),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].threadId).toBe('thread_active');
+  });
+
+  // The trashed → re-provision branch drops the stale mapping and calls
+  // `createChatThread`, which goes through the `@convex-dev/agent` component
+  // that convex-test does not register — so it can't be asserted end-to-end
+  // here. The reuse DECISION is the bug fix; it is extracted into the pure
+  // `isReusableThreadMeta` predicate and unit-tested across all statuses below.
+  // The user-facing path is additionally covered by the delete_chat_thread
+  // cascade (which removes the mapping at trash time so a trashed thread is
+  // never reached); this guard is the defense-in-depth backstop.
+});
+
+describe('isReusableThreadMeta (slack thread reuse guard)', () => {
+  it('reuses only an active thread', () => {
+    expect(isReusableThreadMeta({ status: 'active' })).toBe(true);
+  });
+
+  it('does NOT reuse a soft-deleted, expired, deleted, or archived thread', () => {
+    for (const status of ['trashed', 'expired', 'deleted', 'archived']) {
+      expect(isReusableThreadMeta({ status })).toBe(false);
+    }
+  });
+
+  it('does NOT reuse a physically purged (missing) thread', () => {
+    expect(isReusableThreadMeta(null)).toBe(false);
+    expect(isReusableThreadMeta(undefined)).toBe(false);
   });
 });
 

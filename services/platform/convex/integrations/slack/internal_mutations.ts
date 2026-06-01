@@ -113,6 +113,21 @@ export const claimSlackEvent = internalMutation({
 });
 
 /**
+ * A Slack-conversation → thread mapping may be reused only when the underlying
+ * Tale thread still exists AND is active. Two non-reusable cases:
+ *   - `null` — physically purged (retention Pass B / GDPR erasure).
+ *   - soft-deleted (status trashed/expired/deleted) or archived — the row
+ *     exists but reusing it would write into a thread the human owner can no
+ *     longer see and that retention will later hard-delete.
+ * Whitelisting `'active'` keeps any future non-active status safe by default.
+ */
+export function isReusableThreadMeta(
+  meta: { status: string } | null | undefined,
+): boolean {
+  return meta != null && meta.status === 'active';
+}
+
+/**
  * Lookup-or-create the stable Tale thread for a Slack conversation
  * (org + channel + root ts). Owner is the org-scoped external identity
  * `slack:<organizationId>:<slackUserId>` (see identities/external_identities)
@@ -139,16 +154,17 @@ export const getOrCreateSlackThread = internalMutation({
       )
       .first();
     if (existing) {
-      // Guard against a dangling mapping: if the underlying Tale thread was
-      // physically purged (retention Pass B / GDPR erasure), reusing its
-      // threadId would silently resurrect an erased conversation. Re-validate
-      // against threadMetadata; if it's gone, drop the stale row and
-      // re-provision a fresh thread below.
+      // Reuse the mapped thread only when it is still usable (see
+      // isReusableThreadMeta). A purged (null) or soft-deleted/archived thread
+      // is a dangling mapping: drop the stale row and re-provision a fresh
+      // thread below rather than resurrecting a tombstone.
       const meta = await ctx.db
         .query('threadMetadata')
         .withIndex('by_threadId', (q) => q.eq('threadId', existing.threadId))
         .first();
-      if (meta) return { threadId: existing.threadId, created: false };
+      if (isReusableThreadMeta(meta)) {
+        return { threadId: existing.threadId, created: false };
+      }
       await ctx.db.delete(existing._id);
     }
 

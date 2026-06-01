@@ -72,23 +72,30 @@ describe('deleteChatThread', () => {
 
     const mockPatch = vi.fn();
     const mockDelete = vi.fn();
-    const dbQueryChain = {
-      withIndex: () => dbQueryChain,
-      first: vi.fn().mockResolvedValue(null),
-      collect: vi.fn().mockResolvedValue([]),
-      // Round-2 fix: replaced `.collect()` with `for await` on the
-      // agentWebhookUserThreads cascade. The mock now supports async
-      // iteration so the existing tests remain green.
-      [Symbol.asyncIterator]: async function* (): AsyncGenerator<
-        { _id: string },
-        void,
-        unknown
-      > {
-        // No webhook mappings in default mock state.
-      },
-    };
+
+    // `.first()` result shared by the legal-hold + threadMetadata lookups.
+    let firstResult: unknown = null;
+    // Rows yielded by the cascade `for await` loops, keyed by the table name
+    // passed to `ctx.db.query(<table>)`. Keeping them per-table lets the
+    // agentWebhookUserThreads and slackThreads cascades iterate independent
+    // sets instead of sharing one chain (which would double-delete).
+    const tableRows: Record<string, Array<{ _id: string }>> = {};
+
     const mockDb = {
-      query: () => dbQueryChain,
+      query: (tableName: string) => ({
+        withIndex() {
+          return this;
+        },
+        first: async () => firstResult,
+        collect: async () => tableRows[tableName] ?? [],
+        async *[Symbol.asyncIterator](): AsyncGenerator<
+          { _id: string },
+          void,
+          unknown
+        > {
+          for (const row of tableRows[tableName] ?? []) yield row;
+        },
+      }),
       patch: mockPatch,
       delete: mockDelete,
     };
@@ -107,8 +114,13 @@ describe('deleteChatThread', () => {
       mockRunAfter,
       mockPatch,
       mockDelete,
-      dbQueryChain,
       scheduledJobs,
+      setFirst: (value: unknown) => {
+        firstResult = value;
+      },
+      setTableRows: (table: string, rows: Array<{ _id: string }>) => {
+        tableRows[table] = rows;
+      },
     };
   }
 
@@ -130,11 +142,11 @@ describe('deleteChatThread', () => {
 
   it('should soft-trash threadMetadata when present (user-trash mode)', async () => {
     const summary = JSON.stringify({ chatType: 'general' });
-    const { ctx, mockPatch, dbQueryChain } = createMockCtx(summary);
-    // dbQueryChain.first is consulted twice: once for legalHolds (no row,
-    // returns the same default-undefined), once for threadMetadata.
+    const { ctx, mockPatch, setFirst } = createMockCtx(summary);
+    // `.first()` is consulted for legalHolds (org undefined → skipped) and for
+    // the threadMetadata lookup; both share this record.
     const mockRecord = { _id: 'meta_1', organizationId: undefined };
-    dbQueryChain.first.mockResolvedValue(mockRecord);
+    setFirst(mockRecord);
 
     await deleteChatThread(ctx, 'parent_1');
 
@@ -198,22 +210,53 @@ describe('deleteChatThread', () => {
   });
 
   it('should cascade-delete agentWebhookUserThreads mapping rows that point at this thread', async () => {
-    const { ctx, mockDelete, dbQueryChain } = createMockCtx(
+    const { ctx, mockDelete, setTableRows } = createMockCtx(
       JSON.stringify({ chatType: 'general' }),
     );
-    // The webhook cascade now iterates via `for await` instead of
-    // `.collect()`. Override the chain's async iterator to yield two
-    // mappings; the chain's `.first()` (used elsewhere for
-    // threadMetadata) still returns null so the patch path is skipped.
-    dbQueryChain[Symbol.asyncIterator] = async function* () {
-      yield { _id: 'mapping_a' };
-      yield { _id: 'mapping_b' };
-    };
+    // The webhook cascade iterates via `for await` over the thread-scoped
+    // index. Yield two webhook mappings; `.first()` returns null so the
+    // threadMetadata trash path is skipped, and no slackThreads rows exist.
+    setTableRows('agentWebhookUserThreads', [
+      { _id: 'mapping_a' },
+      { _id: 'mapping_b' },
+    ]);
 
     await deleteChatThread(ctx, 'parent_1');
 
     expect(mockDelete).toHaveBeenCalledTimes(2);
     expect(mockDelete).toHaveBeenNthCalledWith(1, 'mapping_a');
     expect(mockDelete).toHaveBeenNthCalledWith(2, 'mapping_b');
+  });
+
+  it('should cascade-delete slackThreads mapping rows that point at this thread', async () => {
+    // Regression for the trashed-thread resurrection bug: user-trash must drop
+    // the Slack-conversation → threadId mapping, otherwise the next inbound
+    // Slack message resolves the stale mapping and writes into the tombstone.
+    const { ctx, mockDelete, setTableRows } = createMockCtx(
+      JSON.stringify({ chatType: 'general' }),
+    );
+    setTableRows('slackThreads', [{ _id: 'slack_a' }, { _id: 'slack_b' }]);
+
+    await deleteChatThread(ctx, 'parent_1');
+
+    expect(mockDelete).toHaveBeenCalledTimes(2);
+    expect(mockDelete).toHaveBeenNthCalledWith(1, 'slack_a');
+    expect(mockDelete).toHaveBeenNthCalledWith(2, 'slack_b');
+  });
+
+  it('cascades both webhook and slack mappings independently in one trash', async () => {
+    const { ctx, mockDelete, setTableRows } = createMockCtx(
+      JSON.stringify({ chatType: 'general' }),
+    );
+    setTableRows('agentWebhookUserThreads', [{ _id: 'wh_1' }]);
+    setTableRows('slackThreads', [{ _id: 'sl_1' }]);
+
+    await deleteChatThread(ctx, 'parent_1');
+
+    // Webhook cascade runs first, then the Slack cascade — each over its own
+    // row set, so neither double-deletes the other's mappings.
+    expect(mockDelete).toHaveBeenCalledTimes(2);
+    expect(mockDelete).toHaveBeenNthCalledWith(1, 'wh_1');
+    expect(mockDelete).toHaveBeenNthCalledWith(2, 'sl_1');
   });
 });

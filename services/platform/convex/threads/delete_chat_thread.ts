@@ -207,6 +207,19 @@ export async function deleteChatThread(
     await ctx.db.delete(row._id);
   }
 
+  // Cascade: drop any Slack-conversation → threadId mapping rows pointing at
+  // this thread. Otherwise the next inbound Slack message resolves the stale
+  // mapping in `getOrCreateSlackThread` and writes into this now-trashed
+  // thread — invisible to the human owner and later hard-deleted by retention.
+  // Mirrors the agent-webhook cascade above; the hard-delete path already
+  // covers this via `cascadeDeleteThreadChildren` (see `cascade_helpers.ts`).
+  // Mapping cardinality is one row per Slack conversation, safely bounded.
+  for await (const row of ctx.db
+    .query('slackThreads')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))) {
+    await ctx.db.delete(row._id);
+  }
+
   const subThreadIds = parseSubThreadIds(thread.summary);
   if (subThreadIds.length > 0) {
     await ctx.scheduler.runAfter(
