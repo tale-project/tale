@@ -43,7 +43,7 @@ The JSON export (`audit-logs-<timestamp>.json`) carries the same rows as full ob
 
 ## Retention and integrity
 
-Audit rows are immutable: edits and deletes are themselves audited, and the row schema carries an integrity hash you can verify against the export. Retention defaults to 90 days and is configurable on the retention policy page (30 to 365 days). Rows that age out are removed by the next cleanup pass — there is no soft-delete window for audit data.
+Audit rows are immutable: edits and deletes are themselves audited, and the row schema carries an integrity hash you can verify against the export. A scheduled daily check re-verifies the hash chain server-side and records a `security` audit entry if verification fails, so tampering or an out-of-band deletion surfaces even when no admin runs the manual check. Retention defaults to 90 days and is configurable on the retention policy page (30 to 365 days). Rows that age out are removed by the next cleanup pass — there is no soft-delete window for audit data.
 
 ## Where this fits
 

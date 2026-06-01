@@ -172,6 +172,7 @@ import type * as approvals_validators from "../approvals/validators.js";
 import type * as audit_logs_actions from "../audit_logs/actions.js";
 import type * as audit_logs_export_audit_logs from "../audit_logs/export_audit_logs.js";
 import type * as audit_logs_helpers from "../audit_logs/helpers.js";
+import type * as audit_logs_integrity_check from "../audit_logs/integrity_check.js";
 import type * as audit_logs_internal_mutations from "../audit_logs/internal_mutations.js";
 import type * as audit_logs_internal_queries from "../audit_logs/internal_queries.js";
 import type * as audit_logs_list_audit_logs_paginated from "../audit_logs/list_audit_logs_paginated.js";
@@ -1389,6 +1390,7 @@ declare const fullApi: ApiFromModules<{
   "audit_logs/actions": typeof audit_logs_actions;
   "audit_logs/export_audit_logs": typeof audit_logs_export_audit_logs;
   "audit_logs/helpers": typeof audit_logs_helpers;
+  "audit_logs/integrity_check": typeof audit_logs_integrity_check;
   "audit_logs/internal_mutations": typeof audit_logs_internal_mutations;
   "audit_logs/internal_queries": typeof audit_logs_internal_queries;
   "audit_logs/list_audit_logs_paginated": typeof audit_logs_list_audit_logs_paginated;
