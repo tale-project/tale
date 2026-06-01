@@ -16,6 +16,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 
 import { decryptString } from '../lib/crypto/decrypt_string';
 import { getOrRefreshToken } from './oauth2_helpers';
+import { MCP_CONNECTION_TIMEOUT_MS, withTimeout } from './timeout';
 
 interface HttpConfig {
   url: string;
@@ -143,70 +144,81 @@ async function withMcpClient<T>(
     { capabilities: {} },
   );
 
-  let transport;
+  const connectAndRun = async (): Promise<T> => {
+    let transport;
 
-  if (config.transportType === 'http' && config.httpConfig) {
-    const url = new URL(config.httpConfig.url);
+    if (config.transportType === 'http' && config.httpConfig) {
+      const url = new URL(config.httpConfig.url);
 
-    // Merge custom headers with auth headers
-    const allHeaders: Record<string, string> = {};
-    if (config.httpConfig.headers) {
-      for (const [key, value] of Object.entries(config.httpConfig.headers)) {
-        if (typeof value === 'string') {
-          allHeaders[key] = value;
+      // Merge custom headers with auth headers
+      const allHeaders: Record<string, string> = {};
+      if (config.httpConfig.headers) {
+        for (const [key, value] of Object.entries(config.httpConfig.headers)) {
+          if (typeof value === 'string') {
+            allHeaders[key] = value;
+          }
         }
       }
-    }
-    Object.assign(allHeaders, authHeaders);
+      Object.assign(allHeaders, authHeaders);
 
-    // Try Streamable HTTP first, fall back to SSE
-    try {
-      transport = new StreamableHTTPClientTransport(url, {
-        requestInit: {
-          headers: allHeaders,
-        },
-      });
-      await client.connect(transport);
-    } catch {
-      // Fall back to SSE transport
-      transport = new SSEClientTransport(url, {
-        requestInit: {
-          headers: allHeaders,
-        },
-      });
-      await client.connect(transport);
-    }
-  } else if (config.transportType === 'stdio' && config.stdioConfig) {
-    const env: Record<string, string> = {};
-    for (const [k, v] of Object.entries(process.env)) {
-      if (v !== undefined) env[k] = v;
-    }
-    if (config.stdioConfig.env) {
-      for (const [key, value] of Object.entries(config.stdioConfig.env)) {
-        if (typeof value === 'string') {
-          env[key] = value;
+      // Try Streamable HTTP first, fall back to SSE
+      try {
+        transport = new StreamableHTTPClientTransport(url, {
+          requestInit: {
+            headers: allHeaders,
+          },
+        });
+        await client.connect(transport);
+      } catch {
+        // Fall back to SSE transport
+        transport = new SSEClientTransport(url, {
+          requestInit: {
+            headers: allHeaders,
+          },
+        });
+        await client.connect(transport);
+      }
+    } else if (config.transportType === 'stdio' && config.stdioConfig) {
+      const env: Record<string, string> = {};
+      for (const [k, v] of Object.entries(process.env)) {
+        if (v !== undefined) env[k] = v;
+      }
+      if (config.stdioConfig.env) {
+        for (const [key, value] of Object.entries(config.stdioConfig.env)) {
+          if (typeof value === 'string') {
+            env[key] = value;
+          }
         }
       }
+
+      transport = new StdioClientTransport({
+        command: config.stdioConfig.command,
+        args: config.stdioConfig.args,
+        env,
+      });
+      await client.connect(transport);
+    } else {
+      throw new Error('Invalid transport configuration');
     }
 
-    transport = new StdioClientTransport({
-      command: config.stdioConfig.command,
-      args: config.stdioConfig.args,
-      env,
-    });
-    await client.connect(transport);
-  } else {
-    throw new Error('Invalid transport configuration');
-  }
+    return callback(client);
+  };
 
   try {
-    const result = await callback(client);
+    // Bound the connect handshake + operation. On timeout the race rejects
+    // with McpTimeoutError; the `finally` below closes the client, which
+    // aborts the transport's in-flight request so an unreachable endpoint is
+    // torn down rather than left dangling.
+    const result = await withTimeout(
+      connectAndRun(),
+      MCP_CONNECTION_TIMEOUT_MS,
+    );
     return { result, tokenUpdate };
   } finally {
     try {
       await client.close();
-    } catch {
-      // Ignore close errors
+    } catch (closeErr) {
+      console.warn('MCP client close failed:', closeErr);
     }
   }
 }
