@@ -693,6 +693,10 @@
     "tester": {
       "inputLabel": "Entrée de test (JSON)",
       "inputDescription": "Fournis des données d'entrée au format JSON pour l'exécution de l'automatisation",
+      "validation": {
+        "invalidJson": "Saisis un JSON valide pour exécuter cette automatisation.",
+        "missingRequired": "Configure les champs requis avant d'exécuter : {fields}"
+      },
       "tip": "L'exécution à blanc simule l'exécution sans effets secondaires. L'exécution crée de véritables exécutions visibles dans l'onglet Exécutions.",
       "execute": "Exécuter",
       "executing": "Exécution...",
