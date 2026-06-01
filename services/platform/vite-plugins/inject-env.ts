@@ -1,5 +1,7 @@
 import { type Plugin } from 'vite';
 
+import { parseSessionIdleTimeoutMinutes } from '../lib/shared/session-idle';
+
 interface EnvConfig {
   SITE_URL: string;
   BASE_PATH: string;
@@ -8,6 +10,7 @@ interface EnvConfig {
   SENTRY_DSN?: string;
   SENTRY_TRACES_SAMPLE_RATE: number;
   TALE_VERSION?: string;
+  SESSION_IDLE_TIMEOUT_MINUTES?: number;
 }
 
 function getEnvConfig(): EnvConfig {
@@ -24,6 +27,7 @@ function getEnvConfig(): EnvConfig {
       process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0',
     ),
     TALE_VERSION: process.env.TALE_VERSION,
+    SESSION_IDLE_TIMEOUT_MINUTES: parseSessionIdleTimeoutMinutes() ?? undefined,
   };
 }
 

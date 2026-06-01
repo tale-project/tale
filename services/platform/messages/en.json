@@ -1493,6 +1493,11 @@
     "loading": {
       "navigating": "Loading page",
       "label": "Loading"
+    },
+    "sessionIdle": {
+      "warningTitle": "You'll be signed out soon",
+      "warningDescription": "Your session ends after a period of inactivity. Interact with the page or use the button below to keep working.",
+      "staySignedIn": "Stay signed in"
     }
   },
   "composer": {

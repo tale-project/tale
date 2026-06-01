@@ -1494,6 +1494,11 @@
     "loading": {
       "navigating": "Chargement de la page",
       "label": "Chargement"
+    },
+    "sessionIdle": {
+      "warningTitle": "Tu vas bientôt être déconnecté",
+      "warningDescription": "Ta session prend fin après une période d'inactivité. Interagis avec la page ou utilise le bouton pour continuer.",
+      "staySignedIn": "Rester connecté"
     }
   },
   "composer": {

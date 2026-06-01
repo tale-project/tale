@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useSessionIdleWatchdog } from '@/app/hooks/use-session-idle-watchdog';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
@@ -33,6 +34,12 @@ export const Route = createFileRoute('/dashboard')({
 function DashboardRedirect() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useConvexAuth();
+
+  // Idle-timeout UX: warn and sign out proactively when the deployment sets
+  // SESSION_IDLE_TIMEOUT_MINUTES. The authenticated layout is the right mount
+  // point — it wraps every signed-in page and is gated on a live session.
+  useSessionIdleWatchdog();
+
   const [sessionVerified, setSessionVerified] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(true);
 
