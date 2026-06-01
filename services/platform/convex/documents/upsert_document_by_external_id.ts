@@ -35,6 +35,10 @@ export interface UpsertDocumentByExternalIdArgs {
   title: string;
   fileId?: Id<'_storage'>;
   mimeType?: string;
+  /** File extension for the document row. Sync titles are kept clean (no
+   * extension), so callers derive this from the stored blob's filename and
+   * pass it explicitly; falls back to the title's extension when omitted. */
+  extension?: string;
   sourceProvider?: string;
   contentHash?: string;
   metadata?: Record<string, unknown>;
@@ -133,7 +137,7 @@ export async function upsertDocumentByExternalId(
     // reach prior revisions.
     if (contentChanged) {
       patch.fileId = args.fileId;
-      patch.extension = extractExtension(args.title);
+      patch.extension = args.extension ?? extractExtension(args.title);
       if (existing.fileId && existing.fileId !== args.fileId) {
         patch.historyFiles = [
           ...(existing.historyFiles ?? []),
@@ -184,7 +188,7 @@ export async function upsertDocumentByExternalId(
     title: args.title,
     fileId: args.fileId,
     mimeType: args.mimeType,
-    extension: extractExtension(args.title),
+    extension: args.extension ?? extractExtension(args.title),
     sourceProvider: args.sourceProvider,
     externalItemId: args.externalItemId,
     driveId: args.driveId,

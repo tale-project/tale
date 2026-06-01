@@ -6,6 +6,7 @@ import {
   RateLimitExceededError,
   checkOrganizationRateLimit,
 } from '../lib/rate_limiter/helpers';
+import { sourceFromProvider } from './source_from_provider';
 
 export const saveFileMetadata = internalMutation({
   args: {
@@ -15,9 +16,9 @@ export const saveFileMetadata = internalMutation({
     contentType: v.string(),
     size: v.number(),
     documentId: v.optional(v.id('documents')),
-    source: v.optional(
-      v.union(v.literal('user'), v.literal('agent'), v.literal('video_link')),
-    ),
+    // Open provenance string (see fileMetadata schema): 'user' | 'agent' |
+    // 'video_link' | a connector slug ('confluence', 'onedrive', 'webdav', …).
+    source: v.optional(v.string()),
     uploadedBy: v.optional(v.string()),
     /** Chat-bound files (audio uploads, video-link transcripts) carry the
      * thread id so the soft-delete cascade + RAG thread-scope auth chain
@@ -525,8 +526,14 @@ export const linkDocumentToFile = internalMutation({
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
-    if (metadata) {
-      await ctx.db.patch(metadata._id, { documentId: args.documentId });
+    if (!metadata) {
+      return;
     }
+    const document = await ctx.db.get(args.documentId);
+    const source = sourceFromProvider(document?.sourceProvider);
+    await ctx.db.patch(metadata._id, {
+      documentId: args.documentId,
+      ...(source ? { source } : {}),
+    });
   },
 });

@@ -38,7 +38,10 @@ vi.mock('../_generated/api', () => ({
   },
 }));
 
-function createMockCtx(existingDoc: Record<string, unknown> | null = null) {
+function createMockCtx(
+  existingDoc: Record<string, unknown> | null = null,
+  linkedDoc: Record<string, unknown> | null = null,
+) {
   const builder = {
     withIndex: vi.fn().mockReturnThis(),
     first: vi.fn().mockResolvedValue(existingDoc),
@@ -47,6 +50,7 @@ function createMockCtx(existingDoc: Record<string, unknown> | null = null) {
   const ctx = {
     db: {
       query: vi.fn().mockReturnValue(builder),
+      get: vi.fn().mockResolvedValue(linkedDoc),
       insert: vi.fn().mockResolvedValue('fm_new'),
       patch: vi.fn().mockResolvedValue(undefined),
     },
@@ -230,5 +234,35 @@ describe('linkDocumentToFile', () => {
     await handler(ctx, { storageId: 'storage_1', documentId: 'doc_1' });
 
     expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
+  it("records the linked document's connector provider as source", async () => {
+    const { ctx } = createMockCtx(
+      { _id: 'fm_existing', storageId: 'storage_1' },
+      { sourceProvider: 'confluence' },
+    );
+    const handler = await getLinkHandler();
+
+    await handler(ctx, { storageId: 'storage_1', documentId: 'doc_1' });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm_existing', {
+      documentId: 'doc_1',
+      source: 'confluence',
+    });
+  });
+
+  it("maps an 'upload' document provider to source 'user'", async () => {
+    const { ctx } = createMockCtx(
+      { _id: 'fm_existing', storageId: 'storage_1' },
+      { sourceProvider: 'upload' },
+    );
+    const handler = await getLinkHandler();
+
+    await handler(ctx, { storageId: 'storage_1', documentId: 'doc_1' });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm_existing', {
+      documentId: 'doc_1',
+      source: 'user',
+    });
   });
 });

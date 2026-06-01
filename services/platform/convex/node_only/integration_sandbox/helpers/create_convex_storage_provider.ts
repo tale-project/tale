@@ -55,6 +55,11 @@ export function createConvexStorageProvider(
           fileName,
           contentType,
           size: blob.size,
+          // Write-time default for raw integration blobs. When the workflow
+          // promotes one to a document, linkDocumentToFile rewrites this to the
+          // connector's provenance (e.g. 'confluence') from the document's
+          // sourceProvider; transient blobs that never become a document stay
+          // 'agent' and remain eligible for the agent-temp retention sweep.
           source: 'agent',
         },
       );
@@ -91,6 +96,11 @@ export function createConvexStorageProvider(
           fileName,
           contentType,
           size: blob.size,
+          // Write-time default for raw integration blobs. When the workflow
+          // promotes one to a document, linkDocumentToFile rewrites this to the
+          // connector's provenance (e.g. 'confluence') from the document's
+          // sourceProvider; transient blobs that never become a document stay
+          // 'agent' and remain eligible for the agent-temp retention sweep.
           source: 'agent',
         },
       );

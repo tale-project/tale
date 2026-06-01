@@ -3,11 +3,17 @@
 import type { DefaultExtensionType } from 'react-file-icon';
 import { FileIcon, defaultStyles } from 'react-file-icon';
 
-import { extractExtension } from '@/lib/shared/file-types';
+import { extractExtension, mimeToExtension } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 
 interface DocumentIconProps {
   fileName: string;
+  /**
+   * Authoritative content type. Preferred over the filename suffix so that
+   * synced documents with clean, extension-less titles (e.g. a Confluence page
+   * "Overview" stored as text/plain) still get the right file-type icon.
+   */
+  mimeType?: string;
   className?: string;
   isFolder?: boolean;
 }
@@ -34,6 +40,7 @@ function OneDriveFolderIcon({ className }: { className?: string }) {
 
 export function DocumentIcon({
   fileName,
+  mimeType,
   className = '',
   isFolder = false,
 }: DocumentIconProps) {
@@ -45,7 +52,12 @@ export function DocumentIcon({
     );
   }
 
-  const ext = extractExtension(fileName) ?? '';
+  // Resolve from the mimeType first (authoritative), then the filename suffix
+  // as a fallback for when the mime is generic/absent.
+  const ext =
+    (mimeType ? mimeToExtension(mimeType) : undefined) ??
+    extractExtension(fileName) ??
+    '';
   const styles =
     ext in defaultStyles
       ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Guarded by `in` check above

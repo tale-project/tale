@@ -16,6 +16,7 @@ import type { Doc, Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 import { fetchDocumentComparisonByUrls } from '../../../agent_tools/documents/helpers/fetch_document_comparison';
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
+import { extractExtension } from '../../../documents/extract_extension';
 import { getDocumentEffectiveDate } from '../../../documents/transform_to_document_item';
 import type { DocumentMetadata } from '../../../documents/types';
 import { orgSlugFromId } from '../../../lib/helpers/org_slug';
@@ -520,6 +521,10 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         }
 
         const docTitle = params.title ?? fileMetadata.fileName;
+        // Sync titles are kept clean (no extension), so derive the document's
+        // extension from the stored blob's filename (e.g. "Overview.txt" -> "txt").
+        const extension =
+          extractExtension(fileMetadata.fileName) ?? extractExtension(docTitle);
         const organizationId =
           typeof _variables.organizationId === 'string'
             ? _variables.organizationId
@@ -563,6 +568,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
               title: docTitle,
               fileId: storageId,
               mimeType: fileMetadata.contentType,
+              extension,
               sourceProvider,
               contentHash: params.contentHash,
               metadata: params.metadata,
@@ -570,6 +576,18 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
               ...(folderId ? { folderId: toId<'folders'>(folderId) } : {}),
               createdBy: userId,
             },
+          );
+
+          // Back-fill the reverse fileMetadata -> document link. Sync flows
+          // store the blob in an earlier step (source 'agent', no documentId),
+          // so without this the row matches the retention sweep's orphaned
+          // agent-temp-file selector (source 'agent' AND documentId undefined)
+          // and its blob + RAG entry can be hard-deleted out from under a live
+          // document. A content re-sync may swap to a new storageId, so link
+          // the current one on every run. Mirrors the upload/OneDrive paths.
+          await ctx.runMutation(
+            internal.file_metadata.internal_mutations.linkDocumentToFile,
+            { storageId, documentId: result.documentId },
           );
 
           return {
@@ -598,12 +616,21 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             title: docTitle,
             fileId: storageId,
             mimeType: fileMetadata.contentType,
+            extension,
             sourceProvider,
             contentHash: params.contentHash,
             createdBy: userId,
             ...folderIdPatch,
             ...metadataPatch,
           },
+        );
+
+        // Back-fill the reverse fileMetadata -> document link (see the upsert
+        // branch above) so a connector-stored blob isn't garbage-collected as
+        // an orphaned agent temp file.
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.linkDocumentToFile,
+          { storageId, documentId },
         );
 
         return {

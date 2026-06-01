@@ -130,4 +130,28 @@ describe('DocumentPreview routing', () => {
 
     expect(screen.getByTestId('image-preview')).toBeInTheDocument();
   });
+
+  it('routes an extension-less title to text preview via mimeType', () => {
+    render(
+      <DocumentPreview
+        url="https://example.com/blob"
+        fileName="Getting started in Confluence"
+        mimeType="text/plain"
+      />,
+    );
+
+    expect(screen.getByTestId('text-preview')).toBeInTheDocument();
+  });
+
+  it('prefers mimeType over an unhelpful filename', () => {
+    render(
+      <DocumentPreview
+        url="https://example.com/blob"
+        fileName="report"
+        mimeType="application/pdf"
+      />,
+    );
+
+    expect(screen.getByTestId('pdf-preview')).toBeInTheDocument();
+  });
 });

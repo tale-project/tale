@@ -18,7 +18,8 @@ export const saveFileMetadata = mutation({
     contentType: v.string(),
     size: v.number(),
     documentId: v.optional(v.id('documents')),
-    source: v.optional(v.union(v.literal('user'), v.literal('agent'))),
+    // Open provenance string (see fileMetadata schema); the UI passes 'user'.
+    source: v.optional(v.string()),
     /**
      * For chat-uploaded files only. Binds the row to a chat thread so the
      * thread's lifecycle (trash → grace → hard-delete + restore) cascades

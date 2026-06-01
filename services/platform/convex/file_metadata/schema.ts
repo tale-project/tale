@@ -7,16 +7,20 @@ export const fileMetadataTable = defineTable({
   organizationId: v.string(),
   storageId: v.id('_storage'),
   documentId: v.optional(v.id('documents')),
-  source: v.optional(
-    v.union(
-      v.literal('user'),
-      v.literal('agent'),
-      // Video-link synthetic rows — transcript text originated from a
-      // third-party site fetched via yt-dlp. Trust-distinct from
-      // user-authored uploads (R2 prompt-injection review).
-      v.literal('video_link'),
-    ),
-  ),
+  // Open provenance string (no hard enum, so a new channel needs no schema
+  // change — mirrors documents.sourceProvider). Reserved values:
+  //   'user'       — member-uploaded via the UI
+  //   'agent'      — model / automation-generated
+  //   'video_link' — yt-dlp transcript; TRUST-DISTINCT, wrapped in
+  //                  <untrusted_source> on RAG retrieval (R2 review)
+  //   <connector>  — external import: the connector slug verbatim, e.g.
+  //                  'confluence', 'google_drive', 'onedrive', 'sharepoint',
+  //                  'webdav', or any integration slug. Set by
+  //                  linkDocumentToFile from the linked document's
+  //                  sourceProvider when a blob is promoted to a document.
+  // Only 'user' and 'agent' participate in the temp-retention GC lanes; import
+  // slugs (and undefined) are never reclaimed by the sweep.
+  source: v.optional(v.string()),
   fileName: v.string(),
   contentType: v.string(),
   size: v.number(),

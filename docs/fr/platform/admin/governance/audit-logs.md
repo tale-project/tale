@@ -43,7 +43,7 @@ L'export JSON (`audit-logs-<timestamp>.json`) porte les mêmes lignes en objets 
 
 ## Rétention et intégrité
 
-Les lignes d'audit sont immuables : les modifications et suppressions sont elles-mêmes auditées, et le schéma de ligne porte un hash d'intégrité que tu peux vérifier contre l'export. La rétention est de 90 jours par défaut et se configure sur la page de politique de rétention (30 à 365 jours). Les lignes qui vieillissent sont retirées par la prochaine passe de nettoyage — il n'y a pas de fenêtre de soft-delete pour les données d'audit.
+Les lignes d'audit sont immuables : les modifications et suppressions sont elles-mêmes auditées, et le schéma de ligne porte un hash d'intégrité que tu peux vérifier contre l'export. Une tâche planifiée quotidienne re-vérifie la chaîne de hachage côté serveur et écrit une entrée d'audit `security` si la vérification échoue — ainsi une altération ou une suppression hors bande ressort même si personne ne lance la vérification manuelle. La rétention est de 90 jours par défaut et se configure sur la page de politique de rétention (30 à 365 jours). Les lignes qui vieillissent sont retirées par la prochaine passe de nettoyage — il n'y a pas de fenêtre de soft-delete pour les données d'audit.
 
 ## Où cela s'inscrit
 
