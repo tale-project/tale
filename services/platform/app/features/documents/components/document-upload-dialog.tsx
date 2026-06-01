@@ -134,7 +134,13 @@ export function DocumentUploadDialog({
       }
       onOpenChange(newOpen);
     },
-    [onOpenChange, isUploading, clearTrackedFiles, folderTeamId, selectedTeamId],
+    [
+      onOpenChange,
+      isUploading,
+      clearTrackedFiles,
+      folderTeamId,
+      selectedTeamId,
+    ],
   );
 
   const processFiles = useCallback(
