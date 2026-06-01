@@ -61,6 +61,7 @@
               "label": "security",
               "pages": [
                 "self-hosted/operate/security/hardening",
+                "self-hosted/operate/security/cryptography",
                 "self-hosted/operate/security/advisories"
               ]
             },

@@ -908,6 +908,14 @@
       "description": "Postgres-Backups über das `db-backup`-Volume, was sonst zu erfassen ist und der Restore-from-Dump-Drill."
     }
   },
+  "de:self-hosted/operate/security/cryptography": {
+    "slug": "self-hosted/operate/security/cryptography",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Kryptografie",
+      "description": "Die Algorithmen, die Tale für Daten im Ruhezustand, Daten bei der Übertragung, Passwort-Hashing und Audit-Log-Integrität nutzt — und wie sie auf BSI TR-02102-1 abgebildet sind."
+    }
+  },
   "de:self-hosted/operate/security/hardening": {
     "slug": "self-hosted/operate/security/hardening",
     "locale": "de",
@@ -1908,6 +1916,14 @@
       "description": "Backups Postgres via le volume `db-backup`, ce qu'il faut capturer en plus, et le drill de restauration depuis un dump."
     }
   },
+  "fr:self-hosted/operate/security/cryptography": {
+    "slug": "self-hosted/operate/security/cryptography",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Cryptographie",
+      "description": "Les algorithmes que Tale utilise pour les données au repos, les données en transit, le hachage des mots de passe et l'intégrité du journal d'audit — et leur correspondance avec BSI TR-02102-1."
+    }
+  },
   "fr:self-hosted/operate/security/hardening": {
     "slug": "self-hosted/operate/security/hardening",
     "locale": "fr",
@@ -2906,6 +2922,14 @@
     "frontmatter": {
       "title": "Backups and restore",
       "description": "Postgres backups via the `db-backup` volume, what else to capture, and the restore-from-dump drill."
+    }
+  },
+  "en:self-hosted/operate/security/cryptography": {
+    "slug": "self-hosted/operate/security/cryptography",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Cryptography",
+      "description": "The algorithms Tale uses for data at rest, data in transit, password hashing, and audit-log integrity — and how they map to BSI TR-02102-1."
     }
   },
   "en:self-hosted/operate/security/hardening": {
