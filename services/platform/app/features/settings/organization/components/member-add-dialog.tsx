@@ -3,6 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
+import { ConvexError } from 'convex/values';
 import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -97,7 +98,15 @@ export function AddMemberDialog({
     },
   });
 
-  const { handleSubmit, register, reset, setValue, watch, formState } = form;
+  const {
+    handleSubmit,
+    register,
+    reset,
+    setValue,
+    setError,
+    watch,
+    formState,
+  } = form;
   const selectedRole = watch('role');
   const password = watch('password') ?? '';
 
@@ -133,6 +142,17 @@ export function AddMemberDialog({
       }
     } catch (error) {
       console.error(error);
+      // A new user requires a password; surface it on the field rather than a
+      // generic toast, so the user knows what to fix (#1470).
+      if (
+        error instanceof ConvexError &&
+        error.data?.code === 'PASSWORD_REQUIRED'
+      ) {
+        setError('password', {
+          message: tAuth('validation.passwordRequiredForNewUser'),
+        });
+        return;
+      }
       toast({
         title: tToast('error.addMemberFailed'),
         variant: 'destructive',
@@ -221,6 +241,7 @@ export function AddMemberDialog({
             placeholder={tSettings('form.passwordPlaceholder')}
             description={tSettings('form.forgotPassword')}
             {...register('password')}
+            errorMessage={formState.errors.password?.message}
             className="w-full"
           />
           {password && (

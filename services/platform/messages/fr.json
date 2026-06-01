@@ -271,6 +271,7 @@
     },
     "validation": {
       "emailRequired": "L'email est requis",
+      "passwordRequiredForNewUser": "Un mot de passe est requis pour créer un nouvel utilisateur",
       "passwordMinLength": "Le mot de passe doit contenir au moins {n} caractères",
       "passwordLowercase": "Le mot de passe doit contenir une lettre minuscule",
       "passwordUppercase": "Le mot de passe doit contenir une lettre majuscule",
