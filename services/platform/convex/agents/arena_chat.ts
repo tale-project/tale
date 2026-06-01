@@ -10,6 +10,7 @@ import { v } from 'convex/values';
 import { api, internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
+import { userContextValidator } from '../lib/agent_response/validators';
 
 export const arenaChat = action({
   args: {
@@ -30,13 +31,7 @@ export const arenaChat = action({
         }),
       ),
     ),
-    userContext: v.optional(
-      v.object({
-        timezone: v.string(),
-        language: v.string(),
-        uiLanguage: v.optional(v.string()),
-      }),
-    ),
+    userContext: v.optional(userContextValidator),
     copyHistoryToB: v.optional(v.boolean()),
   },
   returns: v.object({

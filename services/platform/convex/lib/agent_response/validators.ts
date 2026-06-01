@@ -8,6 +8,20 @@
 
 import { v } from 'convex/values';
 
+/**
+ * Client-supplied environment context (timezone, browser language, and the
+ * app UI locale) threaded from the chat entry points down through
+ * `runAgentGeneration` into `generateResponse`, where `uiLanguage` feeds the
+ * response-language fallback. Centralized here so the shape can't drift across
+ * the many actions that accept it — a missing `uiLanguage` on one hop in the
+ * chain surfaces as an opaque ArgumentValidationError at runtime.
+ */
+export const userContextValidator = v.object({
+  timezone: v.string(),
+  language: v.string(),
+  uiLanguage: v.optional(v.string()),
+});
+
 export const agentUsageValidator = v.object({
   inputTokens: v.optional(v.number()),
   outputTokens: v.optional(v.number()),

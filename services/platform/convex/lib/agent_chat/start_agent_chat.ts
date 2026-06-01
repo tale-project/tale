@@ -71,10 +71,13 @@ export interface StartAgentChatArgs {
   attachments?: FileAttachment[];
   /** Additional context to pass to the agent (key-value pairs) */
   additionalContext?: Record<string, string>;
-  /** User environment context (timezone, language) for template variables */
+  /** User environment context (timezone, language, UI locale) for template variables */
   userContext?: {
     timezone: string;
     language: string;
+    /** App UI locale (i18n), preferred over the browser locale for the
+     * response-language fallback when the user's input language is unclear. */
+    uiLanguage?: string;
   };
   /** Agent configuration (serializable) */
   agentConfig: SerializableAgentConfig;

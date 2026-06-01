@@ -18,6 +18,7 @@ import {
 import { components } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
 import { startAgentChat } from '../lib/agent_chat';
+import { userContextValidator } from '../lib/agent_response/validators';
 import { getOrganizationMember } from '../lib/rls';
 
 const beforeGenerateHookRef = makeFunctionReference<'action'>(
@@ -47,13 +48,7 @@ export const startChat = internalMutation({
       ),
     ),
     additionalContext: v.optional(v.record(v.string(), v.string())),
-    userContext: v.optional(
-      v.object({
-        timezone: v.string(),
-        language: v.string(),
-        uiLanguage: v.optional(v.string()),
-      }),
-    ),
+    userContext: v.optional(userContextValidator),
     agentConfig: v.any(),
     agentSlug: v.string(),
     preAllocatedStreamId: v.optional(v.string()),
