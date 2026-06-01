@@ -572,6 +572,18 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             },
           );
 
+          // Back-fill the reverse fileMetadata -> document link. Sync flows
+          // store the blob in an earlier step (source 'agent', no documentId),
+          // so without this the row matches the retention sweep's orphaned
+          // agent-temp-file selector (source 'agent' AND documentId undefined)
+          // and its blob + RAG entry can be hard-deleted out from under a live
+          // document. A content re-sync may swap to a new storageId, so link
+          // the current one on every run. Mirrors the upload/OneDrive paths.
+          await ctx.runMutation(
+            internal.file_metadata.internal_mutations.linkDocumentToFile,
+            { storageId, documentId: result.documentId },
+          );
+
           return {
             success: true,
             fileId: params.fileId,
@@ -604,6 +616,14 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             ...folderIdPatch,
             ...metadataPatch,
           },
+        );
+
+        // Back-fill the reverse fileMetadata -> document link (see the upsert
+        // branch above) so a connector-stored blob isn't garbage-collected as
+        // an orphaned agent temp file.
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.linkDocumentToFile,
+          { storageId, documentId },
         );
 
         return {
