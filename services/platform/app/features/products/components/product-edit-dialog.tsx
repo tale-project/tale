@@ -15,6 +15,7 @@ import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateProduct } from '../hooks/mutations';
+import { ProductImageField } from './product-image-field';
 
 interface EditProductDialogProps {
   isOpen: boolean;
@@ -186,12 +187,9 @@ export function ProductEditDialog({
         rows={3}
       />
 
-      <Input
-        id="imageUrl"
-        type="url"
-        label={tProducts('edit.labels.imageUrl')}
-        {...register('imageUrl')}
-        placeholder={tProducts('edit.imageUrlPlaceholder')}
+      <ProductImageField
+        value={watch('imageUrl')}
+        onChange={(v) => setValue('imageUrl', v, { shouldDirty: true })}
         disabled={isSubmitting}
       />
 

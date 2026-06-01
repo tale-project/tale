@@ -3859,6 +3859,10 @@
       "pricePlaceholder": "0.00",
       "stockPlaceholder": "0",
       "imageUrlPlaceholder": "https://example.com/image.jpg",
+      "uploadImage": "Upload image",
+      "removeImage": "Remove image",
+      "imageTooLarge": "Image is too large (max 5 MB).",
+      "imageUploadFailed": "Image upload failed. Please try again.",
       "currencyPlaceholder": "USD",
       "labels": {
         "name": "Product name",

@@ -18,6 +18,7 @@ import {
 } from '@/lib/shared/constants/convex-enums';
 
 import { useCreateProduct } from '../hooks/mutations';
+import { ProductImageField } from './product-image-field';
 
 function isProductStatus(value: string): value is ProductStatus {
   return (Object.values(PRODUCT_STATUS) as string[]).includes(value);
@@ -172,12 +173,9 @@ export function ProductCreateDialog({
         rows={3}
       />
 
-      <Input
-        id="imageUrl"
-        type="url"
-        label={tProducts('edit.labels.imageUrl')}
-        {...register('imageUrl')}
-        placeholder={tProducts('edit.imageUrlPlaceholder')}
+      <ProductImageField
+        value={watch('imageUrl')}
+        onChange={(v) => setValue('imageUrl', v, { shouldDirty: true })}
         disabled={isSubmitting}
       />
 
