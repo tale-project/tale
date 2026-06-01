@@ -2,7 +2,14 @@
 
 import { Button } from '@tale/ui/button';
 import { AlertCircle, Loader2, Mic, RotateCcw, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, memo } from 'react';
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { toast } from '@/app/hooks/use-toast';
@@ -24,12 +31,18 @@ interface DictationButtonProps {
   onTranscript: (transcript: string) => void;
 }
 
-function DictationButtonComponent({
-  organizationId,
-  disabled = false,
-  lang,
-  onTranscript,
-}: DictationButtonProps) {
+export interface DictationButtonHandle {
+  /** Stop an in-progress recording, if any (e.g. when the message is sent). */
+  stop: () => void;
+}
+
+const DictationButtonComponent = forwardRef<
+  DictationButtonHandle,
+  DictationButtonProps
+>(function DictationButtonComponent(
+  { organizationId, disabled = false, lang, onTranscript },
+  ref,
+) {
   const { t } = useT('chat');
 
   const handleTranscript = useCallback(
@@ -114,6 +127,18 @@ function DictationButtonComponent({
     }
     prevListeningRef.current = isListening;
   }, [isListening]);
+
+  // Let the parent (chat input) stop an active recording when the message is
+  // sent, so the mic doesn't keep listening after send (#1462).
+  useImperativeHandle(
+    ref,
+    () => ({
+      stop: () => {
+        if (isListening) stopListening();
+      },
+    }),
+    [isListening, stopListening],
+  );
 
   if (!isSupported) return null;
 
@@ -212,6 +237,6 @@ function DictationButtonComponent({
       )}
     </span>
   );
-}
+});
 
 export const DictationButton = memo(DictationButtonComponent);

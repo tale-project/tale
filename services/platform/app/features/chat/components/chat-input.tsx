@@ -38,7 +38,10 @@ import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaModelSelector } from './arena/arena-model-selector';
 import { ComposerCapabilityPills } from './composer-capability-pills';
 import { ComposerModeMenu } from './composer-mode-menu';
-import { DictationButton } from './dictation-button';
+import {
+  DictationButton,
+  type DictationButtonHandle,
+} from './dictation-button';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
 import { QuotedReferenceChip } from './quoted-reference-chip';
@@ -207,6 +210,7 @@ export function ChatInput({
   const textareaLabelId = `${textareaId}-label`;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dictationRef = useRef<DictationButtonHandle>(null);
   // True while a CJK IME (Chinese / Japanese / Korean) is composing a
   // pre-commit string. Cross-browser fallback for
   // `e.nativeEvent.isComposing`, which not every browser surfaces on the
@@ -264,6 +268,10 @@ export function ChatInput({
       ? `> ${quotedText.replace(/\n/g, '\n> ')}\n\n${trimmed}`
       : trimmed;
     if (quotedText) setQuotedText(null);
+
+    // Stop any in-progress dictation so the mic doesn't keep recording after
+    // the message is sent (#1462).
+    dictationRef.current?.stop();
 
     onSendMessage(messageToSend, attachmentsToSend);
   };
@@ -894,6 +902,7 @@ export function ChatInput({
             <HStack gap={1} align="center" className="shrink-0">
               <VoiceModeToggle threadId={threadId} disabled={inputDisabled} />
               <DictationButton
+                ref={dictationRef}
                 organizationId={organizationId}
                 disabled={inputDisabled}
                 lang={speechLang}
