@@ -8,6 +8,43 @@ import type { Doc } from '@/convex/_generated/dataModel';
 
 import { getLayoutedElements } from '../utils/dagre-layout';
 
+const LOOP_EXIT_KEYS = new Set(['done', 'complete', 'finished', 'exit']);
+const NEGATIVE_BRANCH_KEYS = new Set([
+  'reject',
+  'false',
+  'no',
+  'failure',
+  'error',
+]);
+const POSITIVE_BRANCH_KEYS = new Set([
+  'approve',
+  'true',
+  'yes',
+  'success',
+  'default',
+]);
+const NEUTRAL_EDGE_COLOR = '#9CA3AF';
+
+/**
+ * Resolve the color + label for a condition step's branch edge. Standard
+ * positive/negative outcomes map to green/"true" and red/"false"; any other
+ * (custom) branch key keeps a neutral color but is labeled with its own key,
+ * so the path is identifiable rather than an unlabeled gray line (#1486).
+ */
+export function resolveConditionBranchEdge(key: string): {
+  color: string;
+  label: string;
+} {
+  const keyLower = key.toLowerCase();
+  if (NEGATIVE_BRANCH_KEYS.has(keyLower)) {
+    return { color: 'hsl(var(--destructive))', label: 'false' };
+  }
+  if (POSITIVE_BRANCH_KEYS.has(keyLower)) {
+    return { color: 'hsl(var(--chart-2))', label: 'true' };
+  }
+  return { color: NEUTRAL_EDGE_COLOR, label: key };
+}
+
 export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
   return useMemo(() => {
     if (!steps || steps.length === 0) {
@@ -256,30 +293,11 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
               return;
             }
 
-            const isLoopExit = [
-              'done',
-              'complete',
-              'finished',
-              'exit',
-            ].includes(keyLower);
+            const isLoopExit = LOOP_EXIT_KEYS.has(keyLower);
+            const isNegativePath = NEGATIVE_BRANCH_KEYS.has(keyLower);
+            const isPositivePath = POSITIVE_BRANCH_KEYS.has(keyLower);
 
-            const isNegativePath = [
-              'reject',
-              'false',
-              'no',
-              'failure',
-              'error',
-            ].includes(keyLower);
-
-            const isPositivePath = [
-              'approve',
-              'true',
-              'yes',
-              'success',
-              'default',
-            ].includes(keyLower);
-
-            let edgeColor = '#9CA3AF';
+            let edgeColor = NEUTRAL_EDGE_COLOR;
             let edgeLabel: string | undefined = undefined;
             let edgeStyle: React.CSSProperties = {
               strokeWidth: 1.5,
@@ -295,13 +313,9 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
                 edgeLabel = undefined;
               }
             } else if (step.stepType === 'condition') {
-              if (isNegativePath) {
-                edgeColor = 'hsl(var(--destructive))';
-                edgeLabel = 'false';
-              } else if (isPositivePath) {
-                edgeColor = 'hsl(var(--chart-2))';
-                edgeLabel = 'true';
-              }
+              const branch = resolveConditionBranchEdge(key);
+              edgeColor = branch.color;
+              edgeLabel = branch.label;
               edgeStyle = { strokeWidth: 1.5, stroke: edgeColor };
             } else if (step.stepType === 'action' || step.stepType === 'llm') {
               if (isNegativePath) {
