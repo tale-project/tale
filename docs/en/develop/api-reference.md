@@ -35,7 +35,8 @@ Cookies authenticate the browser session; API calls from the browser inside the 
 | -------------------------------------------------- | ------- | ----------------------------------- | ------------- | -------------------------------------------------- |
 | Agents                                             | various | `/api/v1/agents/...`                | API key       | List, get, run.                                    |
 | Chat                                               | various | `/api/v1/chat/...`                  | API key       | Stream chat completions against an agent or model. |
-| OpenAI-compatible                                  | POST    | `/api/v1/openai/chat/completions`   | API key       | OpenAI Chat Completions shape; use existing SDKs.  |
+| OpenAI-compatible                                  | POST    | `/api/v1/chat/completions`          | API key       | OpenAI Chat Completions shape; use existing SDKs.  |
+| OpenAI-compatible                                  | GET     | `/api/v1/models`                    | API key       | List available models in OpenAI format.            |
 | Automations                                        | various | `/api/v1/automations/...`           | API key       | List, get, trigger, executions.                    |
 | Workflow triggers                                  | POST    | `/api/v1/workflows/triggers/<name>` | Trigger key   | Webhook-triggered workflow invocations.            |
 | Knowledge — Documents                              | various | `/api/v1/documents/...`             | API key       | Upload, list, get, delete.                         |
@@ -47,9 +48,9 @@ Exact field shapes for each endpoint live in the OpenAPI document the platform e
 
 ## OpenAI-compatible endpoints
 
-`POST /api/v1/openai/chat/completions` accepts a payload in OpenAI Chat Completions shape and returns a streaming or non-streaming response in the same shape. The `model` field is interpreted as the agent ID — pass an agent's ID to route through that agent's instructions, knowledge, and tools. Pass a raw model name (e.g. `gpt-4o`) to bypass agents and call the provider directly.
+`POST /api/v1/chat/completions` accepts a payload in OpenAI Chat Completions shape and returns a streaming or non-streaming response in the same shape. The `model` field is interpreted as the agent ID — pass an agent's ID to route through that agent's instructions, knowledge, and tools. Pass a raw model name (e.g. `gpt-4o`) to bypass agents and call the provider directly.
 
-Existing OpenAI SDKs work with one change: point the base URL at `https://your-host.example.com/api/v1/openai` and substitute the API key. Streaming uses Server-Sent Events.
+Existing OpenAI SDKs work with one change: point the base URL at `https://your-host.example.com/api/v1` and substitute the API key. Streaming uses Server-Sent Events.
 
 ## Error model
 

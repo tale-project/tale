@@ -35,7 +35,8 @@ Les cookies authentifient la session navigateur ; les appels API depuis le navig
 | ---------------------------------------------------------- | -------- | ---------------------------------- | --------------- | ---------------------------------------------------------- |
 | Agents                                                     | diverses | `/api/v1/agents/...`               | Clé API         | List, get, run.                                            |
 | Chat                                                       | diverses | `/api/v1/chat/...`                 | Clé API         | Stream de complétions chat contre un agent ou un modèle.   |
-| Compatible OpenAI                                          | POST     | `/api/v1/openai/chat/completions`  | Clé API         | Forme Chat Completions OpenAI ; utilise les SDK existants. |
+| Compatible OpenAI                                          | POST     | `/api/v1/chat/completions`         | Clé API         | Forme Chat Completions OpenAI ; utilise les SDK existants. |
+| Compatible OpenAI                                          | GET      | `/api/v1/models`                   | Clé API         | Liste les modèles disponibles au format OpenAI.            |
 | Automatisations                                            | diverses | `/api/v1/automations/...`          | Clé API         | List, get, trigger, executions.                            |
 | Déclencheurs de workflow                                   | POST     | `/api/v1/workflows/triggers/<nom>` | Clé déclencheur | Invocations de workflow déclenchées par webhook.           |
 | Connaissances — Documents                                  | diverses | `/api/v1/documents/...`            | Clé API         | Upload, list, get, delete.                                 |
@@ -47,9 +48,9 @@ Les formes exactes de champs pour chaque endpoint vivent dans le document OpenAP
 
 ## Endpoints compatibles OpenAI
 
-`POST /api/v1/openai/chat/completions` accepte un payload en forme Chat Completions OpenAI et retourne une réponse streaming ou non en même forme. Le champ `model` est interprété comme l'ID d'agent — passe un ID d'agent pour router via les instructions, connaissances et outils de cet agent. Passe un nom de modèle brut (ex. `gpt-4o`) pour contourner les agents et appeler le fournisseur directement.
+`POST /api/v1/chat/completions` accepte un payload en forme Chat Completions OpenAI et retourne une réponse streaming ou non en même forme. Le champ `model` est interprété comme l'ID d'agent — passe un ID d'agent pour router via les instructions, connaissances et outils de cet agent. Passe un nom de modèle brut (ex. `gpt-4o`) pour contourner les agents et appeler le fournisseur directement.
 
-Les SDK OpenAI existants marchent avec un changement : pointe l'URL de base sur `https://your-host.example.com/api/v1/openai` et substitue la clé API. Le streaming utilise les Server-Sent Events.
+Les SDK OpenAI existants marchent avec un changement : pointe l'URL de base sur `https://your-host.example.com/api/v1` et substitue la clé API. Le streaming utilise les Server-Sent Events.
 
 ## Modèle d'erreur
 
