@@ -8,9 +8,21 @@ import type { Doc } from '@/convex/_generated/dataModel';
 
 import { getLayoutedElements } from '../utils/dagre-layout';
 
-const LOOP_EXIT_KEYS = ['done', 'complete', 'finished', 'exit'];
-const NEGATIVE_BRANCH_KEYS = ['reject', 'false', 'no', 'failure', 'error'];
-const POSITIVE_BRANCH_KEYS = ['approve', 'true', 'yes', 'success', 'default'];
+const LOOP_EXIT_KEYS = new Set(['done', 'complete', 'finished', 'exit']);
+const NEGATIVE_BRANCH_KEYS = new Set([
+  'reject',
+  'false',
+  'no',
+  'failure',
+  'error',
+]);
+const POSITIVE_BRANCH_KEYS = new Set([
+  'approve',
+  'true',
+  'yes',
+  'success',
+  'default',
+]);
 const NEUTRAL_EDGE_COLOR = '#9CA3AF';
 
 /**
@@ -24,10 +36,10 @@ export function resolveConditionBranchEdge(key: string): {
   label: string;
 } {
   const keyLower = key.toLowerCase();
-  if (NEGATIVE_BRANCH_KEYS.includes(keyLower)) {
+  if (NEGATIVE_BRANCH_KEYS.has(keyLower)) {
     return { color: 'hsl(var(--destructive))', label: 'false' };
   }
-  if (POSITIVE_BRANCH_KEYS.includes(keyLower)) {
+  if (POSITIVE_BRANCH_KEYS.has(keyLower)) {
     return { color: 'hsl(var(--chart-2))', label: 'true' };
   }
   return { color: NEUTRAL_EDGE_COLOR, label: key };
@@ -281,9 +293,9 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
               return;
             }
 
-            const isLoopExit = LOOP_EXIT_KEYS.includes(keyLower);
-            const isNegativePath = NEGATIVE_BRANCH_KEYS.includes(keyLower);
-            const isPositivePath = POSITIVE_BRANCH_KEYS.includes(keyLower);
+            const isLoopExit = LOOP_EXIT_KEYS.has(keyLower);
+            const isNegativePath = NEGATIVE_BRANCH_KEYS.has(keyLower);
+            const isPositivePath = POSITIVE_BRANCH_KEYS.has(keyLower);
 
             let edgeColor = NEUTRAL_EDGE_COLOR;
             let edgeLabel: string | undefined = undefined;
