@@ -88,6 +88,8 @@ export const testConfig = action({
     issuer: v.string(),
     clientId: v.string(),
     clientSecret: v.string(),
+    providerId: v.optional(v.string()),
+    scopes: v.optional(v.array(v.string())),
   },
   returns: validationResultValidator,
   handler: async (ctx, args) => {
@@ -134,6 +136,8 @@ export const testExistingConfig = action({
       issuer: provider.issuer,
       clientId,
       clientSecret,
+      providerId: provider.providerId,
+      scopes: provider.scopes,
     });
     return { valid, error };
   },

@@ -1,8 +1,10 @@
 import { entraIdAdapter } from './entra_id/adapter';
+import { genericOidcAdapter } from './generic_oidc/adapter';
 import type { SsoProviderAdapter } from './types';
 
 const adapters: Record<string, SsoProviderAdapter> = {
   'entra-id': entraIdAdapter,
+  'generic-oidc': genericOidcAdapter,
 };
 
 export function getAdapter(providerId: string): SsoProviderAdapter | null {

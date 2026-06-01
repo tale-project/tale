@@ -83,7 +83,7 @@ export async function handleSsoLogin(
     }
 
     const entraFeatures = ssoConfig?.providerFeatures?.entraId;
-    if (entraFeatures?.autoProvisionTeam && adapter.getGroups) {
+    if (ssoConfig && entraFeatures?.autoProvisionTeam && adapter.getGroups) {
       try {
         const syncResult = await syncTeamsFromGroups({
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- GenericActionCtx shares the required runQuery/runMutation surface with MutationCtx
@@ -92,6 +92,17 @@ export async function handleSsoLogin(
           accessToken: args.accessToken,
           excludeGroups: entraFeatures.excludeGroups || [],
           adapter,
+          // Entra's getGroups uses only the access token (Microsoft Graph), so
+          // clientId/secret are unused here; issuer/scopes are carried for
+          // discovery-driven adapters that resolve groups from the userinfo
+          // endpoint.
+          config: {
+            providerId: ssoConfig.providerId,
+            issuer: ssoConfig.issuer,
+            clientId: '',
+            clientSecret: '',
+            scopes: ssoConfig.scopes,
+          },
         });
 
         if (syncResult.errors.length > 0) {

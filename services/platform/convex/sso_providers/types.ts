@@ -47,15 +47,32 @@ export interface SsoProviderAdapter {
   readonly displayName: string;
   readonly capabilities: SsoProviderCapabilities;
 
-  buildAuthorizeUrl(config: SsoProviderConfig, params: AuthorizeUrlParams): URL;
+  // May be async: a discovery-driven adapter (generic OIDC) resolves the
+  // authorization endpoint from the issuer's well-known document. Callers
+  // must `await` the result.
+  buildAuthorizeUrl(
+    config: SsoProviderConfig,
+    params: AuthorizeUrlParams,
+  ): URL | Promise<URL>;
   exchangeCodeForTokens(
     config: SsoProviderConfig,
     params: TokenExchangeParams,
   ): Promise<SsoTokens>;
-  getUserInfo(accessToken: string): Promise<SsoUserInfo>;
+  // `config` is passed so a discovery-driven adapter can resolve the userinfo
+  // endpoint; provider-specific adapters (Entra) may ignore it.
+  getUserInfo(
+    config: SsoProviderConfig,
+    accessToken: string,
+  ): Promise<SsoUserInfo>;
 
-  getGroups?(accessToken: string): Promise<SsoGroup[]>;
-  getAppRoles?(accessToken: string): Promise<string[]>;
+  getGroups?(
+    config: SsoProviderConfig,
+    accessToken: string,
+  ): Promise<SsoGroup[]>;
+  getAppRoles?(
+    config: SsoProviderConfig,
+    accessToken: string,
+  ): Promise<string[]>;
 
   validateConfig(
     config: Omit<SsoProviderConfig, 'clientSecret'> & { clientSecret?: string },

@@ -1,6 +1,6 @@
 import { components } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
-import type { SsoProviderAdapter } from '../types';
+import type { SsoProviderAdapter, SsoProviderConfig } from '../types';
 
 interface Team {
   _id: string;
@@ -14,6 +14,7 @@ export interface SyncTeamsFromGroupsArgs {
   accessToken: string;
   excludeGroups: string[];
   adapter: SsoProviderAdapter;
+  config: SsoProviderConfig;
 }
 
 export interface SyncTeamsResult {
@@ -245,7 +246,7 @@ async function removeStaleTeamMemberships(
 export async function syncTeamsFromGroups(
   args: SyncTeamsFromGroupsArgs,
 ): Promise<SyncTeamsResult> {
-  const { ctx, userId, accessToken, excludeGroups, adapter } = args;
+  const { ctx, userId, accessToken, excludeGroups, adapter, config } = args;
 
   const result: SyncTeamsResult = {
     teamsCreated: 0,
@@ -266,7 +267,7 @@ export async function syncTeamsFromGroups(
       return result;
     }
 
-    const groups = await adapter.getGroups(accessToken);
+    const groups = await adapter.getGroups(config, accessToken);
 
     const excludeGroupsLower = new Set(
       excludeGroups.map((g) => g.toLowerCase().trim()),

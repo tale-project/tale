@@ -138,7 +138,10 @@ function parseIdTokenAuthContext(idToken: string): SsoAuthContext | undefined {
   }
 }
 
-async function getUserInfo(accessToken: string): Promise<SsoUserInfo> {
+async function getUserInfo(
+  _config: SsoProviderConfig,
+  accessToken: string,
+): Promise<SsoUserInfo> {
   const userInfoUrl = `${MICROSOFT_GRAPH_BASE}/me?$select=id,displayName,givenName,mail,userPrincipalName,jobTitle`;
 
   const response = await fetch(userInfoUrl, {
@@ -159,7 +162,10 @@ async function getUserInfo(accessToken: string): Promise<SsoUserInfo> {
   };
 }
 
-async function getGroups(accessToken: string): Promise<SsoGroup[]> {
+async function getGroups(
+  _config: SsoProviderConfig,
+  accessToken: string,
+): Promise<SsoGroup[]> {
   const response = await fetch(
     `${MICROSOFT_GRAPH_BASE}/me/memberOf?$select=id,displayName`,
     {
@@ -183,7 +189,10 @@ async function getGroups(accessToken: string): Promise<SsoGroup[]> {
     }));
 }
 
-async function getAppRoles(accessToken: string): Promise<string[]> {
+async function getAppRoles(
+  _config: SsoProviderConfig,
+  accessToken: string,
+): Promise<string[]> {
   const response = await fetch(
     `${MICROSOFT_GRAPH_BASE}/me/appRoleAssignments?$select=appRoleId`,
     { headers: { Authorization: `Bearer ${accessToken}` } },

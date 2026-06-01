@@ -62,6 +62,8 @@ export async function upsertSsoProvider(
       issuer: args.issuer,
       clientId: args.clientId,
       clientSecret: args.clientSecret,
+      providerId: args.providerId,
+      scopes: args.scopes,
     });
 
     if (!validation.valid) {

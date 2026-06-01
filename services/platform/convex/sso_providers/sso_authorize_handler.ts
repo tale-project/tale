@@ -98,7 +98,7 @@ export async function ssoAuthorizeHandler(
       }
     }
 
-    const authUrl = adapter.buildAuthorizeUrl(
+    const authUrl = await adapter.buildAuthorizeUrl(
       {
         providerId: provider.providerId,
         issuer: provider.issuer,
