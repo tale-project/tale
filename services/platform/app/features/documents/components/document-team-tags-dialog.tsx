@@ -8,7 +8,7 @@ import { Settings, Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Select } from '@/app/components/ui/forms/select';
+import { Label } from '@/app/components/ui/forms/label';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
@@ -16,8 +16,7 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateDocument, useUpdateFolderTeams } from '../hooks/mutations';
-
-const ORG_WIDE_VALUE = '__org_wide__';
+import { TeamMultiSelect } from './team-multi-select';
 
 type EntityType = 'file' | 'folder';
 
@@ -49,8 +48,13 @@ function DocumentTeamDialogContent({
   const navigate = useNavigate();
   const organizationId = useOrganizationId();
 
-  const currentTeamId = currentTeamIds?.[0] ?? ORG_WIDE_VALUE;
-  const [selectedTeamId, setSelectedTeamId] = useState(currentTeamId);
+  // A document/folder can belong to multiple teams (backend stores teamIds as
+  // an array). Edit the full set here so re-assigning doesn't silently drop the
+  // other teams (#1325). An empty selection means org-wide.
+  const initialTeamIds = useMemo(() => currentTeamIds ?? [], [currentTeamIds]);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(
+    () => currentTeamIds ?? [],
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateDocument = useUpdateDocument();
@@ -69,10 +73,7 @@ function DocumentTeamDialogContent({
     setIsSubmitting(true);
 
     try {
-      const teamIds =
-        selectedTeamId && selectedTeamId !== ORG_WIDE_VALUE
-          ? [selectedTeamId]
-          : [];
+      const teamIds = selectedTeamIds;
 
       if (entityType === 'folder') {
         await updateFolderTeams.mutateAsync({
@@ -104,14 +105,16 @@ function DocumentTeamDialogContent({
   }, [
     entityId,
     entityType,
-    selectedTeamId,
+    selectedTeamIds,
     updateDocument,
     updateFolderTeams,
     onOpenChange,
     tDocuments,
   ]);
 
-  const hasChanges = selectedTeamId !== currentTeamId;
+  const hasChanges =
+    selectedTeamIds.length !== initialTeamIds.length ||
+    selectedTeamIds.some((id) => !initialTeamIds.includes(id));
 
   const displayName = useMemo(() => {
     if (!documentName) return '';
@@ -128,23 +131,18 @@ function DocumentTeamDialogContent({
     });
   }, [organizationId, onOpenChange, navigate]);
 
-  const teamOptions = useMemo(
-    () => [
-      { value: ORG_WIDE_VALUE, label: tDocuments('teamTags.orgWide') },
-      ...(teams ?? []).map((team: { id: string; name: string }) => ({
-        value: team.id,
-        label: team.name,
-      })),
-    ],
-    [teams, tDocuments],
-  );
-
   return (
     <Dialog
       open={open}
       onOpenChange={handleClose}
       title={tDocuments('teamTags.title')}
-      description={displayName || undefined}
+      // break-all so a long file name with no spaces wraps instead of
+      // overflowing the dialog header (#1324).
+      description={
+        displayName ? (
+          <span className="break-all">{displayName}</span>
+        ) : undefined
+      }
       footerClassName="px-6 pt-4 pb-5"
       footer={
         <>
@@ -191,14 +189,13 @@ function DocumentTeamDialogContent({
           className="py-8"
         />
       ) : (
-        <div className="px-6 pt-2 pb-4">
-          <Select
-            id="team-assignment"
-            label={tDocuments('teamTags.team')}
-            placeholder={tDocuments('teamTags.orgWide')}
-            value={selectedTeamId}
-            onValueChange={setSelectedTeamId}
-            options={teamOptions}
+        <div className="space-y-1.5 px-6 pt-2 pb-4">
+          <Label>{tDocuments('teamTags.team')}</Label>
+          <TeamMultiSelect
+            teams={teams ?? []}
+            selectedTeamIds={selectedTeamIds}
+            onSelectionChange={setSelectedTeamIds}
+            orgWideLabel={tDocuments('teamTags.orgWide')}
             disabled={isSubmitting}
           />
         </div>

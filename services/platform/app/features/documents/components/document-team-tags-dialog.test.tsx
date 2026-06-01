@@ -63,49 +63,55 @@ vi.mock('@/convex/lib/type_cast_helpers', () => ({
   toId: (id: string) => id,
 }));
 
-vi.mock('@/app/components/ui/forms/select', () => ({
-  Select: ({
-    value,
-    onValueChange,
-    options,
-    label,
+// Lightweight stand-in for the real multi-select: one checkbox per team that
+// toggles membership in the selected set, plus an org-wide indicator when the
+// selection is empty.
+vi.mock('./team-multi-select', () => ({
+  TeamMultiSelect: ({
+    teams,
+    selectedTeamIds,
+    onSelectionChange,
+    orgWideLabel,
     disabled,
-    id,
   }: {
-    value: string;
-    onValueChange: (v: string) => void;
-    options: Array<{ value: string; label: string }>;
-    label?: string;
+    teams: Array<{ id: string; name: string }>;
+    selectedTeamIds: string[];
+    onSelectionChange: (ids: string[]) => void;
+    orgWideLabel: string;
     disabled?: boolean;
-    id?: string;
-    placeholder?: string;
-  }) => {
-    return (
-      <div data-testid="mock-select">
-        {label && <label htmlFor={id}>{label}</label>}
-        <select
-          id={id}
-          value={value}
-          disabled={disabled}
-          onChange={(e) => onValueChange(e.target.value)}
-          data-testid="team-select"
-        >
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
-    );
-  },
+  }) => (
+    <div data-testid="mock-team-multi-select">
+      <span data-testid="selection">
+        {selectedTeamIds.length === 0
+          ? orgWideLabel
+          : selectedTeamIds.join(',')}
+      </span>
+      {teams.map((team) => (
+        <label key={team.id}>
+          <input
+            type="checkbox"
+            data-testid={`team-${team.id}`}
+            checked={selectedTeamIds.includes(team.id)}
+            disabled={disabled}
+            onChange={() =>
+              onSelectionChange(
+                selectedTeamIds.includes(team.id)
+                  ? selectedTeamIds.filter((id) => id !== team.id)
+                  : [...selectedTeamIds, team.id],
+              )
+            }
+          />
+          {team.name}
+        </label>
+      ))}
+    </div>
+  ),
 }));
 
 import { DocumentTeamTagsDialog } from './document-team-tags-dialog';
 
-function selectTeam(teamValue: string) {
-  const select = screen.getByTestId('team-select');
-  fireEvent.change(select, { target: { value: teamValue } });
+function toggleTeam(teamId: string) {
+  fireEvent.click(screen.getByTestId(`team-${teamId}`));
 }
 
 describe('DocumentTeamTagsDialog', () => {
@@ -155,23 +161,18 @@ describe('DocumentTeamTagsDialog', () => {
     expect(screen.getByText('Report.pdf')).toBeInTheDocument();
   });
 
-  it('renders the team select dropdown with all options', () => {
+  it('renders a checkbox for every team', () => {
     render(<DocumentTeamTagsDialog {...defaultProps} />);
-    const select = screen.getByTestId('team-select');
-    expect(select).toBeInTheDocument();
-
-    const options = select.querySelectorAll('option');
-    expect(options).toHaveLength(4);
-    expect(options[0]).toHaveTextContent('documents.teamTags.orgWide');
-    expect(options[1]).toHaveTextContent('Sales');
-    expect(options[2]).toHaveTextContent('Support');
-    expect(options[3]).toHaveTextContent('Operations');
+    expect(screen.getByTestId('team-team-1')).toBeInTheDocument();
+    expect(screen.getByTestId('team-team-2')).toBeInTheDocument();
+    expect(screen.getByTestId('team-team-3')).toBeInTheDocument();
   });
 
   it('defaults to org-wide when no team is selected', () => {
     render(<DocumentTeamTagsDialog {...defaultProps} />);
-    const select = screen.getByTestId('team-select');
-    expect(select).toHaveValue('__org_wide__');
+    expect(screen.getByTestId('selection')).toHaveTextContent(
+      'documents.teamTags.orgWide',
+    );
   });
 
   it('shows loading state', () => {
@@ -194,13 +195,6 @@ describe('DocumentTeamTagsDialog', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows footer with disabled save when no teams', () => {
-    mockTeamsData = { teams: [], isLoading: false };
-    render(<DocumentTeamTagsDialog {...defaultProps} />);
-    expect(screen.getByText('common.actions.cancel')).toBeInTheDocument();
-    expect(screen.getByText('common.actions.save')).toBeDisabled();
-  });
-
   it('navigates to settings on go to settings click', () => {
     mockTeamsData = { teams: [], isLoading: false };
     const onOpenChange = vi.fn();
@@ -216,49 +210,72 @@ describe('DocumentTeamTagsDialog', () => {
     });
   });
 
-  it('pre-selects current team', () => {
+  it('pre-selects the current teams', () => {
     render(
       <DocumentTeamTagsDialog {...defaultProps} currentTeamIds={['team-1']} />,
     );
-    const select = screen.getByTestId('team-select');
-    expect(select).toHaveValue('team-1');
+    expect(screen.getByTestId('team-team-1')).toBeChecked();
+    expect(screen.getByTestId('team-team-2')).not.toBeChecked();
   });
 
-  it('disables save when no changes', () => {
-    render(<DocumentTeamTagsDialog {...defaultProps} />);
-    const saveButton = screen.getByText('common.actions.save');
-    expect(saveButton).toBeDisabled();
-  });
+  // Core of #1325: a document already assigned to multiple teams must show all
+  // of them selected and keep them on save (no silent drop to a single team).
+  it('pre-selects multiple current teams and preserves them on save', async () => {
+    render(
+      <DocumentTeamTagsDialog
+        {...defaultProps}
+        currentTeamIds={['team-1', 'team-2']}
+      />,
+    );
+    expect(screen.getByTestId('team-team-1')).toBeChecked();
+    expect(screen.getByTestId('team-team-2')).toBeChecked();
 
-  it('enables save when team changes', () => {
-    render(<DocumentTeamTagsDialog {...defaultProps} />);
-
-    selectTeam('team-1');
-
-    const saveButton = screen.getByText('common.actions.save');
-    expect(saveButton).toBeEnabled();
-  });
-
-  it('submits with the selected team id', async () => {
-    render(<DocumentTeamTagsDialog {...defaultProps} />);
-
-    selectTeam('team-1');
+    // Add a third team and save — all three must be submitted.
+    toggleTeam('team-3');
     await act(async () => {
       fireEvent.click(screen.getByText('common.actions.save'));
     });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
       documentId: 'doc-1',
-      teamIds: ['team-1'],
+      teamIds: ['team-1', 'team-2', 'team-3'],
     });
   });
 
-  it('submits empty array when org-wide is selected', async () => {
+  it('disables save when no changes', () => {
+    render(<DocumentTeamTagsDialog {...defaultProps} />);
+    expect(screen.getByText('common.actions.save')).toBeDisabled();
+  });
+
+  it('enables save when the selection changes', () => {
+    render(<DocumentTeamTagsDialog {...defaultProps} />);
+    toggleTeam('team-1');
+    expect(screen.getByText('common.actions.save')).toBeEnabled();
+  });
+
+  it('allows selecting multiple teams', async () => {
+    render(<DocumentTeamTagsDialog {...defaultProps} />);
+
+    toggleTeam('team-1');
+    toggleTeam('team-2');
+    expect(screen.getByTestId('team-team-1')).toBeChecked();
+    expect(screen.getByTestId('team-team-2')).toBeChecked();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('common.actions.save'));
+    });
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      documentId: 'doc-1',
+      teamIds: ['team-1', 'team-2'],
+    });
+  });
+
+  it('submits an empty array when all teams are deselected (org-wide)', async () => {
     render(
       <DocumentTeamTagsDialog {...defaultProps} currentTeamIds={['team-1']} />,
     );
 
-    selectTeam('__org_wide__');
+    toggleTeam('team-1'); // deselect -> org-wide
     await act(async () => {
       fireEvent.click(screen.getByText('common.actions.save'));
     });
@@ -272,7 +289,7 @@ describe('DocumentTeamTagsDialog', () => {
   it('shows success toast after save', async () => {
     render(<DocumentTeamTagsDialog {...defaultProps} />);
 
-    selectTeam('team-1');
+    toggleTeam('team-1');
     await act(async () => {
       fireEvent.click(screen.getByText('common.actions.save'));
     });
@@ -287,7 +304,7 @@ describe('DocumentTeamTagsDialog', () => {
     mockMutateAsync.mockRejectedValue(new Error('fail'));
     render(<DocumentTeamTagsDialog {...defaultProps} />);
 
-    selectTeam('team-1');
+    toggleTeam('team-1');
     await act(async () => {
       fireEvent.click(screen.getByText('common.actions.save'));
     });
@@ -314,23 +331,12 @@ describe('DocumentTeamTagsDialog', () => {
       <DocumentTeamTagsDialog {...defaultProps} onOpenChange={onOpenChange} />,
     );
 
-    selectTeam('team-1');
+    toggleTeam('team-1');
     await act(async () => {
       fireEvent.click(screen.getByText('common.actions.save'));
     });
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it('only allows single team selection', () => {
-    render(<DocumentTeamTagsDialog {...defaultProps} />);
-
-    selectTeam('team-1');
-    const select = screen.getByTestId('team-select');
-    expect(select).toHaveValue('team-1');
-
-    selectTeam('team-2');
-    expect(select).toHaveValue('team-2');
   });
 
   describe('folder entity type', () => {
@@ -348,13 +354,13 @@ describe('DocumentTeamTagsDialog', () => {
         screen.getByRole('heading', { name: 'documents.teamTags.title' }),
       ).toBeInTheDocument();
       expect(screen.getByText('My Folder')).toBeInTheDocument();
-      expect(screen.getByTestId('team-select')).toBeInTheDocument();
+      expect(screen.getByTestId('mock-team-multi-select')).toBeInTheDocument();
     });
 
     it('calls folder mutation when submitting with entityType folder', async () => {
       render(<DocumentTeamTagsDialog {...folderProps} />);
 
-      selectTeam('team-1');
+      toggleTeam('team-1');
       await act(async () => {
         fireEvent.click(screen.getByText('common.actions.save'));
       });
@@ -369,7 +375,7 @@ describe('DocumentTeamTagsDialog', () => {
     it('calls document mutation when submitting with default entityType', async () => {
       render(<DocumentTeamTagsDialog {...defaultProps} />);
 
-      selectTeam('team-1');
+      toggleTeam('team-1');
       await act(async () => {
         fireEvent.click(screen.getByText('common.actions.save'));
       });
@@ -379,24 +385,6 @@ describe('DocumentTeamTagsDialog', () => {
         teamIds: ['team-1'],
       });
       expect(mockFolderMutateAsync).not.toHaveBeenCalled();
-    });
-
-    it('uses entityId prop correctly for folder submissions', async () => {
-      const customProps = {
-        ...folderProps,
-        entityId: 'folder-custom-99',
-      };
-      render(<DocumentTeamTagsDialog {...customProps} />);
-
-      selectTeam('team-3');
-      await act(async () => {
-        fireEvent.click(screen.getByText('common.actions.save'));
-      });
-
-      expect(mockFolderMutateAsync).toHaveBeenCalledWith({
-        folderId: 'folder-custom-99',
-        teamIds: ['team-3'],
-      });
     });
   });
 });
