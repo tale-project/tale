@@ -1,10 +1,12 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 import type { Doc } from '@/convex/_generated/dataModel';
+import { formatCurrency } from '@/lib/utils/format/number';
 
 import { ProductImage } from '../components/product-image';
 import { ProductRowActions } from '../components/product-row-actions';
@@ -63,6 +65,50 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
           {row.original.stock !== undefined ? row.original.stock : '-'}
         </span>
       ),
+    },
+    {
+      accessorKey: 'price',
+      header: () => (
+        <span className="block w-full text-right">
+          {tTables('headers.price')}
+        </span>
+      ),
+      size: 100,
+      meta: { headerLabel: tTables('headers.price') },
+      cell: ({ row }) => (
+        <span className="text-muted-foreground block text-right text-xs">
+          {row.original.price !== undefined
+            ? formatCurrency(row.original.price, row.original.currency || 'USD')
+            : '-'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'category',
+      header: tTables('headers.category'),
+      size: 140,
+      cell: ({ row }) => (
+        <Text as="span" variant="caption" className="text-muted-foreground">
+          {row.original.category || '-'}
+        </Text>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: tTables('headers.status'),
+      size: 110,
+      cell: ({ row }) =>
+        row.original.status ? (
+          <Badge
+            variant={row.original.status === 'active' ? 'blue' : 'outline'}
+          >
+            {row.original.status}
+          </Badge>
+        ) : (
+          <Text as="span" variant="caption" className="text-muted-foreground">
+            -
+          </Text>
+        ),
     },
     builders.createDateColumn('lastUpdated', 'headers.updated', tTables, {
       alignRight: true,
