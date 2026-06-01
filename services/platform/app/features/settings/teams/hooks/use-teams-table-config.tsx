@@ -68,7 +68,7 @@ export function useTeamsTableConfig(
         size: 44,
         meta: { isAction: true },
         cell: ({ row }) => (
-          <HStack gap={1} justify="end">
+          <HStack justify="end">
             <TeamRowActions
               team={row.original}
               organizationId={organizationId}
