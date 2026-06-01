@@ -12,7 +12,8 @@
     "check:bundle": "bun run scripts/check-bundle.ts dist/tale",
     "lint": "bunx oxlint",
     "lint:fix": "bunx oxlint --fix",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@inquirer/prompts": "8.4.1",
