@@ -84,6 +84,14 @@ Bascules optionnelles pour des fonctionnalités non activées par défaut. Chaqu
 | `TRUSTED_HEADERS_ENABLED` | `false` | Active le mode auth par trusted headers (identité fournie par le reverse proxy).    |
 | `FILE_EVENTS_ENABLED`     | `false` | Active les événements de surveillance de fichiers pour l'intégration OneDrive-sync. |
 
+## Sessions
+
+| Nom                            | Défaut     | Description                                                                                                                                                                                                           |
+| ------------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_IDLE_TIMEOUT_MINUTES` | non défini | **Optionnel.** Déconnecte une session après ce nombre de minutes d'inactivité (`1`–`1440`). La fenêtre glisse à chaque activité et est appliquée côté serveur — sessions e-mail/mot de passe, SSO et trusted headers. |
+
+Laisse-le non défini pour conserver la durée de session par défaut. Si défini, une session inactive expire côté serveur une fois la fenêtre écoulée, tandis qu'une session active continue de glisser à chaque requête.
+
 ## Versionnage
 
 | Nom            | Défaut          | Description                                                                                                    |

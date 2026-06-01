@@ -14,6 +14,7 @@ import {
 
 import { assertValidOrgSlug } from '../lib/shared/constants/org-slug';
 import { isReservedOrgSlug } from '../lib/shared/constants/reserved-org-slugs';
+import { sessionIdleWindowSeconds } from '../lib/shared/session-idle';
 import { isRecord, getString } from '../lib/utils/type-guards';
 import { components, internal } from './_generated/api';
 import { DataModel } from './_generated/dataModel';
@@ -373,6 +374,12 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
       },
     },
     session: {
+      // Server-side session idle timeout (#1502): when
+      // SESSION_IDLE_TIMEOUT_MINUTES is set, this makes the session a sliding
+      // window that expires after that many minutes of inactivity (Better Auth
+      // refreshes the expiry on activity and rejects it once idle past the
+      // window). No-op — Better Auth's default lifetime — when unset.
+      ...sessionIdleWindowSeconds(),
       additionalFields: {
         trustedRole: {
           type: 'string' as const,

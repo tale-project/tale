@@ -84,6 +84,14 @@ Optionale Schalter für Features, die standardmässig nicht aktiviert sind. Jede
 | `TRUSTED_HEADERS_ENABLED` | `false` | Aktiviert den Trusted-Headers-Auth-Modus (Identität vom Reverse-Proxy geliefert). |
 | `FILE_EVENTS_ENABLED`     | `false` | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Integration.                |
 
+## Sitzungen
+
+| Name                           | Default | Beschreibung                                                                                                                                                                                                                     |
+| ------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_IDLE_TIMEOUT_MINUTES` | unset   | **Optional.** Meldet eine Sitzung nach so vielen Minuten Inaktivität ab (`1`–`1440`). Das Fenster verschiebt sich bei Aktivität und wird serverseitig durchgesetzt — über E-Mail-/Passwort-, SSO- und Trusted-Headers-Sitzungen. |
+
+Lass es unset, um die Standard-Sitzungsdauer zu behalten. Wenn gesetzt, läuft eine inaktive Sitzung serverseitig ab, sobald das Fenster verstrichen ist, während eine aktive sich bei jeder Anfrage weiter verschiebt.
+
 ## Versionierung
 
 | Name           | Default        | Beschreibung                                                                                                               |

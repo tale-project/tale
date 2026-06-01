@@ -4,6 +4,7 @@
 
 import { generateId } from 'better-auth';
 
+import { sessionExpiryMs } from '../../lib/shared/session-idle';
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
@@ -24,7 +25,8 @@ export async function createUserSession(
 ): Promise<CreateUserSessionResult> {
   const sessionToken = generateId(32);
   const now = Date.now();
-  const expiresAt = now + 30 * 24 * 60 * 60 * 1000; // 30 days
+  // 30 days unless a session idle timeout is configured (#1502).
+  const expiresAt = sessionExpiryMs(now, 30 * 24 * 60 * 60 * 1000);
 
   const createResult = await ctx.runMutation(
     components.betterAuth.adapter.create,
