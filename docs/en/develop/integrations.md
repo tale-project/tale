@@ -40,6 +40,8 @@ integrations/
 
 The operation surfaces on agents as a tool family the moment the org connects credentials. The connector file is optional — reach for it when the response shape needs flattening or pagination loops the manifest cannot express.
 
+For an OAuth2 connector (`"auth": { "type": "oauth2", … }`), register Tale's callback URL as an allowed redirect URI in the upstream OAuth app, or the consent step fails with a `redirect_uri` mismatch. The callback is `${SITE_URL}/api/integrations/oauth2/callback` (prefixed with `BASE_PATH` when one is set). For local development that origin is your dev URL — `http://localhost:3000/api/integrations/oauth2/callback`, not an `https://` host.
+
 ## Surface choices
 
 | Surface       | Reach for it when                                                                                                                     |

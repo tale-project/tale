@@ -40,6 +40,8 @@ integrations/
 
 L'operation apparaît sur les agents comme une famille de tools dès que l'org branche ses identifiants. Le fichier connecteur est optionnel — sers-t'en quand la forme de réponse a besoin d'être aplatie ou quand la pagination demande des boucles que le manifeste ne peut pas exprimer.
 
+Pour un connecteur OAuth2 (`"auth": { "type": "oauth2", … }`), enregistre l'URL de callback de Tale comme URI de redirection autorisée dans l'app OAuth upstream, sinon l'étape de consentement échoue avec un `redirect_uri` non concordant. Le callback est `${SITE_URL}/api/integrations/oauth2/callback` (préfixé par `BASE_PATH` s'il est défini). En développement local, cet origin est ton URL de dev — `http://localhost:3000/api/integrations/oauth2/callback`, pas un hôte `https://`.
+
 ## Choix de la surface
 
 | Surface        | Sers-t'en quand                                                                                                                      |

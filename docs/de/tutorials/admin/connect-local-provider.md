@@ -52,6 +52,7 @@ Tail das Inferenz-Server-Log auf dem Host, während du den Prompt schickst — O
 - **Symptom:** Anbieter-Zeile zeigt **error** mit `connection refused`. **Ursache:** Die Base-URL ist vom `tale-platform`-Container nicht erreichbar. **Fix:** Wiederhole den `docker compose exec platform curl` aus Schritt 1; pass den Hostnamen an (oft `host.docker.internal` auf macOS/Windows, die Bridge-IP unter Linux).
 - **Symptom:** Der Modell-Picker ist nach **Speichern** leer. **Ursache:** Der Inferenz-Server ist erreichbar, aber es sind keine Modelle geladen. **Fix:** Lauf `ollama pull <model>` oder lad ein Modell in LM Studio / vLLM, dann klick **Modelle aktualisieren** auf der Anbieter-Zeile.
 - **Symptom:** Die Chat-Antwort ist ein Fehler-Toast (`model not found`). **Ursache:** Der Modellname, an den der Agent gebunden ist, stimmt nicht mit der Upstream-ID überein. **Fix:** Öffne das Modell-Dropdown des Agenten und wähl aus der Live-Liste neu — Ollama-Tags wie `:latest` zählen Upstream und müssen exakt passen.
+- **Symptom:** Das Speichern des Anbieters wird abgelehnt, weil die Base-URL auf `localhost`, `127.0.0.1` oder eine private IP zeigt. **Ursache:** Tale blockiert private und Loopback-Anbieter-Hosts standardmässig als SSRF-Schutz. **Fix:** Nutz stattdessen den netzinternen Hostnamen (`http://ollama:11434`, `http://host.docker.internal:1234`); wenn du auf eine private oder Loopback-Adresse zeigen musst, setz `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` am platform-Service.
 
 ## Wo das hingehört
 

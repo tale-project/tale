@@ -52,6 +52,7 @@ Tail the inference server log on the host while you send the prompt — Ollama l
 - **Symptom:** provider row shows **error** with `connection refused`. **Cause:** the base URL is unreachable from the `tale-platform` container. **Fix:** repeat the `docker compose exec platform curl` from Step 1; adjust the hostname (often `host.docker.internal` on macOS/Windows, the bridge IP on Linux).
 - **Symptom:** the model picker is empty after **Save**. **Cause:** the inference server is reachable but has no models loaded. **Fix:** run `ollama pull <model>` or load a model in LM Studio / vLLM, then click **Refresh models** on the provider row.
 - **Symptom:** the chat reply is one error toast (`model not found`). **Cause:** the model name the agent is bound to does not match the upstream id. **Fix:** open the agent's model dropdown and re-pick from the live list — Ollama tags like `:latest` matter to the upstream and must match exactly.
+- **Symptom:** saving the provider is rejected because the base URL points at `localhost`, `127.0.0.1`, or a private IP. **Cause:** Tale blocks private and loopback provider hosts by default as an SSRF safeguard. **Fix:** use the in-network hostname instead (`http://ollama:11434`, `http://host.docker.internal:1234`); if you must point at a private or loopback address, set `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` on the platform service.
 
 ## Where this fits
 
