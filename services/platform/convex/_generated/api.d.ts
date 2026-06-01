@@ -315,6 +315,7 @@ import type * as file_metadata_internal_queries from "../file_metadata/internal_
 import type * as file_metadata_mutations from "../file_metadata/mutations.js";
 import type * as file_metadata_paragraphize from "../file_metadata/paragraphize.js";
 import type * as file_metadata_queries from "../file_metadata/queries.js";
+import type * as file_metadata_source_from_provider from "../file_metadata/source_from_provider.js";
 import type * as file_metadata_transcribe_audio from "../file_metadata/transcribe_audio.js";
 import type * as file_metadata_transcribe_dictation from "../file_metadata/transcribe_dictation.js";
 import type * as files_mutations from "../files/mutations.js";
@@ -644,6 +645,7 @@ import type * as migrations_backfill_wf_installations from "../migrations/backfi
 import type * as migrations_backfill_workflow_schedules from "../migrations/backfill_workflow_schedules.js";
 import type * as migrations_merge_audit_retention from "../migrations/merge_audit_retention.js";
 import type * as migrations_migrate_org_creators from "../migrations/migrate_org_creators.js";
+import type * as migrations_relabel_synced_file_metadata_source from "../migrations/relabel_synced_file_metadata_source.js";
 import type * as migrations_remove_deprecated_llm_fields from "../migrations/remove_deprecated_llm_fields.js";
 import type * as migrations_seed_applied_bounds from "../migrations/seed_applied_bounds.js";
 import type * as migrations_split_personalization_toggle from "../migrations/split_personalization_toggle.js";
@@ -1530,6 +1532,7 @@ declare const fullApi: ApiFromModules<{
   "file_metadata/mutations": typeof file_metadata_mutations;
   "file_metadata/paragraphize": typeof file_metadata_paragraphize;
   "file_metadata/queries": typeof file_metadata_queries;
+  "file_metadata/source_from_provider": typeof file_metadata_source_from_provider;
   "file_metadata/transcribe_audio": typeof file_metadata_transcribe_audio;
   "file_metadata/transcribe_dictation": typeof file_metadata_transcribe_dictation;
   "files/mutations": typeof files_mutations;
@@ -1859,6 +1862,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/backfill_workflow_schedules": typeof migrations_backfill_workflow_schedules;
   "migrations/merge_audit_retention": typeof migrations_merge_audit_retention;
   "migrations/migrate_org_creators": typeof migrations_migrate_org_creators;
+  "migrations/relabel_synced_file_metadata_source": typeof migrations_relabel_synced_file_metadata_source;
   "migrations/remove_deprecated_llm_fields": typeof migrations_remove_deprecated_llm_fields;
   "migrations/seed_applied_bounds": typeof migrations_seed_applied_bounds;
   "migrations/split_personalization_toggle": typeof migrations_split_personalization_toggle;
