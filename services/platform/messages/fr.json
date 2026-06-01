@@ -260,7 +260,8 @@
       },
       "toast": {
         "success": "Connecté avec succès"
-      }
+      },
+      "lockoutAdvisory": "Des échecs répétés verrouillent temporairement le compte."
     },
     "signup": {
       "signupTitle": "Crée ton compte",

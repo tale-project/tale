@@ -107,6 +107,11 @@ export function LogInPage() {
   });
 
   const [loginError, setLoginError] = useState<string | null>(null);
+  // Standing, count-free advisory shown on a failed credential attempt. We
+  // deliberately never reveal attempts-remaining: a live counter would break
+  // the uniform "wrong email or password" response and hand an attacker both
+  // account-enumeration and a brute-force budget (#1566).
+  const [showLockoutHint, setShowLockoutHint] = useState(false);
 
   const { isSubmitting, isValid } = form.formState;
 
@@ -150,21 +155,31 @@ export function LogInPage() {
             ? errSec
             : undefined;
         setLoginError(formatLockoutMessage(retryAfterSec));
+        // Already locked — the lockout message stands on its own.
+        setShowLockoutHint(false);
         return;
       }
       setLoginError(t('login.wrongCredentials'));
+      setShowLockoutHint(true);
     },
     [formatLockoutMessage, t],
   );
 
   const handleSubmit = async (data: LogInFormData) => {
     setLoginError(null);
+    setShowLockoutHint(false);
 
     try {
+      // Track whether onError fired this attempt rather than reading the
+      // pre-await `loginError` (a stale closure value) in the fallback below.
+      let authErrorHandled = false;
       const response = await authClient.signIn.email(
         { email: data.email, password: data.password },
         {
-          onError: handleAuthError,
+          onError: (ctx) => {
+            authErrorHandled = true;
+            handleAuthError(ctx);
+          },
         },
       );
 
@@ -190,7 +205,10 @@ export function LogInPage() {
 
       if (!response.data?.user) {
         // Fallback: signIn returned without a user but onError wasn't triggered.
-        if (!loginError) setLoginError(t('login.wrongCredentials'));
+        if (!authErrorHandled) {
+          setLoginError(t('login.wrongCredentials'));
+          setShowLockoutHint(true);
+        }
         return;
       }
 
@@ -285,6 +303,12 @@ export function LogInPage() {
                 className="text-destructive flex items-center gap-1.5 text-sm"
               >
                 {loginError}
+              </p>
+            )}
+
+            {showLockoutHint && (
+              <p aria-live="polite" className="text-muted-foreground text-xs">
+                {t('login.lockoutAdvisory')}
               </p>
             )}
 

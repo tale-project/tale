@@ -259,7 +259,8 @@
       },
       "toast": {
         "success": "Angemeldet"
-      }
+      },
+      "lockoutAdvisory": "Wiederholte Fehlversuche sperren das Konto vorübergehend."
     },
     "signup": {
       "signupTitle": "Erstelle Dein Konto",

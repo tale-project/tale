@@ -259,7 +259,8 @@
       },
       "toast": {
         "success": "Signed in successfully"
-      }
+      },
+      "lockoutAdvisory": "Repeated failed attempts will temporarily lock the account."
     },
     "signup": {
       "signupTitle": "Create your account",
