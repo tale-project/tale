@@ -12,6 +12,7 @@ import {
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
+import { parseSessionIdleTimeoutMinutes } from './lib/shared/session-idle';
 import { fetchAdapter as webdavFetchAdapter } from './lib/webdav/adapters/fetch';
 import { makeWebdavCtx } from './lib/webdav/ctx';
 import {
@@ -166,6 +167,7 @@ interface EnvConfig {
   SENTRY_DSN: string | undefined;
   SENTRY_TRACES_SAMPLE_RATE: number;
   TALE_VERSION: string | undefined;
+  SESSION_IDLE_TIMEOUT_MINUTES?: number;
   CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: readonly string[];
 }
 
@@ -212,6 +214,9 @@ function getEnvConfig(): EnvConfig {
       process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0',
     ),
     TALE_VERSION: process.env.TALE_VERSION,
+    // Idle-timeout window for the client watchdog (#1502). Validated/clamped
+    // server-side; `undefined` (omitted from __ENV__) when the feature is off.
+    SESSION_IDLE_TIMEOUT_MINUTES: parseSessionIdleTimeoutMinutes() ?? undefined,
     // Whitespace-separated origin list, e.g.
     // `CANVAS_PREVIEW_CSP_EXTRA_ORIGINS="https://cdn.jsdelivr.net https://unpkg.com"`.
     // Validated and appended to the canvas-preview CSP — see the policy

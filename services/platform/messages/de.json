@@ -1493,6 +1493,11 @@
     "loading": {
       "navigating": "Seite wird geladen",
       "label": "Wird geladen"
+    },
+    "sessionIdle": {
+      "warningTitle": "Du wirst bald abgemeldet",
+      "warningDescription": "Deine Sitzung endet nach einer Phase der Inaktivität. Interagiere mit der Seite oder nutze die Schaltfläche, um weiterzuarbeiten.",
+      "staySignedIn": "Angemeldet bleiben"
     }
   },
   "composer": {
