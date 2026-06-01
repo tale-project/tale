@@ -1926,7 +1926,7 @@
       "dropZoneDescription": "PDF, DOCX, XLSX, CSV jusqu'à {maxSize} Mo",
       "retryUpload": "Réessayer le téléversement",
       "retry": "Réessayer",
-      "documentsUploadedSuccessfully": "{count} {count, plural, one {document téléversé} other {documents téléversés}} avec succès",
+      "documentsUploadedSuccessfully": "{count} {count, plural, one {document téléversé} other {documents téléversés}} — indexation en cours en arrière-plan",
       "unsupportedFileType": "Type de fichier non pris en charge",
       "unsupportedFileTypeDescription": "{name} n'est pas un format pris en charge. Formats acceptés : PDF, DOCX, XLSX, CSV, TXT, PPTX, images.",
       "extensionBlocked": "{name} : les fichiers .{ext} sont bloqués par la politique de téléversement.",

@@ -1925,7 +1925,7 @@
       "dropZoneDescription": "PDF, DOCX, XLSX, CSV bis zu {maxSize} MB",
       "retryUpload": "Upload erneut versuchen",
       "retry": "Erneut versuchen",
-      "documentsUploadedSuccessfully": "{count} {count, plural, one {Dokument} other {Dokumente}} hochgeladen",
+      "documentsUploadedSuccessfully": "{count} {count, plural, one {Dokument} other {Dokumente}} hochgeladen — Indexierung läuft im Hintergrund",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
       "unsupportedFileTypeDescription": "{name} ist kein unterstütztes Format. Unterstützte Formate: PDF, DOCX, XLSX, CSV, TXT, PPTX, Bilder.",
       "extensionBlocked": "{name}:.{ext}-Dateien sind durch die Upload-Richtlinie blockiert.",
