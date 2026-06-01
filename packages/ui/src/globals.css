@@ -41,6 +41,10 @@
 
   --color-border-base: #e5e7eb;
   --color-border-strong: #d1d5db;
+  /* Form fields need a more visible edge than incidental borders. In light mode
+     the base #e5e7eb on a white field/card is barely perceptible (~1.2:1), so
+     inputs use a stronger border. Dark mode already reads well (see .dark). */
+  --color-border-input: var(--color-border-strong);
 
   --color-accent-base: #030712;
   --color-accent-fg: #ffffff;
@@ -206,6 +210,8 @@
 
   --color-border-base: #404040;
   --color-border-strong: #525252;
+  /* Dark inputs already have a clearly visible edge — keep the existing base. */
+  --color-border-input: var(--color-border-base);
 
   --color-accent-base: #ffffff;
   --color-accent-fg: #030712;
