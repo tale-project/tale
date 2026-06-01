@@ -31,4 +31,33 @@ describe('DocumentIcon', () => {
       expect(container.querySelector('svg')).toBeInTheDocument();
     });
   });
+
+  describe('icon resolution', () => {
+    it('derives the extension from mimeType when the title has none', () => {
+      const { getByTestId } = render(
+        <DocumentIcon
+          fileName="Getting started in Confluence"
+          mimeType="text/plain"
+        />,
+      );
+      expect(getByTestId('file-icon')).toHaveTextContent('txt');
+    });
+
+    it('prefers mimeType over the filename suffix', () => {
+      const { getByTestId } = render(
+        <DocumentIcon fileName="report.txt" mimeType="application/pdf" />,
+      );
+      expect(getByTestId('file-icon')).toHaveTextContent('pdf');
+    });
+
+    it('falls back to the filename suffix when mimeType is generic/absent', () => {
+      const { getByTestId } = render(
+        <DocumentIcon
+          fileName="report.pdf"
+          mimeType="application/octet-stream"
+        />,
+      );
+      expect(getByTestId('file-icon')).toHaveTextContent('pdf');
+    });
+  });
 });

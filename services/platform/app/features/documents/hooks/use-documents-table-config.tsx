@@ -104,6 +104,7 @@ export function useDocumentsTableConfig({
             <HStack gap={3}>
               <DocumentIcon
                 fileName={fileName}
+                mimeType={row.original.mimeType}
                 isFolder={row.original.type === 'folder'}
               />
               <button

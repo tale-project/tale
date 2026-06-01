@@ -122,7 +122,11 @@ function DetailsSidebar({
       >
         <SidebarRow label={t('preview.sidebar.document')}>
           <HStack gap={2} className="items-center">
-            <DocumentIcon fileName={doc?.name ?? ''} className="w-4" />
+            <DocumentIcon
+              fileName={doc?.name ?? ''}
+              mimeType={doc?.mimeType}
+              className="w-4"
+            />
             <span className="truncate">
               <SkeletonBox>{doc?.name ?? PLACEHOLDER_NAME}</SkeletonBox>
             </span>
@@ -323,7 +327,11 @@ export function DocumentPreviewDialog({
         <div className="flex h-full min-h-0 gap-5 px-5 pb-5">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {resolvedUrl ? (
-              <DocumentPreview url={resolvedUrl} fileName={displayName} />
+              <DocumentPreview
+                url={resolvedUrl}
+                fileName={displayName}
+                mimeType={doc?.mimeType}
+              />
             ) : (
               <PreviewPaneSkeleton />
             )}
