@@ -2164,6 +2164,7 @@
       "enabled": "Upload-Richtlinie aktivieren",
       "allowedExtensions": "Erlaubte Dateierweiterungen",
       "blockedExtensions": "Blockierte Dateierweiterungen",
+      "conflictingExtensions": "Diese Erweiterungen sind sowohl erlaubt als auch blockiert: {extensions}. Entferne sie aus einer der Listen.",
       "allowedMimeTypes": "Erlaubte MIME-Typen",
       "maxFileSize": "Maximale Dateigrösse",
       "maxVolumePerUser": "Maximales Gesamtvolumen pro Benutzer",

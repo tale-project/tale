@@ -55,6 +55,22 @@ function stringToExtensions(value: string): string[] | undefined {
     .filter(Boolean);
 }
 
+/**
+ * Returns the extensions present in BOTH the allowed and blocked lists
+ * (case-insensitive). Used to reject a contradictory upload policy (#1479).
+ */
+export function findConflictingExtensions(
+  allowedValue: string,
+  blockedValue: string,
+): string[] {
+  const allowed = new Set(
+    (stringToExtensions(allowedValue) ?? []).map((e) => e.toLowerCase()),
+  );
+  return (stringToExtensions(blockedValue) ?? []).filter((e) =>
+    allowed.has(e.toLowerCase()),
+  );
+}
+
 function buildConfig(
   values: UploadPolicyForm,
   enabledValue: boolean,
@@ -116,27 +132,45 @@ export function UploadPolicyEditor({
 
   const schema = useMemo(
     () =>
-      z.object({
-        allowedExtensions: z.string(),
-        blockedExtensions: z.string(),
-        allowedMimeTypes: z.string(),
-        maxFileSizeMB: z.string().refine(
-          (v) => {
-            if (!v.trim()) return true;
-            const n = Number(v);
-            return !Number.isNaN(n) && n >= 0;
-          },
-          { message: t('uploadPolicy.invalidMaxFileSize') },
-        ),
-        maxVolumeGB: z.string().refine(
-          (v) => {
-            if (!v.trim()) return true;
-            const n = Number(v);
-            return !Number.isNaN(n) && n >= 0;
-          },
-          { message: t('uploadPolicy.invalidMaxVolume') },
-        ),
-      }),
+      z
+        .object({
+          allowedExtensions: z.string(),
+          blockedExtensions: z.string(),
+          allowedMimeTypes: z.string(),
+          maxFileSizeMB: z.string().refine(
+            (v) => {
+              if (!v.trim()) return true;
+              const n = Number(v);
+              return !Number.isNaN(n) && n >= 0;
+            },
+            { message: t('uploadPolicy.invalidMaxFileSize') },
+          ),
+          maxVolumeGB: z.string().refine(
+            (v) => {
+              if (!v.trim()) return true;
+              const n = Number(v);
+              return !Number.isNaN(n) && n >= 0;
+            },
+            { message: t('uploadPolicy.invalidMaxVolume') },
+          ),
+        })
+        .superRefine((values, ctx) => {
+          // An extension cannot be both allowed and blocked — flag the
+          // conflict instead of silently saving a contradictory policy (#1479).
+          const conflicts = findConflictingExtensions(
+            values.allowedExtensions,
+            values.blockedExtensions,
+          );
+          if (conflicts.length > 0) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['blockedExtensions'],
+              message: t('uploadPolicy.conflictingExtensions', {
+                extensions: conflicts.join(', '),
+              }),
+            });
+          }
+        }),
     [t],
   );
 

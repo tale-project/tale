@@ -2164,6 +2164,7 @@
       "enabled": "Enable upload policy",
       "allowedExtensions": "Allowed file extensions",
       "blockedExtensions": "Blocked file extensions",
+      "conflictingExtensions": "These extensions are both allowed and blocked: {extensions}. Remove them from one list.",
       "allowedMimeTypes": "Allowed MIME types",
       "maxFileSize": "Maximum file size",
       "maxVolumePerUser": "Maximum total volume per user",
