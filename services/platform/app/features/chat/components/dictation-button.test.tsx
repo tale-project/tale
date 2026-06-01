@@ -1,9 +1,13 @@
+import { createRef } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
-import { DictationButton } from './dictation-button';
+import {
+  DictationButton,
+  type DictationButtonHandle,
+} from './dictation-button';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({
@@ -162,6 +166,42 @@ describe('DictationButton', () => {
       mockOnTranscriptRef?.('hello world');
 
       expect(onTranscript).toHaveBeenCalledWith('hello world');
+    });
+  });
+
+  // Regression test for #1462: sending a message must be able to stop an
+  // active recording so the mic doesn't keep listening after send.
+  describe('imperative stop() handle (#1462)', () => {
+    it('stops an active recording when stop() is called', () => {
+      mockIsListening = true;
+      const ref = createRef<DictationButtonHandle>();
+      render(
+        <DictationButton
+          ref={ref}
+          organizationId={orgId}
+          onTranscript={vi.fn()}
+        />,
+      );
+
+      ref.current?.stop();
+
+      expect(mockStopListening).toHaveBeenCalled();
+    });
+
+    it('is a no-op when not currently recording', () => {
+      mockIsListening = false;
+      const ref = createRef<DictationButtonHandle>();
+      render(
+        <DictationButton
+          ref={ref}
+          organizationId={orgId}
+          onTranscript={vi.fn()}
+        />,
+      );
+
+      ref.current?.stop();
+
+      expect(mockStopListening).not.toHaveBeenCalled();
     });
   });
 
