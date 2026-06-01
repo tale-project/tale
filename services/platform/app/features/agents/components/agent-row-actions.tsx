@@ -18,7 +18,7 @@ import { AgentDeleteDialog } from './agent-delete-dialog';
 interface AgentRowActionsProps {
   agentName: string;
   organizationId: string;
-  onDuplicated?: () => void;
+  onDuplicated?: (newAgentName: string) => void;
   onDeleted?: () => void;
 }
 
@@ -50,7 +50,7 @@ export function AgentRowActions({
     if (isDuplicating) return;
     setIsDuplicating(true);
     try {
-      await duplicateAgent({
+      const { newAgentName } = await duplicateAgent({
         organizationId,
         agentName,
       });
@@ -58,7 +58,7 @@ export function AgentRowActions({
         title: t('agents.agentDuplicated'),
         variant: 'success',
       });
-      onDuplicated?.();
+      onDuplicated?.(newAgentName);
     } catch (error) {
       console.error(error);
       toast({

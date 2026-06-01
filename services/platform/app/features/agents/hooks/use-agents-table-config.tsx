@@ -22,7 +22,7 @@ interface AgentsTableConfig {
 interface AgentsTableConfigOptions {
   organizationId: string;
   teamNameMap: Map<string, string>;
-  onDuplicated?: () => void;
+  onDuplicated?: (newAgentName: string) => void;
   onDeleted?: () => void;
 }
 
