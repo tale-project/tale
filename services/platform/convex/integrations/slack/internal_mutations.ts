@@ -198,6 +198,9 @@ export const startSlackChat = internalMutation({
     threadId: v.string(),
     message: v.string(),
     agentConfig: v.any(),
+    // Caps the generation deadline to the caller's reply-poll window so a
+    // long-running agent can't outlast the poll and strand its answer.
+    maxDeadlineMs: v.optional(v.number()),
   },
   returns: v.object({ streamId: v.string() }),
   handler: async (ctx, args) => {
@@ -213,6 +216,7 @@ export const startSlackChat = internalMutation({
       agentSlug: args.agentSlug,
       debugTag: `[slack:${args.agentSlug}]`,
       enableStreaming: false,
+      maxDeadlineMs: args.maxDeadlineMs,
     });
     return { streamId: result.streamId };
   },

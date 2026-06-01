@@ -212,3 +212,38 @@ describe('awaitStreamSettle (liveness grace re-poll)', () => {
     expect(settled).toBeUndefined();
   });
 });
+
+describe('deriveThreadKeys', () => {
+  const { deriveThreadKeys } = __test;
+
+  it('channel mention without a thread keys on (and replies under) the message ts', () => {
+    expect(deriveThreadKeys('app_mention', undefined, '111.0001')).toEqual({
+      threadKey: '111.0001',
+      replyThreadTs: '111.0001',
+    });
+  });
+
+  it('channel mention inside a thread keys on (and replies under) the thread root', () => {
+    expect(deriveThreadKeys('app_mention', '111.0000', '111.0009')).toEqual({
+      threadKey: '111.0000',
+      replyThreadTs: '111.0000',
+    });
+  });
+
+  it('top-level DM (no thread_ts) keys on the stable sentinel and replies top-level', () => {
+    // The bug this fixes: a per-message messageTs key minted a new Tale thread
+    // every DM turn. The sentinel keeps all DM turns on one continuous thread,
+    // and an undefined replyThreadTs posts a normal (non-nested) DM reply.
+    const a = deriveThreadKeys('message_im', undefined, '222.0001');
+    const b = deriveThreadKeys('message_im', undefined, '222.0002');
+    expect(a).toEqual({ threadKey: 'im', replyThreadTs: undefined });
+    expect(b.threadKey).toBe(a.threadKey); // same thread across turns
+  });
+
+  it('DM that carries an explicit thread_ts preserves it for the reply', () => {
+    expect(deriveThreadKeys('message_im', '222.0000', '222.0005')).toEqual({
+      threadKey: 'im',
+      replyThreadTs: '222.0000',
+    });
+  });
+});

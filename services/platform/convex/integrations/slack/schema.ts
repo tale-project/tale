@@ -19,8 +19,10 @@ import { v } from 'convex/values';
 export const slackThreadsTable = defineTable({
   organizationId: v.string(),
   channel: v.string(),
-  // threadTs of the root message, or the triggering message ts for a top-level
-  // mention. Stable key for "this Slack thread".
+  // Stable key for "this Slack conversation". For a channel mention it's the
+  // root message's threadTs (or the triggering message ts for a top-level
+  // mention); for a DM it's the constant 'im' sentinel (a DM is one continuous
+  // conversation per channel, and `channel` is already part of by_conversation).
   conversationTs: v.string(),
   threadId: v.string(),
   slackUserId: v.string(),

@@ -343,6 +343,12 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 120,
     period: MINUTE,
     capacity: 240,
+    // Shard the bucket (rate/capacity split across shards, aggregate unchanged
+    // at 240 / 120-per-min) so concurrent same-key requests — a busy workspace's
+    // signed events keyed by team_id, or a forged flood keyed by IP — spread
+    // their writes across rows instead of serializing on one and tripping OCC
+    // write-conflicts. Mirrors notify:slack.
+    shards: 4,
   },
   // Per-org backstop on OUTBOUND system-notification posts to Slack
   // (notifications/notify_slack). Bounds a workflow-event burst from flooding

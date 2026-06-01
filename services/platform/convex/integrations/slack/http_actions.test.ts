@@ -126,6 +126,20 @@ describe('parseEvent', () => {
     expect(parsed?.threadTs).toBe('3.0');
   });
 
+  it('accepts a top-level DM with no thread_ts (the common case)', () => {
+    const parsed = parseEvent({
+      type: 'message',
+      channel_type: 'im',
+      user: 'U2',
+      channel: 'D1',
+      ts: '3.4',
+      text: 'hello',
+    });
+    expect(parsed?.eventType).toBe('message_im');
+    expect(parsed?.threadTs).toBeUndefined();
+    expect(parsed?.messageTs).toBe('3.4');
+  });
+
   it('drops the bot’s own messages (bot_id present)', () => {
     expect(
       parseEvent({

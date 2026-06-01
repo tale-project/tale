@@ -73,7 +73,8 @@ const { resolveFeatureFlags } =
   await import('../../governance/feature_enforcement');
 const mockedResolveFeatureFlags = vi.mocked(resolveFeatureFlags);
 
-const { startAgentChat, buildTitleSource } = await import('./start_agent_chat');
+const { startAgentChat, buildTitleSource, computeDeadlineMs } =
+  await import('./start_agent_chat');
 
 function createMockCtx(
   threadMeta: {
@@ -344,5 +345,38 @@ describe('buildTitleSource (#1468)', () => {
   it('returns an empty string when there is neither text nor attachments', () => {
     expect(buildTitleSource('', undefined)).toBe('');
     expect(buildTitleSource('', [])).toBe('');
+  });
+});
+
+describe('computeDeadlineMs', () => {
+  const NOW = 1_000_000;
+
+  it('uses the per-agent timeoutMs over the AgentType default', () => {
+    expect(
+      computeDeadlineMs({ timeoutMs: 900_000 }, 'integration', undefined, NOW),
+    ).toBe(NOW + 900_000);
+  });
+
+  it('falls back to the 420s default when neither per-agent nor AgentType timeoutMs is set', () => {
+    // AGENT_CONTEXT_CONFIGS is mocked to {} in this suite, so the lookup is
+    // undefined and the final 420_000 fallback applies.
+    expect(computeDeadlineMs({}, 'integration', undefined, NOW)).toBe(
+      NOW + 420_000,
+    );
+  });
+
+  it('caps the deadline at maxDeadlineMs when the agent would run longer', () => {
+    // 15-min agent, but the caller (e.g. Slack poll) only waits 9 min.
+    const cap = NOW + 540_000;
+    expect(
+      computeDeadlineMs({ timeoutMs: 900_000 }, 'integration', cap, NOW),
+    ).toBe(cap);
+  });
+
+  it('leaves the deadline untouched when it is within maxDeadlineMs', () => {
+    const cap = NOW + 540_000;
+    expect(
+      computeDeadlineMs({ timeoutMs: 120_000 }, 'integration', cap, NOW),
+    ).toBe(NOW + 120_000);
   });
 });

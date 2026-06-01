@@ -8,7 +8,10 @@ import { internalAction } from '../../_generated/server';
 import { buildExternalOwnerId } from '../../identities/external_identities';
 import { persistentStreaming } from '../../streaming/helpers';
 
-const MAX_POLL_MS = 540_000; // aligns with the generation hard limit (9 min)
+// Slack reply-poll budget (9 min). The generation deadline is capped to this
+// window (passed as maxDeadlineMs into startSlackChat), so the poll only
+// exhausts on a genuine timeout — never on a still-running generation.
+const MAX_POLL_MS = 540_000;
 const POLL_INTERVAL_MS = 100;
 // Check thread generationStatus every Nth poll (~1s) to catch a generation that
 // ended without terminalizing the stream (e.g. budget short-circuit).
@@ -30,6 +33,34 @@ function sleep(ms: number): Promise<void> {
 /** Strip Slack mention tokens like `<@U123>` and trim. */
 function stripMentions(text: string): string {
   return text.replace(/<@[A-Z0-9]+>/g, '').trim();
+}
+
+// Stable per-DM Tale-thread key. A DM is one continuous conversation per
+// channel, and the channel id is already part of the slackThreads
+// `by_conversation` index, so a constant in the conversationTs column is unique
+// per DM channel. (Real Slack ts values are numeric strings, so 'im' can never
+// collide with one.)
+const DM_THREAD_KEY = 'im';
+
+/**
+ * Derive the stable Tale-thread key and the reply `thread_ts` for an inbound
+ * event. A channel @mention is threaded under its triggering/root message, so
+ * the key IS that thread_ts and the reply nests there. A DM (`message_im`) is
+ * NOT auto-threaded — a top-level DM carries no `thread_ts`, so its per-message
+ * `messageTs` must NOT be the key (that would mint a fresh Tale thread every
+ * message and lose all conversation memory). Key DMs on `DM_THREAD_KEY` and
+ * reply at the top level, preserving an explicit in-DM thread reply if present.
+ */
+function deriveThreadKeys(
+  eventType: 'app_mention' | 'message_im',
+  threadTs: string | undefined,
+  messageTs: string,
+): { threadKey: string; replyThreadTs?: string } {
+  if (eventType === 'message_im') {
+    return { threadKey: DM_THREAD_KEY, replyThreadTs: threadTs };
+  }
+  const root = threadTs ?? messageTs;
+  return { threadKey: root, replyThreadTs: root };
 }
 
 /**
@@ -103,7 +134,8 @@ async function postSlackReply(
   args: {
     organizationId: string;
     channel: string;
-    threadTs: string;
+    // Omitted for a top-level DM reply; present to nest under a channel thread.
+    threadTs?: string;
     text: string;
   },
 ): Promise<void> {
@@ -117,7 +149,7 @@ async function postSlackReply(
         params: {
           channel: args.channel,
           text: args.text,
-          thread_ts: args.threadTs,
+          ...(args.threadTs ? { thread_ts: args.threadTs } : {}),
         },
         skipApprovalCheck: true,
       },
@@ -176,7 +208,11 @@ export const processSlackEvent = internalAction({
       return null;
     }
 
-    const conversationTs = args.threadTs ?? args.messageTs;
+    const { threadKey, replyThreadTs } = deriveThreadKeys(
+      args.eventType,
+      args.threadTs,
+      args.messageTs,
+    );
     // The dedup row is already committed and this action is at-most-once (Convex
     // does not retry it). So everything below runs under a guard: an unexpected
     // throw is logged and — once we know where to reply — surfaced as a friendly
@@ -264,7 +300,7 @@ export const processSlackEvent = internalAction({
         {
           organizationId,
           channel: args.channel,
-          conversationTs,
+          conversationTs: threadKey,
           slackUserId: args.slackUserId,
           slackUserName: displayName,
         },
@@ -285,6 +321,10 @@ export const processSlackEvent = internalAction({
             threadId,
             message: cleanedText,
             agentConfig,
+            // Cap the generation deadline to our poll window so the poll never
+            // exhausts on a still-running generation (which would post the
+            // fallback and drop the real, later-committed answer).
+            maxDeadlineMs: Date.now() + MAX_POLL_MS,
           },
         );
 
@@ -343,7 +383,7 @@ export const processSlackEvent = internalAction({
       await postSlackReply(ctx, {
         organizationId,
         channel: args.channel,
-        threadTs: conversationTs,
+        threadTs: replyThreadTs,
         text: replyText,
       });
     } catch (err) {
@@ -357,7 +397,7 @@ export const processSlackEvent = internalAction({
         await postSlackReply(ctx, {
           organizationId,
           channel: args.channel,
-          threadTs: conversationTs,
+          threadTs: replyThreadTs,
           text: FALLBACK_REPLY,
         });
       }
@@ -368,4 +408,4 @@ export const processSlackEvent = internalAction({
 });
 
 // Exported for unit tests.
-export const __test = { awaitStreamSettle, stripMentions };
+export const __test = { awaitStreamSettle, stripMentions, deriveThreadKeys };

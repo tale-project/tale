@@ -102,12 +102,39 @@ export interface StartAgentChatArgs {
    * earlier markGenerating mutation for faster subscriber notification).
    */
   preAllocatedStreamId?: string;
+  /**
+   * Absolute upper bound (ms epoch) on the computed generation deadline. For
+   * callers that wait on the generation within a bounded window — e.g. the
+   * Slack reply poll — so the deadline can never exceed that window and leave a
+   * completed answer stranded past the poll. Omit for no cap.
+   */
+  maxDeadlineMs?: number;
 }
 
 export interface StartAgentChatResult {
   messageAlreadyExists: boolean;
   /** The stream ID for the AI response (always created for async delivery). */
   streamId: string;
+}
+
+/**
+ * Absolute deadline (ms epoch) for a generation chain. Per-agent `timeoutMs`
+ * takes precedence over the AgentType default (else 420s). `maxDeadlineMs`, when
+ * provided, caps the result — a caller waiting within a bounded window passes it
+ * so the deadline can't outlast that window. `nowMs` is injectable for tests.
+ */
+export function computeDeadlineMs(
+  agentConfig: Pick<SerializableAgentConfig, 'timeoutMs'>,
+  agentType: AgentType,
+  maxDeadlineMs?: number,
+  nowMs: number = Date.now(),
+): number {
+  const deadline =
+    nowMs +
+    (agentConfig.timeoutMs ??
+      AGENT_CONTEXT_CONFIGS[agentType]?.timeoutMs ??
+      420_000);
+  return Math.min(deadline, maxDeadlineMs ?? Infinity);
 }
 
 /**
@@ -226,13 +253,13 @@ export async function startAgentChat(
         }))
       : undefined;
 
-  // Compute absolute deadline for this generation chain
-  // Per-agent timeoutMs takes precedence over the AgentType-based default
-  const deadlineMs =
-    Date.now() +
-    (agentConfig.timeoutMs ??
-      AGENT_CONTEXT_CONFIGS[agentType]?.timeoutMs ??
-      420_000);
+  // Compute absolute deadline for this generation chain (capped by an optional
+  // caller-supplied window — see computeDeadlineMs).
+  const deadlineMs = computeDeadlineMs(
+    agentConfig,
+    agentType,
+    args.maxDeadlineMs,
+  );
 
   // Budget enforcement — if limits exceeded, save a system reply instead of generating
   const userId = thread?.userId;

@@ -47,7 +47,13 @@ async function throttleAndReject(
         'Retry-After': String(Math.ceil(error.retryAfter / 1000)),
       });
     }
-    throw error;
+    // A non-rate-limit failure here (e.g. a transient OCC write-conflict on the
+    // rateLimits row under load) must not surface as a 500 — fall through to the
+    // 401 this request was already getting.
+    console.error(
+      '[slack:events] IP rate-limit check errored; treating as invalid signature',
+      error,
+    );
   }
   return textResponse('Invalid signature', 401);
 }
@@ -136,10 +142,19 @@ export const slackEventsHandler = httpAction(async (ctx, req) => {
   // configured Slack signing secret (read directly — no install row exists yet)
   // and echo the challenge on the first match.
   if (body.type === 'url_verification') {
-    const encryptedSecrets = await ctx.runQuery(
-      internal.integrations.credential_queries.listSlackSigningSecrets,
-      {},
-    );
+    let encryptedSecrets: string[];
+    try {
+      encryptedSecrets = await ctx.runQuery(
+        internal.integrations.credential_queries.listSlackSigningSecrets,
+        {},
+      );
+    } catch (error) {
+      console.error(
+        '[slack:events] failed to list Slack signing secrets',
+        error,
+      );
+      return throttleAndReject(ctx, req);
+    }
     for (const enc of encryptedSecrets) {
       let signingSecret: string;
       try {
@@ -175,10 +190,22 @@ export const slackEventsHandler = httpAction(async (ctx, req) => {
     return throttleAndReject(ctx, req);
   }
 
-  const encryptedSecret = await ctx.runQuery(
-    internal.integrations.slack_installations.resolveSlackSigningSecretByTeamId,
-    { teamId },
-  );
+  let encryptedSecret: string | null;
+  try {
+    encryptedSecret = await ctx.runQuery(
+      internal.integrations.slack_installations
+        .resolveSlackSigningSecretByTeamId,
+      { teamId },
+    );
+  } catch (error) {
+    // A lookup failure leaves us unable to verify — treat as unverifiable
+    // rather than letting it escape as a 500 on a (possibly real) delivery.
+    console.error(
+      `[slack:events] failed to resolve signing secret for team ${teamId}`,
+      error,
+    );
+    return throttleAndReject(ctx, req);
+  }
   if (!encryptedSecret) {
     return throttleAndReject(ctx, req);
   }
@@ -230,9 +257,18 @@ export const slackEventsHandler = httpAction(async (ctx, req) => {
       console.warn(
         `[slack:events] team ${teamId} over rate limit; dropping event ${eventId}`,
       );
-      return emptyAck();
+    } else {
+      // This runs AFTER signature verification, i.e. on confirmed-signed Slack
+      // traffic. A non-rate-limit failure here (e.g. a transient OCC
+      // write-conflict on the rateLimits row under load) must never become a
+      // non-2xx — Slack counts that toward auto-disabling the endpoint. Log and
+      // drop this delivery instead.
+      console.error(
+        `[slack:events] team rate-limit check errored for team ${teamId}; dropping event ${eventId} to keep ACK 2xx`,
+        error,
+      );
     }
-    throw error;
+    return emptyAck();
   }
 
   // Slack re-delivers on a slow ACK; we ACK 200 below before any work, so a
