@@ -163,8 +163,6 @@
             "spaceKey": "{{input.spaceKey}}",
             "version": "{{loop.item.version}}",
             "size": "{{steps.get_page.output.data.result.data.size}}",
-            "extension": "txt",
-            "mimeType": "text/plain",
             "sourceModifiedAt": "{{loop.item.modifiedAt}}",
             "ancestorPath": "{{loop.item.ancestorPath}}",
             "webUrl": "{{loop.item.webUrl}}",

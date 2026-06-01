@@ -80,6 +80,13 @@ describe('documentAction create — fileMetadata back-fill', () => {
       storageId: 'stor_sync',
       documentId: 'doc_synced',
     });
+
+    // extension is derived from the stored blob's filename ('Overview.txt'),
+    // since sync titles are kept clean — and passed to the upsert.
+    const upsert = runMutationCalls.find((c) =>
+      c.name.includes('upsertDocumentByExternalId'),
+    );
+    expect(upsert?.args.extension).toBe('txt');
   });
 
   it('links fileMetadata.documentId after an ad-hoc create (no externalItemId)', async () => {
@@ -102,5 +109,10 @@ describe('documentAction create — fileMetadata back-fill', () => {
       storageId: 'stor_adhoc',
       documentId: 'doc_adhoc',
     });
+
+    const create = runMutationCalls.find((c) =>
+      c.name.includes('createDocument'),
+    );
+    expect(create?.args.extension).toBe('txt');
   });
 });
