@@ -108,6 +108,7 @@ export function DataTablePagination({
             value={pageSize.toString()}
             onValueChange={(value) => onPageSizeChange(parseInt(value, 10))}
             className="h-8 w-auto min-w-16"
+            aria-label={t('pagination.rowsPerPage')}
             options={pageSizeOptions.map((size) => ({
               value: size.toString(),
               label: size.toString(),
@@ -136,6 +137,7 @@ export function DataTablePagination({
           value={currentPage.toString()}
           onValueChange={handlePageSelect}
           className="h-8 w-auto min-w-16"
+          aria-label={t('aria.goToPage')}
           options={Array.from({ length: totalPageCount }, (_, i) => ({
             value: (i + 1).toString(),
             label: (i + 1).toString(),
