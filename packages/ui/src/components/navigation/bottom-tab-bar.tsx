@@ -126,7 +126,7 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
           </>
         )}
       </span>
-      <span className="w-full text-center text-[10px] leading-tight">
+      <span className="w-full truncate text-center text-[10px] leading-tight">
         {item.label}
       </span>
     </button>
