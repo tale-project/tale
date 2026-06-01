@@ -29,7 +29,17 @@ Filter by date range, category, status, actor, resource, or free-text search acr
 
 ## Exporting
 
-Two export formats ship: CSV for spreadsheets and JSON for downstream systems. Both honour the active filters — what you export is what you see. Large exports stream as a download; the toolbar reports progress and reports completion with the file size and row count.
+Two export formats ship: CSV for spreadsheets and JSON for downstream systems. Both honour the active filters — what you export is what you see. Set the filters you want (the worked filter above is the pattern), then choose CSV or JSON from the toolbar above the table. Large exports stream as a download; the toolbar reports progress and completes with the file size and row count.
+
+The CSV arrives as `audit-logs-<timestamp>.csv`, one row per action, with a flat column per field; timestamps are ISO 8601 in UTC and any value containing a comma is quoted:
+
+```csv
+timestamp,action,category,actorEmail,actorId,actorType,actorRole,resourceType,resourceId,resourceName,status,errorMessage
+2026-01-14T03:14:07.000Z,member.role_changed,Member,admin@acme.example,usr_8f3a,user,owner,member,usr_2b91,jordan@acme.example,success,
+2026-01-14T03:15:22.000Z,provider.updated,Provider,admin@acme.example,usr_8f3a,user,owner,provider,prov_openai,OpenAI,success,
+```
+
+The JSON export (`audit-logs-<timestamp>.json`) carries the same rows as full objects plus the fields CSV flattens away — the `previousState`/`newState` diff and the per-row `integrityHash`. Reach for JSON when a downstream system needs the before/after payload or has to re-verify each row against the SHA-256 chain (see [Retention and integrity](#retention-and-integrity)); reach for CSV when a person opens it in a spreadsheet.
 
 ## Retention and integrity
 

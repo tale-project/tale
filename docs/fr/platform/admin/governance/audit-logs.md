@@ -29,7 +29,17 @@ Filtre par plage de dates, catégorie, statut, acteur, ressource ou recherche li
 
 ## Exporter
 
-Deux formats d'export sont livrés : CSV pour les tableurs et JSON pour les systèmes en aval. Les deux respectent les filtres actifs — ce que tu exportes est ce que tu vois. Les exports volumineux se téléchargent en streaming ; la barre d'outils suit la progression et signale la fin avec la taille du fichier et le nombre de lignes.
+Deux formats d'export sont livrés : CSV pour les tableurs et JSON pour les systèmes en aval. Les deux respectent les filtres actifs — ce que tu exportes est ce que tu vois. Définis les filtres voulus (le filtre mis en pratique ci-dessus est le modèle), puis choisis CSV ou JSON dans la barre d'outils au-dessus du tableau. Les exports volumineux se téléchargent en streaming ; la barre d'outils suit la progression et signale la fin avec la taille du fichier et le nombre de lignes.
+
+Le CSV arrive sous `audit-logs-<timestamp>.csv`, une ligne par action, avec une colonne plate par champ ; les horodatages sont en ISO 8601 (UTC) et toute valeur contenant une virgule est mise entre guillemets :
+
+```csv
+timestamp,action,category,actorEmail,actorId,actorType,actorRole,resourceType,resourceId,resourceName,status,errorMessage
+2026-01-14T03:14:07.000Z,member.role_changed,Member,admin@acme.example,usr_8f3a,user,owner,member,usr_2b91,jordan@acme.example,success,
+2026-01-14T03:15:22.000Z,provider.updated,Provider,admin@acme.example,usr_8f3a,user,owner,provider,prov_openai,OpenAI,success,
+```
+
+L'export JSON (`audit-logs-<timestamp>.json`) porte les mêmes lignes en objets complets, plus les champs que le CSV aplatit — le diff `previousState`/`newState` et l'`integrityHash` par ligne. Choisis JSON quand un système en aval a besoin de la charge avant/après ou doit re-vérifier chaque ligne contre la chaîne SHA-256 (vois la section « Rétention et intégrité » plus bas) ; choisis CSV quand une personne l'ouvre dans un tableur.
 
 ## Rétention et intégrité
 

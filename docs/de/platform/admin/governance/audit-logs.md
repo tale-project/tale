@@ -29,7 +29,17 @@ Filtere nach Zeitraum, Kategorie, Status, Akteur, Ressource oder Freitext über 
 
 ## Exportieren
 
-Zwei Exportformate werden ausgeliefert: CSV für Tabellenkalkulationen und JSON für nachgelagerte Systeme. Beide respektieren die aktiven Filter — was du exportierst, ist was du siehst. Große Exporte streamen als Download; die Symbolleiste meldet Fortschritt und meldet Abschluss mit Dateigröße und Zeilenanzahl.
+Zwei Exportformate werden ausgeliefert: CSV für Tabellenkalkulationen und JSON für nachgelagerte Systeme. Beide respektieren die aktiven Filter — was du exportierst, ist was du siehst. Setz die Filter, die du willst (der durchgespielte Filter oben ist das Muster), und wähl dann CSV oder JSON aus der Symbolleiste über der Tabelle. Große Exporte streamen als Download; die Symbolleiste meldet Fortschritt und meldet Abschluss mit Dateigröße und Zeilenanzahl.
+
+Die CSV kommt als `audit-logs-<timestamp>.csv`, eine Zeile pro Aktion, mit einer flachen Spalte pro Feld; Zeitstempel sind ISO 8601 in UTC und jeder Wert mit einem Komma wird in Anführungszeichen gesetzt:
+
+```csv
+timestamp,action,category,actorEmail,actorId,actorType,actorRole,resourceType,resourceId,resourceName,status,errorMessage
+2026-01-14T03:14:07.000Z,member.role_changed,Member,admin@acme.example,usr_8f3a,user,owner,member,usr_2b91,jordan@acme.example,success,
+2026-01-14T03:15:22.000Z,provider.updated,Provider,admin@acme.example,usr_8f3a,user,owner,provider,prov_openai,OpenAI,success,
+```
+
+Der JSON-Export (`audit-logs-<timestamp>.json`) trägt dieselben Zeilen als vollständige Objekte plus die Felder, die CSV wegflacht — den `previousState`/`newState`-Diff und den `integrityHash` pro Zeile. Greif zu JSON, wenn ein nachgelagertes System die Vorher/Nachher-Payload braucht oder jede Zeile gegen die SHA-256-Kette neu verifizieren muss (siehe Abschnitt „Aufbewahrung und Integrität" weiter unten); greif zu CSV, wenn eine Person sie in einer Tabellenkalkulation öffnet.
 
 ## Aufbewahrung und Integrität
 
