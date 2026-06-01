@@ -12,6 +12,11 @@ import type { UserPersonalization } from './build_user_personalization';
  * browser locale → org default — and only feeds rule 3. Appended last in the
  * system prompt so it's the strongest, most recent instruction on output
  * language.
+ *
+ * The rules are evaluated per-message and a translation/explicit-language
+ * request is one-off (#1622): without that, the model tends to keep replying
+ * in the language of a previous one-shot translation instead of mirroring the
+ * user's next message.
  */
 export function responseLanguageDirective(
   fallbackLocale: string | undefined,
@@ -27,6 +32,8 @@ export function responseLanguageDirective(
     '1. **Explicit request.** If the user\'s latest message explicitly asks for a language (e.g. "reply in German", "auf Deutsch", "répondez en français", "translate to French"), use that language.',
     "2. **Message language.** Otherwise, detect the natural language of the user's latest message and reply in that language.",
     `3. **Fallback.** Only if the latest message has no detectable natural language — code-only, a bare URL, pure numbers, a single emoji, or a one- or two-character ambiguous token — ${rule3}.`,
+    '',
+    'Apply these rules fresh to every message. An explicit language request or a translation (rule 1) is one-off: it sets the language for that one reply and does not carry over. When the next message is in another language, rule 2 applies again — reply in the language of that message, not the one you were previously asked to translate into.',
     '',
     'Never use timezone, IP, or geolocation to choose the reply language; only rule 3 uses the fallback.',
   ].join('\n');
