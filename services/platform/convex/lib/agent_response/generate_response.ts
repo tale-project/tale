@@ -1045,9 +1045,13 @@ export async function generateAgentResponse(
     // server/workflow-triggered run). Resolved once and passed to all three
     // prompt assemblies below (shared scope) so a multi-step loop stays in
     // one language.
+    // First non-blank client locale wins; `??` alone would let an empty
+    // string short-circuit the chain past a usable next candidate.
+    const clientLocale = [userContext?.uiLanguage, userContext?.language]
+      .map((locale) => locale?.trim())
+      .find((locale) => locale);
     const fallbackLocale =
-      userContext?.uiLanguage ??
-      userContext?.language ??
+      clientLocale ??
       (organizationId
         ? await ctx.runQuery(
             internal.organizations.internal_queries

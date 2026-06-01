@@ -24,7 +24,10 @@ export function useUserContext(): UserContext {
     [],
   );
   const language = useMemo(() => navigator.language, []);
-  const uiLanguage = i18n.language;
+  // `resolvedLanguage` is the locale actually in effect after i18next's
+  // fallback resolution; `language` is only the requested one (which may not
+  // be loaded/supported), so prefer the resolved value.
+  const uiLanguage = i18n.resolvedLanguage ?? i18n.language;
 
   return useMemo(
     () => ({
