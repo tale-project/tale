@@ -40,6 +40,7 @@
     "@ai-sdk/provider": "3.0.8",
     "@ai-sdk/provider-utils": "4.0.23",
     "@better-auth/api-key": "1.6.11",
+    "@better-auth/passkey": "1.6.11",
     "@casl/ability": "6.8.0",
     "@convex-dev/action-cache": "0.3.0",
     "@convex-dev/agent": "0.6.1",

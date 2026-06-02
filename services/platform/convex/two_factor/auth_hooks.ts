@@ -26,6 +26,10 @@ const ENABLE_PATH = '/two-factor/enable';
 const DISABLE_PATH = '/two-factor/disable';
 const GENERATE_BACKUP_CODES_PATH = '/two-factor/generate-backup-codes';
 const SIGN_IN_EMAIL_PATH = '/sign-in/email';
+// WebAuthn / passkey lifecycle (#1508). A passkey is a second factor, so its
+// enroll/revoke events belong in the same security audit trail as TOTP.
+const PASSKEY_VERIFY_REGISTRATION_PATH = '/passkey/verify-registration';
+const PASSKEY_DELETE_PATH = '/passkey/delete-passkey';
 
 const VERIFY_PATHS = new Set<string>([
   VERIFY_TOTP_PATH,
@@ -184,7 +188,51 @@ export async function twoFactorAfterHook(
     return regenerateBackupCodesAfterHook(ctx, mw, clientIp, userAgent);
   }
 
+  if (mw.path === PASSKEY_VERIFY_REGISTRATION_PATH) {
+    return passkeyEventAfterHook(ctx, mw, clientIp, userAgent, 'passkey_added');
+  }
+
+  if (mw.path === PASSKEY_DELETE_PATH) {
+    return passkeyEventAfterHook(
+      ctx,
+      mw,
+      clientIp,
+      userAgent,
+      'passkey_removed',
+    );
+  }
+
   return undefined;
+}
+
+/**
+ * Audit a passkey enroll/revoke (#1508). Both endpoints require an active
+ * session, and on success better-auth does not throw — so we record the event
+ * for any non-error response from an authenticated user, mirroring the TOTP
+ * enable/disable handlers. A wrong/no session is a no-op (nothing to attribute).
+ */
+async function passkeyEventAfterHook(
+  ctx: GenericCtx<DataModel>,
+  mw: AuthMiddlewareCtx,
+  clientIp: string | undefined,
+  userAgent: string | undefined,
+  action: 'passkey_added' | 'passkey_removed',
+): Promise<void> {
+  if (mw.context.returned instanceof APIError) return;
+  const userId = mw.context.session?.user?.id;
+  if (!userId) return;
+
+  const runCtx = requireRunMutationCtx(ctx);
+  await runCtx.runMutation(
+    internal.two_factor.internal_mutations.logEnrollmentEvent,
+    {
+      userId,
+      actorId: userId,
+      action,
+      ip: clientIp,
+      userAgent,
+    },
+  );
 }
 
 async function verifyAfterHook(

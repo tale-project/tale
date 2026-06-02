@@ -23,6 +23,23 @@ import {
  */
 export type TwoFactorGraceDecision = 'ok' | 'grace' | 'blocked';
 
+/**
+ * Whether the user has at least one registered WebAuthn passkey (#1508).
+ * Reads the better-auth `passkey` table via the component adapter so a passkey
+ * can satisfy an enforced `two_factor_policy` alongside TOTP.
+ */
+export async function userHasPasskey(
+  ctx: GenericQueryCtx<DataModel>,
+  userId: string,
+): Promise<boolean> {
+  const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+    model: 'passkey',
+    paginationOpts: { cursor: null, numItems: 1 },
+    where: [{ field: 'userId', value: userId, operator: 'eq' }],
+  });
+  return (res?.page?.length ?? 0) > 0;
+}
+
 export interface TwoFactorEnforcementResult {
   decision: TwoFactorGraceDecision;
   /**
@@ -122,6 +139,10 @@ export async function evaluateTwoFactorEnforcement(
     userId: string;
     twoFactorEnabled: boolean;
     twoFactorGraceUntil: number | null | undefined;
+    // A registered passkey (#1508) is a phishing-resistant second factor and
+    // satisfies an enforced policy exactly as TOTP does. Optional + defaults
+    // false so existing callers/tests are unchanged.
+    hasPasskey?: boolean;
     now?: number;
   },
 ): Promise<TwoFactorEnforcementResult> {
@@ -137,7 +158,7 @@ export async function evaluateTwoFactorEnforcement(
       ? { ...DEFAULT_TWO_FACTOR_POLICY }
       : mergeStrictestTwoFactorPolicy(policies);
 
-  if (!policy.enforced || args.twoFactorEnabled) {
+  if (!policy.enforced || args.twoFactorEnabled || args.hasPasskey) {
     return {
       decision: 'ok',
       graceUntilToSet: null,

@@ -32,6 +32,7 @@ import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
 
 import { useUpdatePassword, useUpdateUserName } from '../hooks/mutations';
+import { PasskeySection } from './passkey-section';
 import { TwoFactorSection } from './two-factor-section';
 
 interface ProfileFormData {
@@ -87,6 +88,7 @@ function AccountFormView({ hasCredential }: { hasCredential: boolean }) {
       <ProfileSection />
       <PasswordSection hasCredential={hasCredential} />
       <TwoFactorSection />
+      <PasskeySection />
     </SettingsPage>
   );
 }

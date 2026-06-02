@@ -1,4 +1,5 @@
 import { apiKeyClient } from '@better-auth/api-key/client';
+import { passkeyClient } from '@better-auth/passkey/client';
 import { convexClient } from '@convex-dev/better-auth/client/plugins';
 import {
   organizationClient,
@@ -45,6 +46,9 @@ export const authClient = createAuthClient({
   plugins: [
     convexClient(),
     apiKeyClient(),
+    // WebAuthn / passkeys (#1508). Exposes authClient.passkey.* for the
+    // registration + authentication ceremonies the browser drives.
+    passkeyClient(),
     twoFactorClient({
       // Hook runs before the caller's .then() resolves, but the caller also
       // still receives `{ twoFactorRedirect: true }` in the response data —

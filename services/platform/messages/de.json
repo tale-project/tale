@@ -247,6 +247,8 @@
       "signingIn": "Anmeldung läuft...",
       "loginButton": "Anmelden",
       "continueWithSso": "Weiter mit SSO",
+      "continueWithPasskey": "Mit einem Passkey anmelden",
+      "passkeyFailed": "Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es erneut oder nutze dein Passwort.",
       "wrongCredentials": "Falsche E-Mail oder falsches Passwort",
       "accountLockedGeneric": "Konto wegen wiederholter Fehlversuche vorübergehend gesperrt. Bitte später erneut versuchen oder einen Administrator kontaktieren.",
       "accountLockedSeconds": "Konto vorübergehend gesperrt. In {seconds, plural, one {# Sekunde} other {# Sekunden}} erneut versuchen oder einen Administrator kontaktieren.",
@@ -5280,6 +5282,8 @@
           "2fa_enrolled": "Zwei-Faktor-Authentifizierung eingerichtet",
           "2fa_disabled": "Zwei-Faktor-Authentifizierung deaktiviert",
           "2fa_reset_by_admin": "Zwei-Faktor-Authentifizierung von Admin zurückgesetzt",
+          "passkey_added": "Passkey registriert",
+          "passkey_removed": "Passkey entfernt",
           "project.created": "Projekt erstellt",
           "project.updated": "Projekt aktualisiert",
           "project.sharing.changed": "Projektfreigabe geändert",
@@ -5671,6 +5675,23 @@
       "passwordPromptDescription": "Bestätige dein Passwort, um die Einrichtung der Zwei-Faktor-Authentifizierung zu starten.",
       "disablePromptDescription": "Bestätige dein Passwort, um die Zwei-Faktor-Authentifizierung auszuschalten.",
       "regeneratePromptDescription": "Bestätige dein Passwort. Beim Neuerzeugen werden alle bisherigen Backup-Codes ungültig."
+    },
+    "passkeys": {
+      "title": "Passkeys",
+      "description": "Melde dich mit einem Passkey an (Face ID, Touch ID, Windows Hello oder ein Security-Key). Ein Passkey ist phishing-resistent und erfüllt die Zwei-Faktor-Anforderung deiner Organisation.",
+      "addButton": "Passkey hinzufügen",
+      "revokeButton": "Entfernen",
+      "empty": "Noch keine Passkeys registriert.",
+      "unnamed": "Passkey",
+      "registered": "Passkey registriert",
+      "revoked": "Passkey entfernt",
+      "namePromptDescription": "Gib diesem Passkey einen Namen, damit du ihn später wiedererkennst (z. B. \"MacBook Touch ID\").",
+      "nameLabel": "Passkey-Name",
+      "namePlaceholder": "MacBook Touch ID",
+      "errors": {
+        "registerFailed": "Passkey konnte nicht registriert werden. Bitte versuche es erneut.",
+        "revokeFailed": "Passkey konnte nicht entfernt werden. Bitte versuche es erneut."
+      }
     },
     "setup": {
       "title": "Zwei-Faktor-Authentifizierung einrichten",

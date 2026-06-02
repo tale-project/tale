@@ -89,6 +89,27 @@ describe('evaluateTwoFactorEnforcement', () => {
     expect(result.decision).toBe('ok');
   });
 
+  it("returns 'ok' when the user has a passkey, even with zero grace (#1508)", async () => {
+    // A registered passkey is a phishing-resistant second factor, so it
+    // satisfies enforcement alongside TOTP — even when gracePeriodDays is 0
+    // (which would otherwise block an unenrolled credential user immediately).
+    mockGetTwoFactorPolicy.mockResolvedValue({
+      enforced: true,
+      gracePeriodDays: 0,
+      exemptSsoUsers: true,
+    });
+    const ctx = createCtx({});
+    const result = await evaluateTwoFactorEnforcement(ctx as never, {
+      userId: 'u1',
+      twoFactorEnabled: false,
+      twoFactorGraceUntil: null,
+      hasPasskey: true,
+      now: 1_000_000,
+    });
+    expect(result.decision).toBe('ok');
+    expect(result.graceDeadline).toBeNull();
+  });
+
   it("returns 'ok' for SSO-only users when policy exempts them", async () => {
     mockGetTwoFactorPolicy.mockResolvedValue({
       enforced: true,

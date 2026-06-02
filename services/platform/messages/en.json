@@ -247,6 +247,8 @@
       "signingIn": "Signing in...",
       "loginButton": "Log in",
       "continueWithSso": "Continue with SSO",
+      "continueWithPasskey": "Sign in with a passkey",
+      "passkeyFailed": "Passkey sign-in failed or was cancelled. Try again or use your password.",
       "wrongCredentials": "Wrong email or password",
       "accountLockedGeneric": "Account temporarily locked due to repeated failures. Please try again later or contact an administrator.",
       "accountLockedSeconds": "Account temporarily locked. Try again in {seconds, plural, one {# second} other {# seconds}}, or contact an administrator.",
@@ -5541,6 +5543,8 @@
           "2fa_enrolled": "Two-factor authentication enrolled",
           "2fa_disabled": "Two-factor authentication disabled",
           "2fa_reset_by_admin": "Two-factor authentication reset by admin",
+          "passkey_added": "Passkey registered",
+          "passkey_removed": "Passkey removed",
           "project.created": "Project created",
           "project.updated": "Project updated",
           "project.sharing.changed": "Project sharing changed",
@@ -5932,6 +5936,23 @@
       "passwordPromptDescription": "Confirm your password to start setting up two-factor authentication.",
       "disablePromptDescription": "Confirm your password to turn off two-factor authentication.",
       "regeneratePromptDescription": "Confirm your password. Generating new codes invalidates all previous backup codes."
+    },
+    "passkeys": {
+      "title": "Passkeys",
+      "description": "Sign in with a passkey (Face ID, Touch ID, Windows Hello, or a security key). A passkey is phishing-resistant and satisfies your organization's two-factor requirement.",
+      "addButton": "Add a passkey",
+      "revokeButton": "Remove",
+      "empty": "No passkeys registered yet.",
+      "unnamed": "Passkey",
+      "registered": "Passkey registered",
+      "revoked": "Passkey removed",
+      "namePromptDescription": "Give this passkey a name so you can recognize it later (e.g. \"MacBook Touch ID\").",
+      "nameLabel": "Passkey name",
+      "namePlaceholder": "MacBook Touch ID",
+      "errors": {
+        "registerFailed": "Could not register the passkey. Please try again.",
+        "revokeFailed": "Could not remove the passkey. Please try again."
+      }
     },
     "setup": {
       "title": "Set up two-factor authentication",

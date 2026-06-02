@@ -11,7 +11,7 @@ import { isRecord } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
-import { evaluateTwoFactorEnforcement } from './helpers';
+import { evaluateTwoFactorEnforcement, userHasPasskey } from './helpers';
 
 /**
  * Count the remaining backup codes for a user by reading the encrypted
@@ -55,6 +55,7 @@ export const getStatus = query({
     v.object({
       authenticated: v.literal(true),
       twoFactorEnabled: v.boolean(),
+      hasPasskey: v.boolean(),
       enforced: v.boolean(),
       decision: v.union(
         v.literal('ok'),
@@ -96,10 +97,15 @@ export const getStatus = query({
       (row: unknown) => isRecord(row) && row.providerId === 'credential',
     );
 
+    // A registered passkey (#1508) satisfies an enforced 2FA policy alongside
+    // TOTP, so fold it into the enforcement decision and surface it to the UI.
+    const hasPasskey = await userHasPasskey(ctx, authUser.userId);
+
     const result = await evaluateTwoFactorEnforcement(ctx, {
       userId: authUser.userId,
       twoFactorEnabled,
       twoFactorGraceUntil,
+      hasPasskey,
     });
 
     // Surface remaining backup-code count so the dashboard can nudge
@@ -124,6 +130,7 @@ export const getStatus = query({
     return {
       authenticated: true as const,
       twoFactorEnabled,
+      hasPasskey,
       enforced: result.policy.enforced,
       decision: result.decision,
       // Surface the *effective* deadline (capped by current policy), not the
