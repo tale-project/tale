@@ -95,23 +95,23 @@ interface UseSendMessageParams {
    */
   projectId?: string;
   /**
-   * Auto-scroll intent ref owned by chat-interface.tsx. The hook sets it
-   * IMMEDIATELY before each `setPendingMessage(...)` so the intent is
-   * fresh when the MutationObserver picks up the new bubble.
+   * Auto-scroll force-snap ref owned by chat-interface.tsx (see
+   * ChatScroll.scrollIntentRef). The hook sets it IMMEDIATELY before each
+   * `setPendingMessage(...)` so the snap intent is fresh when the
+   * MutationObserver picks up the new bubble.
    *
    * Why this is per-`setPendingMessage` rather than once at entry:
    * `bindCompletedJobsToMessage` for video-link attachments awaits a
-   * 50-200 ms server round-trip BEFORE the optimistic message lands. If
-   * the caller sets the intent before that await, any unrelated
-   * Resize/MutationObserver fire during the wait downgrades 'smooth'
-   * → 'instant' (chat-interface.tsx:549-552), or worse, an `onScroll`
-   * with `currentTop < prevTop` clears it to null (line 546). By the
-   * time the optimistic bubble actually mounts, the intent is gone and
-   * auto-scroll-to-bottom doesn't fire — visible as "scroll didn't
-   * follow after sending a video link" while plain text / images work
-   * (those paths skip the bind round-trip).
+   * 50-200 ms server round-trip BEFORE the optimistic message lands. If the
+   * caller sets the intent before that await, a user scroll-up during the
+   * wait clears the ref (the scroll machine drops a pending snap the moment
+   * the user escapes the pin). By the time the optimistic bubble mounts the
+   * intent would be gone and the view wouldn't snap to the new message —
+   * visible as "scroll didn't follow after sending a video link" while plain
+   * text / images work (those paths skip the bind round-trip). Re-marking
+   * adjacent to every `setPendingMessage` keeps the snap armed.
    */
-  scrollIntentRef?: MutableRefObject<ScrollBehavior | null>;
+  scrollIntentRef?: MutableRefObject<boolean>;
   /**
    * Restore the composer chips for the given videoLinkJob ids. Called from
    * inside `sendMessage` when bind or downstream `chatWithAgent` throws so
@@ -188,13 +188,19 @@ export function useSendMessage({
       // Set the auto-scroll-to-bottom intent IMMEDIATELY before any
       // setPendingMessage call. See `UseSendMessageParams.scrollIntentRef`
       // docstring — setting it once at the outer `handleSendMessage`
-      // entry (before this hook's awaits) lets unrelated observer
-      // fires downgrade/clear the ref during long awaits (e.g. the
-      // video-link `bindCompletedJobsToMessage` round-trip), so by the
-      // time the optimistic bubble lands, scroll doesn't fire.
+      // entry (before this hook's awaits) lets a user scroll-up during a
+      // long await clear the pending snap (the scroll machine drops it the
+      // moment the user escapes the pin, e.g. during the video-link
+      // `bindCompletedJobsToMessage` round-trip), so by the time the
+      // optimistic bubble lands, the snap wouldn't fire.
       const markScrollIntent = () => {
         if (scrollIntentRef) {
-          scrollIntentRef.current = threadId ? 'smooth' : 'instant';
+          // Force-snap to the bottom on the next content settle. The snap is
+          // always INSTANT (the send reposition is a jump — the new user
+          // message lands at the viewport top via the response slack — and a
+          // smooth animation would chase the still-settling slack + streaming
+          // growth and stall part-way down). See ChatScroll.scrollIntentRef.
+          scrollIntentRef.current = true;
         }
       };
 
@@ -535,9 +541,8 @@ export function useSendMessage({
             currentArena.setArenaThreadIdB(newB);
             setPendingThreadId(tIdA);
             // Re-mark intent: an `await createThread` round-trip just
-            // landed before this setPendingMessage, and observer fires
-            // during that window may have downgraded/cleared the ref
-            // set earlier above.
+            // landed before this setPendingMessage, and a user scroll-up
+            // during that window may have cleared the snap set earlier above.
             markScrollIntent();
             setPendingMessage({
               content: messageToSend,
