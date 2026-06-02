@@ -17,6 +17,10 @@ export const GOVERNANCE_POLICY_TYPES = [
   'login_policy',
   'password_policy',
   'two_factor_policy',
+  // Org-level session idle timeout (#1502). Tightens the deployment-wide
+  // SESSION_IDLE_TIMEOUT_MINUTES backstop for this org; drives the client
+  // watchdog. Config shape: `sessionIdleTimeoutConfigSchema`.
+  'session_idle_timeout',
   'chat_filter',
   'moderation_provider',
   // Org-level default for the custom-instructions feature. Per-user

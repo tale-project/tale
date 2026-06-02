@@ -1,6 +1,12 @@
 import safe from 'safe-regex2';
 import { z } from 'zod/v4';
 
+import {
+  DEFAULT_SESSION_IDLE_TIMEOUT_MINUTES,
+  SESSION_IDLE_TIMEOUT_MAX_MINUTES,
+  SESSION_IDLE_TIMEOUT_MIN_MINUTES,
+} from '../session-idle';
+
 // Single source of truth for policy types. The Convex side
 // `governance/schema.ts::GOVERNANCE_POLICY_TYPES` MUST stay in sync;
 // drift causes silent type holes and `as const` casts at call sites.
@@ -16,6 +22,10 @@ export const POLICY_TYPES = [
   'login_policy',
   'password_policy',
   'two_factor_policy',
+  // Org-level session idle timeout (#1502). Tightens the deployment-wide
+  // `SESSION_IDLE_TIMEOUT_MINUTES` backstop for this org; drives the client
+  // watchdog. See `sessionIdleTimeoutConfigSchema`.
+  'session_idle_timeout',
   'chat_filter',
   'moderation_provider',
   'custom_instructions',
@@ -336,6 +346,28 @@ export const twoFactorPolicyConfigSchema = z.object({
 export type TwoFactorPolicyConfig = z.infer<typeof twoFactorPolicyConfigSchema>;
 export const DEFAULT_TWO_FACTOR_POLICY: TwoFactorPolicyConfig =
   twoFactorPolicyConfigSchema.parse({});
+
+// Session idle timeout (issue #1502).
+// - enabled: when false (or the row is absent), the org defers to the
+//   deployment-wide `SESSION_IDLE_TIMEOUT_MINUTES` backstop — no change.
+// - idleTimeoutMinutes: the org's desired inactivity window. The effective
+//   window can only TIGHTEN the deployment backstop, never loosen past it
+//   (clamped in `resolveEffectiveIdleMinutes`). Bounds mirror the env parser
+//   (1 min … 24 h).
+export const sessionIdleTimeoutConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  idleTimeoutMinutes: z
+    .number()
+    .int()
+    .min(SESSION_IDLE_TIMEOUT_MIN_MINUTES)
+    .max(SESSION_IDLE_TIMEOUT_MAX_MINUTES)
+    .default(DEFAULT_SESSION_IDLE_TIMEOUT_MINUTES),
+});
+export type SessionIdleTimeoutConfig = z.infer<
+  typeof sessionIdleTimeoutConfigSchema
+>;
+export const DEFAULT_SESSION_IDLE_TIMEOUT: SessionIdleTimeoutConfig =
+  sessionIdleTimeoutConfigSchema.parse({});
 
 // ---------------------------------------------------------------------------
 // Chat filter (banned words + custom regex) — see governance/chat_filter/

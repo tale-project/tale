@@ -13,6 +13,7 @@ import {
   passwordPolicyConfigSchema,
   piiConfigSchema,
   retentionPolicyConfigSchema,
+  sessionIdleTimeoutConfigSchema,
   systemPromptConfigSchema,
   twoFactorPolicyConfigSchema,
   uploadPolicyConfigSchema,
@@ -231,6 +232,15 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid two-factor policy configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'session_idle_timeout') {
+      const parsed = sessionIdleTimeoutConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid session idle timeout configuration: ${parsed.error.message}`,
         );
       }
     }

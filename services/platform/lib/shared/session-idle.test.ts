@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   parseSessionIdleTimeoutMinutes,
+  resolveEffectiveIdleMinutes,
   sessionExpiryMs,
   sessionIdleWindowSeconds,
 } from './session-idle';
@@ -53,5 +54,55 @@ describe('session idle timeout config (#1502)', () => {
   it('clamps above the 24h maximum', () => {
     process.env[KEY] = '5000';
     expect(parseSessionIdleTimeoutMinutes()).toBe(24 * 60);
+  });
+});
+
+describe('resolveEffectiveIdleMinutes (#1502 — org policy × env backstop)', () => {
+  it('returns null when neither env nor org policy is configured', () => {
+    expect(
+      resolveEffectiveIdleMinutes({ policy: null, envMinutes: null }),
+    ).toBeNull();
+  });
+
+  it('falls back to the env backstop when the org policy is absent', () => {
+    expect(resolveEffectiveIdleMinutes({ policy: null, envMinutes: 30 })).toBe(
+      30,
+    );
+  });
+
+  it('falls back to the env backstop when the org policy is disabled', () => {
+    expect(
+      resolveEffectiveIdleMinutes({
+        policy: { enabled: false, idleTimeoutMinutes: 5 },
+        envMinutes: 30,
+      }),
+    ).toBe(30);
+  });
+
+  it('lets an enabled org policy TIGHTEN the env backstop', () => {
+    expect(
+      resolveEffectiveIdleMinutes({
+        policy: { enabled: true, idleTimeoutMinutes: 5 },
+        envMinutes: 30,
+      }),
+    ).toBe(5);
+  });
+
+  it('never loosens past the env backstop (env is the hard cap)', () => {
+    expect(
+      resolveEffectiveIdleMinutes({
+        policy: { enabled: true, idleTimeoutMinutes: 60 },
+        envMinutes: 30,
+      }),
+    ).toBe(30);
+  });
+
+  it('applies the org window as-is when no env backstop is set', () => {
+    expect(
+      resolveEffectiveIdleMinutes({
+        policy: { enabled: true, idleTimeoutMinutes: 15 },
+        envMinutes: null,
+      }),
+    ).toBe(15);
   });
 });

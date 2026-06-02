@@ -82,6 +82,10 @@ const POLICY_TYPES_READABLE_BY_MEMBER: ReadonlySet<string> = new Set([
   'user_memories',
   'upload_policy',
   'default_models',
+  // The client idle watchdog (#1502) runs for every signed-in member and
+  // reads this to size its inactivity window. Non-sensitive (a timeout
+  // value), so any org member may read it.
+  'session_idle_timeout',
 ]);
 
 export const getPolicy = query({

@@ -2398,6 +2398,16 @@
       "saved": "Login policy has been updated",
       "saveFailed": "Failed to save login policy"
     },
+    "sessionIdleTimeout": {
+      "title": "Session idle timeout",
+      "description": "Sign members out after a period of inactivity. This can only shorten the deployment-wide limit, never extend it.",
+      "enabled": "Enable session idle timeout",
+      "minutes": "Idle timeout (minutes)",
+      "minutesHint": "Minutes of inactivity before a member is signed out. Capped by the deployment's SESSION_IDLE_TIMEOUT_MINUTES when set. Default: 30.",
+      "invalid": "Idle timeout must be an integer between 1 and 1440 minutes.",
+      "saved": "Session idle timeout has been updated",
+      "saveFailed": "Failed to save session idle timeout"
+    },
     "featureFlags": {
       "title": "Feature controls",
       "description": "Enable or disable features per user, team, or role.",
