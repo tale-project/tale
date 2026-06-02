@@ -838,7 +838,15 @@
       "defaultAgent": "Assistant",
       "searchPlaceholder": "Rechercher des agents",
       "noResults": "Aucun agent trouvé",
-      "addAgent": "Ajouter un agent"
+      "addAgent": "Ajouter un agent",
+      "capabilities": {
+        "label": "Capacités",
+        "web": "Recherche web",
+        "docs": "Documents",
+        "code": "Exécution de code",
+        "image": "Génération d'images",
+        "integrations": "Intégrations"
+      }
     },
     "modelSelector": {
       "label": "Sélectionner un modèle",
@@ -849,6 +857,13 @@
       "noModelsAvailable": "Aucun modèle disponible",
       "recommended": "Recommandé",
       "noApiKey": "Aucune clé API configurée pour le fournisseur de ce modèle — ajoutes-en une dans Paramètres → API.",
+      "providerTooltip": "Acheminé via {provider}",
+      "quantization": {
+        "fp8": "Qualité supérieure, plus lent",
+        "fp6": "Qualité et vitesse équilibrées",
+        "fp4": "Plus rapide et moins cher, qualité légèrement inférieure",
+        "unknown": "Variante de quantification {variant}"
+      },
       "tags": {
         "chat": "Chat",
         "embedding": "Embedding",

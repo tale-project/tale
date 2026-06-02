@@ -837,7 +837,15 @@
       "defaultAgent": "Assistant",
       "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
-      "addAgent": "Add agent"
+      "addAgent": "Add agent",
+      "capabilities": {
+        "label": "Capabilities",
+        "web": "Web search",
+        "docs": "Documents",
+        "code": "Code execution",
+        "image": "Image generation",
+        "integrations": "Integrations"
+      }
     },
     "modelSelector": {
       "label": "Select model",
@@ -848,6 +856,13 @@
       "noModelsAvailable": "No models available",
       "recommended": "Recommended",
       "noApiKey": "No API key configured for this model's provider — add one in Settings → API.",
+      "providerTooltip": "Routed via {provider}",
+      "quantization": {
+        "fp8": "Higher quality, slower",
+        "fp6": "Balanced quality and speed",
+        "fp4": "Faster and cheaper, slightly lower quality",
+        "unknown": "Quantization variant {variant}"
+      },
       "tags": {
         "chat": "Chat",
         "embedding": "Embedding",

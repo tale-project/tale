@@ -54,6 +54,25 @@ function getModelShortName(modelId: string): string {
   return slash >= 0 ? modelId.slice(slash + 1) : modelId;
 }
 
+// Quantization labels (fp8, fp4, fp6, ...) are opaque to most users — they
+// describe the numeric precision of the model's weights. Each variant trades
+// quality for speed/cost. Known variants get a plain-English hover tooltip;
+// unknown variants fall back to a generic "variant {X}" hint.
+function getQuantizationTooltip(
+  quantization: string,
+  t: (key: string, vars?: Record<string, string>) => string,
+): string {
+  const known: Record<string, string> = {
+    fp8: 'modelSelector.quantization.fp8',
+    fp6: 'modelSelector.quantization.fp6',
+    fp4: 'modelSelector.quantization.fp4',
+  };
+  const key = known[quantization.toLowerCase()];
+  return key
+    ? t(key)
+    : t('modelSelector.quantization.unknown', { variant: quantization });
+}
+
 export const ModelSelector = memo(function ModelSelector({
   organizationId,
   projectId,
@@ -134,15 +153,6 @@ export const ModelSelector = memo(function ModelSelector({
       return modelInfoMap.get(parsed.modelId)?.providerName;
     },
     [modelInfoMap],
-  );
-
-  const renderTagIcons = useCallback(
-    (option: SearchableSelectOption): ReactNode => {
-      const info = modelInfoMap.get(stripModelRefQualifier(option.value));
-      if (!info?.tags.length) return null;
-      return <ModelTagIcons tags={info.tags} t={t} />;
-    },
-    [modelInfoMap, t],
   );
 
   const chatModels = useMemo(() => {
@@ -329,14 +339,25 @@ export const ModelSelector = memo(function ModelSelector({
         </Badge>
       ) : null;
       const providerBadge = providerSlug ? (
-        <Badge variant="outline" className="text-[10px] font-normal">
-          {startCase(providerSlug)}
-        </Badge>
+        <span
+          title={t('modelSelector.providerTooltip', {
+            provider: startCase(providerSlug),
+          })}
+        >
+          <Badge variant="outline" className="text-[10px] font-normal">
+            {startCase(providerSlug)}
+          </Badge>
+        </span>
       ) : null;
       const variantBadge = quantization ? (
-        <Badge variant="outline" className="text-[10px] font-normal">
-          {getVariantBadgeLabel(quantization)}
-        </Badge>
+        <span title={getQuantizationTooltip(quantization, t)}>
+          <Badge variant="outline" className="text-[10px] font-normal">
+            {getVariantBadgeLabel(quantization)}
+          </Badge>
+        </span>
+      ) : null;
+      const tagIcons = info?.tags.length ? (
+        <ModelTagIcons tags={info.tags} t={t} />
       ) : null;
       return {
         value: ref,
@@ -351,6 +372,11 @@ export const ModelSelector = memo(function ModelSelector({
             </>
           ) : undefined,
         description: info?.description,
+        meta: tagIcons ? (
+          <span className="text-muted-foreground flex items-center gap-1.5">
+            {tagIcons}
+          </span>
+        ) : undefined,
       };
     })
     // Project-recommended models float to the top; order is otherwise stable.
@@ -378,14 +404,12 @@ export const ModelSelector = memo(function ModelSelector({
       align="start"
       side="top"
       sideOffset={8}
-      contentClassName="w-[22rem]"
+      contentClassName="bg-card w-[22rem]"
       tooltip={t('modelSelector.label')}
       tooltipSide="top"
       searchPlaceholder={t('modelSelector.searchPlaceholder')}
       emptyText={t('modelSelector.noResults')}
       aria-label={t('modelSelector.label')}
-      optionAction={renderTagIcons}
-      showRadio
       trigger={
         <Button
           type="button"

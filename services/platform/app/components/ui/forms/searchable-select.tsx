@@ -33,6 +33,12 @@ export interface SearchableSelectOption {
    */
   labelBadge?: ReactNode;
   description?: string;
+  /**
+   * Optional meta row rendered below the description (e.g. capability icons,
+   * "Requires X" hints). Lets rows expose structured info without competing
+   * with the title for horizontal space.
+   */
+  meta?: ReactNode;
   disabled?: boolean;
 }
 
@@ -526,6 +532,7 @@ function SearchableSelectOptionItem({
             {option.description}
           </Text>
         )}
+        {option.meta && <div className="mt-1.5">{option.meta}</div>}
       </div>
       {!showRadio && isSelected && (
         <Check className="text-primary size-4 shrink-0" aria-hidden="true" />

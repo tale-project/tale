@@ -8,6 +8,7 @@ import { Bot, ChevronDown, Plus } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
+import { AgentCapabilityBadges } from '@/app/features/agents/components/agent-capability-badges';
 import { CreateAgentDialog } from '@/app/features/agents/components/agent-create-dialog';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
@@ -74,11 +75,16 @@ export const AgentSelector = memo(function AgentSelector({
           label: agent.displayName,
           description: agent.description || '',
           isDefaultChat: agent.name === 'chat-agent',
-          labelBadge: missingTitle ? (
-            <span className="text-muted-foreground text-xs">
-              {tComposer('requiresIntegration', { name: missingTitle })}
-            </span>
-          ) : undefined,
+          meta: (
+            <div className="flex items-center justify-between gap-2">
+              <AgentCapabilityBadges agent={agent} />
+              {missingTitle && (
+                <span className="text-muted-foreground shrink-0 text-xs">
+                  {tComposer('requiresIntegration', { name: missingTitle })}
+                </span>
+              )}
+            </div>
+          ),
           ready: missing.length === 0,
         };
       })
@@ -131,7 +137,7 @@ export const AgentSelector = memo(function AgentSelector({
         align="start"
         side="top"
         sideOffset={8}
-        contentClassName="w-[16.25rem]"
+        contentClassName="bg-card w-[16.25rem]"
         tooltip={t('agentSelector.label')}
         tooltipSide="top"
         searchPlaceholder={t('agentSelector.searchPlaceholder')}

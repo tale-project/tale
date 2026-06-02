@@ -193,6 +193,7 @@ export function useChatAgents(organizationId: string) {
               ? a.primaryBehavior
               : undefined,
           supportedModels: a.supportedModels,
+          toolNames: Array.isArray(a.toolNames) ? a.toolNames : undefined,
           integrationBindings: Array.isArray(a.integrationBindings)
             ? a.integrationBindings
             : undefined,
