@@ -10,6 +10,13 @@ interface TooltipProps {
   children: ReactNode;
   side?: 'top' | 'right' | 'bottom' | 'left';
   sideOffset?: number;
+  /**
+   * Minimum gap (px) kept between the tooltip and the viewport edge when Radix
+   * flips/shifts it to avoid a collision. Without this the tooltip can sit
+   * flush against an edge and visually overlap adjacent controls in cramped
+   * toolbars (e.g. the composer's attach button) — #1461.
+   */
+  collisionPadding?: number;
   delayDuration?: number;
   contentClassName?: string;
   open?: boolean;
@@ -21,6 +28,7 @@ export function Tooltip({
   children,
   side,
   sideOffset = 4,
+  collisionPadding = 8,
   delayDuration = 300,
   contentClassName,
   open,
@@ -36,6 +44,7 @@ export function Tooltip({
           <TooltipPrimitive.Content
             side={side}
             sideOffset={sideOffset}
+            collisionPadding={collisionPadding}
             className={cn(
               'z-[60] overflow-hidden rounded-lg border bg-foreground p-2 py-1 text-xs text-background shadow-md animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
               contentClassName,
