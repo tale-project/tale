@@ -65,6 +65,8 @@ Run-code is the riskiest surface in the product — the only place where user-su
 
 `METRICS_BEARER_TOKEN` is unset in `.env.example` — that is intentional, so a fresh install does not leak metrics. Set the token, scrape from your Prometheus, and the alert thresholds in [Operations](/self-hosted/operate/observability/operations) cover the customer-impacting signals.
 
+The audit-log hash chain is verified automatically every night. Any break raises a critical security alert to org admins — in the notification bell, and in your Slack channel when one is connected — so tampering surfaces even when nobody is watching the logs. You can re-run the same verification on demand from the admin audit-log page.
+
 ## Where this fits
 
 Hardening is not a one-pass task — the list above is what to walk before launch, and re-walk after every upgrade or after every change to the network shape. The next thing worth reading after this is whichever row above you have not done yet.
