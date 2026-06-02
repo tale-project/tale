@@ -1,7 +1,6 @@
 import { v } from 'convex/values';
 
 import type { MemberRole } from '../../lib/shared/schemas/organizations';
-import { getString, isRecord } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { query, QueryCtx } from '../_generated/server';
 import {
@@ -11,7 +10,12 @@ import {
 } from '../lib/rls';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
-import type { BetterAuthFindManyResult, BetterAuthMember } from './types';
+import type {
+  BetterAuthFindManyResult,
+  BetterAuthMember,
+  BetterAuthOrganization,
+  BetterAuthUser,
+} from './types';
 import { memberRoleValidator } from './validators';
 
 interface BetterAuthTeam {
@@ -144,46 +148,41 @@ export async function listByOrganizationHandler(
     return [];
   }
 
-  return Promise.all(
-    result.page.map(async (member) => {
-      let displayName: string | undefined;
-      let email: string | undefined;
-      let twoFactorEnabled = false;
-      try {
-        const userResult = await ctx.runQuery(
-          components.betterAuth.adapter.findOne,
-          {
-            model: 'user',
-            where: [{ field: '_id', value: member.userId, operator: 'eq' }],
-          },
-        );
-        displayName = userResult?.name;
-        email = userResult?.email;
-        twoFactorEnabled = userResult?.twoFactorEnabled === true;
-      } catch (error) {
-        console.warn(
-          '[Members] Failed to fetch user details',
-          member.userId,
-          error,
-        );
+  // Batch-fetch every member's user record in ONE `in` query + a Map join,
+  // replacing the previous findOne-per-member N+1.
+  const userIds = [...new Set(result.page.map((member) => member.userId))];
+  const usersById = new Map<string, BetterAuthUser>();
+  if (userIds.length > 0) {
+    try {
+      const usersResult: BetterAuthFindManyResult<BetterAuthUser> =
+        await ctx.runQuery(components.betterAuth.adapter.findMany, {
+          model: 'user',
+          paginationOpts: { cursor: null, numItems: userIds.length },
+          where: [{ field: '_id', value: userIds, operator: 'in' }],
+        });
+      for (const user of usersResult?.page ?? []) {
+        usersById.set(user._id, user);
       }
+    } catch (error) {
+      console.warn('[Members] Failed to batch-fetch user details', error);
+    }
+  }
 
-      const role: MemberRole = isValidRole(member.role)
-        ? member.role
-        : 'member';
+  return result.page.map((member) => {
+    const user = usersById.get(member.userId);
+    const role: MemberRole = isValidRole(member.role) ? member.role : 'member';
 
-      return {
-        _id: member._id,
-        organizationId: member.organizationId,
-        userId: member.userId,
-        role,
-        createdAt: member.createdAt,
-        displayName,
-        email,
-        twoFactorEnabled,
-      };
-    }),
-  );
+    return {
+      _id: member._id,
+      organizationId: member.organizationId,
+      userId: member.userId,
+      role,
+      createdAt: member.createdAt,
+      displayName: user?.name,
+      email: user?.email,
+      twoFactorEnabled: user?.twoFactorEnabled === true,
+    };
+  });
 }
 
 export const listByOrganization = query({
@@ -268,27 +267,35 @@ export const getUserOrganizationsWithDetails = query({
 
     const orgs = await getUserOrganizations(ctx, authUser);
 
-    const enriched = await Promise.all(
-      orgs.map(async (o) => {
-        const org = await ctx.runQuery(components.betterAuth.adapter.findOne, {
-          model: 'organization',
-          where: [{ field: '_id', value: o.organizationId, operator: 'eq' }],
-        });
-        const record = isRecord(org) ? org : undefined;
-        const name = record
-          ? (getString(record, 'name') ?? o.organizationId)
-          : o.organizationId;
-        const slug = record ? getString(record, 'slug') : undefined;
-        return {
-          organizationId: o.organizationId,
-          role: o.role,
-          name,
-          slug,
-        };
-      }),
-    );
+    // Batch-fetch every org record in ONE `in` query + a Map join, replacing
+    // the previous findOne-per-org N+1.
+    const orgIds = [...new Set(orgs.map((o) => o.organizationId))];
+    const orgsById = new Map<string, BetterAuthOrganization>();
+    if (orgIds.length > 0) {
+      try {
+        const orgsResult: BetterAuthFindManyResult<BetterAuthOrganization> =
+          await ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'organization',
+            paginationOpts: { cursor: null, numItems: orgIds.length },
+            where: [{ field: '_id', value: orgIds, operator: 'in' }],
+          });
+        for (const org of orgsResult?.page ?? []) {
+          orgsById.set(org._id, org);
+        }
+      } catch (error) {
+        console.warn('[Members] Failed to batch-fetch org details', error);
+      }
+    }
 
-    return enriched;
+    return orgs.map((o) => {
+      const org = orgsById.get(o.organizationId);
+      return {
+        organizationId: o.organizationId,
+        role: o.role,
+        name: org?.name ?? o.organizationId,
+        slug: org?.slug,
+      };
+    });
   },
 });
 

@@ -1103,7 +1103,12 @@ describe('useMessageProcessing', () => {
     };
 
     it('hides file-only message while the thread is generating', () => {
-      setQueryResult(api.threads.queries.isThreadGenerating, true);
+      setQueryResult(api.threads.queries.getThreadMeta, {
+        isGenerating: true,
+        failedErrors: {},
+        forkInfo: null,
+        projectId: null,
+      });
       mockUseUIMessages.mockReturnValue({
         results: [
           createUIMessage({
@@ -1142,7 +1147,12 @@ describe('useMessageProcessing', () => {
       // Regression case: shipped guard looked for streaming/pending assistant
       // status, which is undefined in the window between pre-tool `success`
       // and post-tool creation. The isGenerating-based guard covers it.
-      setQueryResult(api.threads.queries.isThreadGenerating, true);
+      setQueryResult(api.threads.queries.getThreadMeta, {
+        isGenerating: true,
+        failedErrors: {},
+        forkInfo: null,
+        projectId: null,
+      });
       mockUseUIMessages.mockReturnValue({
         results: [
           createUIMessage({
@@ -1178,7 +1188,12 @@ describe('useMessageProcessing', () => {
     });
 
     it('merges file-only parts into a text-bearing assistant in the same turn', () => {
-      setQueryResult(api.threads.queries.isThreadGenerating, true);
+      setQueryResult(api.threads.queries.getThreadMeta, {
+        isGenerating: true,
+        failedErrors: {},
+        forkInfo: null,
+        projectId: null,
+      });
       mockUseUIMessages.mockReturnValue({
         results: [
           createUIMessage({
@@ -1330,7 +1345,12 @@ describe('useMessageProcessing', () => {
     });
 
     it('does not let a later-turn streaming message hide a prior-turn file-only', () => {
-      setQueryResult(api.threads.queries.isThreadGenerating, true);
+      setQueryResult(api.threads.queries.getThreadMeta, {
+        isGenerating: true,
+        failedErrors: {},
+        forkInfo: null,
+        projectId: null,
+      });
       mockUseUIMessages.mockReturnValue({
         results: [
           createUIMessage({

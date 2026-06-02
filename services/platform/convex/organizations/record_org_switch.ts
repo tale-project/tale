@@ -53,20 +53,24 @@ export const recordOrgSwitch = mutation({
     const actorId = String(authUser._id);
     const cutoff = Date.now() - DEDUP_WINDOW_MS;
     let hasRecentEntry = false;
+    // Scope the scan to THIS actor via the actorId index, so we walk only this
+    // user's recent auth entries (typically 0-1 in the window) instead of every
+    // actor's. The action check stays in JS — the matching set per actor is
+    // tiny, not worth another index column.
     for await (const entry of ctx.db
       .query('auditLogs')
-      .withIndex('by_org_category_timestamp', (q) =>
+      .withIndex('by_org_category_actorId_timestamp', (q) =>
         q
           .eq('organizationId', args.organizationId)
           .eq('category', 'auth')
+          .eq('actorId', actorId)
           .gte('timestamp', cutoff),
       )
       .order('desc')) {
       if (
-        entry.actorId === actorId &&
         // TODO: drop `entered_organization` branch after demo data purge.
-        (entry.action === 'signed_in_to_organization' ||
-          entry.action === 'entered_organization')
+        entry.action === 'signed_in_to_organization' ||
+        entry.action === 'entered_organization'
       ) {
         hasRecentEntry = true;
         break;

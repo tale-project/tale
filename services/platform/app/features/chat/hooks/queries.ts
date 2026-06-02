@@ -122,17 +122,6 @@ export function useArchivedThreads({
   };
 }
 
-export function useThreadStatus(
-  threadId: string | undefined,
-  organizationId: string,
-) {
-  const { data } = useConvexQuery(
-    api.threads.queries.getThreadStatus,
-    threadId ? { threadId, organizationId } : 'skip',
-  );
-  return data ?? null;
-}
-
 export interface ComposerModeMeta {
   label: string;
   icon?: string;

@@ -97,7 +97,7 @@ function ThreadGate({
   // skeleton. (Ref mutation during render is intentional and idempotent.)
   const hasRenderedInterfaceRef = useRef(false);
 
-  const renderInterface = (readOnly?: boolean) => {
+  const renderInterface = (readOnly?: boolean, status?: string | null) => {
     hasRenderedInterfaceRef.current = true;
     return (
       <SuspenseBoundary
@@ -112,6 +112,7 @@ function ThreadGate({
           organizationId={organizationId}
           threadId={threadId}
           readOnly={readOnly}
+          threadStatus={status}
         />
       </SuspenseBoundary>
     );
@@ -153,11 +154,12 @@ function ThreadGate({
 
   // Shared read-only access for non-owner org members
   if (threadStatus === 'shared-readonly') {
-    return renderInterface(true);
+    return renderInterface(true, threadStatus);
   }
 
-  // Thread is accessible — render ChatInterface
-  return renderInterface();
+  // Thread is accessible — render ChatInterface (pass the resolved status so
+  // ChatInterface can derive `isArchived` without a second subscription).
+  return renderInterface(false, threadStatus);
 }
 
 function ChatLayoutContent({ organizationId }: { organizationId: string }) {

@@ -6,7 +6,7 @@ import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
-import { useAction, useMutation, useQuery } from 'convex/react';
+import { useAction, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { Trash2 } from 'lucide-react';
 import {
@@ -40,6 +40,7 @@ import {
   useDismissPendingMemory,
   useSetCustomInstructionsEnabled,
   useSetMemoriesEnabled,
+  useSetVoiceOutput,
   useSoftDeleteMemory,
   useUpsertMyPreferences,
 } from '../hooks/mutations';
@@ -445,7 +446,7 @@ function VoiceOutputSection({
 }) {
   const { t } = useT('personalization');
   const { toast } = useToast();
-  const setVoiceOutput = useMutation(api.tts.mutations.setUserVoiceOutput);
+  const { mutateAsync: setVoiceOutput } = useSetVoiceOutput();
   const getCapability = useAction(api.tts.synthesize.getCapability);
   const { data: orgVoicePolicy } = useGovernancePolicy(
     organizationId,

@@ -41,7 +41,7 @@ import {
   useMarkThreadRead,
   useUnarchiveThread,
 } from '../hooks/mutations';
-import { useChatAgents, useThreadStatus } from '../hooks/queries';
+import { useChatAgents } from '../hooks/queries';
 import { useArenaThreadSetup } from '../hooks/use-arena-thread-setup';
 import { useChatScroll } from '../hooks/use-chat-scroll';
 import { useChatVideoLinks } from '../hooks/use-chat-video-links';
@@ -113,12 +113,18 @@ interface ChatInterfaceProps {
   organizationId: string;
   threadId?: string;
   readOnly?: boolean;
+  /** Resolved thread status from `ThreadGate`'s `getThreadStatus` subscription,
+   *  passed down so we don't open a second identical subscription here just to
+   *  derive `isArchived`. `undefined` while loading / for new/just-created
+   *  threads (treated as not-archived). */
+  threadStatus?: string | null;
 }
 
 export function ChatInterface({
   organizationId,
   threadId,
   readOnly = false,
+  threadStatus,
 }: ChatInterfaceProps) {
   const { t } = useT('chat');
   const chatRegionLabelId = useId();
@@ -321,10 +327,10 @@ export function ChatInterface({
   const { active: activeEditingImage } = useEffectiveEditingImage(threadImages);
   const { setEditingImageRef, setDismissedImageKey } = useChatLayout();
 
-  // Thread status — disable input for archived threads
-  // Always check the URL threadId (root thread), not dataThreadId (which may
-  // be a branch thread that wasn't individually archived).
-  const threadStatus = useThreadStatus(threadId, organizationId);
+  // Thread status — disable input for archived threads. Status is derived from
+  // the URL threadId (root thread), not dataThreadId (which may be a branch
+  // thread that wasn't individually archived). Provided by ThreadGate to avoid
+  // a duplicate getThreadStatus subscription on every thread switch.
   const isArchived = threadStatus === 'archived';
 
   const { mutate: unarchiveThread, isPending: isUnarchiving } =
@@ -358,17 +364,20 @@ export function ChatInterface({
   // Block input when any pending or executing approval exists
   const hasActiveApproval = activeApproval !== null;
 
-  // Fork info — for showing divider in forked threads
-  const { data: forkInfo } = useConvexQuery(
-    api.threads.queries.getThreadForkInfo,
+  // Consolidated thread metadata behind ONE access check + subscription (fork
+  // info, generation status, project). useMessageProcessing reads the same
+  // getThreadMeta with identical args, so they share a single Convex
+  // subscription per thread switch instead of four separate ones.
+  const { data: threadMeta } = useConvexQuery(
+    api.threads.queries.getThreadMeta,
     dataThreadId ? { threadId: dataThreadId } : 'skip',
   );
 
+  // Fork info — for showing divider in forked threads
+  const forkInfo = threadMeta?.forkInfo ?? undefined;
+
   // Server-derived generation status (reactive Convex subscription)
-  const { data: isGenerating } = useConvexQuery(
-    api.threads.queries.isThreadGenerating,
-    dataThreadId ? { threadId: dataThreadId } : 'skip',
-  );
+  const isGenerating = threadMeta?.isGenerating;
 
   // Client-side optimistic flag — set on send click, released when the
   // server subscription confirms or the send fails. Closes the ~200–550 ms
@@ -472,13 +481,10 @@ export function ChatInterface({
       : undefined;
 
   // For an EXISTING project chat the projectId isn't in the URL — read it from
-  // the thread so the composer applies the project's agent/model restrictions
-  // and recommendations either way.
-  const { data: threadProject } = useConvexQuery(
-    api.threads.queries.getThreadProject,
-    dataThreadId ? { threadId: dataThreadId, organizationId } : 'skip',
-  );
-  const currentProjectId = threadProject?.projectId ?? projectIdFromUrl;
+  // the thread (via the consolidated getThreadMeta above) so the composer
+  // applies the project's agent/model restrictions and recommendations either
+  // way.
+  const currentProjectId = threadMeta?.projectId ?? projectIdFromUrl;
 
   const { sendMessage } = useSendMessage({
     organizationId,
@@ -623,6 +629,19 @@ export function ChatInterface({
   const handleEditClick = useCallback((messageId: string, content: string) => {
     setEditingMessage({ id: messageId, content });
   }, []);
+
+  // Stable identities for the two props ChatMessages would otherwise receive as
+  // fresh inline arrows each render — required for its React.memo to hold.
+  const handleEditCancel = useCallback(() => {
+    setEditingMessage(null);
+  }, []);
+
+  const handleSavePromptFromMessage = useCallback(
+    (messageId: string, content: string) => {
+      setSavePromptData({ messageId, content });
+    },
+    [],
+  );
 
   const handleEditSubmit = useCallback(
     async (newContent: string) => {
@@ -910,9 +929,7 @@ export function ChatInterface({
                 onForkAtMessage={
                   isArchived || readOnly ? undefined : handleForkAtMessage
                 }
-                onSavePrompt={(messageId, content) =>
-                  setSavePromptData({ messageId, content })
-                }
+                onSavePrompt={handleSavePromptFromMessage}
                 onUnsavePrompt={handleUnsavePrompt}
                 savedMessageMap={savedMessageMap}
                 onRetry={isArchived || readOnly ? undefined : handleRetry}
@@ -929,9 +946,7 @@ export function ChatInterface({
                   isArchived || readOnly ? undefined : handleEditSubmit
                 }
                 onEditCancel={
-                  isArchived || readOnly
-                    ? undefined
-                    : () => setEditingMessage(null)
+                  isArchived || readOnly ? undefined : handleEditCancel
                 }
                 hideFeedback={isArchived}
               />

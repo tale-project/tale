@@ -5,7 +5,7 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useNavigate } from '@tanstack/react-router';
 import { Bot, ChevronDown, Plus } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { CreateAgentDialog } from '@/app/features/agents/components/agent-create-dialog';
@@ -30,7 +30,7 @@ interface AgentSelectorProps {
   projectId?: string;
 }
 
-export function AgentSelector({
+export const AgentSelector = memo(function AgentSelector({
   organizationId,
   projectId,
 }: AgentSelectorProps) {
@@ -185,4 +185,4 @@ export function AgentSelector({
       )}
     </>
   );
-}
+});
