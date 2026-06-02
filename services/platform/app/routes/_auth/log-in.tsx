@@ -241,6 +241,29 @@ export function LogInPage() {
     window.location.href = `${siteUrl}${basePath}/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
   }, []);
 
+  // Passkey / WebAuthn sign-in (#1508). Drives the browser's get-credential
+  // ceremony; on success the session is live, so refresh the cache and route
+  // like the password path. A passkey is itself strong auth, so there is no
+  // second-factor step.
+  const handlePasskeyLogin = useCallback(async () => {
+    setLoginError(null);
+    setShowLockoutHint(false);
+    try {
+      const res = await authClient.signIn.passkey();
+      if (res?.error) {
+        setLoginError(t('login.passkeyFailed'));
+        return;
+      }
+      await queryClient
+        .invalidateQueries({ queryKey: ['auth', 'session'] })
+        .catch(() => undefined);
+      void navigate({ to: redirectTo || '/dashboard' });
+    } catch {
+      // Thrown when the user dismisses the prompt or has no matching passkey.
+      setLoginError(t('login.passkeyFailed'));
+    }
+  }, [navigate, queryClient, redirectTo, t]);
+
   if (isLoadingUsers || (trustedHeadersEnabled && !hasTrustedHeadersError)) {
     return null;
   }
@@ -317,6 +340,15 @@ export function LogInPage() {
             </Button>
           </Form>
         </FormSection>
+
+        <Button
+          onClick={handlePasskeyLogin}
+          variant="secondary"
+          fullWidth
+          disabled={isSubmitting}
+        >
+          {t('login.continueWithPasskey')}
+        </Button>
 
         {showSsoButton && (
           <>

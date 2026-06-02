@@ -248,6 +248,8 @@
       "signingIn": "Connexion en cours...",
       "loginButton": "Se connecter",
       "continueWithSso": "Continuer avec SSO",
+      "continueWithPasskey": "Se connecter avec un passkey",
+      "passkeyFailed": "La connexion par passkey a échoué ou a été annulée. Réessaie ou utilise ton mot de passe.",
       "wrongCredentials": "Courriel ou mot de passe incorrect",
       "accountLockedGeneric": "Compte temporairement verrouillé en raison d'échecs répétés. Merci de réessayer plus tard ou de contacter un administrateur.",
       "accountLockedSeconds": "Compte temporairement verrouillé. Réessaie dans {seconds, plural, one {# seconde} other {# secondes}}, ou contacte un administrateur.",
@@ -5660,6 +5662,23 @@
       "passwordPromptDescription": "Confirme ton mot de passe pour commencer la configuration de l'authentification à double facteur.",
       "disablePromptDescription": "Confirme ton mot de passe pour désactiver l'authentification à double facteur.",
       "regeneratePromptDescription": "Confirme ton mot de passe. Générer de nouveaux codes invalide tous les codes de secours précédents."
+    },
+    "passkeys": {
+      "title": "Passkeys",
+      "description": "Connecte-toi avec un passkey (Face ID, Touch ID, Windows Hello ou une clé de sécurité). Un passkey est résistant au phishing et satisfait l'exigence de double authentification de ton organisation.",
+      "addButton": "Ajouter un passkey",
+      "revokeButton": "Supprimer",
+      "empty": "Aucun passkey enregistré pour l'instant.",
+      "unnamed": "Passkey",
+      "registered": "Passkey enregistré",
+      "revoked": "Passkey supprimé",
+      "namePromptDescription": "Donne un nom à ce passkey pour le reconnaître plus tard (p. ex. \"Touch ID du MacBook\").",
+      "nameLabel": "Nom du passkey",
+      "namePlaceholder": "Touch ID du MacBook",
+      "errors": {
+        "registerFailed": "Impossible d'enregistrer le passkey. Réessaie.",
+        "revokeFailed": "Impossible de supprimer le passkey. Réessaie."
+      }
     },
     "setup": {
       "title": "Configurer l'authentification à double facteur",

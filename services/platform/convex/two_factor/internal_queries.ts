@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
-import { evaluateTwoFactorEnforcement } from './helpers';
+import { evaluateTwoFactorEnforcement, userHasPasskey } from './helpers';
 
 /**
  * Read the current lockout state for a userId on TOTP / backup-code
@@ -42,7 +42,13 @@ export const evaluateEnforcement = internalQuery({
     graceDeadline: v.union(v.number(), v.null()),
   }),
   handler: async (ctx, args) => {
-    const result = await evaluateTwoFactorEnforcement(ctx, args);
+    // A registered passkey (#1508) satisfies enforcement alongside TOTP, so a
+    // passkey-only user is never routed to the TOTP enrollment wall on sign-in.
+    const hasPasskey = await userHasPasskey(ctx, args.userId);
+    const result = await evaluateTwoFactorEnforcement(ctx, {
+      ...args,
+      hasPasskey,
+    });
     return {
       decision: result.decision,
       graceUntilToSet: result.graceUntilToSet,
