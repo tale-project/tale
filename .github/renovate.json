@@ -56,6 +56,16 @@
       "description": "Disable AI SDK packages (manual upgrades only)",
       "matchPackageNames": ["ai", "/^@ai-sdk\\//"],
       "enabled": false
+    },
+    {
+      "description": "WebAuthn/passkey deps (#1508) must move in lockstep with better-auth core, which is upgraded manually. Group them and waive the generic minimumReleaseAge so a security or compatibility bump isn't held back out of sync with better-auth.",
+      "matchPackageNames": [
+        "better-auth",
+        "/^@better-auth\\//",
+        "/^@simplewebauthn\\//"
+      ],
+      "minimumReleaseAge": null,
+      "groupName": "better-auth"
     }
   ]
 }

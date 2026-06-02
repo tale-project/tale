@@ -1,4 +1,5 @@
 import { apiKey } from '@better-auth/api-key';
+import { passkey } from '@better-auth/passkey';
 import { createClient, type GenericCtx } from '@convex-dev/better-auth';
 import { convex } from '@convex-dev/better-auth/plugins';
 import { requireRunMutationCtx } from '@convex-dev/better-auth/utils';
@@ -807,6 +808,16 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
         totpOptions: { digits: 6, period: 30 },
         backupCodeOptions: { amount: 10, length: 10 },
         skipVerificationOnEnable: false,
+      }),
+      // WebAuthn / passkeys as a phishing-resistant second factor (#1508).
+      // rpID is the effective domain (hostname only, no scheme/port) and
+      // origin is the full origin the ceremony runs against — both derived
+      // from SITE_URL so a deployment behind its real domain works without
+      // extra config. localhost defaults apply for dev.
+      passkey({
+        rpID: new URL(siteUrl).hostname,
+        rpName: 'Tale',
+        origin: new URL(siteUrl).origin,
       }),
     ],
   };
