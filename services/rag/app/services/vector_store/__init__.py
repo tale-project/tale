@@ -7,10 +7,12 @@ source of truth for chunk content, metadata, and org isolation. See
 
 from .base import VectorHit, VectorRecord, VectorStore
 from .config_reader import VectorDbConfig, load_vectordb_config
+from .external_pgvector_store import ExternalPgvectorStore
 from .factory import get_vector_store
 from .postgres_store import PostgresVectorStore
 
 __all__ = [
+    "ExternalPgvectorStore",
     "PostgresVectorStore",
     "VectorDbConfig",
     "VectorHit",

@@ -345,6 +345,43 @@ class DocumentCompareResponse(BaseModel):
 
 
 # ============================================================================
+# Admin Models
+# ============================================================================
+
+
+class VectorDbTestConnectionRequest(BaseModel):
+    """Request to test an external pgvector (Postgres) connection.
+
+    A deployment-level admin probe: the platform sends the candidate
+    connection params so RAG (which owns the asyncpg stack and the right
+    network) can verify reachability + that the `vector` extension is
+    available before the operator saves the config.
+    """
+
+    host: str = Field(..., min_length=1, description="Database host")
+    port: int = Field(default=5432, ge=1, le=65535, description="Database port")
+    database: str = Field(..., min_length=1, description="Database name")
+    user: str = Field(..., min_length=1, description="Database user")
+    password: str | None = Field(default=None, description="Database password (optional for trust/cert auth)")
+    sslmode: Literal["disable", "prefer", "require", "verify-ca", "verify-full"] = Field(
+        default="require", description="libpq SSL mode"
+    )
+    table: str = Field(default="tale_vectors", description="Target table name")
+
+
+class VectorDbTestConnectionResponse(BaseModel):
+    """Result of an external pgvector connection test."""
+
+    ok: bool = Field(..., description="Whether the connection succeeded")
+    latency_ms: int = Field(..., description="Round-trip latency in milliseconds")
+    error: str | None = Field(default=None, description="Error message when ok is false")
+    version: str | None = Field(default=None, description="PostgreSQL server version when ok is true")
+    pgvector_available: bool | None = Field(
+        default=None, description="Whether the 'vector' extension is available on the database"
+    )
+
+
+# ============================================================================
 # Error Models
 # ============================================================================
 

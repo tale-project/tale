@@ -36,23 +36,36 @@ DEFAULT_CONFIG_DIR = "/app/data"
 DEPLOYMENT_DIR = ".system"
 assert not ORG_SLUG_RE.fullmatch(DEPLOYMENT_DIR), "DEPLOYMENT_DIR must not be a valid org slug"
 
-VALID_BACKENDS = ("pgvector", "qdrant")
+VALID_BACKENDS = ("pgvector", "pgvector_external", "qdrant")
 DEFAULT_COLLECTION = "tale_chunks"
+DEFAULT_PG_TABLE = "tale_vectors"
+DEFAULT_PG_PORT = 5432
+DEFAULT_PG_SSLMODE = "require"
 
 
 @dataclass(frozen=True)
 class VectorDbConfig:
     """Resolved deployment vector-store config (secret already decrypted).
 
-    TLS is governed by the ``qdrant_url`` scheme (http/https), so there is
-    no separate https flag.
+    TLS for Qdrant is governed by the ``qdrant_url`` scheme (http/https), so
+    there is no separate https flag; for external pgvector it is governed by
+    ``pg_sslmode``.
     """
 
     backend: str = "pgvector"
+    # Qdrant
     qdrant_url: str | None = None
     collection: str = DEFAULT_COLLECTION
     prefer_grpc: bool = False
     api_key: str | None = None
+    # External pgvector (user-supplied Postgres reachable from RAG)
+    pg_host: str | None = None
+    pg_port: int = DEFAULT_PG_PORT
+    pg_database: str | None = None
+    pg_user: str | None = None
+    pg_sslmode: str = DEFAULT_PG_SSLMODE
+    pg_table: str = DEFAULT_PG_TABLE
+    pg_password: str | None = None
 
 
 def _config_base() -> Path:
@@ -98,6 +111,9 @@ def load_vectordb_config() -> VectorDbConfig:
     if backend == "pgvector":
         return VectorDbConfig(backend="pgvector")
 
+    if backend == "pgvector_external":
+        return _resolve_pgvector_external(data)
+
     # A truthy non-dict `qdrant` (e.g. a string) survives `... or {}` and would
     # raise AttributeError on .get(); coerce any non-dict to an empty dict.
     qdrant = data.get("qdrant")
@@ -109,7 +125,7 @@ def load_vectordb_config() -> VectorDbConfig:
         return VectorDbConfig()
 
     try:
-        api_key = _load_secret()
+        secrets = _load_secrets()
     except _SecretUndecryptable as exc:
         # A secret file exists but can't be decrypted. Connecting to Qdrant
         # unauthenticated would silently drop the configured credential, so
@@ -126,7 +142,58 @@ def load_vectordb_config() -> VectorDbConfig:
         qdrant_url=url,
         collection=qdrant.get("collection") or DEFAULT_COLLECTION,
         prefer_grpc=bool(qdrant.get("preferGrpc", False)),
-        api_key=api_key,
+        api_key=secrets.get("apiKey") if secrets else None,
+    )
+
+
+def _resolve_pgvector_external(data: dict) -> VectorDbConfig:
+    """Resolve an external-pgvector config, failing safe to built-in pgvector.
+
+    Mirrors the Qdrant fail-safe contract: a missing required field or an
+    undecryptable secret falls back to built-in pgvector with a loud error
+    rather than booting a broken/unauthenticated external backend.
+    """
+    pg = data.get("pgvectorExternal")
+    if not isinstance(pg, dict):
+        pg = {}
+    host = pg.get("host")
+    database = pg.get("database")
+    user = pg.get("user")
+    if not host or not database or not user:
+        logger.error("vectordb backend is pgvector_external but host/database/user are incomplete; using pgvector")
+        return VectorDbConfig()
+
+    try:
+        secrets = _load_secrets()
+    except _SecretUndecryptable as exc:
+        # A secret exists but can't be decrypted — connecting with the wrong
+        # (or no) password would silently fail; fail safe with a loud error.
+        logger.error(
+            "vectordb backend is pgvector_external but its secret could not be decrypted (%s); "
+            "using pgvector to avoid a broken connection",
+            exc,
+        )
+        return VectorDbConfig()
+
+    # Password is optional at the protocol level (the DB may use trust/cert
+    # auth), but absent here just means no password is sent.
+    password = secrets.get("password") if secrets else None
+
+    try:
+        port = int(pg.get("port", DEFAULT_PG_PORT))
+    except (TypeError, ValueError):
+        logger.error("vectordb pgvector_external port is not an integer; using %d", DEFAULT_PG_PORT)
+        port = DEFAULT_PG_PORT
+
+    return VectorDbConfig(
+        backend="pgvector_external",
+        pg_host=host,
+        pg_port=port,
+        pg_database=database,
+        pg_user=user,
+        pg_sslmode=pg.get("sslmode") or DEFAULT_PG_SSLMODE,
+        pg_table=pg.get("table") or DEFAULT_PG_TABLE,
+        pg_password=password,
     )
 
 
@@ -138,12 +205,14 @@ class _SecretUndecryptable(Exception):
     """
 
 
-def _load_secret() -> str | None:
-    """Decrypt the deployment vectordb secret (apiKey).
+def _load_secrets() -> dict | None:
+    """Decrypt the deployment vectordb secrets (``apiKey`` and/or ``password``).
 
-    Returns None when no secret file is present (api key is optional). Raises
-    ``_SecretUndecryptable`` when a file IS present but cannot be decrypted —
-    never silently degrades a configured key to no-auth.
+    Returns None when no secret file is present (the secret is optional —
+    Qdrant may be unauthenticated, external pgvector may use trust/cert auth).
+    Returns the decrypted dict otherwise; callers pick the field their backend
+    needs. Raises ``_SecretUndecryptable`` when a file IS present but cannot be
+    decrypted — never silently degrades a configured credential.
     """
     secrets_path = _deployment_dir() / "vectordb.secrets.json"
     if not secrets_path.exists():
@@ -153,4 +222,4 @@ def _load_secret() -> str | None:
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
         logger.error("Failed to decrypt vectordb secrets: %s", exc)
         raise _SecretUndecryptable(str(exc)) from exc
-    return secrets.get("apiKey") if isinstance(secrets, dict) else None
+    return secrets if isinstance(secrets, dict) else None

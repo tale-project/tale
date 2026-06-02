@@ -116,3 +116,9 @@ class VectorStore(Protocol):
     async def health(self) -> dict[str, Any]:
         """Backend liveness for the `/config` endpoint."""
         ...
+
+    async def close(self) -> None:
+        """Release any backend-owned resources (e.g. an external connection
+        pool or the Qdrant client transport). A no-op for pgvector (built-in),
+        which reuses the shared pool owned by `RagService`."""
+        ...

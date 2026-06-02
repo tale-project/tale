@@ -28,19 +28,57 @@ import {
 } from '../hooks/mutations';
 import { useReadVectorDbConfig } from '../hooks/queries';
 
-type Backend = 'pgvector' | 'qdrant';
+type Backend = 'pgvector' | 'pgvector_external' | 'qdrant';
+type BackendType = 'builtin' | 'external';
+type ExternalBackend = 'qdrant' | 'pgvector_external';
+type SslMode = 'disable' | 'prefer' | 'require' | 'verify-ca' | 'verify-full';
+
+const SSL_MODES: SslMode[] = [
+  'disable',
+  'prefer',
+  'require',
+  'verify-ca',
+  'verify-full',
+];
+
+function isSslMode(value: string): value is SslMode {
+  return (SSL_MODES as readonly string[]).includes(value);
+}
 
 interface VectorDbFormData {
   backend: Backend;
+  // Qdrant
   qdrantUrl: string;
   collection: string;
   preferGrpc: boolean;
   /** Write-only — empty means "leave the stored key unchanged". */
   apiKey: string;
+  // External pgvector
+  pgHost: string;
+  pgPort: number;
+  pgDatabase: string;
+  pgUser: string;
+  pgSslmode: SslMode;
+  pgTable: string;
+  /** Write-only — empty means "leave the stored password unchanged". */
+  password: string;
 }
 
 function toConfig(data: VectorDbFormData): VectorDbConfig {
   if (data.backend === 'pgvector') return { backend: 'pgvector' };
+  if (data.backend === 'pgvector_external') {
+    return {
+      backend: 'pgvector_external',
+      pgvectorExternal: {
+        host: data.pgHost.trim(),
+        port: Number.isFinite(data.pgPort) ? data.pgPort : 5432,
+        database: data.pgDatabase.trim(),
+        user: data.pgUser.trim(),
+        sslmode: data.pgSslmode,
+        table: data.pgTable.trim() || 'tale_vectors',
+      },
+    };
+  }
   return {
     backend: 'qdrant',
     qdrant: {
@@ -52,22 +90,41 @@ function toConfig(data: VectorDbFormData): VectorDbConfig {
 }
 
 function configToForm(config: VectorDbConfig): VectorDbFormData {
-  if (config.backend === 'qdrant') {
-    return {
-      backend: 'qdrant',
-      qdrantUrl: config.qdrant.url,
-      collection: config.qdrant.collection,
-      preferGrpc: config.qdrant.preferGrpc ?? false,
-      apiKey: '',
-    };
-  }
-  return {
-    backend: 'pgvector',
+  const base: VectorDbFormData = {
+    backend: config.backend,
     qdrantUrl: '',
     collection: 'tale_chunks',
     preferGrpc: false,
     apiKey: '',
+    pgHost: '',
+    pgPort: 5432,
+    pgDatabase: '',
+    pgUser: '',
+    pgSslmode: 'require',
+    pgTable: 'tale_vectors',
+    password: '',
   };
+  if (config.backend === 'qdrant') {
+    return {
+      ...base,
+      qdrantUrl: config.qdrant.url,
+      collection: config.qdrant.collection,
+      preferGrpc: config.qdrant.preferGrpc ?? false,
+    };
+  }
+  if (config.backend === 'pgvector_external') {
+    const p = config.pgvectorExternal;
+    return {
+      ...base,
+      pgHost: p.host,
+      pgPort: p.port,
+      pgDatabase: p.database,
+      pgUser: p.user,
+      pgSslmode: p.sslmode,
+      pgTable: p.table,
+    };
+  }
+  return base;
 }
 
 // =============================================================================
@@ -97,14 +154,17 @@ export function VectorDatabaseSettings({
         hash={data?.hash ?? null}
         hasApiKey={data?.hasApiKey ?? false}
         maskedApiKey={data?.maskedApiKey ?? null}
+        hasPassword={data?.hasPassword ?? false}
+        maskedPassword={data?.maskedPassword ?? null}
       />
     </Skeletonize>
   );
 }
 
 // =============================================================================
-// Form — backend select + conditional Qdrant fields + write-only key, with a
-// persistent deployment-scope banner and a confirm-on-save dialog.
+// Form — Built-in/External type select → external-backend select → per-backend
+// fields + write-only secret, with a persistent deployment-scope banner and a
+// confirm-on-save dialog.
 // =============================================================================
 function VectorDatabaseForm({
   organizationId,
@@ -112,12 +172,16 @@ function VectorDatabaseForm({
   hash,
   hasApiKey,
   maskedApiKey,
+  hasPassword,
+  maskedPassword,
 }: {
   organizationId: string;
   initialConfig: VectorDbConfig;
   hash: string | null;
   hasApiKey: boolean;
   maskedApiKey: string | null;
+  hasPassword: boolean;
+  maskedPassword: string | null;
 }) {
   const { t } = useT('settings');
   const { t: tNav } = useT('navigation');
@@ -134,17 +198,49 @@ function VectorDatabaseForm({
 
   const backend = watch('backend');
   const preferGrpc = watch('preferGrpc');
+  const pgSslmode = watch('pgSslmode');
+
+  const backendType: BackendType =
+    backend === 'pgvector' ? 'builtin' : 'external';
+  const externalBackend: ExternalBackend =
+    backend === 'pgvector_external' ? 'pgvector_external' : 'qdrant';
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [acked, setAcked] = useState(false);
   const [pending, setPending] = useState<VectorDbFormData | null>(null);
 
-  const backendOptions = useMemo(
+  const backendLabelOf = useCallback(
+    (b: Backend) =>
+      b === 'qdrant'
+        ? t('vectorDatabase.backend.qdrant')
+        : b === 'pgvector_external'
+          ? t('vectorDatabase.backend.pgvectorExternal')
+          : t('vectorDatabase.backend.pgvector'),
+    [t],
+  );
+
+  const backendTypeOptions = useMemo(
     () => [
-      { value: 'pgvector', label: t('vectorDatabase.backend.pgvector') },
-      { value: 'qdrant', label: t('vectorDatabase.backend.qdrant') },
+      { value: 'builtin', label: t('vectorDatabase.backendType.builtin') },
+      { value: 'external', label: t('vectorDatabase.backendType.external') },
     ],
     [t],
+  );
+
+  const externalBackendOptions = useMemo(
+    () => [
+      { value: 'qdrant', label: t('vectorDatabase.backend.qdrant') },
+      {
+        value: 'pgvector_external',
+        label: t('vectorDatabase.backend.pgvectorExternal'),
+      },
+    ],
+    [t],
+  );
+
+  const sslModeOptions = useMemo(
+    () => SSL_MODES.map((m) => ({ value: m, label: m })),
+    [],
   );
 
   const openConfirm = useCallback((values: VectorDbFormData) => {
@@ -154,18 +250,18 @@ function VectorDatabaseForm({
   }, []);
 
   const persistSecret = useCallback(
-    async (apiKey: string, force = false) => {
+    async (incoming: { apiKey?: string; password?: string }, force = false) => {
       try {
-        await saveSecret.mutateAsync({ organizationId, apiKey, force });
+        await saveSecret.mutateAsync({ organizationId, ...incoming, force });
       } catch (err) {
         const data = readConvexErrorData(err);
         if (data?.code === 'VECTORDB_SECRET_REFUSED_OVERWRITE') {
-          // The existing key file is unreadable; ask before discarding it.
+          // The existing secret file is unreadable; ask before discarding it.
           // eslint-disable-next-line no-alert -- minimal force-overwrite confirm; mirrors providers
           if (window.confirm(t('vectorDatabase.overwrite.body'))) {
             await saveSecret.mutateAsync({
               organizationId,
-              apiKey,
+              ...incoming,
               force: true,
             });
             return;
@@ -179,12 +275,17 @@ function VectorDatabaseForm({
 
   const runSave = useCallback(
     async (values: VectorDbFormData, force: boolean) => {
-      // Write the secret BEFORE the config so the active backend only flips to
-      // qdrant once its key is stored — a config-write failure can never leave
-      // an active keyless qdrant backend. An orphan secret (config write fails)
-      // is harmless and overwritten on the next save.
+      // Write the secret BEFORE the config so the active backend only flips
+      // once its credential is stored — a config-write failure can never leave
+      // an active external backend with no/old credential. An orphan secret
+      // (config write fails) is harmless and overwritten on the next save.
       if (values.backend === 'qdrant' && values.apiKey.trim()) {
-        await persistSecret(values.apiKey.trim());
+        await persistSecret({ apiKey: values.apiKey.trim() });
+      } else if (
+        values.backend === 'pgvector_external' &&
+        values.password.trim()
+      ) {
+        await persistSecret({ password: values.password.trim() });
       }
       await saveConfig.mutateAsync({
         organizationId,
@@ -250,6 +351,7 @@ function VectorDatabaseForm({
         organizationId,
         config: toConfig(values),
         apiKey: values.apiKey.trim() || undefined,
+        password: values.password.trim() || undefined,
       });
       if (result.ok) {
         toast({
@@ -277,11 +379,8 @@ function VectorDatabaseForm({
     }
   }, [watch, organizationId, testConnection, toast, t]);
 
-  const activeBackendLabel =
-    initialConfig.backend === 'qdrant'
-      ? t('vectorDatabase.backend.qdrant')
-      : t('vectorDatabase.backend.pgvector');
-
+  const activeBackendLabel = backendLabelOf(initialConfig.backend);
+  const canTest = backend === 'qdrant' || backend === 'pgvector_external';
   const busy = saveConfig.isPending || saveSecret.isPending;
 
   return (
@@ -303,17 +402,41 @@ function VectorDatabaseForm({
         <Form id="vector-database-form" onSubmit={handleSubmit(openConfirm)}>
           <fieldset disabled={busy} className="contents space-y-4">
             <Select
-              id="vectordb-backend"
+              id="vectordb-backend-type"
               label={t('vectorDatabase.backendLabel')}
-              value={backend}
+              value={backendType}
               onValueChange={(value) => {
-                if (value !== 'pgvector' && value !== 'qdrant') return;
-                if (value === backend) return;
-                setValue('backend', value, { shouldDirty: true });
+                if (value !== 'builtin' && value !== 'external') return;
+                if (value === backendType) return;
+                // Switching to external defaults to Qdrant; the sub-select
+                // below then lets the operator pick PostgreSQL.
+                setValue(
+                  'backend',
+                  value === 'builtin' ? 'pgvector' : 'qdrant',
+                  {
+                    shouldDirty: true,
+                  },
+                );
               }}
-              options={backendOptions}
+              options={backendTypeOptions}
               wrapperClassName="max-w-sm"
             />
+
+            {backendType === 'external' && (
+              <Select
+                id="vectordb-external-backend"
+                label={t('vectorDatabase.externalBackendLabel')}
+                value={externalBackend}
+                onValueChange={(value) => {
+                  if (value !== 'qdrant' && value !== 'pgvector_external')
+                    return;
+                  if (value === backend) return;
+                  setValue('backend', value, { shouldDirty: true });
+                }}
+                options={externalBackendOptions}
+                wrapperClassName="max-w-sm"
+              />
+            )}
 
             {backend === 'qdrant' && (
               <>
@@ -356,11 +479,78 @@ function VectorDatabaseForm({
               </>
             )}
 
+            {backend === 'pgvector_external' && (
+              <>
+                <Input
+                  id="vectordb-pg-host"
+                  label={t('vectorDatabase.pgHostLabel')}
+                  description={t('vectorDatabase.pgHostHelp')}
+                  placeholder="db.example.com"
+                  {...register('pgHost')}
+                  wrapperClassName="max-w-sm"
+                />
+                <Input
+                  id="vectordb-pg-port"
+                  type="number"
+                  label={t('vectorDatabase.pgPortLabel')}
+                  placeholder="5432"
+                  {...register('pgPort', { valueAsNumber: true })}
+                  wrapperClassName="max-w-sm"
+                />
+                <Input
+                  id="vectordb-pg-database"
+                  label={t('vectorDatabase.pgDatabaseLabel')}
+                  {...register('pgDatabase')}
+                  wrapperClassName="max-w-sm"
+                />
+                <Input
+                  id="vectordb-pg-user"
+                  label={t('vectorDatabase.pgUserLabel')}
+                  {...register('pgUser')}
+                  wrapperClassName="max-w-sm"
+                />
+                <Select
+                  id="vectordb-pg-sslmode"
+                  label={t('vectorDatabase.pgSslmodeLabel')}
+                  value={pgSslmode}
+                  onValueChange={(value) => {
+                    if (!isSslMode(value)) return;
+                    if (value === pgSslmode) return;
+                    setValue('pgSslmode', value, { shouldDirty: true });
+                  }}
+                  options={sslModeOptions}
+                  wrapperClassName="max-w-sm"
+                />
+                <Input
+                  id="vectordb-pg-table"
+                  label={t('vectorDatabase.pgTableLabel')}
+                  description={t('vectorDatabase.pgTableHelp')}
+                  {...register('pgTable')}
+                  wrapperClassName="max-w-sm"
+                />
+                <Input
+                  id="vectordb-pg-password"
+                  type="password"
+                  label={t('vectorDatabase.passwordLabel')}
+                  description={
+                    hasPassword
+                      ? t('vectorDatabase.passwordHelpConfigured')
+                      : t('vectorDatabase.passwordHelpNone')
+                  }
+                  placeholder={
+                    hasPassword ? (maskedPassword ?? '••••••••') : ''
+                  }
+                  {...register('password')}
+                  wrapperClassName="max-w-sm"
+                />
+              </>
+            )}
+
             <div className="flex gap-2 pt-2">
               <Button type="submit" disabled={busy}>
                 {busy ? t('vectorDatabase.saving') : t('vectorDatabase.save')}
               </Button>
-              {backend === 'qdrant' && (
+              {canTest && (
                 <Button
                   type="button"
                   variant="secondary"
@@ -385,10 +575,7 @@ function VectorDatabaseForm({
           pending && pending.backend !== initialConfig.backend
             ? t('vectorDatabase.confirm.body', {
                 from: activeBackendLabel,
-                to:
-                  pending.backend === 'qdrant'
-                    ? t('vectorDatabase.backend.qdrant')
-                    : t('vectorDatabase.backend.pgvector'),
+                to: backendLabelOf(pending.backend),
               })
             : t('vectorDatabase.confirm.bodySameBackend')
         }

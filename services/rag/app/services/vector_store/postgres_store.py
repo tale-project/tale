@@ -79,6 +79,10 @@ class PostgresVectorStore:
             # Health probe must never raise — report unreachable instead.
             return {"backend": self.backend_name, "reachable": False}
 
+    async def close(self) -> None:
+        # No-op: the shared pool is owned and closed by RagService.
+        return None
+
     def _scope_clause(
         self,
         org_slug: str,

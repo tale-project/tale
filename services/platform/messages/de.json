@@ -5423,9 +5423,15 @@
       "activeBackend": "Aktives Backend",
       "deploymentBanner": "Diese Konfiguration gilt für das gesamte Deployment und betrifft jede Organisation, nicht nur Ihre aktuelle. Änderungen werden nach einem Neustart des RAG-Dienstes wirksam.",
       "backendLabel": "Backend",
+      "backendType": {
+        "builtin": "Integriert",
+        "external": "Extern"
+      },
+      "externalBackendLabel": "Externes Backend",
       "backend": {
         "pgvector": "PostgreSQL (pgvector, integriert)",
-        "qdrant": "Qdrant (extern)"
+        "qdrant": "Qdrant (extern)",
+        "pgvectorExternal": "PostgreSQL (pgvector, extern)"
       },
       "qdrantUrlLabel": "Qdrant-URL",
       "qdrantUrlHelp": "Der vom RAG-Dienst erreichbare Qdrant-Endpunkt, z. B. http://qdrant:6333.",
@@ -5435,6 +5441,17 @@
       "apiKeyLabel": "API-Schlüssel",
       "apiKeyHelpConfigured": "Ein Schlüssel ist konfiguriert. Geben Sie einen neuen Wert ein, um ihn zu ersetzen.",
       "apiKeyHelpNone": "Optional. Erforderlich, wenn Ihre Qdrant-Instanz Authentifizierung verlangt.",
+      "pgHostLabel": "Host",
+      "pgHostHelp": "Der vom RAG-Dienst erreichbare Postgres-Host.",
+      "pgPortLabel": "Port",
+      "pgDatabaseLabel": "Datenbank",
+      "pgUserLabel": "Benutzer",
+      "pgSslmodeLabel": "SSL-Modus",
+      "pgTableLabel": "Tabelle",
+      "pgTableHelp": "Name der Tabelle zum Speichern der Vektoren. Wird automatisch erstellt, falls nicht vorhanden.",
+      "passwordLabel": "Passwort",
+      "passwordHelpConfigured": "Ein Passwort ist konfiguriert. Geben Sie einen neuen Wert ein, um es zu ersetzen.",
+      "passwordHelpNone": "Das Datenbank-Passwort. Nur leer lassen, wenn die Datenbank Trust- oder Zertifikats-Authentifizierung verwendet.",
       "testConnection": "Verbindung testen",
       "testing": "Wird getestet …",
       "save": "Änderungen speichern",

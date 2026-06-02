@@ -22,6 +22,7 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
+import { ragFetch } from '../lib/helpers/rag_config';
 import { safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
 import {
   EncryptedFileWithoutKeyError,
@@ -51,10 +52,10 @@ import {
 
 const DEFAULT_CONFIG: VectorDbConfig = { backend: 'pgvector' };
 
-/** Mask an API key for "configured?" display — first 6 + last 4. */
-function maskApiKey(key: string): string {
-  if (key.length <= 10) return '••••••••••';
-  return `${key.slice(0, 6)} … ${key.slice(-4)}`;
+/** Mask a stored secret for "configured?" display — first 6 + last 4. */
+function maskSecret(value: string): string {
+  if (value.length <= 10) return '••••••••••';
+  return `${value.slice(0, 6)} … ${value.slice(-4)}`;
 }
 
 function isErrnoCode(err: unknown, code: string): boolean {
@@ -140,21 +141,33 @@ export const readVectorDbConfig = action({
 
     let hasApiKey = false;
     let maskedApiKey: string | null = null;
+    let hasPassword = false;
+    let maskedPassword: string | null = null;
     try {
       const secrets = parseVectorDbSecrets(
         await decryptSecretsFile(resolveVectorDbSecretsPath()),
       );
-      hasApiKey = true;
-      maskedApiKey = maskApiKey(secrets.apiKey);
+      if (secrets.apiKey) {
+        hasApiKey = true;
+        maskedApiKey = maskSecret(secrets.apiKey);
+      }
+      if (secrets.password) {
+        hasPassword = true;
+        maskedPassword = maskSecret(secrets.password);
+      }
     } catch (err) {
       if (isErrnoCode(err, 'ENOENT')) {
         // No secret yet — normal.
       } else if (err instanceof EncryptedFileWithoutKeyError) {
-        // A secret IS on disk, just not previewable without the age key.
-        hasApiKey = true;
+        // A secret IS on disk, just not previewable without the age key. We
+        // can't tell apiKey from password without decrypting, so mark whichever
+        // the active backend uses as configured.
+        if (config.backend === 'pgvector_external') hasPassword = true;
+        else hasApiKey = true;
       } else {
         // Undecryptable / malformed existing file: still "configured".
-        hasApiKey = true;
+        if (config.backend === 'pgvector_external') hasPassword = true;
+        else hasApiKey = true;
         console.warn(
           '[readVectorDbConfig] secret preview failed',
           sanitizeError(err),
@@ -162,7 +175,14 @@ export const readVectorDbConfig = action({
       }
     }
 
-    return { config, hash, hasApiKey, maskedApiKey };
+    return {
+      config,
+      hash,
+      hasApiKey,
+      maskedApiKey,
+      hasPassword,
+      maskedPassword,
+    };
   },
 });
 
@@ -198,8 +218,13 @@ export const saveVectorDbConfig = action({
     }
     const config = parsed.data;
 
-    // SSRF: the RAG service will connect to this URL with the stored API key.
+    // SSRF: the RAG service will connect to these operator-authored endpoints
+    // with the stored secret. Gate them the same way provider baseUrls are.
     if (config.backend === 'qdrant') checkProviderHostPolicy(config.qdrant.url);
+    if (config.backend === 'pgvector_external') {
+      const { host, port } = config.pgvectorExternal;
+      checkProviderHostPolicy(`http://${host}:${port}`);
+    }
 
     let before: { config: VectorDbConfig; hash: string | null };
     try {
@@ -246,14 +271,16 @@ export const saveVectorDbConfig = action({
 });
 
 /**
- * Persist the deployment vector-db secret (e.g. Qdrant API key). Merges with
- * any existing secret, SOPS-encrypts when a key is configured, and refuses to
- * clobber an unreadable existing file unless `force` is set.
+ * Persist the deployment vector-db secret (Qdrant API key or external pgvector
+ * password). Merges with any existing secret, SOPS-encrypts when a secret is
+ * configured, and refuses to clobber an unreadable existing file unless `force`
+ * is set.
  */
 export const saveVectorDbSecret = action({
   args: {
     organizationId: v.string(),
     apiKey: v.optional(v.string()),
+    password: v.optional(v.string()),
     force: v.optional(v.boolean()),
   },
   returns: v.null(),
@@ -265,7 +292,7 @@ export const saveVectorDbSecret = action({
     try {
       prepared = await prepareMergedVectorDbSecret(
         secretsPath,
-        { apiKey: args.apiKey },
+        { apiKey: args.apiKey, password: args.password },
         { force: args.force },
       );
     } catch (err) {
@@ -310,14 +337,18 @@ export const saveVectorDbSecret = action({
 /**
  * Probe an external backend's reachability + auth from the UI before saving.
  * For Qdrant: GET `${url}/collections` with the api-key header (uses the
- * provided key, else the stored secret). For pgvector: a static OK — the real
- * check is the RAG service's `/health`, surfaced as a UI hint.
+ * provided key, else the stored secret). For external pgvector: proxy through
+ * the RAG service's admin endpoint, which actually opens a connection to the
+ * candidate database (RAG owns the asyncpg stack + the right network). For
+ * built-in pgvector: a static OK — the real check is the RAG `/health`,
+ * surfaced as a UI hint.
  */
 export const testVectorDbConnection = action({
   args: {
     organizationId: v.string(),
     config: v.any(),
     apiKey: v.optional(v.string()),
+    password: v.optional(v.string()),
   },
   returns: v.object({
     ok: v.boolean(),
@@ -348,6 +379,107 @@ export const testVectorDbConnection = action({
         backend: 'pgvector',
         hint: 'Built-in backend — verify it is serving via the RAG service /health endpoint.',
       };
+    }
+
+    if (config.backend === 'pgvector_external') {
+      const { host, port, database, user, sslmode, table } =
+        config.pgvectorExternal;
+      // SSRF: same operator-authored-host gate applied on save.
+      checkProviderHostPolicy(`http://${host}:${port}`);
+
+      // Use the supplied password, else fall back to the stored secret.
+      let password = args.password;
+      if (!password) {
+        try {
+          const secrets = parseVectorDbSecrets(
+            await decryptSecretsFile(resolveVectorDbSecretsPath()),
+          );
+          password = secrets.password;
+        } catch (err) {
+          if (!isErrnoCode(err, 'ENOENT')) {
+            console.warn(
+              '[testVectorDbConnection] secret read failed',
+              sanitizeError(err),
+            );
+          }
+        }
+      }
+      if (!password) {
+        return {
+          ok: false,
+          backend: 'pgvector_external',
+          error:
+            'No password provided and none stored. Enter the database password and try again.',
+        };
+      }
+
+      // Proxy through RAG: it owns the asyncpg stack and the network that can
+      // reach the candidate DB. A deployment-level op — no X-Tale-Org header.
+      const started = Date.now();
+      try {
+        const response = await ragFetch(
+          '/api/v1/admin/vectordb/test-connection',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              host,
+              port,
+              database,
+              user,
+              password,
+              sslmode,
+              table,
+            }),
+            timeoutMs: 12_000,
+          },
+        );
+        const latencyMs = Date.now() - started;
+        if (!response.ok) {
+          return {
+            ok: false,
+            backend: 'pgvector_external',
+            status: response.status,
+            latencyMs,
+            error: `RAG test endpoint responded ${response.status} ${response.statusText}`,
+          };
+        }
+        // RAG uses snake_case JSON (matching its other endpoints).
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted RAG admin response shape
+        const result = (await response.json()) as {
+          ok: boolean;
+          latency_ms?: number;
+          error?: string;
+          version?: string;
+          pgvector_available?: boolean;
+        };
+        // A reachable DB without the pgvector extension can't serve vectors —
+        // treat it as a failed test with an actionable message.
+        if (result.ok && result.pgvector_available === false) {
+          return {
+            ok: false,
+            backend: 'pgvector_external',
+            latencyMs: result.latency_ms ?? latencyMs,
+            error:
+              'Connected, but the "vector" extension is not available on this database. Install pgvector (CREATE EXTENSION vector) and retry.',
+          };
+        }
+        return {
+          ok: result.ok,
+          backend: 'pgvector_external',
+          latencyMs: result.latency_ms ?? latencyMs,
+          error: result.ok ? undefined : result.error,
+        };
+      } catch (err) {
+        const latencyMs = Date.now() - started;
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          ok: false,
+          backend: 'pgvector_external',
+          latencyMs,
+          error: message,
+        };
+      }
     }
 
     const url = config.qdrant.url.replace(/\/+$/, '');

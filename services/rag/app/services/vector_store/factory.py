@@ -26,5 +26,16 @@ def get_vector_store(pool: asyncpg.Pool, config: VectorDbConfig | None = None) -
         logger.info("Vector store backend: qdrant ({})", cfg.qdrant_url)
         return QdrantVectorStore(pool=pool, config=cfg)
 
+    if cfg.backend == "pgvector_external":
+        from .external_pgvector_store import ExternalPgvectorStore
+
+        logger.info(
+            "Vector store backend: pgvector_external ({}:{}/{})",
+            cfg.pg_host,
+            cfg.pg_port,
+            cfg.pg_database,
+        )
+        return ExternalPgvectorStore(pool=pool, config=cfg)
+
     logger.info("Vector store backend: pgvector (built-in)")
     return PostgresVectorStore(pool)

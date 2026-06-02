@@ -214,6 +214,10 @@ class QdrantVectorStore:
         except Exception:
             return {"backend": self.backend_name, "reachable": False, "collection": self._collection}
 
+    async def close(self) -> None:
+        # Release the Qdrant client's underlying transport (http/grpc).
+        await self._client.close()
+
     async def _resolve_document_ids(self, org_slug: str, file_ids: list[str]) -> list[str]:
         """Map external file_ids to internal document UUIDs, org-scoped."""
         async with acquire_with_retry(self._pool) as conn:

@@ -6,7 +6,9 @@
  * Read-existing → merge → return-plaintext, with the same data-loss guard as
  * `providers/secret_io.ts`: refuses to overwrite an existing-but-undecryptable
  * secrets file unless `force` is set (the on-disk ciphertext may be the only
- * recoverable copy). The schema here is just `{ apiKey }` — no per-model keys.
+ * recoverable copy). The schema here is `{ apiKey?, password? }` — one shared
+ * deployment file across backends (Qdrant uses `apiKey`, external pgvector uses
+ * `password`); fields merge independently so saving one preserves the other.
  *
  * The companion action `saveVectorDbSecret` in `file_actions.ts` calls this,
  * then encrypts (or not) and writes via `atomicWriteSecret`.
@@ -34,18 +36,19 @@ export interface PreparedVectorDbSecret {
 }
 
 /**
- * Read the existing secrets file (if any), merge `incoming.apiKey`, and return
- * the plaintext to write.
+ * Read the existing secrets file (if any), merge the incoming `apiKey` /
+ * `password` (each independently — an absent field preserves the stored one),
+ * and return the plaintext to write.
  *
  * @throws {EncryptedFileWithoutKeyError} when the file is SOPS-encrypted but no
  *   key is configured and `force` is not set.
  * @throws {UndecryptableExistingSecretError} when the file exists but
  *   decrypt/parse/shape validation fails and `force` is not set.
- * @throws {Error} when the merged result has no apiKey at all.
+ * @throws {Error} when the merged result has neither an apiKey nor a password.
  */
 export async function prepareMergedVectorDbSecret(
   secretsPath: string,
-  incoming: { apiKey?: string },
+  incoming: { apiKey?: string; password?: string },
   options: { force?: boolean } = {},
 ): Promise<PreparedVectorDbSecret> {
   let existing: VectorDbSecrets | null = null;
@@ -80,14 +83,19 @@ export async function prepareMergedVectorDbSecret(
   }
 
   const mergedApiKey = incoming.apiKey ?? existing?.apiKey;
-  if (!mergedApiKey) {
+  const mergedPassword = incoming.password ?? existing?.password;
+  if (!mergedApiKey && !mergedPassword) {
     throw new Error(
-      'A vector-database API key is required. ' +
-        'Provide an apiKey or ensure one is already configured.',
+      'A vector-database secret is required. ' +
+        'Provide an apiKey (Qdrant) or password (external pgvector), or ensure one is already configured.',
     );
   }
 
-  const data = { apiKey: mergedApiKey };
+  // Only include fields that are set so the persisted file stays minimal and a
+  // backend switch never leaves a stale empty key/password lingering.
+  const data: { apiKey?: string; password?: string } = {};
+  if (mergedApiKey) data.apiKey = mergedApiKey;
+  if (mergedPassword) data.password = mergedPassword;
   return {
     plaintext: JSON.stringify(data, null, 2) + '\n',
     existed,

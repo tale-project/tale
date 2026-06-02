@@ -5424,9 +5424,15 @@
       "activeBackend": "Backend actif",
       "deploymentBanner": "Cette configuration s’applique à l’ensemble du déploiement et concerne chaque organisation, pas seulement la vôtre. Les modifications prennent effet après le redémarrage du service RAG.",
       "backendLabel": "Backend",
+      "backendType": {
+        "builtin": "Intégré",
+        "external": "Externe"
+      },
+      "externalBackendLabel": "Backend externe",
       "backend": {
         "pgvector": "PostgreSQL (pgvector, intégré)",
-        "qdrant": "Qdrant (externe)"
+        "qdrant": "Qdrant (externe)",
+        "pgvectorExternal": "PostgreSQL (pgvector, externe)"
       },
       "qdrantUrlLabel": "URL Qdrant",
       "qdrantUrlHelp": "Le point de terminaison Qdrant accessible depuis le service RAG, par ex. http://qdrant:6333.",
@@ -5436,6 +5442,17 @@
       "apiKeyLabel": "Clé API",
       "apiKeyHelpConfigured": "Une clé est configurée. Saisissez une nouvelle valeur pour la remplacer.",
       "apiKeyHelpNone": "Facultatif. Requis si votre instance Qdrant exige une authentification.",
+      "pgHostLabel": "Hôte",
+      "pgHostHelp": "L’hôte Postgres accessible depuis le service RAG.",
+      "pgPortLabel": "Port",
+      "pgDatabaseLabel": "Base de données",
+      "pgUserLabel": "Utilisateur",
+      "pgSslmodeLabel": "Mode SSL",
+      "pgTableLabel": "Table",
+      "pgTableHelp": "Nom de la table où stocker les vecteurs. Créée automatiquement si absente.",
+      "passwordLabel": "Mot de passe",
+      "passwordHelpConfigured": "Un mot de passe est configuré. Saisissez une nouvelle valeur pour le remplacer.",
+      "passwordHelpNone": "Le mot de passe de la base de données. Laissez vide uniquement si la base utilise l’authentification trust ou par certificat.",
       "testConnection": "Tester la connexion",
       "testing": "Test en cours…",
       "save": "Enregistrer les modifications",

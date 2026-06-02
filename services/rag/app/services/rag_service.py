@@ -1107,6 +1107,16 @@ class RagService:
                 await self._reconcile_task
             self._reconcile_task = None
 
+        # Release any backend-owned resources (e.g. the external pgvector
+        # connection pool or the Qdrant client). Best-effort: a close failure
+        # must not block the rest of shutdown.
+        if self._vector_store is not None:
+            try:
+                await self._vector_store.close()
+            except Exception:
+                logger.warning("Failed to close vector store '{}'", self._vector_store.backend_name, exc_info=True)
+            self._vector_store = None
+
         # Best-effort close of each org's clients before tearing down the pool.
         for org_slug, clients in list(self._org_clients.items()):
             try:
