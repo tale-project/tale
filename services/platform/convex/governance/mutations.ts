@@ -243,6 +243,11 @@ export const upsertPolicy = mutation({
           `Invalid session idle timeout configuration: ${parsed.error.message}`,
         );
       }
+      // Persist the normalized output (schema defaults applied) rather than the
+      // raw input, so a partial config is stored with `enabled` /
+      // `idleTimeoutMinutes` resolved — and the `config.enabled` mirror below
+      // sees a concrete boolean.
+      args.config = parsed.data;
     }
 
     if (args.policyType === 'chat_filter') {

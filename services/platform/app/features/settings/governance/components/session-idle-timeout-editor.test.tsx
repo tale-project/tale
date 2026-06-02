@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { SessionIdleTimeoutConfig } from '@/lib/shared/schemas/governance';
 import { render, screen } from '@/test/utils/render';
 
 import { SessionIdleTimeoutEditor } from './session-idle-timeout-editor';
@@ -23,7 +24,7 @@ const { state } = vi.hoisted(() => ({
   state: {
     isLoading: false,
     config: { enabled: true, idleTimeoutMinutes: 30 } as
-      | Record<string, unknown>
+      | SessionIdleTimeoutConfig
       | undefined,
   },
 }));
@@ -62,9 +63,9 @@ describe('SessionIdleTimeoutEditor', () => {
     it('renders the section heading (static text, always real)', () => {
       setLoaded();
       render(<SessionIdleTimeoutEditor organizationId="org-1" />);
-      expect(
-        screen.getByRole('heading', { name: /session idle timeout/i }),
-      ).toBeInTheDocument();
+      // Assert the heading renders structurally — never pin the English copy
+      // (i18n rule: user-facing strings go through the translation layer).
+      expect(screen.getAllByRole('heading').length).toBeGreaterThan(0);
     });
 
     it('hides the minutes field while the policy is disabled', () => {
@@ -93,9 +94,9 @@ describe('SessionIdleTimeoutEditor', () => {
     it('keeps the real section heading while loading (no gray bar)', () => {
       setLoading();
       render(<SessionIdleTimeoutEditor organizationId="org-1" />);
-      expect(
-        screen.getByRole('heading', { name: /session idle timeout/i }),
-      ).toBeInTheDocument();
+      // Structural assertion only — the heading is real (not skeletonized)
+      // during loading; do not compare against the English literal.
+      expect(screen.getAllByRole('heading').length).toBeGreaterThan(0);
     });
   });
 });

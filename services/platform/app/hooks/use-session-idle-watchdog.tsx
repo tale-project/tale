@@ -69,6 +69,12 @@ export function useSessionIdleWatchdog(): void {
   // rebuilt only when the resolved window actually changes (e.g. an admin
   // edits the policy live) — not on every render.
   const minutes = useMemo(() => {
+    // Don't arm on the env (looser) window while the org policy is still
+    // loading — otherwise a member already past the org's tighter timeout
+    // would stay signed in until the query resolves. `policyRow === undefined`
+    // is the in-flight state (`null` = loaded, no policy row); wait for it.
+    if (organizationId && policyRow === undefined) return null;
+
     const envRaw = getEnv('SESSION_IDLE_TIMEOUT_MINUTES');
     const envMinutes =
       typeof envRaw === 'number' && Number.isFinite(envRaw) && envRaw > 0
@@ -79,7 +85,7 @@ export function useSessionIdleWatchdog(): void {
       : null;
     const policy = parsed?.success ? parsed.data : null;
     return resolveEffectiveIdleMinutes({ policy, envMinutes });
-  }, [policyRow]);
+  }, [organizationId, policyRow]);
 
   useEffect(() => {
     if (minutes === null || !Number.isFinite(minutes) || minutes <= 0) {

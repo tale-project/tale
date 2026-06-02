@@ -17,7 +17,8 @@ const h = vi.hoisted(() => ({
   // memo dep doesn't churn and reset the timer.
   state: {
     orgId: undefined as string | undefined,
-    policyRow: null as { config: unknown } | null,
+    // `undefined` models the in-flight query (loading); `null` = loaded, no row.
+    policyRow: null as { config: unknown } | null | undefined,
   },
 }));
 
@@ -182,5 +183,20 @@ describe('useSessionIdleWatchdog (#1502)', () => {
 
     await advance(3 * MINUTE);
     expect(h.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not arm on the env window while the org policy is still loading', async () => {
+    // org route present but the policy query is unresolved (`data: undefined`).
+    // Arming on the looser env window here would let a member already past the
+    // org's tighter timeout linger until the query returns.
+    h.state.orgId = 'org-1';
+    h.state.policyRow = undefined;
+
+    renderHook(() => useSessionIdleWatchdog());
+
+    // env is 10 min, but the watchdog must stay a no-op until the policy loads.
+    await advance(15 * MINUTE);
+    expect(h.toast).not.toHaveBeenCalled();
+    expect(h.signOut).not.toHaveBeenCalled();
   });
 });
