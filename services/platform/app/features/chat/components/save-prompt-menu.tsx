@@ -41,6 +41,8 @@ export function SavePromptMenu({
 
   return (
     <DropdownMenu
+      tooltip={tChat('savePromptMenu')}
+      tooltipSide="top"
       trigger={
         <Button
           variant="ghost"

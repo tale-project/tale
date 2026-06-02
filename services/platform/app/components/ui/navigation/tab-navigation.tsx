@@ -78,7 +78,11 @@ export function TabNavigation({
   const pathname = location.pathname;
   const ability = useAbility();
   const { accentColor } = useBrandingContext();
-  const navRef = useRef<HTMLElement | null>(null);
+  // The horizontally-scrolling tab list. Kept separate from the outer <nav> so
+  // the trailing button group can sit outside the scroll area and stay pinned
+  // to the right while only the tabs scroll. All measurement/scroll logic reads
+  // this element, so the <nav> itself needs no ref.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
   // Track if we should animate (only after initial render)
@@ -152,32 +156,33 @@ export function TabNavigation({
   // can leave the active tab hidden off the right edge. Adjusts `scrollLeft`
   // directly so we never scroll an outer container.
   useEffect(() => {
-    const nav = navRef.current;
+    const scroller = scrollRef.current;
     const active = itemRefs.current[activeIndex];
-    if (!nav || !active) return;
-    if (nav.scrollWidth <= nav.clientWidth) return;
+    if (!scroller || !active) return;
+    if (scroller.scrollWidth <= scroller.clientWidth) return;
 
     const target =
-      active.offsetLeft + active.offsetWidth / 2 - nav.clientWidth / 2;
-    const max = nav.scrollWidth - nav.clientWidth;
+      active.offsetLeft + active.offsetWidth / 2 - scroller.clientWidth / 2;
+    const max = scroller.scrollWidth - scroller.clientWidth;
     const clamped = Math.max(0, Math.min(target, max));
-    if (Math.abs(nav.scrollLeft - clamped) < 1) return;
+    if (Math.abs(scroller.scrollLeft - clamped) < 1) return;
 
     const prefersReducedMotion =
       typeof window !== 'undefined' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    nav.scrollTo({
+    scroller.scrollTo({
       left: clamped,
       behavior:
         prefersReducedMotion || !hasInitialized.current ? 'auto' : 'smooth',
     });
   }, [activeIndex]);
 
-  // Combine refs for resize observation
+  // Combine refs for resize observation. The scroll container's width drives
+  // both the indicator measurement and the active-tab scroll-into-view.
   const allRefs = useMemo(() => {
     const refs: (HTMLElement | null)[] = [
-      navRef.current,
+      scrollRef.current,
       ...itemRefs.current.slice(0, accessibleItems.length),
     ];
     return { current: refs };
@@ -191,71 +196,81 @@ export function TabNavigation({
 
   return (
     <nav
-      ref={navRef}
       className={cn(
-        'scrollbar-hide relative border-b border-border min-h-11 flex items-center gap-4 shrink-0 overflow-x-auto px-4',
+        'relative border-b border-border min-h-11 flex items-stretch shrink-0',
         standalone && 'bg-background z-10',
         className,
       )}
       aria-label={ariaLabel}
     >
-      {accessibleItems.map((item, index) => {
-        const isActive = isPathActive(item);
-        const [path, queryString] = item.href.split('?');
-        const hrefSearch = queryString
-          ? Object.fromEntries(new URLSearchParams(queryString))
-          : undefined;
-        const isItemDirty =
-          dirtyKeys !== undefined &&
-          (item.dirtyKeys?.some((k) => dirtyKeys.has(k)) ?? false);
+      <div
+        ref={scrollRef}
+        className="scrollbar-hide relative flex min-w-0 flex-1 items-center gap-4 overflow-x-auto px-4"
+      >
+        {accessibleItems.map((item, index) => {
+          const isActive = isPathActive(item);
+          const [path, queryString] = item.href.split('?');
+          const hrefSearch = queryString
+            ? Object.fromEntries(new URLSearchParams(queryString))
+            : undefined;
+          const isItemDirty =
+            dirtyKeys !== undefined &&
+            (item.dirtyKeys?.some((k) => dirtyKeys.has(k)) ?? false);
 
-        return (
-          <Link
-            key={item.href}
-            ref={(el) => {
-              itemRefs.current[index] = el;
-            }}
-            to={path}
-            search={item.search ?? hrefSearch}
-            preload={prefetch ? 'render' : false}
-            aria-current={isActive ? 'page' : undefined}
+          return (
+            <Link
+              key={item.href}
+              ref={(el) => {
+                itemRefs.current[index] = el;
+              }}
+              to={path}
+              search={item.search ?? hrefSearch}
+              preload={prefetch ? 'render' : false}
+              aria-current={isActive ? 'page' : undefined}
+              className={cn(
+                "relative h-full flex items-center gap-1.5 py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0 rounded-sm focus-visible:outline-none focus-visible:after:content-[''] focus-visible:after:absolute focus-visible:after:-inset-x-1 focus-visible:after:inset-y-0.5 focus-visible:after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset focus-visible:after:pointer-events-none justify-center",
+                isActive
+                  ? 'text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {isItemDirty && (
+                <span
+                  aria-hidden="true"
+                  className="inline-block size-1.5 rounded-full bg-amber-500"
+                />
+              )}
+              {item.label}
+              {item.trailing}
+            </Link>
+          );
+        })}
+
+        {/* Animated indicator */}
+        {activeIndex !== -1 && (
+          <div
             className={cn(
-              "relative h-full flex items-center gap-1.5 py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0 rounded-sm focus-visible:outline-none focus-visible:after:content-[''] focus-visible:after:absolute focus-visible:after:-inset-x-1 focus-visible:after:inset-y-0.5 focus-visible:after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset focus-visible:after:pointer-events-none justify-center",
-              isActive
-                ? 'text-foreground'
-                : 'text-muted-foreground hover:text-foreground',
+              'absolute bottom-0 h-0.5',
+              !accentColor && 'bg-foreground',
+              shouldAnimate &&
+                'transition-all duration-200 ease-out motion-reduce:transition-none',
             )}
-          >
-            {isItemDirty && (
-              <span
-                aria-hidden="true"
-                className="inline-block size-1.5 rounded-full bg-amber-500"
-              />
-            )}
-            {item.label}
-            {item.trailing}
-          </Link>
-        );
-      })}
+            style={{
+              width: `${indicatorStyle.width}px`,
+              left: `${indicatorStyle.left}px`,
+              backgroundColor: accentColor || undefined,
+            }}
+          />
+        )}
+      </div>
 
-      {/* Animated indicator */}
-      {activeIndex !== -1 && (
-        <div
-          className={cn(
-            'absolute bottom-0 h-0.5',
-            !accentColor && 'bg-foreground',
-            shouldAnimate && 'transition-all duration-200 ease-out',
-          )}
-          style={{
-            width: `${indicatorStyle.width}px`,
-            left: `${indicatorStyle.left}px`,
-            backgroundColor: accentColor || undefined,
-          }}
-        />
-      )}
-
+      {/* Trailing action group — pinned to the right, outside the scroll area,
+          so it stays in view while the tabs scroll under it. The left shadow +
+          background fade make the scrolling tabs visibly slide beneath it. */}
       {children && (
-        <div className="ml-auto flex items-center gap-2">{children}</div>
+        <div className="bg-background relative z-[1] flex shrink-0 items-center gap-2 self-stretch pr-4 pl-3 shadow-[-12px_0_12px_-12px_rgba(0,0,0,0.18)] dark:shadow-[-12px_0_12px_-12px_rgba(0,0,0,0.6)]">
+          {children}
+        </div>
       )}
     </nav>
   );

@@ -1,10 +1,12 @@
 'use client';
 
 import * as PopoverPrimitive from '@radix-ui/react-popover';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Description } from '@tale/ui/description';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { TooltipContent } from '@tale/ui/tooltip';
 import { Check, ChevronDown, Circle, Search } from 'lucide-react';
 import {
   type KeyboardEvent,
@@ -90,6 +92,15 @@ export interface SearchableSelectProps {
   showRadio?: boolean;
   /** Optional action element rendered on the right side of each option */
   optionAction?: (option: SearchableSelectOption) => ReactNode;
+  /**
+   * Optional hover/focus tooltip for the trigger. When set, the trigger is
+   * composed with a Radix tooltip (both triggers collapse onto the same DOM
+   * node via `asChild`), so the popover still opens on click while the tooltip
+   * explains the control on hover. Useful for compact toolbar triggers.
+   */
+  tooltip?: ReactNode;
+  /** Side the tooltip opens on. @default 'top' */
+  tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
 }
 
 const CONTENT_CLASSES =
@@ -148,6 +159,8 @@ function SearchableSelectBase({
   filterFn,
   showRadio,
   optionAction,
+  tooltip,
+  tooltipSide = 'top',
 }: SearchableSelectProps) {
   const instanceId = useId();
   const listboxId = `${instanceId}-listbox`;
@@ -290,11 +303,35 @@ function SearchableSelectBase({
     [filteredOptions, highlightedIndex, handleSelect],
   );
 
+  const popoverTrigger = (
+    <PopoverPrimitive.Trigger asChild>
+      {defaultTrigger}
+    </PopoverPrimitive.Trigger>
+  );
+
   const popover = (
     <PopoverPrimitive.Root open={isOpen} onOpenChange={handleOpenChange}>
-      <PopoverPrimitive.Trigger asChild>
-        {defaultTrigger}
-      </PopoverPrimitive.Trigger>
+      {tooltip ? (
+        // Radix's documented "tooltip on a popover trigger" composition: both
+        // `asChild` triggers collapse onto the same node, so the popover opens
+        // on click while the tooltip shows on hover/focus.
+        <TooltipPrimitive.Provider delayDuration={300}>
+          <TooltipPrimitive.Root>
+            <TooltipPrimitive.Trigger asChild>
+              {popoverTrigger}
+            </TooltipPrimitive.Trigger>
+            <TooltipPrimitive.Portal>
+              {/* collisionPadding keeps the tooltip off the viewport edge so it
+                  can't visually overlap adjacent controls in dense toolbars. */}
+              <TooltipContent side={tooltipSide} collisionPadding={8}>
+                {tooltip}
+              </TooltipContent>
+            </TooltipPrimitive.Portal>
+          </TooltipPrimitive.Root>
+        </TooltipPrimitive.Provider>
+      ) : (
+        popoverTrigger
+      )}
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
           align={align}

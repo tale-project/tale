@@ -132,18 +132,20 @@ export function AgentSelector({
         side="top"
         sideOffset={8}
         contentClassName="w-[16.25rem]"
+        tooltip={t('agentSelector.label')}
+        tooltipSide="top"
         searchPlaceholder={t('agentSelector.searchPlaceholder')}
         emptyText={t('agentSelector.noResults')}
         aria-label={t('agentSelector.label')}
         trigger={
-          // min-w-40 (160 px) pins the trigger so the loading→loaded swap
-          // doesn't reflow for common labels. Names longer than ~160 px
-          // (rare, e.g. "Research Agent") still grow on resolve. On
-          // narrow mobile viewports the pin is dropped so the composer
-          // toolbar fits without overflowing the send/mic cluster.
+          // min-w-32 (128 px) pins the trigger so the loading→loaded swap
+          // doesn't reflow for common labels. Names longer than ~128 px
+          // still grow on resolve. On narrow mobile viewports the pin is
+          // dropped so the composer toolbar fits without overflowing the
+          // send/mic cluster.
           <Button
             type="button"
-            className="gap-2 sm:min-w-40"
+            className="gap-1.5 sm:min-w-32"
             size="icon"
             variant="ghost"
             aria-label={t('agentSelector.label')}

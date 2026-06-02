@@ -1,10 +1,12 @@
 'use client';
 
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Check } from 'lucide-react';
 import { type ComponentType, Fragment, type ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
+import { TooltipContent } from './tooltip';
 
 export interface DropdownMenuActionItem {
   type: 'item';
@@ -89,6 +91,15 @@ interface DropdownMenuProps {
   contentClassName?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Optional hover/focus tooltip for the trigger. When set, the trigger is
+   * composed with a Radix tooltip (both triggers share the same DOM node via
+   * `asChild`), so the menu still opens on click while the tooltip explains it
+   * on hover. Handy for icon-only triggers in dense toolbars.
+   */
+  tooltip?: ReactNode;
+  /** Side the tooltip opens on. @default 'top' */
+  tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
 }
 
 function RadioIndicator() {
@@ -291,15 +302,38 @@ export function DropdownMenu({
   contentClassName,
   open,
   onOpenChange,
+  tooltip,
+  tooltipSide = 'top',
 }: DropdownMenuProps) {
+  const triggerEl = (
+    <DropdownMenuPrimitive.Trigger asChild onClick={(e) => e.stopPropagation()}>
+      {trigger}
+    </DropdownMenuPrimitive.Trigger>
+  );
+
   return (
     <DropdownMenuPrimitive.Root open={open} onOpenChange={onOpenChange}>
-      <DropdownMenuPrimitive.Trigger
-        asChild
-        onClick={(e) => e.stopPropagation()}
-      >
-        {trigger}
-      </DropdownMenuPrimitive.Trigger>
+      {tooltip ? (
+        // Radix's documented composition for "tooltip on a menu trigger":
+        // both `asChild` triggers collapse onto the same button so the menu
+        // still opens on click while the tooltip shows on hover/focus.
+        <TooltipPrimitive.Provider delayDuration={300}>
+          <TooltipPrimitive.Root>
+            <TooltipPrimitive.Trigger asChild>
+              {triggerEl}
+            </TooltipPrimitive.Trigger>
+            <TooltipPrimitive.Portal>
+              {/* collisionPadding keeps the tooltip off the viewport edge so it
+                  can't visually overlap adjacent controls in dense toolbars. */}
+              <TooltipContent side={tooltipSide} collisionPadding={8}>
+                {tooltip}
+              </TooltipContent>
+            </TooltipPrimitive.Portal>
+          </TooltipPrimitive.Root>
+        </TooltipPrimitive.Provider>
+      ) : (
+        triggerEl
+      )}
       <DropdownMenuPrimitive.Portal>
         <DropdownMenuPrimitive.Content
           sideOffset={4}

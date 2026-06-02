@@ -158,20 +158,20 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         {...list.tableProps}
         columns={columns}
         onRowClick={handleRowClick}
+        filtersContent={
+          <Checkbox
+            id="projects-show-archived"
+            checked={includeArchived}
+            onCheckedChange={(v) => setIncludeArchived(Boolean(v))}
+            label={t('list.showArchived')}
+          />
+        }
         actionMenu={
-          <div className="flex items-center gap-3">
-            <Checkbox
-              id="projects-show-archived"
-              checked={includeArchived}
-              onCheckedChange={(v) => setIncludeArchived(Boolean(v))}
-              label={t('list.showArchived')}
-            />
-            <DataTableActionMenu
-              label={t('list.createButton')}
-              icon={Plus}
-              onClick={() => setCreateOpen(true)}
-            />
-          </div>
+          <DataTableActionMenu
+            label={t('list.createButton')}
+            icon={Plus}
+            onClick={() => setCreateOpen(true)}
+          />
         }
         emptyState={{
           icon: Folder,

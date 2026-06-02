@@ -1,7 +1,7 @@
 import { Badge } from '@tale/ui/badge';
 import { Heading } from '@tale/ui/heading';
 import { Center } from '@tale/ui/layout';
-import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import {
@@ -68,6 +68,86 @@ const PLACEHOLDER_STEPS = [
   },
   { name: 'Finish', description: 'Return the result', type: 'Output' },
 ] as const;
+
+/**
+ * Static canvas placeholder shared by the route-level loading state and the
+ * Suspense fallback for the lazily code-split ReactFlow canvas. Reusing one
+ * placeholder for both is what removes the skeleton "blink": once the workflow
+ * data resolves but the canvas chunk is still downloading, the user keeps
+ * seeing the identical step-card placeholder instead of a generic text
+ * skeleton flashing in for a frame. Callers wrap it in `<Skeletonize loading>`.
+ */
+function AutomationCanvasSkeleton() {
+  return (
+    <div className="relative flex w-full flex-1 justify-stretch overflow-auto">
+      <div className="bg-background relative min-h-0 flex-[1_1_0]">
+        <div
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle, hsl(var(--muted-foreground)) 1px, transparent 1px)',
+            backgroundSize: '20px 20px',
+          }}
+        />
+        <Center className="absolute inset-0">
+          <div className="flex flex-col items-center">
+            {PLACEHOLDER_STEPS.map((step, index) => (
+              <div key={step.name}>
+                {index > 0 && (
+                  <div className="border-muted-foreground/30 mx-auto h-8 w-0 border-l-2" />
+                )}
+                {/* Real step-card shape (mirrors AutomationStep):
+                    icon, heading, caption, trailing type badge. */}
+                <div className="border-border bg-card w-[18.75rem] rounded-lg border shadow-sm">
+                  <div className="flex gap-3 px-2.5 py-2">
+                    <SkeletonBox>
+                      <div className="size-5 shrink-0 rounded-sm" />
+                    </SkeletonBox>
+                    <div className="min-w-0 flex-1">
+                      <Heading level={3} size="sm">
+                        <SkeletonBox>{step.name}</SkeletonBox>
+                      </Heading>
+                      <Text variant="caption" className="mt-1 line-clamp-2">
+                        <SkeletonBox>{step.description}</SkeletonBox>
+                      </Text>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="text-muted-foreground h-fit px-1 py-0.5 text-xs"
+                    >
+                      <SkeletonBox>{step.type}</SkeletonBox>
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Center>
+        <div className="absolute right-4 bottom-4">
+          <SkeletonBox>
+            <div className="border-border h-[128px] w-[192px] rounded-lg border shadow-sm" />
+          </SkeletonBox>
+        </div>
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+          <div className="ring-border bg-background flex items-center gap-2 rounded-lg p-1 shadow-sm ring-1">
+            <SkeletonBox>
+              <div className="size-8 rounded-md" />
+            </SkeletonBox>
+            <SkeletonBox>
+              <div className="size-8 rounded-md" />
+            </SkeletonBox>
+            <SkeletonBox>
+              <div className="size-8 rounded-md" />
+            </SkeletonBox>
+            <SkeletonBox>
+              <div className="size-8 rounded-md" />
+            </SkeletonBox>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function AutomationDetailLayout() {
   const { id: organizationId, amId } = Route.useParams();
@@ -162,76 +242,7 @@ function AutomationDetailLayout() {
         <Skeletonize loading className="contents">
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-              <div className="relative flex w-full flex-1 justify-stretch overflow-auto">
-                <div className="bg-background relative min-h-0 flex-[1_1_0]">
-                  <div
-                    className="absolute inset-0 opacity-20"
-                    style={{
-                      backgroundImage:
-                        'radial-gradient(circle, hsl(var(--muted-foreground)) 1px, transparent 1px)',
-                      backgroundSize: '20px 20px',
-                    }}
-                  />
-                  <Center className="absolute inset-0">
-                    <div className="flex flex-col items-center">
-                      {PLACEHOLDER_STEPS.map((step, index) => (
-                        <div key={step.name}>
-                          {index > 0 && (
-                            <div className="border-muted-foreground/30 mx-auto h-8 w-0 border-l-2" />
-                          )}
-                          {/* Real step-card shape (mirrors AutomationStep):
-                              icon, heading, caption, trailing type badge. */}
-                          <div className="border-border bg-card w-[18.75rem] rounded-lg border shadow-sm">
-                            <div className="flex gap-3 px-2.5 py-2">
-                              <SkeletonBox>
-                                <div className="size-5 shrink-0 rounded-sm" />
-                              </SkeletonBox>
-                              <div className="min-w-0 flex-1">
-                                <Heading level={3} size="sm">
-                                  <SkeletonBox>{step.name}</SkeletonBox>
-                                </Heading>
-                                <Text
-                                  variant="caption"
-                                  className="mt-1 line-clamp-2"
-                                >
-                                  <SkeletonBox>{step.description}</SkeletonBox>
-                                </Text>
-                              </div>
-                              <Badge
-                                variant="outline"
-                                className="text-muted-foreground h-fit px-1 py-0.5 text-xs"
-                              >
-                                <SkeletonBox>{step.type}</SkeletonBox>
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </Center>
-                  <div className="absolute right-4 bottom-4">
-                    <SkeletonBox>
-                      <div className="border-border h-[128px] w-[192px] rounded-lg border shadow-sm" />
-                    </SkeletonBox>
-                  </div>
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-                    <div className="ring-border bg-background flex items-center gap-2 rounded-lg p-1 shadow-sm ring-1">
-                      <SkeletonBox>
-                        <div className="size-8 rounded-md" />
-                      </SkeletonBox>
-                      <SkeletonBox>
-                        <div className="size-8 rounded-md" />
-                      </SkeletonBox>
-                      <SkeletonBox>
-                        <div className="size-8 rounded-md" />
-                      </SkeletonBox>
-                      <SkeletonBox>
-                        <div className="size-8 rounded-md" />
-                      </SkeletonBox>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <AutomationCanvasSkeleton />
             </div>
             {/* Real AI-panel aside (mounts open by default once loaded): same
                 fixed-width bordered column with a masked header. */}
@@ -424,13 +435,13 @@ function AutomationDetailInner({
           {isExactAutomationPage ? (
             <SuspenseBoundary
               fallback={
-                // Genuine code-split chunk (ReactFlow canvas): its code isn't
-                // loaded yet, so the cardinal-rule exception applies — keep the
-                // fallback minimal rather than reconstructing the real canvas.
-                <Skeletonize loading>
-                  <div className="flex-1 p-4">
-                    <SkeletonText lines={3} />
-                  </div>
+                // The ReactFlow canvas is a genuine code-split chunk, so a
+                // fallback is unavoidable while it downloads — but reuse the
+                // SAME step-card placeholder as the route-level loading state
+                // instead of a generic text skeleton. Otherwise the skeleton
+                // visibly "blinks": canvas placeholder → text lines → canvas.
+                <Skeletonize loading className="contents">
+                  <AutomationCanvasSkeleton />
                 </Skeletonize>
               }
             >

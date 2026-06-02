@@ -373,6 +373,8 @@ export function ComposerModeMenu({
 
   return (
     <DropdownMenu
+      tooltip={t('openMenu')}
+      tooltipSide="top"
       trigger={
         <Button
           variant="ghost"
