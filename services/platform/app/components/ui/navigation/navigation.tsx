@@ -125,7 +125,7 @@ export interface NavigationProps {
 
 export function Navigation({ organizationId }: NavigationProps) {
   const { t: tCommon } = useT('common');
-  const { primary, pinned } = useNavigationItems(organizationId);
+  const { primary } = useNavigationItems(organizationId);
 
   return (
     <NavigationMenu

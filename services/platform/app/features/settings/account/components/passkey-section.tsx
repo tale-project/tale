@@ -53,6 +53,9 @@ export function PasskeySection() {
       if (res.error) {
         throw new Error(res.error.message ?? 'Failed to list passkeys');
       }
+      // Better Auth's SDK return type isn't exposed as `PasskeyRow[]`; rows match
+      // the shape at runtime.
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
       return (res.data ?? []) as PasskeyRow[];
     },
     enabled: Boolean(status?.authenticated && status.hasCredential),

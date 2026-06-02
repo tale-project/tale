@@ -21,7 +21,6 @@ import {
   UsersRound,
   Languages,
   Building2,
-  Settings as SettingsIcon,
   Download,
   ChevronRight,
   Check,

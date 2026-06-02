@@ -23,7 +23,10 @@ export function useApiKeys(organizationId: string) {
       if (result.error) {
         throw new Error(result.error.message);
       }
-      // authClient.apiKey.list() now returns { apiKeys, total, limit, offset }
+      // authClient.apiKey.list() now returns { apiKeys, total, limit, offset }.
+      // Better Auth's SDK return type isn't exposed as `ApiKey[]`; rows match
+      // the shape at runtime.
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
       return (result.data?.apiKeys ?? []) as ApiKey[];
     },
   });

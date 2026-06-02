@@ -7,14 +7,7 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import startCase from 'lodash/startCase';
 import { AlertTriangle, ChevronDown, Cpu } from 'lucide-react';
-import {
-  memo,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   SearchableSelect,
