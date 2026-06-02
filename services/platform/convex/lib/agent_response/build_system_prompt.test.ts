@@ -24,6 +24,12 @@ describe('responseLanguageDirective', () => {
     }
   });
 
+  it('states that a translation/explicit-language request is one-off (#1622)', () => {
+    const d = responseLanguageDirective('de-DE');
+    expect(d).toContain('one-off');
+    expect(d).toContain('does not carry over');
+  });
+
   it('uses the resolved fallback locale in rule 3 when known', () => {
     const d = responseLanguageDirective('de-DE');
     expect(d).toContain('`de-DE`');
