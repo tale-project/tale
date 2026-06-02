@@ -78,10 +78,10 @@ export function TabNavigation({
   const pathname = location.pathname;
   const ability = useAbility();
   const { accentColor } = useBrandingContext();
-  const navRef = useRef<HTMLElement | null>(null);
   // The horizontally-scrolling tab list. Kept separate from the outer <nav> so
   // the trailing button group can sit outside the scroll area and stay pinned
-  // to the right while only the tabs scroll.
+  // to the right while only the tabs scroll. All measurement/scroll logic reads
+  // this element, so the <nav> itself needs no ref.
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
@@ -196,7 +196,6 @@ export function TabNavigation({
 
   return (
     <nav
-      ref={navRef}
       className={cn(
         'relative border-b border-border min-h-11 flex items-stretch shrink-0',
         standalone && 'bg-background z-10',
@@ -253,7 +252,8 @@ export function TabNavigation({
             className={cn(
               'absolute bottom-0 h-0.5',
               !accentColor && 'bg-foreground',
-              shouldAnimate && 'transition-all duration-200 ease-out',
+              shouldAnimate &&
+                'transition-all duration-200 ease-out motion-reduce:transition-none',
             )}
             style={{
               width: `${indicatorStyle.width}px`,
