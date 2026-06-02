@@ -5273,6 +5273,8 @@
           "2fa_enrolled": "Authentification à deux facteurs activée",
           "2fa_disabled": "Authentification à deux facteurs désactivée",
           "2fa_reset_by_admin": "Authentification à deux facteurs réinitialisée par l'administrateur",
+          "passkey_added": "Passkey enregistré",
+          "passkey_removed": "Passkey supprimé",
           "project.created": "Projet créé",
           "project.updated": "Projet mis à jour",
           "project.sharing.changed": "Partage du projet modifié",

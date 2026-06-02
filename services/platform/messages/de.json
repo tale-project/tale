@@ -5272,6 +5272,8 @@
           "2fa_enrolled": "Zwei-Faktor-Authentifizierung eingerichtet",
           "2fa_disabled": "Zwei-Faktor-Authentifizierung deaktiviert",
           "2fa_reset_by_admin": "Zwei-Faktor-Authentifizierung von Admin zurückgesetzt",
+          "passkey_added": "Passkey registriert",
+          "passkey_removed": "Passkey entfernt",
           "project.created": "Projekt erstellt",
           "project.updated": "Projekt aktualisiert",
           "project.sharing.changed": "Projektfreigabe geändert",

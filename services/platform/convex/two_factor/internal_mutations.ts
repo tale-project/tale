@@ -278,6 +278,9 @@ export const logEnrollmentEvent = internalMutation({
       v.literal('2fa_enrolled'),
       v.literal('2fa_disabled'),
       v.literal('2fa_reset_by_admin'),
+      // WebAuthn passkey lifecycle (#1508) — same security audit trail.
+      v.literal('passkey_added'),
+      v.literal('passkey_removed'),
     ),
     ip: v.optional(v.string()),
     userAgent: v.optional(v.string()),

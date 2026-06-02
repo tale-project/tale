@@ -174,8 +174,28 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 model: "apikey";
               }
             | {
-                data: { backupCodes: string; secret: string; userId: string };
+                data: {
+                  backupCodes: string;
+                  secret: string;
+                  userId: string;
+                  verified?: null | boolean;
+                };
                 model: "twoFactor";
+              }
+            | {
+                data: {
+                  aaguid?: null | string;
+                  backedUp: boolean;
+                  counter: number;
+                  createdAt?: null | number;
+                  credentialID: string;
+                  deviceType: string;
+                  name?: null | string;
+                  publicKey: string;
+                  transports?: null | string;
+                  userId: string;
+                };
+                model: "passkey";
               };
           onCreateHandle?: string;
           select?: Array<string>;
@@ -585,7 +605,50 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 model: "twoFactor";
                 where?: Array<{
                   connector?: "AND" | "OR";
-                  field: "secret" | "backupCodes" | "userId" | "_id";
+                  field:
+                    | "secret"
+                    | "backupCodes"
+                    | "userId"
+                    | "verified"
+                    | "_id";
+                  mode?: "sensitive" | "insensitive";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "passkey";
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field:
+                    | "name"
+                    | "publicKey"
+                    | "userId"
+                    | "credentialID"
+                    | "counter"
+                    | "deviceType"
+                    | "backedUp"
+                    | "transports"
+                    | "createdAt"
+                    | "aaguid"
+                    | "_id";
                   mode?: "sensitive" | "insensitive";
                   operator?:
                     | "lt"
@@ -1023,7 +1086,50 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 model: "twoFactor";
                 where?: Array<{
                   connector?: "AND" | "OR";
-                  field: "secret" | "backupCodes" | "userId" | "_id";
+                  field:
+                    | "secret"
+                    | "backupCodes"
+                    | "userId"
+                    | "verified"
+                    | "_id";
+                  mode?: "sensitive" | "insensitive";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "passkey";
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field:
+                    | "name"
+                    | "publicKey"
+                    | "userId"
+                    | "credentialID"
+                    | "counter"
+                    | "deviceType"
+                    | "backedUp"
+                    | "transports"
+                    | "createdAt"
+                    | "aaguid"
+                    | "_id";
                   mode?: "sensitive" | "insensitive";
                   operator?:
                     | "lt"
@@ -1069,7 +1175,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             | "member"
             | "invitation"
             | "apikey"
-            | "twoFactor";
+            | "twoFactor"
+            | "passkey";
           offset?: number;
           paginationOpts: {
             cursor: string | null;
@@ -1126,7 +1233,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             | "member"
             | "invitation"
             | "apikey"
-            | "twoFactor";
+            | "twoFactor"
+            | "passkey";
           select?: Array<string>;
           where?: Array<{
             connector?: "AND" | "OR";
@@ -1671,10 +1779,66 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   backupCodes?: string;
                   secret?: string;
                   userId?: string;
+                  verified?: null | boolean;
                 };
                 where?: Array<{
                   connector?: "AND" | "OR";
-                  field: "secret" | "backupCodes" | "userId" | "_id";
+                  field:
+                    | "secret"
+                    | "backupCodes"
+                    | "userId"
+                    | "verified"
+                    | "_id";
+                  mode?: "sensitive" | "insensitive";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "passkey";
+                update: {
+                  aaguid?: null | string;
+                  backedUp?: boolean;
+                  counter?: number;
+                  createdAt?: null | number;
+                  credentialID?: string;
+                  deviceType?: string;
+                  name?: null | string;
+                  publicKey?: string;
+                  transports?: null | string;
+                  userId?: string;
+                };
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field:
+                    | "name"
+                    | "publicKey"
+                    | "userId"
+                    | "credentialID"
+                    | "counter"
+                    | "deviceType"
+                    | "backedUp"
+                    | "transports"
+                    | "createdAt"
+                    | "aaguid"
+                    | "_id";
                   mode?: "sensitive" | "insensitive";
                   operator?:
                     | "lt"
@@ -2225,10 +2389,66 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   backupCodes?: string;
                   secret?: string;
                   userId?: string;
+                  verified?: null | boolean;
                 };
                 where?: Array<{
                   connector?: "AND" | "OR";
-                  field: "secret" | "backupCodes" | "userId" | "_id";
+                  field:
+                    | "secret"
+                    | "backupCodes"
+                    | "userId"
+                    | "verified"
+                    | "_id";
+                  mode?: "sensitive" | "insensitive";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "passkey";
+                update: {
+                  aaguid?: null | string;
+                  backedUp?: boolean;
+                  counter?: number;
+                  createdAt?: null | number;
+                  credentialID?: string;
+                  deviceType?: string;
+                  name?: null | string;
+                  publicKey?: string;
+                  transports?: null | string;
+                  userId?: string;
+                };
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field:
+                    | "name"
+                    | "publicKey"
+                    | "userId"
+                    | "credentialID"
+                    | "counter"
+                    | "deviceType"
+                    | "backedUp"
+                    | "transports"
+                    | "createdAt"
+                    | "aaguid"
+                    | "_id";
                   mode?: "sensitive" | "insensitive";
                   operator?:
                     | "lt"

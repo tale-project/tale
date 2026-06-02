@@ -27,21 +27,13 @@ export type TwoFactorGraceDecision = 'ok' | 'grace' | 'blocked';
  * Whether the user has at least one registered WebAuthn passkey (#1508).
  * Reads the better-auth `passkey` table via the component adapter so a passkey
  * can satisfy an enforced `two_factor_policy` alongside TOTP.
- *
- * The `passkey` model is part of the better-auth schema (betterAuth/schema.ts),
- * but the committed adapter codegen (betterAuth/_generated/component.ts) only
- * lists it after `convex dev` regenerates. The cast + suppression below keep
- * this typechecking until then; the runtime model string is `'passkey'`
- * regardless. After the codegen regen lands, drop the cast and the disable
- * directive and use a plain `model: 'passkey'`.
  */
 export async function userHasPasskey(
   ctx: GenericQueryCtx<DataModel>,
   userId: string,
 ): Promise<boolean> {
   const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    // eslint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- transitional: `passkey` enters the adapter model union only after `convex dev` regenerates codegen; see the function doc.
-    model: 'passkey' as 'twoFactor',
+    model: 'passkey',
     paginationOpts: { cursor: null, numItems: 1 },
     where: [{ field: 'userId', value: userId, operator: 'eq' }],
   });

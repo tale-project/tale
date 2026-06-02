@@ -5533,6 +5533,8 @@
           "2fa_enrolled": "Two-factor authentication enrolled",
           "2fa_disabled": "Two-factor authentication disabled",
           "2fa_reset_by_admin": "Two-factor authentication reset by admin",
+          "passkey_added": "Passkey registered",
+          "passkey_removed": "Passkey removed",
           "project.created": "Project created",
           "project.updated": "Project updated",
           "project.sharing.changed": "Project sharing changed",
