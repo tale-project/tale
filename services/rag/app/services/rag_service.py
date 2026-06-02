@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import datetime as dt
+import json
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -46,10 +47,15 @@ from .database import (
     SCHEMA,
     close_pool,
     init_pool,
-    pin_embedding_dimensions,
 )
 from .indexing_service import index_document
 from .search_service import RagSearchService
+from .vector_store import (
+    VectorRecord,
+    VectorStore,
+    get_vector_store,
+    load_vectordb_config,
+)
 
 RAG_TOP_K = 30
 RAG_TEMPERATURE = 0.3
@@ -140,6 +146,11 @@ class RagService:
         self.initialized = False
         self._init_lock = asyncio.Lock()
         self._pool: asyncpg.Pool | None = None
+        # Process-singleton ANN backend (pgvector built-in, or an external
+        # store like Qdrant). Built once in `initialize()`; the deployment
+        # config that selects it is read at startup, so switching backends
+        # takes effect on restart (matches the process-scoped pool + dim pin).
+        self._vector_store: VectorStore | None = None
         # Embedding dimensions are pinned globally; see module docstring.
         # `_pin_dim_lock` serializes the first-write race between two orgs
         # initializing concurrently (which previously each held their own
@@ -189,8 +200,12 @@ class RagService:
             self._shutting_down = False
             _get_shutdown_event().clear()
             self._pool = await init_pool()
+            self._vector_store = get_vector_store(self._pool)
             self.initialized = True
-            logger.info("RagService initialized (DB pool ready; per-org clients lazy)")
+            logger.info(
+                "RagService initialized (DB pool ready; vector backend={}; per-org clients lazy)",
+                self._vector_store.backend_name,
+            )
 
     def _get_org_lock(self, org_slug: str) -> asyncio.Lock:
         lock = self._org_locks.get(org_slug)
@@ -259,6 +274,7 @@ class RagService:
     ) -> _OrgClients:
         """Construct fresh clients for org_slug, atomic-swapping if existing."""
         assert self._pool is not None
+        assert self._vector_store is not None
 
         llm_config = settings.get_llm_config(org_slug)
         if previous is not None and llm_config == previous.llm_config:
@@ -286,11 +302,16 @@ class RagService:
         async with self._pin_dim_lock:
             if self._pinned_dims is None:
                 self._pinned_dims = dims
-                await pin_embedding_dimensions(self._pool, dims)
+                # Converge the active backend to these dimensions: pgvector
+                # ALTERs the column + HNSW index; Qdrant creates the
+                # collection. The pgvector path is the same call the service
+                # made before the abstraction.
+                await self._vector_store.ensure_ready(dims)
                 logger.info(
-                    "Pinned RAG embedding dimensions to {} (set by org '{}')",
+                    "Pinned RAG embedding dimensions to {} (set by org '{}', backend={})",
                     dims,
                     org_slug,
+                    self._vector_store.backend_name,
                 )
             elif dims != self._pinned_dims:
                 raise ValueError(
@@ -340,7 +361,7 @@ class RagService:
                 org_slug,
             )
 
-        search_service = RagSearchService(self._pool, embedding_service)
+        search_service = RagSearchService(self._pool, embedding_service, self._vector_store)
 
         new_clients = _OrgClients(
             llm_config=llm_config,
@@ -422,7 +443,7 @@ class RagService:
         if self._pool is None:
             raise RuntimeError("RagService not initialized: database pool is None")
 
-        return await index_document(
+        result = await index_document(
             self._pool,
             org_slug,
             file_id,
@@ -435,6 +456,70 @@ class RagService:
             source_created_at=source_created_at,
             source_modified_at=source_modified_at,
         )
+
+        # Mirror the freshly-written chunk vectors into an external backend.
+        # Postgres stays the source of truth (vectors are in the chunk row);
+        # for pgvector this is a no-op skipped via `requires_index_sync`.
+        # Skipped indexes left Postgres unchanged, so the backend is already
+        # in sync — nothing to publish.
+        if self._vector_store is not None and self._vector_store.requires_index_sync and not result.get("skipped"):
+            await self._sync_document_vectors(org_slug, file_id)
+
+        return result
+
+    async def _sync_document_vectors(self, org_slug: str, file_id: str) -> None:
+        """Publish a document's current chunk vectors to the external backend.
+
+        Resolves the document id (stable across re-index) first so any stale
+        points from a prior version are cleared before the current chunk
+        vectors are upserted — keeping the backend an exact mirror of
+        Postgres even when re-indexing rotates chunk ids. Reads
+        `embedding::text` so the pgvector column round-trips as a JSON array.
+        """
+        assert self._pool is not None
+        assert self._vector_store is not None
+
+        async with acquire_with_retry(self._pool) as conn:
+            doc = await conn.fetchrow(
+                f"SELECT id FROM {SCHEMA}.documents WHERE org_slug = $1 AND file_id = $2",
+                org_slug,
+                file_id,
+            )
+            if doc is None:
+                return
+            doc_id = doc["id"]
+            rows = await conn.fetch(
+                f"""SELECT id, embedding::text AS embedding
+                    FROM {SCHEMA}.chunks
+                    WHERE org_slug = $1 AND document_id = $2 AND embedding IS NOT NULL
+                    ORDER BY chunk_index""",
+                org_slug,
+                doc_id,
+            )
+
+        # Clear any stale points for this document, then publish current chunks.
+        await self._vector_store.delete_documents(org_slug, [doc_id])
+        if rows:
+            records = [
+                VectorRecord(
+                    chunk_id=row["id"],
+                    org_slug=org_slug,
+                    document_id=doc_id,
+                    embedding=json.loads(row["embedding"]),
+                )
+                for row in rows
+            ]
+            await self._vector_store.upsert(records)
+
+    async def vector_store_health(self) -> dict[str, Any]:
+        """Active vector-store backend status for the `/config` endpoint.
+
+        Reports the configured backend name even before the store is built
+        (first request); reachability is only meaningful once initialized.
+        """
+        if self._vector_store is None:
+            return {"backend": load_vectordb_config().backend, "reachable": None}
+        return await self._vector_store.health()
 
     async def search(
         self,
@@ -774,6 +859,11 @@ class RagService:
                 org_slug,
                 ids_to_delete,
             )
+
+        # Drop the matching vectors from an external backend (no-op for
+        # pgvector, where FK CASCADE already removed them above).
+        if self._vector_store is not None and self._vector_store.requires_index_sync:
+            await self._vector_store.delete_documents(org_slug, ids_to_delete)
 
         processing_time = (time.time() - start_time) * 1000
 

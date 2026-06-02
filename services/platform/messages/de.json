@@ -3630,7 +3630,8 @@
     },
     "aria": {
       "primaryNavigation": "Hauptnavigation"
-    }
+    },
+    "vectorDatabase": "Vektordatenbank"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -4161,6 +4162,9 @@
       },
       "governance": {
         "description": "Richtlinien, Sicherheit, Audit-Logs und Datenaufbewahrung."
+      },
+      "vectorDatabase": {
+        "description": "Wählen Sie das Vektordatenbank-Backend für die Suche (deploymentweit)."
       }
     },
     "account": {
@@ -5412,6 +5416,44 @@
       "preview": "Branding-Vorschau",
       "validation": {
         "appNameRequired": "App-Name ist erforderlich"
+      }
+    },
+    "vectorDatabase": {
+      "title": "Vektordatenbank",
+      "activeBackend": "Aktives Backend",
+      "deploymentBanner": "Diese Konfiguration gilt für das gesamte Deployment und betrifft jede Organisation, nicht nur Ihre aktuelle. Änderungen werden nach einem Neustart des RAG-Dienstes wirksam.",
+      "backendLabel": "Backend",
+      "backend": {
+        "pgvector": "PostgreSQL (pgvector, integriert)",
+        "qdrant": "Qdrant (extern)"
+      },
+      "qdrantUrlLabel": "Qdrant-URL",
+      "qdrantUrlHelp": "Der vom RAG-Dienst erreichbare Qdrant-Endpunkt, z. B. http://qdrant:6333.",
+      "collectionLabel": "Collection",
+      "collectionHelp": "Name der Qdrant-Collection zum Speichern der Vektoren.",
+      "preferGrpcLabel": "gRPC bevorzugen",
+      "apiKeyLabel": "API-Schlüssel",
+      "apiKeyHelpConfigured": "Ein Schlüssel ist konfiguriert. Geben Sie einen neuen Wert ein, um ihn zu ersetzen.",
+      "apiKeyHelpNone": "Optional. Erforderlich, wenn Ihre Qdrant-Instanz Authentifizierung verlangt.",
+      "testConnection": "Verbindung testen",
+      "testing": "Wird getestet …",
+      "save": "Änderungen speichern",
+      "saving": "Wird gespeichert …",
+      "testOk": "Verbindung erfolgreich ({status}, {latency} ms).",
+      "testFailed": "Verbindung fehlgeschlagen: {error}",
+      "pgvectorHint": "Integriertes Backend – prüfen Sie über den Health-Endpunkt des RAG-Dienstes, ob es bereitsteht.",
+      "saved": "Vektordatenbank-Einstellungen gespeichert.",
+      "saveFailed": "Speichern der Vektordatenbank-Einstellungen fehlgeschlagen.",
+      "confirm": {
+        "title": "Vektordatenbank des Deployments ändern?",
+        "body": "Sie ändern die Vektordatenbank von {from} zu {to}. Dies betrifft ALLE Organisationen in diesem Deployment: Vorhandene Dokumente müssen in das neue Backend neu indexiert werden, und die Änderung wird erst nach einem Neustart des RAG-Dienstes wirksam.",
+        "bodySameBackend": "Sie aktualisieren die Vektordatenbank-Konfiguration des Deployments. Dies betrifft ALLE Organisationen und wird nach einem Neustart des RAG-Dienstes wirksam.",
+        "ack": "Mir ist bewusst, dass dies die Vektordatenbank für alle Organisationen in diesem Deployment ändert.",
+        "confirm": "Konfiguration speichern",
+        "cancel": "Abbrechen"
+      },
+      "overwrite": {
+        "body": "Ein vorhandener API-Schlüssel konnte nicht gelesen werden und wird verworfen, wenn Sie fortfahren. Überschreiben?"
       }
     }
   },

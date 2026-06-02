@@ -33,6 +33,12 @@ class ConfigResponse(BaseModel):
     chunk_overlap: int
     top_k: int
     similarity_threshold: float
+    vector_backend: str | None = Field(
+        default=None, description="Active vector-store backend (e.g. 'pgvector', 'qdrant')"
+    )
+    vector_backend_reachable: bool | None = Field(
+        default=None, description="Whether the active vector backend is reachable (null before init)"
+    )
 
 
 # ============================================================================

@@ -23,7 +23,12 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+import { resolveAgeRecipients } from './age_keygen';
 
 interface CacheEntry {
   data: Record<string, unknown>;
@@ -84,6 +89,61 @@ function emitPlaintextWarnOnce(filePath: string): void {
  */
 export function invalidateSecretsCache(filePath: string): void {
   cache.delete(filePath);
+}
+
+/**
+ * Encrypt a plaintext JSON string to SOPS + age ciphertext (JSON output).
+ *
+ * Resolves ALL age recipients from env so the ciphertext is decryptable by
+ * any configured key — the key-rotation primitive (append a new key, re-save
+ * via the UI, drop the old). The caller must have already checked
+ * {@link hasSopsKey}; this throws if no recipients resolve. The plaintext is
+ * written to a 0o600 file inside a 0o700 mkdtemp dir and removed in a
+ * `finally`, so the API key never lingers in `/tmp` after the call.
+ *
+ * Mirrors the inline encryption in `providers/file_actions.ts`; extracted
+ * here so other domains (vector-db config) reuse one audited code path.
+ */
+export function encryptJsonToSops(plaintext: string): string {
+  const recipients = resolveAgeRecipients();
+  if (recipients.length === 0) {
+    throw new Error(
+      'No age secret key available. Set SOPS_AGE_KEY (inline) or ' +
+        'SOPS_AGE_KEY_FILE (path) in .env, or unset both to use plaintext mode.',
+    );
+  }
+  const recipientArg = recipients.join(',');
+
+  const tmpDir = mkdtempSync(path.join(tmpdir(), 'sops-'));
+  const tmpFile = path.join(tmpDir, 'plain.json');
+  try {
+    writeFileSync(tmpFile, plaintext, { encoding: 'utf-8', mode: 0o600 });
+    return execFileSync(
+      'sops',
+      [
+        '-e',
+        '--input-type',
+        'json',
+        '--output-type',
+        'json',
+        '--age',
+        recipientArg,
+        tmpFile,
+      ],
+      { encoding: 'utf-8', timeout: 10_000, stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+  } finally {
+    // Best-effort cleanup of the plaintext tmp dir — warn (don't swallow) so
+    // a leaked key file surfaces rather than lingering until the tmp reaper.
+    try {
+      rmSync(tmpDir, { recursive: true, force: true });
+    } catch (cleanupErr) {
+      console.warn(
+        `[encryptJsonToSops] failed to remove tmp dir ${tmpDir}`,
+        cleanupErr,
+      );
+    }
+  }
 }
 
 export async function decryptSecretsFile(

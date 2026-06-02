@@ -9,27 +9,23 @@
       }
     },
     "forcedChange": {
-      "description": "Dein Passwort ist gemäss der Rotationsrichtlinie der Organisation abgelaufen. Lege ein neues Passwort fest, um fortzufahren."
+      "description": "Dein Passwort ist gem\u00e4ss der Rotationsrichtlinie der Organisation abgelaufen. Lege ein neues Passwort fest, um fortzufahren."
     }
   },
   "automations": {
     "triggers": {
       "schedules": {
-        "emptyDescription": "Erstelle einen Zeitplan, um diese Automatisierung regelmässig automatisch auszulösen."
+        "emptyDescription": "Erstelle einen Zeitplan, um diese Automatisierung regelm\u00e4ssig automatisch auszul\u00f6sen."
       }
     },
     "sidePanel": {
       "close": "Panel schliessen",
-      "resizePanel": "Panel-Grösse ändern"
+      "resizePanel": "Panel-Gr\u00f6sse \u00e4ndern"
     }
   },
   "chat": {
     "budgetWarningDismiss": "Schliessen",
-    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB.",
-    "canvas": {
-      "close": "Canvas schliessen",
-      "resizeHandle": "Canvas-Grösse ändern"
-    }
+    "fileSizeExceededMultiple": "{names} \u00fcberschreitet das Dateigr\u00f6ssenlimit von {maxSize} MB."
   },
   "common": {
     "actions": {
@@ -37,7 +33,7 @@
     },
     "aria": {
       "close": "Schliessen",
-      "zoomIn": "Vergrössern"
+      "zoomIn": "Vergr\u00f6ssern"
     }
   },
   "conversations": {
@@ -53,28 +49,24 @@
   },
   "todoList": {
     "paneClose": "Plan schliessen",
-    "paneResizeHandle": "Planbereich vergrössern"
-  },
-  "chat": {
-    "budgetWarningDismiss": "Schliessen",
-    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB."
+    "paneResizeHandle": "Planbereich vergr\u00f6ssern"
   },
   "documents": {
     "preview": {
       "closePreview": "Vorschau schliessen",
       "sidebar": {
-        "size": "Grösse"
+        "size": "Gr\u00f6sse"
       }
     },
     "upload": {
       "fileTooLarge": "Datei zu gross",
-      "fileSizeExceeded": "Datei {name} überschreitet das Limit von {maxSize} MB. Aktuelle Grösse: {currentSize} MB"
+      "fileSizeExceeded": "Datei {name} \u00fcberschreitet das Limit von {maxSize} MB. Aktuelle Gr\u00f6sse: {currentSize} MB"
     }
   },
   "governance": {
     "retentionPolicy": {
       "workflowLogs": {
-        "description": "Workflow-Ausführungseinträge und Trigger-Logs, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Schliesst pro Ausführung gespeicherte Variablen-/Output-Blobs ein."
+        "description": "Workflow-Ausf\u00fchrungseintr\u00e4ge und Trigger-Logs, die \u00e4lter als die Aufbewahrungsfrist sind, automatisch l\u00f6schen. Schliesst pro Ausf\u00fchrung gespeicherte Variablen-/Output-Blobs ein."
       }
     },
     "passwordPolicy": {
@@ -86,15 +78,15 @@
       }
     },
     "contentSafety": {
-      "wordsDescription": "Ein Wort oder eine Phrase pro Zeile. Gross-/Kleinschreibung egal. Für CJK/Thai/Laotisch wird automatisch Teilstring-Matching verwendet; andere Schriften nutzen Unicode-basierte Wortgrenzen."
+      "wordsDescription": "Ein Wort oder eine Phrase pro Zeile. Gross-/Kleinschreibung egal. F\u00fcr CJK/Thai/Laotisch wird automatisch Teilstring-Matching verwendet; andere Schriften nutzen Unicode-basierte Wortgrenzen."
     },
     "legalHold": {
       "sections": {
         "releaseRequests": {
-          "description": "Ausstehende Anträge müssen von einem anderen Admin genehmigt werden. Genehmigte Anträge warten anschliessend die Cooldown-Phase ab."
+          "description": "Ausstehende Antr\u00e4ge m\u00fcssen von einem anderen Admin genehmigt werden. Genehmigte Antr\u00e4ge warten anschliessend die Cooldown-Phase ab."
         },
         "matters": {
-          "description": "Holds nach Fall gruppieren. Beim Schliessen eines Falls werden Freigabeanträge für alle verknüpften Holds eingereicht (weiterhin mit Vier-Augen-Genehmigung)."
+          "description": "Holds nach Fall gruppieren. Beim Schliessen eines Falls werden Freigabeantr\u00e4ge f\u00fcr alle verkn\u00fcpften Holds eingereicht (weiterhin mit Vier-Augen-Genehmigung)."
         }
       },
       "actions": {
@@ -105,11 +97,11 @@
           "description": "Die Ablehnung schliesst den Antrag, ohne den Hold freizugeben."
         },
         "upsertMatter": {
-          "description": "Verwandte Holds unter einem Fall gruppieren. Beim späteren Schliessen werden Freigabeanträge für alle verknüpften Holds eingereicht."
+          "description": "Verwandte Holds unter einem Fall gruppieren. Beim sp\u00e4teren Schliessen werden Freigabeantr\u00e4ge f\u00fcr alle verkn\u00fcpften Holds eingereicht."
         },
         "closeMatter": {
           "title": "Fall schliessen",
-          "description": "Beim Schliessen werden Freigabeanträge für {count} aktive verknüpfte Hold(s) eingereicht. Jede Freigabe benötigt weiterhin Vier-Augen-Genehmigung.",
+          "description": "Beim Schliessen werden Freigabeantr\u00e4ge f\u00fcr {count} aktive verkn\u00fcpfte Hold(s) eingereicht. Jede Freigabe ben\u00f6tigt weiterhin Vier-Augen-Genehmigung.",
           "submit": "Fall schliessen"
         }
       }
@@ -117,24 +109,24 @@
     "dataSubjectRequests": {
       "reasonCodes": {
         "unlawful_processing": {
-          "label": "Unrechtmässige Verarbeitung"
+          "label": "Unrechtm\u00e4ssige Verarbeitung"
         }
       }
     },
     "dsarPolicy": {
-      "ownerOnlyNotice": "Nur der Owner kann diese Richtlinie ändern. Admins können sie lesen. Jede Lockerung der Schutzmassnahmen (kürzere Karenzzeit, Deaktivieren der Doppelfreigabe, Anheben des täglichen Limits) wird 24 Stunden lang gestaffelt, damit jeder Admin sie zurücksetzen kann."
+      "ownerOnlyNotice": "Nur der Owner kann diese Richtlinie \u00e4ndern. Admins k\u00f6nnen sie lesen. Jede Lockerung der Schutzmassnahmen (k\u00fcrzere Karenzzeit, Deaktivieren der Doppelfreigabe, Anheben des t\u00e4glichen Limits) wird 24 Stunden lang gestaffelt, damit jeder Admin sie zur\u00fccksetzen kann."
     }
   },
   "personalization": {
     "page": {
       "customInstructions": {
-        "placeholder": "z. B. Antworte knapp. Verwende standardmässig TypeScript bei Code-Themen."
+        "placeholder": "z. B. Antworte knapp. Verwende standardm\u00e4ssig TypeScript bei Code-Themen."
       }
     }
   },
   "prompts": {
     "form": {
-      "bytesOverLimitAlert": "Inhalt überschreitet das Grössenlimit. Kürze den Prompt, um zu speichern."
+      "bytesOverLimitAlert": "Inhalt \u00fcberschreitet das Gr\u00f6ssenlimit. K\u00fcrze den Prompt, um zu speichern."
     }
   },
   "settings": {
@@ -147,16 +139,55 @@
       "sso": {
         "excludeGroupsLabel": "Gruppen ausschliessen"
       }
+    },
+    "menu": {
+      "vectorDatabase": {
+        "description": "W\u00e4hlen Sie das Vektordatenbank-Backend f\u00fcr die Suche (deploymentweit)."
+      }
+    },
+    "vectorDatabase": {
+      "title": "Vektordatenbank",
+      "activeBackend": "Aktives Backend",
+      "deploymentBanner": "Diese Konfiguration gilt f\u00fcr das gesamte Deployment und betrifft jede Organisation, nicht nur Ihre aktuelle. \u00c4nderungen werden nach einem Neustart des RAG-Dienstes wirksam.",
+      "backendLabel": "Backend",
+      "backend": {
+        "pgvector": "PostgreSQL (pgvector, integriert)",
+        "qdrant": "Qdrant (extern)"
+      },
+      "qdrantUrlLabel": "Qdrant-URL",
+      "qdrantUrlHelp": "Der vom RAG-Dienst erreichbare Qdrant-Endpunkt, z. B. http://qdrant:6333.",
+      "collectionLabel": "Collection",
+      "collectionHelp": "Name der Qdrant-Collection zum Speichern der Vektoren.",
+      "preferGrpcLabel": "gRPC bevorzugen",
+      "apiKeyLabel": "API-Schl\u00fcssel",
+      "apiKeyHelpConfigured": "Ein Schl\u00fcssel ist konfiguriert. Geben Sie einen neuen Wert ein, um ihn zu ersetzen.",
+      "apiKeyHelpNone": "Optional. Erforderlich, wenn Ihre Qdrant-Instanz Authentifizierung verlangt.",
+      "testConnection": "Verbindung testen",
+      "testing": "Wird getestet \u2026",
+      "save": "\u00c4nderungen speichern",
+      "saving": "Wird gespeichert \u2026",
+      "testOk": "Verbindung erfolgreich ({status}, {latency} ms).",
+      "testFailed": "Verbindung fehlgeschlagen: {error}",
+      "pgvectorHint": "Integriertes Backend \u2013 pr\u00fcfen Sie \u00fcber den Health-Endpunkt des RAG-Dienstes, ob es bereitsteht.",
+      "saved": "Vektordatenbank-Einstellungen gespeichert.",
+      "saveFailed": "Speichern der Vektordatenbank-Einstellungen fehlgeschlagen.",
+      "confirm": {
+        "title": "Vektordatenbank des Deployments \u00e4ndern?",
+        "body": "Sie \u00e4ndern die Vektordatenbank von {from} zu {to}. Dies betrifft ALLE Organisationen in diesem Deployment: Vorhandene Dokumente m\u00fcssen in das neue Backend neu indexiert werden, und die \u00c4nderung wird erst nach einem Neustart des RAG-Dienstes wirksam.",
+        "bodySameBackend": "Sie aktualisieren die Vektordatenbank-Konfiguration des Deployments. Dies betrifft ALLE Organisationen und wird nach einem Neustart des RAG-Dienstes wirksam.",
+        "ack": "Mir ist bewusst, dass dies die Vektordatenbank f\u00fcr alle Organisationen in diesem Deployment \u00e4ndert.",
+        "confirm": "Konfiguration speichern",
+        "cancel": "Abbrechen"
+      },
+      "overwrite": {
+        "body": "Ein vorhandener API-Schl\u00fcssel konnte nicht gelesen werden und wird verworfen, wenn Sie fortfahren. \u00dcberschreiben?"
+      }
     }
   },
   "tables": {
     "headers": {
-      "size": "Grösse"
+      "size": "Gr\u00f6sse"
     }
-  },
-  "todoList": {
-    "paneClose": "Plan schliessen",
-    "paneResizeHandle": "Planbereich vergrössern"
   },
   "twoFactor": {
     "setup": {
@@ -165,62 +196,63 @@
   },
   "projects": {
     "agents": {
-      "emptyAdminBody": "Die aktuellen Einschränkungen schliessen jeden Agenten aus, auf den dein Team Zugriff hat.",
-      "emptyModelsAdminBody": "Die aktuellen Einschränkungen schliessen jedes Modell aus, auf das dein Team Zugriff hat."
+      "emptyAdminBody": "Die aktuellen Einschr\u00e4nkungen schliessen jeden Agenten aus, auf den dein Team Zugriff hat.",
+      "emptyModelsAdminBody": "Die aktuellen Einschr\u00e4nkungen schliessen jedes Modell aus, auf das dein Team Zugriff hat."
     },
     "errors": {
       "RATE_LIMITED": "Das passiert grad zu oft. Versuch es gleich nochmal."
     }
   },
   "accessDenied": {
-    "webdav": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die WebDAV-Einstellungen zuzugreifen."
+    "webdav": "Du ben\u00f6tigst Admin- oder Entwickler-Berechtigungen, um auf die WebDAV-Einstellungen zuzugreifen."
   },
   "metadata": {
     "webdav": {
       "title": "WebDAV",
-      "description": "Tale-Dokumente als Netzlaufwerk einhängen."
+      "description": "Tale-Dokumente als Netzlaufwerk einh\u00e4ngen."
     }
   },
   "navigation": {
-    "webdav": "WebDAV"
+    "webdav": "WebDAV",
+    "vectorDatabase": "Vektordatenbank"
   },
   "webdav": {
     "title": "WebDAV",
-    "description": "Hänge Tale-Dokumente als Netzlaufwerk im Finder, File Explorer oder einem beliebigen WebDAV-Client ein.",
+    "description": "H\u00e4nge Tale-Dokumente als Netzlaufwerk im Finder, File Explorer oder einem beliebigen WebDAV-Client ein.",
     "connectionDetails": {
       "title": "Verbindungsdaten",
       "description": "Verwende diese im Finder, File Explorer oder in einem beliebigen WebDAV-Client.",
       "usernameLabel": "Benutzername",
       "usernameHelp": "Deine Tale-Konto-E-Mail (oder dein Benutzername)",
       "passwordLabel": "Passwort",
-      "passwordHelp": "Ein App-Passwort, das du unten erzeugst — nicht dein Konto-Passwort."
+      "passwordHelp": "Ein App-Passwort, das du unten erzeugst \u2014 nicht dein Konto-Passwort."
     },
     "create": {
       "title": "Neues App-Passwort erzeugen",
-      "description": "Nutze eines pro Gerät. Das vollständige Passwort wird nur einmal angezeigt — kopiere es, bevor du diesen Dialog schliesst.",
+      "description": "Nutze eines pro Ger\u00e4t. Das vollst\u00e4ndige Passwort wird nur einmal angezeigt \u2014 kopiere es, bevor du diesen Dialog schliesst.",
       "labelLabel": "Bezeichnung",
       "labelPlaceholder": "z. B. MacBook Finder",
       "submit": "Erzeugen",
       "error": "App-Passwort konnte nicht erstellt werden",
-      "savedTitle": "Speichere dieses Passwort — es wird nicht erneut angezeigt.",
+      "savedTitle": "Speichere dieses Passwort \u2014 es wird nicht erneut angezeigt.",
       "copy": "Kopieren",
       "dismiss": "Ich habe es gespeichert"
     },
     "list": {
-      "empty": "Noch keine App-Passwörter.",
+      "empty": "Noch keine App-Passw\u00f6rter.",
       "label": "Label",
-      "prefix": "Präfix",
+      "prefix": "Pr\u00e4fix",
       "lastUsed": "Zuletzt genutzt",
       "created": "Erstellt",
       "neverUsed": "nie",
       "revoked": "widerrufen",
       "revoke": "Widerrufen",
       "revokedToast": "Widerrufen",
-      "revokeError": "Widerruf nicht möglich"
+      "revokeError": "Widerruf nicht m\u00f6glich"
     },
     "revokeDialog": {
       "title": "Dieses App-Passwort widerrufen?",
-      "body": "Jedes Gerät, das mit diesem Passwort eingehängt ist, wird getrennt und aktive Lock-Tokens werden freigegeben.",
+      "body": "Jedes Ger\u00e4t, das mit diesem Passwort eingeh\u00e4ngt ist, wird getrennt und aktive Lock-Tokens werden freigegeben.",
       "confirm": "Widerrufen",
       "cancel": "Abbrechen"
     }

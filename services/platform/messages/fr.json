@@ -3631,7 +3631,8 @@
     },
     "aria": {
       "primaryNavigation": "Navigation principale"
-    }
+    },
+    "vectorDatabase": "Base de données vectorielle"
   },
   "notifications": {
     "title": "Notifications",
@@ -4162,6 +4163,9 @@
       },
       "governance": {
         "description": "Politiques, sécurité, journaux d'audit et conservation des données."
+      },
+      "vectorDatabase": {
+        "description": "Choisissez le backend de base de données vectorielle utilisé pour la recherche (à l’échelle du déploiement)."
       }
     },
     "account": {
@@ -5413,6 +5417,44 @@
       "preview": "Aperçu de la marque",
       "validation": {
         "appNameRequired": "Le nom de l'application est requis"
+      }
+    },
+    "vectorDatabase": {
+      "title": "Base de données vectorielle",
+      "activeBackend": "Backend actif",
+      "deploymentBanner": "Cette configuration s’applique à l’ensemble du déploiement et concerne chaque organisation, pas seulement la vôtre. Les modifications prennent effet après le redémarrage du service RAG.",
+      "backendLabel": "Backend",
+      "backend": {
+        "pgvector": "PostgreSQL (pgvector, intégré)",
+        "qdrant": "Qdrant (externe)"
+      },
+      "qdrantUrlLabel": "URL Qdrant",
+      "qdrantUrlHelp": "Le point de terminaison Qdrant accessible depuis le service RAG, par ex. http://qdrant:6333.",
+      "collectionLabel": "Collection",
+      "collectionHelp": "Nom de la collection Qdrant où stocker les vecteurs.",
+      "preferGrpcLabel": "Préférer gRPC",
+      "apiKeyLabel": "Clé API",
+      "apiKeyHelpConfigured": "Une clé est configurée. Saisissez une nouvelle valeur pour la remplacer.",
+      "apiKeyHelpNone": "Facultatif. Requis si votre instance Qdrant exige une authentification.",
+      "testConnection": "Tester la connexion",
+      "testing": "Test en cours…",
+      "save": "Enregistrer les modifications",
+      "saving": "Enregistrement…",
+      "testOk": "Connexion réussie ({status}, {latency} ms).",
+      "testFailed": "Échec de la connexion : {error}",
+      "pgvectorHint": "Backend intégré — vérifiez qu’il fonctionne via le point de terminaison de santé du service RAG.",
+      "saved": "Paramètres de base de données vectorielle enregistrés.",
+      "saveFailed": "Échec de l’enregistrement des paramètres de base de données vectorielle.",
+      "confirm": {
+        "title": "Modifier la base de données vectorielle du déploiement ?",
+        "body": "Vous changez la base de données vectorielle de {from} vers {to}. Cela concerne TOUTES les organisations de ce déploiement : les documents existants doivent être réindexés dans le nouveau backend, et la modification ne prend effet qu’après le redémarrage du service RAG.",
+        "bodySameBackend": "Vous mettez à jour la configuration de la base de données vectorielle du déploiement. Cela concerne TOUTES les organisations et prend effet après le redémarrage du service RAG.",
+        "ack": "Je comprends que cela modifie la base de données vectorielle pour toutes les organisations de ce déploiement.",
+        "confirm": "Enregistrer la configuration",
+        "cancel": "Annuler"
+      },
+      "overwrite": {
+        "body": "Une clé API existante n’a pas pu être lue et sera supprimée si vous continuez. La remplacer ?"
       }
     }
   },

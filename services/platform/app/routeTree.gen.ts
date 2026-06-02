@@ -39,6 +39,7 @@ import { Route as DashboardIdChatIndexRouteImport } from './routes/dashboard/$id
 import { Route as DashboardIdAutomationsIndexRouteImport } from './routes/dashboard/$id/automations/index';
 import { Route as DashboardIdAgentsIndexRouteImport } from './routes/dashboard/$id/agents/index';
 import { Route as DashboardIdSettingsWebdavRouteImport } from './routes/dashboard/$id/settings/webdav';
+import { Route as DashboardIdSettingsVectorDatabaseRouteImport } from './routes/dashboard/$id/settings/vector-database';
 import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams';
 import { Route as DashboardIdSettingsSkillsRouteImport } from './routes/dashboard/$id/settings/skills';
 import { Route as DashboardIdSettingsProvidersRouteImport } from './routes/dashboard/$id/settings/providers';
@@ -260,6 +261,12 @@ const DashboardIdSettingsWebdavRoute =
   DashboardIdSettingsWebdavRouteImport.update({
     id: '/webdav',
     path: '/webdav',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any);
+const DashboardIdSettingsVectorDatabaseRoute =
+  DashboardIdSettingsVectorDatabaseRouteImport.update({
+    id: '/vector-database',
+    path: '/vector-database',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any);
 const DashboardIdSettingsTeamsRoute =
@@ -720,6 +727,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren;
   '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsRouteWithChildren;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
+  '/dashboard/$id/settings/vector-database': typeof DashboardIdSettingsVectorDatabaseRoute;
   '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
   '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute;
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
@@ -806,6 +814,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/personal': typeof DashboardIdSettingsPersonalRoute;
   '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
+  '/dashboard/$id/settings/vector-database': typeof DashboardIdSettingsVectorDatabaseRoute;
   '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
   '/dashboard/$id/agents': typeof DashboardIdAgentsIndexRoute;
   '/dashboard/$id/automations': typeof DashboardIdAutomationsIndexRoute;
@@ -907,6 +916,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren;
   '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsRouteWithChildren;
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
+  '/dashboard/$id/settings/vector-database': typeof DashboardIdSettingsVectorDatabaseRoute;
   '/dashboard/$id/settings/webdav': typeof DashboardIdSettingsWebdavRoute;
   '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute;
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
@@ -1007,6 +1017,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/settings/teams'
+    | '/dashboard/$id/settings/vector-database'
     | '/dashboard/$id/settings/webdav'
     | '/dashboard/$id/agents/'
     | '/dashboard/$id/automations/'
@@ -1093,6 +1104,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/personal'
     | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/teams'
+    | '/dashboard/$id/settings/vector-database'
     | '/dashboard/$id/settings/webdav'
     | '/dashboard/$id/agents'
     | '/dashboard/$id/automations'
@@ -1193,6 +1205,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/settings/teams'
+    | '/dashboard/$id/settings/vector-database'
     | '/dashboard/$id/settings/webdav'
     | '/dashboard/$id/agents/'
     | '/dashboard/$id/automations/'
@@ -1461,6 +1474,13 @@ declare module '@tanstack/react-router' {
       path: '/webdav';
       fullPath: '/dashboard/$id/settings/webdav';
       preLoaderRoute: typeof DashboardIdSettingsWebdavRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
+    '/dashboard/$id/settings/vector-database': {
+      id: '/dashboard/$id/settings/vector-database';
+      path: '/vector-database';
+      fullPath: '/dashboard/$id/settings/vector-database';
+      preLoaderRoute: typeof DashboardIdSettingsVectorDatabaseRouteImport;
       parentRoute: typeof DashboardIdSettingsRoute;
     };
     '/dashboard/$id/settings/teams': {
@@ -2223,6 +2243,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsProvidersRoute: typeof DashboardIdSettingsProvidersRouteWithChildren;
   DashboardIdSettingsSkillsRoute: typeof DashboardIdSettingsSkillsRouteWithChildren;
   DashboardIdSettingsTeamsRoute: typeof DashboardIdSettingsTeamsRoute;
+  DashboardIdSettingsVectorDatabaseRoute: typeof DashboardIdSettingsVectorDatabaseRoute;
   DashboardIdSettingsWebdavRoute: typeof DashboardIdSettingsWebdavRoute;
   DashboardIdSettingsIndexRoute: typeof DashboardIdSettingsIndexRoute;
 }
@@ -2249,6 +2270,8 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
     DashboardIdSettingsProvidersRouteWithChildren,
   DashboardIdSettingsSkillsRoute: DashboardIdSettingsSkillsRouteWithChildren,
   DashboardIdSettingsTeamsRoute: DashboardIdSettingsTeamsRoute,
+  DashboardIdSettingsVectorDatabaseRoute:
+    DashboardIdSettingsVectorDatabaseRoute,
   DashboardIdSettingsWebdavRoute: DashboardIdSettingsWebdavRoute,
   DashboardIdSettingsIndexRoute: DashboardIdSettingsIndexRoute,
 };

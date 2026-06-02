@@ -19,6 +19,7 @@ type SettingsLabelKey =
   | 'people'
   | 'integrations'
   | 'providers'
+  | 'vectorDatabase'
   | 'skills'
   | 'api'
   | 'branding'
@@ -82,6 +83,16 @@ export function SettingsNavigation({
       label: t('providers'),
       href: `/dashboard/${organizationId}/settings/providers`,
       can: ['read', 'developerSettings'],
+      matchMode: 'startsWith',
+    },
+    {
+      // Deployment-wide vector-database backend. Gated on `orgSettings`
+      // (owner/admin) — not `developerSettings` — because changing it
+      // affects every organization's retrieval and data location.
+      labelKey: 'vectorDatabase',
+      label: t('vectorDatabase'),
+      href: `/dashboard/${organizationId}/settings/vector-database`,
+      can: ['read', 'orgSettings'],
       matchMode: 'startsWith',
     },
     {

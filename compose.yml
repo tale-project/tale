@@ -266,6 +266,37 @@ services:
       - internal
 
   # ============================================================================
+  # Qdrant (optional external vector database)
+  # ----------------------------------------------------------------------------
+  # Self-hosted Qdrant for deployments that set the vector-database backend
+  # to "qdrant" in Settings → Vector database. OFF by default — the built-in
+  # pgvector backend requires nothing here. Enable with the `qdrant` compose
+  # profile (`docker compose --profile qdrant up -d`), then point the backend
+  # at http://qdrant:6333. No ports published: reachable only by the RAG
+  # service on the internal network (receive-only, like crawler/rag).
+  # ============================================================================
+  qdrant:
+    profiles: ['qdrant']
+    image: qdrant/qdrant:${QDRANT_VERSION:-v1.18.1}
+    container_name: tale-qdrant
+    restart: unless-stopped
+
+    # Persistent vector storage.
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+    # Logging configuration
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    # Networks — internal only; never published externally.
+    networks:
+      - internal
+
+  # ============================================================================
   # Tale Convex (Phase 1: added alongside legacy all-in-one platform; not yet
   # wired into Caddy. See designs: `giggly-napping-honey.md`.)
   # ----------------------------------------------------------------------------
@@ -712,6 +743,11 @@ volumes:
 
   # Persistent storage for Crawler data (website registry + per-site URL databases)
   crawler-data:
+    driver: local
+
+  # Persistent storage for the optional self-hosted Qdrant vector database
+  # (only used when the `qdrant` compose profile is enabled).
+  qdrant-data:
     driver: local
 
 # ============================================================================

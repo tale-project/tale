@@ -90,6 +90,7 @@ async def get_config():
     to any caller with reach to the RAG port. LLM/embedding model names
     require an `org_slug` to resolve and are omitted here.
     """
+    vector = await rag_service.vector_store_health()
     return ConfigResponse(
         host=settings.host,
         port=settings.port,
@@ -98,4 +99,6 @@ async def get_config():
         chunk_overlap=settings.chunk_overlap,
         top_k=settings.top_k,
         similarity_threshold=settings.similarity_threshold,
+        vector_backend=vector.get("backend"),
+        vector_backend_reachable=vector.get("reachable"),
     )

@@ -22,6 +22,7 @@ from tale_shared.db import acquire_with_retry
 
 from ..config import settings
 from .semantic_cache import SemanticCache
+from .vector_store import PostgresVectorStore, VectorStore
 
 SCHEMA = "private_knowledge"
 
@@ -37,9 +38,18 @@ async def _timed(name: str, coro: Any) -> Any:
 class RagSearchService:
     _background_tasks: ClassVar[set[asyncio.Task[None]]] = set()
 
-    def __init__(self, pool: asyncpg.Pool, embedding_service: EmbeddingService):
+    def __init__(
+        self,
+        pool: asyncpg.Pool,
+        embedding_service: EmbeddingService,
+        vector_store: VectorStore | None = None,
+    ):
         self._pool = pool
         self._embedding = embedding_service
+        # Production always injects the process-singleton store; default to
+        # the built-in pgvector driver so standalone construction (tests,
+        # one-off scripts) keeps the pre-abstraction behavior.
+        self._vector_store: VectorStore = vector_store if vector_store is not None else PostgresVectorStore(pool)
         self._semantic_cache: SemanticCache | None = SemanticCache(pool) if settings.semantic_cache_enabled else None
         self._reranker: Reranker | None = (
             Reranker(
@@ -305,26 +315,50 @@ class RagSearchService:
         file_ids: list[str] | None,
         limit: int,
     ) -> list[dict[str, Any]]:
-        vec_str = json.dumps(embedding)
-        tenant_clause, tenant_params = self._build_scope_clause(org_slug, file_ids, 1)
+        """ANN search via the active vector store, then hydrate content.
 
+        The backend (pgvector or Qdrant) returns chunk ids + similarity
+        scores; chunk content and document metadata are always read back
+        from Postgres — the authoritative store for content and the
+        per-tenant `org_slug` isolation gate. The hydrate query re-applies
+        the org filter as defense-in-depth so a backend that returned a
+        foreign id can never leak cross-tenant content.
+        """
+        hits = await self._vector_store.search(org_slug, embedding, file_ids=file_ids, limit=limit)
+        if not hits:
+            return []
+
+        rows_by_id = await self._hydrate_chunks(org_slug, [h.chunk_id for h in hits])
+
+        # Preserve the backend's similarity ordering; attach its score.
+        results: list[dict[str, Any]] = []
+        for hit in hits:
+            row = rows_by_id.get(hit.chunk_id)
+            if row is None:
+                # Backend point with no matching Postgres row (e.g. drift
+                # after a delete on an external backend) — skip silently.
+                continue
+            results.append({**row, "score": hit.score})
+        return results
+
+    async def _hydrate_chunks(
+        self,
+        org_slug: str,
+        chunk_ids: list[Any],
+    ) -> dict[Any, dict[str, Any]]:
+        """Fetch chunk content + document metadata for the given ids,
+        scoped to `org_slug`. Returns a map keyed by `chunks.id`."""
         sql = f"""
             SELECT c.id, c.chunk_content, c.core_content, c.chunk_index, c.document_id,
                    d.file_id, d.filename,
-                   d.source_created_at, d.source_modified_at, d.created_at,
-                   1 - (c.embedding <=> $1::vector) AS score
+                   d.source_created_at, d.source_modified_at, d.created_at
             FROM {SCHEMA}.chunks c
             LEFT JOIN {SCHEMA}.documents d ON c.document_id = d.id
-            WHERE c.embedding IS NOT NULL
-            {tenant_clause}
-            ORDER BY c.embedding <=> $1::vector
-            LIMIT ${2 + len(tenant_params)}
+            WHERE c.org_slug = $1 AND c.id = ANY($2)
         """
-        params = [vec_str, *tenant_params, limit]
-
         async with acquire_with_retry(self._pool) as conn:
-            rows = await conn.fetch(sql, *params)
-            return [dict(r) for r in rows]
+            rows = await conn.fetch(sql, org_slug, chunk_ids)
+        return {row["id"]: dict(row) for row in rows}
 
 
 def _apply_recency_boost(

@@ -538,6 +538,27 @@ run_seed() {
     fi
   fi
 
+  # --- Vector database (DEPLOYMENT-LEVEL, single file at .system/vectordb.json) ---
+  # Deployment-wide (NOT per-org): selects which vector-store backend the RAG
+  # service uses. Lives at `$data_dir/.system/` — outside any org tree, where a
+  # leading-dot dir can never collide with an org slug. Seeded so the admin UI
+  # reads a concrete default; RAG also defaults to pgvector when the file is
+  # absent, so this is a convenience, not a correctness requirement. Skip-if-
+  # exists guards an operator's saved config (the UI writes here directly).
+  local vectordb_dir="${data_dir}/.system"
+  local vectordb_src="/app/builtin/default/.system/vectordb.json"
+  if [ -f "$vectordb_src" ]; then
+    mkdir -p "$vectordb_dir"
+    local dest="$vectordb_dir/vectordb.json"
+    if [ "$FORCE_SEED" = "true" ]; then
+      atomic_cp "$vectordb_src" "$dest"; echo "   ✓ Seeded vectordb config (forced)"
+    elif [ -f "$dest" ]; then
+      echo "   ⏭ Skipping vectordb config (already exists)"
+    else
+      atomic_cp "$vectordb_src" "$dest"; echo "   ✓ Seeded vectordb config"
+    fi
+  fi
+
   # --- Retention (single file at default/retention.json) ---
   # Retention is one JSON object per org under the uniform org-first layout
   # (`$TALE_CONFIG_DIR/<orgSlug>/retention.json`). The catalog ships only
