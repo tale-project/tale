@@ -3657,6 +3657,8 @@
     "loading": "Loading…",
     "accountLocked": "Account temporarily locked: {email}",
     "lockoutDetails": "{consecutiveFailures} failed sign-in attempts from {ip}.",
+    "auditIntegrityFailed": "Audit log integrity check failed",
+    "auditIntegrityFailedDetails": "The scheduled audit-log integrity check could not verify this organization's chain: {reason}. Investigate immediately — this can indicate tampering.",
     "dsarScheduled": "Erasure request scheduled",
     "dsarScheduledBody": "An erasure request was filed for a subject in this org. It will execute in {coolingOffHours}h. Open the receipt to review or cancel.",
     "dsarApprovalNeeded": "Erasure request awaiting your approval",
