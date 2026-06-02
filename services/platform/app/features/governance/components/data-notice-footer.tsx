@@ -1,7 +1,6 @@
 'use client';
 
 import { Text } from '@tale/ui/text';
-import { ShieldAlert } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -27,7 +26,7 @@ interface DataNoticeFooterProps {
  * `requireAcknowledgment` policy field is preserved server-side for a
  * future regulated-customer rewire.
  *
- * Visual: muted icon + small text.
+ * Visual: small muted text.
  */
 export function DataNoticeFooter({
   organizationId,
@@ -43,12 +42,11 @@ export function DataNoticeFooter({
       role="note"
       aria-label={t('footer.ariaLabel', 'Confidentiality notice')}
       className={cn(
-        'flex items-center justify-center gap-1.5 px-3 py-1.5',
-        'text-muted-foreground',
+        'flex items-center justify-center px-3 py-1.5',
+        'text-gray-400 dark:text-gray-500',
         className,
       )}
     >
-      <ShieldAlert aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
       <Text className="text-xs leading-tight">{notice.message}</Text>
     </div>
   );

@@ -991,7 +991,12 @@ export function ChatInput({
         </div>
       </FileUpload.DropZone>
 
-      <DataNoticeFooter organizationId={organizationId} className="pt-1 pb-1" />
+      {threadId && (
+        <DataNoticeFooter
+          organizationId={organizationId}
+          className="pt-1 pb-1"
+        />
+      )}
 
       {previewImage && (
         <ImagePreviewDialog
