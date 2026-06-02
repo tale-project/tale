@@ -716,6 +716,13 @@
         "executionId": "Ausführungs-ID: {id}",
         "testFailed": "Ausführung fehlgeschlagen",
         "startFailed": "Ausführung konnte nicht gestartet werden"
+      },
+      "result": {
+        "completed": "Abgeschlossen",
+        "failed": "Ausführung fehlgeschlagen",
+        "running": "Läuft …",
+        "failedAtStep": "Fehlgeschlagen bei Schritt: {step}",
+        "runningStep": "Aktueller Schritt: {step}"
       }
     }
   },

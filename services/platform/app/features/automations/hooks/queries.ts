@@ -12,6 +12,20 @@ export function useExecutionJournal(
   );
 }
 
+/**
+ * Live status of a single execution (status / current step / error). Reactive,
+ * so a tester that started a run sees it progress to completed/failed without
+ * polling. Pass `undefined` to skip (no active run).
+ */
+export function useExecutionStatus(
+  executionId: Id<'wfExecutions'> | undefined,
+) {
+  return useConvexQuery(
+    api.wf_executions.queries.getExecutionStatus,
+    executionId ? { executionId } : 'skip',
+  );
+}
+
 interface ListExecutionsArgs {
   wfDefinitionId: string;
   status?: string[];

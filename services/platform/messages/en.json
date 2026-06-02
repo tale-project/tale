@@ -716,6 +716,13 @@
         "executionId": "Execution ID: {id}",
         "testFailed": "Execution failed",
         "startFailed": "Failed to start execution"
+      },
+      "result": {
+        "completed": "Completed",
+        "failed": "Execution failed",
+        "running": "Running…",
+        "failedAtStep": "Failed at step: {step}",
+        "runningStep": "Current step: {step}"
       }
     }
   },

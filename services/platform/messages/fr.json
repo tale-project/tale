@@ -717,6 +717,13 @@
         "executionId": "ID d'exécution : {id}",
         "testFailed": "Échec de l'exécution",
         "startFailed": "Échec du démarrage de l'exécution"
+      },
+      "result": {
+        "completed": "Terminé",
+        "failed": "Échec de l'exécution",
+        "running": "En cours…",
+        "failedAtStep": "Échec à l'étape : {step}",
+        "runningStep": "Étape en cours : {step}"
       }
     }
   },

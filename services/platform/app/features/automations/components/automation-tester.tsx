@@ -17,11 +17,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useStartWorkflowFromFile } from '../hooks/file-mutations';
 import { useReadWorkflow } from '../hooks/file-queries';
+import { useExecutionStatus } from '../hooks/queries';
 import {
   buildInputTemplateFromSchema,
   getMissingRequiredFields,
@@ -101,6 +103,15 @@ export function AutomationTester({
   const [isDryRunning, setIsDryRunning] = useState(false);
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
 
+  // The just-started execution, subscribed reactively so the panel shows the
+  // run progress to completed/failed (with the failing step + error) instead
+  // of firing and forgetting (#1484).
+  const [activeExecutionId, setActiveExecutionId] =
+    useState<Id<'wfExecutions'> | null>(null);
+  const { data: executionStatus } = useExecutionStatus(
+    activeExecutionId ?? undefined,
+  );
+
   const { mutateAsync: startWorkflow, isPending: isExecuting } =
     useStartWorkflowFromFile();
 
@@ -135,6 +146,7 @@ export function AutomationTester({
 
     setIsDryRunning(true);
     setDryRunResult(null);
+    setActiveExecutionId(null);
 
     toast({
       title: t('tester.dryRun.button'),
@@ -145,6 +157,7 @@ export function AutomationTester({
   };
 
   const handleExecute = async () => {
+    setActiveExecutionId(null);
     let input = {};
     try {
       input = JSON.parse(testInput);
@@ -185,6 +198,7 @@ export function AutomationTester({
       });
 
       setDryRunResult(null);
+      setActiveExecutionId(executionId);
       onTestComplete?.();
     } catch (error) {
       console.error('Test execution failed:', error);
@@ -225,6 +239,7 @@ export function AutomationTester({
           onChange={(value) => {
             setTestInput(value);
             setDryRunResult(null);
+            setActiveExecutionId(null);
           }}
           label={t('tester.inputLabel')}
           description={t('tester.inputDescription')}
@@ -302,6 +317,67 @@ export function AutomationTester({
                 ))}
               </HStack>
             </div>
+          </BorderedSection>
+        )}
+
+        {activeExecutionId && (
+          <BorderedSection
+            className={cn(
+              'p-3',
+              executionStatus?.status === 'completed'
+                ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
+                : executionStatus?.status === 'failed'
+                  ? 'bg-destructive/10 border-destructive/50'
+                  : 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20',
+            )}
+            role="status"
+            aria-live="polite"
+          >
+            <HStack gap={2} className="mb-1">
+              {executionStatus?.status === 'completed' ? (
+                <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+              ) : executionStatus?.status === 'failed' ? (
+                <AlertCircle className="text-destructive size-4" />
+              ) : (
+                <Loader2 className="size-4 animate-spin text-blue-600 motion-reduce:animate-none dark:text-blue-400" />
+              )}
+              <Text as="span" variant="label">
+                {executionStatus?.status === 'completed'
+                  ? t('tester.result.completed')
+                  : executionStatus?.status === 'failed'
+                    ? t('tester.result.failed')
+                    : t('tester.result.running')}
+              </Text>
+            </HStack>
+
+            {executionStatus?.status === 'failed' ? (
+              <Stack gap={1}>
+                {executionStatus.currentStepName && (
+                  <Text variant="error-sm">
+                    {t('tester.result.failedAtStep', {
+                      step: executionStatus.currentStepName,
+                    })}
+                  </Text>
+                )}
+                {executionStatus.error && (
+                  <Text
+                    variant="error-sm"
+                    className="break-words whitespace-pre-line"
+                  >
+                    {executionStatus.error}
+                  </Text>
+                )}
+              </Stack>
+            ) : (
+              executionStatus?.status !== 'completed' &&
+              executionStatus?.currentStepName && (
+                <Text className="text-muted-foreground text-xs">
+                  {t('tester.result.runningStep', {
+                    step: executionStatus.currentStepName,
+                  })}
+                </Text>
+              )
+            )}
           </BorderedSection>
         )}
 
