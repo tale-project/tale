@@ -10,6 +10,49 @@
 # .github/workflows/security.yml and .github/workflows/build.yml.
 # =============================================================================
 
+# =============================================================================
+# Vulnerability accept-risk entries (#1498)
+# =============================================================================
+# These are HIGH-severity advisories on dependencies with NO fixed release in
+# our channel. They do not affect the current gate (which blocks on CRITICAL),
+# but are recorded here with a compensating-control statement so that when the
+# Trivy gate ratchets to HIGH (tracked in #1498), the ratchet does not trip on
+# accepted, unfixable risk. Review each statement before relying on it; remove
+# the entry the moment a fixed release becomes available.
+vulnerabilities:
+  # xlsx (SheetJS community edition) is frozen at 0.18.5 on npm; these CVEs are
+  # only fixed in the maintained CDN build (https://cdn.sheetjs.com/), tracked
+  # as a separate migration. See the note in
+  # services/platform/convex/node_only/documents/internal_actions.ts.
+  - id: CVE-2023-30533 # Prototype Pollution (GHSA-4r6h-8v6p-xvw6)
+    statement: |
+      xlsx is used server-side only, from a Convex node action, to parse/
+      generate spreadsheets an authenticated org member explicitly uploaded or
+      requested — never anonymous or public input. Prototype pollution here
+      requires a crafted workbook reaching XLSX.read; the parse path is gated
+      behind auth + the org upload policy, and the action runs in an isolated
+      V8 with no privileged surface to escalate into. Accepted until the
+      CDN-build migration lands.
+  - id: CVE-2024-22363 # ReDoS (GHSA-5pgg-2g8v-p4x9)
+    statement: |
+      Same scope as CVE-2023-30533: server-side, authenticated upload path
+      only. A ReDoS at worst stalls the single document-processing action (its
+      own time budget bounds it); it cannot affect other requests. Accepted
+      until the CDN-build migration lands.
+  - id: CVE-2024-22364 # ReDoS (SheetJS community edition)
+    statement: |
+      Same scope and rationale as CVE-2024-22363. Accepted until the CDN-build
+      migration lands.
+  # lodash _.template code-injection. No fixed npm release (4.17.21 is the last
+  # published version; the advisory range has no upstream remediation).
+  - id: GHSA-r5fr-rjxr-66jc
+    statement: |
+      The advisory affects `_.template` when compiled from attacker-controlled
+      template strings. Tale never compiles lodash templates from user input —
+      our usage is `_.template`-free (lodash is pulled for data utilities and
+      transitively by build/dev tooling). No fixed release exists, so the risk
+      is accepted and revisited if lodash ships a patched line.
+
 misconfigurations:
   # AVD-DS-0002: "Image user should not be 'root'"
   - id: AVD-DS-0002
