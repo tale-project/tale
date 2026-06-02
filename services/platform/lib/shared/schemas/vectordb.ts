@@ -34,7 +34,6 @@ export const vectorDbConfigSchema = z.discriminatedUnion('backend', [
 ]);
 
 export type VectorDbConfig = z.infer<typeof vectorDbConfigSchema>;
-export type VectorDbBackend = VectorDbConfig['backend'];
 
 /** Write-only secret for the external backend (e.g. the Qdrant API key). */
 export const vectorDbSecretsSchema = z.object({
