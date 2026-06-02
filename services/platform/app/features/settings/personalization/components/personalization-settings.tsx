@@ -284,7 +284,8 @@ function CustomInstructionsToggleSection({
 }: ToggleSectionProps) {
   const { t } = useT('personalization');
   const { toast } = useToast();
-  const { mutateAsync: setEnabled } = useSetCustomInstructionsEnabled();
+  const { mutateAsync: setEnabled, isPending } =
+    useSetCustomInstructionsEnabled();
 
   const description = buildOrgDefaultHint(
     t,
@@ -298,6 +299,9 @@ function CustomInstructionsToggleSection({
       label={t('page.customInstructionsToggle.label')}
       description={description}
       checked={gate.effective}
+      // Disable while the write is in flight so a rapid double-toggle can't
+      // enqueue overlapping mutations (the value already flipped optimistically).
+      disabled={isPending}
       onCheckedChange={async (next) => {
         try {
           await setEnabled({ organizationId, enabled: next });
@@ -320,7 +324,7 @@ function MemoriesToggleSection({
 }: ToggleSectionProps) {
   const { t } = useT('personalization');
   const { toast } = useToast();
-  const { mutateAsync: setEnabled } = useSetMemoriesEnabled();
+  const { mutateAsync: setEnabled, isPending } = useSetMemoriesEnabled();
 
   const description = buildOrgDefaultHint(
     t,
@@ -334,6 +338,9 @@ function MemoriesToggleSection({
       label={t('page.memoriesToggle.label')}
       description={description}
       checked={gate.effective}
+      // Disable while the write is in flight so a rapid double-toggle can't
+      // enqueue overlapping mutations (the value already flipped optimistically).
+      disabled={isPending}
       onCheckedChange={async (next) => {
         try {
           await setEnabled({ organizationId, enabled: next });
@@ -446,7 +453,8 @@ function VoiceOutputSection({
 }) {
   const { t } = useT('personalization');
   const { toast } = useToast();
-  const { mutateAsync: setVoiceOutput } = useSetVoiceOutput();
+  const { mutateAsync: setVoiceOutput, isPending: isSettingVoiceOutput } =
+    useSetVoiceOutput();
   const getCapability = useAction(api.tts.synthesize.getCapability);
   const { data: orgVoicePolicy } = useGovernancePolicy(
     organizationId,
@@ -506,7 +514,10 @@ function VoiceOutputSection({
   );
 
   const disabled =
-    isLoading || (providerAvailable === false && !enabled) || orgVetoed;
+    isLoading ||
+    isSettingVoiceOutput ||
+    (providerAvailable === false && !enabled) ||
+    orgVetoed;
 
   return (
     <SettingsToggleRow
