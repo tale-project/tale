@@ -6,15 +6,23 @@
  * audit-log page. SOC 2 / ISO 27001 expect *continuous* monitoring with
  * alerting, not an on-demand check. This module runs that same verification
  * across every org with an audit chain on a daily cron and raises an alert —
- * a structured `console.error` plus a `security`-category audit row — whenever
+ * a structured `console.error`, a `security`-category audit row, AND an
+ * out-of-band notification (in-app bell for admins + Slack fan-out) — whenever
  * a chain fails to verify, is truncated past the per-run window, mismatches a
- * checkpoint, or trusts an unsigned PII scrub.
+ * checkpoint, or trusts an unsigned PII scrub. The out-of-band alert is what
+ * makes this a *monitored* control (SOC 2 CC7.2/CC7.3): a console line alone
+ * is not seen unless someone is watching the logs.
  */
 
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import { internalAction, internalQuery } from '../_generated/server';
+import {
+  internalAction,
+  internalMutation,
+  internalQuery,
+} from '../_generated/server';
+import { writeNotificationForOrgs } from '../notifications/helpers';
 import { verifyAuditChain } from './verify_integrity';
 
 // Bound the per-run org fan-out so a deployment with a very large org count
@@ -60,6 +68,32 @@ export const verifyAuditChainForOrg = internalQuery({
     maxEntries: v.optional(v.number()),
   },
   handler: async (ctx, args) => verifyAuditChain(ctx, args),
+});
+
+/**
+ * Out-of-band alert for a failed integrity check: an in-app notification to
+ * the org's admins (`security` category also fans out to Slack via
+ * `writeNotificationForOrgs`). Kept as its own internal mutation so the
+ * action can raise it right after writing the in-band audit row; a single
+ * org's notification failing must not abort the sweep, so the action wraps
+ * the call in its own try/catch.
+ */
+export const notifyIntegrityFailure = internalMutation({
+  args: { organizationId: v.string(), reason: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    await writeNotificationForOrgs(ctx, {
+      organizationIds: [args.organizationId],
+      category: 'security',
+      severity: 'critical',
+      // Resolved client-side against the `notifications` i18n namespace; the
+      // Slack sink renders the mirrored strings in notification_messages.ts.
+      titleKey: 'auditIntegrityFailed',
+      bodyKey: 'auditIntegrityFailedDetails',
+      params: { reason: args.reason },
+    });
+    return null;
+  },
 });
 
 export const runAuditIntegrityCheck = internalAction({
@@ -149,6 +183,21 @@ export const runAuditIntegrityCheck = internalAction({
           metadata,
         },
       );
+
+      // Out-of-band alert (admins' notification bell + Slack). Isolated so a
+      // notification write failing for one org never aborts the sweep — the
+      // in-band audit row above is already persisted as the durable record.
+      try {
+        await ctx.runMutation(
+          internal.audit_logs.integrity_check.notifyIntegrityFailure,
+          { organizationId, reason },
+        );
+      } catch (err) {
+        console.error(
+          `[AuditIntegrity] could not raise out-of-band alert for org ${organizationId}:`,
+          err,
+        );
+      }
     }
 
     console.log(

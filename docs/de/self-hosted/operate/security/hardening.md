@@ -65,6 +65,8 @@ Run-Code ist die riskanteste Oberfläche im Produkt — der einzige Ort, an dem 
 
 `METRICS_BEARER_TOKEN` ist in `.env.example` unset — das ist Absicht, damit eine frische Installation keine Metriken leakt. Setz den Token, scrape aus deinem Prometheus, und die Alert-Schwellen in [Operations](/de/self-hosted/operate/observability/operations) decken die kundenwirksamen Signale ab.
 
+Die Hash-Kette des Audit-Logs wird automatisch jede Nacht verifiziert. Jeder Bruch löst einen kritischen Security-Alert an die Org-Admins aus — in der Notification-Glocke und, wenn Slack verbunden ist, in deinem Slack-Channel —, sodass Manipulation auffällt, auch wenn niemand die Logs beobachtet. Dieselbe Verifikation kannst du jederzeit on demand von der Admin-Audit-Log-Seite aus neu walken.
+
 ## Wo das hingehört
 
 Hardening ist keine Ein-Durchgangs-Aufgabe — die Liste oben ist das, was du vor dem Launch walkst und nach jedem Upgrade oder nach jeder Änderung der Netzwerk-Form neu walkst. Das nächste, was es wert ist, danach zu lesen, ist die Zeile oben, die du noch nicht gemacht hast.
