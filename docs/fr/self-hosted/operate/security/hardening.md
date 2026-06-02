@@ -65,6 +65,8 @@ Run-code est la surface la plus risquée du produit — le seul endroit où un i
 
 `METRICS_BEARER_TOKEN` est non défini dans `.env.example` — c'est intentionnel, pour qu'une installation fraîche ne leak pas de métriques. Règle le token, scrape depuis ton Prometheus, et les seuils d'alerte dans [Opérations](/fr/self-hosted/operate/observability/operations) couvrent les signaux client-impactants.
 
+La chaîne de hachage du journal d'audit est vérifiée automatiquement chaque nuit. Toute rupture déclenche une alerte de sécurité critique vers les admins de l'org — dans la cloche de notifications et, lorsque Slack est connecté, dans ton canal Slack — pour que toute altération ressorte même quand personne ne surveille les logs. Tu peux re-walk la même vérification à la demande depuis la page d'administration du journal d'audit.
+
 ## Où cela s'inscrit
 
 Le durcissement n'est pas une tâche d'une seule passe — la liste ci-dessus est ce que tu walks avant le lancement, et que tu re-walks après chaque montée de version ou après chaque changement de la forme du réseau. La prochaine chose qui vaut la lecture après ceci est la ligne ci-dessus que tu n'as pas encore faite.

@@ -718,6 +718,13 @@
         "executionId": "ID d'exécution : {id}",
         "testFailed": "Échec de l'exécution",
         "startFailed": "Échec du démarrage de l'exécution"
+      },
+      "result": {
+        "completed": "Terminé",
+        "failed": "Échec de l'exécution",
+        "running": "En cours…",
+        "failedAtStep": "Échec à l'étape : {step}",
+        "runningStep": "Étape en cours : {step}"
       }
     }
   },
@@ -3659,6 +3666,8 @@
     "loading": "Chargement…",
     "accountLocked": "Compte temporairement verrouillé : {email}",
     "lockoutDetails": "{consecutiveFailures} tentatives de connexion échouées depuis {ip}.",
+    "auditIntegrityFailed": "Échec du contrôle d'intégrité du journal d'audit",
+    "auditIntegrityFailedDetails": "Le contrôle d'intégrité planifié du journal d'audit n'a pas pu vérifier la chaîne de cette organisation : {reason}. À examiner immédiatement — cela peut indiquer une altération.",
     "dsarScheduled": "Demande d'effacement planifiée",
     "dsarScheduledBody": "Une demande d'effacement a été déposée pour une personne dans cette organisation. Elle s'exécutera dans {coolingOffHours} h. Ouvre le reçu pour la consulter ou l'annuler.",
     "dsarApprovalNeeded": "Demande d'effacement en attente de ton approbation",

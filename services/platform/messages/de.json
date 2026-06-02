@@ -717,6 +717,13 @@
         "executionId": "Ausführungs-ID: {id}",
         "testFailed": "Ausführung fehlgeschlagen",
         "startFailed": "Ausführung konnte nicht gestartet werden"
+      },
+      "result": {
+        "completed": "Abgeschlossen",
+        "failed": "Ausführung fehlgeschlagen",
+        "running": "Läuft …",
+        "failedAtStep": "Fehlgeschlagen bei Schritt: {step}",
+        "runningStep": "Aktueller Schritt: {step}"
       }
     }
   },
@@ -3658,6 +3665,8 @@
     "loading": "Lädt…",
     "accountLocked": "Konto vorübergehend gesperrt: {email}",
     "lockoutDetails": "{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}.",
+    "auditIntegrityFailed": "Integritätsprüfung des Audit-Logs fehlgeschlagen",
+    "auditIntegrityFailedDetails": "Die geplante Integritätsprüfung des Audit-Logs konnte die Kette dieser Organisation nicht verifizieren: {reason}. Sofort untersuchen — dies kann auf Manipulation hindeuten.",
     "dsarScheduled": "Löschungsanfrage geplant",
     "dsarScheduledBody": "Eine Löschungsanfrage wurde für eine Person in dieser Organisation eingereicht. Die Anfrage wird in {coolingOffHours} Stunden ausgeführt. Öffne den Beleg zur Prüfung oder zum Abbruch.",
     "dsarApprovalNeeded": "Löschungsanfrage wartet auf deine Freigabe",
