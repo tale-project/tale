@@ -12,12 +12,29 @@ const h = vi.hoisted(() => ({
     update: vi.fn(),
   })),
   t: (key: string) => key,
+  // Mutable state the query/org mocks read. A STABLE object reference is
+  // returned each render (only `.policyRow`/`.orgId` mutate) so the hook's
+  // memo dep doesn't churn and reset the timer.
+  state: {
+    orgId: undefined as string | undefined,
+    // `undefined` models the in-flight query (loading); `null` = loaded, no row.
+    policyRow: null as { config: unknown } | null | undefined,
+  },
 }));
 
 vi.mock('@/lib/env', () => ({ getEnv: h.getEnv }));
 vi.mock('@/lib/auth-client', () => ({ authClient: { signOut: h.signOut } }));
 vi.mock('@/app/hooks/use-toast', () => ({ toast: h.toast }));
 vi.mock('@/lib/i18n/client', () => ({ useT: () => ({ t: h.t }) }));
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => h.state.orgId,
+}));
+vi.mock('@/app/hooks/use-convex-query', () => ({
+  useConvexQuery: () => ({ data: h.state.policyRow }),
+}));
+vi.mock('@/convex/_generated/api', () => ({
+  api: { governance: { queries: { getPolicy: 'getPolicy' } } },
+}));
 
 import { useSessionIdleWatchdog } from './use-session-idle-watchdog';
 
@@ -27,6 +44,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
   localStorage.clear();
+  // Default: no org route, no policy → effective window comes from env alone.
+  h.state.orgId = undefined;
+  h.state.policyRow = null;
   // jsdom's Location.href is non-configurable; replace the whole object so the
   // watchdog's redirect is observable instead of triggering a navigation.
   Object.defineProperty(window, 'location', {
@@ -113,5 +133,70 @@ describe('useSessionIdleWatchdog (#1502)', () => {
 
     fireActivity();
     expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the org policy window when it tightens the env backstop', async () => {
+    // env=10, org policy=5 → effective 5 min. Sign-out fires at 5 min idle.
+    h.state.orgId = 'org-1';
+    h.state.policyRow = { config: { enabled: true, idleTimeoutMinutes: 5 } };
+
+    renderHook(() => useSessionIdleWatchdog());
+
+    await advance(4 * MINUTE + 30_000);
+    expect(h.signOut).not.toHaveBeenCalled();
+    await advance(MINUTE);
+    expect(h.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('cannot loosen past the env backstop (env is the hard cap)', async () => {
+    // env=10, org policy=60 → effective clamps to 10 min.
+    h.state.orgId = 'org-1';
+    h.state.policyRow = { config: { enabled: true, idleTimeoutMinutes: 60 } };
+
+    renderHook(() => useSessionIdleWatchdog());
+
+    await advance(10 * MINUTE);
+    expect(h.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a disabled org policy (falls back to env)', async () => {
+    h.state.orgId = 'org-1';
+    h.state.policyRow = { config: { enabled: false, idleTimeoutMinutes: 5 } };
+
+    renderHook(() => useSessionIdleWatchdog());
+
+    // Disabled → env (10 min) governs, so nothing fires at the 5-min mark.
+    await advance(5 * MINUTE + 30_000);
+    expect(h.signOut).not.toHaveBeenCalled();
+    await advance(5 * MINUTE);
+    expect(h.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('signs out on the org window when no env backstop is set', async () => {
+    h.getEnv.mockImplementation((key: string) =>
+      key === 'BASE_PATH' ? '' : undefined,
+    );
+    h.state.orgId = 'org-1';
+    h.state.policyRow = { config: { enabled: true, idleTimeoutMinutes: 3 } };
+
+    renderHook(() => useSessionIdleWatchdog());
+
+    await advance(3 * MINUTE);
+    expect(h.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not arm on the env window while the org policy is still loading', async () => {
+    // org route present but the policy query is unresolved (`data: undefined`).
+    // Arming on the looser env window here would let a member already past the
+    // org's tighter timeout linger until the query returns.
+    h.state.orgId = 'org-1';
+    h.state.policyRow = undefined;
+
+    renderHook(() => useSessionIdleWatchdog());
+
+    // env is 10 min, but the watchdog must stay a no-op until the policy loads.
+    await advance(15 * MINUTE);
+    expect(h.toast).not.toHaveBeenCalled();
+    expect(h.signOut).not.toHaveBeenCalled();
   });
 });

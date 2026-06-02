@@ -2406,6 +2406,16 @@
       "saved": "La politique de connexion a été mise à jour",
       "saveFailed": "Échec de l'enregistrement de la politique de connexion"
     },
+    "sessionIdleTimeout": {
+      "title": "Délai d'inactivité de session",
+      "description": "Déconnecte les membres après une période d'inactivité. Cela peut uniquement raccourcir la limite définie pour le déploiement, jamais l'allonger.",
+      "enabled": "Activer le délai d'inactivité de session",
+      "minutes": "Délai d'inactivité (minutes)",
+      "minutesHint": "Minutes d'inactivité avant la déconnexion d'un membre. Plafonné par le SESSION_IDLE_TIMEOUT_MINUTES du déploiement lorsqu'il est défini. Par défaut : 30.",
+      "invalid": "Le délai d'inactivité doit être un entier entre 1 et 1440 minutes.",
+      "saved": "Le délai d'inactivité de session a été mis à jour",
+      "saveFailed": "Échec de l'enregistrement du délai d'inactivité de session"
+    },
     "featureFlags": {
       "title": "Contrôle des fonctionnalités",
       "description": "Active ou désactive des fonctionnalités par utilisateur, équipe ou rôle.",

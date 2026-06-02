@@ -1,12 +1,17 @@
 'use client';
 
 import * as ToastPrimitives from '@radix-ui/react-toast';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
+import { sessionIdleTimeoutConfigSchema } from '@/lib/shared/schemas/governance';
+import { resolveEffectiveIdleMinutes } from '@/lib/shared/session-idle';
 
 // Cross-tab shared "last activity" timestamp (ms). Activity in any tab keeps
 // every tab alive, mirroring the server's sliding window — otherwise an idle
@@ -31,12 +36,15 @@ const CHECK_INTERVAL_MS = 5_000;
 /**
  * Session idle watchdog (#1502, client side).
  *
- * The server is the control: Better Auth rejects an over-idle session on the
- * next request when `SESSION_IDLE_TIMEOUT_MINUTES` is set (see
+ * The server backstop is the control: Better Auth rejects an over-idle
+ * session on the next request when `SESSION_IDLE_TIMEOUT_MINUTES` is set (see
  * `lib/shared/session-idle.ts`). This hook is the matching UX — it watches
  * local input, warns shortly before the window elapses, and signs the user
- * out proactively instead of letting their next action 401. No-op unless the
- * timeout is configured.
+ * out proactively instead of letting their next action 401.
+ *
+ * The effective window is the per-org `session_idle_timeout` governance
+ * policy (#1502) tightened against the deployment backstop, resolved by
+ * `resolveEffectiveIdleMinutes`. No-op when neither is configured.
  *
  * Mount once inside the authenticated layout.
  */
@@ -47,9 +55,40 @@ export function useSessionIdleWatchdog(): void {
   const tRef = useRef(t);
   tRef.current = t;
 
+  // Per-org window (member-readable). `skip` outside an org route — the
+  // effective window then falls back to the deployment backstop alone.
+  const organizationId = useOrganizationId();
+  const { data: policyRow } = useConvexQuery(
+    api.governance.queries.getPolicy,
+    organizationId
+      ? { organizationId, policyType: 'session_idle_timeout' as const }
+      : 'skip',
+  );
+
+  // Effective minutes drive a primitive effect dep, so the listeners/timer are
+  // rebuilt only when the resolved window actually changes (e.g. an admin
+  // edits the policy live) — not on every render.
+  const minutes = useMemo(() => {
+    // Don't arm on the env (looser) window while the org policy is still
+    // loading — otherwise a member already past the org's tighter timeout
+    // would stay signed in until the query resolves. `policyRow === undefined`
+    // is the in-flight state (`null` = loaded, no policy row); wait for it.
+    if (organizationId && policyRow === undefined) return null;
+
+    const envRaw = getEnv('SESSION_IDLE_TIMEOUT_MINUTES');
+    const envMinutes =
+      typeof envRaw === 'number' && Number.isFinite(envRaw) && envRaw > 0
+        ? envRaw
+        : null;
+    const parsed = policyRow?.config
+      ? sessionIdleTimeoutConfigSchema.safeParse(policyRow.config)
+      : null;
+    const policy = parsed?.success ? parsed.data : null;
+    return resolveEffectiveIdleMinutes({ policy, envMinutes });
+  }, [organizationId, policyRow]);
+
   useEffect(() => {
-    const minutes = getEnv('SESSION_IDLE_TIMEOUT_MINUTES');
-    if (!minutes || !Number.isFinite(minutes) || minutes <= 0) {
+    if (minutes === null || !Number.isFinite(minutes) || minutes <= 0) {
       return undefined;
     }
 
@@ -182,5 +221,5 @@ export function useSessionIdleWatchdog(): void {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('storage', onStorage);
     };
-  }, []);
+  }, [minutes]);
 }

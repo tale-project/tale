@@ -13,6 +13,7 @@ import {
   passwordPolicyConfigSchema,
   piiConfigSchema,
   retentionPolicyConfigSchema,
+  sessionIdleTimeoutConfigSchema,
   systemPromptConfigSchema,
   twoFactorPolicyConfigSchema,
   uploadPolicyConfigSchema,
@@ -233,6 +234,20 @@ export const upsertPolicy = mutation({
           `Invalid two-factor policy configuration: ${parsed.error.message}`,
         );
       }
+    }
+
+    if (args.policyType === 'session_idle_timeout') {
+      const parsed = sessionIdleTimeoutConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid session idle timeout configuration: ${parsed.error.message}`,
+        );
+      }
+      // Persist the normalized output (schema defaults applied) rather than the
+      // raw input, so a partial config is stored with `enabled` /
+      // `idleTimeoutMinutes` resolved — and the `config.enabled` mirror below
+      // sees a concrete boolean.
+      args.config = parsed.data;
     }
 
     if (args.policyType === 'chat_filter') {

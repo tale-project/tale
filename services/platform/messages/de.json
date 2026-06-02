@@ -2405,6 +2405,16 @@
       "saved": "Anmelderichtlinie wurde aktualisiert",
       "saveFailed": "Anmelderichtlinie konnte nicht gespeichert werden"
     },
+    "sessionIdleTimeout": {
+      "title": "Sitzungs-Leerlaufzeit",
+      "description": "Mitglieder nach einer Phase der Inaktivität abmelden. Dies kann das installationsweite Limit nur verkürzen, niemals verlängern.",
+      "enabled": "Sitzungs-Leerlaufzeit aktivieren",
+      "minutes": "Leerlaufzeit (Minuten)",
+      "minutesHint": "Minuten der Inaktivität, bevor ein Mitglied abgemeldet wird. Wird durch SESSION_IDLE_TIMEOUT_MINUTES der Installation begrenzt, sofern gesetzt. Standard: 30.",
+      "invalid": "Leerlaufzeit muss eine ganze Zahl zwischen 1 und 1440 Minuten sein.",
+      "saved": "Sitzungs-Leerlaufzeit wurde aktualisiert",
+      "saveFailed": "Sitzungs-Leerlaufzeit konnte nicht gespeichert werden"
+    },
     "featureFlags": {
       "title": "Feature-Steuerung",
       "description": "Funktionen pro Benutzer, Team oder Rolle aktivieren oder deaktivieren.",

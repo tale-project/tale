@@ -12,14 +12,25 @@
  * watchdog (`useSessionIdleWatchdog`) is the matching UX: it warns and signs
  * the user out proactively rather than letting the next request 401.
  *
- * Scope: this is a single deployment-wide value. Per-organisation idle windows
- * would require reading each org's policy on every request, which defeats the
- * JWT-only fast path; that is intentionally out of scope here.
+ * Scope: the env var is the deployment-wide BACKSTOP. It still drives Better
+ * Auth's global sliding-window config (the server-side control), and it is the
+ * hard cap an org admin cannot loosen past. On top of that, an org admin may
+ * TIGHTEN the effective window via the `session_idle_timeout` governance
+ * policy (#1502); that per-org window drives the client watchdog. Resolving
+ * the per-org window on every server request would defeat the JWT-only fast
+ * path, so server-side enforcement stays on the deployment backstop — see
+ * `resolveEffectiveIdleMinutes` for how the two combine.
  */
 
 const ENV_KEY = 'SESSION_IDLE_TIMEOUT_MINUTES';
 const MIN_MINUTES = 1;
 const MAX_MINUTES = 24 * 60; // 24h — an idle window longer than a day is an absolute cap, not "idle".
+
+/** Effective idle window when neither env nor org policy is set, but an org
+ *  admin enables the policy without changing the field (the editor default). */
+export const DEFAULT_SESSION_IDLE_TIMEOUT_MINUTES = 30;
+export const SESSION_IDLE_TIMEOUT_MIN_MINUTES = MIN_MINUTES;
+export const SESSION_IDLE_TIMEOUT_MAX_MINUTES = MAX_MINUTES;
 
 // Memoized on the raw env value. The auth path calls this on every session
 // create/validate, but SESSION_IDLE_TIMEOUT_MINUTES doesn't change at runtime,
@@ -104,4 +115,31 @@ export function sessionExpiryMs(nowMs: number, fallbackMs: number): number {
   const minutes = parseSessionIdleTimeoutMinutes();
   if (minutes === null) return nowMs + fallbackMs;
   return nowMs + minutes * 60 * 1000;
+}
+
+/**
+ * Combine the deployment backstop (`envMinutes`, from
+ * `SESSION_IDLE_TIMEOUT_MINUTES`) with the per-org `session_idle_timeout`
+ * governance policy into the effective idle window, in minutes (#1502).
+ *
+ * Rules (env is the hard cap an org may only TIGHTEN, never loosen past):
+ *   - org policy enabled  → candidate = the org's window;
+ *     env set → `min(candidate, envMinutes)`; env unset → candidate as-is.
+ *   - org policy disabled/absent → fall back to `envMinutes` (today's
+ *     deployment-wide behaviour).
+ *   - neither configured → `null` (no idle timeout; watchdog is a no-op).
+ *
+ * Pure (env value is passed in, not read here) so it runs identically on the
+ * client watchdog and in a Convex query, and is unit-testable in isolation.
+ */
+export function resolveEffectiveIdleMinutes(args: {
+  policy: { enabled: boolean; idleTimeoutMinutes: number } | null;
+  envMinutes: number | null;
+}): number | null {
+  const { policy, envMinutes } = args;
+  if (policy?.enabled) {
+    const candidate = policy.idleTimeoutMinutes;
+    return envMinutes === null ? candidate : Math.min(candidate, envMinutes);
+  }
+  return envMinutes;
 }
