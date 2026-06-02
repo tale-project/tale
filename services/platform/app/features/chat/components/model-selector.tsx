@@ -378,6 +378,8 @@ export function ModelSelector({
       side="top"
       sideOffset={8}
       contentClassName="w-[22rem]"
+      tooltip={t('modelSelector.label')}
+      tooltipSide="top"
       searchPlaceholder={t('modelSelector.searchPlaceholder')}
       emptyText={t('modelSelector.noResults')}
       aria-label={t('modelSelector.label')}
@@ -386,7 +388,7 @@ export function ModelSelector({
       trigger={
         <Button
           type="button"
-          className="gap-2"
+          className="gap-1.5"
           size="icon"
           variant="ghost"
           aria-label={t('modelSelector.label')}

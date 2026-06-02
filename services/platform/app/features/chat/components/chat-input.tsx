@@ -860,7 +860,7 @@ export function ChatInput({
             className="flex-1 gap-2 pb-3 sm:gap-4"
           >
             <HStack
-              gap={0}
+              gap={1}
               align="center"
               className="scrollbar-hide min-w-0 flex-1 overflow-x-auto"
             >
@@ -886,7 +886,7 @@ export function ChatInput({
               {isArenaMode ? (
                 <ArenaModelSelector organizationId={organizationId} />
               ) : (
-                <HStack gap={0} align="center">
+                <HStack gap={1} align="center">
                   <AgentSelector
                     organizationId={organizationId}
                     projectId={projectId}

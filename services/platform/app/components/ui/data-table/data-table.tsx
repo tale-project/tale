@@ -179,6 +179,13 @@ export interface DataTableProps<TData, TValue = unknown> {
   onClearFilters?: () => void;
   /** Header action menu element (use DataTableActionMenu component) */
   actionMenu?: ReactNode;
+  /**
+   * Extra content rendered inside the filter bar (left side, alongside the
+   * search input) — e.g. an inline toggle like "show archived". Keeps the
+   * `actionMenu` slot reserved for the primary right-aligned action so the
+   * header matches the other list pages.
+   */
+  filtersContent?: ReactNode;
   /** Footer content */
   footer?: ReactNode;
   /** Enable sticky layout with header at top and pagination at bottom */
@@ -228,6 +235,7 @@ export function DataTable<TData, TValue = unknown>({
   isFiltersLoading = false,
   onClearFilters,
   actionMenu,
+  filtersContent,
   footer,
   stickyLayout = false,
   infiniteScroll,
@@ -414,7 +422,11 @@ export function DataTable<TData, TValue = unknown>({
 
   // Determine if we should render header
   const hasHeader =
-    search || (filters && filters.length > 0) || dateRange || actionMenu;
+    search ||
+    (filters && filters.length > 0) ||
+    dateRange ||
+    actionMenu ||
+    filtersContent;
 
   // Build the header content
   const headerContent = hasHeader ? (
@@ -425,7 +437,9 @@ export function DataTable<TData, TValue = unknown>({
         dateRange={dateRange}
         isLoading={isFiltersLoading}
         onClearAll={onClearFilters}
-      />
+      >
+        {filtersContent}
+      </DataTableFilters>
       {actionMenu}
     </div>
   ) : null;

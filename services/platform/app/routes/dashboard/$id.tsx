@@ -189,7 +189,7 @@ function DashboardLayout() {
           <DirtyBlockerProvider>
             <AdaptiveHeaderProvider>
               <div className="flex h-full w-full flex-col overflow-hidden md:flex-row">
-                <header className="bg-background border-border flex items-center gap-2 border-b px-4 pt-(--safe-top) pb-2 md:hidden">
+                <header className="bg-background border-border flex items-center gap-2 border-b px-4 pt-[calc(var(--safe-top)+0.5rem)] pb-2 md:hidden">
                   <MobileBackButton organizationId={organizationId} />
                   <div className="min-w-0 flex-1">
                     <AdaptiveHeaderSlot />

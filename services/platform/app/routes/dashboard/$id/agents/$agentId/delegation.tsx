@@ -91,12 +91,16 @@ function DelegationTab() {
   const selectedValues = config.delegates ?? [];
 
   // While loading, feed the real CheckboxGroup a few placeholder rows so the
-  // same tree renders in both states; `<Skeletonize loading>` masks them.
+  // same tree renders in both states; `<Skeletonize loading>` masks them. The
+  // placeholder MUST include a `description` — real delegate rows have one, so
+  // omitting it here renders the single-line checkbox variant and the masked
+  // row loses the description's height (visible jump when data resolves).
   const placeholderOptions = useMemo(
     () =>
       Array.from({ length: 4 }, (_, i) => ({
         value: `__placeholder_${i}`,
         label: 'Delegate agent',
+        description: 'Delegate agent description placeholder',
         disabled: true,
       })),
     [],

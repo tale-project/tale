@@ -178,7 +178,7 @@ describe('AgentSelector', () => {
     // Trigger has a min-width pin (from `sm` up) so loading→loaded never
     // reflows for the common label range. Mobile drops the pin so the
     // composer toolbar fits — see the source comment in agent-selector.tsx.
-    expect(trigger).toHaveClass('sm:min-w-40');
+    expect(trigger).toHaveClass('sm:min-w-32');
   });
 
   it('shows "Add agent" button when user has write permission', async () => {
