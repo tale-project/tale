@@ -109,10 +109,23 @@ export function OrganizationSettingsView({
             <Select
               id="default-locale"
               label={tSettings('organization.defaultLocale')}
-              value={defaultLocale}
-              onValueChange={(value) =>
-                setValue('defaultLocale', value, { shouldDirty: true })
-              }
+              // Default to '' so the Radix Select is controlled from the first
+              // render — `watch('defaultLocale')` is `undefined` until the form
+              // resets to server data, and `value={undefined}` makes Radix
+              // uncontrolled (empty trigger + "uncontrolled to controlled"
+              // warning when the real value lands).
+              value={defaultLocale ?? ''}
+              onValueChange={(value) => {
+                // Ignore empty / no-op changes. Radix Select emits a spurious
+                // `onValueChange('')` while its controlled value and options
+                // are still settling during the cold-load window; without this
+                // guard that turns into `setValue('defaultLocale', '', {
+                // shouldDirty })`, falsely marking the form dirty (Save
+                // enabled + blocker) on a page the user only opened. `''` is
+                // never a valid locale, so dropping it is always correct.
+                if (!value || value === defaultLocale) return;
+                setValue('defaultLocale', value, { shouldDirty: true });
+              }}
               disabled={isSaving || isLoading}
               options={localeOptions}
               wrapperClassName="max-w-sm"
