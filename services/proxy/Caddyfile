@@ -252,9 +252,14 @@
 
 	# Default: Express server for static files and index.html with env injection
 	reverse_proxy platform:3000 {
-		# Active health checking
+		# Active health checking. Interval is 5s (not 2s): the platform has a
+		# long cold boot (Convex connect + asset load — see its 180s compose
+		# start_period), and a 2s probe logged a failed health check every two
+		# seconds until it came up, which read as "repeated proxy failures"
+		# during normal startup (#1447). Caddy still routes correctly once the
+		# backend is up; 5s matches the docs upstream and cuts the boot noise.
 		health_uri /api/health
-		health_interval 2s
+		health_interval 5s
 		health_timeout 2s
 		health_status 200
 		health_passes 2
