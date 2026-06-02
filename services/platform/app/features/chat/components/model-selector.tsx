@@ -8,6 +8,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import startCase from 'lodash/startCase';
 import { AlertTriangle, ChevronDown, Cpu } from 'lucide-react';
 import {
+  memo,
   type ReactNode,
   useCallback,
   useEffect,
@@ -53,7 +54,7 @@ function getModelShortName(modelId: string): string {
   return slash >= 0 ? modelId.slice(slash + 1) : modelId;
 }
 
-export function ModelSelector({
+export const ModelSelector = memo(function ModelSelector({
   organizationId,
   projectId,
 }: ModelSelectorProps) {
@@ -400,4 +401,4 @@ export function ModelSelector({
       }
     />
   );
-}
+});

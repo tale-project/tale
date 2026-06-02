@@ -7,7 +7,7 @@ import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { useParams, useNavigate } from '@tanstack/react-router';
+import { useParams, useNavigate, useRouter } from '@tanstack/react-router';
 import {
   ChevronDown,
   CircleDotIcon,
@@ -110,6 +110,10 @@ interface ChatRowContextValue {
   executingThreadIds: Set<string>;
   isThreadHeld: (threadId: string) => boolean;
   onSelect: (chatId: string) => void;
+  /** Warm the thread route's chunk + loader on hover/focus so the click is
+   *  near-instant. Router `defaultPreload: 'intent'` doesn't fire for rows that
+   *  navigate imperatively rather than via <Link>, so we preload explicitly. */
+  onPreload: (chatId: string) => void;
   onStartRename: (chatId: string) => void;
   onSaveRename: (chatId: string, title: string) => void;
   onCancelRename: () => void;
@@ -174,6 +178,7 @@ export function ChatHistorySidebar({
 }: ChatHistorySidebarProps) {
   const { t } = useT('chat');
   const navigate = useNavigate();
+  const router = useRouter();
   const params = useParams({ strict: false });
   // TanStack Router useParams with strict: false returns unknown params — cast required
   const currentThreadId = params.threadId;
@@ -393,6 +398,22 @@ export function ChatHistorySidebar({
     [navigate, organizationId, onChatSelect],
   );
 
+  const handleChatPreload = useCallback(
+    (threadId: string) => {
+      void router
+        .preloadRoute({
+          to: '/dashboard/$id/chat/$threadId',
+          params: { id: organizationId, threadId },
+        })
+        .catch((error: unknown) => {
+          // Preload is a best-effort warm-up; a failure here must never break
+          // the row (the click still navigates normally).
+          console.warn('Failed to preload chat route', error);
+        });
+    },
+    [router, organizationId],
+  );
+
   const handleStartRename = useCallback(
     (chatId: string) => setEditingChatId(chatId),
     [],
@@ -437,6 +458,7 @@ export function ChatHistorySidebar({
       executingThreadIds,
       isThreadHeld,
       onSelect: handleChatClick,
+      onPreload: handleChatPreload,
       onStartRename: handleStartRename,
       onSaveRename: (chatId, title) => void handleSaveRename(chatId, title),
       onCancelRename: handleCancelRename,
@@ -450,6 +472,7 @@ export function ChatHistorySidebar({
       executingThreadIds,
       isThreadHeld,
       handleChatClick,
+      handleChatPreload,
       handleStartRename,
       handleSaveRename,
       handleCancelRename,
@@ -994,6 +1017,8 @@ function ChatRow({ chat }: { chat: ChatItem }) {
           <button
             type="button"
             aria-label={chat.title}
+            onMouseEnter={() => ctx.onPreload(chat._id)}
+            onFocus={() => ctx.onPreload(chat._id)}
             onClick={() => {
               if (clickTimeoutRef.current) {
                 clearTimeout(clickTimeoutRef.current);

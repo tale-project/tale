@@ -460,9 +460,9 @@ describe('listByOrganizationHandler', () => {
       ],
     });
 
+    // Single batched user lookup (findMany with `in`) returns a page.
     ctx.runQuery.mockResolvedValueOnce({
-      name: 'Alice',
-      email: 'alice@example.com',
+      page: [{ _id: 'u_1', name: 'Alice', email: 'alice@example.com' }],
     });
 
     const result = await listByOrganizationHandler(ctx as unknown as QueryCtx, {
@@ -483,7 +483,7 @@ describe('listByOrganizationHandler', () => {
     ]);
   });
 
-  it('returns member without name/email when user lookup fails', async () => {
+  it('returns member without name/email when its user is absent from the batch lookup', async () => {
     mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
     mockedGetOrgMember.mockResolvedValue({
       _id: 'om_1',
@@ -513,9 +513,11 @@ describe('listByOrganizationHandler', () => {
       ],
     });
 
-    ctx.runQuery
-      .mockRejectedValueOnce(new Error('lookup failed'))
-      .mockResolvedValueOnce({ name: 'Bob', email: 'bob@example.com' });
+    // Batched user lookup returns only u_2 — u_1 is missing, so m_1 gets no
+    // user details while m_2 is enriched.
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'u_2', name: 'Bob', email: 'bob@example.com' }],
+    });
 
     const result = await listByOrganizationHandler(ctx as unknown as QueryCtx, {
       organizationId: 'org_1',

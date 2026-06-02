@@ -73,15 +73,44 @@ function SwitchingPage() {
         await authClient.organization.setActive({
           organizationId: targetOrgId,
         });
+        // Audit + lastActiveOrganizationId persistence is NOT on the critical
+        // path — fire it in the background so the spinner doesn't wait on the
+        // dedup scan + better-auth `updateMany` round-trip. Initiated before
+        // navigate so the in-flight mutation survives this route unmounting.
+        void recordOrgSwitch({ organizationId: targetOrgId }).catch((err) => {
+          console.warn('Failed to record org switch audit entry:', err);
+        });
         // Force a fresh session read so downstream `useQuery(['auth','session'])`
         // observers see the new activeOrganizationId before we navigate.
-        await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
+        // `refetchQueries` already refetches active observers, so the prior
+        // `invalidateQueries` was redundant.
         await queryClient.refetchQueries({ queryKey: ['auth', 'session'] });
-        try {
-          await recordOrgSwitch({ organizationId: targetOrgId });
-        } catch (err) {
-          console.warn('Failed to record org switch audit entry:', err);
-        }
+
+        // Drop cached Convex queries scoped to the PREVIOUS org. The old
+        // /dashboard/$id route has already unmounted (we're on /dashboard/
+        // switching), so these have no observers — without this they linger
+        // until gcTime (15min, router.tsx) keeping stale subscriptions alive
+        // and risk briefly showing the previous org's data on the way in.
+        // Convex keys are ['convexQuery', '<module>:<query>', args]; the
+        // session query (['auth','session']) is left untouched, and queries
+        // for the target org (or with no org arg) are kept.
+        queryClient.removeQueries({
+          predicate: (q) => {
+            if (!Array.isArray(q.queryKey) || q.queryKey[0] !== 'convexQuery') {
+              return false;
+            }
+            const args = q.queryKey[2];
+            if (
+              typeof args !== 'object' ||
+              args === null ||
+              !('organizationId' in args)
+            ) {
+              return false;
+            }
+            const orgId = args.organizationId;
+            return typeof orgId === 'string' && orgId !== targetOrgId;
+          },
+        });
       } catch (err) {
         console.error('Failed to switch organization:', err);
       }

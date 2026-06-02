@@ -55,14 +55,43 @@ type AuditEntry = {
 };
 
 function createMockCtx(recentEntries: AuditEntry[] = []) {
+  // The handler now scopes the dedup scan via the
+  // `by_org_category_actorId_timestamp` index (eq actorId + gte timestamp) and
+  // no longer filters actorId in JS. Simulate that here: capture the bounds the
+  // handler builds in its index callback and only yield matching entries, the
+  // way the real index would.
+  let filterActorId: string | undefined;
+  let cutoff = Number.NEGATIVE_INFINITY;
+
   const order = vi.fn().mockImplementation(() => ({
     [Symbol.asyncIterator]: async function* () {
       for (const entry of recentEntries) {
+        if (filterActorId !== undefined && entry.actorId !== filterActorId) {
+          continue;
+        }
+        if (entry.timestamp < cutoff) continue;
         yield entry;
       }
     },
   }));
-  const withIndex = vi.fn().mockReturnValue({ order });
+  const withIndex = vi
+    .fn()
+    .mockImplementation((_name: string, fn?: (q: unknown) => unknown) => {
+      if (typeof fn === 'function') {
+        const q = {
+          eq: (field: string, value: unknown) => {
+            if (field === 'actorId') filterActorId = value as string;
+            return q;
+          },
+          gte: (_field: string, value: number) => {
+            cutoff = value;
+            return q;
+          },
+        };
+        fn(q);
+      }
+      return { order };
+    });
   const query = vi.fn().mockReturnValue({ withIndex });
 
   return {
@@ -202,7 +231,7 @@ describe('recordOrgSwitch', () => {
     expect(mockLogSuccess).toHaveBeenCalledTimes(1);
   });
 
-  it('queries by_org_category_timestamp scoped to last 30 minutes', async () => {
+  it('queries by_org_category_actorId_timestamp scoped to this user + last 30 minutes', async () => {
     const ctx = createMockCtx([]);
     const handler = await getHandler();
     const before = Date.now();
@@ -211,7 +240,7 @@ describe('recordOrgSwitch', () => {
 
     expect(ctx._builders.query).toHaveBeenCalledWith('auditLogs');
     expect(ctx._builders.withIndex).toHaveBeenCalledWith(
-      'by_org_category_timestamp',
+      'by_org_category_actorId_timestamp',
       expect.any(Function),
     );
     expect(ctx._builders.order).toHaveBeenCalledWith('desc');
@@ -225,6 +254,7 @@ describe('recordOrgSwitch', () => {
 
     expect(eq).toHaveBeenNthCalledWith(1, 'organizationId', 'org_1');
     expect(eq).toHaveBeenNthCalledWith(2, 'category', 'auth');
+    expect(eq).toHaveBeenNthCalledWith(3, 'actorId', 'user_1');
     expect(gte).toHaveBeenCalledTimes(1);
     const cutoff = gte.mock.calls[0][1] as number;
     expect(cutoff).toBeGreaterThanOrEqual(before - 30 * 60 * 1000);

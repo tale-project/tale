@@ -262,6 +262,84 @@ export const getThreadProject = query({
   },
 });
 
+/**
+ * Consolidated per-thread metadata for the chat surface: project, fork info,
+ * live generation status, and failed-message error strings — all behind a
+ * SINGLE canAccessThread check. ChatInterface + useMessageProcessing read this
+ * one query instead of four separate subscriptions (getThreadProject,
+ * getThreadForkInfo, isThreadGenerating, getFailedMessageErrors), each of which
+ * independently re-ran the access check on every thread switch. Returns null
+ * when the thread is inaccessible. (Arena split view and the automations chat
+ * still use the granular queries directly.)
+ */
+export const getThreadMeta = query({
+  args: { threadId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      projectId: v.union(v.id('projects'), v.null()),
+      isGenerating: v.boolean(),
+      forkInfo: v.union(
+        v.null(),
+        v.object({
+          forkedFrom: v.string(),
+          forkedFromShare: v.boolean(),
+          forkedMessageCount: v.union(v.number(), v.null()),
+          lastForkedMessageOrder: v.union(v.number(), v.null()),
+          forkedAt: v.union(v.number(), v.null()),
+        }),
+      ),
+      failedErrors: v.record(v.string(), v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+
+    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    if (!metadata) return null;
+
+    // Live generation status (mirrors isThreadGenerating, incl. stale guard).
+    let isGenerating = false;
+    if (metadata.generationStatus === 'generating') {
+      isGenerating =
+        !metadata.generationStartTime ||
+        Date.now() - metadata.generationStartTime <=
+          GENERATION_STALE_THRESHOLD_MS;
+    }
+
+    // Fork info — owner-only, forked threads only (mirrors getThreadForkInfo).
+    const forkInfo =
+      metadata.userId === authUser.userId && metadata.forkedFrom
+        ? {
+            forkedFrom: metadata.forkedFrom,
+            forkedFromShare: metadata.forkedFromShare ?? false,
+            forkedMessageCount: metadata.forkedMessageCount ?? null,
+            lastForkedMessageOrder: metadata.lastForkedMessageOrder ?? null,
+            forkedAt: metadata.forkedAt ?? null,
+          }
+        : null;
+
+    // Failed-message error strings (mirrors getFailedMessageErrors).
+    const failedResult = await listMessages(ctx, components.agent, {
+      threadId: args.threadId,
+      paginationOpts: { cursor: null, numItems: 10 },
+      statuses: ['failed'],
+    });
+    const failedErrors: Record<string, string> = {};
+    for (const msg of failedResult.page) {
+      if (msg.error) failedErrors[msg._id] = msg.error;
+    }
+
+    return {
+      projectId: metadata.projectId ?? null,
+      isGenerating,
+      forkInfo,
+      failedErrors,
+    };
+  },
+});
+
 export { getSharedThread } from './get_shared_thread';
 
 export const getThreadBranches = query({

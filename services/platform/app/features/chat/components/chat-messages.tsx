@@ -4,6 +4,7 @@ import { Button } from '@tale/ui/button';
 import { useQuery } from 'convex/react';
 import { AlertTriangle, Loader2, CheckCircle2, Lock } from 'lucide-react';
 import {
+  memo,
   useId,
   useMemo,
   useRef,
@@ -171,7 +172,7 @@ interface ChatMessagesProps {
  * 1. useLayoutEffect: approximate value before paint (prevents flash)
  * 2. ResizeObserver: accurate correction after layout completes
  */
-export function ChatMessages({
+export const ChatMessages = memo(function ChatMessages({
   items,
   threadId,
   organizationId,
@@ -737,50 +738,87 @@ export function ChatMessages({
     />
   ) : null;
 
-  if (useVirtual) {
-    return (
-      <VoiceOutputProvider threadId={threadId}>
-        <VoiceOutputAnnouncer />
-        <VirtualizedChatMessageList
-          items={items}
-          containerRef={containerRef}
-          renderItem={renderItemWithDivider}
-          labelId={messageHistoryLabelId}
-          header={
-            <>
-              <h2 id={messageHistoryLabelId} className="sr-only">
-                {t('aria.messageHistory')}
-              </h2>
-              {loadMoreHeader}
-              <div className="h-6" aria-hidden="true" />
-            </>
-          }
-          footer={
-            // The virtualized root log has NO aria-live (it would announce
-            // windowing churn), so the thinking affordance gets its own scoped
-            // polite region here. The region wrapper is ALWAYS mounted (only its
-            // content is conditional) so a later ThinkingIndicator insertion is
-            // a mutation of an already-registered region — content inserted in
-            // the same DOM mutation as its aria-live container announces
-            // unreliably across screen readers. ThinkingIndicator has no
-            // internal live region, so nothing nests. The approval card renders
-            // BARE (it owns internal sub-state live regions; see above). No
-            // parent `gap` — the live wrapper carries its own bottom padding
-            // only when populated, so an empty wrapper adds no phantom gap.
-            <div className="flex flex-col pb-2">
-              <div
-                aria-live="polite"
-                className={responseFooterLive ? 'pb-3' : undefined}
-              >
-                {responseFooterLive}
-              </div>
-              {responseFooterStatic}
-            </div>
-          }
-        />
-      </VoiceOutputProvider>
-    );
-  }
+  // Single VoiceOutputProvider wraps BOTH render paths (below) so voice-output
+  // state has one lifecycle per ChatMessages instance — previously each branch
+  // mounted its own provider, so flipping the virtualization flag left a stale
+  // provider that could leak voice state across threads.
+  const messageList = useVirtual ? (
+    <VirtualizedChatMessageList
+      items={items}
+      containerRef={containerRef}
+      renderItem={renderItemWithDivider}
+      labelId={messageHistoryLabelId}
+      header={
+        <>
+          <h2 id={messageHistoryLabelId} className="sr-only">
+            {t('aria.messageHistory')}
+          </h2>
+          {loadMoreHeader}
+          <div className="h-6" aria-hidden="true" />
+        </>
+      }
+      footer={
+        // The virtualized root log has NO aria-live (it would announce
+        // windowing churn), so the thinking affordance gets its own scoped
+        // polite region here. The region wrapper is ALWAYS mounted (only its
+        // content is conditional) so a later ThinkingIndicator insertion is
+        // a mutation of an already-registered region — content inserted in
+        // the same DOM mutation as its aria-live container announces
+        // unreliably across screen readers. ThinkingIndicator has no
+        // internal live region, so nothing nests. The approval card renders
+        // BARE (it owns internal sub-state live regions; see above). No
+        // parent `gap` — the live wrapper carries its own bottom padding
+        // only when populated, so an empty wrapper adds no phantom gap.
+        <div className="flex flex-col pb-2">
+          <div
+            aria-live="polite"
+            className={responseFooterLive ? 'pb-3' : undefined}
+          >
+            {responseFooterLive}
+          </div>
+          {responseFooterStatic}
+        </div>
+      }
+    />
+  ) : (
+    <div
+      className="mx-auto flex w-full max-w-(--chat-max-width) flex-col"
+      role="log"
+      aria-live="polite"
+      aria-labelledby={messageHistoryLabelId}
+    >
+      <h2 id={messageHistoryLabelId} className="sr-only">
+        {t('aria.messageHistory')}
+      </h2>
+      <div className="flex flex-col gap-3 pt-6">
+        {loadMoreHeader}
+
+        {/* Messages before the last user message */}
+        <div className="flex flex-col gap-3">
+          {beforeItems.map((item, i) => renderItemWithDivider(item, i))}
+        </div>
+
+        {/* Last user message */}
+        {lastUserItem && renderItemWithDivider(lastUserItem, lastUserIdx)}
+
+        {/* Response area: min-height fills viewport so scroll-to-bottom
+            positions the user message at the top. When AI response exceeds
+            viewport height, min-height becomes irrelevant. */}
+        <div
+          ref={responseAreaRef}
+          className="flex shrink-0 flex-col gap-3 [overflow-anchor:none]"
+        >
+          {afterItems.map((item, i) =>
+            renderItemWithDivider(item, lastUserIdx + 1 + i),
+          )}
+          {/* Non-virtualized path: the root already is role="log"
+              aria-live="polite", so both pieces render inside it as before. */}
+          {responseFooterLive}
+          {responseFooterStatic}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <VoiceOutputProvider threadId={threadId}>
@@ -788,43 +826,7 @@ export function ChatMessages({
           announced exactly once, not amplified by the parent log's
           aria-live region. */}
       <VoiceOutputAnnouncer />
-      <div
-        className="mx-auto flex w-full max-w-(--chat-max-width) flex-col"
-        role="log"
-        aria-live="polite"
-        aria-labelledby={messageHistoryLabelId}
-      >
-        <h2 id={messageHistoryLabelId} className="sr-only">
-          {t('aria.messageHistory')}
-        </h2>
-        <div className="flex flex-col gap-3 pt-6">
-          {loadMoreHeader}
-
-          {/* Messages before the last user message */}
-          <div className="flex flex-col gap-3">
-            {beforeItems.map((item, i) => renderItemWithDivider(item, i))}
-          </div>
-
-          {/* Last user message */}
-          {lastUserItem && renderItemWithDivider(lastUserItem, lastUserIdx)}
-
-          {/* Response area: min-height fills viewport so scroll-to-bottom
-            positions the user message at the top. When AI response exceeds
-            viewport height, min-height becomes irrelevant. */}
-          <div
-            ref={responseAreaRef}
-            className="flex shrink-0 flex-col gap-3 [overflow-anchor:none]"
-          >
-            {afterItems.map((item, i) =>
-              renderItemWithDivider(item, lastUserIdx + 1 + i),
-            )}
-            {/* Non-virtualized path: the root already is role="log"
-                aria-live="polite", so both pieces render inside it as before. */}
-            {responseFooterLive}
-            {responseFooterStatic}
-          </div>
-        </div>
-      </div>
+      {messageList}
     </VoiceOutputProvider>
   );
-}
+});

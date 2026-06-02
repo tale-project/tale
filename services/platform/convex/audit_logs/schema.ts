@@ -119,6 +119,16 @@ export const auditLogsTable = defineTable({
     'category',
     'timestamp',
   ])
+  // Dedup lookups that target a single actor (e.g. recordOrgSwitch's
+  // "did THIS user already sign in to THIS org recently?") — lets the query
+  // range on timestamp for one actor instead of scanning every actor's rows
+  // in the org+category+time window.
+  .index('by_org_category_actorId_timestamp', [
+    'organizationId',
+    'category',
+    'actorId',
+    'timestamp',
+  ])
   .index('by_org_resourceType_timestamp', [
     'organizationId',
     'resourceType',

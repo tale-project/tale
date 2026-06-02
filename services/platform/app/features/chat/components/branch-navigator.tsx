@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -22,7 +22,9 @@ interface BranchNavigatorProps {
  *
  * The "original" parent counts as option 0, each branch is 1+.
  */
-export function BranchNavigator({ forkOrder }: BranchNavigatorProps) {
+export const BranchNavigator = memo(function BranchNavigator({
+  forkOrder,
+}: BranchNavigatorProps) {
   const { t } = useT('chat');
   const ctx = useBranchContext();
   const forkOrderKey = String(forkOrder);
@@ -120,4 +122,4 @@ export function BranchNavigator({ forkOrder }: BranchNavigatorProps) {
       </Button>
     </div>
   );
-}
+});

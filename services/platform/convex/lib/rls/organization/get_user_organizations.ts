@@ -43,28 +43,44 @@ export async function getUserOrganizations(
   // Check if we're in trusted headers mode (role from JWT)
   const trustedData = await getTrustedAuthData(ctx);
 
-  // Query Better Auth's member table for all memberships
-  const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    model: 'member',
-    paginationOpts: {
-      cursor: null,
-      numItems: 100, // Reasonable limit for user's organizations
-    },
-    where: [
-      {
-        field: 'userId',
-        value: authUser.userId ?? null,
-        operator: 'eq',
-      },
-    ],
-  });
+  // Query Better Auth's member table for ALL memberships, paginating until the
+  // adapter reports done. The previous single 100-item page silently dropped
+  // the tail for users in >100 orgs (and could strand the org switcher); most
+  // users fit in one page, so the common case is still a single round-trip.
+  const memberRows: OrganizationMember[] = [];
+  let cursor: string | null = null;
+  for (;;) {
+    // Explicit type breaks the otherwise-circular inference (result depends on
+    // `cursor`, which is reassigned from `result.continueCursor`).
+    const result: {
+      page: OrganizationMember[];
+      isDone?: boolean;
+      continueCursor?: string;
+    } = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'member',
+      paginationOpts: { cursor, numItems: 100 },
+      where: [
+        {
+          field: 'userId',
+          value: authUser.userId ?? null,
+          operator: 'eq',
+        },
+      ],
+    });
+    if (!result || result.page.length === 0) break;
+    memberRows.push(...result.page);
+    // Stop on done, or if the cursor stops advancing (defensive against a
+    // non-terminating adapter response).
+    if (result.isDone || result.continueCursor === cursor) break;
+    cursor = result.continueCursor ?? null;
+  }
 
-  if (!result || result.page.length === 0) {
+  if (memberRows.length === 0) {
     return [];
   }
 
-  return result.page
-    .map((member: { organizationId: string; role?: string }) => {
+  return memberRows
+    .map((member) => {
       // Get role from trusted headers if available, otherwise from database
       const rawRole = trustedData?.trustedRole || member.role || 'member';
       const normalizedRole = rawRole.toLowerCase();

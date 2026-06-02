@@ -6,7 +6,7 @@ import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
-import { useAction, useMutation, useQuery } from 'convex/react';
+import { useAction, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { Trash2 } from 'lucide-react';
 import {
@@ -40,6 +40,7 @@ import {
   useDismissPendingMemory,
   useSetCustomInstructionsEnabled,
   useSetMemoriesEnabled,
+  useSetVoiceOutput,
   useSoftDeleteMemory,
   useUpsertMyPreferences,
 } from '../hooks/mutations';
@@ -283,7 +284,8 @@ function CustomInstructionsToggleSection({
 }: ToggleSectionProps) {
   const { t } = useT('personalization');
   const { toast } = useToast();
-  const { mutateAsync: setEnabled } = useSetCustomInstructionsEnabled();
+  const { mutateAsync: setEnabled, isPending } =
+    useSetCustomInstructionsEnabled();
 
   const description = buildOrgDefaultHint(
     t,
@@ -297,6 +299,9 @@ function CustomInstructionsToggleSection({
       label={t('page.customInstructionsToggle.label')}
       description={description}
       checked={gate.effective}
+      // Disable while the write is in flight so a rapid double-toggle can't
+      // enqueue overlapping mutations (the value already flipped optimistically).
+      disabled={isPending}
       onCheckedChange={async (next) => {
         try {
           await setEnabled({ organizationId, enabled: next });
@@ -319,7 +324,7 @@ function MemoriesToggleSection({
 }: ToggleSectionProps) {
   const { t } = useT('personalization');
   const { toast } = useToast();
-  const { mutateAsync: setEnabled } = useSetMemoriesEnabled();
+  const { mutateAsync: setEnabled, isPending } = useSetMemoriesEnabled();
 
   const description = buildOrgDefaultHint(
     t,
@@ -333,6 +338,9 @@ function MemoriesToggleSection({
       label={t('page.memoriesToggle.label')}
       description={description}
       checked={gate.effective}
+      // Disable while the write is in flight so a rapid double-toggle can't
+      // enqueue overlapping mutations (the value already flipped optimistically).
+      disabled={isPending}
       onCheckedChange={async (next) => {
         try {
           await setEnabled({ organizationId, enabled: next });
@@ -445,7 +453,8 @@ function VoiceOutputSection({
 }) {
   const { t } = useT('personalization');
   const { toast } = useToast();
-  const setVoiceOutput = useMutation(api.tts.mutations.setUserVoiceOutput);
+  const { mutateAsync: setVoiceOutput, isPending: isSettingVoiceOutput } =
+    useSetVoiceOutput();
   const getCapability = useAction(api.tts.synthesize.getCapability);
   const { data: orgVoicePolicy } = useGovernancePolicy(
     organizationId,
@@ -505,7 +514,10 @@ function VoiceOutputSection({
   );
 
   const disabled =
-    isLoading || (providerAvailable === false && !enabled) || orgVetoed;
+    isLoading ||
+    isSettingVoiceOutput ||
+    (providerAvailable === false && !enabled) ||
+    orgVetoed;
 
   return (
     <SettingsToggleRow

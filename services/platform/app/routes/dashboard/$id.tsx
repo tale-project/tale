@@ -41,13 +41,26 @@ export const Route = createFileRoute('/dashboard/$id')({
   // Warm the membership/ability context before the layout renders so children
   // mount with access resolved (no shell-skeleton flash on warm org entry).
   // The component's gating logic surfaces denied/not-found states, so an
-  // access error here must not fail the transition.
-  loader: ({ context, params }) =>
-    ensureConvexQuery(context, api.members.queries.getCurrentMemberContext, {
-      organizationId: params.id,
-    }).catch((error: unknown) => {
+  // access error here must not fail the transition. Cap the wait at 2s so a
+  // slow membership round-trip (e.g. during an org switch) can't hang the
+  // transition — the component renders a skeleton while the live subscription
+  // catches up.
+  loader: ({ context, params }) => {
+    const preload = ensureConvexQuery(
+      context,
+      api.members.queries.getCurrentMemberContext,
+      { organizationId: params.id },
+    ).catch((error: unknown) => {
       console.warn('Failed to preload member context', error);
-    }),
+    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, 2000);
+    });
+    return Promise.race([preload, timeout]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  },
   component: DashboardLayout,
 });
 
@@ -90,8 +103,12 @@ function DashboardLayout() {
     void (async () => {
       try {
         await authClient.organization.setActive({ organizationId });
+        // Audit + preference persistence is off the critical path — fire in the
+        // background so the guard doesn't block on it. Errors are logged.
+        void recordOrgSwitch({ organizationId }).catch((err) => {
+          console.warn('Failed to record org switch audit entry:', err);
+        });
         await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
-        await recordOrgSwitch({ organizationId });
       } catch (err) {
         console.warn('Failed to sync active organization:', err);
         orgSyncRef.current = null;

@@ -113,13 +113,19 @@ export function useMessageProcessing(
     stream: true,
   });
 
-  // Separate lightweight query for error strings of failed messages.
-  // Kept out of the streaming query to avoid .map()-ing UIMessages (which
-  // creates new object references and breaks React/SDK dedup).
-  const messageErrors = useQuery(
-    api.threads.queries.getFailedMessageErrors,
+  // Consolidated thread metadata behind a SINGLE access check + subscription.
+  // ChatInterface reads the same getThreadMeta with identical args, so the two
+  // share ONE Convex subscription per thread switch instead of four separate
+  // ones (failed errors, generation status, fork info, project).
+  const threadMeta = useQuery(
+    api.threads.queries.getThreadMeta,
     threadId ? { threadId } : 'skip',
   );
+
+  // Error strings of failed messages (was getFailedMessageErrors). Kept out of
+  // the streaming query to avoid .map()-ing UIMessages (which creates new
+  // object references and breaks React/SDK dedup).
+  const messageErrors = threadMeta?.failedErrors;
 
   // Thread-level generation status. Held true across an entire multi-step
   // turn (set by markGenerating, cleared by clearGenerationStatus) including
@@ -127,10 +133,7 @@ export function useMessageProcessing(
   // — exactly when an orphan file-only message must stay hidden. Prefer this
   // over scanning uiMessages for a streaming/pending status, which is
   // undefined during that gap.
-  const isGenerating = useQuery(
-    api.threads.queries.isThreadGenerating,
-    threadId ? { threadId } : 'skip',
-  );
+  const isGenerating = threadMeta?.isGenerating;
 
   // Client-side pending-send signal. When the user has just clicked send
   // but the new user message hasn't been persisted yet, `pendingMessage` is

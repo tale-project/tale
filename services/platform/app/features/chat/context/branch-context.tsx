@@ -121,10 +121,15 @@ export function BranchProvider({
   organizationId,
   children,
 }: BranchProviderProps) {
-  const [branchSelections, setBranchSelections] = useState<
-    Record<string, string>
-  >({});
-  const initializedRef = useRef(false);
+  // User branch selections made this session (keyed by forkOrder), overlaid on
+  // top of the server-persisted selections below. Kept separate so the persisted
+  // value is parsed lazily in a useMemo rather than copied into state via an
+  // effect: the old seed-in-effect caused a SECOND render per thread switch
+  // (reset → {}, then persisted-arrives → parsed), and since `dataThreadId` is
+  // derived from `activeBranchThreadId`, every chat subscription churned twice.
+  const [localOverrides, setLocalOverrides] = useState<Record<string, string>>(
+    {},
+  );
 
   // Load persisted branch selections from DB
   const persistedSelections = useQuery(
@@ -132,37 +137,52 @@ export function BranchProvider({
     threadId ? { threadId, organizationId } : 'skip',
   );
 
-  // Initialize from persisted data once on load
-  useEffect(() => {
-    if (persistedSelections && !initializedRef.current) {
-      try {
-        const parsed: unknown = JSON.parse(persistedSelections);
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          const selections: Record<string, string> = {};
-          const entries = Object.entries(
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated as object above
-            parsed as Record<string, unknown>,
-          );
-          for (const [key, val] of entries) {
-            if (typeof val === 'string') selections[key] = val;
-          }
-          setBranchSelections(selections);
+  // Parse persisted selections WITHOUT seeding state (no extra render when the
+  // query resolves). Invalid JSON falls back to empty, same as before.
+  const persistedParsed = useMemo<Record<string, string>>(() => {
+    if (!persistedSelections) return {};
+    try {
+      const parsed: unknown = JSON.parse(persistedSelections);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const selections: Record<string, string> = {};
+        for (const [key, val] of Object.entries(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated as object above
+          parsed as Record<string, unknown>,
+        )) {
+          if (typeof val === 'string') selections[key] = val;
         }
-      } catch (err) {
-        console.warn(
-          '[branch-context] ignoring invalid persisted branch selections JSON',
-          err,
-        );
+        return selections;
       }
-      initializedRef.current = true;
+    } catch (err) {
+      console.warn(
+        '[branch-context] ignoring invalid persisted branch selections JSON',
+        err,
+      );
     }
+    return {};
   }, [persistedSelections]);
 
-  // Reset when thread changes
+  // Effective selections: server-persisted defaults overlaid with this
+  // session's explicit switches.
+  const branchSelections = useMemo(
+    () => ({ ...persistedParsed, ...localOverrides }),
+    [persistedParsed, localOverrides],
+  );
+
+  // Reset this session's overrides when the thread changes.
   useEffect(() => {
-    initializedRef.current = false;
-    setBranchSelections({});
+    setLocalOverrides({});
   }, [threadId]);
+
+  // Keep the latest persisted selections in a ref so the persist callbacks read
+  // the freshest server data without capturing it in their closure — closes a
+  // narrow stale window if getThreadBranchSelections updates between a
+  // callback's creation and its setLocalOverrides updater running, and keeps
+  // switchBranch/selectNewBranch referentially stable.
+  const persistedParsedRef = useRef(persistedParsed);
+  useEffect(() => {
+    persistedParsedRef.current = persistedParsed;
+  }, [persistedParsed]);
 
   // Persist branch selections to DB
   const { mutate: updateBranchSelections } = useConvexMutation(
@@ -201,12 +221,14 @@ export function BranchProvider({
 
   const switchBranch = useCallback(
     (forkOrder: string, branchThreadId: string | null) => {
-      setBranchSelections((prev) => {
+      setLocalOverrides((prev) => {
         const next = {
           ...prev,
           [forkOrder]: branchThreadId ?? ORIGINAL_SELECTION,
         };
-        persistSelections(next);
+        // Persist the full merged set (persisted defaults + all session
+        // overrides) so a reload restores every selection, not just this one.
+        persistSelections({ ...persistedParsedRef.current, ...next });
         return next;
       });
     },
@@ -215,9 +237,9 @@ export function BranchProvider({
 
   const selectNewBranch = useCallback(
     (forkOrder: string, branchThreadId: string) => {
-      setBranchSelections((prev) => {
+      setLocalOverrides((prev) => {
         const next = { ...prev, [forkOrder]: branchThreadId };
-        persistSelections(next);
+        persistSelections({ ...persistedParsedRef.current, ...next });
         return next;
       });
     },
