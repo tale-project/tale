@@ -804,6 +804,7 @@ import type * as sso_providers_entra_id_error_codes from "../sso_providers/entra
 import type * as sso_providers_entra_id_role_mapping from "../sso_providers/entra_id/role_mapping.js";
 import type * as sso_providers_entra_id_team_sync from "../sso_providers/entra_id/team_sync.js";
 import type * as sso_providers_find_or_create_sso_user from "../sso_providers/find_or_create_sso_user.js";
+import type * as sso_providers_generic_oidc_adapter from "../sso_providers/generic_oidc/adapter.js";
 import type * as sso_providers_get from "../sso_providers/get.js";
 import type * as sso_providers_get_auth_user from "../sso_providers/get_auth_user.js";
 import type * as sso_providers_get_caller_role from "../sso_providers/get_caller_role.js";
@@ -817,6 +818,7 @@ import type * as sso_providers_internal_actions from "../sso_providers/internal_
 import type * as sso_providers_internal_mutations from "../sso_providers/internal_mutations.js";
 import type * as sso_providers_internal_queries from "../sso_providers/internal_queries.js";
 import type * as sso_providers_is_sso_configured from "../sso_providers/is_sso_configured.js";
+import type * as sso_providers_oidc_discovery from "../sso_providers/oidc_discovery.js";
 import type * as sso_providers_queries from "../sso_providers/queries.js";
 import type * as sso_providers_registry from "../sso_providers/registry.js";
 import type * as sso_providers_remove_provider from "../sso_providers/remove_provider.js";
@@ -2022,6 +2024,7 @@ declare const fullApi: ApiFromModules<{
   "sso_providers/entra_id/role_mapping": typeof sso_providers_entra_id_role_mapping;
   "sso_providers/entra_id/team_sync": typeof sso_providers_entra_id_team_sync;
   "sso_providers/find_or_create_sso_user": typeof sso_providers_find_or_create_sso_user;
+  "sso_providers/generic_oidc/adapter": typeof sso_providers_generic_oidc_adapter;
   "sso_providers/get": typeof sso_providers_get;
   "sso_providers/get_auth_user": typeof sso_providers_get_auth_user;
   "sso_providers/get_caller_role": typeof sso_providers_get_caller_role;
@@ -2035,6 +2038,7 @@ declare const fullApi: ApiFromModules<{
   "sso_providers/internal_mutations": typeof sso_providers_internal_mutations;
   "sso_providers/internal_queries": typeof sso_providers_internal_queries;
   "sso_providers/is_sso_configured": typeof sso_providers_is_sso_configured;
+  "sso_providers/oidc_discovery": typeof sso_providers_oidc_discovery;
   "sso_providers/queries": typeof sso_providers_queries;
   "sso_providers/registry": typeof sso_providers_registry;
   "sso_providers/remove_provider": typeof sso_providers_remove_provider;
