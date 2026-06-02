@@ -5,7 +5,7 @@ import type { ChatMessage } from '@/app/features/chat/hooks/use-message-processi
 import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/test/utils/render';
 
-import { ChatMessages } from './chat-messages';
+import { ChatMessages, resolveResponseSlackEnabled } from './chat-messages';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
@@ -223,5 +223,77 @@ describe('ChatMessages', () => {
         screen.getByText('new answer').parentElement?.className ?? '',
       ).not.toContain('content-visibility');
     });
+  });
+});
+
+describe('resolveResponseSlackEnabled', () => {
+  it('disables slack when opening/switching to a settled thread (no active turn)', () => {
+    // Freshly opened thread → lands at the natural conversation bottom.
+    expect(
+      resolveResponseSlackEnabled({
+        threadChanged: true,
+        isLoading: false,
+        prevSessionActive: false,
+        lastUserMessagePending: false,
+      }),
+    ).toEqual({ slackEnabled: false, sessionActive: false });
+  });
+
+  it('does NOT carry a previous thread active state across a switch', () => {
+    // prevSessionActive from thread A must not leak into thread B on switch.
+    expect(
+      resolveResponseSlackEnabled({
+        threadChanged: true,
+        isLoading: false,
+        prevSessionActive: true,
+        lastUserMessagePending: false,
+      }),
+    ).toEqual({ slackEnabled: false, sessionActive: false });
+  });
+
+  it('enables slack immediately while the optimistic message is pending (send)', () => {
+    // Covers new-chat first send + first send after opening — no flash.
+    expect(
+      resolveResponseSlackEnabled({
+        threadChanged: false,
+        isLoading: false,
+        prevSessionActive: false,
+        lastUserMessagePending: true,
+      }),
+    ).toEqual({ slackEnabled: true, sessionActive: false });
+  });
+
+  it('enables slack while generating', () => {
+    expect(
+      resolveResponseSlackEnabled({
+        threadChanged: false,
+        isLoading: true,
+        prevSessionActive: false,
+        lastUserMessagePending: false,
+      }),
+    ).toEqual({ slackEnabled: true, sessionActive: true });
+  });
+
+  it('keeps slack after completion in the same session (no jump)', () => {
+    // sessionActive latched true earlier; generation ended (isLoading false).
+    expect(
+      resolveResponseSlackEnabled({
+        threadChanged: false,
+        isLoading: false,
+        prevSessionActive: true,
+        lastUserMessagePending: false,
+      }),
+    ).toEqual({ slackEnabled: true, sessionActive: true });
+  });
+
+  it('anchors the active turn when opening a thread mid-generation', () => {
+    expect(
+      resolveResponseSlackEnabled({
+        threadChanged: true,
+        isLoading: true,
+        prevSessionActive: false,
+        lastUserMessagePending: false,
+      }),
+    ).toEqual({ slackEnabled: true, sessionActive: true });
   });
 });

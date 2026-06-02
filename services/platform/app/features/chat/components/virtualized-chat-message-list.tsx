@@ -106,7 +106,7 @@ export function VirtualizedChatMessageList({
   // want when an off-screen-above row gets its first real measurement
   // (replacing the 140px estimate) while the user has scrolled up to read
   // history. It does NOT collide with useChatScroll: stick-to-bottom pins via
-  // container.scrollTo(scrollHeight) gated on stickToBottomRef (false after a
+  // container.scrollTo(scrollHeight) gated on pinnedRef (false after a
   // scroll-up), and the load-more anchor is gated on row-count growth (a
   // same-row remeasure doesn't trigger it). Forcing the predicate to false (a
   // prior approach) removed this compensation and reintroduced viewport jumps

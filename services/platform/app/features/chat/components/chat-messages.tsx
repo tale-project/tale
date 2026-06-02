@@ -123,6 +123,37 @@ function computeResponseMinHeight(
   );
 }
 
+/**
+ * Whether the response-area "slack" (the min-height that anchors the last USER
+ * message at the viewport top) is enabled this render, plus the sticky
+ * session-active flag to carry forward.
+ *
+ * The slack belongs to a turn the user is ACTIVELY engaged in — a message they
+ * just sent (optimistic bubble still pending), one that is generating, or one
+ * that completed during this viewing session (kept anchored ChatGPT-style so
+ * it doesn't jump on completion). A thread the user just OPENED or SWITCHED to
+ * has no active turn, so the slack is disabled and the conversation opens at
+ * its NATURAL bottom (last reply just above the composer) instead of with the
+ * last user message pinned to the top and a gap below a short reply.
+ *
+ * `sessionActive` latches true once the thread sends/generates this session and
+ * resets only when the thread changes. Pure + exported for unit testing.
+ */
+export function resolveResponseSlackEnabled(opts: {
+  threadChanged: boolean;
+  isLoading: boolean;
+  prevSessionActive: boolean;
+  lastUserMessagePending: boolean;
+}): { slackEnabled: boolean; sessionActive: boolean } {
+  const sessionActive = opts.threadChanged
+    ? opts.isLoading
+    : opts.prevSessionActive || opts.isLoading;
+  return {
+    slackEnabled: sessionActive || opts.lastUserMessagePending,
+    sessionActive,
+  };
+}
+
 interface ChatMessagesProps {
   items: ChatItem[];
   threadId: string | undefined;
@@ -300,15 +331,36 @@ export const ChatMessages = memo(function ChatMessages({
   // user message. Reset on thread switch (below).
   const pendingToRealKeyRef = useRef(new Map<string, string>());
 
+  // Response-area slack gating (see resolveResponseSlackEnabled). This
+  // component + useChatScroll persist across thread→thread switches, so we
+  // track whether the CURRENT thread has an active turn this session in refs
+  // and recompute each render. A freshly opened/switched thread starts
+  // inactive → no slack → it opens at the natural conversation bottom.
+  const activeTurnThreadRef = useRef<string | undefined>(undefined);
+  const sessionActiveRef = useRef(false);
+  const threadChangedForSlack = activeTurnThreadRef.current !== threadId;
+  const { slackEnabled, sessionActive } = resolveResponseSlackEnabled({
+    threadChanged: threadChangedForSlack,
+    isLoading,
+    prevSessionActive: sessionActiveRef.current,
+    lastUserMessagePending: lastUserMessageKey?.startsWith('pending-') ?? false,
+  });
+  if (threadChangedForSlack) activeTurnThreadRef.current = threadId;
+  sessionActiveRef.current = sessionActive;
+
   // Min-height computation: set before paint so the response area fills the
   // viewport below the user message. Scrolling is handled by ChatInterface's
-  // content ResizeObserver + scroll-intent ref (assistant-ui pattern).
+  // content ResizeObserver + scroll-intent ref (assistant-ui pattern). Gated
+  // on slackEnabled — an opened/switched thread gets 0 so it lands at the
+  // natural bottom rather than anchoring the last user message at the top.
   useLayoutEffect(() => {
     const container = containerRef.current;
     const responseArea = responseAreaRef.current;
     if (!container || !responseArea) return undefined;
 
-    const next = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
+    const next = slackEnabled
+      ? `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`
+      : '0px';
     prevMinHeightRef.current = next;
     responseArea.style.minHeight = next;
 
@@ -316,7 +368,9 @@ export const ChatMessages = memo(function ChatMessages({
     // final size during useLayoutEffect).
     const frame = requestAnimationFrame(() => {
       if (!container || !responseArea) return;
-      const corrected = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
+      const corrected = slackEnabled
+        ? `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`
+        : '0px';
       if (prevMinHeightRef.current !== corrected) {
         prevMinHeightRef.current = corrected;
         responseArea.style.minHeight = corrected;
@@ -324,7 +378,7 @@ export const ChatMessages = memo(function ChatMessages({
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [lastUserMessageKey, containerRef, lastUserMessageRef]);
+  }, [lastUserMessageKey, slackEnabled, containerRef, lastUserMessageRef]);
 
   // Keep min-height updated on window/footer resize.
   // Guards against feedback loops by skipping when the value is unchanged.
@@ -341,7 +395,9 @@ export const ChatMessages = memo(function ChatMessages({
       if (rafId !== null) return;
       rafId = requestAnimationFrame(() => {
         rafId = null;
-        const next = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
+        const next = slackEnabled
+          ? `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`
+          : '0px';
         if (prevMinHeightRef.current === next) return;
         prevMinHeightRef.current = next;
         responseArea.style.minHeight = next;
@@ -357,7 +413,7 @@ export const ChatMessages = memo(function ChatMessages({
       ro.disconnect();
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [containerRef, lastUserMessageRef]);
+  }, [containerRef, lastUserMessageRef, slackEnabled]);
 
   // Identity-based freshness snapshot: capture the set of message IDs
   // present on this list's first non-empty render. Anything that appears

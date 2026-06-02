@@ -507,13 +507,12 @@ export function ChatInterface({
     teamId: teamFilter?.selectedTeamId ?? undefined,
     projectId: projectIdFromUrl,
     // The hook sets this ref RIGHT BEFORE each setPendingMessage call,
-    // so the auto-scroll intent is fresh when the MutationObserver
-    // picks up the new bubble. Previously this was set here in
-    // `handleSendMessage` BEFORE the (potentially 50-200ms) await, and
-    // unrelated observer fires during the await would downgrade the
-    // ref to 'instant' or clear it — breaking auto-scroll for video-
-    // link sends specifically (those have an extra `await
-    // bindCompletedJobsToMessage` round-trip; plain text and image
+    // so the force-snap intent is fresh when the MutationObserver picks
+    // up the new bubble. Previously this was set here in
+    // `handleSendMessage` BEFORE the (potentially 50-200ms) await, and a
+    // user scroll-up during the await could clear it — breaking
+    // auto-scroll for video-link sends specifically (those have an extra
+    // `await bindCompletedJobsToMessage` round-trip; plain text and image
     // attachments don't, which is why they always worked).
     scrollIntentRef,
     // Restore the composer chips on send-failure paths inside
@@ -530,8 +529,8 @@ export function ChatInterface({
     // Scroll-intent now set inside `useSendMessage` adjacent to each
     // setPendingMessage call — see `scrollIntentRef` prop above. Setting
     // it here would re-introduce the video-link race window where a
-    // 50-200 ms `await bindCompletedJobsToMessage` lets observer fires
-    // downgrade the ref before the optimistic bubble lands.
+    // 50-200 ms `await bindCompletedJobsToMessage` lets a user scroll-up
+    // clear the pending snap before the optimistic bubble lands.
     // Snapshot the input value BEFORE clearing so a failed send can
     // restore the typed text. Without this, a network blip / model-
     // access denial / chat-filter block in `sendMessage` leaves the
@@ -662,8 +661,9 @@ export function ChatInterface({
       // Close inline editor so the optimistic content is visible
       setEditingMessage(null);
 
-      // Scroll to bottom so the edited message + incoming AI response are visible
-      scrollIntentRef.current = 'smooth';
+      // Force-snap to bottom so the edited message + incoming AI response are
+      // visible (instant — see ChatScroll.scrollIntentRef).
+      scrollIntentRef.current = true;
 
       const result = await editAndBranchAction({
         sourceThreadId: dataThreadId,
@@ -720,7 +720,8 @@ export function ChatInterface({
         timestamp: new Date(),
         editedMessageId: userMessage.id,
       });
-      scrollIntentRef.current = 'smooth';
+      // Force-snap to bottom (instant — see ChatScroll.scrollIntentRef).
+      scrollIntentRef.current = true;
 
       void (async () => {
         try {
@@ -838,7 +839,11 @@ export function ChatInterface({
       aria-labelledby={chatRegionLabelId}
       className={cn(
         'flex h-full min-h-0 flex-1 flex-col',
-        !showArena && 'overflow-y-auto scroll-smooth will-change-transform',
+        // No `scroll-smooth`: the auto-follow pins to the bottom with explicit
+        // instant scrolls (see useChatScroll). A CSS smooth-behavior would make
+        // every pin animate against the still-settling response slack and land
+        // short. The scroll-to-bottom button opts into smooth explicitly.
+        !showArena && 'overflow-y-auto will-change-transform',
       )}
     >
       <h2 id={chatRegionLabelId} className="sr-only">

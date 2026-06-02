@@ -8,6 +8,7 @@ import {
 } from 'react';
 
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
+import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 
 interface UseChatScrollParams {
   /** URL thread id — drives the scroll-to-bottom-on-initial-load effect. */
@@ -33,6 +34,21 @@ interface UseChatScrollParams {
  * auto-follow. A real scroll-up moves far more than this.
  */
 const SCROLL_UP_ESCAPE_THRESHOLD_PX = 4;
+
+/**
+ * Whether the scroll-to-bottom button should ANIMATE (smooth) or JUMP
+ * (instant). Smooth motion is reserved for a settled conversation on an OS
+ * that allows motion: while the assistant is still streaming we instant-snap
+ * so the view catches up to the live bottom and the pin follows subsequent
+ * growth (a smooth animation would lag behind it), and we always honor the
+ * `prefers-reduced-motion` accessibility setting. Exported for unit testing.
+ */
+export function shouldAnimateScrollToBottom(opts: {
+  isStreaming: boolean;
+  prefersReducedMotion: boolean;
+}): boolean {
+  return !opts.isStreaming && !opts.prefersReducedMotion;
+}
 
 /**
  * Pure decision for the stick-to-bottom latch on a scroll event. Ported from
@@ -65,26 +81,44 @@ export interface ChatScroll {
   scrollToBottom: () => void;
   showScrollButton: boolean;
   /**
-   * Scroll-to-bottom intent: 'smooth' on send, 'instant' on thread init, null
-   * when idle. Returned (not private) because `useSendMessage` writes to it via
-   * its `scrollIntentRef` prop RIGHT BEFORE each `setPendingMessage`, and the
-   * edit-and-branch handler sets it to 'smooth'. The scroll machine reads it in
-   * `onContentChange`/`onScroll`.
+   * Force-snap signal: set to `true` to force a scroll-to-bottom (re-engaging
+   * the follow latch) on the next content settle, REGARDLESS of whether the
+   * user had scrolled away. A plain boolean, not a `ScrollBehavior`, on
+   * purpose: the snap is ALWAYS instant, so there is no motion to choose — it
+   * must not animate against the still-settling response slack / streaming
+   * growth (which previously left a `'smooth'` send-scroll stranded part-way
+   * down). Returned (not private) because `useSendMessage` writes it via its
+   * `scrollIntentRef` prop RIGHT BEFORE each `setPendingMessage`, and the
+   * edit-and-branch handler sets it too. Smooth motion is reserved for the
+   * explicit scroll-to-bottom button (`scrollToBottom`).
    */
-  scrollIntentRef: MutableRefObject<ScrollBehavior | null>;
+  scrollIntentRef: MutableRefObject<boolean>;
   handleLoadMore: (count: number) => void;
 }
 
 /**
- * Chat scroll state machine, extracted verbatim from ChatInterface.
+ * Chat scroll state machine.
  *
- * Owns the ChatGPT-style "no auto-follow unless at bottom" behavior: a
- * ResizeObserver + MutationObserver on the content drive `onContentChange`,
- * a scroll listener handles the manual scroll-up escape and smooth→instant
- * downgrade, plus thread-init scroll, streaming-end intent clear, branch-switch
- * scroll preservation (captured DURING render — see below), and load-more
- * prepend preservation. Every ref here encodes a specific bug fix; the logic is
- * unchanged from the original inline implementation.
+ * Implements the ChatGPT/Claude-style behavior: the view follows content
+ * growth ONLY while pinned to the bottom; the user escapes the pin by
+ * scrolling up and re-engages by returning to the bottom. Sending a message
+ * (and thread-init / edit-branch) force-snaps back to the bottom.
+ *
+ * Design notes:
+ *  - The auto-follow pin is ALWAYS an instant `scrollTo` — never a smooth
+ *    animation. The response area carries a dynamic min-height "slack" (see
+ *    ChatMessages) that settles across a couple of layout frames while tokens
+ *    stream in, so a smooth animation would chase a moving target and settle
+ *    short. Instant pinning re-evaluates every content tick and lands exactly.
+ *  - Our programmatic scrolls only ever move DOWN, so an upward `onScroll`
+ *    delta is unambiguously the user — no fragile programmatic-vs-user flag.
+ *  - Smooth motion is opt-in and one-shot: the floating scroll-to-bottom
+ *    button. While its animation runs we suppress the instant pin so we don't
+ *    interrupt it, then re-pin when it lands.
+ *
+ * Plus: thread-init scroll, streaming-end intent clear, branch-switch scroll
+ * preservation (captured DURING render — see below), and load-more prepend
+ * preservation.
  */
 export function useChatScroll({
   threadId,
@@ -99,20 +133,19 @@ export function useChatScroll({
   const { containerRef, contentRef, isAtBottom } = useAutoScroll({
     threshold: 100,
   });
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const [showScrollButton, setShowScrollButton] = useState(false);
 
-  // Forced scroll-to-bottom signal: 'smooth' on send, 'instant' on thread
-  // init, null when idle. Written externally by useSendMessage (its
-  // `scrollIntentRef` prop) right before each setPendingMessage; read by the
-  // scroll machine to force-follow even if the user had scrolled away.
-  const scrollingToBottomBehaviorRef = useRef<ScrollBehavior | null>(null);
-  // Stick-to-bottom latch (ported from use-stick-to-bottom's algorithm): we
-  // auto-follow content growth only while this is true. The user "escapes" it
-  // by scrolling UP and re-engages by returning to the bottom. Crucially, our
-  // own programmatic scrolls only ever move DOWN, so an upward scroll is
-  // unambiguously the user — no fragile programmatic-vs-user flag needed.
-  const stickToBottomRef = useRef(true);
+  // Force-snap signal: true ⇒ snap to bottom (instant) on the next content
+  // settle and re-engage the pin, overriding a prior user scroll-up. Written
+  // externally by useSendMessage / edit-branch right before each
+  // setPendingMessage; consumed by the scroll machine once the snap lands.
+  const forceScrollRef = useRef(false);
+  // Stick-to-bottom latch: we auto-follow content growth only while this is
+  // true. The user escapes by scrolling UP and re-engages by returning to the
+  // bottom (see resolveStickToBottom).
+  const pinnedRef = useRef(true);
   // Track scrollTop + scrollHeight across scroll events so a scrollTop drop
   // caused by content SHRINKING (browser clamps scrollTop) isn't misread as a
   // user scroll-up (which would falsely escape the lock).
@@ -132,15 +165,24 @@ export function useChatScroll({
     const content = contentRef.current;
     if (!container || !content) return undefined;
 
-    const scrollToBottomNow = (behavior: ScrollBehavior) => {
-      container.scrollTo({ top: container.scrollHeight, behavior });
+    const pinToBottom = () => {
+      // Explicit 'instant' — the auto-follow must never animate (it would
+      // chase the still-settling slack / streaming growth and land short).
+      container.scrollTo({ top: container.scrollHeight, behavior: 'instant' });
+    };
+
+    const updateButton = () => {
+      // Show whenever we're NOT actively following — including the dead zone
+      // where the user escaped with a small scroll-up but is still within the
+      // 100px "at bottom" band (otherwise follow is off with no affordance to
+      // get back).
+      setShowScrollButton(!pinnedRef.current || !isAtBottom());
     };
 
     const onContentChange = () => {
-      // During branch switch: override all scroll behavior with saved position
+      // During branch switch: override all scroll behavior with saved position.
       if (branchScrollSaveRef.current !== null) {
-        // Explicit 'instant' — the container has `scroll-behavior: smooth`
-        // (chat-interface), so a raw `scrollTop =` would ANIMATE toward the
+        // Explicit 'instant' — the container would otherwise animate toward the
         // saved position on every ResizeObserver tick → a visible wobble.
         container.scrollTo({
           top: branchScrollSaveRef.current,
@@ -149,23 +191,19 @@ export function useChatScroll({
         setShowScrollButton(!isAtBottom());
         return;
       }
-      const forced = scrollingToBottomBehaviorRef.current;
-      if (forced) {
-        // Send / thread-init: force-follow regardless of the latch, and
-        // re-engage it. A 'smooth' forced scroll stays armed until it reaches
-        // the bottom (consumed in onScroll); 'instant' is one-shot.
-        stickToBottomRef.current = true;
-        scrollToBottomNow(forced);
-        if (forced === 'instant') scrollingToBottomBehaviorRef.current = null;
-      } else if (stickToBottomRef.current) {
-        // Normal content growth while following: pin to bottom instantly.
-        scrollToBottomNow('instant');
+      // Forced snap (send / thread-init / edit-branch): re-engage the pin and
+      // jump to the bottom even if the user had scrolled away. Always instant;
+      // consumed once it lands (the pin then carries subsequent growth).
+      if (forceScrollRef.current) {
+        pinnedRef.current = true;
+        pinToBottom();
+        forceScrollRef.current = false;
+        updateButton();
+        return;
       }
-      // Show the button whenever we're NOT actively following — including the
-      // dead zone where the user escaped with a small scroll-up but is still
-      // within the 100px "at bottom" band (otherwise follow is off with no
-      // affordance to get back).
-      setShowScrollButton(!stickToBottomRef.current || !isAtBottom());
+      // Normal content growth while following: pin to bottom instantly.
+      if (pinnedRef.current) pinToBottom();
+      updateButton();
     };
 
     const onScroll = () => {
@@ -177,32 +215,23 @@ export function useChatScroll({
       lastScrollHeightRef.current = currentHeight;
       const atBottom = isAtBottom();
 
-      const wasSticking = stickToBottomRef.current;
-      const nextSticking = resolveStickToBottom({
-        sticking: wasSticking,
+      const wasPinned = pinnedRef.current;
+      const nextPinned = resolveStickToBottom({
+        sticking: wasPinned,
         currentTop,
         prevTop,
         currentHeight,
         prevHeight,
         atBottom,
       });
-      stickToBottomRef.current = nextSticking;
+      pinnedRef.current = nextPinned;
 
-      if (!nextSticking && wasSticking) {
-        // Just escaped → cancel any forced (send/init) follow too.
-        scrollingToBottomBehaviorRef.current = null;
-      } else if (
-        nextSticking &&
-        atBottom &&
-        scrollingToBottomBehaviorRef.current === 'smooth'
-      ) {
-        // Forced-smooth scroll has reached the bottom — consume it so future
-        // content growth follows instantly via the latch.
-        scrollingToBottomBehaviorRef.current = null;
+      // Just escaped → cancel any pending forced (send/init) snap so we don't
+      // yank the user back to the bottom after they deliberately scrolled up.
+      if (!nextPinned && wasPinned) {
+        forceScrollRef.current = false;
       }
-      // Button tracks the follow latch (not just the at-bottom band) so a small
-      // escape scroll within the band still surfaces the affordance.
-      setShowScrollButton(!nextSticking || !atBottom);
+      setShowScrollButton(!nextPinned || !atBottom);
     };
 
     const resizeObserver = new ResizeObserver(onContentChange);
@@ -234,12 +263,12 @@ export function useChatScroll({
     };
   }, [containerRef, contentRef, isAtBottom, isArenaMode]);
 
-  // Clear scroll intent when streaming ends — covers the case where
-  // the ref stayed as 'instant' throughout the entire streaming session.
+  // Clear the force-snap intent when streaming ends — covers the case where
+  // the ref stayed set throughout the entire streaming session.
   const prevIsLoadingRef = useRef(isLoading);
   useEffect(() => {
     if (prevIsLoadingRef.current && !isLoading) {
-      scrollingToBottomBehaviorRef.current = null;
+      forceScrollRef.current = false;
     }
     prevIsLoadingRef.current = isLoading;
   }, [isLoading]);
@@ -258,12 +287,20 @@ export function useChatScroll({
     if (scrolledForThreadRef.current === threadId) return;
 
     scrolledForThreadRef.current = threadId;
-    scrollingToBottomBehaviorRef.current = 'instant';
+    forceScrollRef.current = true;
+    pinnedRef.current = true;
 
-    containerRef.current?.scrollTo({
-      top: containerRef.current.scrollHeight,
-      behavior: 'instant',
-    });
+    const c = containerRef.current;
+    if (c) {
+      c.scrollTo({ top: c.scrollHeight, behavior: 'instant' });
+      // Re-seed the scroll trackers to THIS thread's geometry. The hook
+      // persists across thread→thread switches, so a leftover prev-thread
+      // scrollTop/scrollHeight could make the next onScroll misread the switch
+      // as a user scroll-up and clear the forced snap before the new thread
+      // settles at the bottom.
+      lastScrollTopRef.current = c.scrollTop;
+      lastScrollHeightRef.current = c.scrollHeight;
+    }
   }, [threadId, messagesLength, containerRef]);
 
   // Preserve scroll position during branch switches.
@@ -308,7 +345,7 @@ export function useChatScroll({
         // onScroll diff is correct.
         const c = containerRef.current;
         if (c) {
-          stickToBottomRef.current = isAtBottom();
+          pinnedRef.current = isAtBottom();
           lastScrollTopRef.current = c.scrollTop;
           lastScrollHeightRef.current = c.scrollHeight;
         }
@@ -359,8 +396,8 @@ export function useChatScroll({
       const prevScrollHeight = container.scrollHeight;
 
       const applyCorrection = () => {
-        // Explicit 'instant' — `scroll-behavior: smooth` on the container would
-        // otherwise ANIMATE this position-restore and visibly slide the viewport.
+        // Explicit 'instant' — a position-restore must not animate and visibly
+        // slide the viewport.
         if (anchorKey) {
           const el = container.querySelector<HTMLElement>(
             `[data-message-key="${CSS.escape(anchorKey)}"]`,
@@ -420,22 +457,36 @@ export function useChatScroll({
     [containerRef, loadMore],
   );
 
-  // Scroll-to-bottom button: re-engage the follow latch and smoothly land at
-  // the bottom. Arming the forced ref keeps it following as content settles.
+  // Scroll-to-bottom button: re-engage the pin and land at the bottom. Motion
+  // is chosen by shouldAnimateScrollToBottom — smooth only on a settled
+  // conversation with motion allowed; while streaming we instant-snap so the
+  // view catches up to the live bottom and the pin follows subsequent growth
+  // (a smooth animation would lag behind it). Either way the pin is
+  // re-engaged, so from here resolveStickToBottom drives follow/escape on the
+  // next scroll/content event — no separate "animation in progress" state is
+  // needed (and a content change mid-animation just instant-pins to the
+  // bottom, the intended destination).
   const scrollToBottom = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
-    stickToBottomRef.current = true;
-    scrollingToBottomBehaviorRef.current = 'smooth';
-    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-  }, [containerRef]);
+    pinnedRef.current = true;
+    forceScrollRef.current = false;
+    const animate = shouldAnimateScrollToBottom({
+      isStreaming: isLoading,
+      prefersReducedMotion,
+    });
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: animate ? 'smooth' : 'instant',
+    });
+  }, [containerRef, isLoading, prefersReducedMotion]);
 
   return {
     containerRef,
     contentRef,
     scrollToBottom,
     showScrollButton,
-    scrollIntentRef: scrollingToBottomBehaviorRef,
+    scrollIntentRef: forceScrollRef,
     handleLoadMore,
   };
 }

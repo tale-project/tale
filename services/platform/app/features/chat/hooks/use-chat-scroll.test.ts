@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveStickToBottom } from './use-chat-scroll';
+import {
+  resolveStickToBottom,
+  shouldAnimateScrollToBottom,
+} from './use-chat-scroll';
 
 /**
  * Locks the stick-to-bottom escape/re-engage decision — the logic that fixes
@@ -90,6 +93,24 @@ describe('resolveStickToBottom', () => {
     ).toBe(true);
   });
 
+  it('keeps following on the streaming frame before the instant pin re-applies', () => {
+    // A streamed token grew scrollHeight below the fold but scrollTop hasn't
+    // moved yet (the pin's instant scrollTo runs on the next content tick), so
+    // atBottom momentarily reads false. No scroll-up happened — the latch must
+    // hold so the pin keeps engaging.
+    expect(
+      resolveStickToBottom({
+        ...base,
+        sticking: true,
+        currentTop: 500,
+        prevTop: 500,
+        currentHeight: 1200,
+        prevHeight: 1000,
+        atBottom: false,
+      }),
+    ).toBe(true);
+  });
+
   it('stays escaped when scrolling down but not yet at the bottom', () => {
     expect(
       resolveStickToBottom({
@@ -113,6 +134,50 @@ describe('resolveStickToBottom', () => {
         sticking: false,
         currentTop: 300,
         prevTop: 480,
+      }),
+    ).toBe(false);
+  });
+});
+
+/**
+ * Locks the scroll-to-bottom button's motion choice: smooth is reserved for a
+ * settled conversation on a motion-allowing OS; streaming or reduced-motion
+ * force an instant snap (so the view catches up to the live bottom and honors
+ * the accessibility preference, rather than animating against growing content).
+ */
+describe('shouldAnimateScrollToBottom', () => {
+  it('animates on a settled conversation when motion is allowed', () => {
+    expect(
+      shouldAnimateScrollToBottom({
+        isStreaming: false,
+        prefersReducedMotion: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('jumps instantly while the assistant is still streaming', () => {
+    expect(
+      shouldAnimateScrollToBottom({
+        isStreaming: true,
+        prefersReducedMotion: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('jumps instantly when the OS prefers reduced motion', () => {
+    expect(
+      shouldAnimateScrollToBottom({
+        isStreaming: false,
+        prefersReducedMotion: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('jumps instantly when both streaming and reduced motion apply', () => {
+    expect(
+      shouldAnimateScrollToBottom({
+        isStreaming: true,
+        prefersReducedMotion: true,
       }),
     ).toBe(false);
   });
