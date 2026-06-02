@@ -440,7 +440,7 @@ function AutomationDetailInner({
                 // SAME step-card placeholder as the route-level loading state
                 // instead of a generic text skeleton. Otherwise the skeleton
                 // visibly "blinks": canvas placeholder → text lines → canvas.
-                <Skeletonize loading>
+                <Skeletonize loading className="contents">
                   <AutomationCanvasSkeleton />
                 </Skeletonize>
               }

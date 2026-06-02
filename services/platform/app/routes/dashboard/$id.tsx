@@ -284,7 +284,7 @@ export function DashboardShellFrame() {
   return (
     <div className="flex h-dvh w-full flex-col overflow-hidden md:flex-row">
       {/* Mobile top bar */}
-      <div className="bg-background border-border flex items-center gap-2 border-b p-2 pt-[calc(var(--safe-top)+0.75rem)] md:hidden">
+      <div className="bg-background border-border flex items-center gap-2 border-b p-2 pt-[calc(var(--safe-top)+0.5rem)] md:hidden">
         <Skeletonize loading>
           <SkeletonBox>
             <div className="size-8" />
