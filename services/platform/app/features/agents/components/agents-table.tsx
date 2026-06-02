@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row } from '@tanstack/react-table';
 import { Bot } from 'lucide-react';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -69,6 +69,28 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
     void queryClient.invalidateQueries({ queryKey: ['config', 'agents'] });
   }, [queryClient]);
 
+  // Briefly highlight a freshly-duplicated row so it reads as a new, separate
+  // agent in the list rather than something tied to the menu it came from
+  // (#1354).
+  const [highlightedName, setHighlightedName] = useState<string | null>(null);
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    },
+    [],
+  );
+
+  const handleDuplicated = useCallback(
+    (newAgentName: string) => {
+      invalidateAgents();
+      setHighlightedName(newAgentName);
+      if (highlightTimer.current) clearTimeout(highlightTimer.current);
+      highlightTimer.current = setTimeout(() => setHighlightedName(null), 2500);
+    },
+    [invalidateAgents],
+  );
+
   const teamNameMap = useMemo(() => {
     const map = new Map();
     if (teams) {
@@ -83,7 +105,7 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
     useAgentsTableConfig({
       organizationId,
       teamNameMap,
-      onDuplicated: invalidateAgents,
+      onDuplicated: handleDuplicated,
       onDeleted: invalidateAgents,
     });
 
@@ -119,6 +141,11 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
       {...list.tableProps}
       columns={columns}
       stickyLayout={stickyLayout}
+      rowClassName={(row) =>
+        row.original.name === highlightedName
+          ? 'bg-primary/10 transition-colors duration-500 motion-reduce:transition-none'
+          : ''
+      }
       onRowClick={handleRowClick}
       actionMenu={<AgentsActionMenu organizationId={organizationId} />}
       emptyState={{
