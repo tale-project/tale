@@ -274,6 +274,24 @@ export const getThreadProject = query({
  */
 export const getThreadMeta = query({
   args: { threadId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      projectId: v.union(v.id('projects'), v.null()),
+      isGenerating: v.boolean(),
+      forkInfo: v.union(
+        v.null(),
+        v.object({
+          forkedFrom: v.string(),
+          forkedFromShare: v.boolean(),
+          forkedMessageCount: v.union(v.number(), v.null()),
+          lastForkedMessageOrder: v.union(v.number(), v.null()),
+          forkedAt: v.union(v.number(), v.null()),
+        }),
+      ),
+      failedErrors: v.record(v.string(), v.string()),
+    }),
+  ),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;

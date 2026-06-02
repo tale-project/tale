@@ -174,6 +174,16 @@ export function BranchProvider({
     setLocalOverrides({});
   }, [threadId]);
 
+  // Keep the latest persisted selections in a ref so the persist callbacks read
+  // the freshest server data without capturing it in their closure — closes a
+  // narrow stale window if getThreadBranchSelections updates between a
+  // callback's creation and its setLocalOverrides updater running, and keeps
+  // switchBranch/selectNewBranch referentially stable.
+  const persistedParsedRef = useRef(persistedParsed);
+  useEffect(() => {
+    persistedParsedRef.current = persistedParsed;
+  }, [persistedParsed]);
+
   // Persist branch selections to DB
   const { mutate: updateBranchSelections } = useConvexMutation(
     api.threads.mutations.updateBranchSelections,
@@ -218,22 +228,22 @@ export function BranchProvider({
         };
         // Persist the full merged set (persisted defaults + all session
         // overrides) so a reload restores every selection, not just this one.
-        persistSelections({ ...persistedParsed, ...next });
+        persistSelections({ ...persistedParsedRef.current, ...next });
         return next;
       });
     },
-    [persistSelections, persistedParsed],
+    [persistSelections],
   );
 
   const selectNewBranch = useCallback(
     (forkOrder: string, branchThreadId: string) => {
       setLocalOverrides((prev) => {
         const next = { ...prev, [forkOrder]: branchThreadId };
-        persistSelections({ ...persistedParsed, ...next });
+        persistSelections({ ...persistedParsedRef.current, ...next });
         return next;
       });
     },
-    [persistSelections, persistedParsed],
+    [persistSelections],
   );
 
   const value = useMemo(
