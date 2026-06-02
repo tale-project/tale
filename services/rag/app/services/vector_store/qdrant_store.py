@@ -62,6 +62,12 @@ class QdrantVectorStore:
                 self._collection,
                 dimensions,
             )
+        else:
+            # An existing collection whose vector size differs from the pinned
+            # embedding dimensions cannot serve correct ANN results. pgvector
+            # ALTERs the column to converge; Qdrant cannot resize in place, so
+            # fail loudly rather than silently search a wrong-dimension index.
+            await self._assert_dimensions(dimensions)
 
         # Payload indexes so the tenant + file filters are indexed lookups.
         # Idempotent: re-creating an existing index is a no-op server-side.
@@ -77,15 +83,54 @@ class QdrantVectorStore:
                 # schema problem is still visible in the RAG logs.
                 logger.debug("Qdrant payload index ensure for '{}': {}", field, exc)
 
-        if created:
-            # First switch to Qdrant: copy existing vectors out of Postgres
-            # (no re-embedding). One-time — subsequent indexing keeps Qdrant
-            # in sync via the upsert hook. Imported here to avoid a cycle.
+        # Copy existing vectors out of Postgres (no re-embedding) on first
+        # creation AND whenever the collection is materially under-populated:
+        # an interrupted first backfill, or a switch away from then back to
+        # Qdrant, leaves it missing chunks. Idempotent (upsert keyed on chunk
+        # id), and ensure_ready runs once per process, so this reconciles
+        # without a separate migration step. Imported here to avoid a cycle.
+        if created or await self._needs_backfill():
             from .backfill import backfill_vectors
 
             copied = await backfill_vectors(self._pool, self)
             if copied:
-                logger.info("Backfilled {} existing vectors into new Qdrant collection", copied)
+                logger.info("Backfilled {} existing vectors into Qdrant collection '{}'", copied, self._collection)
+
+    async def _assert_dimensions(self, dimensions: int) -> None:
+        """Raise if an existing collection's vector size != the pinned dims."""
+        info = await self._client.get_collection(self._collection)
+        vectors = info.config.params.vectors
+        # Single (unnamed) vector config exposes `.size`; a named-vector dict
+        # is not something this driver creates, so skip the check there.
+        existing = getattr(vectors, "size", None)
+        if existing is not None and existing != dimensions:
+            raise RuntimeError(
+                f"Qdrant collection '{self._collection}' has vector size {existing}, but the pinned "
+                f"embedding dimensions are {dimensions}. Recreate the collection (or configure a fresh "
+                f"collection name) to change embedding dimensions."
+            )
+
+    async def _needs_backfill(self) -> bool:
+        """True when the collection has fewer points than Postgres has vectors.
+
+        A cheap reconciliation gate: backfill is idempotent, so re-running it
+        when under-populated converges the collection. Points exceeding the
+        source count (un-GC'd deletes) is fine and never triggers a backfill.
+        """
+        info = await self._client.get_collection(self._collection)
+        points = getattr(info, "points_count", None) or 0
+        async with acquire_with_retry(self._pool) as conn:
+            source = await conn.fetchval(f"SELECT count(*) FROM {SCHEMA}.chunks WHERE embedding IS NOT NULL")
+        source = source or 0
+        if points < source:
+            logger.info(
+                "Qdrant collection '{}' under-populated ({} points < {} source chunks); reconciling via backfill",
+                self._collection,
+                points,
+                source,
+            )
+            return True
+        return False
 
     async def upsert(self, records: list[VectorRecord]) -> None:
         if not records:
@@ -94,7 +139,10 @@ class QdrantVectorStore:
             batch = records[start : start + _UPSERT_BATCH]
             points = [
                 models.PointStruct(
-                    id=str(r.chunk_id),
+                    # chunks.id is a BIGINT; Qdrant point ids accept unsigned
+                    # ints. Passing the int directly (not str()) is required —
+                    # a numeric string is rejected as an invalid UUID.
+                    id=int(r.chunk_id),
                     vector=r.embedding,
                     payload={"org_slug": r.org_slug, "document_id": str(r.document_id)},
                 )
@@ -131,7 +179,9 @@ class QdrantVectorStore:
             with_payload=False,
             with_vectors=False,
         )
-        return [VectorHit(chunk_id=UUID(str(p.id)), score=float(p.score)) for p in response.points]
+        # Qdrant returns the int point id as an int (or numeric str over some
+        # transports); int() normalizes both back to the BIGINT chunks.id.
+        return [VectorHit(chunk_id=int(p.id), score=float(p.score)) for p in response.points]
 
     async def delete_documents(self, org_slug: str, document_ids: list[UUID]) -> None:
         if not document_ids:

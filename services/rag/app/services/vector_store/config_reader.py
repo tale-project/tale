@@ -83,6 +83,13 @@ def load_vectordb_config() -> VectorDbConfig:
         logger.error("Failed to read vectordb config %s: %s; using pgvector", config_path, exc)
         return VectorDbConfig()
 
+    # Valid JSON that is not an object (null/array/number/string from a
+    # truncated or hand-edited file) would otherwise raise AttributeError on
+    # the .get() calls below — keep the fail-safe contract and fall back.
+    if not isinstance(data, dict):
+        logger.error("vectordb config %s is not a JSON object (%s); using pgvector", config_path, type(data).__name__)
+        return VectorDbConfig()
+
     backend = data.get("backend", "pgvector")
     if backend not in VALID_BACKENDS:
         logger.error("Unknown vectordb backend %r; using pgvector", backend)
@@ -91,10 +98,27 @@ def load_vectordb_config() -> VectorDbConfig:
     if backend == "pgvector":
         return VectorDbConfig(backend="pgvector")
 
-    qdrant = data.get("qdrant") or {}
+    # A truthy non-dict `qdrant` (e.g. a string) survives `... or {}` and would
+    # raise AttributeError on .get(); coerce any non-dict to an empty dict.
+    qdrant = data.get("qdrant")
+    if not isinstance(qdrant, dict):
+        qdrant = {}
     url = qdrant.get("url")
     if not url:
         logger.error("vectordb backend is qdrant but no qdrant.url configured; using pgvector")
+        return VectorDbConfig()
+
+    try:
+        api_key = _load_secret()
+    except _SecretUndecryptable as exc:
+        # A secret file exists but can't be decrypted. Connecting to Qdrant
+        # unauthenticated would silently drop the configured credential, so
+        # fail safe to pgvector with a loud error instead.
+        logger.error(
+            "vectordb backend is qdrant but its secret could not be decrypted (%s); "
+            "using pgvector to avoid an unauthenticated connection",
+            exc,
+        )
         return VectorDbConfig()
 
     return VectorDbConfig(
@@ -102,18 +126,31 @@ def load_vectordb_config() -> VectorDbConfig:
         qdrant_url=url,
         collection=qdrant.get("collection") or DEFAULT_COLLECTION,
         prefer_grpc=bool(qdrant.get("preferGrpc", False)),
-        api_key=_load_secret(),
+        api_key=api_key,
     )
 
 
+class _SecretUndecryptable(Exception):
+    """A vectordb secret file exists but could not be decrypted.
+
+    Distinguished from an absent file (legitimately no api key) so the caller
+    can fail safe rather than silently connect to Qdrant unauthenticated.
+    """
+
+
 def _load_secret() -> str | None:
-    """Decrypt the deployment vectordb secret (apiKey) if present."""
+    """Decrypt the deployment vectordb secret (apiKey).
+
+    Returns None when no secret file is present (api key is optional). Raises
+    ``_SecretUndecryptable`` when a file IS present but cannot be decrypted —
+    never silently degrades a configured key to no-auth.
+    """
     secrets_path = _deployment_dir() / "vectordb.secrets.json"
     if not secrets_path.exists():
         return None
     try:
         secrets = decrypt_secrets_file(secrets_path)
-        return secrets.get("apiKey")
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
         logger.error("Failed to decrypt vectordb secrets: %s", exc)
-        return None
+        raise _SecretUndecryptable(str(exc)) from exc
+    return secrets.get("apiKey") if isinstance(secrets, dict) else None

@@ -5705,6 +5705,9 @@
       "pgvectorHint": "Built-in backend — verify it is serving via the RAG service health endpoint.",
       "saved": "Vector database settings saved.",
       "saveFailed": "Failed to save vector database settings.",
+      "versionConflict": "The vector database configuration was changed by another operator. Reload the page and re-apply your changes.",
+      "invalidConfig": "The configuration is invalid. Check the fields and try again.",
+      "configUnreadableConfirm": "The stored vector database configuration can't be read. Overwrite it with these settings?",
       "confirm": {
         "title": "Change deployment vector database?",
         "body": "You are changing the vector database from {from} to {to}. This affects ALL organizations in this deployment: existing documents must be re-indexed into the new backend, and the change takes effect only after the RAG service restarts.",

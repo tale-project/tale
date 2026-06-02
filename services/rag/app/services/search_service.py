@@ -324,7 +324,16 @@ class RagSearchService:
         the org filter as defense-in-depth so a backend that returned a
         foreign id can never leak cross-tenant content.
         """
-        hits = await self._vector_store.search(org_slug, embedding, file_ids=file_ids, limit=limit)
+        try:
+            hits = await self._vector_store.search(org_slug, embedding, file_ids=file_ids, limit=limit)
+        except Exception as e:
+            # An external backend (e.g. Qdrant) being unreachable or returning
+            # a malformed response must not 500 the whole search. Degrade to
+            # FTS-only: returning [] reads as "no vector matches" (pre_count==0),
+            # which does NOT trip the all-below-threshold FTS-discard in
+            # search(), so the BM25 results still surface.
+            logger.warning("Vector store search failed ({}); degrading to FTS-only", e)
+            return []
         if not hits:
             return []
 

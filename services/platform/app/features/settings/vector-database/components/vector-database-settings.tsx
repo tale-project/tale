@@ -177,26 +177,71 @@ function VectorDatabaseForm({
     [organizationId, saveSecret, t],
   );
 
-  const commit = useCallback(async () => {
-    if (!pending) return;
-    setConfirmOpen(false);
-    try {
+  const runSave = useCallback(
+    async (values: VectorDbFormData, force: boolean) => {
+      // Write the secret BEFORE the config so the active backend only flips to
+      // qdrant once its key is stored — a config-write failure can never leave
+      // an active keyless qdrant backend. An orphan secret (config write fails)
+      // is harmless and overwritten on the next save.
+      if (values.backend === 'qdrant' && values.apiKey.trim()) {
+        await persistSecret(values.apiKey.trim());
+      }
       await saveConfig.mutateAsync({
         organizationId,
-        config: toConfig(pending),
-        expectedHash: hash ?? undefined,
+        config: toConfig(values),
+        expectedHash: force ? undefined : (hash ?? undefined),
+        force: force || undefined,
       });
-      if (pending.backend === 'qdrant' && pending.apiKey.trim()) {
-        await persistSecret(pending.apiKey.trim());
-      }
+    },
+    [organizationId, hash, saveConfig, persistSecret],
+  );
+
+  const commit = useCallback(async () => {
+    if (!pending) return;
+    const values = pending;
+    setConfirmOpen(false);
+    try {
+      await runSave(values, false);
       toast({ title: t('vectorDatabase.saved'), variant: 'success' });
     } catch (err) {
       console.error(err);
-      toast({ title: t('vectorDatabase.saveFailed'), variant: 'destructive' });
+      const code = readConvexErrorData(err)?.code;
+      if (code === 'VECTORDB_CONFIG_UNREADABLE') {
+        // The stored config is corrupt; offer to overwrite it (force) so the
+        // operator can self-repair instead of being permanently wedged.
+        // eslint-disable-next-line no-alert -- minimal overwrite confirm; mirrors providers
+        if (window.confirm(t('vectorDatabase.configUnreadableConfirm'))) {
+          try {
+            await runSave(values, true);
+            toast({ title: t('vectorDatabase.saved'), variant: 'success' });
+          } catch (forceErr) {
+            console.error(forceErr);
+            toast({
+              title: t('vectorDatabase.saveFailed'),
+              variant: 'destructive',
+            });
+          }
+        }
+      } else if (code === 'VECTORDB_VERSION_CONFLICT') {
+        toast({
+          title: t('vectorDatabase.versionConflict'),
+          variant: 'destructive',
+        });
+      } else if (code === 'INVALID_VECTORDB_CONFIG') {
+        toast({
+          title: t('vectorDatabase.invalidConfig'),
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: t('vectorDatabase.saveFailed'),
+          variant: 'destructive',
+        });
+      }
     } finally {
       setPending(null);
     }
-  }, [pending, organizationId, hash, saveConfig, persistSecret, toast, t]);
+  }, [pending, runSave, toast, t]);
 
   const runTest = useCallback(async () => {
     const values = watch();

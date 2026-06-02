@@ -5445,6 +5445,9 @@
       "pgvectorHint": "Backend intégré — vérifiez qu’il fonctionne via le point de terminaison de santé du service RAG.",
       "saved": "Paramètres de base de données vectorielle enregistrés.",
       "saveFailed": "Échec de l’enregistrement des paramètres de base de données vectorielle.",
+      "versionConflict": "La configuration de la base de données vectorielle a été modifiée par un autre opérateur. Recharge la page et réapplique tes modifications.",
+      "invalidConfig": "La configuration est invalide. Vérifie les champs et réessaie.",
+      "configUnreadableConfirm": "Impossible de lire la configuration de base de données vectorielle enregistrée. La remplacer par ces paramètres ?",
       "confirm": {
         "title": "Modifier la base de données vectorielle du déploiement ?",
         "body": "Vous changez la base de données vectorielle de {from} vers {to}. Cela concerne TOUTES les organisations de ce déploiement : les documents existants doivent être réindexés dans le nouveau backend, et la modification ne prend effet qu’après le redémarrage du service RAG.",

@@ -27,9 +27,14 @@ class VectorHit:
     convention used everywhere downstream (the vector pre-filter
     threshold and RRF merge), so drivers MUST map their native score into
     that range before returning.
+
+    `chunk_id` is the ``private_knowledge.chunks.id`` BIGINT (a Python int),
+    NOT a UUID — drivers that key on it (e.g. Qdrant point ids) must keep it
+    integer-typed so it round-trips and matches the int-keyed hydration in
+    the search service.
     """
 
-    chunk_id: UUID
+    chunk_id: int
     score: float
 
 
@@ -42,9 +47,12 @@ class VectorRecord:
     backs the `file_ids` filter (resolved org-scoped in SQL, then matched
     against the payload). pgvector ignores all of this (vectors live in
     the `chunks` row).
+
+    `chunk_id` is the ``chunks.id`` BIGINT (int); `document_id` is the
+    ``documents.id`` UUID.
     """
 
-    chunk_id: UUID
+    chunk_id: int
     org_slug: str
     document_id: UUID
     embedding: list[float]

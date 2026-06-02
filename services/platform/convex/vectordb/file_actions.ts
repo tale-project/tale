@@ -61,6 +61,17 @@ function isErrnoCode(err: unknown, code: string): boolean {
   return err instanceof Error && 'code' in err && err.code === code;
 }
 
+/** Read a string `code` off a thrown ConvexError's structured data. */
+function convexErrorCode(err: unknown): string | undefined {
+  if (!(err instanceof ConvexError)) return undefined;
+  const data: unknown = err.data;
+  if (data !== null && typeof data === 'object' && 'code' in data) {
+    const code = data.code;
+    return typeof code === 'string' ? code : undefined;
+  }
+  return undefined;
+}
+
 /** Read the deployment config, defaulting to pgvector when the file is absent. */
 async function readConfigFile(): Promise<{
   config: VectorDbConfig;
@@ -165,6 +176,11 @@ export const saveVectorDbConfig = action({
     organizationId: v.string(),
     config: v.any(),
     expectedHash: v.optional(v.string()),
+    // Overwrite an unreadable existing config and skip the optimistic-
+    // concurrency check. The operator opts in from the UI after being warned
+    // (mirrors the secret-write `force`). Without it a corrupted vectordb.json
+    // wedges every save because `readConfigFile()` throws on the prior state.
+    force: v.optional(v.boolean()),
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
@@ -185,8 +201,24 @@ export const saveVectorDbConfig = action({
     // SSRF: the RAG service will connect to this URL with the stored API key.
     if (config.backend === 'qdrant') checkProviderHostPolicy(config.qdrant.url);
 
-    const before = await readConfigFile();
-    if (args.expectedHash !== undefined && before.hash !== args.expectedHash) {
+    let before: { config: VectorDbConfig; hash: string | null };
+    try {
+      before = await readConfigFile();
+    } catch (err) {
+      // Force lets the operator repair a corrupted config from the UI; without
+      // it the unreadable prior state would block any save indefinitely.
+      if (args.force && convexErrorCode(err) === 'VECTORDB_CONFIG_UNREADABLE') {
+        before = { config: DEFAULT_CONFIG, hash: null };
+      } else {
+        throw err;
+      }
+    }
+
+    if (
+      !args.force &&
+      args.expectedHash !== undefined &&
+      before.hash !== args.expectedHash
+    ) {
       throw new ConvexError({
         code: 'VECTORDB_VERSION_CONFLICT',
         message:
@@ -199,12 +231,15 @@ export const saveVectorDbConfig = action({
     const hash = sha256(content);
 
     const backendChanged = before.config.backend !== config.backend;
-    await writeAudit(
-      ctx,
-      auth,
-      backendChanged ? 'vectordb_backend_changed' : 'vectordb_config_saved',
-      { from: before.config.backend, to: config.backend },
-    );
+    const auditAction = args.force
+      ? 'force_overwrite_vectordb_config'
+      : backendChanged
+        ? 'vectordb_backend_changed'
+        : 'vectordb_config_saved';
+    await writeAudit(ctx, auth, auditAction, {
+      from: before.config.backend,
+      to: config.backend,
+    });
 
     return { hash };
   },

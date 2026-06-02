@@ -75,6 +75,12 @@ SYSTEM_PROMPT = (
 
 _CONFIG_CHECK_INTERVAL = 15  # seconds
 
+# Opportunistic vector-sync reconcile: a gated background pass that re-mirrors
+# documents whose live external-backend sync failed (marked
+# `vector_sync_pending`). Idle when nothing is pending — no cron entry.
+_VECTOR_RECONCILE_INTERVAL_S = 120
+_VECTOR_RECONCILE_BATCH = 50
+
 # Bound the per-org-lock dict so a misbehaving caller cannot grow the
 # table without limit by spraying random slugs. Real deployments have
 # tens, not thousands, of orgs; 256 is comfortably above any realistic
@@ -174,6 +180,10 @@ class RagService:
         # repopulate the cache after `clear()` and bind to a pool that's
         # about to close (round-2 P1-19).
         self._shutting_down: bool = False
+        # Background loop that re-mirrors documents flagged `vector_sync_pending`
+        # (a live external-backend sync that failed) into the external vector
+        # store. Only started for backends that require index sync (e.g. Qdrant).
+        self._reconcile_task: asyncio.Task[None] | None = None
 
     async def initialize(self) -> None:
         """Initialize the shared database pool.
@@ -206,6 +216,11 @@ class RagService:
                 "RagService initialized (DB pool ready; vector backend={}; per-org clients lazy)",
                 self._vector_store.backend_name,
             )
+            # Start the drift-reconcile loop only for backends that mirror
+            # vectors (e.g. Qdrant); pgvector keeps vectors in the chunk row,
+            # so there is nothing to reconcile.
+            if self._vector_store.requires_index_sync:
+                self._reconcile_task = asyncio.create_task(self._vector_sync_reconcile_loop())
 
     def _get_org_lock(self, org_slug: str) -> asyncio.Lock:
         lock = self._org_locks.get(org_slug)
@@ -301,12 +316,15 @@ class RagService:
         # to the mismatch check.
         async with self._pin_dim_lock:
             if self._pinned_dims is None:
-                self._pinned_dims = dims
                 # Converge the active backend to these dimensions: pgvector
                 # ALTERs the column + HNSW index; Qdrant creates the
-                # collection. The pgvector path is the same call the service
-                # made before the abstraction.
+                # collection (+ backfill). The pgvector path is the same call
+                # the service made before the abstraction. Pin only AFTER
+                # ensure_ready succeeds — otherwise a failed first init (e.g. a
+                # transient Qdrant outage) would leave _pinned_dims set, short-
+                # circuiting every later attempt and never retrying convergence.
                 await self._vector_store.ensure_ready(dims)
+                self._pinned_dims = dims
                 logger.info(
                     "Pinned RAG embedding dimensions to {} (set by org '{}', backend={})",
                     dims,
@@ -463,7 +481,21 @@ class RagService:
         # Skipped indexes left Postgres unchanged, so the backend is already
         # in sync — nothing to publish.
         if self._vector_store is not None and self._vector_store.requires_index_sync and not result.get("skipped"):
-            await self._sync_document_vectors(org_slug, file_id)
+            try:
+                await self._sync_document_vectors(org_slug, file_id)
+            except Exception as exc:
+                # The document is already committed and 'completed' in Postgres
+                # (the source of truth); a transient external-backend failure
+                # must NOT flip it to failed/chunks_count=0. Keep it completed
+                # and flag it for the background reconcile to re-mirror.
+                logger.error(
+                    "Vector mirror sync failed for {}/{}; document stays indexed in Postgres, "
+                    "marking for reconcile: {}",
+                    org_slug,
+                    file_id,
+                    exc,
+                )
+                await self._mark_vector_sync_pending(org_slug, file_id)
 
         return result
 
@@ -510,6 +542,70 @@ class RagService:
                 for row in rows
             ]
             await self._vector_store.upsert(records)
+
+    async def _mark_vector_sync_pending(self, org_slug: str, file_id: str) -> None:
+        """Flag a document for background re-mirror after a failed live sync."""
+        if self._pool is None:
+            return
+        async with acquire_with_retry(self._pool) as conn:
+            await conn.execute(
+                f"UPDATE {SCHEMA}.documents SET vector_sync_pending = TRUE WHERE org_slug = $1 AND file_id = $2",
+                org_slug,
+                file_id,
+            )
+
+    async def _vector_sync_reconcile_loop(self) -> None:
+        """Gated background loop: periodically re-mirror documents whose live
+        external-backend sync failed, so Postgres↔backend drift self-heals
+        without a restart. Idle when nothing is pending; exits promptly on
+        shutdown via the shared shutdown event."""
+        event = _get_shutdown_event()
+        while not self._shutting_down:
+            # Interruptible wait: returns early when shutdown is signalled,
+            # otherwise fires once per interval (TimeoutError → do a pass).
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(event.wait(), timeout=_VECTOR_RECONCILE_INTERVAL_S)
+            if self._shutting_down:
+                break
+            try:
+                await self._reconcile_pending_vectors()
+            except Exception:
+                logger.warning("Vector sync reconcile pass failed; will retry next interval", exc_info=True)
+
+    async def _reconcile_pending_vectors(self) -> None:
+        """Re-mirror a batch of `vector_sync_pending` documents into the
+        external backend, clearing the flag on each success. Idempotent —
+        `_sync_document_vectors` deletes-then-upserts by document id."""
+        if self._pool is None or self._vector_store is None or not self._vector_store.requires_index_sync:
+            return
+        async with acquire_with_retry(self._pool) as conn:
+            rows = await conn.fetch(
+                f"""SELECT org_slug, file_id FROM {SCHEMA}.documents
+                    WHERE vector_sync_pending AND status = 'completed'
+                    ORDER BY updated_at
+                    LIMIT $1""",
+                _VECTOR_RECONCILE_BATCH,
+            )
+        if not rows:
+            return
+        logger.info("Reconciling {} document(s) with pending vector sync", len(rows))
+        for row in rows:
+            if self._shutting_down:
+                break
+            org_slug, file_id = row["org_slug"], row["file_id"]
+            try:
+                await self._sync_document_vectors(org_slug, file_id)
+            except Exception as exc:
+                logger.warning(
+                    "Vector reconcile failed for {}/{}; leaving flagged for retry: {}", org_slug, file_id, exc
+                )
+                continue
+            async with acquire_with_retry(self._pool) as conn:
+                await conn.execute(
+                    f"UPDATE {SCHEMA}.documents SET vector_sync_pending = FALSE WHERE org_slug = $1 AND file_id = $2",
+                    org_slug,
+                    file_id,
+                )
 
     async def vector_store_health(self) -> dict[str, Any]:
         """Active vector-store backend status for the `/config` endpoint.
@@ -1001,6 +1097,15 @@ class RagService:
         # interruptible sleep in `_safe_close` to ensure httpx pools are
         # actually torn down before the drain timeout fires.
         _get_shutdown_event().set()
+
+        # Stop the reconcile loop before the pool closes (it uses the pool).
+        # The shutdown event above wakes its interruptible wait; cancel as a
+        # backstop in case it is mid-pass.
+        if self._reconcile_task is not None:
+            self._reconcile_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._reconcile_task
+            self._reconcile_task = None
 
         # Best-effort close of each org's clients before tearing down the pool.
         for org_slug, clients in list(self._org_clients.items()):

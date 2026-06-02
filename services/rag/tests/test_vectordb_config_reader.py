@@ -80,3 +80,33 @@ def test_qdrant_without_url_falls_back_to_pgvector(config_root):
 def test_malformed_json_falls_back_to_pgvector(config_root):
     (config_root / "vectordb.json").write_text("{not json")
     assert load_vectordb_config().backend == "pgvector"
+
+
+@pytest.mark.parametrize("payload", ["null", "[]", "42", '"a string"'])
+def test_non_object_json_falls_back_to_pgvector(config_root, payload):
+    # Valid JSON that isn't an object would raise AttributeError on .get();
+    # the reader must stay fail-safe.
+    (config_root / "vectordb.json").write_text(payload)
+    assert load_vectordb_config().backend == "pgvector"
+
+
+def test_qdrant_section_non_dict_falls_back_to_pgvector(config_root):
+    # A truthy non-dict `qdrant` (here a string) must not raise on .get("url").
+    _write(config_root, {"backend": "qdrant", "qdrant": "oops"})
+    assert load_vectordb_config().backend == "pgvector"
+
+
+def test_undecryptable_secret_falls_back_to_pgvector(config_root, monkeypatch):
+    # A secret file that exists but can't be decrypted must NOT silently
+    # connect to Qdrant unauthenticated — fail safe to pgvector.
+    _write(
+        config_root,
+        {"backend": "qdrant", "qdrant": {"url": "http://qdrant:6333"}},
+        secrets={"apiKey": "x"},
+    )
+
+    def _boom(_path):
+        raise RuntimeError("no SOPS key available")
+
+    monkeypatch.setattr(cr, "decrypt_secrets_file", _boom)
+    assert load_vectordb_config().backend == "pgvector"
