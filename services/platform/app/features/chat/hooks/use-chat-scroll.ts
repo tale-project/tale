@@ -290,10 +290,17 @@ export function useChatScroll({
     forceScrollRef.current = true;
     pinnedRef.current = true;
 
-    containerRef.current?.scrollTo({
-      top: containerRef.current.scrollHeight,
-      behavior: 'instant',
-    });
+    const c = containerRef.current;
+    if (c) {
+      c.scrollTo({ top: c.scrollHeight, behavior: 'instant' });
+      // Re-seed the scroll trackers to THIS thread's geometry. The hook
+      // persists across thread→thread switches, so a leftover prev-thread
+      // scrollTop/scrollHeight could make the next onScroll misread the switch
+      // as a user scroll-up and clear the forced snap before the new thread
+      // settles at the bottom.
+      lastScrollTopRef.current = c.scrollTop;
+      lastScrollHeightRef.current = c.scrollHeight;
+    }
   }, [threadId, messagesLength, containerRef]);
 
   // Preserve scroll position during branch switches.
