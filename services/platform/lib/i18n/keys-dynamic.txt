@@ -22,6 +22,8 @@ settings.roles.owner
 # literals are not visible to the client-source regex scanner.
 notifications.accountLocked
 notifications.lockoutDetails
+notifications.auditIntegrityFailed
+notifications.auditIntegrityFailedDetails
 notifications.dsarScheduled
 notifications.dsarScheduledBody
 notifications.dsarApprovalNeeded

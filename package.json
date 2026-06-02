@@ -89,9 +89,9 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.1",
-    "@vitest/browser": "4.1.4",
-    "@vitest/browser-playwright": "4.1.4",
-    "@vitest/coverage-v8": "4.1.4",
+    "@vitest/browser": "4.1.8",
+    "@vitest/browser-playwright": "4.1.8",
+    "@vitest/coverage-v8": "4.1.8",
     "commitizen": "4.3.1",
     "cz-conventional-changelog": "3.3.0",
     "husky": "9.1.7",
@@ -107,7 +107,7 @@
     "turbo": "2.9.14",
     "typescript": "6.0.2",
     "vite": "8.0.8",
-    "vitest": "4.1.4",
+    "vitest": "4.1.8",
     "vitest-axe": "1.0.0-pre.5"
   },
   "optionalDependencies": {

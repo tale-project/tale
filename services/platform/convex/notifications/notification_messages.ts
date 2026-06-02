@@ -44,6 +44,9 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     loading: 'Loading…',
     accountLocked: 'Account temporarily locked: {email}',
     lockoutDetails: '{consecutiveFailures} failed sign-in attempts from {ip}.',
+    auditIntegrityFailed: 'Audit log integrity check failed',
+    auditIntegrityFailedDetails:
+      "The scheduled audit-log integrity check could not verify this organization's chain: {reason}. Investigate immediately — this can indicate tampering.",
     dsarScheduled: 'Erasure request scheduled',
     dsarScheduledBody:
       'An erasure request was filed for a subject in this org. It will execute in {coolingOffHours}h. Open the receipt to review or cancel.',
@@ -83,6 +86,9 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     accountLocked: 'Konto vorübergehend gesperrt: {email}',
     lockoutDetails:
       '{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}.',
+    auditIntegrityFailed: 'Integritätsprüfung des Audit-Logs fehlgeschlagen',
+    auditIntegrityFailedDetails:
+      'Die geplante Integritätsprüfung des Audit-Logs konnte die Kette dieser Organisation nicht verifizieren: {reason}. Sofort untersuchen — dies kann auf Manipulation hindeuten.',
     dsarScheduled: 'Löschungsanfrage geplant',
     dsarScheduledBody:
       'Eine Löschungsanfrage wurde für eine Person in dieser Organisation eingereicht. Die Anfrage wird in {coolingOffHours} Stunden ausgeführt. Öffne den Beleg zur Prüfung oder zum Abbruch.',
@@ -124,6 +130,9 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     accountLocked: 'Compte temporairement verrouillé : {email}',
     lockoutDetails:
       '{consecutiveFailures} tentatives de connexion échouées depuis {ip}.',
+    auditIntegrityFailed: "Échec du contrôle d'intégrité du journal d'audit",
+    auditIntegrityFailedDetails:
+      "Le contrôle d'intégrité planifié du journal d'audit n'a pas pu vérifier la chaîne de cette organisation : {reason}. À examiner immédiatement — cela peut indiquer une altération.",
     dsarScheduled: "Demande d'effacement planifiée",
     dsarScheduledBody:
       "Une demande d'effacement a été déposée pour une personne dans cette organisation. Elle s'exécutera dans {coolingOffHours} h. Ouvre le reçu pour la consulter ou l'annuler.",
