@@ -34,6 +34,19 @@ function SettingsLayout() {
     location.pathname.includes('/settings/personal/');
   const headerTitle = isUserScope ? tNav('userSettings') : tNav('orgSettings');
 
+  // The Governance and API sections render their own sidebar + internally
+  // scrolling content pane (see their `route.tsx`) and cancel ContentArea's
+  // padding with negative margins, so they need ContentArea to be a bounded
+  // flex parent (`min-h-0 flex-1`) for their `overflow-y-auto` pane to get a
+  // height to scroll within. Every other settings page is a plain scrolling
+  // form/table: leaving ContentArea at content height lets the PageLayout
+  // scroll container honor ContentArea's own `py-6` bottom padding — with
+  // `flex-1` a tall form overflows past that padding and its actions end up
+  // flush against the viewport bottom.
+  const usesBoundedLayout =
+    location.pathname.includes('/settings/governance') ||
+    location.pathname.includes('/settings/api');
+
   return (
     <ActiveEditorProvider>
       <PageLayout
@@ -50,7 +63,11 @@ function SettingsLayout() {
         }
       >
         <SettingsMobileActionBar />
-        <ContentArea className="min-h-0 flex-1" variant="page" gap={6}>
+        <ContentArea
+          className={usesBoundedLayout ? 'min-h-0 flex-1' : undefined}
+          variant="page"
+          gap={6}
+        >
           <Outlet />
         </ContentArea>
       </PageLayout>
