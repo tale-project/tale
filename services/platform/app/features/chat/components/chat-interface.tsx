@@ -1,8 +1,6 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { SkeletonBox } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { m, AnimatePresence } from 'framer-motion';
 import { Archive, ArrowDown, Share } from 'lucide-react';
@@ -67,6 +65,7 @@ import { ArenaSplitView } from './arena/arena-split-view';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
+import { ChatMessagesSkeleton } from './chat-messages-skeleton';
 import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
 import { SelectionQuoteButton } from './selection-quote-button';
@@ -98,16 +97,6 @@ function chatDraftKey(
     : `chat-draft-${organizationId}`;
   return threadId ? `${prefix}-${threadId}` : `${prefix}-new`;
 }
-
-const PLACEHOLDER_MESSAGE_ROWS: Array<{
-  role: 'user' | 'assistant';
-  widths: string[];
-}> = [
-  { role: 'user', widths: ['w-40'] },
-  { role: 'assistant', widths: ['w-full', 'w-5/6', 'w-2/3'] },
-  { role: 'user', widths: ['w-56'] },
-  { role: 'assistant', widths: ['w-full', 'w-4/5'] },
-];
 
 interface ChatInterfaceProps {
   organizationId: string;
@@ -871,30 +860,9 @@ export function ChatInterface({
           {showExitingSkeleton && (
             // Arena-exit window: the underlying messages are being rewritten
             // (verdict='b_better' wipes Thread A and copies B's in), so no real
-            // bubbles exist yet. Render the REAL message-list structure
-            // (mirrors ChatMessages' non-virtual `mx-auto … gap-3 pt-6` column)
-            // with placeholder rows, each masked by SkeletonBox inside
-            // <Skeletonize loading>, so the swap into real content doesn't shift
-            // the viewport.
-            <Skeletonize loading label={t('skeleton.loadingMessage')}>
-              <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-3 pt-6">
-                {PLACEHOLDER_MESSAGE_ROWS.map((row, rowIdx) => (
-                  <div
-                    key={rowIdx}
-                    className={cn(
-                      'flex flex-col gap-2',
-                      row.role === 'user' ? 'items-end' : 'items-start',
-                    )}
-                  >
-                    {row.widths.map((w, i) => (
-                      <SkeletonBox key={i} fullWidth>
-                        <div className={cn('h-4', w)} />
-                      </SkeletonBox>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </Skeletonize>
+            // bubbles exist yet. Reuse the shared message-column skeleton so the
+            // swap into real content doesn't shift the viewport.
+            <ChatMessagesSkeleton />
           )}
 
           {showMessages && (

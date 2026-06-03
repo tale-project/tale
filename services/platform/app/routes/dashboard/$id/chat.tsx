@@ -1,5 +1,4 @@
 import { Button } from '@tale/ui/button';
-import { SkeletonText } from '@tale/ui/skeleton';
 import { createFileRoute, useMatch, useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { m, AnimatePresence } from 'framer-motion';
@@ -14,6 +13,7 @@ import { BudgetBanner } from '@/app/features/chat/components/budget-banner';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
+import { ChatMessagesSkeleton } from '@/app/features/chat/components/chat-messages-skeleton';
 import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
 import { BranchProvider } from '@/app/features/chat/context/branch-context';
 import {
@@ -102,8 +102,8 @@ function ThreadGate({
     return (
       <SuspenseBoundary
         fallback={
-          <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6">
-            <SkeletonText lines={3} />
+          <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6">
+            <ChatMessagesSkeleton />
           </div>
         }
       >
@@ -203,8 +203,8 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
         <LayoutErrorBoundary organizationId={organizationId}>
           <SuspenseBoundary
             fallback={
-              <div className="flex h-full flex-col p-4 sm:p-6">
-                <SkeletonText lines={3} />
+              <div className="flex h-full flex-col overflow-y-auto px-4 sm:px-6">
+                <ChatMessagesSkeleton />
               </div>
             }
           >
