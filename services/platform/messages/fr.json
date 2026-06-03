@@ -13,7 +13,8 @@
     "workspaceNotFound": "L'espace de travail que tu recherches n'existe pas ou a été supprimé.",
     "disabled": "Ton compte a été désactivé. Contacte le support pour obtenir de l'aide.",
     "noMembership": "Tu n'es pas membre de cet espace de travail. Merci de contacter un administrateur pour obtenir l'accès.",
-    "unauthenticated": "Ta session a expiré. Reconnecte-toi pour continuer."
+    "unauthenticated": "Ta session a expiré. Reconnecte-toi pour continuer.",
+    "deployment": "Tu dois disposer des permissions Admin pour accéder aux paramètres de déploiement."
   },
   "analytics": {
     "usage": {
@@ -3654,7 +3655,8 @@
     },
     "aria": {
       "primaryNavigation": "Navigation principale"
-    }
+    },
+    "dataResidency": "Résidence des données"
   },
   "notifications": {
     "title": "Notifications",
@@ -4187,6 +4189,9 @@
       },
       "governance": {
         "description": "Politiques, sécurité, journaux d'audit et conservation des données."
+      },
+      "dataResidency": {
+        "description": "Où les données de ce déploiement résident physiquement."
       }
     },
     "account": {
@@ -5440,6 +5445,82 @@
       "preview": "Aperçu de la marque",
       "validation": {
         "appNameRequired": "Le nom de l'application est requis"
+      }
+    },
+    "dataResidency": {
+      "pageDescription": "Pointe la base de connaissances et le stockage de fichiers de ce déploiement vers une infrastructure que tu contrôles. Les changements prennent effet au redémarrage des conteneurs RAG et Convex.",
+      "readOnly": {
+        "before": "La modification est désactivée. Définis",
+        "after": "dans l'environnement de déploiement et redémarre pour activer les changements ici."
+      },
+      "secretsEncryptedNoKey": "Les secrets stockés sont chiffrés avec SOPS, mais aucune clé age n'est configurée — les secrets existants ne peuvent pas être lus.",
+      "externalPostgres": "Postgres externe",
+      "usingSharedDatabase": "Utilise la base de données partagée intégrée.",
+      "field": {
+        "host": "Hôte",
+        "port": "Port",
+        "database": "Base de données",
+        "user": "Utilisateur",
+        "sslMode": "Mode SSL",
+        "password": "Mot de passe"
+      },
+      "password": {
+        "storedHint": "Stocké : {masked} — laisse vide pour conserver",
+        "writeOnlyHint": "Écriture seule ; laisse vide pour conserver la valeur stockée"
+      },
+      "testConnection": "Tester la connexion",
+      "testing": "Test…",
+      "result": {
+        "ok": "OK",
+        "failed": "Échec"
+      },
+      "knowledge": {
+        "title": "Base de connaissances (RAG)",
+        "paradeDbNote": "La base de connaissances externe doit utiliser ParadeDB (pgvector + pg_search) pour la recherche hybride complète ; pgvector seul se limite à la recherche vectorielle."
+      },
+      "storage": {
+        "title": "Stockage de fichiers (documents téléversés)",
+        "externalS3": "S3 externe",
+        "region": "Région",
+        "endpoint": "Endpoint (MinIO/R2 ; vide pour AWS)",
+        "forcePathStyle": "Forcer le path-style (MinIO/R2)",
+        "bucket": {
+          "files": "Bucket Files",
+          "exports": "Bucket Exports",
+          "snapshotImports": "Bucket Snapshot-Imports",
+          "modules": "Bucket Modules",
+          "search": "Bucket Search"
+        },
+        "accessKeyId": "Access Key ID",
+        "accessKeyIdStoredHint": "Stocké : {masked} — laisse vide pour conserver",
+        "writeOnly": "Écriture seule",
+        "secretAccessKey": "Secret Access Key",
+        "testReachability": "Tester l'accessibilité",
+        "reachable": "Accessible",
+        "greenfieldWarning": "Le stockage S3 est greenfield : passer du local ne migre PAS les fichiers déjà téléversés. Définis-le au premier déploiement, ou copie les blobs locaux dans le bucket séparément.",
+        "localStorageNote": "Les fichiers sont stockés sur le volume Convex local."
+      },
+      "appDb": {
+        "summary": "Base de données applicative (avancé)",
+        "title": "Base de métadonnées Convex"
+      },
+      "saved": {
+        "title": "Enregistré — redémarre pour appliquer.",
+        "runPrefix": "Exécute",
+        "orPrefix": "(ou",
+        "tail": "pour le Zero-Downtime). La plateforme elle-même n'a pas besoin de redémarrer."
+      },
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "applyRestart": "Appliquer & redémarrer",
+      "applyRestartTitle": "Redémarre rag + convex via le controller (si activé), sinon affiche la commande manuelle",
+      "restarting": "Redémarrage…",
+      "restart": {
+        "notEnabled": "Controller de redémarrage non activé.",
+        "restarted": "Redémarré : {services}",
+        "failed": "Échec du redémarrage : {error}",
+        "defaultServices": "rag, convex",
+        "unknownError": "erreur inconnue"
       }
     }
   },

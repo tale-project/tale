@@ -3,12 +3,13 @@
 /**
  * Deployment-level data-residency settings (instance admin).
  *
- * NOTE: strings are English literals for now — extract to the i18n catalogs
- * via the `translation` skill (en/de/de-CH/fr) as a follow-up. `api.deployment.*`
- * resolves after `convex codegen` (runs on dev/deploy).
- *
  * This is the first panel of an extensible deployment-settings surface; future
  * deployment sections (SMTP, telemetry, …) can render alongside `DataStores`.
+ * `api.deployment.*` resolves after `convex codegen` (runs on dev/deploy).
+ *
+ * Strings live in `settings.dataResidency.*` / `navigation.dataResidency` /
+ * `accessDenied.deployment` across en/de/fr (de-CH inherits de). Code tokens
+ * (env vars, shell commands, bucket names) stay English in every locale.
  */
 
 import { Button } from '@tale/ui/button';
@@ -19,6 +20,7 @@ import { useEffect, useState } from 'react';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
+import { useT } from '@/lib/i18n/client';
 
 import {
   useRequestRestart,
@@ -174,6 +176,7 @@ function PgSection({
   testResult?: { ok: boolean; message?: string };
   disabled: boolean;
 }) {
+  const { t } = useT('settings');
   return (
     <section className="flex flex-col gap-3 rounded-lg border p-4">
       <div className="flex items-center justify-between">
@@ -185,19 +188,19 @@ function PgSection({
             disabled={disabled}
             onChange={(e) => setState({ ...state, enabled: e.target.checked })}
           />
-          External Postgres
+          {t('dataResidency.externalPostgres')}
         </label>
       </div>
       {state.enabled ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Labeled label="Host">
+          <Labeled label={t('dataResidency.field.host')}>
             <Input
               value={state.host}
               disabled={disabled}
               onChange={(e) => setState({ ...state, host: e.target.value })}
             />
           </Labeled>
-          <Labeled label="Port">
+          <Labeled label={t('dataResidency.field.port')}>
             <Input
               type="number"
               value={state.port}
@@ -205,21 +208,21 @@ function PgSection({
               onChange={(e) => setState({ ...state, port: e.target.value })}
             />
           </Labeled>
-          <Labeled label="Database">
+          <Labeled label={t('dataResidency.field.database')}>
             <Input
               value={state.database}
               disabled={disabled}
               onChange={(e) => setState({ ...state, database: e.target.value })}
             />
           </Labeled>
-          <Labeled label="User">
+          <Labeled label={t('dataResidency.field.user')}>
             <Input
               value={state.user}
               disabled={disabled}
               onChange={(e) => setState({ ...state, user: e.target.value })}
             />
           </Labeled>
-          <Labeled label="SSL mode">
+          <Labeled label={t('dataResidency.field.sslMode')}>
             <select
               className="border-input bg-background h-9 rounded-md border px-2 text-sm"
               value={state.sslmode}
@@ -234,11 +237,13 @@ function PgSection({
             </select>
           </Labeled>
           <Labeled
-            label="Password"
+            label={t('dataResidency.field.password')}
             hint={
               secretMasked
-                ? `Stored: ${secretMasked} — leave blank to keep`
-                : 'Write-only; leave blank to keep the stored value'
+                ? t('dataResidency.password.storedHint', {
+                    masked: secretMasked,
+                  })
+                : t('dataResidency.password.writeOnlyHint')
             }
           >
             <Input
@@ -254,7 +259,9 @@ function PgSection({
               onClick={onTest}
               disabled={disabled || testing}
             >
-              {testing ? 'Testing…' : 'Test connection'}
+              {testing
+                ? t('dataResidency.testing')
+                : t('dataResidency.testConnection')}
             </Button>
             {testResult ? (
               <span
@@ -264,7 +271,9 @@ function PgSection({
                     : 'text-destructive text-sm'
                 }
               >
-                {testResult.ok ? 'OK' : 'Failed'}
+                {testResult.ok
+                  ? t('dataResidency.result.ok')
+                  : t('dataResidency.result.failed')}
                 {testResult.message ? ` — ${testResult.message}` : ''}
               </span>
             ) : null}
@@ -272,7 +281,7 @@ function PgSection({
         </div>
       ) : (
         <p className="text-muted-foreground text-sm">
-          Using the built-in shared database.
+          {t('dataResidency.usingSharedDatabase')}
         </p>
       )}
     </section>
@@ -284,6 +293,8 @@ function DeploymentSettingsView({
 }: {
   data: DeploymentReadData | undefined;
 }) {
+  const { t } = useT('settings');
+  const { t: tNav } = useT('navigation');
   const cfg = data?.config ?? { version: 1 };
   const ds = cfg.dataStores ?? {};
   const secretState = data?.secrets ?? {};
@@ -335,14 +346,23 @@ function DeploymentSettingsView({
     try {
       const res: ConnTestResult = await restartHook.mutateAsync({});
       if (res?.configured === false) {
-        setRestartMsg(res.error || 'Restart controller not enabled.');
+        setRestartMsg(res.error || t('dataResidency.restart.notEnabled'));
       } else if (res?.ok) {
         setRestartMsg(
-          `Restarted: ${(res.restarted ?? []).join(', ') || 'rag, convex'}`,
+          t('dataResidency.restart.restarted', {
+            services:
+              (res.restarted ?? []).join(', ') ||
+              t('dataResidency.restart.defaultServices'),
+          }),
         );
       } else {
         setRestartMsg(
-          `Restart failed: ${res?.error || (res?.errors ?? []).join('; ') || 'unknown error'}`,
+          t('dataResidency.restart.failed', {
+            error:
+              res?.error ||
+              (res?.errors ?? []).join('; ') ||
+              t('dataResidency.restart.unknownError'),
+          }),
         );
       }
     } catch (err) {
@@ -484,25 +504,25 @@ function DeploymentSettingsView({
 
   return (
     <SettingsPage
-      title="Data residency"
-      description="Point this deployment's knowledge database and file storage at infrastructure you control. Changes apply when the RAG and Convex containers restart."
+      title={tNav('dataResidency')}
+      description={t('dataResidency.pageDescription')}
     >
       <div className="flex max-w-3xl flex-col gap-4">
         {readOnly ? (
           <Banner tone="info">
-            Editing is disabled. Set <code>TALE_DEPLOYMENT_CONFIG_UI=true</code>{' '}
-            in the deployment environment and restart to enable changes here.
+            {t('dataResidency.readOnly.before')}{' '}
+            <code>TALE_DEPLOYMENT_CONFIG_UI=true</code>{' '}
+            {t('dataResidency.readOnly.after')}
           </Banner>
         ) : null}
         {data?.secretsError === 'encrypted_no_key' ? (
           <Banner tone="warning">
-            The stored secrets are SOPS-encrypted but no age key is configured —
-            existing secrets can&apos;t be read.
+            {t('dataResidency.secretsEncryptedNoKey')}
           </Banner>
         ) : null}
 
         <PgSection
-          title="Knowledge database (RAG)"
+          title={t('dataResidency.knowledge.title')}
           state={knowledge}
           setState={setKnowledge}
           secretMasked={
@@ -515,15 +535,15 @@ function DeploymentSettingsView({
         />
         {knowledge.enabled ? (
           <Banner tone="info">
-            The external knowledge database must run ParadeDB (pgvector +
-            pg_search) for full hybrid search; plain pgvector degrades to
-            vector-only.
+            {t('dataResidency.knowledge.paradeDbNote')}
           </Banner>
         ) : null}
 
         <section className="flex flex-col gap-3 rounded-lg border p-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold">File storage (uploaded documents)</h3>
+            <h3 className="font-semibold">
+              {t('dataResidency.storage.title')}
+            </h3>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -533,13 +553,13 @@ function DeploymentSettingsView({
                   setStorage({ ...storage, s3: e.target.checked })
                 }
               />
-              External S3
+              {t('dataResidency.storage.externalS3')}
             </label>
           </div>
           {storage.s3 ? (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Labeled label="Region">
+                <Labeled label={t('dataResidency.storage.region')}>
                   <Input
                     value={storage.region}
                     disabled={readOnly}
@@ -548,7 +568,7 @@ function DeploymentSettingsView({
                     }
                   />
                 </Labeled>
-                <Labeled label="Endpoint (MinIO/R2; blank for AWS)">
+                <Labeled label={t('dataResidency.storage.endpoint')}>
                   <Input
                     value={storage.endpoint}
                     disabled={readOnly}
@@ -569,10 +589,10 @@ function DeploymentSettingsView({
                       })
                     }
                   />
-                  Force path-style (MinIO/R2)
+                  {t('dataResidency.storage.forcePathStyle')}
                 </label>
                 <div />
-                <Labeled label="Files bucket">
+                <Labeled label={t('dataResidency.storage.bucket.files')}>
                   <Input
                     value={storage.files}
                     disabled={readOnly}
@@ -581,7 +601,7 @@ function DeploymentSettingsView({
                     }
                   />
                 </Labeled>
-                <Labeled label="Exports bucket">
+                <Labeled label={t('dataResidency.storage.bucket.exports')}>
                   <Input
                     value={storage.exports}
                     disabled={readOnly}
@@ -590,7 +610,9 @@ function DeploymentSettingsView({
                     }
                   />
                 </Labeled>
-                <Labeled label="Snapshot-imports bucket">
+                <Labeled
+                  label={t('dataResidency.storage.bucket.snapshotImports')}
+                >
                   <Input
                     value={storage.snapshotImports}
                     disabled={readOnly}
@@ -602,7 +624,7 @@ function DeploymentSettingsView({
                     }
                   />
                 </Labeled>
-                <Labeled label="Modules bucket">
+                <Labeled label={t('dataResidency.storage.bucket.modules')}>
                   <Input
                     value={storage.modules}
                     disabled={readOnly}
@@ -611,7 +633,7 @@ function DeploymentSettingsView({
                     }
                   />
                 </Labeled>
-                <Labeled label="Search bucket">
+                <Labeled label={t('dataResidency.storage.bucket.search')}>
                   <Input
                     value={storage.search}
                     disabled={readOnly}
@@ -621,11 +643,15 @@ function DeploymentSettingsView({
                   />
                 </Labeled>
                 <Labeled
-                  label="Access key ID"
+                  label={t('dataResidency.storage.accessKeyId')}
                   hint={
                     secretState['dataStores.convexStorage.accessKeyId']?.masked
-                      ? `Stored: ${secretState['dataStores.convexStorage.accessKeyId'].masked} — leave blank to keep`
-                      : 'Write-only'
+                      ? t('dataResidency.storage.accessKeyIdStoredHint', {
+                          masked:
+                            secretState['dataStores.convexStorage.accessKeyId']
+                              .masked,
+                        })
+                      : t('dataResidency.storage.writeOnly')
                   }
                 >
                   <Input
@@ -636,7 +662,10 @@ function DeploymentSettingsView({
                     }
                   />
                 </Labeled>
-                <Labeled label="Secret access key" hint="Write-only">
+                <Labeled
+                  label={t('dataResidency.storage.secretAccessKey')}
+                  hint={t('dataResidency.storage.writeOnly')}
+                >
                   <Input
                     type="password"
                     value={storage.secretAccessKey}
@@ -657,8 +686,8 @@ function DeploymentSettingsView({
                   disabled={readOnly || testing === 'convexStorage'}
                 >
                   {testing === 'convexStorage'
-                    ? 'Testing…'
-                    : 'Test reachability'}
+                    ? t('dataResidency.testing')
+                    : t('dataResidency.storage.testReachability')}
                 </Button>
                 {testResults.convexStorage ? (
                   <span
@@ -668,7 +697,9 @@ function DeploymentSettingsView({
                         : 'text-destructive text-sm'
                     }
                   >
-                    {testResults.convexStorage.ok ? 'Reachable' : 'Failed'}
+                    {testResults.convexStorage.ok
+                      ? t('dataResidency.storage.reachable')
+                      : t('dataResidency.result.failed')}
                     {testResults.convexStorage.message
                       ? ` — ${testResults.convexStorage.message}`
                       : ''}
@@ -676,25 +707,23 @@ function DeploymentSettingsView({
                 ) : null}
               </div>
               <Banner tone="warning">
-                S3 storage is greenfield: switching from local does NOT migrate
-                existing uploaded files. Set this at initial deploy, or copy the
-                local blobs into the bucket separately.
+                {t('dataResidency.storage.greenfieldWarning')}
               </Banner>
             </>
           ) : (
             <p className="text-muted-foreground text-sm">
-              Files are stored on the local Convex volume.
+              {t('dataResidency.storage.localStorageNote')}
             </p>
           )}
         </section>
 
         <details className="rounded-lg border p-4">
           <summary className="cursor-pointer font-semibold">
-            Application database (advanced)
+            {t('dataResidency.appDb.summary')}
           </summary>
           <div className="mt-3">
             <PgSection
-              title="Convex metadata database"
+              title={t('dataResidency.appDb.title')}
               state={appPg}
               setState={setAppPg}
               secretMasked={
@@ -711,24 +740,28 @@ function DeploymentSettingsView({
         {error ? <Banner tone="warning">{error}</Banner> : null}
         {savedOk ? (
           <Banner tone="info">
-            Saved. <strong>Restart to apply:</strong> run{' '}
-            <code>docker compose restart rag convex</code> (or{' '}
-            <code>tale deploy --services rag</code> for zero-downtime). The
-            platform itself does not need restarting.
+            <strong>{t('dataResidency.saved.title')}</strong>{' '}
+            {t('dataResidency.saved.runPrefix')}{' '}
+            <code>docker compose restart rag convex</code>{' '}
+            {t('dataResidency.saved.orPrefix')}{' '}
+            <code>tale deploy --services rag</code>{' '}
+            {t('dataResidency.saved.tail')}
           </Banner>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
           <Button onClick={() => void onSave()} disabled={readOnly || saving}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('dataResidency.saving') : t('dataResidency.save')}
           </Button>
           <Button
             variant="secondary"
             onClick={() => void onRestart()}
             disabled={readOnly || restarting}
-            title="Restart rag + convex via the controller (if enabled), or shows the manual command"
+            title={t('dataResidency.applyRestartTitle')}
           >
-            {restarting ? 'Restarting…' : 'Apply & restart'}
+            {restarting
+              ? t('dataResidency.restarting')
+              : t('dataResidency.applyRestart')}
           </Button>
           {restartMsg ? (
             <span className="text-muted-foreground text-sm">{restartMsg}</span>
@@ -740,14 +773,13 @@ function DeploymentSettingsView({
 }
 
 export function DeploymentSettings() {
+  const { t: tAccessDenied } = useT('accessDenied');
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
   const query = useReadDeploymentConfig();
 
   if (!abilityLoading && ability.cannot('read', 'orgSettings')) {
-    return (
-      <AccessDenied message="You need administrator access to view deployment settings." />
-    );
+    return <AccessDenied message={tAccessDenied('deployment')} />;
   }
 
   return (

@@ -13,7 +13,8 @@
     "workspaceNotFound": "Der gesuchte Workspace existiert nicht oder wurde möglicherweise entfernt.",
     "disabled": "Dein Konto wurde deaktiviert. Kontaktiere den Support für Unterstützung.",
     "noMembership": "Du bist kein Mitglied dieses Workspace. Bitte kontaktiere einen Administrator für Zugriff.",
-    "unauthenticated": "Deine Sitzung ist abgelaufen. Melde dich erneut an, um fortzufahren."
+    "unauthenticated": "Deine Sitzung ist abgelaufen. Melde dich erneut an, um fortzufahren.",
+    "deployment": "Du benötigst Admin-Berechtigungen, um auf die Deployment-Einstellungen zuzugreifen."
   },
   "analytics": {
     "usage": {
@@ -3653,7 +3654,8 @@
     },
     "aria": {
       "primaryNavigation": "Hauptnavigation"
-    }
+    },
+    "dataResidency": "Datenresidenz"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -4186,6 +4188,9 @@
       },
       "governance": {
         "description": "Richtlinien, Sicherheit, Audit-Logs und Datenaufbewahrung."
+      },
+      "dataResidency": {
+        "description": "Wo die Daten dieses Deployments physisch liegen."
       }
     },
     "account": {
@@ -5439,6 +5444,82 @@
       "preview": "Branding-Vorschau",
       "validation": {
         "appNameRequired": "App-Name ist erforderlich"
+      }
+    },
+    "dataResidency": {
+      "pageDescription": "Richte die Wissensdatenbank und den Dateispeicher dieses Deployments auf Infrastruktur aus, die du selbst kontrollierst. Änderungen greifen, sobald die RAG- und Convex-Container neu starten.",
+      "readOnly": {
+        "before": "Bearbeitung ist deaktiviert. Setze",
+        "after": "in der Deployment-Umgebung und starte neu, um Änderungen hier zu aktivieren."
+      },
+      "secretsEncryptedNoKey": "Die gespeicherten Secrets sind SOPS-verschlüsselt, aber es ist kein age-Schlüssel konfiguriert — bestehende Secrets lassen sich nicht lesen.",
+      "externalPostgres": "Externes Postgres",
+      "usingSharedDatabase": "Verwendet die eingebaute gemeinsame Datenbank.",
+      "field": {
+        "host": "Host",
+        "port": "Port",
+        "database": "Datenbank",
+        "user": "Benutzer",
+        "sslMode": "SSL-Modus",
+        "password": "Passwort"
+      },
+      "password": {
+        "storedHint": "Gespeichert: {masked} — leer lassen, um zu behalten",
+        "writeOnlyHint": "Nur Schreiben; leer lassen, um den gespeicherten Wert zu behalten"
+      },
+      "testConnection": "Verbindung testen",
+      "testing": "Teste…",
+      "result": {
+        "ok": "OK",
+        "failed": "Fehlgeschlagen"
+      },
+      "knowledge": {
+        "title": "Wissensdatenbank (RAG)",
+        "paradeDbNote": "Die externe Wissensdatenbank muss ParadeDB (pgvector + pg_search) verwenden, damit die volle Hybrid-Suche funktioniert; reines pgvector fällt auf reine Vektor-Suche zurück."
+      },
+      "storage": {
+        "title": "Dateispeicher (hochgeladene Dokumente)",
+        "externalS3": "Externes S3",
+        "region": "Region",
+        "endpoint": "Endpunkt (MinIO/R2; leer für AWS)",
+        "forcePathStyle": "Path-Style erzwingen (MinIO/R2)",
+        "bucket": {
+          "files": "Files-Bucket",
+          "exports": "Exports-Bucket",
+          "snapshotImports": "Snapshot-Imports-Bucket",
+          "modules": "Modules-Bucket",
+          "search": "Search-Bucket"
+        },
+        "accessKeyId": "Access Key ID",
+        "accessKeyIdStoredHint": "Gespeichert: {masked} — leer lassen, um zu behalten",
+        "writeOnly": "Nur Schreiben",
+        "secretAccessKey": "Secret Access Key",
+        "testReachability": "Erreichbarkeit testen",
+        "reachable": "Erreichbar",
+        "greenfieldWarning": "S3-Speicher ist Greenfield: Der Wechsel von lokal migriert bestehende hochgeladene Dateien NICHT. Lege das beim ersten Deploy fest, oder kopiere die lokalen Blobs separat in den Bucket.",
+        "localStorageNote": "Dateien liegen auf dem lokalen Convex-Volume."
+      },
+      "appDb": {
+        "summary": "Anwendungsdatenbank (erweitert)",
+        "title": "Convex-Metadaten-Datenbank"
+      },
+      "saved": {
+        "title": "Gespeichert — zum Anwenden neu starten.",
+        "runPrefix": "Befehl:",
+        "orPrefix": "(oder",
+        "tail": "für Zero-Downtime). Die Plattform selbst muss nicht neu gestartet werden."
+      },
+      "save": "Speichern",
+      "saving": "Speichern…",
+      "applyRestart": "Anwenden & neu starten",
+      "applyRestartTitle": "rag + convex über den Controller neu starten (falls aktiviert), sonst wird der manuelle Befehl angezeigt",
+      "restarting": "Neu starten…",
+      "restart": {
+        "notEnabled": "Restart-Controller nicht aktiviert.",
+        "restarted": "Neu gestartet: {services}",
+        "failed": "Neustart fehlgeschlagen: {error}",
+        "defaultServices": "rag, convex",
+        "unknownError": "unbekannter Fehler"
       }
     }
   },

@@ -79,10 +79,9 @@ export function SettingsNavigation({
       can: ['read', 'orgSettings'],
     },
     {
-      // Deployment-level data residency (instance admin). Label is an English
-      // literal pending i18n extraction via the translation skill.
+      // Deployment-level data residency (instance admin).
       labelKey: 'dataResidency',
-      label: 'Data residency',
+      label: t('dataResidency'),
       href: `/dashboard/${organizationId}/settings/deployment`,
       can: ['read', 'orgSettings'],
       matchMode: 'startsWith',
