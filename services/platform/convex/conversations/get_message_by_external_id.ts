@@ -18,5 +18,5 @@ export async function getMessageByExternalId(
     )
     .first();
 
-  return msg ?? null;
+  return msg;
 }

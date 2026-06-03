@@ -19,6 +19,7 @@ import {
   type ChatFilterConfig,
   type ModerationProviderConfig,
 } from '../../lib/shared/schemas/governance';
+import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { runChatFilter } from './chat_filter';
@@ -399,10 +400,6 @@ function normalizeModeration(
     enabled: row['enabled'] !== false && parsed.data.enabled,
     config: parsed.data,
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export async function loadGuardrailsSnapshot(

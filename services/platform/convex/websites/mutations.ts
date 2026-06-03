@@ -4,14 +4,7 @@ import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import * as WebsitesHelpers from './helpers';
-
-const websiteStatusValidator = v.union(
-  v.literal('idle'),
-  v.literal('scanning'),
-  v.literal('active'),
-  v.literal('error'),
-  v.literal('deleting'),
-);
+import { websiteStatusValidator } from './validators';
 
 export const updateWebsite = mutation({
   args: {

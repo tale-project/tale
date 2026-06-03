@@ -21,5 +21,5 @@ export async function getIntegrationByName(
     )
     .first();
 
-  return integration || null;
+  return integration;
 }

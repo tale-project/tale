@@ -1,4 +1,5 @@
 import type { ModerationResponseShape } from '../../../lib/shared/schemas/governance';
+import { isRecord } from '../../../lib/utils/type-guards';
 
 export interface NormalizedModerationResult {
   flagged: boolean;
@@ -10,10 +11,6 @@ export class ParseError extends Error {
     super(message);
     this.name = 'ParseError';
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function readPath(root: unknown, jsonPath: string): unknown {

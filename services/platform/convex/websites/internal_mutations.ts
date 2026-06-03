@@ -3,14 +3,7 @@ import { v } from 'convex/values';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
 import * as WebsitesHelpers from './helpers';
-
-const websiteStatusValidator = v.union(
-  v.literal('idle'),
-  v.literal('scanning'),
-  v.literal('active'),
-  v.literal('error'),
-  v.literal('deleting'),
-);
+import { websiteStatusValidator } from './validators';
 
 export const provisionWebsite = internalMutation({
   args: {

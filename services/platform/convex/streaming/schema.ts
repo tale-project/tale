@@ -2,6 +2,11 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../lib/validators/json';
+import {
+  citationItemValidator,
+  contextStatsValidator,
+  toolUsageItemValidator,
+} from './validators';
 
 export const messageMetadataTable = defineTable({
   messageId: v.string(),
@@ -21,64 +26,12 @@ export const messageMetadataTable = defineTable({
   providerMetadata: v.optional(jsonRecordValidator),
   durationMs: v.optional(v.number()),
   timeToFirstTokenMs: v.optional(v.number()),
-  subAgentUsage: v.optional(
-    v.array(
-      v.object({
-        toolName: v.string(),
-        model: v.optional(v.string()),
-        provider: v.optional(v.string()),
-        inputTokens: v.optional(v.number()),
-        outputTokens: v.optional(v.number()),
-        totalTokens: v.optional(v.number()),
-        durationMs: v.optional(v.number()),
-        input: v.optional(v.string()),
-        output: v.optional(v.string()),
-        costEstimateCents: v.optional(v.number()),
-      }),
-    ),
-  ),
-  toolsUsage: v.optional(
-    v.array(
-      v.object({
-        toolName: v.string(),
-        model: v.optional(v.string()),
-        provider: v.optional(v.string()),
-        inputTokens: v.optional(v.number()),
-        outputTokens: v.optional(v.number()),
-        totalTokens: v.optional(v.number()),
-        durationMs: v.optional(v.number()),
-        input: v.optional(v.string()),
-        output: v.optional(v.string()),
-        costEstimateCents: v.optional(v.number()),
-      }),
-    ),
-  ),
-  citations: v.optional(
-    v.array(
-      v.object({
-        index: v.number(),
-        type: v.union(v.literal('rag'), v.literal('web')),
-        source: v.string(),
-        fileId: v.optional(v.string()),
-        url: v.optional(v.string()),
-        page: v.optional(v.number()),
-        relevance: v.optional(v.number()),
-      }),
-    ),
-  ),
+  subAgentUsage: v.optional(v.array(toolUsageItemValidator)),
+  toolsUsage: v.optional(v.array(toolUsageItemValidator)),
+  citations: v.optional(v.array(citationItemValidator)),
   // Structured context window for debugging (XML-like formatted)
   contextWindow: v.optional(v.string()),
-  contextStats: v.optional(
-    v.object({
-      totalTokens: v.number(),
-      messageCount: v.number(),
-      approvalCount: v.number(),
-      hasSummary: v.optional(v.boolean()), // Deprecated, kept for backward compatibility
-      hasRag: v.boolean(),
-      hasWebContext: v.optional(v.boolean()),
-      hasIntegrations: v.optional(v.boolean()),
-    }),
-  ),
+  contextStats: v.optional(contextStatsValidator),
   error: v.optional(v.string()),
   // Set when the guardrails pipeline (pii / chat_filter / moderation_provider)
   // blocks this assistant message either mid-stream or at finalize. The UI
