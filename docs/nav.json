@@ -39,6 +39,7 @@
             "self-hosted/configuration/authentication",
             "self-hosted/configuration/providers",
             "self-hosted/configuration/secrets-with-sops",
+            "self-hosted/configuration/data-residency",
             "self-hosted/configuration/tls-and-domains",
             "self-hosted/configuration/observability-config",
             "self-hosted/configuration/retention"

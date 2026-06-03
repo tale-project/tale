@@ -78,11 +78,12 @@ Wenn beide unset sind, speichert Tale `providers/*.secrets.json` als Klartext-JS
 
 Optionale Schalter für Features, die standardmässig nicht aktiviert sind. Jeder Flag schaltet ein Feature beim Boot ein oder aus; das Umschalten braucht einen Neustart des Plattform-Containers.
 
-| Name                      | Default | Beschreibung                                                                      |
-| ------------------------- | ------- | --------------------------------------------------------------------------------- |
-| `MICROSOFT_AUTH_ENABLED`  | `false` | Aktiviert die Microsoft-Entra-Sign-in-Option.                                     |
-| `TRUSTED_HEADERS_ENABLED` | `false` | Aktiviert den Trusted-Headers-Auth-Modus (Identität vom Reverse-Proxy geliefert). |
-| `FILE_EVENTS_ENABLED`     | `false` | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Integration.                |
+| Name                        | Default | Beschreibung                                                                                                                            |
+| --------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `MICROSOFT_AUTH_ENABLED`    | `false` | Aktiviert die Microsoft-Entra-Sign-in-Option.                                                                                           |
+| `TRUSTED_HEADERS_ENABLED`   | `false` | Aktiviert den Trusted-Headers-Auth-Modus (Identität vom Reverse-Proxy geliefert).                                                       |
+| `FILE_EVENTS_ENABLED`       | `false` | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Integration.                                                                      |
+| `TALE_DEPLOYMENT_CONFIG_UI` | `false` | Aktiviert die Admin-UI unter Einstellungen > Datenresidenz zum Bearbeiten der Deployment-Datenspeicher. Nur lesend, wenn nicht gesetzt. |
 
 ## Sitzungen
 
