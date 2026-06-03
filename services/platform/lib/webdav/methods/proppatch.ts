@@ -1,5 +1,4 @@
 import { anyApi } from 'convex/server';
-import { XMLParser } from 'fast-xml-parser';
 
 import { checkResourceLock } from '../locks';
 import { buildDavPath } from '../paths';
@@ -12,6 +11,7 @@ import {
   type WebDAVResponse,
 } from '../types';
 import { escapeXml } from '../xml/escape';
+import { createWebdavXmlParser, isRecord, pick } from '../xml/parse';
 
 // v1 dead-prop policy: store nothing, but echo a per-prop 200 OK for
 // non-live props the client tried to set. This is the "lying-200"
@@ -35,11 +35,7 @@ const LIVE_PROPS = new Set<string>([
   'supportedlock',
 ]);
 
-const proppatchParser = new XMLParser({
-  ignoreAttributes: true,
-  removeNSPrefix: true,
-  parseTagValue: false,
-});
+const proppatchParser = createWebdavXmlParser();
 
 export async function handleProppatch(
   req: WebDAVRequest,
@@ -190,12 +186,4 @@ function extractPropNames(body: string): string[] {
     }
   }
   return Array.from(out);
-}
-
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === 'object' && x !== null && !Array.isArray(x);
-}
-
-function pick(obj: Record<string, unknown>, key: string): unknown {
-  return obj[key];
 }

@@ -34,10 +34,10 @@ import { cn } from '@/lib/utils/cn';
 
 import type { PromptTemplate } from '../hooks/queries';
 import { useCategories, usePrompt } from '../hooks/queries';
+import { formatBytes } from '../lib/format-prompt-bytes';
+import type { PromptScope } from '../lib/prompt-scope';
 import { CategoryPickerPopover } from './category-picker-popover';
 import { TagChipInput } from './tag-chip-input';
-
-type PromptScope = 'global' | 'team' | 'personal';
 
 // Positional tag equality. Mirrors `metadataDiffers` on the server so a
 // reorder counts as an edit. Module-scope so it's a stable reference across
@@ -70,11 +70,6 @@ export interface PromptFormData {
   tags: string[];
   /** Version the form was opened against. Server uses this for OCC. */
   expectedVersion?: number;
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  return `${(n / 1024).toFixed(1)} KB`;
 }
 
 function PromptFormDialogContent({

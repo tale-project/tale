@@ -32,8 +32,7 @@ import {
 import type { PromptCategory } from '../hooks/queries';
 import { useCategories } from '../hooks/queries';
 import { extractErrorCode } from '../lib/extract-error-code';
-
-type PromptScope = 'global' | 'team' | 'personal';
+import type { PromptScope } from '../lib/prompt-scope';
 
 export interface CategoryPickerPopoverProps {
   organizationId: string | undefined;

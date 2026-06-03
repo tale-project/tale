@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { createElement, useMemo } from 'react';
 
+import { isPersonalSettingsPath } from '@/app/lib/personal-settings-path';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 
@@ -69,19 +70,6 @@ export interface NavItem {
    * two pinned entries share a prefix (e.g. user vs. organization settings).
    */
   isActivePath?: (pathname: string) => boolean;
-}
-
-const PERSONAL_SETTINGS_SEGMENTS = new Set([
-  'personal',
-  'account',
-  'personalization',
-]);
-
-function isPersonalSettingsPath(pathname: string, businessId: string): boolean {
-  const base = `/dashboard/${businessId}/settings/`;
-  if (!pathname.startsWith(base)) return false;
-  const next = pathname.slice(base.length).split('/')[0];
-  return PERSONAL_SETTINGS_SEGMENTS.has(next);
 }
 
 export interface NavigationItems {

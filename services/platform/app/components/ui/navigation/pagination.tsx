@@ -47,12 +47,7 @@ export function Pagination({
     });
   }, [search, pathname]);
 
-  const handlePageChange = (direction: 'prev' | 'next') => {
-    const page = direction === 'prev' ? currentPage - 1 : currentPage + 1;
-    if (page < 1) return;
-    if (totalPages !== undefined && page > totalPages) return;
-    if (direction === 'next' && hasNextPage === false) return;
-    setLoadingStates((prev) => ({ ...prev, [direction]: true }));
+  const commitPage = (page: number) => {
     startTransition(() => {
       const newSearch = { ...search };
 
@@ -80,36 +75,21 @@ export function Pagination({
     });
   };
 
+  const handlePageChange = (direction: 'prev' | 'next') => {
+    const page = direction === 'prev' ? currentPage - 1 : currentPage + 1;
+    if (page < 1) return;
+    if (totalPages !== undefined && page > totalPages) return;
+    if (direction === 'next' && hasNextPage === false) return;
+    setLoadingStates((prev) => ({ ...prev, [direction]: true }));
+    commitPage(page);
+  };
+
   const handlePageSelect = (newPage: string) => {
     const page = parseInt(newPage);
     if (page < 1) return;
     if (totalPages !== undefined && page > totalPages) return;
 
-    startTransition(() => {
-      const newSearch = { ...search };
-
-      // If additional query params are provided, ensure they're included
-      if (queryString) {
-        const additionalParams = new URLSearchParams(queryString);
-        additionalParams.forEach((value, key) => {
-          // Don't overwrite the page parameter that we're about to set
-          if (key !== 'page') {
-            newSearch[key] = value;
-          }
-        });
-      }
-
-      if (page === 1) {
-        delete newSearch.page;
-      } else {
-        newSearch.page = page.toString();
-      }
-
-      void navigate({
-        to: pathname,
-        search: newSearch,
-      });
-    });
+    commitPage(page);
   };
 
   // Calculate range

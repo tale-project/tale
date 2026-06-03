@@ -28,6 +28,7 @@ import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { ROLE_OPTIONS } from './role-options';
 import { RulesTableEmptyState } from './rules-table-empty-state';
 
 interface BudgetEditorProps {
@@ -45,13 +46,6 @@ const SCOPE_OPTIONS = [
 function isScopeValue(v: string): v is BudgetRule['scope'] {
   return SCOPE_OPTIONS.some((o) => o.value === v);
 }
-
-const ROLE_OPTIONS = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'developer', label: 'Developer' },
-  { value: 'editor', label: 'Editor' },
-  { value: 'member', label: 'Member' },
-];
 
 const PERIOD_OPTIONS = [
   { value: 'monthly', label: 'Monthly' },

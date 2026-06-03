@@ -20,6 +20,7 @@ import { useBrandingContext } from '@/app/components/branding/branding-provider'
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDisplayMode } from '@/app/hooks/use-display-mode';
+import { isPersonalSettingsPath } from '@/app/lib/personal-settings-path';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -36,19 +37,6 @@ interface PrimaryTab {
   activePrefix: string;
   /** Optional CASL gate. */
   gate?: () => boolean;
-}
-
-const PERSONAL_SETTINGS_SEGMENTS = new Set([
-  'personal',
-  'account',
-  'personalization',
-]);
-
-function isPersonalSettingsRoute(pathname: string, organizationId: string) {
-  const base = `/dashboard/${organizationId}/settings/`;
-  if (!pathname.startsWith(base)) return false;
-  const next = pathname.slice(base.length).split('/')[0];
-  return PERSONAL_SETTINGS_SEGMENTS.has(next);
 }
 
 interface OverflowItem {
@@ -146,7 +134,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         icon: SettingsIcon,
         to: `/dashboard/${organizationId}/settings/personal`,
         activePrefix: `/dashboard/${organizationId}/settings/personal`,
-        isActive: (p) => isPersonalSettingsRoute(p, organizationId),
+        isActive: (p) => isPersonalSettingsPath(p, organizationId),
       },
       {
         key: 'org-settings',
@@ -157,7 +145,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         isActive: (p) => {
           const base = `/dashboard/${organizationId}/settings`;
           if (p !== base && !p.startsWith(`${base}/`)) return false;
-          return !isPersonalSettingsRoute(p, organizationId);
+          return !isPersonalSettingsPath(p, organizationId);
         },
       },
     ],

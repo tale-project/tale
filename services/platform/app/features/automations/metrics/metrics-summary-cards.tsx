@@ -5,7 +5,7 @@ import { Text } from '@tale/ui/text';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 
-import { formatDurationSeconds } from './format-duration';
+import { formatDurationSeconds, formatSuccessRate } from './format-duration';
 
 interface MetricsSummaryCardsProps {
   total: number;
@@ -34,7 +34,7 @@ export function MetricsSummaryCards({
   failed,
 }: MetricsSummaryCardsProps) {
   const { t } = useT('automations');
-  const successRateDisplay = total > 0 ? `${successRate.toFixed(1)}%` : '—';
+  const successRateDisplay = formatSuccessRate(total, successRate);
 
   return (
     <div className="border-border bg-card grid grid-cols-2 divide-y rounded-lg border md:grid-cols-4 md:divide-x md:divide-y-0">

@@ -9,10 +9,7 @@ import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import {
-  getStepIconComponent,
-  getActionIconComponent,
-} from '../utils/step-icons';
+import { getStepIconComponent } from '../utils/step-icons';
 import { useAutomationCallbacks } from './automation-callbacks-context';
 import { InvisibleHandle } from './invisible-handle';
 
@@ -61,11 +58,6 @@ export function AutomationStep({ data }: AutomationStepProps) {
   ) => {
     const baseClass = 'size-5 p-1 rounded-sm shrink-0';
     const styleClass = STEP_TYPE_STYLES[stepType] || 'bg-muted';
-
-    if (stepType === 'action') {
-      const IconComponent = getActionIconComponent(actionType);
-      return <IconComponent className={cn(baseClass, styleClass)} />;
-    }
 
     const IconComponent = getStepIconComponent(stepType, actionType);
     if (!IconComponent) {

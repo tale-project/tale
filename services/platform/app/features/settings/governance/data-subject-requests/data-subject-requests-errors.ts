@@ -12,6 +12,8 @@
  * via `getErasureRequest`.
  */
 
+import { pickString, readConvexErrorData } from '../convex-error-data';
+
 type Translator = (key: string, options?: Record<string, unknown>) => string;
 
 interface DsrErrorMapping {
@@ -27,26 +29,6 @@ interface DsrErrorMapping {
   /** Existing pending/running/blocked request that the admin can route
    *  to instead of starting a new one. */
   existingRequestId?: string;
-}
-
-function readConvexErrorData(
-  err: unknown,
-): Record<string, unknown> | undefined {
-  if (err == null || typeof err !== 'object') return undefined;
-  if (!('data' in err)) return undefined;
-  const data = (err as { data: unknown }).data;
-  if (data == null || typeof data !== 'object') return undefined;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime-checked above
-  return data as Record<string, unknown>;
-}
-
-function pickString(
-  data: Record<string, unknown> | undefined,
-  key: string,
-): string | undefined {
-  if (!data) return undefined;
-  const v = data[key];
-  return typeof v === 'string' ? v : undefined;
 }
 
 function pickBoolean(

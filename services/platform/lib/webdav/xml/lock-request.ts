@@ -1,4 +1,4 @@
-import { XMLParser } from 'fast-xml-parser';
+import { createWebdavXmlParser, isRecord, pick } from './parse';
 
 interface LockInfo {
   scope: 'exclusive' | 'shared';
@@ -16,11 +16,7 @@ type OwnerExtractError =
   | { kind: 'entity' }
   | { kind: 'cdata' };
 
-const parser = new XMLParser({
-  ignoreAttributes: true,
-  removeNSPrefix: true,
-  parseTagValue: false,
-});
+const parser = createWebdavXmlParser();
 
 export function parseLockBody(
   body: string,
@@ -245,12 +241,4 @@ export function parseIfHeaderTokens(header: string | null): string[] {
     }
   }
   return out;
-}
-
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === 'object' && x !== null && !Array.isArray(x);
-}
-
-function pick(obj: Record<string, unknown>, key: string): unknown {
-  return obj[key];
 }

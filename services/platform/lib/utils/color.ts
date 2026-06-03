@@ -1,12 +1,19 @@
+/** Parse a hex color string into normalized [0,1] sRGB channels. */
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const cleaned = hex.replace('#', '');
+  return {
+    r: parseInt(cleaned.slice(0, 2), 16) / 255,
+    g: parseInt(cleaned.slice(2, 4), 16) / 255,
+    b: parseInt(cleaned.slice(4, 6), 16) / 255,
+  };
+}
+
 /**
  * Convert a hex color string to the space-separated HSL format
  * used by the CSS variables in globals.css (e.g., "240 5.9% 10%").
  */
 export function hexToHsl(hex: string): string {
-  const cleaned = hex.replace('#', '');
-  const r = parseInt(cleaned.slice(0, 2), 16) / 255;
-  const g = parseInt(cleaned.slice(2, 4), 16) / 255;
-  const b = parseInt(cleaned.slice(4, 6), 16) / 255;
+  const { r, g, b } = hexToRgb(hex);
 
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
@@ -36,10 +43,7 @@ export function hexToHsl(hex: string): string {
  * Used to derive foreground contrast colors.
  */
 export function isLightColor(hex: string): boolean {
-  const cleaned = hex.replace('#', '');
-  const r = parseInt(cleaned.slice(0, 2), 16) / 255;
-  const g = parseInt(cleaned.slice(2, 4), 16) / 255;
-  const b = parseInt(cleaned.slice(4, 6), 16) / 255;
+  const { r, g, b } = hexToRgb(hex);
 
   // Relative luminance (sRGB)
   const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;

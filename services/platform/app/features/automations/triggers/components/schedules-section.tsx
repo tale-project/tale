@@ -9,7 +9,6 @@ import { useState, useMemo, useCallback } from 'react';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
@@ -17,6 +16,7 @@ import { useT } from '@/lib/i18n/client';
 import type { WfSchedule } from '../hooks/queries';
 import { useSchedules } from '../hooks/queries';
 import { useDeleteSchedule, useToggleSchedule } from '../hooks/slug-mutations';
+import { useTriggerTimestamp } from '../hooks/use-trigger-timestamp';
 import { CollapsibleSection } from './collapsible-section';
 import { ScheduleCreateDialog } from './schedule-create-dialog';
 
@@ -90,14 +90,7 @@ export function SchedulesSection({
     }
   }, [deleteTarget, deleteScheduleMutation, toast, t]);
 
-  const { formatDate: formatDateLong } = useFormatDate();
-  const formatTimestamp = useCallback(
-    (timestamp?: number) => {
-      if (!timestamp) return t('triggers.common.never');
-      return formatDateLong(new Date(timestamp), 'long');
-    },
-    [t, formatDateLong],
-  );
+  const formatTimestamp = useTriggerTimestamp();
 
   const columns = useMemo<ColumnDef<Schedule>[]>(
     () => [

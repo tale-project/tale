@@ -1,4 +1,4 @@
-import { XMLParser } from 'fast-xml-parser';
+import { createWebdavXmlParser, isRecord, pick } from './parse';
 
 export type PropfindRequest =
   | { kind: 'allprop' }
@@ -9,11 +9,7 @@ export type PropfindRequest =
 // (Finder included) send an empty body. We default to allprop.
 const DEFAULT_REQUEST: PropfindRequest = { kind: 'allprop' };
 
-const xmlParser = new XMLParser({
-  ignoreAttributes: true,
-  removeNSPrefix: true,
-  parseTagValue: false,
-});
+const xmlParser = createWebdavXmlParser();
 
 export function parsePropfindBody(body: string): PropfindRequest {
   const trimmed = body.trim();
@@ -37,12 +33,4 @@ export function parsePropfindBody(body: string): PropfindRequest {
   const props = Object.keys(propNode);
   if (props.length === 0) return DEFAULT_REQUEST;
   return { kind: 'prop', props };
-}
-
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === 'object' && x !== null && !Array.isArray(x);
-}
-
-function pick(obj: Record<string, unknown>, key: string): unknown {
-  return obj[key];
 }

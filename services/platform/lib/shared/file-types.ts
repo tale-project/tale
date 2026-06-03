@@ -314,13 +314,6 @@ export function resolveFileType(fileName: string, browserMime: string): string {
   return mime;
 }
 
-function isParseable(fileName: string): boolean {
-  const lower = fileName.toLowerCase();
-  return (
-    lower.endsWith('.pdf') || lower.endsWith('.docx') || lower.endsWith('.pptx')
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Extension helpers
 // ---------------------------------------------------------------------------
@@ -350,20 +343,18 @@ export function extractExtension(filename?: string): string | undefined {
  * Handles URLs by stripping query/hash. Returns 'FILE' as fallback.
  */
 export function getDisplayExtension(filename: string): string {
+  const segmentExtension = (lastSegment: string): string => {
+    const ext = lastSegment.includes('.')
+      ? lastSegment.split('.').pop()
+      : undefined;
+    return ext ? ext.toUpperCase() : 'FILE';
+  };
   try {
     const url = new URL(filename, 'http://local');
-    const lastSegment = url.pathname.split('/').pop() || '';
-    const ext = lastSegment.includes('.')
-      ? lastSegment.split('.').pop()
-      : undefined;
-    return ext ? ext.toUpperCase() : 'FILE';
+    return segmentExtension(url.pathname.split('/').pop() || '');
   } catch {
     const clean = filename.split('?')[0].split('#')[0];
-    const lastSegment = clean.split('/').pop() || '';
-    const ext = lastSegment.includes('.')
-      ? lastSegment.split('.').pop()
-      : undefined;
-    return ext ? ext.toUpperCase() : 'FILE';
+    return segmentExtension(clean.split('/').pop() || '');
   }
 }
 
@@ -675,29 +666,6 @@ export function hasFileTools(toolNames: readonly string[]): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// MIME → display label key (for i18n)
-// ---------------------------------------------------------------------------
-
-/**
- * Returns an i18n key suffix for the file type display label.
- * Intended for use with `t('fileTypes.<key>')`.
- */
-function getFileTypeLabelKey(mimeType: string): string {
-  if (mimeType === MIME_TYPES.PDF) return 'pdf';
-  if (mimeType.includes('word')) return 'doc';
-  if (mimeType.includes('presentation') || mimeType.includes('powerpoint'))
-    return 'pptx';
-  if (mimeType === MIME_TYPES.PLAIN) return 'txt';
-  if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType.startsWith('audio/')) return 'audio';
-  if (mimeType.startsWith('video/')) return 'video';
-  if (mimeType === MIME_TYPES.XLS || mimeType === MIME_TYPES.XLSX)
-    return 'xlsx';
-  if (mimeType === MIME_TYPES.CSV) return 'csv';
-  return 'file';
-}
-
 /**
  * Check whether a file is allowed for document upload based on its resolved
  * MIME type and extension. Returns `true` when either the MIME type or the

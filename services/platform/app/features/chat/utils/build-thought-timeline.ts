@@ -13,6 +13,8 @@
  * than trusting the discriminant — mirrors `thinking-animation.tsx`.
  */
 
+import { isRecord } from '@/lib/utils/type-guards';
+
 export type ToolStepState =
   | 'input-streaming'
   | 'input-available'
@@ -66,10 +68,6 @@ const EMPTY: ThoughtTimeline = {
   hasReasoning: false,
   isStreaming: false,
 };
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
 
 function toToolState(raw: unknown): ToolStepState {
   if (

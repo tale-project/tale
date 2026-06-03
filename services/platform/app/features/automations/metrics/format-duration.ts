@@ -10,3 +10,7 @@ export function formatDurationSeconds(seconds: number): string {
   const remainderMinutes = minutes % 60;
   return remainderMinutes > 0 ? `${hours}h ${remainderMinutes}m` : `${hours}h`;
 }
+
+export function formatSuccessRate(total: number, successRate: number): string {
+  return total > 0 ? `${successRate.toFixed(1)}%` : '—';
+}

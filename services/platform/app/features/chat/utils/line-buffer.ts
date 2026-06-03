@@ -104,6 +104,27 @@ export function isAtTrailingEmptyMarker(
 }
 
 /**
+ * Scan backwards from `from` for the first `[` that is not closed by a later
+ * `]`, tracking nesting depth. Returns its index, or -1 if none is found
+ * before `searchStart`.
+ */
+function scanBackForUnmatchedOpenBracket(
+  text: string,
+  from: number,
+  searchStart: number,
+): number {
+  let depth = 0;
+  for (let i = from; i >= searchStart; i--) {
+    if (text[i] === ']') depth++;
+    else if (text[i] === '[') {
+      if (depth > 0) depth--;
+      else return i;
+    }
+  }
+  return -1;
+}
+
+/**
  * When the reveal position falls inside markdown link/image syntax or a
  * task-list checkbox, skip ahead to the end of that syntax so the element
  * appears atomically instead of flickering from plain text to styled element.
@@ -152,35 +173,12 @@ export function findSyntaxSkipEnd(text: string, pos: number): number {
     if (text[i] === ')' || text[i] === '\n') break;
   }
 
-  let openBracket = -1;
-
-  if (bracketParenPos !== -1) {
-    // We're inside (url). Find the matching [ before ].
-    let depth = 0;
-    for (let i = bracketParenPos - 1; i >= searchStart; i--) {
-      if (text[i] === ']') depth++;
-      else if (text[i] === '[') {
-        if (depth > 0) depth--;
-        else {
-          openBracket = i;
-          break;
-        }
-      }
-    }
-  } else {
-    // We might be inside [text]. Scan backwards for unmatched [.
-    let depth = 0;
-    for (let i = pos - 1; i >= searchStart; i--) {
-      if (text[i] === ']') depth++;
-      else if (text[i] === '[') {
-        if (depth > 0) depth--;
-        else {
-          openBracket = i;
-          break;
-        }
-      }
-    }
-  }
+  // Inside (url) → scan back from before the `]`; otherwise we might be inside
+  // [text] → scan back from before `pos`.
+  const openBracket =
+    bracketParenPos !== -1
+      ? scanBackForUnmatchedOpenBracket(text, bracketParenPos - 1, searchStart)
+      : scanBackForUnmatchedOpenBracket(text, pos - 1, searchStart);
 
   if (openBracket === -1) return pos;
 

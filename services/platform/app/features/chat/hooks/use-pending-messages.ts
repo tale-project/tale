@@ -26,6 +26,20 @@ interface UsePendingMessagesParams {
  * messages after it. Cleared when dataThreadId changes from the source thread
  * (the branch subscription caught up and real messages are now from the branch).
  */
+function computeIsPrimaryThread(
+  messageThreadId: string,
+  threadId: string | undefined,
+  pendingThreadId: string | null,
+): boolean {
+  return (
+    messageThreadId === threadId ||
+    (threadId === undefined && messageThreadId === 'pending') ||
+    (threadId === undefined &&
+      pendingThreadId !== null &&
+      messageThreadId === pendingThreadId)
+  );
+}
+
 export function usePendingMessages({
   threadId,
   realMessages,
@@ -58,12 +72,11 @@ export function usePendingMessages({
     // Only clear for the primary thread — the secondary arena column must NOT
     // clear the shared pending message because its lastMessageKey comes from a
     // different thread and would never match the baseline.
-    const isPrimaryThread =
-      pendingMessage.threadId === threadId ||
-      (threadId === undefined && pendingMessage.threadId === 'pending') ||
-      (threadId === undefined &&
-        pendingThreadId !== null &&
-        pendingMessage.threadId === pendingThreadId);
+    const isPrimaryThread = computeIsPrimaryThread(
+      pendingMessage.threadId,
+      threadId,
+      pendingThreadId,
+    );
     if (!isPrimaryThread) return;
 
     // For new threads: clear when any real message arrives
@@ -110,12 +123,11 @@ export function usePendingMessages({
       return [...before, edited];
     }
 
-    const isPrimaryThread =
-      pendingMessage.threadId === threadId ||
-      (threadId === undefined && pendingMessage.threadId === 'pending') ||
-      (threadId === undefined &&
-        pendingThreadId !== null &&
-        pendingMessage.threadId === pendingThreadId);
+    const isPrimaryThread = computeIsPrimaryThread(
+      pendingMessage.threadId,
+      threadId,
+      pendingThreadId,
+    );
     const isSecondaryArenaThread =
       pendingMessage.arenaThreadIdB != null &&
       pendingMessage.arenaThreadIdB === threadId &&

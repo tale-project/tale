@@ -19,6 +19,34 @@ import { isKeyOf } from '@/lib/utils/type-guards';
 
 import type { Conversation } from '../types';
 
+// Strip script/style + HTML tags, decode entities, and collapse whitespace
+// into a single-line message preview.
+const cleanMessagePreview = (raw: string): string => {
+  // Remove style and script tags and their contents
+  let content = raw.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  content = content.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+
+  // Insert spaces at HTML line-break or block boundaries before stripping tags
+  // This ensures previews reflect natural spacing between paragraphs, breaks, list items, etc.
+  content = content
+    // Line breaks
+    .replace(/<br\s*\/?>(?=\S)/gi, ' ')
+    // Closing block-level tags that typically imply a new line
+    .replace(
+      /<\/(p|div|li|h[1-6]|section|article|header|footer|tr|td|th)>/gi,
+      ' ',
+    );
+
+  // Strip HTML tags and trim
+  content = striptags(content).trim();
+
+  // Decode HTML entities (like &nbsp; to space)
+  content = decode(content);
+
+  // Clean up extra whitespace
+  return content.replace(/\s+/g, ' ').trim();
+};
+
 // Get the last message content and truncate if necessary
 const getLastMessagePreview = (conversation: Conversation): string => {
   if (!conversation.messages || conversation.messages.length === 0) {
@@ -54,64 +82,11 @@ const getLastMessagePreview = (conversation: Conversation): string => {
       return conversation.description;
     }
 
-    // Use the displayable message instead
-    let content = displayableMessage.content;
-
-    // Remove style and script tags and their contents
-    content = content.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-    content = content.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-
-    // Insert spaces at HTML line-break or block boundaries before stripping tags
-    // This ensures previews reflect natural spacing between paragraphs, breaks, list items, etc.
-    content = content
-      // Line breaks
-      .replace(/<br\s*\/?>(?=\S)/gi, ' ')
-      // Closing block-level tags that typically imply a new line
-      .replace(
-        /<\/(p|div|li|h[1-6]|section|article|header|footer|tr|td|th)>/gi,
-        ' ',
-      );
-
-    // Strip HTML tags and decode HTML entities
-    content = striptags(content).trim();
-
-    // Decode HTML entities (like &nbsp; to space)
-    content = decode(content);
-
-    // Clean up extra whitespace
-    content = content.replace(/\s+/g, ' ').trim();
-
-    return content;
+    return cleanMessagePreview(displayableMessage.content);
   }
 
   // Process the last message (either from customer or sent/delivered)
-  let content = lastMessage.content;
-
-  // Remove style and script tags and their contents
-  content = content.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-  content = content.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-
-  // Insert spaces at HTML line-break or block boundaries before stripping tags
-  // This ensures previews reflect natural spacing between paragraphs, breaks, list items, etc.
-  content = content
-    // Line breaks
-    .replace(/<br\s*\/?>(?=\S)/gi, ' ')
-    // Closing block-level tags that typically imply a new line
-    .replace(
-      /<\/(p|div|li|h[1-6]|section|article|header|footer|tr|td|th)>/gi,
-      ' ',
-    );
-
-  // Strip HTML tags and decode HTML entities
-  content = striptags(content).trim();
-
-  // Decode HTML entities (like &nbsp; to space)
-  content = decode(content);
-
-  // Clean up extra whitespace
-  content = content.replace(/\s+/g, ' ').trim();
-
-  return content;
+  return cleanMessagePreview(lastMessage.content);
 };
 
 interface ConversationsListProps {

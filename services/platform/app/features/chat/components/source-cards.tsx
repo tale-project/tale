@@ -15,16 +15,9 @@ import { useT } from '@/lib/i18n/client';
 import type { CitationInfo } from '../hooks/use-citations';
 import type { SourceGroup } from '../hooks/use-citations';
 import { getUniqueSources } from '../hooks/use-citations';
+import { getDomain } from '../utils/get-domain';
 
 const COLLAPSED_LIMIT = 3;
-
-function getDomain(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
-}
 
 interface SourceCardProps {
   source: SourceGroup;

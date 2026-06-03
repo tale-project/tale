@@ -12,7 +12,7 @@ import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
-import { formatDurationSeconds } from './format-duration';
+import { formatDurationSeconds, formatSuccessRate } from './format-duration';
 
 export interface TopWorkflowRow {
   wfDefinitionId: string | null;
@@ -92,9 +92,7 @@ export function TopWorkflowsTable({
         ),
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {row.original.total > 0
-              ? `${row.original.successRate.toFixed(1)}%`
-              : '—'}
+            {formatSuccessRate(row.original.total, row.original.successRate)}
           </div>
         ),
         meta: { align: 'right' as const },

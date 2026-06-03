@@ -22,6 +22,11 @@ export function WebsitePagesCell({ website }: WebsitePagesCellProps) {
   const crawled = website.crawledPageCount ?? 0;
   const total = website.pageCount ?? 0;
   const percentage = total > 0 ? Math.round((crawled / total) * 100) : 0;
+  const indexedLabel = t('indexedTooltip', {
+    percentage: String(percentage),
+    crawled: String(crawled),
+    total: String(total),
+  });
 
   return (
     <>
@@ -35,16 +40,8 @@ export function WebsitePagesCell({ website }: WebsitePagesCellProps) {
           <ProgressBar
             value={crawled}
             max={total}
-            label={t('indexedTooltip', {
-              percentage: String(percentage),
-              crawled: String(crawled),
-              total: String(total),
-            })}
-            tooltipContent={t('indexedTooltip', {
-              percentage: String(percentage),
-              crawled: String(crawled),
-              total: String(total),
-            })}
+            label={indexedLabel}
+            tooltipContent={indexedLabel}
           />
         ) : (
           <span className="text-muted-foreground text-xs">

@@ -938,7 +938,7 @@ function isPartRecord(v: unknown): v is Record<string, unknown> {
 
 function sameParts(a: Message['parts'], b: Message['parts']): boolean {
   if (a === b) return true;
-  if (!a || !b) return a === b;
+  if (!a || !b) return false;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     const pa = a[i];

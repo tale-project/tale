@@ -69,25 +69,23 @@ export function getStepIconComponent(
   return STEP_TYPE_ICON_MAP[stepType || ''] || null;
 }
 
-function getActionIcon(actionType?: string, iconClass = 'size-4 shrink-0') {
-  const IconComponent = getActionIconComponent(actionType);
-  return <IconComponent className={iconClass} />;
-}
-
 export function getStepIcon(
   stepType?: Doc<'wfStepDefs'>['stepType'],
   actionType?: string,
   iconClass = 'size-4 shrink-0',
 ) {
-  if (stepType === 'action') {
-    return getActionIcon(actionType, iconClass);
+  const IconComponent = getStepIconComponent(stepType, actionType);
+  if (!IconComponent) {
+    return null;
   }
+  return <IconComponent className={iconClass} />;
+}
 
-  const IconComponent = STEP_TYPE_ICON_MAP[stepType || ''];
-
-  if (IconComponent) {
-    return <IconComponent className={iconClass} />;
-  }
-
-  return null;
+/** The `config.type` of an action step, or undefined for non-action steps. */
+export function getStepActionType(
+  step: Pick<Doc<'wfStepDefs'>, 'stepType' | 'config'>,
+): string | undefined {
+  return step.stepType === 'action' && 'type' in step.config
+    ? step.config.type
+    : undefined;
 }

@@ -7,24 +7,14 @@ import { Text } from '@tale/ui/text';
 import { useMemo } from 'react';
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import type { Doc } from '@/convex/_generated/dataModel';
-import type { CustomerInfo } from '@/convex/conversations/types';
 import { useT } from '@/lib/i18n/client';
 
+import {
+  type CustomerData,
+  isCustomerDoc,
+  isValidStatus,
+} from '../lib/customer-data';
 import { CustomerStatusBadge } from './customer-status-badge';
-
-type CustomerData = Doc<'customers'> | CustomerInfo;
-
-type CustomerStatus = Doc<'customers'>['status'];
-const VALID_STATUSES = new Set(['active', 'churned', 'potential']);
-
-function isValidStatus(status: string | undefined): status is CustomerStatus {
-  return status !== undefined && VALID_STATUSES.has(status);
-}
-
-function isCustomerDoc(customer: CustomerData): customer is Doc<'customers'> {
-  return '_creationTime' in customer;
-}
 
 interface CustomerInformationProps {
   customer: CustomerData;
@@ -67,8 +57,6 @@ export function CustomerInformation({ customer }: CustomerInformationProps) {
     ],
     [customer, createdAt, t],
   );
-
-  if (!customer) return null;
 
   return (
     <Stack gap={5}>

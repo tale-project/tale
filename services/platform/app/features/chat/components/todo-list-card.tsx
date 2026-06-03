@@ -24,6 +24,8 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { extractHostname } from '../utils/format-tool-detail';
+
 type TodoStatus = 'pending' | 'in_progress' | 'done' | 'failed' | 'cancelled';
 
 interface TodoListCardProps {
@@ -316,13 +318,7 @@ function TodoSourceChips({ sources }: { sources: TodoSource[] }) {
 }
 
 function TodoSourceChip({ source }: { source: TodoSource }) {
-  const domain = useMemo(() => {
-    try {
-      return new URL(source.url).hostname.replace(/^www\./, '');
-    } catch {
-      return source.url;
-    }
-  }, [source.url]);
+  const domain = useMemo(() => extractHostname(source.url), [source.url]);
   const displayUrl = useMemo(() => {
     try {
       return decodeURI(source.url);

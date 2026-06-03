@@ -33,12 +33,9 @@ import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { stripQualifier } from './model-id';
+import { ROLE_OPTIONS } from './role-options';
 import { RulesTableEmptyState } from './rules-table-empty-state';
-
-function stripQualifier(s: string): string {
-  const idx = s.indexOf(':');
-  return idx === -1 ? s : s.slice(idx + 1);
-}
 
 function parseDefaultModelsConfig(policy: unknown): DefaultModelsConfig | null {
   const config = isRecord(policy) ? policy : null;
@@ -104,13 +101,6 @@ const SCOPE_OPTIONS = [
 function isScopeValue(v: string): v is ModelAccessRule['scope'] {
   return SCOPE_OPTIONS.some((o) => o.value === v);
 }
-
-const ROLE_OPTIONS = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'developer', label: 'Developer' },
-  { value: 'editor', label: 'Editor' },
-  { value: 'member', label: 'Member' },
-];
 
 const MODE_OPTIONS = [
   { value: 'allowlist', label: 'Allowlist' },

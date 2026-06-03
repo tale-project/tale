@@ -9,6 +9,7 @@ import {
   type WebDAVRequest,
   type WebDAVResponse,
 } from '../types';
+import { firstForwardedFor } from './headers';
 
 // Methods whose body we STREAM straight through as a Web ReadableStream
 // (consumed by the handler, e.g. PUT → Convex storage). Every other
@@ -26,14 +27,6 @@ import {
 // while prod's fetch adapter — whose Request.body is a lazy stream that is
 // never pulled for those methods — worked fine).
 const STREAMING_METHODS = new Set(['PUT', 'POST']);
-
-// First hop of X-Forwarded-For (rate-limit bucket key, not a security
-// boundary). Mirrors the Hono adapter's helper.
-function firstForwardedFor(xff: string | null): string | undefined {
-  if (!xff) return undefined;
-  const first = xff.split(',')[0]?.trim();
-  return first && first.length > 0 ? first : undefined;
-}
 
 // Vite Connect adapter. Node's http req/res are pre-Fetch-API — we
 // adapt to the same WebDAVRequest the Hono adapter delivers, then write

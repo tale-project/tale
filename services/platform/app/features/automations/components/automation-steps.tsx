@@ -42,6 +42,7 @@ import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomationLayout } from '../hooks/use-automation-layout';
+import { getStepActionType } from '../utils/step-icons';
 import { AutomationCallbacksProvider } from './automation-callbacks-context';
 import { AutomationEdge } from './automation-edge';
 import { AutomationGroupNode } from './automation-group-node';
@@ -256,10 +257,7 @@ function AutomationStepsInner({
         stepSlug: s.stepSlug,
         name: s.name,
         stepType: s.stepType,
-        actionType:
-          s.stepType === 'action' && 'type' in s.config
-            ? s.config.type
-            : undefined,
+        actionType: getStepActionType(s),
       })),
     [steps],
   );

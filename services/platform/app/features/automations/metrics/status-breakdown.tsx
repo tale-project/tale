@@ -8,6 +8,7 @@ import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 
 import { ChartCardHeader } from './chart-card-header';
+import { CHART_TOOLTIP_CONTENT_STYLE } from './chart-tooltip-style';
 
 interface StatusBreakdownProps {
   completed: number;
@@ -66,12 +67,7 @@ export function StatusBreakdown({
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Tooltip
-                    contentStyle={{
-                      fontSize: 12,
-                      borderRadius: 6,
-                      border: '1px solid var(--border)',
-                      background: 'var(--popover)',
-                    }}
+                    contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
                     formatter={(value) =>
                       typeof value === 'number' ? formatNumber(value) : ''
                     }

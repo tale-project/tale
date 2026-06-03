@@ -13,6 +13,7 @@ import {
 import { useT } from '@/lib/i18n/client';
 
 import { ChartCardHeader } from './chart-card-header';
+import { CHART_TOOLTIP_CONTENT_STYLE } from './chart-tooltip-style';
 
 interface TrendPoint {
   dateKey: string;
@@ -81,12 +82,7 @@ export function ExecutionTrendChart({ series }: ExecutionTrendChartProps) {
               className="text-muted-foreground"
             />
             <Tooltip
-              contentStyle={{
-                fontSize: 12,
-                borderRadius: 6,
-                border: '1px solid var(--border)',
-                background: 'var(--popover)',
-              }}
+              contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
               labelFormatter={(value, payload) => {
                 const first = payload?.[0];
                 if (

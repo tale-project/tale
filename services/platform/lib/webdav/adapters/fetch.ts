@@ -5,6 +5,7 @@ import {
   type WebDAVRequest,
   type WebDAVResponse,
 } from '../types';
+import { firstForwardedFor } from './headers';
 
 // Hono adapter. Hono delivers a standard Web Fetch Request and expects
 // a standard Web Fetch Response back. The dispatch layer is framework-
@@ -37,15 +38,6 @@ export async function fetchAdapter(
 
   const out = await dispatch(webdavReq, ctx);
   return toFetchResponse(out);
-}
-
-// First hop of X-Forwarded-For — the original client IP set by Caddy on
-// the /dav/* route. Used only as a rate-limit bucket key, never as a
-// security boundary, so the simple first-token parse is sufficient.
-function firstForwardedFor(xff: string | null): string | undefined {
-  if (!xff) return undefined;
-  const first = xff.split(',')[0]?.trim();
-  return first && first.length > 0 ? first : undefined;
 }
 
 async function readBodyWithCap(

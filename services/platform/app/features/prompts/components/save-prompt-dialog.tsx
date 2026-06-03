@@ -19,17 +19,12 @@ import { cn } from '@/lib/utils/cn';
 
 import { useSavePrompt } from '../hooks/mutations';
 import { extractErrorCode } from '../lib/extract-error-code';
+import { formatBytes } from '../lib/format-prompt-bytes';
+import type { PromptScope } from '../lib/prompt-scope';
 import { CategoryPickerPopover } from './category-picker-popover';
-
-type PromptScope = 'personal' | 'team' | 'global';
 
 function isPromptScope(value: string): value is PromptScope {
   return value === 'personal' || value === 'team' || value === 'global';
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  return `${(n / 1024).toFixed(1)} KB`;
 }
 
 export interface SavePromptDialogProps {

@@ -6,18 +6,11 @@ import { memo } from 'react';
 import { useT } from '@/lib/i18n/client';
 
 import type { CitationInfo } from '../hooks/use-citations';
+import { getDomain } from '../utils/get-domain';
 
 interface CitationLinkProps {
   citation: CitationInfo;
   onNavigate?: (fileId: string, page?: number) => void;
-}
-
-function getDomain(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
 }
 
 function CitationLinkComponent({ citation, onNavigate }: CitationLinkProps) {

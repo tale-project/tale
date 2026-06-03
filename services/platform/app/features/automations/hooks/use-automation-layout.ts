@@ -7,6 +7,7 @@ import React, { useMemo } from 'react';
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { getLayoutedElements } from '../utils/dagre-layout';
+import { getStepActionType } from '../utils/step-icons';
 
 const LOOP_EXIT_KEYS = new Set(['done', 'complete', 'finished', 'exit']);
 const NEGATIVE_BRANCH_KEYS = new Set([
@@ -228,10 +229,7 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
           label: step.name,
           stepType: step.stepType,
           stepSlug: step.stepSlug,
-          actionType:
-            step.stepType === 'action' && 'type' in step.config
-              ? step.config.type
-              : undefined,
+          actionType: getStepActionType(step),
           isLeafNode: leafStepSlugs.has(step.stepSlug),
           isTerminalNode: leafStepSlugs.has(step.stepSlug),
           rank: step.order,
@@ -307,10 +305,7 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
             if (step.stepType === 'loop') {
               if (isLoopExit) {
                 edgeColor = 'hsl(var(--chart-2))';
-                edgeLabel = undefined;
                 edgeStyle = { strokeWidth: 2, stroke: edgeColor };
-              } else {
-                edgeLabel = undefined;
               }
             } else if (step.stepType === 'condition') {
               const branch = resolveConditionBranchEdge(key);
@@ -326,25 +321,17 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
               edgeStyle = { strokeWidth: 1.5, stroke: edgeColor };
             }
 
-            const targetIsLoop =
-              sortedSteps.find((s) => s.stepSlug === targetStepSlug)
-                ?.stepType === 'loop';
-
-            const sourceStep = sortedSteps.find(
-              (s) => s.stepSlug === step.stepSlug,
-            );
             const targetStepData = sortedSteps.find(
               (s) => s.stepSlug === targetStepSlug,
             );
+            const targetIsLoop = targetStepData?.stepType === 'loop';
 
             let sourceHandle = 'bottom-source';
             let targetHandle = 'top-target';
             let edgeType: 'smoothstep' | 'default' = 'smoothstep';
 
             const isBackwardConnection =
-              targetStepData &&
-              sourceStep &&
-              targetStepData.order < sourceStep.order;
+              targetStepData && targetStepData.order < step.order;
 
             if (isBackwardConnection) {
               sourceHandle = 'right-source';
@@ -381,11 +368,9 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
                 ? 10
                 : isBackwardConnection
                   ? -3
-                  : involvesLoopNode
+                  : involvesLoopNode || isNegativePath || isPositivePath
                     ? -1
-                    : isNegativePath || isPositivePath
-                      ? -1
-                      : -2,
+                    : -2,
               markerEnd: {
                 type: MarkerType.Arrow,
                 strokeWidth: 1.5,

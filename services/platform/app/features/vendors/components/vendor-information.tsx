@@ -47,8 +47,6 @@ export function VendorInformation({ vendor }: VendorInformationProps) {
     [vendor, t, formatDate],
   );
 
-  if (!vendor) return null;
-
   return (
     <Stack gap={4}>
       <StatGrid items={items} />
