@@ -140,7 +140,9 @@ export function TasksWorkspace({
         </Button>
       </div>
 
-      {!isLoading && tasks.length === 0 ? (
+      {isFirstLoad ? (
+        <TasksSkeleton view={view} />
+      ) : tasks.length === 0 ? (
         <EmptyState
           icon={ListTodo}
           title={t('title')}
