@@ -1,6 +1,7 @@
 import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
+import { createControllerService } from '../services/create-controller-service';
 import { createConvexService } from '../services/create-convex-service';
 import { createDbService } from '../services/create-db-service';
 import { createProxyService } from '../services/create-proxy-service';
@@ -15,14 +16,22 @@ export function generateStatefulCompose(
   const prefix = `${getProjectId()}_`;
   const convex = createConvexService(config);
 
+  const services: ComposeConfig['services'] = {
+    db: createDbService(config),
+    proxy: createProxyService(config, hostAlias),
+    convex,
+    'sandbox-egress': createSandboxEgressService(config),
+    sandbox: createSandboxService(config),
+  };
+  // Opt-in: emit the privileged restart sidecar only when a shared HMAC token
+  // is configured (it exits without one anyway). Operators who want one-click
+  // "Apply & restart" set CONTROLLER_TOKEN (+ CONTROLLER_URL) in .env.
+  if (process.env.CONTROLLER_TOKEN) {
+    services.controller = createControllerService(config);
+  }
+
   const compose: ComposeConfig = {
-    services: {
-      db: createDbService(config),
-      proxy: createProxyService(config, hostAlias),
-      convex,
-      'sandbox-egress': createSandboxEgressService(config),
-      sandbox: createSandboxService(config),
-    },
+    services,
     volumes: {
       'db-data': { external: true, name: `${prefix}db-data` },
       'db-backup': { external: true, name: `${prefix}db-backup` },
