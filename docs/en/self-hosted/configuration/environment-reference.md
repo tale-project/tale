@@ -78,12 +78,12 @@ When both are unset, Tale stores `providers/*.secrets.json` as plaintext JSON at
 
 Optional toggles for features not enabled by default. Each flag turns one feature on or off at boot; toggling requires a restart of the platform container.
 
-| Name                        | Default | Description                                                                                              |
-| --------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
-| `MICROSOFT_AUTH_ENABLED`    | `false` | Enables the Microsoft Entra sign-in option.                                                              |
-| `TRUSTED_HEADERS_ENABLED`   | `false` | Enables the trusted-headers auth mode (identity supplied by the reverse proxy).                          |
-| `FILE_EVENTS_ENABLED`       | `false` | Enables file-watching events for the OneDrive-sync integration.                                          |
-| `TALE_DEPLOYMENT_CONFIG_UI` | `false` | Enables the Settings > Data residency admin UI for editing deployment data stores. Read-only when unset. |
+| Name                            | Default | Description                                                                                                                     |
+| ------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `MICROSOFT_AUTH_ENABLED`        | `false` | Enables the Microsoft Entra sign-in option.                                                                                     |
+| `TRUSTED_HEADERS_ENABLED`       | `false` | Enables the trusted-headers auth mode (identity supplied by the reverse proxy).                                                 |
+| `FILE_EVENTS_ENABLED`           | `false` | Enables file-watching events for the OneDrive-sync integration.                                                                 |
+| `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Comma-separated email allowlist of operators allowed to edit deployment data residency. Empty/unset = read-only for all admins. |
 
 ## Sessions
 

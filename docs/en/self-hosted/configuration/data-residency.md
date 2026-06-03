@@ -7,15 +7,15 @@ A self-hosted Tale deployment runs on infrastructure you already control, so its
 
 This page covers what can be relocated, the one prerequisite that bites (ParadeDB), how the configuration is stored and applied, and how to restart safely.
 
-## Enabling the settings page
+## Enabling editing
 
-The settings page is gated behind an opt-in environment variable so a deployment can't have its data location changed from the UI unless an operator has explicitly allowed it. Set it in `.env` and restart:
+Viewing the page is open to any organization owner or admin, but **editing** — repointing a data store, saving secrets, running a connection test, or applying a restart — is restricted to a named allowlist of operators. List their sign-in emails (comma-separated) in `.env` and restart:
 
 ```bash
-TALE_DEPLOYMENT_CONFIG_UI=true
+TALE_DEPLOYMENT_CONFIG_ADMINS=alice@example.com,bob@example.com
 ```
 
-With the flag unset, **Settings > Data residency** still shows the current configuration to administrators, but read-only — the Save and Test actions refuse. The entrypoints always consume the config file regardless of the flag, so an operator who prefers to hand-edit the file on disk can do so without enabling the UI.
+With the allowlist empty or unset, **Settings > Data residency** still shows the current configuration to administrators, but read-only — Save, Test, and Apply & restart refuse for everyone. Only a signed-in admin whose email is on the list gets an editable page; the page tells you which email to add. The entrypoints always consume the config file regardless of the allowlist, so an operator who prefers to hand-edit the file on disk can do so without naming any UI editors.
 
 ## What you can relocate
 
@@ -53,4 +53,4 @@ The config is read at boot, so a save does not take effect until the **`rag` and
 - **Manual** — `docker compose restart rag convex`, or `tale deploy --services rag` for a zero-downtime blue-green roll.
 - **One-click** — enable the opt-in `controller` service (`docker compose --profile controller up -d`). It is a small internal-only sidecar that restarts the two allowlisted services on an HMAC-signed request from the app, so the browser-facing platform never needs Docker-socket access. With it running, the **Apply & restart** button does the bounce for you; set `CONTROLLER_TOKEN` (shared with the platform) and `CONTROLLER_URL` in `.env`. Without it, the button shows the manual command.
 
-The relevant environment variables are `TALE_DEPLOYMENT_CONFIG_UI` (enables UI editing), and — only when running the one-click `controller` — `CONTROLLER_TOKEN` (the shared HMAC secret) and `CONTROLLER_URL` (e.g. `http://controller:8004`). Set them in `.env`. See also [Environment reference](/self-hosted/configuration/environment-reference) and [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops).
+The relevant environment variables are `TALE_DEPLOYMENT_CONFIG_ADMINS` (the comma-separated email allowlist of operators allowed to edit), and — only when running the one-click `controller` — `CONTROLLER_TOKEN` (the shared HMAC secret) and `CONTROLLER_URL` (e.g. `http://controller:8004`). Set them in `.env`. See also [Environment reference](/self-hosted/configuration/environment-reference) and [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops).

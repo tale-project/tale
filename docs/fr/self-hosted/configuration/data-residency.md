@@ -7,15 +7,15 @@ Une installation Tale auto-hébergée tourne sur une infrastructure que tu contr
 
 Cette page couvre ce qui peut être déplacé, le seul prérequis qui mord (ParadeDB), comment la configuration est stockée et appliquée, et comment redémarrer sans risque.
 
-## Activer la page de réglages
+## Activer la modification
 
-La page de réglages est gardée derrière une variable d'environnement à activer explicitement, pour qu'on ne puisse pas changer l'emplacement des données depuis l'UI sans qu'un opérateur l'ait expressément autorisé. Définis-la dans `.env` et redémarre :
+Voir la page est ouvert à tout owner ou admin d'une organisation, mais **modifier** — repointer une banque de données, enregistrer des secrets, lancer un test de connexion ou appliquer un redémarrage — est réservé à une allowlist nommée d'opérateurs. Liste leurs courriels de connexion (séparés par des virgules) dans `.env` et redémarre :
 
 ```bash
-TALE_DEPLOYMENT_CONFIG_UI=true
+TALE_DEPLOYMENT_CONFIG_ADMINS=alice@example.com,bob@example.com
 ```
 
-Sans le flag, **Paramètres > Résidence des données** montre toujours la configuration actuelle aux administrateurs, mais en lecture seule — les actions Enregistrer et Tester refusent. Les entrypoints consomment le fichier de configuration quel que soit le flag, donc un opérateur qui préfère éditer le fichier à la main sur le disque peut le faire sans activer l'UI.
+Si l'allowlist est vide ou non définie, **Paramètres > Résidence des données** montre toujours la configuration actuelle aux administrateurs, mais en lecture seule — Enregistrer, Tester et Appliquer & redémarrer refusent pour tout le monde. Seul un admin connecté dont le courriel figure sur la liste obtient une page modifiable ; la page t'indique quel courriel ajouter. Les entrypoints consomment le fichier de configuration quelle que soit l'allowlist, donc un opérateur qui préfère éditer le fichier à la main sur le disque peut le faire sans nommer d'éditeurs UI.
 
 ## Ce que tu peux relocaliser
 
@@ -53,4 +53,4 @@ La configuration est lue au démarrage, donc un enregistrement ne prend effet qu
 - **Manuel** — `docker compose restart rag convex`, ou `tale deploy --services rag` pour un roulement blue-green sans interruption.
 - **Un clic** — active le service `controller` à activer explicitement (`docker compose --profile controller up -d`). C'est un petit sidecar uniquement interne qui redémarre les deux services autorisés sur une requête signée par HMAC venant de l'app, pour que la plateforme exposée au navigateur n'ait jamais besoin d'accéder au socket Docker. Quand il tourne, le bouton **Appliquer & redémarrer** fait le redémarrage pour toi ; définis `CONTROLLER_TOKEN` (partagé avec la plateforme) et `CONTROLLER_URL` dans `.env`. Sans lui, le bouton montre la commande manuelle.
 
-Les variables d'environnement pertinentes sont `TALE_DEPLOYMENT_CONFIG_UI` (active l'édition dans l'UI) et — seulement avec le `controller` en un clic — `CONTROLLER_TOKEN` (le secret HMAC partagé) et `CONTROLLER_URL` (p. ex. `http://controller:8004`). Définis-les dans `.env`. Voir aussi [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference) et [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops).
+Les variables d'environnement pertinentes sont `TALE_DEPLOYMENT_CONFIG_ADMINS` (l'allowlist de courriels, séparés par des virgules, des opérateurs autorisés à modifier) et — seulement avec le `controller` en un clic — `CONTROLLER_TOKEN` (le secret HMAC partagé) et `CONTROLLER_URL` (p. ex. `http://controller:8004`). Définis-les dans `.env`. Voir aussi [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference) et [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops).

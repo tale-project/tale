@@ -83,7 +83,10 @@ type DeploymentReadData = {
   hash?: string | null;
   secrets?: Record<string, { present: boolean; masked?: string }>;
   secretsError?: string;
-  uiEnabled?: boolean;
+  /** Whether THIS caller may edit (their email is in the editor allowlist). */
+  canEdit?: boolean;
+  /** The caller's own email — surfaced in the read-only banner. */
+  email?: string;
 };
 
 type ConnTestResult = {
@@ -298,8 +301,8 @@ function DeploymentSettingsView({
   const cfg = data?.config ?? { version: 1 };
   const ds = cfg.dataStores ?? {};
   const secretState = data?.secrets ?? {};
-  const uiEnabled: boolean = Boolean(data?.uiEnabled);
-  const readOnly = !uiEnabled;
+  const canEdit: boolean = Boolean(data?.canEdit);
+  const readOnly = !canEdit;
 
   const [knowledge, setKnowledge] = useState<PgForm>(() =>
     pgFromConfig(ds.knowledgePostgres),
@@ -511,8 +514,14 @@ function DeploymentSettingsView({
         {readOnly ? (
           <Banner tone="info">
             {t('dataResidency.readOnly.before')}{' '}
-            <code>TALE_DEPLOYMENT_CONFIG_UI=true</code>{' '}
+            <code>TALE_DEPLOYMENT_CONFIG_ADMINS</code>{' '}
             {t('dataResidency.readOnly.after')}
+            {data?.email ? (
+              <>
+                {' '}
+                {t('dataResidency.readOnly.yourEmail', { email: data.email })}
+              </>
+            ) : null}
           </Banner>
         ) : null}
         {data?.secretsError === 'encrypted_no_key' ? (

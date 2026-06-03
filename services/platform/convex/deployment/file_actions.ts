@@ -6,8 +6,9 @@
  * read/save/saveSecret for the single `<configRoot>/deployment.json` (+ SOPS
  * `deployment.secrets.json`). Mirrors the providers file-actions pattern
  * (optimistic-hash concurrency, masked-secret preview, force-overwrite
- * confirm, audit logging) but gated by `requireInstanceAdmin` and the opt-in
- * `TALE_DEPLOYMENT_CONFIG_UI` flag rather than per-org `developerSettings`.
+ * confirm, audit logging) but gated by `requireInstanceAdmin` (writes also
+ * require the caller's email in the `TALE_DEPLOYMENT_CONFIG_ADMINS` allowlist)
+ * rather than per-org `developerSettings`.
  *
  * The connection-test action (`testDeploymentConnection`) lives alongside
  * these once the RAG admin endpoint + S3 SDK land.
@@ -45,11 +46,8 @@ import {
 } from '../lib/sops';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { checkProviderHostPolicy } from '../providers/file_actions';
-import {
-  type InstanceAdminAuth,
-  isDeploymentConfigUiEnabled,
-  requireInstanceAdmin,
-} from './auth';
+import { type InstanceAdminAuth, requireInstanceAdmin } from './auth';
+import { isDeploymentEditor } from './editors';
 import {
   MAX_FILE_SIZE_BYTES,
   parseDeploymentConfig,
@@ -138,14 +136,15 @@ let secretWriteLock: Promise<unknown> = Promise.resolve();
 
 /**
  * Read the deployment config + masked secret presence. Gated on
- * instance-admin only (NOT the UI flag) so an admin can view the current
- * config read-only even when editing is disabled.
+ * instance-admin only (NOT the editor allowlist) so any admin can view the
+ * current config read-only even when they are not an editor. `canEdit` tells
+ * the UI whether THIS caller may edit (their email is in the allowlist).
  */
 export const readDeploymentConfig = action({
   args: {},
   returns: v.any(),
   handler: async (ctx) => {
-    await requireInstanceAdmin(ctx);
+    const auth = await requireInstanceAdmin(ctx);
 
     const res = await readJsonFile(
       resolveDeploymentConfigPath(),
@@ -195,7 +194,8 @@ export const readDeploymentConfig = action({
       hash,
       secrets,
       secretsError,
-      uiEnabled: isDeploymentConfigUiEnabled(),
+      canEdit: isDeploymentEditor(auth.email),
+      email: auth.email,
     };
   },
 });

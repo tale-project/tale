@@ -7,15 +7,15 @@ Eine selbst gehostete Tale-Installation läuft auf Infrastruktur, die du ohnehin
 
 Diese Seite behandelt, was sich verlagern lässt, die eine Voraussetzung, die zubeißt (ParadeDB), wie die Konfiguration abgelegt und angewendet wird, und wie du sicher neu startest.
 
-## Die Einstellungsseite aktivieren
+## Bearbeitung aktivieren
 
-Die Einstellungsseite hängt hinter einer Opt-in-Umgebungsvariable, damit niemand den Datenort über die UI ändern kann, solange ein Operator das nicht ausdrücklich erlaubt hat. Setze sie in `.env` und starte neu:
+Die Seite ansehen darf jeder Owner oder Admin einer Organisation, aber **bearbeiten** — einen Datenspeicher umlenken, Secrets speichern, einen Verbindungstest laufen lassen oder einen Neustart auslösen — darf nur eine benannte Allowlist von Operatoren. Trage deren Anmelde-E-Mails (kommagetrennt) in `.env` ein und starte neu:
 
 ```bash
-TALE_DEPLOYMENT_CONFIG_UI=true
+TALE_DEPLOYMENT_CONFIG_ADMINS=alice@example.com,bob@example.com
 ```
 
-Ohne das Flag zeigt **Einstellungen > Datenresidenz** Administratoren die aktuelle Konfiguration weiterhin an, aber nur lesend — Speichern und Testen verweigern den Dienst. Die Entrypoints lesen die Konfigurationsdatei unabhängig vom Flag, also kann ein Operator, der die Datei lieber direkt auf der Platte bearbeitet, das tun, ohne die UI zu aktivieren.
+Ist die Allowlist leer oder nicht gesetzt, zeigt **Einstellungen > Datenresidenz** Administratoren die aktuelle Konfiguration weiterhin an, aber nur lesend — Speichern, Testen und Anwenden & neu starten verweigern für alle den Dienst. Nur ein angemeldeter Admin, dessen E-Mail auf der Liste steht, bekommt eine bearbeitbare Seite; die Seite nennt dir, welche E-Mail einzutragen ist. Die Entrypoints lesen die Konfigurationsdatei unabhängig von der Allowlist, also kann ein Operator, der die Datei lieber direkt auf der Platte bearbeitet, das tun, ohne UI-Bearbeiter zu benennen.
 
 ## Was du verlagern kannst
 
@@ -53,4 +53,4 @@ Die Konfiguration wird beim Boot gelesen, also greift ein Speichern erst, wenn d
 - **Manuell** — `docker compose restart rag convex`, oder `tale deploy --services rag` für einen Zero-Downtime-Blue-Green-Roll.
 - **Ein Klick** — aktiviere den Opt-in-Dienst `controller` (`docker compose --profile controller up -d`). Er ist ein kleiner, nur intern erreichbarer Sidecar, der die beiden erlaubten Dienste auf eine HMAC-signierte Anfrage der App neu startet, damit die browserzugewandte Plattform nie Docker-Socket-Zugriff braucht. Läuft er, erledigt der Knopf **Anwenden & neu starten** den Neustart für dich; setze `CONTROLLER_TOKEN` (geteilt mit der Plattform) und `CONTROLLER_URL` in `.env`. Ohne ihn zeigt der Knopf den manuellen Befehl.
 
-Die relevanten Umgebungsvariablen sind `TALE_DEPLOYMENT_CONFIG_UI` (aktiviert die UI-Bearbeitung) und — nur beim Ein-Klick-`controller` — `CONTROLLER_TOKEN` (das geteilte HMAC-Geheimnis) und `CONTROLLER_URL` (z. B. `http://controller:8004`). Setze sie in `.env`. Siehe auch [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference) und [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops).
+Die relevanten Umgebungsvariablen sind `TALE_DEPLOYMENT_CONFIG_ADMINS` (die kommagetrennte E-Mail-Allowlist der bearbeitungsberechtigten Operatoren) und — nur beim Ein-Klick-`controller` — `CONTROLLER_TOKEN` (das geteilte HMAC-Geheimnis) und `CONTROLLER_URL` (z. B. `http://controller:8004`). Setze sie in `.env`. Siehe auch [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference) und [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops).

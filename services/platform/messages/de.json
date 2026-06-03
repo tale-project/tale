@@ -5449,8 +5449,9 @@
     "dataResidency": {
       "pageDescription": "Richte die Wissensdatenbank und den Dateispeicher dieses Deployments auf Infrastruktur aus, die du selbst kontrollierst. Änderungen greifen, sobald die RAG- und Convex-Container neu starten.",
       "readOnly": {
-        "before": "Bearbeitung ist deaktiviert. Setze",
-        "after": "in der Deployment-Umgebung und starte neu, um Änderungen hier zu aktivieren."
+        "before": "Bearbeitung ist auf die in",
+        "after": "(in der Deployment-.env) aufgeführten Operatoren beschränkt. Bitte einen Operator, deine E-Mail dort hinzuzufügen, und starte neu, um die Bearbeitung zu aktivieren.",
+        "yourEmail": "Deine Anmelde-E-Mail ist {email}."
       },
       "secretsEncryptedNoKey": "Die gespeicherten Secrets sind SOPS-verschlüsselt, aber es ist kein age-Schlüssel konfiguriert — bestehende Secrets lassen sich nicht lesen.",
       "externalPostgres": "Externes Postgres",

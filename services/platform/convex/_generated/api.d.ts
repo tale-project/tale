@@ -260,6 +260,7 @@ import type * as customers_update_customer_metadata from "../customers/update_cu
 import type * as customers_update_customers from "../customers/update_customers.js";
 import type * as customers_validators from "../customers/validators.js";
 import type * as deployment_auth from "../deployment/auth.js";
+import type * as deployment_editors from "../deployment/editors.js";
 import type * as deployment_file_actions from "../deployment/file_actions.js";
 import type * as deployment_file_utils from "../deployment/file_utils.js";
 import type * as deployment_secret_io from "../deployment/secret_io.js";
@@ -1488,6 +1489,7 @@ declare const fullApi: ApiFromModules<{
   "customers/update_customers": typeof customers_update_customers;
   "customers/validators": typeof customers_validators;
   "deployment/auth": typeof deployment_auth;
+  "deployment/editors": typeof deployment_editors;
   "deployment/file_actions": typeof deployment_file_actions;
   "deployment/file_utils": typeof deployment_file_utils;
   "deployment/secret_io": typeof deployment_secret_io;

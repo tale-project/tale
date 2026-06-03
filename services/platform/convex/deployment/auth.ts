@@ -10,9 +10,10 @@
  * the caller must be an `owner` of at least one organization. A true
  * multi-org `superadmin` role is a future extension.
  *
- * Writes additionally require the opt-in `TALE_DEPLOYMENT_CONFIG_UI` flag; the
- * read path is gated only by instance-admin (so an admin can VIEW the current
- * config read-only even when editing is disabled).
+ * Writes additionally require the caller's email to be in the
+ * `TALE_DEPLOYMENT_CONFIG_ADMINS` allowlist; the read path is gated only by
+ * instance-admin (so any admin can VIEW the current config read-only even when
+ * they are not an editor).
  */
 
 import { ConvexError } from 'convex/values';
@@ -21,12 +22,7 @@ import { defineAbilityFor } from '../../lib/permissions/ability';
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { authComponent } from '../auth';
-
-/** Normalized read of the opt-in UI/edit flag. */
-export function isDeploymentConfigUiEnabled(): boolean {
-  const v = (process.env.TALE_DEPLOYMENT_CONFIG_UI ?? '').trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'yes';
-}
+import { isDeploymentEditor } from './editors';
 
 export interface InstanceAdminAuth {
   userId: string;
@@ -44,13 +40,15 @@ type MemberPage = { page?: { organizationId: string; role: string }[] };
  * Authenticate the caller and require organization-settings access (owner or
  * admin of some org — the deployment is typically single-org self-hosted, so
  * this is effectively "instance administrator"). When `options.write` is set,
- * also require the opt-in `TALE_DEPLOYMENT_CONFIG_UI` flag, which is the real
- * instance-level gate (the operator enables it at the host).
+ * also require the caller's email to be in the `TALE_DEPLOYMENT_CONFIG_ADMINS`
+ * allowlist — the operator names the editors at the host, so viewing is open to
+ * all admins while editing is restricted to the named operators.
  *
  * Throws `ConvexError` with a stable `code`:
  * - `UNAUTHENTICATED` — no auth user.
  * - `FORBIDDEN_INSTANCE_ADMIN` — caller administers no organization.
- * - `DEPLOYMENT_CONFIG_UI_DISABLED` — write attempted while the flag is off.
+ * - `FORBIDDEN_DEPLOYMENT_EDITOR` — write attempted by a caller not in the
+ *   editor allowlist.
  */
 export async function requireInstanceAdmin(
   ctx: ActionCtx,
@@ -83,11 +81,13 @@ export async function requireInstanceAdmin(
     });
   }
 
-  if (options.write && !isDeploymentConfigUiEnabled()) {
+  if (options.write && !isDeploymentEditor(authUser.email)) {
     throw new ConvexError({
-      code: 'DEPLOYMENT_CONFIG_UI_DISABLED',
+      code: 'FORBIDDEN_DEPLOYMENT_EDITOR',
       message:
-        'Editing deployment configuration in the UI is disabled. Set TALE_DEPLOYMENT_CONFIG_UI=true to enable it.',
+        'Your account is not authorized to edit deployment configuration. Ask an ' +
+        'operator to add your email to TALE_DEPLOYMENT_CONFIG_ADMINS in the deployment ' +
+        '.env, then restart.',
     });
   }
 

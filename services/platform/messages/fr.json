@@ -5450,8 +5450,9 @@
     "dataResidency": {
       "pageDescription": "Pointe la base de connaissances et le stockage de fichiers de ce déploiement vers une infrastructure que tu contrôles. Les changements prennent effet au redémarrage des conteneurs RAG et Convex.",
       "readOnly": {
-        "before": "La modification est désactivée. Définis",
-        "after": "dans l'environnement de déploiement et redémarre pour activer les changements ici."
+        "before": "La modification est réservée aux opérateurs listés dans",
+        "after": "(dans le .env du déploiement). Demande à un opérateur d'y ajouter ton courriel, puis redémarre pour activer la modification.",
+        "yourEmail": "Ton courriel de connexion est {email}."
       },
       "secretsEncryptedNoKey": "Les secrets stockés sont chiffrés avec SOPS, mais aucune clé age n'est configurée — les secrets existants ne peuvent pas être lus.",
       "externalPostgres": "Postgres externe",

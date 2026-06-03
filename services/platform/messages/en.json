@@ -5710,8 +5710,9 @@
     "dataResidency": {
       "pageDescription": "Point this deployment's knowledge database and file storage at infrastructure you control. Changes apply when the RAG and Convex containers restart.",
       "readOnly": {
-        "before": "Editing is disabled. Set",
-        "after": "in the deployment environment and restart to enable changes here."
+        "before": "Editing is restricted to the operators listed in",
+        "after": "(in the deployment .env). Ask an operator to add your email there and restart to enable editing.",
+        "yourEmail": "Your sign-in email is {email}."
       },
       "secretsEncryptedNoKey": "The stored secrets are SOPS-encrypted but no age key is configured — existing secrets can't be read.",
       "externalPostgres": "External Postgres",
