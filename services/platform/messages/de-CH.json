@@ -142,13 +142,14 @@
     },
     "menu": {
       "vectorDatabase": {
-        "description": "W\u00e4hlen Sie das Vektordatenbank-Backend f\u00fcr die Suche (deploymentweit)."
+        "description": "W\u00e4hlen Sie das Vektordatenbank-Backend f\u00fcr die Suche dieser Organisation."
       }
     },
     "vectorDatabase": {
       "title": "Vektordatenbank",
       "activeBackend": "Aktives Backend",
-      "deploymentBanner": "Diese Konfiguration gilt f\u00fcr das gesamte Deployment und betrifft jede Organisation, nicht nur Ihre aktuelle. \u00c4nderungen werden nach einem Neustart des RAG-Dienstes wirksam.",
+      "orgScopeBanner": "Diese Konfiguration gilt nur f\u00fcr Ihre aktuelle Organisation. Andere Organisationen sind nicht betroffen. \u00c4nderungen werden kurz nach dem Speichern wirksam \u2013 kein Neustart des Dienstes erforderlich.",
+      "reindexWarning": "Ein Wechsel des Backends migriert vorhandene Vektoren nicht. Unter dem vorherigen Backend indexierte Dokumente bleiben verwaist, bis Sie die Dokumente dieser Organisation in das neue Backend neu indexieren.",
       "backendLabel": "Backend",
       "backend": {
         "pgvector": "PostgreSQL (pgvector, integriert)",
@@ -172,10 +173,10 @@
       "saved": "Vektordatenbank-Einstellungen gespeichert.",
       "saveFailed": "Speichern der Vektordatenbank-Einstellungen fehlgeschlagen.",
       "confirm": {
-        "title": "Vektordatenbank des Deployments \u00e4ndern?",
-        "body": "Sie \u00e4ndern die Vektordatenbank von {from} zu {to}. Dies betrifft ALLE Organisationen in diesem Deployment: Vorhandene Dokumente m\u00fcssen in das neue Backend neu indexiert werden, und die \u00c4nderung wird erst nach einem Neustart des RAG-Dienstes wirksam.",
-        "bodySameBackend": "Sie aktualisieren die Vektordatenbank-Konfiguration des Deployments. Dies betrifft ALLE Organisationen und wird nach einem Neustart des RAG-Dienstes wirksam.",
-        "ack": "Mir ist bewusst, dass dies die Vektordatenbank f\u00fcr alle Organisationen in diesem Deployment \u00e4ndert.",
+        "title": "Vektordatenbank dieser Organisation \u00e4ndern?",
+        "body": "Sie \u00e4ndern die Vektordatenbank dieser Organisation von {from} zu {to}. Vorhandene Vektoren werden nicht migriert \u2013 unter {from} indexierte Dokumente bleiben verwaist, bis Sie sie in {to} neu indexieren. Andere Organisationen sind nicht betroffen.",
+        "bodySameBackend": "Sie aktualisieren die Vektordatenbank-Konfiguration dieser Organisation. Andere Organisationen sind nicht betroffen.",
+        "ack": "Mir ist bewusst, dass dies die Vektordatenbank dieser Organisation \u00e4ndert und vorhandene Dokumente neu indexiert werden m\u00fcssen.",
         "confirm": "Konfiguration speichern",
         "cancel": "Abbrechen"
       },

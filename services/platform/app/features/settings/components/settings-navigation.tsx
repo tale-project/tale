@@ -86,9 +86,9 @@ export function SettingsNavigation({
       matchMode: 'startsWith',
     },
     {
-      // Deployment-wide vector-database backend. Gated on `orgSettings`
+      // Per-organization vector-database backend. Gated on `orgSettings`
       // (owner/admin) — not `developerSettings` — because changing it
-      // affects every organization's retrieval and data location.
+      // affects this organization's retrieval and data location.
       labelKey: 'vectorDatabase',
       label: t('vectorDatabase'),
       href: `/dashboard/${organizationId}/settings/vector-database`,

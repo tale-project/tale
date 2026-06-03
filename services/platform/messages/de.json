@@ -4164,7 +4164,7 @@
         "description": "Richtlinien, Sicherheit, Audit-Logs und Datenaufbewahrung."
       },
       "vectorDatabase": {
-        "description": "Wählen Sie das Vektordatenbank-Backend für die Suche (deploymentweit)."
+        "description": "Wählen Sie das Vektordatenbank-Backend für die Suche dieser Organisation."
       }
     },
     "account": {
@@ -5421,7 +5421,8 @@
     "vectorDatabase": {
       "title": "Vektordatenbank",
       "activeBackend": "Aktives Backend",
-      "deploymentBanner": "Diese Konfiguration gilt für das gesamte Deployment und betrifft jede Organisation, nicht nur Ihre aktuelle. Änderungen werden nach einem Neustart des RAG-Dienstes wirksam.",
+      "orgScopeBanner": "Diese Konfiguration gilt nur für Ihre aktuelle Organisation. Andere Organisationen sind nicht betroffen. Änderungen werden kurz nach dem Speichern wirksam – kein Neustart des Dienstes erforderlich.",
+      "reindexWarning": "Ein Wechsel des Backends migriert vorhandene Vektoren nicht. Unter dem vorherigen Backend indexierte Dokumente bleiben verwaist, bis Sie die Dokumente dieser Organisation in das neue Backend neu indexieren.",
       "backendLabel": "Backend",
       "backendType": {
         "builtin": "Integriert",
@@ -5465,10 +5466,10 @@
       "invalidConfig": "Die Konfiguration ist ungültig. Prüfe die Felder und versuche es erneut.",
       "configUnreadableConfirm": "Die gespeicherte Vektordatenbank-Konfiguration kann nicht gelesen werden. Mit diesen Einstellungen überschreiben?",
       "confirm": {
-        "title": "Vektordatenbank des Deployments ändern?",
-        "body": "Sie ändern die Vektordatenbank von {from} zu {to}. Dies betrifft ALLE Organisationen in diesem Deployment: Vorhandene Dokumente müssen in das neue Backend neu indexiert werden, und die Änderung wird erst nach einem Neustart des RAG-Dienstes wirksam.",
-        "bodySameBackend": "Sie aktualisieren die Vektordatenbank-Konfiguration des Deployments. Dies betrifft ALLE Organisationen und wird nach einem Neustart des RAG-Dienstes wirksam.",
-        "ack": "Mir ist bewusst, dass dies die Vektordatenbank für alle Organisationen in diesem Deployment ändert.",
+        "title": "Vektordatenbank dieser Organisation ändern?",
+        "body": "Sie ändern die Vektordatenbank dieser Organisation von {from} zu {to}. Vorhandene Vektoren werden nicht migriert – unter {from} indexierte Dokumente bleiben verwaist, bis Sie sie in {to} neu indexieren. Andere Organisationen sind nicht betroffen.",
+        "bodySameBackend": "Sie aktualisieren die Vektordatenbank-Konfiguration dieser Organisation. Andere Organisationen sind nicht betroffen.",
+        "ack": "Mir ist bewusst, dass dies die Vektordatenbank dieser Organisation ändert und vorhandene Dokumente neu indexiert werden müssen.",
         "confirm": "Konfiguration speichern",
         "cancel": "Abbrechen"
       },

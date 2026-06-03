@@ -12,7 +12,8 @@ interface ConfigChangeEvent {
     | 'providers'
     | 'branding'
     | 'skills'
-    | 'retention';
+    | 'retention'
+    | 'vectordb';
   orgSlug?: string;
   slug?: string;
 }
@@ -35,9 +36,13 @@ const EMIT_DEBOUNCE_MS = 100;
  * operator edits silently never invalidate caches. Typed as an array
  * of literal-type members so membership lookup narrows without a cast.
  */
-type SingleFileOrgConfigStem = Extract<ConfigChangeEvent['type'], 'retention'>;
+type SingleFileOrgConfigStem = Extract<
+  ConfigChangeEvent['type'],
+  'retention' | 'vectordb'
+>;
 const SINGLE_FILE_ORG_CONFIGS: ReadonlyArray<SingleFileOrgConfigStem> = [
   'retention',
+  'vectordb',
 ];
 function isSingleFileOrgConfig(stem: string): stem is SingleFileOrgConfigStem {
   return (SINGLE_FILE_ORG_CONFIGS as ReadonlyArray<string>).includes(stem);

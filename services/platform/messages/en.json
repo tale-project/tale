@@ -4425,7 +4425,7 @@
         "description": "Policies, security, audit logs, and data retention."
       },
       "vectorDatabase": {
-        "description": "Choose the vector database backend used for retrieval (deployment-wide)."
+        "description": "Choose the vector database backend used for this organization's retrieval."
       }
     },
     "account": {
@@ -5682,7 +5682,8 @@
     "vectorDatabase": {
       "title": "Vector database",
       "activeBackend": "Active backend",
-      "deploymentBanner": "This configuration applies to the entire deployment and affects every organization, not just your current one. Changes take effect after the RAG service restarts.",
+      "orgScopeBanner": "This configuration applies only to your current organization. Other organizations are unaffected. Changes take effect shortly after saving — no service restart required.",
+      "reindexWarning": "Switching the backend does not migrate existing vectors. Documents indexed under the previous backend stay orphaned until you re-index this organization's documents into the new backend.",
       "backendLabel": "Backend",
       "backendType": {
         "builtin": "Built-in",
@@ -5726,10 +5727,10 @@
       "invalidConfig": "The configuration is invalid. Check the fields and try again.",
       "configUnreadableConfirm": "The stored vector database configuration can't be read. Overwrite it with these settings?",
       "confirm": {
-        "title": "Change deployment vector database?",
-        "body": "You are changing the vector database from {from} to {to}. This affects ALL organizations in this deployment: existing documents must be re-indexed into the new backend, and the change takes effect only after the RAG service restarts.",
-        "bodySameBackend": "You are updating the deployment vector-database configuration. This affects ALL organizations and takes effect after the RAG service restarts.",
-        "ack": "I understand this changes the vector database for all organizations in this deployment.",
+        "title": "Change this organization's vector database?",
+        "body": "You are changing the vector database from {from} to {to} for this organization. Existing vectors are not migrated — documents indexed under {from} stay orphaned until you re-index them into {to}. Other organizations are unaffected.",
+        "bodySameBackend": "You are updating this organization's vector-database configuration. Other organizations are unaffected.",
+        "ack": "I understand this changes the vector database for this organization and that existing documents must be re-indexed.",
         "confirm": "Save configuration",
         "cancel": "Cancel"
       },

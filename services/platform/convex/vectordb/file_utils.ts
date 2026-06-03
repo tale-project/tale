@@ -1,14 +1,15 @@
 'use node';
 
 /**
- * Path resolvers + parse helpers for the deployment vector-database config.
+ * Path resolvers + parse helpers for the per-organization vector-database config.
  *
- * DEPLOYMENT-LEVEL, not per-org: the config lives at
- * `<configRoot>/.system/vectordb.json` (+ `vectordb.secrets.json`), outside
- * any `<configRoot>/<orgSlug>/` tree. `.system/` can never collide with an
- * org dir — org slugs must start `[a-z0-9]`, so a leading dot is impossible
- * (asserted below). Keep this path in lockstep with the RAG-side
- * `vector_store/config_reader.py` (`DEPLOYMENT_DIR`).
+ * PER-ORG, single-file layout (isomorphic to retention `<orgSlug>/retention.json`):
+ * the config lives at `<configRoot>/<orgSlug>/vectordb.json` (+ the SOPS-encrypted
+ * `vectordb.secrets.json` sidecar). Each org configures its own backend; there is
+ * no deployment-wide default — orgs without a config file fall back to built-in
+ * pgvector in code. Keep this path in lockstep with the RAG-side
+ * `vector_store/config_reader.py` (`load_vectordb_config(org_slug)`) and the
+ * config-watcher `SINGLE_FILE_ORG_CONFIGS` list.
  */
 
 import path from 'node:path';
@@ -34,24 +35,21 @@ export type { VectorDbConfig, VectorDbSecrets };
 
 export const MAX_FILE_SIZE_BYTES = 64 * 1024;
 
-/** Reserved deployment-scoped dir; provably not a valid org slug. */
-const DEPLOYMENT_DIR = '.system';
-if (validateOrgSlug(DEPLOYMENT_DIR)) {
-  throw new Error(
-    `Deployment dir "${DEPLOYMENT_DIR}" must not be a valid org slug — it would collide with an org config tree.`,
+export function resolveVectorDbDir(orgSlug: string): string {
+  if (!validateOrgSlug(orgSlug))
+    throw new Error(`Invalid org slug: ${orgSlug}`);
+  return path.join(getConfigRoot('vectordb'), orgSlug);
+}
+
+export function resolveVectorDbConfigPath(orgSlug: string): string {
+  return safeJoinWithinDir(resolveVectorDbDir(orgSlug), 'vectordb.json');
+}
+
+export function resolveVectorDbSecretsPath(orgSlug: string): string {
+  return safeJoinWithinDir(
+    resolveVectorDbDir(orgSlug),
+    'vectordb.secrets.json',
   );
-}
-
-export function resolveVectorDbDir(): string {
-  return path.join(getConfigRoot('vectordb'), DEPLOYMENT_DIR);
-}
-
-export function resolveVectorDbConfigPath(): string {
-  return safeJoinWithinDir(resolveVectorDbDir(), 'vectordb.json');
-}
-
-export function resolveVectorDbSecretsPath(): string {
-  return safeJoinWithinDir(resolveVectorDbDir(), 'vectordb.secrets.json');
 }
 
 export function parseVectorDbConfig(content: string): VectorDbConfig {

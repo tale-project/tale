@@ -48,6 +48,13 @@ def _make_service():
     service = RagService()
     service.initialized = True
     service._pool = MagicMock()
+    # delete_document resolves the org's store for external-vector cleanup;
+    # stub a built-in store (no external mirror) so that path is a no-op.
+    store = MagicMock()
+    store.requires_index_sync = False
+    clients = MagicMock()
+    clients.vector_store = store
+    service._ensure_org_clients = AsyncMock(return_value=clients)
     return service
 
 

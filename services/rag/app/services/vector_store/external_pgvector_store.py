@@ -73,8 +73,12 @@ class ExternalPgvectorStore:
                 database=self._cfg.pg_database,
                 # asyncpg maps the libpq sslmode strings via SSLMode.parse.
                 ssl=self._cfg.pg_sslmode,
+                # Pools are PER ORG now: one RAG process may hold many of them
+                # at once (one per external-backend org, bounded by the
+                # _OrgClients LRU). Keep each pool small so N orgs x this don't
+                # exhaust the external database's connection slots.
                 min_size=1,
-                max_size=4,
+                max_size=2,
                 command_timeout=30,
                 max_inactive_connection_lifetime=120.0,
                 server_settings={"search_path": "public"},
@@ -90,7 +94,6 @@ class ExternalPgvectorStore:
 
     async def ensure_ready(self, dimensions: int) -> None:
         pool = await self._get_ext_pool()
-        created = False
         async with acquire_with_retry(pool) as conn:
             await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
             exists = await conn.fetchval("SELECT to_regclass($1)", self._table)
@@ -105,7 +108,6 @@ class ExternalPgvectorStore:
                     )
                     """
                 )
-                created = True
                 logger.info("Created external pgvector table {} (vector({}))", self._table, dimensions)
             else:
                 # An existing table whose vector size differs from the pinned
@@ -131,16 +133,11 @@ class ExternalPgvectorStore:
                     _HNSW_MAX_DIMS,
                 )
 
-        # Copy existing vectors out of the built-in Postgres (no re-embedding)
-        # on first creation or whenever the external table is under-populated
-        # (interrupted backfill, or a switch away from then back to this
-        # backend). Idempotent (upsert keyed on chunk id).
-        if created or await self._needs_backfill():
-            from .backfill import backfill_vectors
-
-            copied = await backfill_vectors(self._pool, self)
-            if copied:
-                logger.info("Backfilled {} existing vectors into external pgvector {}", copied, self._table)
+        # No backfill: existing vectors are NOT migrated when an org adopts or
+        # switches an external backend. A fresh table starts empty; the org
+        # re-indexes its documents to populate it. (Backfilling from the shared
+        # built-in `chunks` table would also copy other orgs' vectors into this
+        # org's table — a cross-tenant leak.)
 
     async def _assert_dimensions(self, conn: asyncpg.Connection, dimensions: int) -> None:
         """Raise if an existing table's embedding column != the pinned dims."""
@@ -167,25 +164,6 @@ class ExternalPgvectorStore:
                 f"embedding dimensions are {dimensions}. Recreate the table (or configure a fresh "
                 f"table name) to change embedding dimensions."
             )
-
-    async def _needs_backfill(self) -> bool:
-        """True when the external table has fewer rows than Postgres has vectors."""
-        pool = await self._get_ext_pool()
-        async with acquire_with_retry(pool) as conn:
-            points = await conn.fetchval(f"SELECT count(*) FROM {self._table}")
-        points = points or 0
-        async with acquire_with_retry(self._pool) as conn:
-            source = await conn.fetchval(f"SELECT count(*) FROM {SCHEMA}.chunks WHERE embedding IS NOT NULL")
-        source = source or 0
-        if points < source:
-            logger.info(
-                "External pgvector {} under-populated ({} rows < {} source chunks); reconciling via backfill",
-                self._table,
-                points,
-                source,
-            )
-            return True
-        return False
 
     async def upsert(self, records: list[VectorRecord]) -> None:
         if not records:

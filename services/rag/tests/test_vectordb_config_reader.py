@@ -1,48 +1,58 @@
-"""Unit tests for the deployment vector-store config reader."""
+"""Unit tests for the per-organization vector-store config reader."""
 
 import json
 
 import pytest
-from tale_shared.config.org_slug import ORG_SLUG_RE
+from tale_shared.config.org_slug import InvalidOrgSlugError
 
 from app.services.vector_store import config_reader as cr
-from app.services.vector_store.config_reader import (
-    DEPLOYMENT_DIR,
-    load_vectordb_config,
-)
+from app.services.vector_store.config_reader import load_vectordb_config
+
+ORG = "acme"
 
 
 @pytest.fixture
 def config_root(tmp_path, monkeypatch):
-    """Point the reader at a temp config root (`.system/` under it)."""
+    """Point the reader at a temp config root and return the test org's dir."""
     monkeypatch.delenv("TALE_PLATFORM_SHARED_CONFIG_DIR", raising=False)
     monkeypatch.setenv("TALE_CONFIG_DIR", str(tmp_path))
-    sysdir = tmp_path / DEPLOYMENT_DIR
-    sysdir.mkdir()
-    return sysdir
+    org_dir = tmp_path / ORG
+    org_dir.mkdir()
+    return org_dir
 
 
-def _write(sysdir, config: dict, secrets: dict | None = None):
-    (sysdir / "vectordb.json").write_text(json.dumps(config))
+def _write(org_dir, config: dict, secrets: dict | None = None):
+    (org_dir / "vectordb.json").write_text(json.dumps(config))
     if secrets is not None:
-        (sysdir / "vectordb.secrets.json").write_text(json.dumps(secrets))
+        (org_dir / "vectordb.secrets.json").write_text(json.dumps(secrets))
 
 
-def test_deployment_dir_is_not_a_valid_org_slug():
-    # The collision guard the whole design rests on: `.system/` can never
-    # be mistaken for an org directory.
-    assert not ORG_SLUG_RE.fullmatch(DEPLOYMENT_DIR)
+def test_invalid_org_slug_is_rejected(config_root):
+    # Path-traversal / malformed slugs must raise before any filesystem join.
+    with pytest.raises(InvalidOrgSlugError):
+        load_vectordb_config("../etc")
 
 
 def test_absent_file_defaults_to_pgvector(config_root):
-    cfg = load_vectordb_config()
+    cfg = load_vectordb_config(ORG)
     assert cfg.backend == "pgvector"
     assert cfg.qdrant_url is None
 
 
+def test_config_is_isolated_per_org(tmp_path, monkeypatch):
+    # One org's config must not bleed into another's lookup.
+    monkeypatch.delenv("TALE_PLATFORM_SHARED_CONFIG_DIR", raising=False)
+    monkeypatch.setenv("TALE_CONFIG_DIR", str(tmp_path))
+    (tmp_path / "orga").mkdir()
+    _write(tmp_path / "orga", {"backend": "qdrant", "qdrant": {"url": "http://qdrant:6333"}})
+    # orgb has no config → built-in pgvector; orga's qdrant config is its own.
+    assert load_vectordb_config("orga").backend == "qdrant"
+    assert load_vectordb_config("orgb").backend == "pgvector"
+
+
 def test_explicit_pgvector(config_root):
     _write(config_root, {"backend": "pgvector"})
-    cfg = load_vectordb_config()
+    cfg = load_vectordb_config(ORG)
     assert cfg.backend == "pgvector"
 
 
@@ -52,7 +62,7 @@ def test_qdrant_config_parsed(config_root):
         {"backend": "qdrant", "qdrant": {"url": "http://qdrant:6333", "collection": "kb", "preferGrpc": True}},
         secrets={"apiKey": "secret-token"},
     )
-    cfg = load_vectordb_config()
+    cfg = load_vectordb_config(ORG)
     assert cfg.backend == "qdrant"
     assert cfg.qdrant_url == "http://qdrant:6333"
     assert cfg.collection == "kb"
@@ -62,24 +72,24 @@ def test_qdrant_config_parsed(config_root):
 
 def test_qdrant_uses_default_collection_when_omitted(config_root):
     _write(config_root, {"backend": "qdrant", "qdrant": {"url": "http://qdrant:6333"}})
-    cfg = load_vectordb_config()
+    cfg = load_vectordb_config(ORG)
     assert cfg.collection == cr.DEFAULT_COLLECTION
     assert cfg.api_key is None  # no secrets file
 
 
 def test_unknown_backend_falls_back_to_pgvector(config_root):
     _write(config_root, {"backend": "pinecone"})
-    assert load_vectordb_config().backend == "pgvector"
+    assert load_vectordb_config(ORG).backend == "pgvector"
 
 
 def test_qdrant_without_url_falls_back_to_pgvector(config_root):
     _write(config_root, {"backend": "qdrant", "qdrant": {"collection": "kb"}})
-    assert load_vectordb_config().backend == "pgvector"
+    assert load_vectordb_config(ORG).backend == "pgvector"
 
 
 def test_malformed_json_falls_back_to_pgvector(config_root):
     (config_root / "vectordb.json").write_text("{not json")
-    assert load_vectordb_config().backend == "pgvector"
+    assert load_vectordb_config(ORG).backend == "pgvector"
 
 
 @pytest.mark.parametrize("payload", ["null", "[]", "42", '"a string"'])
@@ -87,13 +97,13 @@ def test_non_object_json_falls_back_to_pgvector(config_root, payload):
     # Valid JSON that isn't an object would raise AttributeError on .get();
     # the reader must stay fail-safe.
     (config_root / "vectordb.json").write_text(payload)
-    assert load_vectordb_config().backend == "pgvector"
+    assert load_vectordb_config(ORG).backend == "pgvector"
 
 
 def test_qdrant_section_non_dict_falls_back_to_pgvector(config_root):
     # A truthy non-dict `qdrant` (here a string) must not raise on .get("url").
     _write(config_root, {"backend": "qdrant", "qdrant": "oops"})
-    assert load_vectordb_config().backend == "pgvector"
+    assert load_vectordb_config(ORG).backend == "pgvector"
 
 
 def test_undecryptable_secret_falls_back_to_pgvector(config_root, monkeypatch):
@@ -109,7 +119,7 @@ def test_undecryptable_secret_falls_back_to_pgvector(config_root, monkeypatch):
         raise RuntimeError("no SOPS key available")
 
     monkeypatch.setattr(cr, "decrypt_secrets_file", _boom)
-    assert load_vectordb_config().backend == "pgvector"
+    assert load_vectordb_config(ORG).backend == "pgvector"
 
 
 def test_pgvector_external_parsed_with_password(config_root):
@@ -128,7 +138,7 @@ def test_pgvector_external_parsed_with_password(config_root):
         },
         secrets={"password": "s3cret"},
     )
-    cfg = load_vectordb_config()
+    cfg = load_vectordb_config(ORG)
     assert cfg.backend == "pgvector_external"
     assert cfg.pg_host == "db.example.com"
     assert cfg.pg_port == 6543
@@ -148,7 +158,7 @@ def test_pgvector_external_defaults_when_omitted(config_root):
             "pgvectorExternal": {"host": "h", "database": "d", "user": "u"},
         },
     )
-    cfg = load_vectordb_config()
+    cfg = load_vectordb_config(ORG)
     assert cfg.backend == "pgvector_external"
     assert cfg.pg_port == cr.DEFAULT_PG_PORT
     assert cfg.pg_sslmode == cr.DEFAULT_PG_SSLMODE
@@ -162,12 +172,12 @@ def test_pgvector_external_incomplete_falls_back_to_pgvector(config_root):
         config_root,
         {"backend": "pgvector_external", "pgvectorExternal": {"host": "h", "database": "d"}},
     )
-    assert load_vectordb_config().backend == "pgvector"
+    assert load_vectordb_config(ORG).backend == "pgvector"
 
 
 def test_pgvector_external_section_non_dict_falls_back_to_pgvector(config_root):
     _write(config_root, {"backend": "pgvector_external", "pgvectorExternal": "oops"})
-    assert load_vectordb_config().backend == "pgvector"
+    assert load_vectordb_config(ORG).backend == "pgvector"
 
 
 def test_pgvector_external_undecryptable_secret_falls_back_to_pgvector(config_root, monkeypatch):
@@ -184,7 +194,7 @@ def test_pgvector_external_undecryptable_secret_falls_back_to_pgvector(config_ro
         raise RuntimeError("no SOPS key available")
 
     monkeypatch.setattr(cr, "decrypt_secrets_file", _boom)
-    assert load_vectordb_config().backend == "pgvector"
+    assert load_vectordb_config(ORG).backend == "pgvector"
 
 
 def test_pgvector_external_in_valid_backends():

@@ -29,6 +29,7 @@ def _make_service():
     have to drive the lazy-init path.
     """
     from app.services.rag_service import RagService, _OrgClients
+    from app.services.vector_store import VectorDbConfig
 
     service = RagService()
     service.initialized = True
@@ -40,6 +41,11 @@ def _make_service():
     openai_client = AsyncMock()
     vision_client = MagicMock()
     search_service = AsyncMock()
+    # Built-in store: requires_index_sync=False so add_document's external
+    # mirror block is skipped (these tests don't exercise external backends).
+    vector_store = AsyncMock()
+    vector_store.requires_index_sync = False
+    vector_store.backend_name = "pgvector"
 
     service._org_clients[TEST_ORG] = _OrgClients(
         llm_config={
@@ -55,6 +61,8 @@ def _make_service():
         openai_client=openai_client,
         vision_client=vision_client,
         search_service=search_service,
+        vector_store=vector_store,
+        vectordb_config=VectorDbConfig(),
         last_check=time.monotonic(),
     )
     # Back-compat aliases for tests that grab the mocks directly off the
@@ -144,6 +152,7 @@ class TestAddDocument:
         that org), so we pre-seed the cache to bypass _ensure_org_clients
         and only verify the DB-pool initialize gate fires."""
         from app.services.rag_service import RagService, _OrgClients
+        from app.services.vector_store import VectorDbConfig
 
         service = RagService()
         assert service.initialized is False
@@ -158,6 +167,9 @@ class TestAddDocument:
                 embedding = AsyncMock()
                 embedding.dimensions = 1536
                 service._pinned_dims = 1536
+                vector_store = AsyncMock()
+                vector_store.requires_index_sync = False
+                vector_store.backend_name = "pgvector"
                 service._org_clients[TEST_ORG] = _OrgClients(
                     llm_config={
                         "model": "gpt",
@@ -172,6 +184,8 @@ class TestAddDocument:
                     openai_client=AsyncMock(),
                     vision_client=MagicMock(),
                     search_service=AsyncMock(),
+                    vector_store=vector_store,
+                    vectordb_config=VectorDbConfig(),
                     last_check=time.monotonic(),
                 )
 

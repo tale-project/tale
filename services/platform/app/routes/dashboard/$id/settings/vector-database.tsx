@@ -11,7 +11,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/vector-database')(
 function VectorDatabaseSettingsPage() {
   const { id } = Route.useParams();
   // The container owns the orgSettings access check, the config read, and the
-  // loading state, wrapping the form (+ deployment-scope banner) in
+  // loading state, wrapping the form (+ org-scope/re-index banners) in
   // <Skeletonize>.
   return <VectorDatabaseSettings organizationId={id} />;
 }

@@ -4165,7 +4165,7 @@
         "description": "Politiques, sécurité, journaux d'audit et conservation des données."
       },
       "vectorDatabase": {
-        "description": "Choisissez le backend de base de données vectorielle utilisé pour la recherche (à l’échelle du déploiement)."
+        "description": "Choisissez le backend de base de données vectorielle utilisé pour la recherche de cette organisation."
       }
     },
     "account": {
@@ -5422,7 +5422,8 @@
     "vectorDatabase": {
       "title": "Base de données vectorielle",
       "activeBackend": "Backend actif",
-      "deploymentBanner": "Cette configuration s’applique à l’ensemble du déploiement et concerne chaque organisation, pas seulement la vôtre. Les modifications prennent effet après le redémarrage du service RAG.",
+      "orgScopeBanner": "Cette configuration s’applique uniquement à votre organisation actuelle. Les autres organisations ne sont pas affectées. Les modifications prennent effet peu après l’enregistrement — aucun redémarrage du service n’est nécessaire.",
+      "reindexWarning": "Changer de backend ne migre pas les vecteurs existants. Les documents indexés avec le backend précédent restent orphelins jusqu’à ce que vous réindexiez les documents de cette organisation dans le nouveau backend.",
       "backendLabel": "Backend",
       "backendType": {
         "builtin": "Intégré",
@@ -5466,10 +5467,10 @@
       "invalidConfig": "La configuration est invalide. Vérifie les champs et réessaie.",
       "configUnreadableConfirm": "Impossible de lire la configuration de base de données vectorielle enregistrée. La remplacer par ces paramètres ?",
       "confirm": {
-        "title": "Modifier la base de données vectorielle du déploiement ?",
-        "body": "Vous changez la base de données vectorielle de {from} vers {to}. Cela concerne TOUTES les organisations de ce déploiement : les documents existants doivent être réindexés dans le nouveau backend, et la modification ne prend effet qu’après le redémarrage du service RAG.",
-        "bodySameBackend": "Vous mettez à jour la configuration de la base de données vectorielle du déploiement. Cela concerne TOUTES les organisations et prend effet après le redémarrage du service RAG.",
-        "ack": "Je comprends que cela modifie la base de données vectorielle pour toutes les organisations de ce déploiement.",
+        "title": "Modifier la base de données vectorielle de cette organisation ?",
+        "body": "Vous changez la base de données vectorielle de cette organisation de {from} vers {to}. Les vecteurs existants ne sont pas migrés — les documents indexés avec {from} restent orphelins jusqu’à ce que vous les réindexiez dans {to}. Les autres organisations ne sont pas affectées.",
+        "bodySameBackend": "Vous mettez à jour la configuration de la base de données vectorielle de cette organisation. Les autres organisations ne sont pas affectées.",
+        "ack": "Je comprends que cela modifie la base de données vectorielle de cette organisation et que les documents existants doivent être réindexés.",
         "confirm": "Enregistrer la configuration",
         "cancel": "Annuler"
       },

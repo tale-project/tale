@@ -1,4 +1,4 @@
-"""Construct the process-singleton VectorStore from the deployment config."""
+"""Construct a per-org VectorStore from that org's config."""
 
 from __future__ import annotations
 
@@ -10,15 +10,26 @@ from .config_reader import VectorDbConfig, load_vectordb_config
 from .postgres_store import PostgresVectorStore
 
 
-def get_vector_store(pool: asyncpg.Pool, config: VectorDbConfig | None = None) -> VectorStore:
-    """Build the active vector-store driver.
+def get_vector_store(
+    pool: asyncpg.Pool,
+    config: VectorDbConfig | None = None,
+    org_slug: str | None = None,
+) -> VectorStore:
+    """Build an org's vector-store driver.
 
-    Reads the deployment config (or takes an explicit one for tests) and
-    returns the matching driver. The Qdrant client is imported lazily so
-    deployments on the built-in pgvector backend don't require the
-    optional `qdrant-client` dependency to be installed.
+    Reads the org's config via ``org_slug`` (or takes an explicit ``config``
+    for tests) and returns the matching driver. The Qdrant client is imported
+    lazily so orgs on the built-in pgvector backend don't require the optional
+    ``qdrant-client`` dependency to be installed.
+
+    Exactly one of ``config`` / ``org_slug`` must be provided — there is no
+    deployment-wide default config to fall back on.
     """
-    cfg = config or load_vectordb_config()
+    if config is None:
+        if org_slug is None:
+            raise ValueError("get_vector_store requires either config or org_slug")
+        config = load_vectordb_config(org_slug)
+    cfg = config
 
     if cfg.backend == "qdrant":
         from .qdrant_store import QdrantVectorStore

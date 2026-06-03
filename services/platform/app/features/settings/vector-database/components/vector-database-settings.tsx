@@ -163,8 +163,8 @@ export function VectorDatabaseSettings({
 
 // =============================================================================
 // Form — Built-in/External type select → external-backend select → per-backend
-// fields + write-only secret, with a persistent deployment-scope banner and a
-// confirm-on-save dialog.
+// fields + write-only secret, with persistent org-scope + re-index banners and
+// a confirm-on-save dialog.
 // =============================================================================
 function VectorDatabaseForm({
   organizationId,
@@ -390,9 +390,14 @@ function VectorDatabaseForm({
       narrow
     >
       <Banner
+        variant="info"
+        dismissible={false}
+        message={t('vectorDatabase.orgScopeBanner')}
+      />
+      <Banner
         variant="warning"
         dismissible={false}
-        message={t('vectorDatabase.deploymentBanner')}
+        message={t('vectorDatabase.reindexWarning')}
       />
 
       <SettingsSection

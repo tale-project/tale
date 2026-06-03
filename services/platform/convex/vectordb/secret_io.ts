@@ -6,8 +6,8 @@
  * Read-existing → merge → return-plaintext, with the same data-loss guard as
  * `providers/secret_io.ts`: refuses to overwrite an existing-but-undecryptable
  * secrets file unless `force` is set (the on-disk ciphertext may be the only
- * recoverable copy). The schema here is `{ apiKey?, password? }` — one shared
- * deployment file across backends (Qdrant uses `apiKey`, external pgvector uses
+ * recoverable copy). The schema here is `{ apiKey?, password? }` — one
+ * per-org file across backends (Qdrant uses `apiKey`, external pgvector uses
  * `password`); fields merge independently so saving one preserves the other.
  *
  * The companion action `saveVectorDbSecret` in `file_actions.ts` calls this,

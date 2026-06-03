@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
 /**
- * Deployment-wide vector-database configuration.
+ * Per-organization vector-database configuration.
  *
- * A SINGLE config for the whole deployment (not per-org): it selects which
- * vector-store backend the RAG service uses. The RAG service reads the
- * resulting `vectordb.json` (+ SOPS-encrypted `vectordb.secrets.json`) from
- * the shared config volume and picks its driver accordingly.
+ * Each org has its own config selecting which vector-store backend the RAG
+ * service uses for that org's documents. The RAG service reads the org's
+ * `<orgSlug>/vectordb.json` (+ SOPS-encrypted `vectordb.secrets.json`) from
+ * the shared config volume and picks that org's driver accordingly. Orgs
+ * without a config file fall back to built-in pgvector.
  *
  * Keep the backend literals in lockstep with the RAG-side
  * `services/rag/app/services/vector_store/config_reader.py` (`VALID_BACKENDS`).

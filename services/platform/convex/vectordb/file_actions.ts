@@ -1,14 +1,14 @@
 'use node';
 
 /**
- * Deployment vector-database config I/O actions.
+ * Per-organization vector-database config I/O actions.
  *
- * Mirrors the providers pattern (file_actions + secret_io + SOPS) but for a
- * SINGLE deployment-level config (no orgSlug, no resource name). The RAG
- * service reads the written `vectordb.json` / `vectordb.secrets.json` from
- * the shared config volume and selects its driver. All four actions are
- * gated on `orgSettings` (owner/admin) because the config is deployment-wide
- * and affects every organization.
+ * Mirrors the providers pattern (file_actions + secret_io + SOPS): each org's
+ * config lives at `<configRoot>/<orgSlug>/vectordb.json` (+ the SOPS-encrypted
+ * `vectordb.secrets.json` sidecar). The RAG service reads the org's file from
+ * the shared config volume and selects that org's driver. All four actions are
+ * gated on `orgSettings` (owner/admin) and scoped to the caller's org — the
+ * config affects only that organization's retrieval and data location.
  */
 
 import { ConvexError, v } from 'convex/values';
@@ -22,6 +22,7 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
+import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { ragFetch } from '../lib/helpers/rag_config';
 import { safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
 import {
@@ -73,13 +74,13 @@ function convexErrorCode(err: unknown): string | undefined {
   return undefined;
 }
 
-/** Read the deployment config, defaulting to pgvector when the file is absent. */
-async function readConfigFile(): Promise<{
+/** Read the org's config, defaulting to pgvector when the file is absent. */
+async function readConfigFile(orgSlug: string): Promise<{
   config: VectorDbConfig;
   hash: string | null;
 }> {
   const result = await readJsonFile<VectorDbConfig>(
-    resolveVectorDbConfigPath(),
+    resolveVectorDbConfigPath(orgSlug),
     MAX_FILE_SIZE_BYTES,
     parseVectorDbConfig,
   );
@@ -114,7 +115,7 @@ async function writeAudit(
         action: auditAction,
         category: 'security',
         resourceType: 'vectordb',
-        resourceId: 'deployment',
+        resourceId: auth.orgId,
         resourceName: 'Vector database',
         status: 'success',
         metadata,
@@ -129,7 +130,7 @@ async function writeAudit(
 }
 
 /**
- * Read the current deployment vector-db config + masked secret state. Never
+ * Read the org's current vector-db config + masked secret state. Never
  * returns the raw API key. Defaults to pgvector when nothing is configured.
  */
 export const readVectorDbConfig = action({
@@ -137,7 +138,8 @@ export const readVectorDbConfig = action({
   returns: v.any(),
   handler: async (ctx, args) => {
     await requireOrgSettingsAccessById(ctx, args.organizationId);
-    const { config, hash } = await readConfigFile();
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+    const { config, hash } = await readConfigFile(orgSlug);
 
     let hasApiKey = false;
     let maskedApiKey: string | null = null;
@@ -145,7 +147,7 @@ export const readVectorDbConfig = action({
     let maskedPassword: string | null = null;
     try {
       const secrets = parseVectorDbSecrets(
-        await decryptSecretsFile(resolveVectorDbSecretsPath()),
+        await decryptSecretsFile(resolveVectorDbSecretsPath(orgSlug)),
       );
       if (secrets.apiKey) {
         hasApiKey = true;
@@ -187,7 +189,7 @@ export const readVectorDbConfig = action({
 });
 
 /**
- * Persist the deployment vector-db config. Validates, SSRF-gates the Qdrant
+ * Persist the org's vector-db config. Validates, SSRF-gates the Qdrant
  * URL, supports optimistic concurrency via `expectedHash`, and audit-logs
  * (distinguishing a backend change from a same-backend tweak).
  */
@@ -205,6 +207,7 @@ export const saveVectorDbConfig = action({
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
     const auth = await requireOrgSettingsAccessById(ctx, args.organizationId);
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
 
     const parsed = vectorDbConfigSchema.safeParse(args.config);
     if (!parsed.success) {
@@ -228,7 +231,7 @@ export const saveVectorDbConfig = action({
 
     let before: { config: VectorDbConfig; hash: string | null };
     try {
-      before = await readConfigFile();
+      before = await readConfigFile(orgSlug);
     } catch (err) {
       // Force lets the operator repair a corrupted config from the UI; without
       // it the unreadable prior state would block any save indefinitely.
@@ -252,7 +255,7 @@ export const saveVectorDbConfig = action({
     }
 
     const content = serializeVectorDbConfig(config);
-    await atomicWrite(resolveVectorDbConfigPath(), content);
+    await atomicWrite(resolveVectorDbConfigPath(orgSlug), content);
     const hash = sha256(content);
 
     const backendChanged = before.config.backend !== config.backend;
@@ -271,7 +274,7 @@ export const saveVectorDbConfig = action({
 });
 
 /**
- * Persist the deployment vector-db secret (Qdrant API key or external pgvector
+ * Persist the org's vector-db secret (Qdrant API key or external pgvector
  * password). Merges with any existing secret, SOPS-encrypts when a secret is
  * configured, and refuses to clobber an unreadable existing file unless `force`
  * is set.
@@ -286,7 +289,8 @@ export const saveVectorDbSecret = action({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const auth = await requireOrgSettingsAccessById(ctx, args.organizationId);
-    const secretsPath = resolveVectorDbSecretsPath();
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+    const secretsPath = resolveVectorDbSecretsPath(orgSlug);
 
     let prepared: Awaited<ReturnType<typeof prepareMergedVectorDbSecret>>;
     try {
@@ -360,6 +364,7 @@ export const testVectorDbConnection = action({
   }),
   handler: async (ctx, args) => {
     await requireOrgSettingsAccessById(ctx, args.organizationId);
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
 
     const parsed = vectorDbConfigSchema.safeParse(args.config);
     if (!parsed.success) {
@@ -392,7 +397,7 @@ export const testVectorDbConnection = action({
       if (!password) {
         try {
           const secrets = parseVectorDbSecrets(
-            await decryptSecretsFile(resolveVectorDbSecretsPath()),
+            await decryptSecretsFile(resolveVectorDbSecretsPath(orgSlug)),
           );
           password = secrets.password;
         } catch (err) {
@@ -414,7 +419,9 @@ export const testVectorDbConnection = action({
       }
 
       // Proxy through RAG: it owns the asyncpg stack and the network that can
-      // reach the candidate DB. A deployment-level op — no X-Tale-Org header.
+      // reach the candidate DB. This probes a prospective, unsaved config sent
+      // in the request body, so RAG's admin endpoint is body-driven and needs
+      // no X-Tale-Org header.
       const started = Date.now();
       try {
         const response = await ragFetch(
@@ -490,7 +497,7 @@ export const testVectorDbConnection = action({
     if (!apiKey) {
       try {
         const secrets = parseVectorDbSecrets(
-          await decryptSecretsFile(resolveVectorDbSecretsPath()),
+          await decryptSecretsFile(resolveVectorDbSecretsPath(orgSlug)),
         );
         apiKey = secrets.apiKey;
       } catch (err) {

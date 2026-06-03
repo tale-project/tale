@@ -1,16 +1,16 @@
-"""Deployment-level vector-store configuration reader.
+"""Per-organization vector-store configuration reader.
 
-Reads ONE deployment-wide config file (not per-org) that selects the
-vector-store backend the RAG service uses, plus its decrypted secret.
-Mirrors the read + SOPS pattern in ``tale_shared.config.providers`` but
-for a single file at ``<base>/.system/vectordb.json``.
+Reads each org's config file selecting the vector-store backend the RAG
+service uses for that org's documents, plus its decrypted secret. Mirrors
+the read + SOPS pattern in ``tale_shared.config.providers``: the file lives
+at ``<base>/<org_slug>/vectordb.json`` (+ ``vectordb.secrets.json``).
 
-The platform admin UI writes this file; RAG reads it once at startup
-(switching backends is an infra-level change that takes effect on
-restart, matching the process-scoped pool + dimension pin).
+The platform admin UI writes these files; RAG reads them lazily per org
+(via the per-org client cache), so switching an org's backend takes effect
+shortly after saving without a process restart.
 
-Backward compatible: when the file is absent the backend defaults to
-pgvector, so existing deployments keep working untouched.
+When an org has no config file the backend defaults to built-in pgvector,
+so orgs that never configure anything keep working untouched.
 """
 
 from __future__ import annotations
@@ -22,19 +22,12 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from tale_shared.config.org_slug import ORG_SLUG_RE
+from tale_shared.config.org_slug import validate_org_slug
 from tale_shared.utils.sops import decrypt_secrets_file
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_DIR = "/app/data"
-
-# Deployment-scoped config lives OUTSIDE any org dir. A leading dot can
-# never be a valid org slug (ORG_SLUG_RE requires `[a-z0-9]` first), so
-# `.system/` cannot collide with `<base>/<org_slug>/`. Assert it so a
-# future regex change that would allow the collision fails loudly here.
-DEPLOYMENT_DIR = ".system"
-assert not ORG_SLUG_RE.fullmatch(DEPLOYMENT_DIR), "DEPLOYMENT_DIR must not be a valid org slug"
 
 VALID_BACKENDS = ("pgvector", "pgvector_external", "qdrant")
 DEFAULT_COLLECTION = "tale_chunks"
@@ -76,17 +69,20 @@ def _config_base() -> Path:
     return Path(os.environ.get("TALE_CONFIG_DIR") or os.environ.get("CONFIG_DIR", DEFAULT_CONFIG_DIR))
 
 
-def _deployment_dir() -> Path:
-    return _config_base() / DEPLOYMENT_DIR
+def _org_dir(org_slug: str) -> Path:
+    # validate_org_slug guards against path traversal via a malicious slug
+    # (`..`, `/`, absolute paths) before it is joined onto the config base.
+    return _config_base() / validate_org_slug(org_slug)
 
 
-def load_vectordb_config() -> VectorDbConfig:
-    """Read the deployment vector-store config. Defaults to pgvector when
-    the file is absent or unreadable (fail safe — never crash startup over
-    a missing/garbled config; the built-in backend keeps RAG serving)."""
-    config_path = _deployment_dir() / "vectordb.json"
+def load_vectordb_config(org_slug: str) -> VectorDbConfig:
+    """Read an org's vector-store config. Defaults to built-in pgvector when
+    the org has no file or it is unreadable (fail safe — never crash over a
+    missing/garbled config; the built-in backend keeps the org serving)."""
+    org_dir = _org_dir(org_slug)
+    config_path = org_dir / "vectordb.json"
     if not config_path.is_file():
-        logger.info("No deployment vectordb config at %s; using pgvector", config_path)
+        logger.debug("No vectordb config for org %r at %s; using pgvector", org_slug, config_path)
         return VectorDbConfig()
 
     try:
@@ -112,7 +108,7 @@ def load_vectordb_config() -> VectorDbConfig:
         return VectorDbConfig(backend="pgvector")
 
     if backend == "pgvector_external":
-        return _resolve_pgvector_external(data)
+        return _resolve_pgvector_external(data, org_dir)
 
     # A truthy non-dict `qdrant` (e.g. a string) survives `... or {}` and would
     # raise AttributeError on .get(); coerce any non-dict to an empty dict.
@@ -125,7 +121,7 @@ def load_vectordb_config() -> VectorDbConfig:
         return VectorDbConfig()
 
     try:
-        secrets = _load_secrets()
+        secrets = _load_secrets(org_dir)
     except _SecretUndecryptable as exc:
         # A secret file exists but can't be decrypted. Connecting to Qdrant
         # unauthenticated would silently drop the configured credential, so
@@ -146,7 +142,7 @@ def load_vectordb_config() -> VectorDbConfig:
     )
 
 
-def _resolve_pgvector_external(data: dict) -> VectorDbConfig:
+def _resolve_pgvector_external(data: dict, org_dir: Path) -> VectorDbConfig:
     """Resolve an external-pgvector config, failing safe to built-in pgvector.
 
     Mirrors the Qdrant fail-safe contract: a missing required field or an
@@ -164,7 +160,7 @@ def _resolve_pgvector_external(data: dict) -> VectorDbConfig:
         return VectorDbConfig()
 
     try:
-        secrets = _load_secrets()
+        secrets = _load_secrets(org_dir)
     except _SecretUndecryptable as exc:
         # A secret exists but can't be decrypted — connecting with the wrong
         # (or no) password would silently fail; fail safe with a loud error.
@@ -205,8 +201,8 @@ class _SecretUndecryptable(Exception):
     """
 
 
-def _load_secrets() -> dict | None:
-    """Decrypt the deployment vectordb secrets (``apiKey`` and/or ``password``).
+def _load_secrets(org_dir: Path) -> dict | None:
+    """Decrypt an org's vectordb secrets (``apiKey`` and/or ``password``).
 
     Returns None when no secret file is present (the secret is optional —
     Qdrant may be unauthenticated, external pgvector may use trust/cert auth).
@@ -214,7 +210,7 @@ def _load_secrets() -> dict | None:
     needs. Raises ``_SecretUndecryptable`` when a file IS present but cannot be
     decrypted — never silently degrades a configured credential.
     """
-    secrets_path = _deployment_dir() / "vectordb.secrets.json"
+    secrets_path = org_dir / "vectordb.secrets.json"
     if not secrets_path.exists():
         return None
     try:

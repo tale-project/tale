@@ -87,8 +87,9 @@ async def get_config():
 
     Auth-gated via the protected router; before round-2 v15 this leaked
     deployment fingerprints (model names, host/port, chunking params)
-    to any caller with reach to the RAG port. LLM/embedding model names
-    require an `org_slug` to resolve and are omitted here.
+    to any caller with reach to the RAG port. LLM/embedding model names —
+    and now the vector backend — are PER ORG and require an `org_slug` to
+    resolve, so `vector_backend` reports a `per-org` sentinel here.
     """
     vector = await rag_service.vector_store_health()
     return ConfigResponse(

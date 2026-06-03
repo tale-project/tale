@@ -193,6 +193,7 @@
             "platform/admin/integrations",
             "platform/admin/api-keys",
             "platform/admin/branding",
+            "platform/admin/vector-database",
             "platform/admin/two-factor-authentication",
             "platform/admin/changelog",
             {

@@ -1,14 +1,14 @@
 'use node';
 
 /**
- * Auth gate for the deployment vector-database actions.
+ * Auth gate for the per-organization vector-database actions.
  *
- * The vector-database config is DEPLOYMENT-WIDE — one shared file that
- * affects every organization's retrieval and data location. Editing it is
- * therefore gated on the `orgSettings` capability (owner/admin), stricter
- * than the per-org `developerSettings` gate used for providers. The caller
- * still authenticates through their membership in `organizationId`; the
- * resolved actor feeds the audit log.
+ * The vector-database config is per-org — it selects that organization's
+ * retrieval backend and data location. Editing it is gated on the
+ * `orgSettings` capability (owner/admin), stricter than the
+ * `developerSettings` gate used for providers. The caller authenticates
+ * through their membership in `organizationId`; the resolved actor feeds the
+ * audit log.
  */
 
 import { ConvexError } from 'convex/values';
@@ -39,7 +39,7 @@ export async function requireOrgSettingsAccessById(
       code: 'FORBIDDEN_ORG_SETTINGS',
       message:
         `Role "${auth.member.role}" lacks the organization-settings access ` +
-        'required to modify the deployment vector-database configuration.',
+        "required to modify this organization's vector-database configuration.",
     });
   }
   return auth;

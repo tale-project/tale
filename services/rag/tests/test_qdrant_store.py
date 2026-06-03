@@ -7,7 +7,7 @@ and ensure_ready idempotency. The `file_ids` path (which hits Postgres via
 """
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from qdrant_client import AsyncQdrantClient, models
@@ -41,16 +41,6 @@ async def _create_collection(store: QdrantVectorStore, dim: int = 4) -> None:
         collection_name=COLLECTION,
         vectors_config=models.VectorParams(size=dim, distance=models.Distance.COSINE),
     )
-
-
-def _pool_with_chunk_count(n: int):
-    """Fake `acquire_with_retry` ctx whose conn.fetchval -> n (source chunks)."""
-    conn = AsyncMock()
-    conn.fetchval = AsyncMock(return_value=n)
-    ctx = AsyncMock()
-    ctx.__aenter__ = AsyncMock(return_value=conn)
-    ctx.__aexit__ = AsyncMock(return_value=False)
-    return ctx
 
 
 @pytest.mark.asyncio
@@ -122,54 +112,20 @@ async def test_delete_documents_removes_points():
 
 
 @pytest.mark.asyncio
-async def test_ensure_ready_idempotent_and_health(monkeypatch):
+async def test_ensure_ready_idempotent_and_health():
     store = _make_store()
 
-    # New-collection branch triggers a backfill; stub it (no Postgres here).
-    async def _fake_backfill(pool, s, **kwargs):
-        return 0
-
-    monkeypatch.setattr("app.services.vector_store.backfill.backfill_vectors", _fake_backfill)
-
-    # Source chunk count == 0, so the second call's reconcile gate sees the
-    # (empty) collection as fully populated and stays a no-op.
-    with patch(
-        "app.services.vector_store.qdrant_store.acquire_with_retry",
-        return_value=_pool_with_chunk_count(0),
-    ):
-        await store.ensure_ready(4)  # creates the collection + payload indexes
-        await store.ensure_ready(4)  # second call must be a no-op, not an error
+    # No backfill: a fresh collection starts empty; the org re-indexes to
+    # populate it. ensure_ready only creates the collection + payload indexes
+    # and must be idempotent.
+    await store.ensure_ready(4)  # creates the collection + payload indexes
+    await store.ensure_ready(4)  # second call must be a no-op, not an error
 
     assert await store._client.collection_exists(COLLECTION)
     health = await store.health()
     assert health["backend"] == "qdrant"
     assert health["reachable"] is True
     assert health["collection"] == COLLECTION
-
-
-@pytest.mark.asyncio
-async def test_ensure_ready_reconciles_underpopulated_collection(monkeypatch):
-    """An existing-but-under-populated collection must re-run the backfill
-    (covers an interrupted first backfill or a switch-away-then-back)."""
-    store = _make_store()
-    await _create_collection(store)  # exists + empty (0 points)
-
-    calls = {"backfill": 0}
-
-    async def _fake_backfill(pool, s, **kwargs):
-        calls["backfill"] += 1
-        return 3
-
-    monkeypatch.setattr("app.services.vector_store.backfill.backfill_vectors", _fake_backfill)
-
-    # Postgres reports 3 source chunks vs 0 points in Qdrant -> reconcile.
-    with patch(
-        "app.services.vector_store.qdrant_store.acquire_with_retry",
-        return_value=_pool_with_chunk_count(3),
-    ):
-        await store.ensure_ready(4)
-
-    assert calls["backfill"] == 1
 
 
 @pytest.mark.asyncio

@@ -6,21 +6,24 @@ compare_files.
 
 All public methods take `org_slug` as their first argument so the SQL
 layer can scope by `org_slug` and the per-org LLM / embedding / vision
-clients can be loaded from THAT org's provider catalog at
-`<TALE_CONFIG_DIR>/<org>/providers/`. Per-org client state is built
-lazily and cached for `_CONFIG_CHECK_INTERVAL` seconds.
+clients — and the per-org vector-store backend — can be loaded from THAT
+org's config at `<TALE_CONFIG_DIR>/<org>/` (providers + vectordb.json).
+Per-org client state is built lazily and cached for
+`_CONFIG_CHECK_INTERVAL` seconds; changing an org's vector backend takes
+effect within that window without a process restart.
 
 Tenant isolation is enforced at the data layer: `documents` and `chunks`
 both carry an `org_slug` column (NOT NULL DEFAULT 'default') and a
 composite FK ties chunks.org_slug to documents.org_slug. Every SELECT /
 UPDATE / DELETE / INSERT filters by `org_slug`.
 
-Embedding **dimensions** are global: the underlying knowledge DB uses
-one vector column, so all orgs sharing this RAG instance must use the
-same embedding dimensions. The first org to initialize pins the value;
-subsequent orgs that disagree raise loudly rather than silently storing
-mis-dimensioned vectors. (Per-org dims would require per-org DB schemas
-— out of scope.)
+Embedding **dimensions** are global ONLY for orgs on the built-in
+pgvector backend: that backend shares one `chunks.embedding` column
+across all orgs, so the first built-in org to initialize pins the value
+and later built-in orgs that disagree raise loudly. Orgs that configure
+their OWN external backend (Qdrant / external pgvector) pin dimensions
+independently in their own collection/table and may differ from each
+other and from the built-in pin.
 """
 
 from __future__ import annotations
@@ -51,6 +54,7 @@ from .database import (
 from .indexing_service import index_document
 from .search_service import RagSearchService
 from .vector_store import (
+    VectorDbConfig,
     VectorRecord,
     VectorStore,
     get_vector_store,
@@ -131,11 +135,14 @@ async def _safe_close(coro) -> None:
 
 @dataclass
 class _OrgClients:
-    """Per-org cached LLM/embedding/vision clients.
+    """Per-org cached LLM/embedding/vision clients + vector-store backend.
 
     Lifecycle: built lazily on first call for an org, refreshed if older
-    than `_CONFIG_CHECK_INTERVAL` AND the underlying provider config has
-    changed on disk.
+    than `_CONFIG_CHECK_INTERVAL` AND the underlying provider config or
+    vectordb config has changed on disk. The `vector_store` holds real
+    resources (a Qdrant client / external asyncpg pool) for external
+    backends, so it MUST be `close()`d on eviction, on a backend switch,
+    and at shutdown.
     """
 
     llm_config: dict
@@ -144,6 +151,8 @@ class _OrgClients:
     openai_client: AsyncOpenAI
     vision_client: VisionClient | None
     search_service: RagSearchService
+    vector_store: VectorStore
+    vectordb_config: VectorDbConfig
     last_check: float
 
 
@@ -152,15 +161,19 @@ class RagService:
         self.initialized = False
         self._init_lock = asyncio.Lock()
         self._pool: asyncpg.Pool | None = None
-        # Process-singleton ANN backend (pgvector built-in, or an external
-        # store like Qdrant). Built once in `initialize()`; the deployment
-        # config that selects it is read at startup, so switching backends
-        # takes effect on restart (matches the process-scoped pool + dim pin).
-        self._vector_store: VectorStore | None = None
-        # Embedding dimensions are pinned globally; see module docstring.
-        # `_pin_dim_lock` serializes the first-write race between two orgs
-        # initializing concurrently (which previously each held their own
-        # per-org lock and both raced past `if _pinned_dims is None`).
+        # The ANN backend is now PER ORG: each org's `_OrgClients` carries its
+        # own `vector_store`, built from `<org>/vectordb.json`. There is no
+        # process-singleton store. Orgs without a config use built-in pgvector
+        # (the shared `chunks` table).
+        #
+        # `_pinned_dims` pins the embedding dimension of the SHARED built-in
+        # pgvector column ONLY — it constrains orgs on the built-in backend so
+        # they all agree on one dimension. Orgs on their own external backend
+        # pin dims independently in their collection/table (see module
+        # docstring). `_pin_dim_lock` serializes the first-write race between
+        # two built-in orgs initializing concurrently (which previously each
+        # held their own per-org lock and both raced past `if _pinned_dims is
+        # None`).
         self._pinned_dims: int | None = None
         self._pin_dim_lock = asyncio.Lock()
         # Per-org client cache and per-org locks (so concurrent first-calls
@@ -181,8 +194,9 @@ class RagService:
         # about to close (round-2 P1-19).
         self._shutting_down: bool = False
         # Background loop that re-mirrors documents flagged `vector_sync_pending`
-        # (a live external-backend sync that failed) into the external vector
-        # store. Only started for backends that require index sync (e.g. Qdrant).
+        # (a live external-backend sync that failed) into the per-org external
+        # vector store. Always started (it is idle when nothing is pending); it
+        # groups pending rows by org and resolves each org's store on demand.
         self._reconcile_task: asyncio.Task[None] | None = None
 
     async def initialize(self) -> None:
@@ -210,17 +224,13 @@ class RagService:
             self._shutting_down = False
             _get_shutdown_event().clear()
             self._pool = await init_pool()
-            self._vector_store = get_vector_store(self._pool)
             self.initialized = True
-            logger.info(
-                "RagService initialized (DB pool ready; vector backend={}; per-org clients lazy)",
-                self._vector_store.backend_name,
-            )
-            # Start the drift-reconcile loop only for backends that mirror
-            # vectors (e.g. Qdrant); pgvector keeps vectors in the chunk row,
-            # so there is nothing to reconcile.
-            if self._vector_store.requires_index_sync:
-                self._reconcile_task = asyncio.create_task(self._vector_sync_reconcile_loop())
+            logger.info("RagService initialized (DB pool ready; per-org clients + vector backends lazy)")
+            # Always start the drift-reconcile loop: vector stores are per-org,
+            # so the process can't know up front whether any org uses a
+            # sync-requiring backend. The loop is idle (one indexed query
+            # returning no rows) when nothing is pending.
+            self._reconcile_task = asyncio.create_task(self._vector_sync_reconcile_loop())
 
     def _get_org_lock(self, org_slug: str) -> asyncio.Lock:
         lock = self._org_locks.get(org_slug)
@@ -289,11 +299,11 @@ class RagService:
     ) -> _OrgClients:
         """Construct fresh clients for org_slug, atomic-swapping if existing."""
         assert self._pool is not None
-        assert self._vector_store is not None
 
         llm_config = settings.get_llm_config(org_slug)
-        if previous is not None and llm_config == previous.llm_config:
-            # No change — refresh the timestamp and reuse.
+        vectordb_config = load_vectordb_config(org_slug)
+        if previous is not None and llm_config == previous.llm_config and vectordb_config == previous.vectordb_config:
+            # Nothing changed — refresh the timestamp and reuse everything.
             previous.last_check = time.monotonic()
             return previous
 
@@ -309,35 +319,51 @@ class RagService:
 
         _b, _a, _m, dims = settings.get_embedding_config(org_slug)
 
-        # Serialize the first-write so two concurrent org inits don't
-        # race past `_pinned_dims is None` with different dims and both
-        # call `pin_embedding_dimensions`. Subsequent calls take the
-        # lock too but find `_pinned_dims` already set and fall through
-        # to the mismatch check.
-        async with self._pin_dim_lock:
-            if self._pinned_dims is None:
-                # Converge the active backend to these dimensions: pgvector
-                # ALTERs the column + HNSW index; Qdrant creates the
-                # collection (+ backfill). The pgvector path is the same call
-                # the service made before the abstraction. Pin only AFTER
-                # ensure_ready succeeds — otherwise a failed first init (e.g. a
-                # transient Qdrant outage) would leave _pinned_dims set, short-
-                # circuiting every later attempt and never retrying convergence.
-                await self._vector_store.ensure_ready(dims)
-                self._pinned_dims = dims
-                logger.info(
-                    "Pinned RAG embedding dimensions to {} (set by org '{}', backend={})",
-                    dims,
-                    org_slug,
-                    self._vector_store.backend_name,
-                )
-            elif dims != self._pinned_dims:
-                raise ValueError(
-                    f"Org '{org_slug}' embedding dimensions ({dims}) do not match the "
-                    f"pinned RAG schema dimensions ({self._pinned_dims}). All orgs "
-                    f"sharing this RAG instance must use the same embedding model "
-                    f"dimensions. Reconcile provider configs or run RAG per-org."
-                )
+        # Reuse the existing store when ONLY the LLM/provider config changed, so
+        # an external Qdrant client / pgvector pool isn't churned needlessly.
+        # Build a fresh store when the org's vectordb config changed (a backend
+        # switch) or on first build; the old one is closed below.
+        reuse_store = previous is not None and vectordb_config == previous.vectordb_config
+        store = (
+            previous.vector_store
+            if reuse_store
+            else get_vector_store(self._pool, config=vectordb_config, org_slug=org_slug)
+        )
+
+        # Converge the store to this org's embedding dimensions.
+        if store.requires_index_sync:
+            # External backend (Qdrant / external pgvector): this org pins dims
+            # independently in its OWN collection/table — they may differ from
+            # other orgs. ensure_ready creates it or validates an existing one,
+            # raising loudly on a dimension mismatch. Idempotent, so calling it
+            # on a reused store is a cheap revalidation.
+            await store.ensure_ready(dims)
+        else:
+            # Built-in pgvector: all built-in orgs share ONE `chunks.embedding`
+            # column, so dims are pinned GLOBALLY across built-in orgs.
+            # Serialize the first write so two concurrent built-in inits don't
+            # race past `_pinned_dims is None` with different dims.
+            async with self._pin_dim_lock:
+                if self._pinned_dims is None:
+                    # Pin only AFTER ensure_ready succeeds — a failed first init
+                    # (e.g. a transient error) must not wedge _pinned_dims and
+                    # short-circuit every later attempt.
+                    await store.ensure_ready(dims)
+                    self._pinned_dims = dims
+                    logger.info(
+                        "Pinned built-in pgvector embedding dimensions to {} (set by org '{}')",
+                        dims,
+                        org_slug,
+                    )
+                elif dims != self._pinned_dims:
+                    raise ValueError(
+                        f"Org '{org_slug}' embedding dimensions ({dims}) do not match the "
+                        f"pinned built-in pgvector dimensions ({self._pinned_dims}). Orgs sharing "
+                        f"the built-in backend must use the same embedding model dimensions; give "
+                        f"this org its own external vector backend, or reconcile provider configs."
+                    )
+                # else: the shared column is already converged by an earlier
+                # built-in org — nothing to do.
 
         embedding_service = EmbeddingService(
             api_key=llm_config["embedding_api_key"],
@@ -379,7 +405,7 @@ class RagService:
                 org_slug,
             )
 
-        search_service = RagSearchService(self._pool, embedding_service, self._vector_store)
+        search_service = RagSearchService(self._pool, embedding_service, store)
 
         new_clients = _OrgClients(
             llm_config=llm_config,
@@ -388,6 +414,8 @@ class RagService:
             openai_client=openai_client,
             vision_client=vision_client,
             search_service=search_service,
+            vector_store=store,
+            vectordb_config=vectordb_config,
             last_check=time.monotonic(),
         )
         self._org_clients[org_slug] = new_clients
@@ -411,6 +439,10 @@ class RagService:
             for coro_target in (
                 victim_clients.embedding_service.close(),
                 victim_clients.openai_client.close(),
+                # Release the evicted org's vector backend (Qdrant transport /
+                # external pgvector pool). No-op for built-in pgvector. Without
+                # this, evicting an external-backend org leaks its connections.
+                victim_clients.vector_store.close(),
             ):
                 t = loop.create_task(_safe_close(coro_target))
                 _background_tasks.add(t)
@@ -434,6 +466,14 @@ class RagService:
                 task.add_done_callback(_background_tasks.discard)
             if previous.vision_client is not None and previous.vision_client is not vision_client:
                 task = loop.create_task(_safe_close(previous.vision_client.close()))
+                _background_tasks.add(task)
+                task.add_done_callback(_background_tasks.discard)
+            # Backend switch: a fresh store was built, so release the old one
+            # (Qdrant transport / external pgvector pool). When the store was
+            # reused (only LLM config changed) `store is previous.vector_store`
+            # — don't close the live instance.
+            if not reuse_store and previous.vector_store is not store:
+                task = loop.create_task(_safe_close(previous.vector_store.close()))
                 _background_tasks.add(task)
                 task.add_done_callback(_background_tasks.discard)
 
@@ -475,14 +515,15 @@ class RagService:
             source_modified_at=source_modified_at,
         )
 
-        # Mirror the freshly-written chunk vectors into an external backend.
-        # Postgres stays the source of truth (vectors are in the chunk row);
-        # for pgvector this is a no-op skipped via `requires_index_sync`.
-        # Skipped indexes left Postgres unchanged, so the backend is already
-        # in sync — nothing to publish.
-        if self._vector_store is not None and self._vector_store.requires_index_sync and not result.get("skipped"):
+        # Mirror the freshly-written chunk vectors into this org's external
+        # backend. Postgres stays the source of truth (vectors are in the chunk
+        # row); for built-in pgvector this is a no-op skipped via
+        # `requires_index_sync`. Skipped indexes left Postgres unchanged, so the
+        # backend is already in sync — nothing to publish.
+        store = clients.vector_store
+        if store.requires_index_sync and not result.get("skipped"):
             try:
-                await self._sync_document_vectors(org_slug, file_id)
+                await self._sync_document_vectors(org_slug, file_id, store)
             except Exception as exc:
                 # The document is already committed and 'completed' in Postgres
                 # (the source of truth); a transient external-backend failure
@@ -499,17 +540,17 @@ class RagService:
 
         return result
 
-    async def _sync_document_vectors(self, org_slug: str, file_id: str) -> None:
-        """Publish a document's current chunk vectors to the external backend.
+    async def _sync_document_vectors(self, org_slug: str, file_id: str, store: VectorStore) -> None:
+        """Publish a document's current chunk vectors to the org's external backend.
 
-        Resolves the document id (stable across re-index) first so any stale
-        points from a prior version are cleared before the current chunk
-        vectors are upserted — keeping the backend an exact mirror of
-        Postgres even when re-indexing rotates chunk ids. Reads
-        `embedding::text` so the pgvector column round-trips as a JSON array.
+        Takes the org's `store` explicitly (stores are per-org now). Resolves
+        the document id (stable across re-index) first so any stale points from
+        a prior version are cleared before the current chunk vectors are
+        upserted — keeping the backend an exact mirror of Postgres even when
+        re-indexing rotates chunk ids. Reads `embedding::text` so the pgvector
+        column round-trips as a JSON array.
         """
         assert self._pool is not None
-        assert self._vector_store is not None
 
         async with acquire_with_retry(self._pool) as conn:
             doc = await conn.fetchrow(
@@ -530,7 +571,7 @@ class RagService:
             )
 
         # Clear any stale points for this document, then publish current chunks.
-        await self._vector_store.delete_documents(org_slug, [doc_id])
+        await store.delete_documents(org_slug, [doc_id])
         if rows:
             records = [
                 VectorRecord(
@@ -541,7 +582,7 @@ class RagService:
                 )
                 for row in rows
             ]
-            await self._vector_store.upsert(records)
+            await store.upsert(records)
 
     async def _mark_vector_sync_pending(self, org_slug: str, file_id: str) -> None:
         """Flag a document for background re-mirror after a failed live sync."""
@@ -572,11 +613,29 @@ class RagService:
             except Exception:
                 logger.warning("Vector sync reconcile pass failed; will retry next interval", exc_info=True)
 
+    async def _clear_vector_sync_pending(self, org_slug: str, file_id: str) -> None:
+        """Clear the reconcile flag once a document is mirrored (or no longer needs it)."""
+        if self._pool is None:
+            return
+        async with acquire_with_retry(self._pool) as conn:
+            await conn.execute(
+                f"UPDATE {SCHEMA}.documents SET vector_sync_pending = FALSE WHERE org_slug = $1 AND file_id = $2",
+                org_slug,
+                file_id,
+            )
+
     async def _reconcile_pending_vectors(self) -> None:
-        """Re-mirror a batch of `vector_sync_pending` documents into the
+        """Re-mirror a batch of `vector_sync_pending` documents into each org's
         external backend, clearing the flag on each success. Idempotent —
-        `_sync_document_vectors` deletes-then-upserts by document id."""
-        if self._pool is None or self._vector_store is None or not self._vector_store.requires_index_sync:
+        `_sync_document_vectors` deletes-then-upserts by document id.
+
+        Stores are per-org, so rows are grouped by org_slug and each org's
+        store is resolved once per pass. Built-in-pgvector orgs never set the
+        flag, but an org that switched FROM an external backend BACK to built-in
+        may leave stale flagged rows; those are cleared without mirroring so
+        they don't loop forever.
+        """
+        if self._pool is None:
             return
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
@@ -589,33 +648,62 @@ class RagService:
         if not rows:
             return
         logger.info("Reconciling {} document(s) with pending vector sync", len(rows))
+
+        by_org: OrderedDict[str, list[str]] = OrderedDict()
         for row in rows:
+            by_org.setdefault(row["org_slug"], []).append(row["file_id"])
+
+        for org_slug, file_ids in by_org.items():
             if self._shutting_down:
                 break
-            org_slug, file_id = row["org_slug"], row["file_id"]
             try:
-                await self._sync_document_vectors(org_slug, file_id)
+                clients = await self._ensure_org_clients(org_slug)
             except Exception as exc:
+                # Org config unreadable / shutting down / empty API keys —
+                # leave its rows flagged and move on; the next pass retries.
                 logger.warning(
-                    "Vector reconcile failed for {}/{}; leaving flagged for retry: {}", org_slug, file_id, exc
+                    "Vector reconcile: cannot resolve clients for org '{}'; leaving {} doc(s) flagged: {}",
+                    org_slug,
+                    len(file_ids),
+                    exc,
                 )
                 continue
-            async with acquire_with_retry(self._pool) as conn:
-                await conn.execute(
-                    f"UPDATE {SCHEMA}.documents SET vector_sync_pending = FALSE WHERE org_slug = $1 AND file_id = $2",
-                    org_slug,
-                    file_id,
-                )
+            store = clients.vector_store
+            for file_id in file_ids:
+                if self._shutting_down:
+                    break
+                if store.requires_index_sync:
+                    try:
+                        await self._sync_document_vectors(org_slug, file_id, store)
+                    except Exception as exc:
+                        logger.warning(
+                            "Vector reconcile failed for {}/{}; leaving flagged for retry: {}",
+                            org_slug,
+                            file_id,
+                            exc,
+                        )
+                        continue
+                # Mirrored successfully, or the org is back on built-in pgvector
+                # (no external mirror needed) — clear the stale flag either way.
+                await self._clear_vector_sync_pending(org_slug, file_id)
 
-    async def vector_store_health(self) -> dict[str, Any]:
-        """Active vector-store backend status for the `/config` endpoint.
+    async def vector_store_health(self, org_slug: str | None = None) -> dict[str, Any]:
+        """Vector-store backend status for the `/config` endpoint.
 
-        Reports the configured backend name even before the store is built
-        (first request); reachability is only meaningful once initialized.
+        Vector backends are PER ORG now, so there is no single deployment
+        backend to report. With an `org_slug`, report THAT org's backend +
+        reachability (building/refreshing its store as needed). Without one,
+        return a `per-org` sentinel so platform liveness probes that carry no
+        org context still get a valid response.
         """
-        if self._vector_store is None:
-            return {"backend": load_vectordb_config().backend, "reachable": None}
-        return await self._vector_store.health()
+        if org_slug is None:
+            return {"backend": "per-org", "reachable": None}
+        try:
+            clients = await self._ensure_org_clients(org_slug)
+        except Exception as exc:
+            logger.warning("vector_store_health: could not resolve org '{}': {}", org_slug, exc)
+            return {"backend": load_vectordb_config(org_slug).backend, "reachable": False}
+        return await clients.vector_store.health()
 
     async def search(
         self,
@@ -956,10 +1044,23 @@ class RagService:
                 ids_to_delete,
             )
 
-        # Drop the matching vectors from an external backend (no-op for
-        # pgvector, where FK CASCADE already removed them above).
-        if self._vector_store is not None and self._vector_store.requires_index_sync:
-            await self._vector_store.delete_documents(org_slug, ids_to_delete)
+        # Drop the matching vectors from this org's external backend (no-op for
+        # built-in pgvector, where FK CASCADE already removed them above).
+        # Best-effort: the Postgres source of truth is already cleaned, so a
+        # failure to resolve/reach the external backend must not fail the
+        # delete — orphaned external vectors resolve to no chunk on search and
+        # get cleared by a later re-index/delete.
+        try:
+            clients = await self._ensure_org_clients(org_slug)
+            if clients.vector_store.requires_index_sync:
+                await clients.vector_store.delete_documents(org_slug, ids_to_delete)
+        except Exception as exc:
+            logger.warning(
+                "Failed to delete external vectors for {}/{} after Postgres delete: {}",
+                org_slug,
+                file_id,
+                exc,
+            )
 
         processing_time = (time.time() - start_time) * 1000
 
@@ -1107,17 +1208,9 @@ class RagService:
                 await self._reconcile_task
             self._reconcile_task = None
 
-        # Release any backend-owned resources (e.g. the external pgvector
-        # connection pool or the Qdrant client). Best-effort: a close failure
-        # must not block the rest of shutdown.
-        if self._vector_store is not None:
-            try:
-                await self._vector_store.close()
-            except Exception:
-                logger.warning("Failed to close vector store '{}'", self._vector_store.backend_name, exc_info=True)
-            self._vector_store = None
-
-        # Best-effort close of each org's clients before tearing down the pool.
+        # Best-effort close of each org's clients (including its per-org vector
+        # backend) before tearing down the pool. A close failure must not block
+        # the rest of shutdown.
         for org_slug, clients in list(self._org_clients.items()):
             try:
                 await clients.embedding_service.close()
@@ -1140,6 +1233,17 @@ class RagService:
                         org_slug,
                         exc_info=True,
                     )
+            # Release the org's vector backend (Qdrant transport / external
+            # pgvector pool); no-op for built-in pgvector.
+            try:
+                await clients.vector_store.close()
+            except Exception:
+                logger.warning(
+                    "Failed to close vector_store '{}' for org '{}'",
+                    clients.vector_store.backend_name,
+                    org_slug,
+                    exc_info=True,
+                )
         self._org_clients.clear()
 
         # Drain pending `_safe_close` tasks so they don't keep running
