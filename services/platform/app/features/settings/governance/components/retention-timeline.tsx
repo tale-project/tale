@@ -103,7 +103,7 @@ interface StepProps {
 
 function Step({ label, sub, tone }: StepProps) {
   return (
-    <div className="flex w-32 flex-col items-center gap-1 text-center">
+    <div className="flex w-20 flex-col items-center gap-1 text-center sm:w-32">
       <div
         className={cn(
           'h-3 w-3 rounded-full ring-2 ring-offset-2 ring-offset-background',

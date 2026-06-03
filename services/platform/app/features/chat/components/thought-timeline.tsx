@@ -276,6 +276,8 @@ export function ThoughtTimeline({
   // No reasoning or tool activity → render no chrome (plain answer).
   if (timeline.steps.length === 0) return null;
 
+  // Round to the nearest second; floor at 1 so a sub-second thinking window
+  // reads as "1s" rather than "0s".
   const toSeconds = (ms: number) => Math.max(1, Math.round(ms / 1000));
 
   // Build the "·"-separated meta row. While thinking: live elapsed seconds +
