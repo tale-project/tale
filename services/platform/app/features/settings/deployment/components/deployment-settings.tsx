@@ -389,29 +389,35 @@ function DeploymentSettingsView({ data }: { data: any }) {
   ) {
     setTesting(target);
     try {
-      const args: Record<string, unknown> = { target };
-      if (target === 'convexStorage') {
-        args.config = storage.s3
-          ? {
-              mode: 's3',
-              region: storage.region,
-              ...(storage.endpoint ? { endpoint: storage.endpoint } : {}),
-              forcePathStyle: storage.forcePathStyle,
-              buckets: {
-                files: storage.files,
-                exports: storage.exports,
-                snapshotImports: storage.snapshotImports,
-                modules: storage.modules,
-                search: storage.search,
-              },
-            }
-          : { mode: 'local' };
-      } else {
-        const form = target === 'knowledgePostgres' ? knowledge : appPg;
-        args.config = buildPg(form);
-        if (form.password) args.password = form.password;
-      }
-      const res: any = await testConn.mutateAsync(args);
+      const form =
+        target === 'convexStorage'
+          ? null
+          : target === 'knowledgePostgres'
+            ? knowledge
+            : appPg;
+      const config =
+        target === 'convexStorage'
+          ? storage.s3
+            ? {
+                mode: 's3',
+                region: storage.region,
+                ...(storage.endpoint ? { endpoint: storage.endpoint } : {}),
+                forcePathStyle: storage.forcePathStyle,
+                buckets: {
+                  files: storage.files,
+                  exports: storage.exports,
+                  snapshotImports: storage.snapshotImports,
+                  modules: storage.modules,
+                  search: storage.search,
+                },
+              }
+            : { mode: 'local' }
+          : buildPg(form!);
+      const res: any = await testConn.mutateAsync({
+        target,
+        config,
+        ...(form?.password ? { password: form.password } : {}),
+      });
       setTestResults((prev) => ({
         ...prev,
         [target]: {
