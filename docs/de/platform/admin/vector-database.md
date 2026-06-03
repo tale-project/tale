@@ -9,7 +9,7 @@ Diese Seite behandelt die Oberfläche: wie du das aktive Backend liest, wie du e
 
 ## Was die Seite zeigt
 
-Öffne **Einstellungen > Vektordatenbank** und die Seite nennt oben das aktive Backend der Org, dann ein Formular zum Ändern. Die zwei Banner über dem Formular sind der tragende Kontext: das erste sagt, dass die Konfiguration nur für die aktuelle Organisation gilt, das zweite warnt, dass ein Backend-Wechsel bestehende Vektoren nicht verschiebt. Lies beide, bevor du etwas änderst — das zweite ist der Unterschied zwischen einem sauberen Wechsel und einem Suchindex, der leer aussieht.
+Öffne **Einstellungen > Vektordatenbank** und die Seite nennt oben das aktive Backend der Org, dann ein Formular zum Ändern. Die zwei Banner über dem Formular sind der tragende Kontext: das erste sagt, dass die Konfiguration nur für die aktuelle Organisation gilt, das zweite erklärt, dass ein Backend-Wechsel die bestehenden Vektoren der Org automatisch im Hintergrund in den neuen Speicher spiegelt. Lies beide, bevor du etwas änderst — das zweite ist der Grund, warum ein Wechsel eine sichere Operation ist und nicht eine, die die Suche leer aussehen lässt.
 
 Das Formular beginnt mit **Backend**, einer Wahl zwischen **Integriert** und **Extern**. Integriert ist der Default für jede Org und braucht keine Konfiguration: die Embeddings liegen in Tales eigenem PostgreSQL neben den Dokument-Metadaten. Wähle Extern und ein zweiter Selektor erscheint, **Externes Backend**, wo du zwischen **Qdrant (extern)** und **PostgreSQL (pgvector, extern)** wählst.
 
@@ -27,9 +27,11 @@ Klicke **Verbindung testen**, bevor du ein externes Backend festschreibst. Für 
 
 Wenn das Formular bereit ist, klicke **Änderungen speichern** und bestätige den Dialog. Die Änderung wird kurz nach dem Speichern wirksam — der Retrieval-Dienst übernimmt sie innerhalb eines kurzen Fensters, ohne Neustart. Andere Organisationen sind nicht betroffen.
 
-## Ein Backend-Wechsel bedeutet Neuindexierung
+## Ein Backend-Wechsel spiegelt bestehende Vektoren
 
-Ein Backend-Wechsel migriert die bestehenden Vektoren der Org nicht. Unter dem vorherigen Backend indexierte Dokumente bleiben, wo sie waren, und werden für die Suche auf dem neuen Backend unsichtbar, bis du sie neu indexierst. Plane einen Wechsel für einen Zeitpunkt, an dem du die Dokumente der Org neu hochladen oder neu indexieren kannst, nicht als Live-Umschaltung, die Ergebnisse weiter fliessen lässt. Der Bestätigungsdialog nennt das vorherige und das neue Backend, damit die Konsequenz im Moment des Festschreibens explizit ist.
+Ein Backend-Wechsel erfordert keine Neuindexierung. Jedes Backend hält die Dokument-Embeddings in Tales eigenem PostgreSQL als Quelle der Wahrheit, daher spiegelt ein Wechsel einfach die bestehenden Vektoren der Org in den neuen Speicher — automatisch, im Hintergrund, beschränkt auf diese Organisation. Der Retrieval-Dienst bemerkt die Änderung innerhalb eines kurzen Fensters und kopiert die Vektoren hinüber; bei einer grossen Dokumentmenge kann das einige Minuten dauern, während derer die Vektorsuche kurzzeitig unvollständig sein und auf die Volltextsuche zurückfallen kann. Kein erneutes Hochladen, keine manuelle Neuindexierung, keine Planung einer Live-Umschaltung. Der Bestätigungsdialog nennt weiterhin das vorherige und das neue Backend, damit die Änderung im Moment des Festschreibens explizit ist.
+
+Eine Neuindexierung ist nur nötig, wenn du das Embedding-_Modell_ der Org wechselst, nicht ihr Backend — ein neues Modell erzeugt Vektoren in einem anderen Raum, also müssen die alten neu erzeugt werden. Das ist unabhängig davon, wo die Vektoren gespeichert sind, und gilt für das integrierte Backend genauso wie für ein externes.
 
 Eine Einschränkung trägt sich vom Embedding-Modell herüber: Orgs, die beim integrierten Speicher bleiben, teilen eine einzige Embedding-Dimension, müssen sich also auf ein Embedding-Modell einigen, das Vektoren derselben Breite erzeugt. Eine Org auf ihrem eigenen externen Backend entkommt dieser Einschränkung — ihre Collection oder Tabelle ist auf die eigenen Embedding-Dimensionen der Org festgelegt und unabhängig von jeder anderen Org.
 

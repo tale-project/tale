@@ -5423,7 +5423,7 @@
       "title": "Base de données vectorielle",
       "activeBackend": "Backend actif",
       "orgScopeBanner": "Cette configuration s’applique uniquement à votre organisation actuelle. Les autres organisations ne sont pas affectées. Les modifications prennent effet peu après l’enregistrement — aucun redémarrage du service n’est nécessaire.",
-      "reindexWarning": "Changer de backend ne migre pas les vecteurs existants. Les documents indexés avec le backend précédent restent orphelins jusqu’à ce que vous réindexiez les documents de cette organisation dans le nouveau backend.",
+      "switchMirrorNotice": "Changer de backend recopie automatiquement les vecteurs existants de cette organisation en arrière-plan — aucune réindexation requise. Pour de grands ensembles de documents, cela peut prendre quelques minutes. Pendant ce temps, la recherche vectorielle peut être temporairement incomplète et basculer sur la recherche plein texte. Une réindexation n’est nécessaire que si tu changes de modèle d’embedding.",
       "backendLabel": "Backend",
       "backendType": {
         "builtin": "Intégré",
@@ -5468,9 +5468,8 @@
       "configUnreadableConfirm": "Impossible de lire la configuration de base de données vectorielle enregistrée. La remplacer par ces paramètres ?",
       "confirm": {
         "title": "Modifier la base de données vectorielle de cette organisation ?",
-        "body": "Vous changez la base de données vectorielle de cette organisation de {from} vers {to}. Les vecteurs existants ne sont pas migrés — les documents indexés avec {from} restent orphelins jusqu’à ce que vous les réindexiez dans {to}. Les autres organisations ne sont pas affectées.",
-        "bodySameBackend": "Vous mettez à jour la configuration de la base de données vectorielle de cette organisation. Les autres organisations ne sont pas affectées.",
-        "ack": "Je comprends que cela modifie la base de données vectorielle de cette organisation et que les documents existants doivent être réindexés.",
+        "body": "Tu changes la base de données vectorielle de cette organisation de {from} vers {to}. Les vecteurs existants sont recopiés automatiquement dans {to} en arrière-plan — la recherche vectorielle peut être brièvement incomplète le temps que cela se termine. Les autres organisations ne sont pas affectées.",
+        "bodySameBackend": "Tu mets à jour la configuration de la base de données vectorielle de cette organisation. Les autres organisations ne sont pas affectées.",
         "confirm": "Enregistrer la configuration",
         "cancel": "Annuler"
       },

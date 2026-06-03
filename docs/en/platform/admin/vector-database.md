@@ -9,7 +9,7 @@ This page covers the UI: how to read the active backend, how to point an org at 
 
 ## What the page shows
 
-Open **Settings > Vector database** and the page names the org's active backend at the top, then a form for changing it. The two banners above the form are the load-bearing context: the first states that the configuration applies only to the current organization, the second warns that switching a backend does not move existing vectors. Read both before you change anything — the second one is the difference between a clean switch and a search index that looks empty.
+Open **Settings > Vector database** and the page names the org's active backend at the top, then a form for changing it. The two banners above the form are the load-bearing context: the first states that the configuration applies only to the current organization, the second explains that switching a backend automatically mirrors the org's existing vectors into the new store in the background. Read both before you change anything — the second one is why a switch is a safe operation rather than one that leaves search looking empty.
 
 The form starts with **Backend**, a choice between **Built-in** and **External**. Built-in is the default for every org and needs no configuration: embeddings live in Tale's own PostgreSQL alongside the document metadata. Pick External and a second selector appears, **External backend**, where you choose between **Qdrant (external)** and **PostgreSQL (pgvector, external)**.
 
@@ -27,9 +27,11 @@ Click **Test connection** before committing an external backend. For Qdrant, Tal
 
 When the form is ready, click **Save changes** and confirm the dialog. The change takes effect shortly after saving — the retrieval service picks it up within a short window, with no restart. Other organizations are unaffected.
 
-## Switching a backend means re-indexing
+## Switching a backend mirrors existing vectors
 
-Switching a backend does not migrate the org's existing vectors. Documents indexed under the previous backend stay where they were and become invisible to search on the new one until you re-index them. Plan a switch for when you can re-upload or re-index the org's documents, not as a live cutover that keeps results flowing. The confirmation dialog spells out the previous and new backend so the consequence is explicit at the moment you commit.
+Switching a backend does not require re-indexing. Every backend keeps the document embeddings in Tale's own PostgreSQL as the source of truth, so a switch simply mirrors that org's existing vectors into the new store — automatically, in the background, scoped to this organization. The retrieval service notices the change within a short window and copies the vectors across; for a large document set this can take a few minutes, during which vector search may be briefly incomplete and fall back to full-text search. No re-upload, no manual re-index, no live-cutover planning. The confirmation dialog still names the previous and new backend so the change is explicit at the moment you commit.
+
+Re-indexing is only required when you change the org's embedding _model_, not its backend — a new model produces vectors in a different space, so the old ones must be regenerated. That concern is independent of where the vectors are stored, and it applies to the built-in backend just as much as an external one.
 
 One constraint carries over from the embedding model: orgs that stay on the built-in store share a single embedding dimension, so they must agree on an embedding model that produces vectors of the same width. An org on its own external backend escapes that constraint — its collection or table is pinned to that org's own embedding dimensions and is independent of every other org.
 

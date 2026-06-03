@@ -176,6 +176,10 @@ async def test_runtime_backend_switch_rebuilds_and_closes_old():
         vectordb_by_org["a"] = VectorDbConfig(backend="qdrant", qdrant_url="http://q")
         # Bypass the 15s refresh gate to force a rebuild on the next call.
         svc._org_clients["a"].last_check = 0
+        # The switch to an external backend enqueues an org-scoped backfill (a DB
+        # write); stub it out here (the pool is a MagicMock) and assert the switch
+        # triggers it.
+        svc._enqueue_full_backfill = AsyncMock(return_value=3)
 
         rag_mod._get_shutdown_event().set()
         rag_mod._background_tasks.clear()
@@ -184,6 +188,8 @@ async def test_runtime_backend_switch_rebuilds_and_closes_old():
             assert c2.vector_store is new
             await asyncio.gather(*list(rag_mod._background_tasks), return_exceptions=True)
             old.close.assert_awaited_once()
+            # Switching builtin → external backfills the org's existing vectors.
+            svc._enqueue_full_backfill.assert_awaited_once_with("a")
         finally:
             rag_mod._get_shutdown_event().clear()
             rag_mod._background_tasks.clear()

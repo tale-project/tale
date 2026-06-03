@@ -5683,7 +5683,7 @@
       "title": "Vector database",
       "activeBackend": "Active backend",
       "orgScopeBanner": "This configuration applies only to your current organization. Other organizations are unaffected. Changes take effect shortly after saving — no service restart required.",
-      "reindexWarning": "Switching the backend does not migrate existing vectors. Documents indexed under the previous backend stay orphaned until you re-index this organization's documents into the new backend.",
+      "switchMirrorNotice": "Switching the backend automatically mirrors this organization's existing vectors into it in the background — no re-indexing required. For large document sets this can take a few minutes, during which vector search may be temporarily incomplete and fall back to full-text search. Re-indexing is only needed if you change the embedding model.",
       "backendLabel": "Backend",
       "backendType": {
         "builtin": "Built-in",
@@ -5728,9 +5728,8 @@
       "configUnreadableConfirm": "The stored vector database configuration can't be read. Overwrite it with these settings?",
       "confirm": {
         "title": "Change this organization's vector database?",
-        "body": "You are changing the vector database from {from} to {to} for this organization. Existing vectors are not migrated — documents indexed under {from} stay orphaned until you re-index them into {to}. Other organizations are unaffected.",
+        "body": "You are changing the vector database from {from} to {to} for this organization. Existing vectors are mirrored into {to} automatically in the background — vector search may be briefly incomplete until that finishes. Other organizations are unaffected.",
         "bodySameBackend": "You are updating this organization's vector-database configuration. Other organizations are unaffected.",
-        "ack": "I understand this changes the vector database for this organization and that existing documents must be re-indexed.",
         "confirm": "Save configuration",
         "cancel": "Cancel"
       },

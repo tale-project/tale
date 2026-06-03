@@ -5422,7 +5422,7 @@
       "title": "Vektordatenbank",
       "activeBackend": "Aktives Backend",
       "orgScopeBanner": "Diese Konfiguration gilt nur für Ihre aktuelle Organisation. Andere Organisationen sind nicht betroffen. Änderungen werden kurz nach dem Speichern wirksam – kein Neustart des Dienstes erforderlich.",
-      "reindexWarning": "Ein Wechsel des Backends migriert vorhandene Vektoren nicht. Unter dem vorherigen Backend indexierte Dokumente bleiben verwaist, bis Sie die Dokumente dieser Organisation in das neue Backend neu indexieren.",
+      "switchMirrorNotice": "Beim Wechsel des Backends werden die vorhandenen Vektoren dieser Organisation automatisch im Hintergrund dorthin gespiegelt – ein erneutes Indexieren ist nicht nötig. Bei großen Dokumentmengen kann das einige Minuten dauern; währenddessen kann die Vektorsuche vorübergehend unvollständig sein und auf die Volltextsuche zurückfallen. Ein erneutes Indexieren ist nur nötig, wenn du das Embedding-Modell wechselst.",
       "backendLabel": "Backend",
       "backendType": {
         "builtin": "Integriert",
@@ -5467,9 +5467,8 @@
       "configUnreadableConfirm": "Die gespeicherte Vektordatenbank-Konfiguration kann nicht gelesen werden. Mit diesen Einstellungen überschreiben?",
       "confirm": {
         "title": "Vektordatenbank dieser Organisation ändern?",
-        "body": "Sie ändern die Vektordatenbank dieser Organisation von {from} zu {to}. Vorhandene Vektoren werden nicht migriert – unter {from} indexierte Dokumente bleiben verwaist, bis Sie sie in {to} neu indexieren. Andere Organisationen sind nicht betroffen.",
-        "bodySameBackend": "Sie aktualisieren die Vektordatenbank-Konfiguration dieser Organisation. Andere Organisationen sind nicht betroffen.",
-        "ack": "Mir ist bewusst, dass dies die Vektordatenbank dieser Organisation ändert und vorhandene Dokumente neu indexiert werden müssen.",
+        "body": "Du änderst die Vektordatenbank dieser Organisation von {from} zu {to}. Vorhandene Vektoren werden automatisch im Hintergrund nach {to} gespiegelt – die Vektorsuche kann währenddessen kurzzeitig unvollständig sein. Andere Organisationen sind nicht betroffen.",
+        "bodySameBackend": "Du aktualisierst die Vektordatenbank-Konfiguration dieser Organisation. Andere Organisationen sind nicht betroffen.",
         "confirm": "Konfiguration speichern",
         "cancel": "Abbrechen"
       },

@@ -92,6 +92,17 @@ _VECTOR_RECONCILE_BATCH = 50
 _ORG_LOCKS_MAX = 256
 
 
+class _VectorDimensionMismatch(Exception):
+    """A document's stored chunk embeddings don't match the backend's expected
+    dimensions — the org changed its embedding model since these chunks were
+    indexed. Copying the existing vectors can't repair this (the query and
+    stored vectors would live in different embedding spaces); a re-index is
+    required. Raised by `_sync_document_vectors` only when an `expected_dims`
+    guard is supplied (the switch-backfill / reconcile path), so the reconcile
+    loop can stop retrying instead of looping forever on a wrong-width upsert.
+    """
+
+
 _background_tasks: set[asyncio.Task[None]] = set()
 
 # When set, every pending `_safe_close` skips its remaining grace
@@ -194,10 +205,28 @@ class RagService:
         # about to close (round-2 P1-19).
         self._shutting_down: bool = False
         # Background loop that re-mirrors documents flagged `vector_sync_pending`
-        # (a live external-backend sync that failed) into the per-org external
-        # vector store. Always started (it is idle when nothing is pending); it
-        # groups pending rows by org and resolves each org's store on demand.
+        # (a live external-backend sync that failed, OR a backend switch that
+        # enqueued an org-scoped backfill) into the per-org external vector
+        # store. Always started (it is idle when nothing is pending); it groups
+        # pending rows by org and resolves each org's store on demand.
         self._reconcile_task: asyncio.Task[None] | None = None
+        # Wake signal for the reconcile loop so a backend switch drains its
+        # backfill immediately instead of waiting out `_VECTOR_RECONCILE_INTERVAL_S`.
+        # Set on enqueue-backfill and on shutdown. Lazily built (see
+        # `_get_reconcile_wake`) for the same reason as the shutdown event.
+        self._reconcile_wake: asyncio.Event | None = None
+
+    def _get_reconcile_wake(self) -> asyncio.Event:
+        """Lazy-construct the reconcile-wake event on the running loop.
+
+        Built on first use rather than in `__init__` so we don't bind to the
+        wrong event loop in tests that spin up a fresh loop per case (mirrors
+        `_get_shutdown_event`). Set when a backend switch enqueues a backfill
+        and on shutdown; the reconcile loop waits on it with a timeout.
+        """
+        if self._reconcile_wake is None:
+            self._reconcile_wake = asyncio.Event()
+        return self._reconcile_wake
 
     async def initialize(self) -> None:
         """Initialize the shared database pool.
@@ -223,6 +252,7 @@ class RagService:
 
             self._shutting_down = False
             _get_shutdown_event().clear()
+            self._get_reconcile_wake().clear()
             self._pool = await init_pool()
             self.initialized = True
             logger.info("RagService initialized (DB pool ready; per-org clients + vector backends lazy)")
@@ -483,7 +513,50 @@ class RagService:
             org_slug,
             llm_config.get("model"),
         )
+
+        await self._maybe_backfill_on_switch(org_slug, previous, reuse_store, store)
+
         return new_clients
+
+    async def _maybe_backfill_on_switch(
+        self,
+        org_slug: str,
+        previous: _OrgClients | None,
+        reuse_store: bool,
+        store: VectorStore,
+    ) -> int:
+        """On a genuine backend switch, enqueue an org-scoped backfill so the
+        freshly-built (EMPTY) external store is populated from `chunks.embedding`
+        by the reconcile loop — instead of forcing a manual re-index. Returns the
+        number of documents flagged (0 when not applicable).
+
+        The org's existing vectors are already in `chunks.embedding` (Postgres is
+        the source of truth for every backend), so the copy is exact and needs no
+        re-embedding. Gated on:
+          - `previous is not None`: a process cold-start (previous=None) must NOT
+            re-flag every doc on each restart.
+          - `not reuse_store`: the vectordb config actually changed.
+          - `store.requires_index_sync`: a switch BACK to built-in pgvector needs
+            no copy — `chunks.embedding` is already authoritative.
+        The backfill is org-scoped (WHERE org_slug) so it cannot leak another
+        tenant's vectors. A concurrent embedding-MODEL change is orthogonal (it
+        equally affects built-in pgvector) and is caught by the dimension guard in
+        the reconcile path rather than silently mirroring stale-space vectors.
+        """
+        if previous is None or reuse_store or not store.requires_index_sync:
+            return 0
+        flagged = await self._enqueue_full_backfill(org_slug)
+        if flagged:
+            logger.info(
+                "Backend switch for org '{}': flagged {} document(s) to mirror into '{}'",
+                org_slug,
+                flagged,
+                store.backend_name,
+            )
+            # Wake the reconcile loop so the backfill drains immediately instead
+            # of waiting out `_VECTOR_RECONCILE_INTERVAL_S`.
+            self._get_reconcile_wake().set()
+        return flagged
 
     async def add_document(
         self,
@@ -540,7 +613,13 @@ class RagService:
 
         return result
 
-    async def _sync_document_vectors(self, org_slug: str, file_id: str, store: VectorStore) -> None:
+    async def _sync_document_vectors(
+        self,
+        org_slug: str,
+        file_id: str,
+        store: VectorStore,
+        expected_dims: int | None = None,
+    ) -> None:
         """Publish a document's current chunk vectors to the org's external backend.
 
         Takes the org's `store` explicitly (stores are per-org now). Resolves
@@ -549,6 +628,14 @@ class RagService:
         upserted — keeping the backend an exact mirror of Postgres even when
         re-indexing rotates chunk ids. Reads `embedding::text` so the pgvector
         column round-trips as a JSON array.
+
+        `expected_dims`, when supplied (switch-backfill / reconcile path), guards
+        against mirroring vectors whose width no longer matches the backend's
+        dimensions — i.e. the org changed its embedding model since these chunks
+        were indexed. Without the guard such an upsert raises a wrong-width error
+        per pass and the doc loops forever; raising `_VectorDimensionMismatch`
+        lets the reconcile loop give up loudly. The live-mirror path passes no
+        `expected_dims` (just-embedded chunks always match the current model).
         """
         assert self._pool is not None
 
@@ -582,7 +669,39 @@ class RagService:
                 )
                 for row in rows
             ]
+            if expected_dims is not None:
+                actual_dims = len(records[0].embedding)
+                if actual_dims != expected_dims:
+                    raise _VectorDimensionMismatch(
+                        f"chunks for {org_slug}/{file_id} are embedded at {actual_dims} "
+                        f"dims but backend '{store.backend_name}' expects {expected_dims}"
+                    )
             await store.upsert(records)
+
+    async def _enqueue_full_backfill(self, org_slug: str) -> int:
+        """Flag ALL of an org's completed documents for re-mirror after a backend
+        switch, so the reconcile loop copies their existing `chunks.embedding`
+        vectors into the newly-selected external backend (which starts empty).
+
+        Org-scoped (`WHERE org_slug = $1`) — copies only this org's rows, so
+        unlike an unscoped scan of the shared `chunks` table it cannot leak
+        another tenant's vectors. Idempotent: a doc already flagged stays
+        flagged. Returns the number of documents flagged (for logging / to
+        decide whether to wake the reconcile loop).
+        """
+        if self._pool is None:
+            return 0
+        async with acquire_with_retry(self._pool) as conn:
+            tag = await conn.execute(
+                f"""UPDATE {SCHEMA}.documents SET vector_sync_pending = TRUE
+                    WHERE org_slug = $1 AND status = 'completed'""",
+                org_slug,
+            )
+        # asyncpg returns a command tag like "UPDATE 42".
+        try:
+            return int(tag.split()[-1])
+        except (ValueError, IndexError, AttributeError):
+            return 0
 
     async def _mark_vector_sync_pending(self, org_slug: str, file_id: str) -> None:
         """Flag a document for background re-mirror after a failed live sync."""
@@ -596,20 +715,37 @@ class RagService:
             )
 
     async def _vector_sync_reconcile_loop(self) -> None:
-        """Gated background loop: periodically re-mirror documents whose live
-        external-backend sync failed, so Postgres↔backend drift self-heals
-        without a restart. Idle when nothing is pending; exits promptly on
-        shutdown via the shared shutdown event."""
-        event = _get_shutdown_event()
+        """Gated background loop: re-mirror documents whose live external-backend
+        sync failed, or that a backend switch enqueued for backfill, so
+        Postgres↔backend drift self-heals without a restart. Idle when nothing
+        is pending.
+
+        Waits on `_reconcile_wake` with a `_VECTOR_RECONCILE_INTERVAL_S` timeout:
+        a backend switch (or shutdown) sets the event to wake it immediately
+        instead of waiting out the interval. Each wake drains TO EMPTY — it keeps
+        running passes while a full batch makes progress (a large backfill isn't
+        rate-limited to one batch per interval) — but stops as soon as a pass
+        clears nothing (e.g. the backend is down) so it never busy-loops on
+        persistently-failing docs. Exits promptly on shutdown."""
+        wake = self._get_reconcile_wake()
         while not self._shutting_down:
-            # Interruptible wait: returns early when shutdown is signalled,
-            # otherwise fires once per interval (TimeoutError → do a pass).
+            # Interruptible wait: wakes early on a freshly-enqueued backfill or
+            # on shutdown (both set the event), otherwise fires once per interval.
             with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(event.wait(), timeout=_VECTOR_RECONCILE_INTERVAL_S)
+                await asyncio.wait_for(wake.wait(), timeout=_VECTOR_RECONCILE_INTERVAL_S)
+            wake.clear()
             if self._shutting_down:
                 break
             try:
-                await self._reconcile_pending_vectors()
+                while not self._shutting_down:
+                    selected, cleared = await self._reconcile_pending_vectors()
+                    # Keep draining only while we both made progress AND a full
+                    # batch suggests more remain. A short batch means we drained
+                    # it; cleared==0 means no progress (backend down / all
+                    # persistently failing) — back off to the interval rather
+                    # than re-selecting the same failing rows immediately.
+                    if cleared == 0 or selected < _VECTOR_RECONCILE_BATCH:
+                        break
             except Exception:
                 logger.warning("Vector sync reconcile pass failed; will retry next interval", exc_info=True)
 
@@ -624,7 +760,7 @@ class RagService:
                 file_id,
             )
 
-    async def _reconcile_pending_vectors(self) -> None:
+    async def _reconcile_pending_vectors(self) -> tuple[int, int]:
         """Re-mirror a batch of `vector_sync_pending` documents into each org's
         external backend, clearing the flag on each success. Idempotent —
         `_sync_document_vectors` deletes-then-upserts by document id.
@@ -634,9 +770,15 @@ class RagService:
         flag, but an org that switched FROM an external backend BACK to built-in
         may leave stale flagged rows; those are cleared without mirroring so
         they don't loop forever.
+
+        Returns `(selected, cleared)`: how many pending docs this pass picked up
+        and how many it cleared (mirrored, no-longer-needed, or permanently
+        un-mirrorable). The caller uses these to decide whether to keep draining
+        (progress + a full batch ⇒ more remain) or back off to the interval
+        (cleared==0 ⇒ no progress, e.g. backend down — don't busy-loop).
         """
         if self._pool is None:
-            return
+            return (0, 0)
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
                 f"""SELECT org_slug, file_id FROM {SCHEMA}.documents
@@ -646,13 +788,14 @@ class RagService:
                 _VECTOR_RECONCILE_BATCH,
             )
         if not rows:
-            return
+            return (0, 0)
         logger.info("Reconciling {} document(s) with pending vector sync", len(rows))
 
         by_org: OrderedDict[str, list[str]] = OrderedDict()
         for row in rows:
             by_org.setdefault(row["org_slug"], []).append(row["file_id"])
 
+        cleared = 0
         for org_slug, file_ids in by_org.items():
             if self._shutting_down:
                 break
@@ -669,12 +812,35 @@ class RagService:
                 )
                 continue
             store = clients.vector_store
+            # The org's CURRENT embedding width — guards the backfill against
+            # mirroring stale-space vectors when the embedding model changed
+            # since indexing (best-effort: skip the guard if config is unreadable).
+            expected_dims: int | None = None
+            if store.requires_index_sync:
+                try:
+                    _, _, _, expected_dims = settings.get_embedding_config(org_slug)
+                except Exception:
+                    expected_dims = None
             for file_id in file_ids:
                 if self._shutting_down:
                     break
                 if store.requires_index_sync:
                     try:
-                        await self._sync_document_vectors(org_slug, file_id, store)
+                        await self._sync_document_vectors(org_slug, file_id, store, expected_dims)
+                    except _VectorDimensionMismatch as exc:
+                        # A copy can't repair an embedding-model change — re-index
+                        # is required. Don't retry forever: clear the flag and
+                        # surface loudly so the operator knows to re-index.
+                        logger.error(
+                            "Vector reconcile for {}/{} skipped — embedding dimensions changed "
+                            "since indexing ({}); a re-index is required. Clearing pending flag.",
+                            org_slug,
+                            file_id,
+                            exc,
+                        )
+                        await self._clear_vector_sync_pending(org_slug, file_id)
+                        cleared += 1
+                        continue
                     except Exception as exc:
                         logger.warning(
                             "Vector reconcile failed for {}/{}; leaving flagged for retry: {}",
@@ -686,6 +852,9 @@ class RagService:
                 # Mirrored successfully, or the org is back on built-in pgvector
                 # (no external mirror needed) — clear the stale flag either way.
                 await self._clear_vector_sync_pending(org_slug, file_id)
+                cleared += 1
+
+        return (len(rows), cleared)
 
     async def vector_store_health(self, org_slug: str | None = None) -> dict[str, Any]:
         """Vector-store backend status for the `/config` endpoint.
@@ -1200,8 +1369,11 @@ class RagService:
         _get_shutdown_event().set()
 
         # Stop the reconcile loop before the pool closes (it uses the pool).
-        # The shutdown event above wakes its interruptible wait; cancel as a
-        # backstop in case it is mid-pass.
+        # It waits on the reconcile-wake event, so set that to wake its
+        # interruptible wait immediately; `_shutting_down` (set above) makes it
+        # break instead of running another pass. Cancel as a backstop in case
+        # it is mid-pass.
+        self._get_reconcile_wake().set()
         if self._reconcile_task is not None:
             self._reconcile_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):

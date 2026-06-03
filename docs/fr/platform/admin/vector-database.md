@@ -9,7 +9,7 @@ Cette page couvre l'interface : comment lire le backend actif, comment pointer u
 
 ## Ce que la page montre
 
-Ouvre **Paramètres > Base de données vectorielle** et la page nomme en haut le backend actif de l'org, puis un formulaire pour le changer. Les deux bannières au-dessus du formulaire sont le contexte porteur : la première indique que la configuration s'applique uniquement à l'organisation actuelle, la seconde avertit qu'un changement de backend ne déplace pas les vecteurs existants. Lis les deux avant de changer quoi que ce soit — la seconde est la différence entre un changement propre et un index de recherche qui paraît vide.
+Ouvre **Paramètres > Base de données vectorielle** et la page nomme en haut le backend actif de l'org, puis un formulaire pour le changer. Les deux bannières au-dessus du formulaire sont le contexte porteur : la première indique que la configuration s'applique uniquement à l'organisation actuelle, la seconde explique qu'un changement de backend recopie automatiquement les vecteurs existants de l'org dans le nouveau magasin, en arrière-plan. Lis les deux avant de changer quoi que ce soit — la seconde est la raison pour laquelle un changement est une opération sûre, et non une qui laisse la recherche paraître vide.
 
 Le formulaire commence par **Backend**, un choix entre **Intégré** et **Externe**. Intégré est le défaut de chaque org et ne demande aucune configuration : les embeddings vivent dans le propre PostgreSQL de Tale, à côté des métadonnées de document. Choisis Externe et un second sélecteur apparaît, **Backend externe**, où tu choisis entre **Qdrant (externe)** et **PostgreSQL (pgvector, externe)**.
 
@@ -27,9 +27,11 @@ Clique **Tester la connexion** avant de valider un backend externe. Pour Qdrant,
 
 Quand le formulaire est prêt, clique **Enregistrer les modifications** et confirme la boîte de dialogue. Le changement prend effet peu après l'enregistrement — le service de retrieval le reprend dans une courte fenêtre, sans redémarrage. Les autres organisations ne sont pas affectées.
 
-## Un changement de backend signifie une réindexation
+## Un changement de backend recopie les vecteurs existants
 
-Un changement de backend ne migre pas les vecteurs existants de l'org. Les documents indexés sous le backend précédent restent où ils étaient et deviennent invisibles à la recherche sur le nouveau jusqu'à ce que tu les réindexes. Planifie un changement pour un moment où tu peux re-téléverser ou réindexer les documents de l'org, pas comme une bascule à chaud qui garde les résultats en flux. La boîte de dialogue de confirmation énonce le backend précédent et le nouveau, pour que la conséquence soit explicite au moment où tu valides.
+Un changement de backend ne nécessite pas de réindexation. Chaque backend conserve les embeddings de document dans le propre PostgreSQL de Tale comme source de vérité, donc un changement recopie simplement les vecteurs existants de l'org dans le nouveau magasin — automatiquement, en arrière-plan, dans le périmètre de cette organisation. Le service de retrieval remarque le changement dans une courte fenêtre et copie les vecteurs. Pour un grand ensemble de documents, cela peut prendre quelques minutes, pendant lesquelles la recherche vectorielle peut être brièvement incomplète et basculer sur la recherche plein texte. Pas de re-téléversement, pas de réindexation manuelle, pas de bascule à chaud à planifier. La boîte de dialogue de confirmation nomme toujours le backend précédent et le nouveau, pour que le changement soit explicite au moment où tu valides.
+
+Une réindexation n'est nécessaire que lorsque tu changes le _modèle_ d'embedding de l'org, pas son backend — un nouveau modèle produit des vecteurs dans un espace différent, donc les anciens doivent être régénérés. Cela est indépendant de l'endroit où les vecteurs sont stockés, et s'applique au backend intégré tout autant qu'à un backend externe.
 
 Une contrainte se reporte depuis le modèle d'embedding : les orgs qui restent sur le magasin intégré partagent une seule dimension d'embedding, elles doivent donc s'accorder sur un modèle d'embedding qui produit des vecteurs de la même largeur. Une org sur son propre backend externe échappe à cette contrainte — sa collection ou sa table est fixée aux propres dimensions d'embedding de l'org et est indépendante de toute autre org.
 

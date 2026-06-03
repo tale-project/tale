@@ -8,7 +8,6 @@ import { useForm } from 'react-hook-form';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Banner } from '@/app/components/ui/feedback/banner';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -206,7 +205,6 @@ function VectorDatabaseForm({
     backend === 'pgvector_external' ? 'pgvector_external' : 'qdrant';
 
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [acked, setAcked] = useState(false);
   const [pending, setPending] = useState<VectorDbFormData | null>(null);
 
   const backendLabelOf = useCallback(
@@ -245,7 +243,6 @@ function VectorDatabaseForm({
 
   const openConfirm = useCallback((values: VectorDbFormData) => {
     setPending(values);
-    setAcked(false);
     setConfirmOpen(true);
   }, []);
 
@@ -395,9 +392,9 @@ function VectorDatabaseForm({
         message={t('vectorDatabase.orgScopeBanner')}
       />
       <Banner
-        variant="warning"
+        variant="info"
         dismissible={false}
-        message={t('vectorDatabase.reindexWarning')}
+        message={t('vectorDatabase.switchMirrorNotice')}
       />
 
       <SettingsSection
@@ -589,19 +586,12 @@ function VectorDatabaseForm({
             <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
               {t('vectorDatabase.confirm.cancel')}
             </Button>
-            <Button onClick={commit} disabled={!acked}>
+            <Button onClick={commit}>
               {t('vectorDatabase.confirm.confirm')}
             </Button>
           </>
         }
-      >
-        <Checkbox
-          id="vectordb-ack"
-          label={t('vectorDatabase.confirm.ack')}
-          checked={acked}
-          onCheckedChange={(checked) => setAcked(checked === true)}
-        />
-      </Dialog>
+      />
     </SettingsPage>
   );
 }

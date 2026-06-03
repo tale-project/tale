@@ -133,11 +133,15 @@ class ExternalPgvectorStore:
                     _HNSW_MAX_DIMS,
                 )
 
-        # No backfill: existing vectors are NOT migrated when an org adopts or
-        # switches an external backend. A fresh table starts empty; the org
-        # re-indexes its documents to populate it. (Backfilling from the shared
-        # built-in `chunks` table would also copy other orgs' vectors into this
-        # org's table — a cross-tenant leak.)
+        # `ensure_ready` itself does NOT backfill: it has no org context (only
+        # `dimensions`), so the only data it could read is the SHARED built-in
+        # `chunks` table — and an unscoped read of that would copy OTHER orgs'
+        # vectors into this table (a cross-tenant leak). A fresh table therefore
+        # starts empty here. The org's existing vectors are instead mirrored in
+        # by an ORG-SCOPED backfill: `RagService` enqueues the org's completed
+        # docs on a backend switch and the reconcile loop copies their
+        # `chunks.embedding` rows (filtered `WHERE org_slug`) via
+        # `_sync_document_vectors`. So a switch needs no manual re-index.
 
     async def _assert_dimensions(self, conn: asyncpg.Connection, dimensions: int) -> None:
         """Raise if an existing table's embedding column != the pinned dims."""
