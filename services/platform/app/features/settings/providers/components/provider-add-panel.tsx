@@ -625,11 +625,14 @@ export function ProviderAddPanel({
 
             {/* ── Models section ─────────────────────────────── */}
             <Stack gap={3}>
-              <HStack justify="between" align="center">
-                <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+              <HStack justify="between" align="center" wrap className="gap-y-1">
+                <Text
+                  as="h3"
+                  className="text-foreground min-w-0 text-base leading-tight font-semibold"
+                >
                   {t('providers.models')}
                 </Text>
-                <HStack gap={1} align="center">
+                <HStack gap={1} align="center" wrap className="ml-auto gap-y-1">
                   {canFetch && (
                     <Button
                       type="button"
