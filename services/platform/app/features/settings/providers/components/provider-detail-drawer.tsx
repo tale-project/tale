@@ -282,12 +282,20 @@ function GeneralSection({
   const [panelOpen, setPanelOpen] = useState(false);
 
   return (
-    <Stack gap={2}>
+    <Stack gap={3}>
       <HStack justify="between" align="center" wrap className="gap-y-1">
-        <Text className="min-w-0 text-[15px] font-semibold tracking-[-0.01em]">
+        <Text
+          as="h3"
+          className="text-foreground min-w-0 text-base leading-tight font-semibold"
+        >
           {t('providers.general')}
         </Text>
-        <Button variant="ghost" size="sm" onClick={() => setPanelOpen(true)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto"
+          onClick={() => setPanelOpen(true)}
+        >
           <Pencil className="mr-1 size-3.5" />
           {t('providers.editGeneral')}
         </Button>
@@ -337,17 +345,25 @@ function DefaultModelsSection({
 
   return (
     <>
-      <Stack gap={2}>
+      <Stack gap={3}>
         <HStack justify="between" align="start" wrap className="gap-y-1">
           <Stack gap={1} className="min-w-0">
-            <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+            <Text
+              as="h3"
+              className="text-foreground text-base leading-tight font-semibold"
+            >
               {t('providers.defaultModels')}
             </Text>
-            <Text className="text-muted-foreground text-[13px]">
+            <Text className="text-muted-foreground text-sm">
               {t('providers.defaultModelsDescription')}
             </Text>
           </Stack>
-          <Button variant="ghost" size="sm" onClick={() => setPanelOpen(true)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto"
+            onClick={() => setPanelOpen(true)}
+          >
             <Pencil className="mr-1 size-3.5" />
             {t('providers.editDefaults')}
           </Button>
@@ -518,12 +534,20 @@ function ApiKeySection({
 
   return (
     <>
-      <Stack gap={2}>
+      <Stack gap={3}>
         <HStack justify="between" align="center" wrap className="gap-y-1">
-          <Text className="min-w-0 text-[15px] font-semibold tracking-[-0.01em]">
+          <Text
+            as="h3"
+            className="text-foreground min-w-0 text-base leading-tight font-semibold"
+          >
             {t('providers.apiKey')}
           </Text>
-          <HStack gap={1} align="center" wrap className="justify-end gap-y-1">
+          <HStack
+            gap={1}
+            align="center"
+            wrap
+            className="ml-auto justify-end gap-y-1"
+          >
             <Button
               variant="ghost"
               size="sm"
@@ -1037,10 +1061,18 @@ function ModelsSection({
     <>
       <Stack gap={3}>
         <HStack justify="between" align="center" wrap className="gap-y-1">
-          <Text className="min-w-0 text-[15px] font-semibold tracking-[-0.01em]">
+          <Text
+            as="h3"
+            className="text-foreground min-w-0 text-base leading-tight font-semibold"
+          >
             {t('providers.models')}
           </Text>
-          <HStack gap={1} align="center" wrap className="justify-end gap-y-1">
+          <HStack
+            gap={1}
+            align="center"
+            wrap
+            className="ml-auto justify-end gap-y-1"
+          >
             <Button
               type="button"
               variant="ghost"
