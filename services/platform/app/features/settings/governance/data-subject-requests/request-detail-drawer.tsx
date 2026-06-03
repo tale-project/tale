@@ -1,10 +1,12 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
+import { HStack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { AlertTriangle, Ban, Clock, RefreshCcw } from 'lucide-react';
+import { AlertTriangle, Ban, Clock, RefreshCcw, X } from 'lucide-react';
 import { useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -34,6 +36,7 @@ export function RequestDetailDrawer({
   onClose,
 }: RequestDetailDrawerProps) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   // H8-1: surface query errors. Pre-fix the drawer rendered the
   // skeleton forever when `useGetErasureRequest` threw (deleted row,
   // cross-org access, malformed id) — no error state, no recovery.
@@ -48,35 +51,53 @@ export function RequestDetailDrawer({
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
-      // H10-3: align Sheet's sr-only title with the visible drawer
-      // header. Pre-fix Sheet announced "Erasure request" while the
-      // visible h2 read "Erasure receipt" — two contradictory dialog
-      // titles for the same surface.
       title={t('dataSubjectRequests.drawer.headerTitle')}
       description={t('dataSubjectRequests.drawer.description')}
       side="right"
       size="md"
+      // Match the provider / SSO / integration panels: a bordered title bar
+      // + scrollable body instead of the default floating-X + p-6 chrome.
+      hideClose
+      className="flex flex-col gap-0 p-0"
     >
-      {isError ? (
-        <DrawerErrorState onRetry={() => void refetch()} />
-      ) : (
-        // Render the REAL `DrawerBody` once, always, wrapped in
-        // `<Skeletonize>`; while the read is in flight feed it placeholder
-        // data so the dynamic leaves (masked in place) reserve their real
-        // height instead of swapping in a separate skeleton tree.
-        <Skeletonize
-          loading={isLoading || !data}
-          label={t('dataSubjectRequests.drawer.headerTitle')}
-        >
-          <DrawerBody
-            organizationId={organizationId}
-            data={data ?? PLACEHOLDER_DRAWER_DATA}
-            onExtend={() => setExtendOpen(true)}
-            onRetry={() => setRetryOpen(true)}
-            onCancel={() => setCancelOpen(true)}
-          />
-        </Skeletonize>
-      )}
+      <HStack
+        justify="between"
+        align="center"
+        className="border-border shrink-0 border-b p-4 sm:px-6 sm:py-4"
+      >
+        <Text variant="label" className="text-base font-semibold">
+          {t('dataSubjectRequests.drawer.headerTitle')}
+        </Text>
+        <IconButton
+          icon={X}
+          aria-label={tCommon('aria.close')}
+          variant="ghost"
+          onClick={onClose}
+        />
+      </HStack>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+        {isError ? (
+          <DrawerErrorState onRetry={() => void refetch()} />
+        ) : (
+          // Render the REAL `DrawerBody` once, always, wrapped in
+          // `<Skeletonize>`; while the read is in flight feed it placeholder
+          // data so the dynamic leaves (masked in place) reserve their real
+          // height instead of swapping in a separate skeleton tree.
+          <Skeletonize
+            loading={isLoading || !data}
+            label={t('dataSubjectRequests.drawer.headerTitle')}
+          >
+            <DrawerBody
+              organizationId={organizationId}
+              data={data ?? PLACEHOLDER_DRAWER_DATA}
+              onExtend={() => setExtendOpen(true)}
+              onRetry={() => setRetryOpen(true)}
+              onCancel={() => setCancelOpen(true)}
+            />
+          </Skeletonize>
+        )}
+      </div>
       {data && (
         <>
           <ExtendDeadlineDialog
