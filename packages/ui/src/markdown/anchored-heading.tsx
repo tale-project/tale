@@ -25,7 +25,7 @@ export function nodeText(node: ReactNode): string {
  * authors can override the auto-generated slug — handy for stable anchor
  * URLs across renames or non-Latin headings.
  */
-const EXPLICIT_ID_PATTERN = /\s*\{#([a-zA-Z0-9_-]+)\}\s*$/;
+export const EXPLICIT_ID_PATTERN = /\s*\{#([a-zA-Z0-9_-]+)\}\s*$/;
 
 export interface ExplicitIdResult {
   id: string | null;

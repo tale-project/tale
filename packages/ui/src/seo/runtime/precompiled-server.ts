@@ -15,9 +15,8 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { relative, resolve, sep } from 'node:path';
+import { relative, resolve } from 'node:path';
 
-import { isMdPathname } from '../builders/md-paths';
 import { type CachedEntry, respondWithEtag } from './etag';
 import {
   MANIFEST_FILE,
@@ -57,8 +56,6 @@ export function createPrecompiledServerFromManifest(
 
   const byPath = new Map<string, ManifestEntry>();
   for (const entry of manifest.entries) byPath.set(entry.path, entry);
-  const knownMd = new Set<string>(manifest.knownMdPaths);
-
   const cache = new Map<string, CachedEntry>();
 
   function load(entry: ManifestEntry): CachedEntry | null {
@@ -71,7 +68,7 @@ export function createPrecompiledServerFromManifest(
     // outside `dir` (e.g. `entry.file = "../../etc/passwd"`).
     const resolvedFile = resolve(resolvedDir, entry.file);
     const rel = relative(resolvedDir, resolvedFile);
-    if (rel.startsWith(`..${sep}`) || rel === '..' || rel.startsWith('..')) {
+    if (rel.startsWith('..')) {
       console.error(
         `[seo] manifest entry ${entry.file} escapes artifact dir ${resolvedDir}; refusing to read.`,
       );
@@ -113,10 +110,8 @@ export function createPrecompiledServerFromManifest(
         return cached ? respondWithEtag(request, cached) : null;
       }
 
-      // Unknown `.md` pathnames short-circuit immediately: if the
-      // precompile didn't enumerate it, the runtime cannot.
-      if (isMdPathname(pathname) && !knownMd.has(pathname)) return null;
-
+      // Any pathname not found in `byPath` above falls through to a 404 —
+      // including unknown `.md` paths the precompile never enumerated.
       return null;
     },
     invalidate() {

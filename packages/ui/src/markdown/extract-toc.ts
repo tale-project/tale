@@ -1,4 +1,4 @@
-import { slugifyHeading } from './anchored-heading';
+import { EXPLICIT_ID_PATTERN, slugifyHeading } from './anchored-heading';
 
 export interface TocEntry {
   level: 2 | 3;
@@ -37,7 +37,7 @@ export function extractToc(body: string): TocEntry[] {
     // out so the TOC entry's `id` matches what AnchoredHeading renders;
     // strip it from the visible label too.
     let explicitId: string | undefined;
-    const idMatch = /\s*\{#([a-zA-Z0-9_-]+)\}\s*$/.exec(rawText);
+    const idMatch = EXPLICIT_ID_PATTERN.exec(rawText);
     if (idMatch) {
       explicitId = idMatch[1];
       rawText = rawText.slice(0, idMatch.index).replace(/\s+$/, '');

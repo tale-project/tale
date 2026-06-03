@@ -110,7 +110,7 @@ function isBlockTagLine(
 
 export function normalizeHtmlBlocks(text: string): string {
   // Cheap pre-check — most messages contain no HTML at all.
-  if (!text || text.indexOf('<') === -1) return text;
+  if (!text || !text.includes('<')) return text;
 
   const lines = text.split('\n');
   const out: string[] = [];

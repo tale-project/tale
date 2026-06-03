@@ -13,7 +13,7 @@
  */
 
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, relative, resolve, sep } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 
 import { buildLlmsFullTxt } from '../builders/llms-full-txt';
 import { buildLlmsTxt } from '../builders/llms-txt';
@@ -334,7 +334,7 @@ export async function compileToDisk(
     // pathname containing `..` segments. Reject anything that resolves
     // outside the output directory before we touch disk.
     const rel = relative(resolvedOutDir, fullPath);
-    if (rel.startsWith(`..${sep}`) || rel === '..' || rel.startsWith('..')) {
+    if (rel.startsWith('..')) {
       throw new Error(
         `[seo] artifact path ${pathname} (from plugin "${value.pluginId}") escapes outDir; refusing to write.`,
       );
