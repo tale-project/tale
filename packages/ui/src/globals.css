@@ -10,6 +10,22 @@
 @import '@fontsource/inter/600.css';
 @import '@fontsource/inter/700.css';
 
+/* Metric-matched fallback so the swap from the system font to Inter (which
+   @fontsource ships with `font-display: swap`) is dimensionally invisible:
+   no reflow / font-size jump after the woff2 lands, and no stale measurement
+   for layout-measured UI like the tab underline. The override metrics are
+   next/font's published Inter-vs-Arial numbers; `local('Arial')` resolves to
+   Arial / Helvetica / Liberation Sans on every platform, with the system
+   stack below as a last resort. */
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial');
+  ascent-override: 90.49%;
+  descent-override: 22.56%;
+  line-gap-override: 0%;
+  size-adjust: 107.06%;
+}
+
 @source '../src/**/*.{ts,tsx}';
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -287,7 +303,8 @@
   }
 
   body {
-    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-family:
+      'Inter', 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

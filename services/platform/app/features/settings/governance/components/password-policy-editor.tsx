@@ -155,6 +155,19 @@ export function PasswordPolicyEditor({
 
   const rotationEnabled = watch('rotationEnabled') ?? false;
 
+  // Toggles apply immediately — no Save click. Set the value, then persist the
+  // whole (validated) form through the editor so the saved values become the
+  // new baseline and `isDirty` clears. The numeric inputs keep the Save button
+  // for debounced typing; if a number is mid-edit and invalid the save no-ops
+  // on validation and the toggle stays pending until the user fixes it + saves.
+  const persistToggle = useCallback(
+    (field: keyof PasswordPolicyForm, value: boolean) => {
+      setValue(field, value, { shouldDirty: true, shouldValidate: true });
+      void editor.save();
+    },
+    [editor, setValue],
+  );
+
   return (
     <Skeletonize loading={isLoading} label={t('passwordPolicy.title')}>
       <PageSection
@@ -188,43 +201,39 @@ export function PasswordPolicyEditor({
                   label={t('passwordPolicy.requireUpper')}
                   checked={watch('requireUpper') ?? false}
                   onCheckedChange={(v) =>
-                    setValue('requireUpper', Boolean(v), { shouldDirty: true })
+                    persistToggle('requireUpper', Boolean(v))
                   }
-                  disabled={!canEdit}
+                  disabled={!canEdit || editor.isSaving}
                 />
                 <Checkbox
                   label={t('passwordPolicy.requireLower')}
                   checked={watch('requireLower') ?? false}
                   onCheckedChange={(v) =>
-                    setValue('requireLower', Boolean(v), { shouldDirty: true })
+                    persistToggle('requireLower', Boolean(v))
                   }
-                  disabled={!canEdit}
+                  disabled={!canEdit || editor.isSaving}
                 />
                 <Checkbox
                   label={t('passwordPolicy.requireDigit')}
                   checked={watch('requireDigit') ?? false}
                   onCheckedChange={(v) =>
-                    setValue('requireDigit', Boolean(v), { shouldDirty: true })
+                    persistToggle('requireDigit', Boolean(v))
                   }
-                  disabled={!canEdit}
+                  disabled={!canEdit || editor.isSaving}
                 />
                 <Checkbox
                   label={t('passwordPolicy.requireSpecial')}
                   checked={watch('requireSpecial') ?? false}
                   onCheckedChange={(v) =>
-                    setValue('requireSpecial', Boolean(v), {
-                      shouldDirty: true,
-                    })
+                    persistToggle('requireSpecial', Boolean(v))
                   }
-                  disabled={!canEdit}
+                  disabled={!canEdit || editor.isSaving}
                 />
 
                 <Switch
                   label={t('passwordPolicy.rotationEnabled')}
                   checked={rotationEnabled}
-                  onCheckedChange={(v) =>
-                    setValue('rotationEnabled', v, { shouldDirty: true })
-                  }
+                  onCheckedChange={(v) => persistToggle('rotationEnabled', v)}
                   disabled={!canEdit || editor.isSaving}
                 />
                 {rotationEnabled && (

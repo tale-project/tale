@@ -812,9 +812,11 @@
     },
     "thoughtProcess": {
       "thinking": "Denkt nach",
-      "summary": "{seconds} s nachgedacht · {tools, plural, one {# Werkzeug} other {# Werkzeuge}} verwendet",
-      "summaryNoTools": "{seconds} s nachgedacht",
-      "summaryUnknownDuration": "{tools, plural, one {# Werkzeug} other {# Werkzeuge}} verwendet",
+      "seconds": "{seconds} s",
+      "durationLabel": "{seconds} s nachgedacht",
+      "toolsCount": "{count, plural, one {# Werkzeug} other {# Werkzeuge}}",
+      "skillsCount": "{count, plural, one {# Skill} other {# Skills}}",
+      "tokensCount": "{count, plural, one {# Token} other {# Tokens}}",
       "summaryReasoningOnly": "Hat den Gedankengang gezeigt"
     },
     "tools": {
@@ -1114,6 +1116,7 @@
       "transcribing": "Transkribiere…",
       "level": "Mikrofonpegel",
       "notSupported": "Spracherkennung wird in diesem Browser nicht unterstützt",
+      "notConfigured": "Diktat nicht verfügbar — bitte eine administrative Person, ein Transkriptionsmodell hinzuzufügen",
       "permissionDenied": "Mikrofonzugriff wurde verweigert. Bitte erlaube den Mikrofonzugriff in den Browsereinstellungen.",
       "transcriptionFailedShort": "Transkription fehlgeschlagen",
       "retry": "Erneut versuchen",

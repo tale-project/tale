@@ -165,6 +165,7 @@ export function TwoFactorPolicyEditor({
         action={
           <Switch
             label={t('twoFactorPolicy.enforced')}
+            hideLabelOnMobile
             checked={enforced}
             onCheckedChange={handleEnforcedChange}
             disabled={!canEdit || isSaving}

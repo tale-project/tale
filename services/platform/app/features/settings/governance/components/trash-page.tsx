@@ -204,19 +204,19 @@ export function TrashPage({ organizationId }: Props) {
 
   return (
     <>
-      <Skeletonize loading={loading} label={t('trash.title', 'Trash')}>
-        <PageSection
-          title={t('trash.title', 'Trash')}
-          description={t(
-            'trash.description',
-            'Recover retention-trashed records before they are permanently deleted at the end of the grace window.',
-          )}
-        >
-          <DataTableFilters
-            filters={filterConfigs}
-            onClearAll={onClearFilters}
-          />
+      <PageSection
+        title={t('trash.title', 'Trash')}
+        description={t(
+          'trash.description',
+          'Recover retention-trashed records before they are permanently deleted at the end of the grace window.',
+        )}
+      >
+        {/* Filters live OUTSIDE the Skeletonize so the type checkboxes and
+            clear-all stay interactive (and unmasked) while a filter change
+            refetches the first page — only the table body should skeletonize. */}
+        <DataTableFilters filters={filterConfigs} onClearAll={onClearFilters} />
 
+        <Skeletonize loading={loading} label={t('trash.title', 'Trash')}>
           {!loading && rows.length === 0 ? (
             <div className="border-border rounded-md border p-8 text-center">
               <Text className="text-muted-foreground text-sm">
@@ -228,127 +228,136 @@ export function TrashPage({ organizationId }: Props) {
             </div>
           ) : (
             <div className="border-border overflow-hidden rounded-md border">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40 border-border border-b">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-medium">
-                      {t('trash.column.type', 'Type')}
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium">
-                      {t('trash.column.name', 'Name')}
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium">
-                      {t('trash.column.owner', 'Owner')}
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium">
-                      {t('trash.column.status', 'Status')}
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium">
-                      {t('trash.column.statusChangedAt', 'Trashed')}
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium">
-                      {t('trash.column.actions', 'Actions')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-border divide-y">
-                  {loading
-                    ? Array.from({ length: PLACEHOLDER_ROW_COUNT }).map(
-                        (_, i) => (
-                          <tr key={`placeholder-${i}`}>
-                            <td className="px-3 py-2">
-                              <SkeletonBox>
-                                <div className="h-3.5 w-16" />
-                              </SkeletonBox>
+              {/* Horizontal scroller so the six-column table can scroll on
+                  narrow viewports instead of squashing or clipping. */}
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[44rem] text-sm">
+                  <thead className="bg-muted/40 border-border border-b">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">
+                        {t('trash.column.type', 'Type')}
+                      </th>
+                      <th className="px-3 py-2 text-left font-medium">
+                        {t('trash.column.name', 'Name')}
+                      </th>
+                      <th className="px-3 py-2 text-left font-medium">
+                        {t('trash.column.owner', 'Owner')}
+                      </th>
+                      <th className="px-3 py-2 text-left font-medium">
+                        {t('trash.column.status', 'Status')}
+                      </th>
+                      <th className="px-3 py-2 text-left font-medium">
+                        {t('trash.column.statusChangedAt', 'Trashed')}
+                      </th>
+                      <th className="px-3 py-2 text-right font-medium">
+                        {t('trash.column.actions', 'Actions')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-border divide-y">
+                    {loading
+                      ? Array.from({ length: PLACEHOLDER_ROW_COUNT }).map(
+                          (_, i) => (
+                            <tr key={`placeholder-${i}`}>
+                              <td className="px-3 py-2">
+                                <SkeletonBox>
+                                  <div className="h-3.5 w-16" />
+                                </SkeletonBox>
+                              </td>
+                              <td className="px-3 py-2">
+                                <SkeletonBox>
+                                  <div className="h-3.5 w-32" />
+                                </SkeletonBox>
+                              </td>
+                              <td className="px-3 py-2">
+                                <SkeletonBox>
+                                  <div className="h-3.5 w-24" />
+                                </SkeletonBox>
+                              </td>
+                              <td className="px-3 py-2">
+                                <SkeletonBox>
+                                  <div className="h-5 w-16 rounded" />
+                                </SkeletonBox>
+                              </td>
+                              <td className="px-3 py-2">
+                                <SkeletonBox>
+                                  <div className="h-3.5 w-20" />
+                                </SkeletonBox>
+                              </td>
+                              <td className="px-3 py-2">
+                                <SkeletonBox fullWidth>
+                                  <div className="ml-auto h-8 w-20 rounded-md" />
+                                </SkeletonBox>
+                              </td>
+                            </tr>
+                          ),
+                        )
+                      : rows.map((row) => (
+                          <tr
+                            key={`${row.resourceType}:${row.id}`}
+                            className="hover:bg-muted/20"
+                          >
+                            <td className="text-muted-foreground px-3 py-2 text-xs">
+                              {t(
+                                `trash.tab.${row.resourceType}`,
+                                row.resourceType,
+                              )}
+                            </td>
+                            <td className="px-3 py-2 font-mono text-xs">
+                              {row.displayName ?? row.id}
+                            </td>
+                            <td
+                              className={
+                                row.ownerName
+                                  ? 'text-muted-foreground px-3 py-2 text-xs'
+                                  : 'text-muted-foreground px-3 py-2 font-mono text-xs'
+                              }
+                            >
+                              {row.ownerName ?? row.ownerId ?? '—'}
                             </td>
                             <td className="px-3 py-2">
-                              <SkeletonBox>
-                                <div className="h-3.5 w-32" />
-                              </SkeletonBox>
+                              <span
+                                className={
+                                  row.status === 'expired'
+                                    ? 'rounded bg-orange-500/15 px-2 py-0.5 text-xs text-orange-600'
+                                    : 'rounded bg-yellow-500/15 px-2 py-0.5 text-xs text-yellow-700'
+                                }
+                              >
+                                {t(`trash.status.${row.status}`, row.status)}
+                              </span>
                             </td>
-                            <td className="px-3 py-2">
-                              <SkeletonBox>
-                                <div className="h-3.5 w-24" />
-                              </SkeletonBox>
+                            <td className="text-muted-foreground px-3 py-2 text-xs">
+                              {formatRelative(
+                                row.statusChangedAt ?? row.createdAt,
+                              )}
                             </td>
-                            <td className="px-3 py-2">
-                              <SkeletonBox>
-                                <div className="h-5 w-16 rounded" />
-                              </SkeletonBox>
-                            </td>
-                            <td className="px-3 py-2">
-                              <SkeletonBox>
-                                <div className="h-3.5 w-20" />
-                              </SkeletonBox>
-                            </td>
-                            <td className="px-3 py-2">
-                              <SkeletonBox fullWidth>
-                                <div className="ml-auto h-8 w-20 rounded-md" />
-                              </SkeletonBox>
+                            <td className="px-3 py-2 text-right">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                icon={Undo2}
+                                onClick={() =>
+                                  onRequestRestore({
+                                    resourceType: row.resourceType,
+                                    rowId: row.id,
+                                    displayName: row.displayName ?? row.id,
+                                    status: row.status,
+                                  })
+                                }
+                              >
+                                {/* Icon-only on mobile; the label stays in the
+                                  a11y tree via `sr-only` so the button keeps
+                                  its accessible name. */}
+                                <span className="max-sm:sr-only">
+                                  {t('trash.restore.label', 'Restore')}
+                                </span>
+                              </Button>
                             </td>
                           </tr>
-                        ),
-                      )
-                    : rows.map((row) => (
-                        <tr
-                          key={`${row.resourceType}:${row.id}`}
-                          className="hover:bg-muted/20"
-                        >
-                          <td className="text-muted-foreground px-3 py-2 text-xs">
-                            {t(
-                              `trash.tab.${row.resourceType}`,
-                              row.resourceType,
-                            )}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-xs">
-                            {row.displayName ?? row.id}
-                          </td>
-                          <td
-                            className={
-                              row.ownerName
-                                ? 'text-muted-foreground px-3 py-2 text-xs'
-                                : 'text-muted-foreground px-3 py-2 font-mono text-xs'
-                            }
-                          >
-                            {row.ownerName ?? row.ownerId ?? '—'}
-                          </td>
-                          <td className="px-3 py-2">
-                            <span
-                              className={
-                                row.status === 'expired'
-                                  ? 'rounded bg-orange-500/15 px-2 py-0.5 text-xs text-orange-600'
-                                  : 'rounded bg-yellow-500/15 px-2 py-0.5 text-xs text-yellow-700'
-                              }
-                            >
-                              {t(`trash.status.${row.status}`, row.status)}
-                            </span>
-                          </td>
-                          <td className="text-muted-foreground px-3 py-2 text-xs">
-                            {formatRelative(
-                              row.statusChangedAt ?? row.createdAt,
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              icon={Undo2}
-                              onClick={() =>
-                                onRequestRestore({
-                                  resourceType: row.resourceType,
-                                  rowId: row.id,
-                                  displayName: row.displayName ?? row.id,
-                                  status: row.status,
-                                })
-                              }
-                            >
-                              {t('trash.restore.label', 'Restore')}
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                </tbody>
-              </table>
+                        ))}
+                  </tbody>
+                </table>
+              </div>
               {/* The load-more row reserves its height in both states (masked
               while the first page loads), so revealing it never pushes the
               page. It only shows the real button once more pages exist. */}
@@ -374,8 +383,8 @@ export function TrashPage({ organizationId }: Props) {
               )}
             </div>
           )}
-        </PageSection>
-      </Skeletonize>
+        </Skeletonize>
+      </PageSection>
 
       <ConfirmDialog
         open={restoreTarget !== null}

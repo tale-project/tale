@@ -813,9 +813,11 @@
     },
     "thoughtProcess": {
       "thinking": "Réflexion",
-      "summary": "A réfléchi {seconds} s · {tools, plural, one {# outil utilisé} other {# outils utilisés}}",
-      "summaryNoTools": "A réfléchi {seconds} s",
-      "summaryUnknownDuration": "{tools, plural, one {# outil utilisé} other {# outils utilisés}}",
+      "seconds": "{seconds} s",
+      "durationLabel": "A réfléchi {seconds} s",
+      "toolsCount": "{count, plural, one {# outil} other {# outils}}",
+      "skillsCount": "{count, plural, one {# skill} other {# skills}}",
+      "tokensCount": "{count, plural, one {# token} other {# tokens}}",
       "summaryReasoningOnly": "A montré son raisonnement"
     },
     "tools": {
@@ -1115,6 +1117,7 @@
       "transcribing": "Transcription…",
       "level": "Niveau du microphone",
       "notSupported": "La reconnaissance vocale n'est pas prise en charge par ce navigateur",
+      "notConfigured": "Dictée indisponible — demande à une personne admin d'ajouter un modèle de transcription",
       "permissionDenied": "L'accès au microphone a été refusé. Merci d'autoriser l'accès au microphone dans les paramètres de ton navigateur.",
       "transcriptionFailedShort": "Échec de la transcription",
       "retry": "Réessayer",

@@ -71,6 +71,8 @@ export interface DataTableFiltersProps {
     placeholder?: string;
     /** Width class for the search input */
     className?: string;
+    /** Disable the input (e.g. the dataset is empty so there's nothing to search). */
+    disabled?: boolean;
   };
   /** Filter configurations */
   filters?: FilterConfig[];
@@ -168,6 +170,7 @@ export function DataTableFilters({
               placeholder={search.placeholder ?? t('search.placeholder')}
               value={search.value}
               onChange={(e) => search.onChange(e.target.value)}
+              disabled={search.disabled}
               className="max-w-none"
               wrapperClassName={cn(
                 'flex-1 sm:flex-none',

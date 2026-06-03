@@ -222,6 +222,7 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
         action={
           <Switch
             label={t('loginPolicy.enabled')}
+            hideLabelOnMobile
             checked={enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={!canEdit || isToggling}

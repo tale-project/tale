@@ -91,6 +91,7 @@ function PersonalizationPolicyToggle({
         action={
           <Switch
             label={t('personalization.enabledLabel')}
+            hideLabelOnMobile
             checked={enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={cannotManage || upsertMutation.isPending}

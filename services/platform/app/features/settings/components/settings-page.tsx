@@ -100,7 +100,13 @@ export function SettingsPage({
         <div
           className={cn(
             'flex flex-col gap-8',
-            fitToContainer && 'min-h-0 flex-1',
+            // Bottom breathing room. ContentArea's `py-6` lives on a `flex-1`
+            // child of the scroll container, so its padding-bottom is clipped
+            // at the scroll boundary; a `pb-6` on this content-sized wrapper
+            // is part of the scrolled flow and renders reliably at scroll end.
+            // Skip it for `fitToContainer` pages, whose child owns its own
+            // scroll and must fill the box edge-to-edge.
+            fitToContainer ? 'min-h-0 flex-1' : 'pb-6',
           )}
         >
           {children}

@@ -11,15 +11,39 @@ describe('buildThoughtTimeline', () => {
     expect(buildThoughtTimeline(undefined)).toEqual({
       steps: [],
       toolCount: 0,
+      skillCount: 0,
       hasReasoning: false,
       isStreaming: false,
     });
     expect(buildThoughtTimeline([])).toEqual({
       steps: [],
       toolCount: 0,
+      skillCount: 0,
       hasReasoning: false,
       isStreaming: false,
     });
+  });
+
+  it('counts skills separately from tools (by distinct skillSlug)', () => {
+    const tl = buildThoughtTimeline([
+      { type: 'tool-web', toolCallId: 'w', state: 'output-available' },
+      {
+        type: 'tool-expand_skill',
+        toolCallId: 's1',
+        state: 'output-available',
+        input: { skillSlug: 'pdf' },
+      },
+      {
+        type: 'tool-read_skill_file',
+        toolCallId: 's2',
+        state: 'output-available',
+        input: { skillSlug: 'pdf' },
+      },
+    ]);
+    // `web` is the only real tool; expand_skill + read_skill_file of the same
+    // slug collapse to a single skill and are excluded from the tool count.
+    expect(tl.toolCount).toBe(1);
+    expect(tl.skillCount).toBe(1);
   });
 
   it('ignores text, file, source and step-start parts', () => {

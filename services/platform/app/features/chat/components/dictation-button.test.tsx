@@ -20,9 +20,22 @@ vi.mock('@/lib/i18n/client', () => ({
         'dictation.transcriptionFailedShort': 'Transcription failed',
         'dictation.retry': 'Try again',
         'dictation.discard': 'Discard recording',
+        'dictation.notConfigured': 'Dictation unavailable',
       };
       return translations[key] ?? key;
     },
+  }),
+}));
+
+// Voice/transcription capability detection — default to "available" so the
+// existing tests exercise the normal enabled paths; flip `mockHasTranscription`
+// to drive the not-configured branch.
+let mockHasTranscription = true;
+vi.mock('../hooks/use-voice-capabilities', () => ({
+  useVoiceCapabilities: () => ({
+    hasTts: true,
+    hasTranscription: mockHasTranscription,
+    isLoading: false,
   }),
 }));
 
@@ -85,6 +98,7 @@ beforeEach(() => {
   mockRecorderSupported = false;
   mockRecorderIsTranscribing = false;
   mockRecorderHasFailedRecording = false;
+  mockHasTranscription = true;
   mockOnTranscriptRef = null;
 });
 
@@ -155,6 +169,33 @@ describe('DictationButton', () => {
       await user.click(button);
 
       expect(mockStartListening).not.toHaveBeenCalled();
+    });
+
+    it('disables the mic with an explanation when the server fallback has no transcription model', async () => {
+      // Force the MediaRecorder fallback (no Web Speech) with no configured
+      // transcription provider.
+      mockIsSupported = false;
+      mockRecorderSupported = true;
+      mockHasTranscription = false;
+      const { user } = render(
+        <DictationButton organizationId={orgId} onTranscript={vi.fn()} />,
+      );
+
+      const button = screen.getByLabelText('Dictation unavailable');
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+
+      await user.click(button);
+      expect(mockStartListening).not.toHaveBeenCalled();
+    });
+
+    it('stays enabled on the Web Speech path even without a transcription model', () => {
+      // Web Speech needs no provider, so a missing transcription model must
+      // not disable it.
+      mockIsSupported = true;
+      mockHasTranscription = false;
+      render(<DictationButton organizationId={orgId} onTranscript={vi.fn()} />);
+      const button = screen.getByLabelText('Start dictation');
+      expect(button).not.toHaveAttribute('aria-disabled', 'true');
     });
 
     it('forwards transcript to onTranscript prop', () => {

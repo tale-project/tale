@@ -900,7 +900,11 @@ export function ChatInput({
               <ComposerCapabilityPills organizationId={organizationId} />
             </HStack>
             <HStack gap={1} align="center" className="shrink-0">
-              <VoiceModeToggle threadId={threadId} disabled={inputDisabled} />
+              <VoiceModeToggle
+                threadId={threadId}
+                organizationId={organizationId}
+                disabled={inputDisabled}
+              />
               <DictationButton
                 ref={dictationRef}
                 organizationId={organizationId}

@@ -13,7 +13,14 @@ import {
   TriangleAlert,
   Wrench,
 } from 'lucide-react';
-import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 import { useT } from '@/lib/i18n/client';
@@ -35,11 +42,14 @@ interface ThoughtTimelineProps {
   /** Pre-answer duration for the "Thought for Ns" summary. Prefer
    *  metadata.timeToFirstTokenMs; falls back to a live capture. */
   durationMs?: number;
-  /** Whether the assistant has begun streaming its answer text. Once true the
-   *  timeline collapses to a summary (Claude-style) even though the message is
-   *  still streaming. Kept separate from `isStreaming` so multi-step turns
-   *  (reasoning → tool → human-input → …) stay expanded across the gaps between
-   *  steps instead of flickering open/closed. */
+  /** Total tokens for the finished turn (metadata.totalTokens ?? outputTokens).
+   *  Absent while streaming — the header omits the token segment until the
+   *  metadata lands at turn completion. */
+  tokenCount?: number;
+  /** Whether the assistant has begun streaming its answer text. Drives the
+   *  live "Thinking …" header vs. the static summary. Kept separate from
+   *  `isStreaming` so multi-step turns (reasoning → tool → human-input → …)
+   *  don't flip the header label across the gaps between steps. */
   hasAnswerStarted?: boolean;
 }
 
@@ -200,6 +210,7 @@ export function ThoughtTimeline({
   parts,
   isStreaming,
   durationMs,
+  tokenCount,
   hasAnswerStarted = false,
 }: ThoughtTimelineProps) {
   const { t } = useT('chat');
@@ -209,34 +220,35 @@ export function ThoughtTimeline({
   const timeline = useMemo(() => buildThoughtTimeline(parts), [parts]);
 
   // `active` = the message is still streaming. Use the message-level signal
-  // ONLY — it's the authoritative whole-turn flag (latched true through
-  // tool/inter-step gaps in use-message-processing), so the step list stays
-  // open for the ENTIRE stream (constant height, no mid-write shift) and
-  // collapses once the turn ends. We deliberately do NOT OR in
-  // `timeline.isStreaming`: an aborted/errored turn can leave a tool part stuck
-  // at `input-available`, which would otherwise keep `active` true forever on a
-  // finished history message (spinner spinning, never collapses).
+  // ONLY: an aborted/errored turn can leave a tool part stuck at
+  // `input-available`, which would otherwise keep this true forever on a
+  // finished history message (the live header never resolving to a summary).
   const active = isStreaming;
-  // `thinking` = active and the answer hasn't started → pulsing "Thinking…"
-  // header. Once the answer streams it becomes a static header (same height, so
-  // the swap doesn't shift anything) while the steps stay expanded.
+  // `thinking` = active and the answer hasn't started → live "Thinking …"
+  // header with a ticking timer. Once the answer streams it becomes the static
+  // "Thought for Ns · …" summary.
   const thinking = active && !hasAnswerStarted;
 
-  // Collapsed by default after the turn ends; the user can expand. Forced open
-  // while active so the height is constant during the whole stream.
+  // Collapsed by default in EVERY state — including while streaming. The user
+  // can expand to watch the live reasoning. Keeping it collapsed by default
+  // gives a constant one-line height (no mid-stream layout shift) and never
+  // leaks the raw chain-of-thought of a blocked turn in the streamed-then-
+  // blocked window.
   const [userToggled, setUserToggled] = useState<boolean | null>(null);
-  const expanded = active ? true : (userToggled ?? false);
+  const expanded = userToggled ?? false;
 
-  // Live "thinking duration" fallback before metadata lands. Captured across
-  // the thinking window (first thought → answer starts), so it approximates
-  // metadata.timeToFirstTokenMs rather than the full message duration —
-  // keeping the "Thought for Ns" summary stable when metadata replaces it.
+  // Thinking-window timing. `startRef` is stamped when thinking begins.
+  // `liveElapsedMs` ticks every second for the live header; `liveDurationMs`
+  // latches the final value the instant the answer starts, so the persisted
+  // "Thought for Ns" summary stays stable until metadata.timeToFirstTokenMs
+  // replaces it.
   const startRef = useRef<number | null>(null);
   const prevThinkingRef = useRef(thinking);
+  const [liveElapsedMs, setLiveElapsedMs] = useState<number | null>(null);
   const [liveDurationMs, setLiveDurationMs] = useState<number | null>(null);
-  // useLayoutEffect (not useEffect): captures the duration BEFORE paint so the
-  // static summary header renders "Thought for Ns" in the first frame after the
-  // answer starts, instead of painting one frame of "Used N tools" then swapping.
+  // useLayoutEffect (not useEffect): latches the duration BEFORE paint so the
+  // static summary renders "Thought for Ns" in the first frame after the answer
+  // starts, instead of painting one frame without a duration then swapping.
   useLayoutEffect(() => {
     if (thinking && startRef.current === null) {
       startRef.current = Date.now();
@@ -247,30 +259,68 @@ export function ThoughtTimeline({
     prevThinkingRef.current = thinking;
   }, [thinking]);
 
+  // Tick the live elapsed timer once a second while thinking. Scoped to the
+  // thinking window and cleared on unmount, so finished bubbles carry no timer.
+  useEffect(() => {
+    if (!thinking) return undefined;
+    if (startRef.current === null) startRef.current = Date.now();
+    setLiveElapsedMs(Date.now() - startRef.current);
+    const id = setInterval(() => {
+      if (startRef.current !== null) {
+        setLiveElapsedMs(Date.now() - startRef.current);
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [thinking]);
+
   // No reasoning or tool activity → render no chrome (plain answer).
   if (timeline.steps.length === 0) return null;
 
-  const effectiveDurationMs = durationMs ?? liveDurationMs ?? undefined;
-  const seconds =
-    effectiveDurationMs != null
-      ? Math.max(1, Math.round(effectiveDurationMs / 1000))
-      : undefined;
+  const toSeconds = (ms: number) => Math.max(1, Math.round(ms / 1000));
 
-  const summaryText = (() => {
-    if (seconds != null && timeline.toolCount > 0) {
-      return t('thoughtProcess.summary', {
-        seconds,
-        tools: timeline.toolCount,
-      });
+  // Build the "·"-separated meta row. While thinking: live elapsed seconds +
+  // any tool/skill counts already visible in the parts (tokens are only known
+  // post-turn, so they're omitted live). After the turn: the pre-answer
+  // duration + tools + skills + total tokens — each segment included only when
+  // its value is known.
+  const segments: string[] = [];
+  if (thinking) {
+    if (liveElapsedMs != null) {
+      segments.push(
+        t('thoughtProcess.seconds', { seconds: toSeconds(liveElapsedMs) }),
+      );
     }
-    if (seconds != null) return t('thoughtProcess.summaryNoTools', { seconds });
-    if (timeline.toolCount > 0) {
-      return t('thoughtProcess.summaryUnknownDuration', {
-        tools: timeline.toolCount,
-      });
+  } else {
+    const ms = durationMs ?? liveDurationMs ?? undefined;
+    if (ms != null) {
+      segments.push(
+        t('thoughtProcess.durationLabel', { seconds: toSeconds(ms) }),
+      );
     }
-    return t('thoughtProcess.summaryReasoningOnly');
-  })();
+  }
+  if (timeline.toolCount > 0) {
+    segments.push(
+      t('thoughtProcess.toolsCount', { count: timeline.toolCount }),
+    );
+  }
+  if (timeline.skillCount > 0) {
+    segments.push(
+      t('thoughtProcess.skillsCount', { count: timeline.skillCount }),
+    );
+  }
+  if (!thinking && tokenCount != null && tokenCount > 0) {
+    segments.push(t('thoughtProcess.tokensCount', { count: tokenCount }));
+  }
+
+  const meta = segments.join(' · ');
+  // While thinking, lead with the "Thinking" word + live stats. After the turn,
+  // show the stats alone; if nothing is measurable fall back to the honest
+  // reasoning-only label so the header is never empty.
+  const headerText = thinking
+    ? meta
+      ? `${t('thoughtProcess.thinking')} · ${meta}`
+      : t('thoughtProcess.thinking')
+    : meta || t('thoughtProcess.summaryReasoningOnly');
 
   const stepList = (
     <ul
@@ -307,43 +357,31 @@ export function ThoughtTimeline({
 
   return (
     <div className="mb-3">
-      {thinking ? (
-        // Thinking, no answer yet: pulsing live header.
-        <ThinkingIndicator />
-      ) : active ? (
-        // Answering (or tools still resolving) but thinking done: a STATIC,
-        // same-height header. The steps stay expanded and at a constant height
-        // so the streaming answer below them never shifts.
-        <div className="text-muted-foreground flex items-center gap-1.5 text-sm font-medium">
-          <Brain className="size-4" aria-hidden="true" />
-          <span>{summaryText}</span>
-        </div>
-      ) : (
-        // Turn finished: collapsible summary (collapsed by default, persists).
-        <button
-          type="button"
-          onClick={() => setUserToggled(!expanded)}
-          aria-expanded={expanded}
-          // The <ul id={stepsId}> is only mounted while `expanded` ({expanded
-          // && stepList}); point aria-controls at it only when it exists so we
-          // don't leave a dangling reference (flagged by axe aria-valid-attr-value).
-          aria-controls={expanded ? stepsId : undefined}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm transition-colors"
-        >
-          <ChevronRight
-            className={cn(
-              'size-3.5 transition-transform',
-              expanded && 'rotate-90',
-            )}
-            aria-hidden="true"
-          />
-          <Brain className="size-3.5" aria-hidden="true" />
-          <span>{summaryText}</span>
-        </button>
-      )}
-      {/* Steps render instantly (no height animation): expanded for the entire
-          active turn — constant height, no mid-write shift — then collapsed once
-          the turn ends. The single collapse happens after the answer is done. */}
+      {/* One collapsible header for every state (thinking / answering /
+          finished): a chevron + brain + the live-or-final stat row. Collapsed
+          by default; the user expands to reveal the step list. While thinking
+          the bouncing dots signal live activity next to the ticking timer. */}
+      <button
+        type="button"
+        onClick={() => setUserToggled(!expanded)}
+        aria-expanded={expanded}
+        // The <ul id={stepsId}> is only mounted while `expanded` ({expanded &&
+        // stepList}); point aria-controls at it only when it exists so we don't
+        // leave a dangling reference (flagged by axe aria-valid-attr-value).
+        aria-controls={expanded ? stepsId : undefined}
+        className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm font-medium transition-colors"
+      >
+        <ChevronRight
+          className={cn(
+            'size-3.5 shrink-0 transition-transform',
+            expanded && 'rotate-90',
+          )}
+          aria-hidden="true"
+        />
+        <Brain className="size-3.5 shrink-0" aria-hidden="true" />
+        <span className="text-left">{headerText}</span>
+        {thinking && <ThinkingDots />}
+      </button>
       {expanded && stepList}
     </div>
   );

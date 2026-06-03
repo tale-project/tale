@@ -21,6 +21,14 @@ interface SwitchProps extends ComponentPropsWithoutRef<
 > {
   label?: string;
   description?: ReactNode;
+  /**
+   * Visually hide the label on small screens (it stays available to screen
+   * readers via `sr-only`). Use when the switch sits in a section header whose
+   * title already names the control — a long localized label (e.g. German
+   * "Anmeldeversuch-Limits aktivieren") would otherwise overflow the narrow
+   * header row on mobile.
+   */
+  hideLabelOnMobile?: boolean;
 }
 
 /**
@@ -37,12 +45,24 @@ const SwitchBase = forwardRef<
   SwitchProps
 >(
   (
-    { className, label, description, required, id: providedId, ...props },
+    {
+      className,
+      label,
+      description,
+      hideLabelOnMobile,
+      required,
+      id: providedId,
+      ...props
+    },
     ref,
   ) => {
     const generatedId = useId();
     const id = providedId ?? generatedId;
     const descriptionId = `${id}-description`;
+    const labelClassName = cn(
+      'cursor-pointer',
+      hideLabelOnMobile && 'sr-only sm:not-sr-only',
+    );
 
     const switchElement = (
       <SwitchPrimitive.Root
@@ -79,7 +99,7 @@ const SwitchBase = forwardRef<
               <Label
                 htmlFor={id}
                 required={required}
-                className="cursor-pointer"
+                className={labelClassName}
               >
                 {label}
               </Label>
@@ -95,7 +115,7 @@ const SwitchBase = forwardRef<
 
     return (
       <div className="flex items-center justify-between gap-3">
-        <Label htmlFor={id} required={required} className="cursor-pointer">
+        <Label htmlFor={id} required={required} className={labelClassName}>
           {label}
         </Label>
         {switchElement}

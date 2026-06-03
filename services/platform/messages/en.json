@@ -812,9 +812,11 @@
     },
     "thoughtProcess": {
       "thinking": "Thinking",
-      "summary": "Thought for {seconds}s · used {tools, plural, one {# tool} other {# tools}}",
-      "summaryNoTools": "Thought for {seconds}s",
-      "summaryUnknownDuration": "Used {tools, plural, one {# tool} other {# tools}}",
+      "seconds": "{seconds}s",
+      "durationLabel": "Thought for {seconds}s",
+      "toolsCount": "{count, plural, one {# tool} other {# tools}}",
+      "skillsCount": "{count, plural, one {# skill} other {# skills}}",
+      "tokensCount": "{count, plural, one {# token} other {# tokens}}",
       "summaryReasoningOnly": "Showed its reasoning"
     },
     "tools": {
@@ -1114,6 +1116,7 @@
       "transcribing": "Transcribing…",
       "level": "Microphone level",
       "notSupported": "Speech recognition is not supported in this browser",
+      "notConfigured": "Dictation unavailable — ask an admin to add a transcription model",
       "permissionDenied": "Microphone access was denied. Please allow microphone access in your browser settings.",
       "transcriptionFailedShort": "Transcription failed",
       "retry": "Try again",

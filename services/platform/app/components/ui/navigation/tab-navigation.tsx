@@ -150,6 +150,28 @@ export function TabNavigation({
     updateIndicator();
   }, [updateIndicator]);
 
+  // Re-measure once web fonts finish loading. The indicator width/left come
+  // from `offsetWidth`/`offsetLeft`, which on a cold reload are first measured
+  // against the system-fallback glyph metrics (Inter ships `font-display:
+  // swap`). Without this the underline stays sized for the fallback text after
+  // Inter swaps in. `updateIndicator` no-ops when the values are unchanged, so
+  // the extra call is cheap when the font was already cached.
+  useEffect(() => {
+    if (typeof document === 'undefined' || !('fonts' in document)) {
+      return undefined;
+    }
+    let cancelled = false;
+    void document.fonts.ready.then(() => {
+      if (!cancelled) updateIndicator();
+    });
+    const onLoadingDone = () => updateIndicator();
+    document.fonts.addEventListener('loadingdone', onLoadingDone);
+    return () => {
+      cancelled = true;
+      document.fonts.removeEventListener('loadingdone', onLoadingDone);
+    };
+  }, [updateIndicator]);
+
   // Scroll the active tab into view when it's offscreen — important on
   // narrow viewports where the tab strip overflows horizontally. Without
   // this, opening a settings sub-page (e.g. /settings/account) on mobile

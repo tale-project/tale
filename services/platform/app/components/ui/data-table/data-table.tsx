@@ -73,6 +73,7 @@ interface ColumnMeta {
   skeleton?: {
     type?:
       | 'text'
+      | 'two-line'
       | 'badge'
       | 'id-copy'
       | 'avatar-text'
@@ -347,6 +348,19 @@ export function DataTable<TData, TValue = unknown>({
   // Combined loading signal: data rows are still in flight
   const isDataLoading = infiniteScroll?.isInitialLoading || isLoading;
 
+  // Disable the search box when the dataset is genuinely empty — no rows AND no
+  // active filters/search, so there is nothing to search. A filtered-empty
+  // result keeps it enabled so the user can still adjust or clear the query.
+  const searchDisabled =
+    !isDataLoading && data.length === 0 && !hasActiveFilters;
+
+  // Multi-column tables get a proportional minimum width so they scroll
+  // horizontally on narrow viewports (inside the surrounding overflow-x-auto)
+  // instead of squashing columns to unreadable widths. Few-column tables keep
+  // their natural full width.
+  const tableMinWidth =
+    columns.length > 3 ? `${columns.length * 8}rem` : undefined;
+
   // ---------------------------------------------------------------------------
   // Table body state machine
   //
@@ -432,7 +446,7 @@ export function DataTable<TData, TValue = unknown>({
   const headerContent = hasHeader ? (
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
       <DataTableFilters
-        search={search}
+        search={search ? { ...search, disabled: searchDisabled } : undefined}
         filters={filters}
         dateRange={dateRange}
         isLoading={isFiltersLoading}
@@ -452,7 +466,10 @@ export function DataTable<TData, TValue = unknown>({
   // placeholder cells below pulse while loading; idle it adds no box.
   const tableContent = (
     <Skeletonize loading={isSkeleton}>
-      <Table stickyLayout={stickyLayout}>
+      <Table
+        stickyLayout={stickyLayout}
+        style={tableMinWidth ? { minWidth: tableMinWidth } : undefined}
+      >
         {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
         <TableHeader sticky={stickyLayout}>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -571,6 +588,19 @@ export function DataTable<TData, TValue = unknown>({
                           </SkeletonBox>
                         </div>
                       </HStack>
+                    );
+                  } else if (skeletonType === 'two-line') {
+                    // Primary + secondary line (e.g. email over actor id) so the
+                    // skeleton row matches the real two-line cell height.
+                    cellContent = (
+                      <Stack gap={1} className="min-w-0">
+                        <SkeletonBox fullWidth>
+                          <div className="h-3.5 w-full max-w-48" />
+                        </SkeletonBox>
+                        <SkeletonBox fullWidth>
+                          <div className="h-3 w-2/3 max-w-24" />
+                        </SkeletonBox>
+                      </Stack>
                     );
                   } else if (align === 'right') {
                     cellContent = (

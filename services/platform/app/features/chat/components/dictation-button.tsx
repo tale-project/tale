@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils/cn';
 import { useMediaRecorderDictation } from '../hooks/use-media-recorder-dictation';
 import { useMicrophoneLevel } from '../hooks/use-microphone-level';
 import { useSpeechToText } from '../hooks/use-speech-to-text';
+import { useVoiceCapabilities } from '../hooks/use-voice-capabilities';
 import {
   playDictationStartSound,
   playDictationStopSound,
@@ -82,6 +83,15 @@ const DictationButtonComponent = forwardRef<
   // (the Web Speech path has no server round-trip to fail or retry).
   const hasFailedRecording = useFallback && recorder.hasFailedRecording;
 
+  // The server fallback (Firefox & co.) transcribes via a provider's
+  // `transcription` model. When none is configured, disable the mic with an
+  // explanatory tooltip instead of letting the user record → upload → fail.
+  // The Web Speech path needs no provider, so this only gates the fallback.
+  const { hasTranscription, isLoading: capsLoading } =
+    useVoiceCapabilities(organizationId);
+  const transcriptionUnavailable =
+    useFallback && !capsLoading && !hasTranscription;
+
   const level = useMicrophoneLevel({ enabled: isListening });
 
   const prevErrorRef = useRef<string | null>(null);
@@ -143,6 +153,7 @@ const DictationButtonComponent = forwardRef<
   if (!isSupported) return null;
 
   const handleClick = () => {
+    if (transcriptionUnavailable) return;
     if (isListening) {
       stopListening();
     } else {
@@ -150,17 +161,21 @@ const DictationButtonComponent = forwardRef<
     }
   };
 
-  const tooltipContent = isTranscribing
-    ? t('dictation.transcribing')
-    : isListening
-      ? t('dictation.stop')
-      : t('dictation.start');
+  const tooltipContent = transcriptionUnavailable
+    ? t('dictation.notConfigured')
+    : isTranscribing
+      ? t('dictation.transcribing')
+      : isListening
+        ? t('dictation.stop')
+        : t('dictation.start');
 
-  const ariaLabel = isTranscribing
-    ? t('dictation.transcribing')
-    : isListening
-      ? t('dictation.stop')
-      : t('dictation.start');
+  const ariaLabel = transcriptionUnavailable
+    ? t('dictation.notConfigured')
+    : isTranscribing
+      ? t('dictation.transcribing')
+      : isListening
+        ? t('dictation.stop')
+        : t('dictation.start');
 
   // Map the 0..1 level into a CSS percent for the volume bar. The bar
   // sits inside the pill button when listening; clamp at 100 so a brief
@@ -175,10 +190,18 @@ const DictationButtonComponent = forwardRef<
           size={isListening ? 'sm' : 'icon'}
           onClick={handleClick}
           disabled={disabled || isTranscribing}
+          // `aria-disabled` (not native `disabled`) for the not-configured case
+          // so the explanatory Tooltip still fires on hover/focus; handleClick
+          // already no-ops while unavailable.
+          aria-disabled={transcriptionUnavailable || undefined}
           aria-label={ariaLabel}
           aria-busy={isTranscribing}
           aria-pressed={isListening}
-          className={cn('relative rounded-full', isListening && 'gap-2 px-3')}
+          className={cn(
+            'relative rounded-full',
+            isListening && 'gap-2 px-3',
+            transcriptionUnavailable && 'cursor-not-allowed opacity-50',
+          )}
         >
           {isTranscribing ? (
             <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />

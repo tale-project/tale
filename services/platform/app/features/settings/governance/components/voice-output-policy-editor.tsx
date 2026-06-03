@@ -88,6 +88,7 @@ export function VoiceOutputPolicyEditor({
         action={
           <Switch
             label={t('voiceOutput.enabledLabel')}
+            hideLabelOnMobile
             checked={enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={cannotManage || upsertMutation.isPending}

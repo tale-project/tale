@@ -172,6 +172,7 @@ export function SessionIdleTimeoutEditor({
         action={
           <Switch
             label={t('sessionIdleTimeout.enabled')}
+            hideLabelOnMobile
             checked={enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={!canEdit || isToggling}

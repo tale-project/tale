@@ -263,6 +263,7 @@ export function UploadPolicyEditor({
         action={
           <Switch
             label={t('uploadPolicy.enabled')}
+            hideLabelOnMobile
             checked={enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={switchDisabled}

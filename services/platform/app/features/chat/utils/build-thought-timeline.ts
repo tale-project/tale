@@ -41,17 +41,28 @@ export type ThoughtStep =
 
 export interface ThoughtTimeline {
   steps: ThoughtStep[];
-  /** Distinct tool calls (by toolCallId). */
+  /** Distinct NON-skill tool calls (by toolCallId). Skill-runtime tools
+   *  (`expand_skill`/`read_skill_file`) are counted separately as skills so
+   *  they aren't double-reported in the "used N tools" summary. */
   toolCount: number;
+  /** Distinct skills touched, by `skillSlug` across the skill-runtime tools.
+   *  Reading three files of one skill, or expanding then reading it, counts
+   *  as a single skill. */
+  skillCount: number;
   /** True when at least one reasoning block has readable text. */
   hasReasoning: boolean;
   /** True while any reasoning is still streaming or any tool is mid-flight. */
   isStreaming: boolean;
 }
 
+/** Skill-runtime tools surfaced in the parts stream. A skill "use" is a
+ *  distinct `skillSlug` across these, not a raw tool-call count. */
+const SKILL_TOOL_NAMES = new Set(['expand_skill', 'read_skill_file']);
+
 const EMPTY: ThoughtTimeline = {
   steps: [],
   toolCount: 0,
+  skillCount: 0,
   hasReasoning: false,
   isStreaming: false,
 };
@@ -130,6 +141,10 @@ export function buildThoughtTimeline(
   // input→output updates one step in place (final state wins) instead of
   // appearing twice.
   const toolStepIndex = new Map<string, number>();
+  // Distinct non-skill tool calls (toolCount) and distinct skills (skillCount),
+  // tracked apart so skill-runtime tools don't inflate the tool count.
+  const nonSkillToolCallIds = new Set<string>();
+  const skillSlugs = new Set<string>();
   let hasReasoning = false;
   let reasoningSeq = 0;
 
@@ -178,6 +193,16 @@ export function buildThoughtTimeline(
         errorText,
       };
 
+      if (SKILL_TOOL_NAMES.has(toolName)) {
+        const slug =
+          typeof input?.skillSlug === 'string' ? input.skillSlug : undefined;
+        // Count by distinct slug; fall back to the call id when the slug is
+        // absent so a malformed call still registers as one skill.
+        skillSlugs.add(slug ?? toolCallId);
+      } else {
+        nonSkillToolCallIds.add(toolCallId);
+      }
+
       const existing = toolStepIndex.get(toolCallId);
       if (existing !== undefined) {
         // Same call observed twice in one parts array — keep position, take
@@ -202,7 +227,8 @@ export function buildThoughtTimeline(
 
   return {
     steps,
-    toolCount: toolStepIndex.size,
+    toolCount: nonSkillToolCallIds.size,
+    skillCount: skillSlugs.size,
     hasReasoning,
     isStreaming,
   };

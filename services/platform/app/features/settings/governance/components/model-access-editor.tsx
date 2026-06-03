@@ -554,6 +554,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
         action={
           <Switch
             label={t('modelAccess.enabled')}
+            hideLabelOnMobile
             checked={enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={cannotManage || isPending}

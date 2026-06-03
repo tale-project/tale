@@ -303,6 +303,7 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
         </div>
         <div className="flex gap-2">
           <Select
+            size="sm"
             aria-label={t('guardrailsOverview.recentEvents.columnFilter')}
             value={filterName}
             onValueChange={(v) => {
@@ -335,6 +336,7 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
             ]}
           />
           <Select
+            size="sm"
             aria-label={t('guardrailsOverview.recentEvents.columnKind')}
             value={kind}
             onValueChange={(v) => {
@@ -417,7 +419,7 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
                     <tr key={i} className="border-border border-t">
                       {Array.from({ length: 6 }).map((__, j) => (
                         <td key={j} className="px-3 py-2">
-                          <SkeletonBox>
+                          <SkeletonBox fullWidth>
                             <div className="h-3.5 w-full max-w-24" />
                           </SkeletonBox>
                         </td>

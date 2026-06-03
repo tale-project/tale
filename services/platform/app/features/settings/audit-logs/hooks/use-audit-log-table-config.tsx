@@ -64,6 +64,7 @@ export function useAuditLogTableConfig(
       {
         accessorKey: 'actorEmail',
         header: t('logs.audit.columns.actor'),
+        meta: { skeleton: { type: 'two-line' as const } },
         cell: ({ row }) => {
           const email = resolveEmail?.(row.original) ?? row.original.actorEmail;
           return (

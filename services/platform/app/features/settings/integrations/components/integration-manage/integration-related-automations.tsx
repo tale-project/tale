@@ -78,7 +78,7 @@ export function IntegrationRelatedAutomations({
                 <SkeletonBox fullWidth>
                   <div className="h-8 w-full rounded-md" />
                 </SkeletonBox>
-                <SkeletonBox>
+                <SkeletonBox fullWidth>
                   <div className="h-8 w-3/4 rounded-md" />
                 </SkeletonBox>
               </div>

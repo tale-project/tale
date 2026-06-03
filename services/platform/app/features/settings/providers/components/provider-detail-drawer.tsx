@@ -149,7 +149,7 @@ export function ProviderDetailDrawer({
         />
       </HStack>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+      <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 sm:px-6 sm:py-5">
         {encryptedNoKey && (
           <div className="pb-5">
             <Alert
@@ -260,7 +260,7 @@ function InfoRow({
       </Text>
       <div
         className={cn(
-          'min-w-0 flex-1 text-sm',
+          'min-w-0 flex-1 text-sm break-words',
           muted ? 'text-muted-foreground' : 'font-medium',
         )}
       >
@@ -283,8 +283,8 @@ function GeneralSection({
 
   return (
     <Stack gap={2}>
-      <HStack justify="between" align="center">
-        <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+      <HStack justify="between" align="center" wrap className="gap-y-1">
+        <Text className="min-w-0 text-[15px] font-semibold tracking-[-0.01em]">
           {t('providers.general')}
         </Text>
         <Button variant="ghost" size="sm" onClick={() => setPanelOpen(true)}>
@@ -338,7 +338,7 @@ function DefaultModelsSection({
   return (
     <>
       <Stack gap={2}>
-        <HStack justify="between" align="start">
+        <HStack justify="between" align="start" wrap className="gap-y-1">
           <Stack gap={1} className="min-w-0">
             <Text className="text-[15px] font-semibold tracking-[-0.01em]">
               {t('providers.defaultModels')}
@@ -519,11 +519,11 @@ function ApiKeySection({
   return (
     <>
       <Stack gap={2}>
-        <HStack justify="between" align="center">
-          <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+        <HStack justify="between" align="center" wrap className="gap-y-1">
+          <Text className="min-w-0 text-[15px] font-semibold tracking-[-0.01em]">
             {t('providers.apiKey')}
           </Text>
-          <HStack gap={1} align="center">
+          <HStack gap={1} align="center" wrap className="justify-end gap-y-1">
             <Button
               variant="ghost"
               size="sm"
@@ -1036,11 +1036,11 @@ function ModelsSection({
   return (
     <>
       <Stack gap={3}>
-        <HStack justify="between" align="center">
-          <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+        <HStack justify="between" align="center" wrap className="gap-y-1">
+          <Text className="min-w-0 text-[15px] font-semibold tracking-[-0.01em]">
             {t('providers.models')}
           </Text>
-          <HStack gap={1} align="center">
+          <HStack gap={1} align="center" wrap className="justify-end gap-y-1">
             <Button
               type="button"
               variant="ghost"
@@ -1299,7 +1299,7 @@ function ModelsSection({
           onSubmit={handleSubmitModel}
           className="flex min-h-0 flex-1 flex-col"
         >
-          <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+          <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 sm:px-6 sm:py-5">
             <Stack gap={4}>
               <Input
                 ref={modelIdInputRef}

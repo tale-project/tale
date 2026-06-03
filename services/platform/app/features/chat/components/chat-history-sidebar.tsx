@@ -524,14 +524,48 @@ export function ChatHistorySidebar({
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <section className="flex flex-col">
           {showSkeleton ? (
+            // Mirror the loaded sidebar geometry (Projects header + folder rows,
+            // Chats header + chat rows) so the reveal is a mask swap, not a
+            // layout change. `fullWidth` on the label boxes is required: the
+            // rows are flex with `items-center` (no horizontal stretch), so a
+            // non-fullWidth (inline-block) box would collapse the % width to 0.
             <Skeletonize loading>
-              <Stack gap={1} className="pt-1 pb-2">
-                {Array.from({ length: 7 }).map((_, i) => (
-                  <div key={i} className="flex items-center px-2 py-1.5">
+              <Stack gap={1} className="pb-2">
+                <div className="flex h-7 items-center px-2">
+                  <SkeletonBox>
+                    <div className="h-3 w-16" />
+                  </SkeletonBox>
+                </div>
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div
+                    key={`project-${i}`}
+                    className="flex min-h-[1.5rem] items-center gap-1.5 px-2 py-1.5"
+                  >
                     <SkeletonBox>
+                      <div className="size-4 rounded" />
+                    </SkeletonBox>
+                    <SkeletonBox fullWidth>
                       <div
                         className="h-3.5"
-                        style={{ width: `${78 - (i % 4) * 13}%` }}
+                        style={{ width: `${58 - i * 14}%` }}
+                      />
+                    </SkeletonBox>
+                  </div>
+                ))}
+                <div className="border-border mt-1.5 flex h-7 items-center border-t px-2 pt-2.5">
+                  <SkeletonBox>
+                    <div className="h-3 w-12" />
+                  </SkeletonBox>
+                </div>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={`chat-${i}`}
+                    className="flex min-h-[1.5rem] items-center px-2 py-1.5"
+                  >
+                    <SkeletonBox fullWidth>
+                      <div
+                        className="h-3.5"
+                        style={{ width: `${82 - (i % 4) * 14}%` }}
                       />
                     </SkeletonBox>
                   </div>

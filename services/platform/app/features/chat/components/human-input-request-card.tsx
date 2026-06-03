@@ -405,7 +405,7 @@ function HumanInputRequestCardComponent({
               <button
                 type="button"
                 onClick={() => setShowFeedback(true)}
-                className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center justify-center gap-1.5 text-xs transition-colors"
+                className="text-muted-foreground hover:text-foreground mt-2 flex cursor-pointer items-center justify-center gap-1.5 text-xs transition-colors"
               >
                 <MessageSquareText className="size-3.5" />
                 {t('pushback')}

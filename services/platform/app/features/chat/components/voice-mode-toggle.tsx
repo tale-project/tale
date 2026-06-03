@@ -13,12 +13,15 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
+import { useVoiceCapabilities } from '../hooks/use-voice-capabilities';
 import { useVoiceModeEffective } from '../hooks/use-voice-output';
 import { useVoiceAudioElement } from '../hooks/voice-output-context';
 import { primeAudio } from '../utils/prime-audio';
 
 interface VoiceModeToggleProps {
   threadId: string | undefined;
+  /** Owning org — used to detect whether a text-to-speech model is configured. */
+  organizationId: string;
   disabled?: boolean;
 }
 
@@ -32,7 +35,11 @@ interface VoiceModeToggleProps {
  * header checkbox. On enable it banks the iOS user-gesture token through
  * `primeAudio` so the first synthesized chunk can autoplay.
  */
-export function VoiceModeToggle({ threadId, disabled }: VoiceModeToggleProps) {
+export function VoiceModeToggle({
+  threadId,
+  organizationId,
+  disabled,
+}: VoiceModeToggleProps) {
   const { t } = useT('chat');
   const { toast } = useToast();
   const voiceMode = useVoiceModeEffective(threadId);
@@ -43,10 +50,18 @@ export function VoiceModeToggle({ threadId, disabled }: VoiceModeToggleProps) {
   // then banks only the AudioContext, which is all we can do here.
   const audioElement = useVoiceAudioElement();
 
+  // Reading replies aloud needs a configured text-to-speech model. When none
+  // exists, disable the toggle and explain why on hover instead of letting the
+  // user enable a mode that fails silently at synthesis time. Treat it as
+  // available while the provider list loads so we don't flash a disabled state.
+  const { hasTts, isLoading: capsLoading } =
+    useVoiceCapabilities(organizationId);
+  const ttsUnavailable = !capsLoading && !hasTts;
+
   const enabled = voiceMode.enabled;
 
   const handleToggle = useCallback(() => {
-    if (!threadId) return;
+    if (!threadId || ttsUnavailable) return;
     const next = !enabled;
     // Bank the user-gesture token synchronously on enable so iOS Safari's
     // autoplay gate accepts the first chunk after the mutation round-trip.
@@ -69,7 +84,7 @@ export function VoiceModeToggle({ threadId, disabled }: VoiceModeToggleProps) {
         });
       }
     })();
-  }, [threadId, enabled, audioElement, setOverride, toast, t]);
+  }, [threadId, ttsUnavailable, enabled, audioElement, setOverride, toast, t]);
 
   // No per-thread target yet (fresh chat), or an org-level governance veto
   // (`org_policy`) that no user override can lift → hide rather than show a
@@ -79,7 +94,11 @@ export function VoiceModeToggle({ threadId, disabled }: VoiceModeToggleProps) {
   return (
     <Tooltip
       content={
-        enabled ? t('voice.voiceModeDisable') : t('voice.voiceModeEnable')
+        ttsUnavailable
+          ? t('voice.voiceOutputErrorConfig')
+          : enabled
+            ? t('voice.voiceModeDisable')
+            : t('voice.voiceModeEnable')
       }
       side="top"
     >
@@ -89,11 +108,16 @@ export function VoiceModeToggle({ threadId, disabled }: VoiceModeToggleProps) {
         size="icon"
         onClick={handleToggle}
         disabled={disabled}
+        // `aria-disabled` (not native `disabled`) for the not-configured case
+        // so the button stays hoverable/focusable and the explanatory Tooltip
+        // can still fire; `handleToggle` already no-ops while unavailable.
+        aria-disabled={ttsUnavailable || undefined}
         aria-pressed={enabled}
         aria-label={t('voice.voiceModeLabel')}
         className={cn(
           'rounded-full',
           enabled && 'bg-primary/10 text-primary hover:bg-primary/15',
+          ttsUnavailable && 'cursor-not-allowed opacity-50',
         )}
       >
         {enabled ? (

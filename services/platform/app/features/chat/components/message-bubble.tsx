@@ -486,8 +486,11 @@ function MessageBubbleComponent({
             // aborted/truncated turn leaves TTFT undefined, and falling back to
             // the whole-turn duration would over-report "Thought for Ns". When
             // TTFT is absent ThoughtTimeline shows the honest duration-less
-            // summary ("Used N tools" / "Showed its reasoning") instead.
+            // summary ("Showed its reasoning") instead.
             durationMs={metadata?.timeToFirstTokenMs}
+            // Token total lands with the metadata at turn completion; the
+            // header shows it only once known (omitted during the live stream).
+            tokenCount={metadata?.totalTokens ?? metadata?.outputTokens}
           />
         )}
         {isBlocked && blockedReason ? (
