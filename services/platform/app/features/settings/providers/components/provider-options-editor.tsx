@@ -235,12 +235,20 @@ export function ProviderOptionsEditor({
 
   return (
     <>
-      <Stack gap={2}>
-        <HStack justify="between" align="center">
-          <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+      <Stack gap={3}>
+        <HStack justify="between" align="center" wrap className="gap-y-1">
+          <Text
+            as="h3"
+            className="text-foreground min-w-0 text-base leading-tight font-semibold"
+          >
             {copy.title}
           </Text>
-          <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto"
+            onClick={() => setOpen(true)}
+          >
             <Pencil className="mr-1 size-3.5" />
             {copy.editLabel}
           </Button>
@@ -250,7 +258,7 @@ export function ProviderOptionsEditor({
 
         <Card contentClassName="px-4 py-2.5">
           {isEmpty ? (
-            <Text className="text-muted-foreground text-[13px] italic">
+            <Text className="text-muted-foreground text-sm italic">
               {copy.notConfigured}
             </Text>
           ) : (
@@ -458,7 +466,7 @@ export function ModelProviderOptionsField({
   return (
     <Stack gap={2} className="border-border border-t pt-4">
       <Text className="text-sm font-semibold">{copy.title}</Text>
-      <Text className="text-muted-foreground text-[13px] whitespace-pre-line">
+      <Text className="text-muted-foreground text-sm whitespace-pre-line">
         {copy.description}
       </Text>
       <JsonInput
