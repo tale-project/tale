@@ -51,9 +51,7 @@ export type WorkflowReadResult =
     };
 
 export function validateWorkflowSlug(slug: string): boolean {
-  if (!WORKFLOW_SLUG_REGEX.test(slug)) return false;
-  if (slug.length > 128) return false;
-  return true;
+  return WORKFLOW_SLUG_REGEX.test(slug) && slug.length <= 128;
 }
 
 /**

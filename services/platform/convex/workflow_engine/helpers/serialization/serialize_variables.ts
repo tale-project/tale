@@ -20,20 +20,24 @@ export interface SerializeResult {
 }
 
 /**
- * Action-safe serializer: stores large payloads in Convex storage and returns a reference.
+ * Shared core for the action-safe serializers: inline small JSON, otherwise
+ * store the payload in Convex storage (immutable) and return a reference.
+ * Storage is sticky once `oldStorageId` is set; `debugLabel` keeps each
+ * caller's existing log line intact.
  */
-export async function serializeVariables(
+export async function serializeToStorage(
   ctx: ActionCtx,
-  variables: Record<string, unknown> | undefined | null,
-  oldStorageId?: Id<'_storage'>,
+  value: unknown,
+  oldStorageId: Id<'_storage'> | undefined,
+  debugLabel: string,
 ): Promise<SerializeResult> {
-  const json = JSON.stringify(variables ?? {});
+  const json = JSON.stringify(value ?? {});
   const sizeInBytes = new Blob([json]).size;
 
   const mustUseStorage = !!oldStorageId; // sticky once in storage
   const shouldUseStorage = mustUseStorage || sizeInBytes >= SIZE_THRESHOLD;
 
-  debugLog('serializeVariables Variable size:', {
+  debugLog(debugLabel, {
     sizeInBytes,
     threshold: SIZE_THRESHOLD,
     mustUseStorage,
@@ -54,4 +58,20 @@ export async function serializeVariables(
     serialized: JSON.stringify({ _storageRef: storageId }),
     storageId,
   };
+}
+
+/**
+ * Action-safe serializer: stores large payloads in Convex storage and returns a reference.
+ */
+export async function serializeVariables(
+  ctx: ActionCtx,
+  variables: Record<string, unknown> | undefined | null,
+  oldStorageId?: Id<'_storage'>,
+): Promise<SerializeResult> {
+  return serializeToStorage(
+    ctx,
+    variables,
+    oldStorageId,
+    'serializeVariables Variable size:',
+  );
 }

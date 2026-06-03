@@ -9,6 +9,7 @@ import type { PaginationOptions } from 'convex/server';
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import { matchesWebsiteSearch } from './match_website_search';
 import type { GetWebsitesResult } from './types';
 
 export interface GetWebsitesArgs {
@@ -57,16 +58,8 @@ export async function getWebsites(
     }
 
     // Apply search filter
-    if (searchLower) {
-      const domainMatch = website.domain?.toLowerCase().includes(searchLower);
-      const titleMatch = website.title?.toLowerCase().includes(searchLower);
-      const descriptionMatch = website.description
-        ?.toLowerCase()
-        .includes(searchLower);
-
-      if (!domainMatch && !titleMatch && !descriptionMatch) {
-        continue;
-      }
+    if (searchLower && !matchesWebsiteSearch(website, searchLower)) {
+      continue;
     }
 
     websites.push(website);

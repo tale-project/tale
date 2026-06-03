@@ -16,6 +16,7 @@
  * undercut for this turn.
  */
 
+import { clamp01 } from './clamp';
 import {
   matchesAnalyticalVerb,
   matchesCreativeVerb,
@@ -76,10 +77,6 @@ const MATH = /\$[^$]+\$|\\\(|\\\[|\\begin\{/;
 /** Logistic squashing into (0,1). */
 function sigmoid(z: number): number {
   return 1 / (1 + Math.exp(-z));
-}
-
-function clamp01(x: number): number {
-  return x < 0 ? 0 : x > 1 ? 1 : x;
 }
 
 function estimateTokens(text: string): number {

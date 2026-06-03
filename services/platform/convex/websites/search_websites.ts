@@ -7,6 +7,7 @@
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import { matchesWebsiteSearch } from './match_website_search';
 
 export interface SearchWebsitesArgs {
   organizationId: string;
@@ -31,13 +32,7 @@ export async function searchWebsites(
   const filtered: Array<Doc<'websites'>> = [];
 
   for await (const website of query) {
-    const domainMatch = website.domain?.toLowerCase().includes(searchLower);
-    const titleMatch = website.title?.toLowerCase().includes(searchLower);
-    const descriptionMatch = website.description
-      ?.toLowerCase()
-      .includes(searchLower);
-
-    if (domainMatch || titleMatch || descriptionMatch) {
+    if (matchesWebsiteSearch(website, searchLower)) {
       filtered.push(website);
     }
   }

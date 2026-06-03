@@ -61,9 +61,7 @@ function applyUserOverride(
   orgDefault: boolean,
   userExplicit: boolean | undefined,
 ): boolean {
-  if (userExplicit === true) return true;
-  if (userExplicit === false) return false;
-  return orgDefault;
+  return userExplicit ?? orgDefault;
 }
 
 /**

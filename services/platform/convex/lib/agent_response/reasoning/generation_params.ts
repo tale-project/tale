@@ -8,13 +8,10 @@
  */
 
 import type { ReasoningCapability } from './capability';
+import { clamp01 } from './clamp';
 
 const TEMP_MIN = 0.4;
 const TEMP_MAX = 0.9;
-
-function clamp01(x: number): number {
-  return x < 0 ? 0 : x > 1 ? 1 : x;
-}
 
 /**
  * Decide a default temperature from creativity, or `undefined` when it must not

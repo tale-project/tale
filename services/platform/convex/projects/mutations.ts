@@ -31,7 +31,7 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getOrganizationMember } from '../lib/rls';
 import { emitEvent } from '../workflows/triggers/emit_event';
-import { checkProjectAccess, isOrgWideProject } from './access';
+import { ADMIN_ROLES, checkProjectAccess, isOrgWideProject } from './access';
 import { PROJECT_AUDIT_ACTIONS, PROJECT_RESOURCE_TYPE } from './audit_actions';
 import {
   projectIntegrationsModeValidator,
@@ -54,8 +54,6 @@ function mapRateLimitError(error: unknown): never {
   }
   throw error;
 }
-
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 interface AuthContext {
   userId: string;

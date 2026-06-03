@@ -10,26 +10,14 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import { getBoolean, isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { wrapUntrusted } from '../../lib/untrusted_content';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
+import { isApprovalResult } from './approval_result';
 import { recordIntegrationCall } from './capture_sources';
 import type { OperationInfo } from './fetch_operations_summary';
 import { safeStringifyResult } from './integration_tool';
 import type { IntegrationExecutionResult } from './types';
-
-interface ApprovalResult {
-  requiresApproval: true;
-  approvalId: string;
-  operationName: string;
-  operationTitle: string;
-  operationType: 'read' | 'write';
-  parameters: Record<string, unknown>;
-}
-
-const isApprovalResult = (r: unknown): r is ApprovalResult =>
-  isRecord(r) && getBoolean(r, 'requiresApproval') === true;
 
 const fallbackArgs = z.object({
   operation: z

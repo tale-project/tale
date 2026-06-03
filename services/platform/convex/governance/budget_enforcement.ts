@@ -139,34 +139,21 @@ export function resolveEffectiveLimits(
     return undefined;
   }
 
-  const orgMaxTokens = orgRules
-    .map((r) => r.maxTokens)
-    .filter((v): v is number => v != null)
-    .reduce<number | undefined>(
-      (acc, v) => (acc == null ? v : Math.min(acc, v)),
-      undefined,
-    );
-  const orgMaxCostCents = orgRules
-    .map((r) => r.maxCostCents)
-    .filter((v): v is number => v != null)
-    .reduce<number | undefined>(
-      (acc, v) => (acc == null ? v : Math.min(acc, v)),
-      undefined,
-    );
-  const orgMaxRequests = orgRules
-    .map((r) => r.maxRequests)
-    .filter((v): v is number => v != null)
-    .reduce<number | undefined>(
-      (acc, v) => (acc == null ? v : Math.min(acc, v)),
-      undefined,
-    );
-  const orgWarningThreshold = orgRules
-    .map((r) => r.warningThresholdPercent)
-    .filter((v): v is number => v != null)
-    .reduce<number | undefined>(
-      (acc, v) => (acc == null ? v : Math.min(acc, v)),
-      undefined,
-    );
+  const minNonNull = (
+    values: Array<number | null | undefined>,
+  ): number | undefined =>
+    values
+      .filter((v): v is number => v != null)
+      .reduce<number | undefined>(
+        (acc, v) => (acc == null ? v : Math.min(acc, v)),
+        undefined,
+      );
+  const orgMaxTokens = minNonNull(orgRules.map((r) => r.maxTokens));
+  const orgMaxCostCents = minNonNull(orgRules.map((r) => r.maxCostCents));
+  const orgMaxRequests = minNonNull(orgRules.map((r) => r.maxRequests));
+  const orgWarningThreshold = minNonNull(
+    orgRules.map((r) => r.warningThresholdPercent),
+  );
 
   const maxTokens = resolveField('maxTokens');
   const maxCostCents = resolveField('maxCostCents');

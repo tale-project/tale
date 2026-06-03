@@ -10,15 +10,11 @@ function isAllowedOrigin(origin: string): boolean {
   const siteUrl = process.env.SITE_URL || 'http://127.0.0.1:3000';
   const siteOrigin = new URL(siteUrl).origin;
 
-  if (origin === siteOrigin) {
-    return true;
-  }
-
-  if (siteOrigin.includes('127.0.0.1') || siteOrigin.includes('localhost')) {
-    return true;
-  }
-
-  return false;
+  return (
+    origin === siteOrigin ||
+    siteOrigin.includes('127.0.0.1') ||
+    siteOrigin.includes('localhost')
+  );
 }
 
 function getCorsHeaders(request: Request): Record<string, string> {

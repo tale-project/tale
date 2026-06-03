@@ -62,6 +62,7 @@ import type * as agent_tools_human_input_actions from "../agent_tools/human_inpu
 import type * as agent_tools_human_input_internal_mutations from "../agent_tools/human_input/internal_mutations.js";
 import type * as agent_tools_human_input_mutations from "../agent_tools/human_input/mutations.js";
 import type * as agent_tools_human_input_request_human_input_tool from "../agent_tools/human_input/request_human_input_tool.js";
+import type * as agent_tools_integrations_approval_result from "../agent_tools/integrations/approval_result.js";
 import type * as agent_tools_integrations_capture_sources from "../agent_tools/integrations/capture_sources.js";
 import type * as agent_tools_integrations_create_bound_integration_tool from "../agent_tools/integrations/create_bound_integration_tool.js";
 import type * as agent_tools_integrations_fetch_operations_summary from "../agent_tools/integrations/fetch_operations_summary.js";
@@ -443,6 +444,7 @@ import type * as lib_agent_response_generate_response from "../lib/agent_respons
 import type * as lib_agent_response_index from "../lib/agent_response/index.js";
 import type * as lib_agent_response_reasoning_build_reasoning_options from "../lib/agent_response/reasoning/build_reasoning_options.js";
 import type * as lib_agent_response_reasoning_capability from "../lib/agent_response/reasoning/capability.js";
+import type * as lib_agent_response_reasoning_clamp from "../lib/agent_response/reasoning/clamp.js";
 import type * as lib_agent_response_reasoning_controller from "../lib/agent_response/reasoning/controller.js";
 import type * as lib_agent_response_reasoning_generation_params from "../lib/agent_response/reasoning/generation_params.js";
 import type * as lib_agent_response_reasoning_lexicon_data_ar from "../lib/agent_response/reasoning/lexicon/data/ar.js";
@@ -973,6 +975,7 @@ import type * as websites_internal_actions from "../websites/internal_actions.js
 import type * as websites_internal_mutations from "../websites/internal_mutations.js";
 import type * as websites_internal_queries from "../websites/internal_queries.js";
 import type * as websites_list_websites_paginated from "../websites/list_websites_paginated.js";
+import type * as websites_match_website_search from "../websites/match_website_search.js";
 import type * as websites_mutations from "../websites/mutations.js";
 import type * as websites_queries from "../websites/queries.js";
 import type * as websites_rest_api from "../websites/rest_api.js";
@@ -1282,6 +1285,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/human_input/internal_mutations": typeof agent_tools_human_input_internal_mutations;
   "agent_tools/human_input/mutations": typeof agent_tools_human_input_mutations;
   "agent_tools/human_input/request_human_input_tool": typeof agent_tools_human_input_request_human_input_tool;
+  "agent_tools/integrations/approval_result": typeof agent_tools_integrations_approval_result;
   "agent_tools/integrations/capture_sources": typeof agent_tools_integrations_capture_sources;
   "agent_tools/integrations/create_bound_integration_tool": typeof agent_tools_integrations_create_bound_integration_tool;
   "agent_tools/integrations/fetch_operations_summary": typeof agent_tools_integrations_fetch_operations_summary;
@@ -1663,6 +1667,7 @@ declare const fullApi: ApiFromModules<{
   "lib/agent_response/index": typeof lib_agent_response_index;
   "lib/agent_response/reasoning/build_reasoning_options": typeof lib_agent_response_reasoning_build_reasoning_options;
   "lib/agent_response/reasoning/capability": typeof lib_agent_response_reasoning_capability;
+  "lib/agent_response/reasoning/clamp": typeof lib_agent_response_reasoning_clamp;
   "lib/agent_response/reasoning/controller": typeof lib_agent_response_reasoning_controller;
   "lib/agent_response/reasoning/generation_params": typeof lib_agent_response_reasoning_generation_params;
   "lib/agent_response/reasoning/lexicon/data/ar": typeof lib_agent_response_reasoning_lexicon_data_ar;
@@ -2193,6 +2198,7 @@ declare const fullApi: ApiFromModules<{
   "websites/internal_mutations": typeof websites_internal_mutations;
   "websites/internal_queries": typeof websites_internal_queries;
   "websites/list_websites_paginated": typeof websites_list_websites_paginated;
+  "websites/match_website_search": typeof websites_match_website_search;
   "websites/mutations": typeof websites_mutations;
   "websites/queries": typeof websites_queries;
   "websites/rest_api": typeof websites_rest_api;

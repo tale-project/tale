@@ -317,6 +317,20 @@ export async function createAuditLog(
   return auditLogId;
 }
 
+function auditCtxFields(auditCtx: AuditContext) {
+  return {
+    organizationId: auditCtx.organizationId,
+    actorId: auditCtx.actor.id,
+    actorEmail: auditCtx.actor.email,
+    actorRole: auditCtx.actor.role,
+    actorType: auditCtx.actor.type,
+    sessionId: auditCtx.sessionId,
+    ipAddress: auditCtx.ipAddress,
+    userAgent: auditCtx.userAgent,
+    requestId: auditCtx.requestId,
+  };
+}
+
 interface LogSuccessOptions {
   auditCtx: AuditContext;
   action: string;
@@ -334,11 +348,7 @@ export async function logSuccess(
   options: LogSuccessOptions,
 ): Promise<Id<'auditLogs'>> {
   return createAuditLog(ctx, {
-    organizationId: options.auditCtx.organizationId,
-    actorId: options.auditCtx.actor.id,
-    actorEmail: options.auditCtx.actor.email,
-    actorRole: options.auditCtx.actor.role,
-    actorType: options.auditCtx.actor.type,
+    ...auditCtxFields(options.auditCtx),
     action: options.action,
     category: options.category,
     resourceType: options.resourceType,
@@ -346,10 +356,6 @@ export async function logSuccess(
     resourceName: options.resourceName,
     previousState: options.previousState,
     newState: options.newState,
-    sessionId: options.auditCtx.sessionId,
-    ipAddress: options.auditCtx.ipAddress,
-    userAgent: options.auditCtx.userAgent,
-    requestId: options.auditCtx.requestId,
     status: 'success',
     metadata: options.metadata,
   });
@@ -420,20 +426,12 @@ export async function logFailure(
   options: LogFailureOptions,
 ): Promise<Id<'auditLogs'>> {
   return createAuditLog(ctx, {
-    organizationId: options.auditCtx.organizationId,
-    actorId: options.auditCtx.actor.id,
-    actorEmail: options.auditCtx.actor.email,
-    actorRole: options.auditCtx.actor.role,
-    actorType: options.auditCtx.actor.type,
+    ...auditCtxFields(options.auditCtx),
     action: options.action,
     category: options.category,
     resourceType: options.resourceType,
     resourceId: options.resourceId,
     resourceName: options.resourceName,
-    sessionId: options.auditCtx.sessionId,
-    ipAddress: options.auditCtx.ipAddress,
-    userAgent: options.auditCtx.userAgent,
-    requestId: options.auditCtx.requestId,
     status: 'failure',
     errorMessage: options.errorMessage,
     metadata: options.metadata,
@@ -456,20 +454,12 @@ export async function logDenied(
   options: LogDeniedOptions,
 ): Promise<Id<'auditLogs'>> {
   return createAuditLog(ctx, {
-    organizationId: options.auditCtx.organizationId,
-    actorId: options.auditCtx.actor.id,
-    actorEmail: options.auditCtx.actor.email,
-    actorRole: options.auditCtx.actor.role,
-    actorType: options.auditCtx.actor.type,
+    ...auditCtxFields(options.auditCtx),
     action: options.action,
     category: options.category,
     resourceType: options.resourceType,
     resourceId: options.resourceId,
     resourceName: options.resourceName,
-    sessionId: options.auditCtx.sessionId,
-    ipAddress: options.auditCtx.ipAddress,
-    userAgent: options.auditCtx.userAgent,
-    requestId: options.auditCtx.requestId,
     status: 'denied',
     errorMessage: options.reason,
     metadata: options.metadata,

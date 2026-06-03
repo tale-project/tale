@@ -8,14 +8,13 @@
  * - wrapped `{ llmNode: LLMNodeConfig }`
  */
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+import { isRecord } from '../../../../lib/utils/type-guards';
 
 function hasOwnModelOrModels(llm: Record<string, unknown>): boolean {
-  if (typeof llm.model === 'string' && llm.model.trim().length > 0) return true;
-  if (Array.isArray(llm.models) && llm.models.length > 0) return true;
-  return false;
+  return (
+    (typeof llm.model === 'string' && llm.model.trim().length > 0) ||
+    (Array.isArray(llm.models) && llm.models.length > 0)
+  );
 }
 
 export function mergeWorkflowLevelLLMModels(

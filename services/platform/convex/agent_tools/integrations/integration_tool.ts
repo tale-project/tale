@@ -10,11 +10,12 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { INTEGRATION_SLUG } from '../../../lib/shared/constants/usage';
-import { getBoolean, isRecord } from '../../../lib/utils/type-guards';
+import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { wrapUntrusted } from '../../lib/untrusted_content';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
+import { isApprovalResult } from './approval_result';
 import { recordIntegrationCall } from './capture_sources';
 import type { IntegrationExecutionResult } from './types';
 
@@ -118,18 +119,6 @@ Write operations create approval cards. When telling the user an approval card i
         );
 
         // Check if approval is required (write operation)
-        interface ApprovalResult {
-          requiresApproval: true;
-          approvalId: string;
-          operationName: string;
-          operationTitle: string;
-          operationType: 'read' | 'write';
-          parameters: Record<string, unknown>;
-        }
-
-        const isApprovalResult = (r: unknown): r is ApprovalResult =>
-          isRecord(r) && getBoolean(r, 'requiresApproval') === true;
-
         if (isApprovalResult(result)) {
           const approvalResult = result;
           console.log('[integration_tool] Approval created successfully:', {

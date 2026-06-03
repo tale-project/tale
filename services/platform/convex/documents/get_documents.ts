@@ -5,9 +5,9 @@
  * Filters are applied during iteration instead of using .filter() which still scans all records.
  */
 
-import { isRecord, getString } from '../../lib/utils/type-guards';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import { getMetadataString } from '../lib/metadata/get_metadata_string';
 import { isActiveDocument } from './_helpers';
 import { transformDocumentsBatch } from './transform_to_document_item';
 import type { DocumentFindResponse } from './types';
@@ -57,8 +57,7 @@ export async function getDocuments(
       // Apply search filter (case-insensitive contains)
       if (searchQuery) {
         const titleMatch = doc.title?.toLowerCase().includes(searchQuery);
-        const meta = isRecord(doc.metadata) ? doc.metadata : undefined;
-        const metaName = meta ? getString(meta, 'name') : undefined;
+        const metaName = getMetadataString(doc.metadata, 'name');
         const nameMatch = metaName?.toLowerCase().includes(searchQuery);
 
         if (!titleMatch && !nameMatch) {

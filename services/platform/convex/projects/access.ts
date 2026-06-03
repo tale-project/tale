@@ -25,7 +25,7 @@ export interface ProjectAccessResult {
   canAdminister: boolean;
 }
 
-const ADMIN_ROLES = new Set(['owner', 'admin']);
+export const ADMIN_ROLES = new Set(['owner', 'admin']);
 const EDITOR_ROLES = new Set(['owner', 'admin', 'developer', 'editor']);
 
 /**
