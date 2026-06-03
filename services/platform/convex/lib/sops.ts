@@ -140,6 +140,7 @@ export function encryptJsonWithSops(plaintext: string): string {
     try {
       unlinkSync(tmpFile);
     } catch (err) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
         console.warn(
           `[sops] failed to remove temp plaintext ${tmpFile}: ${
@@ -151,6 +152,7 @@ export function encryptJsonWithSops(plaintext: string): string {
     try {
       rmdirSync(tmpDir);
     } catch (err) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
         console.warn(
           `[sops] failed to remove temp dir ${tmpDir}: ${

@@ -49,6 +49,7 @@ export async function listContainerIds(
   if (res.status !== 200) {
     throw new Error(`docker list failed (${res.status}): ${res.body}`);
   }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- docker /containers/json returns an array of {Id,...}
   const arr = JSON.parse(res.body) as { Id: string }[];
   return arr.map((c) => c.Id);
 }

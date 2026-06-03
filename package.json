@@ -15,6 +15,7 @@
     "services/db",
     "services/proxy",
     "services/sandbox",
+    "services/controller",
     "tools/cli",
     "tools/plop"
   ],

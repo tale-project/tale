@@ -535,10 +535,9 @@ export const requestRestart = action({
         body,
         signal: AbortSignal.timeout(30_000),
       });
-      const json = (await res.json().catch(() => ({}))) as Record<
-        string,
-        unknown
-      >;
+      const raw = await res.json().catch(() => ({}));
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- controller returns arbitrary JSON
+      const json = raw as Record<string, unknown>;
       return { configured: true, ok: res.ok && json.ok !== false, ...json };
     } catch (err) {
       return {

@@ -54,6 +54,46 @@ type StorageForm = {
   secretAccessKey: string; // write-only
 };
 
+/** Loose shape of the JSON the read action returns (deployment.json is v.any()). */
+type PgConfigJson = {
+  host?: string;
+  port?: number;
+  database?: string;
+  user?: string;
+  sslmode?: string;
+};
+
+type DeploymentReadData = {
+  config?: {
+    version?: number;
+    dataStores?: {
+      knowledgePostgres?: PgConfigJson;
+      appPostgres?: PgConfigJson;
+      convexStorage?: {
+        mode?: string;
+        region?: string;
+        endpoint?: string;
+        forcePathStyle?: boolean;
+        buckets?: Record<string, string>;
+      };
+    };
+  };
+  hash?: string | null;
+  secrets?: Record<string, { present: boolean; masked?: string }>;
+  secretsError?: string;
+  uiEnabled?: boolean;
+};
+
+type ConnTestResult = {
+  ok?: boolean;
+  configured?: boolean;
+  error?: string;
+  errors?: string[];
+  restarted?: string[];
+  hint?: string;
+  latencyMs?: number;
+};
+
 const emptyPg = (): PgForm => ({
   enabled: false,
   host: '',
@@ -64,15 +104,15 @@ const emptyPg = (): PgForm => ({
   password: '',
 });
 
-function pgFromConfig(pg: Record<string, unknown> | undefined): PgForm {
+function pgFromConfig(pg: PgConfigJson | undefined): PgForm {
   if (!pg) return emptyPg();
   return {
     enabled: true,
-    host: String(pg.host ?? ''),
+    host: pg.host ?? '',
     port: String(pg.port ?? 5432),
-    database: String(pg.database ?? ''),
-    user: String(pg.user ?? ''),
-    sslmode: String(pg.sslmode ?? 'require'),
+    database: pg.database ?? '',
+    user: pg.user ?? '',
+    sslmode: pg.sslmode ?? 'require',
     password: '',
   };
 }
@@ -239,10 +279,14 @@ function PgSection({
   );
 }
 
-function DeploymentSettingsView({ data }: { data: any }) {
-  const config = data?.config ?? { version: 1 };
-  const ds = config.dataStores ?? {};
-  const secrets = data?.secrets ?? {};
+function DeploymentSettingsView({
+  data,
+}: {
+  data: DeploymentReadData | undefined;
+}) {
+  const cfg = data?.config ?? { version: 1 };
+  const ds = cfg.dataStores ?? {};
+  const secretState = data?.secrets ?? {};
   const uiEnabled: boolean = Boolean(data?.uiEnabled);
   const readOnly = !uiEnabled;
 
@@ -257,14 +301,14 @@ function DeploymentSettingsView({ data }: { data: any }) {
     const s3 = cs?.mode === 's3';
     return {
       s3,
-      region: String(cs?.region ?? ''),
-      endpoint: String(cs?.endpoint ?? ''),
+      region: cs?.region ?? '',
+      endpoint: cs?.endpoint ?? '',
       forcePathStyle: Boolean(cs?.forcePathStyle),
-      files: String(cs?.buckets?.files ?? ''),
-      exports: String(cs?.buckets?.exports ?? ''),
-      snapshotImports: String(cs?.buckets?.snapshotImports ?? ''),
-      modules: String(cs?.buckets?.modules ?? ''),
-      search: String(cs?.buckets?.search ?? ''),
+      files: cs?.buckets?.files ?? '',
+      exports: cs?.buckets?.exports ?? '',
+      snapshotImports: cs?.buckets?.snapshotImports ?? '',
+      modules: cs?.buckets?.modules ?? '',
+      search: cs?.buckets?.search ?? '',
       accessKeyId: '',
       secretAccessKey: '',
     };
@@ -289,7 +333,7 @@ function DeploymentSettingsView({ data }: { data: any }) {
     setRestarting(true);
     setRestartMsg(null);
     try {
-      const res: any = await restartHook.mutateAsync({});
+      const res: ConnTestResult = await restartHook.mutateAsync({});
       if (res?.configured === false) {
         setRestartMsg(res.error || 'Restart controller not enabled.');
       } else if (res?.ok) {
@@ -412,8 +456,8 @@ function DeploymentSettingsView({ data }: { data: any }) {
                 },
               }
             : { mode: 'local' }
-          : buildPg(form!);
-      const res: any = await testConn.mutateAsync({
+          : buildPg(form ?? emptyPg());
+      const res: ConnTestResult = await testConn.mutateAsync({
         target,
         config,
         ...(form?.password ? { password: form.password } : {}),
@@ -462,7 +506,7 @@ function DeploymentSettingsView({ data }: { data: any }) {
           state={knowledge}
           setState={setKnowledge}
           secretMasked={
-            secrets['dataStores.knowledgePostgres.password']?.masked
+            secretState['dataStores.knowledgePostgres.password']?.masked
           }
           onTest={() => void runTest('knowledgePostgres')}
           testing={testing === 'knowledgePostgres'}
@@ -579,8 +623,8 @@ function DeploymentSettingsView({ data }: { data: any }) {
                 <Labeled
                   label="Access key ID"
                   hint={
-                    secrets['dataStores.convexStorage.accessKeyId']?.masked
-                      ? `Stored: ${secrets['dataStores.convexStorage.accessKeyId'].masked} — leave blank to keep`
+                    secretState['dataStores.convexStorage.accessKeyId']?.masked
+                      ? `Stored: ${secretState['dataStores.convexStorage.accessKeyId'].masked} — leave blank to keep`
                       : 'Write-only'
                   }
                 >
@@ -653,7 +697,9 @@ function DeploymentSettingsView({ data }: { data: any }) {
               title="Convex metadata database"
               state={appPg}
               setState={setAppPg}
-              secretMasked={secrets['dataStores.appPostgres.password']?.masked}
+              secretMasked={
+                secretState['dataStores.appPostgres.password']?.masked
+              }
               onTest={() => void runTest('appPostgres')}
               testing={testing === 'appPostgres'}
               testResult={testResults.appPostgres}

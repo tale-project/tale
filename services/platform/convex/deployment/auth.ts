@@ -37,6 +37,9 @@ export interface InstanceAdminAuth {
   role: string;
 }
 
+/** Shape of the Better Auth `member` adapter `findMany` page (returns unknown). */
+type MemberPage = { page?: { organizationId: string; role: string }[] };
+
 /**
  * Authenticate the caller and require organization-settings access (owner or
  * admin of some org — the deployment is typically single-org self-hosted, so
@@ -68,9 +71,7 @@ export async function requireInstanceAdmin(
     where: [{ field: 'userId', value: userId, operator: 'eq' }],
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- adapter findMany returns paginated unknown
-  const members =
-    (memberRes as { page?: { organizationId: string; role: string }[] })
-      ?.page ?? [];
+  const members = (memberRes as MemberPage).page ?? [];
   const adminMember = members.find((m) =>
     defineAbilityFor(m.role).can('read', 'orgSettings'),
   );
