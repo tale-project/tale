@@ -697,6 +697,91 @@ dump_diagnostics() {
 # Build command args as arrays so values with spaces / special chars don't
 # word-split at expansion time. Quoting variables in a single string does not
 # protect against this — only `"${array[@]}"` does.
+
+# --- Deployment-level data-store overrides (instance data residency) -------
+# A deployment.json at the config root can (a) point Convex metadata at an
+# external Postgres (appPostgres → POSTGRES_URL) and (b) move file storage to
+# external S3 (convexStorage.mode=s3 → --s3-storage + S3_* env). Applied at
+# boot only — changing it requires a restart. FAIL CLOSED on a present-but-
+# broken config; ABSENT → today's defaults (local storage, .env Postgres).
+STORAGE_ARGS=(--local-storage /app/data/convex)
+DEPLOY_CFG="${TALE_CONFIG_DIR:-/app/data}/deployment.json"
+DEPLOY_SECRETS="${TALE_CONFIG_DIR:-/app/data}/deployment.secrets.json"
+if [ -f "${DEPLOY_CFG}" ]; then
+  if ! command -v jq >/dev/null 2>&1; then
+    log_error "${DEPLOY_CFG} present but 'jq' is not installed in this image."
+    exit 1
+  fi
+  if ! jq -e . "${DEPLOY_CFG}" >/dev/null 2>&1; then
+    log_error "${DEPLOY_CFG} is present but not valid JSON (fail-closed)."
+    exit 1
+  fi
+  DEPLOY_SECRETS_JSON=""
+  if [ -f "${DEPLOY_SECRETS}" ]; then
+    if ! DEPLOY_SECRETS_JSON="$(sops -d --output-type json "${DEPLOY_SECRETS}" 2>/dev/null)"; then
+      log_error "Could not decrypt ${DEPLOY_SECRETS} (fail-closed). Is SOPS_AGE_KEY / SOPS_AGE_KEY_FILE set?"
+      exit 1
+    fi
+  fi
+  deploy_secret() { printf '%s' "${DEPLOY_SECRETS_JSON}" | jq -r --arg k "$1" '.[$k] // empty'; }
+
+  # (a) appPostgres → POSTGRES_URL (Convex metadata DB)
+  ap_host="$(jq -r '.dataStores.appPostgres.host // empty' "${DEPLOY_CFG}")"
+  if [ -n "${ap_host}" ]; then
+    ap_port="$(jq -r '.dataStores.appPostgres.port // 5432' "${DEPLOY_CFG}")"
+    ap_db="$(jq -r '.dataStores.appPostgres.database // empty' "${DEPLOY_CFG}")"
+    ap_user="$(jq -r '.dataStores.appPostgres.user // empty' "${DEPLOY_CFG}")"
+    ap_sslmode="$(jq -r '.dataStores.appPostgres.sslmode // "require"' "${DEPLOY_CFG}")"
+    if [ -z "${ap_db}" ] || [ -z "${ap_user}" ]; then
+      log_error "${DEPLOY_CFG} appPostgres is missing database/user (fail-closed)."
+      exit 1
+    fi
+    ap_pass="$(deploy_secret 'dataStores.appPostgres.password')"
+    export POSTGRES_URL="postgresql://${ap_user}:${ap_pass}@${ap_host}:${ap_port}/${ap_db}?sslmode=${ap_sslmode}"
+    log_info "Deployment config: Convex metadata DB → ${ap_host}:${ap_port}/${ap_db} (sslmode=${ap_sslmode})"
+  fi
+
+  # (b) convexStorage.mode=s3 → external S3 file storage (all-or-nothing)
+  cs_mode="$(jq -r '.dataStores.convexStorage.mode // empty' "${DEPLOY_CFG}")"
+  if [ "${cs_mode}" = "s3" ]; then
+    cs_region="$(jq -r '.dataStores.convexStorage.region // empty' "${DEPLOY_CFG}")"
+    b_files="$(jq -r '.dataStores.convexStorage.buckets.files // empty' "${DEPLOY_CFG}")"
+    b_exports="$(jq -r '.dataStores.convexStorage.buckets.exports // empty' "${DEPLOY_CFG}")"
+    b_snap="$(jq -r '.dataStores.convexStorage.buckets.snapshotImports // empty' "${DEPLOY_CFG}")"
+    b_modules="$(jq -r '.dataStores.convexStorage.buckets.modules // empty' "${DEPLOY_CFG}")"
+    b_search="$(jq -r '.dataStores.convexStorage.buckets.search // empty' "${DEPLOY_CFG}")"
+    if [ -z "${cs_region}" ] || [ -z "${b_files}" ] || [ -z "${b_exports}" ] || \
+       [ -z "${b_snap}" ] || [ -z "${b_modules}" ] || [ -z "${b_search}" ]; then
+      log_error "${DEPLOY_CFG} convexStorage(s3) needs region + all five buckets {files,exports,snapshotImports,modules,search} (fail-closed)."
+      exit 1
+    fi
+    cs_ak="$(deploy_secret 'dataStores.convexStorage.accessKeyId')"
+    cs_sk="$(deploy_secret 'dataStores.convexStorage.secretAccessKey')"
+    if [ -z "${cs_ak}" ] || [ -z "${cs_sk}" ]; then
+      log_error "${DEPLOY_CFG} convexStorage(s3) needs accessKeyId + secretAccessKey secrets (fail-closed)."
+      exit 1
+    fi
+    export AWS_REGION="${cs_region}"
+    export AWS_ACCESS_KEY_ID="${cs_ak}"
+    export AWS_SECRET_ACCESS_KEY="${cs_sk}"
+    cs_endpoint="$(jq -r '.dataStores.convexStorage.endpoint // empty' "${DEPLOY_CFG}")"
+    if [ -n "${cs_endpoint}" ]; then
+      export S3_ENDPOINT_URL="${cs_endpoint}"
+    fi
+    if [ "$(jq -r '.dataStores.convexStorage.forcePathStyle // false' "${DEPLOY_CFG}")" = "true" ]; then
+      export AWS_S3_FORCE_PATH_STYLE="true"
+    fi
+    export S3_STORAGE_FILES_BUCKET="${b_files}"
+    export S3_STORAGE_EXPORTS_BUCKET="${b_exports}"
+    export S3_STORAGE_SNAPSHOT_IMPORTS_BUCKET="${b_snap}"
+    export S3_STORAGE_MODULES_BUCKET="${b_modules}"
+    export S3_STORAGE_SEARCH_BUCKET="${b_search}"
+    STORAGE_ARGS=(--s3-storage)
+    log_info "Deployment config: Convex file storage → S3 (region=${cs_region}, files=${b_files})"
+    log_warn "S3 storage is greenfield — existing local _storage blobs are NOT migrated to S3 automatically."
+  fi
+fi
+
 DB_ARGS=()
 if [[ "$POSTGRES_URL" == postgresql* || "$POSTGRES_URL" == postgres* ]]; then
   DB_ARGS=(-d postgres-v5 "$POSTGRES_URL")
@@ -730,7 +815,7 @@ fi
 log_section "Starting convex-local-backend on port ${CONVEX_BACKEND_PORT}"
 export RUST_LOG="${RUST_LOG:-info,common::errors=off,isolate::client=off,application::scheduled_jobs=off}"
 
-convex-local-backend "${DB_ARGS[@]}" --local-storage /app/data/convex "${SITE_ARGS[@]}" \
+convex-local-backend "${DB_ARGS[@]}" "${STORAGE_ARGS[@]}" "${SITE_ARGS[@]}" \
   > >(tee -a /app/data/convex/backend.log) \
   2> >(tee -a /app/data/convex/backend.log >&2) &
 CONVEX_PID=$!

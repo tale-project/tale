@@ -26,6 +26,54 @@ if ! touch "${DATA_DIR}/.write-probe" 2>/dev/null; then
 fi
 rm -f "${DATA_DIR}/.write-probe"
 
+# --- Deployment-level data-store override (instance data residency) --------
+# A deployment.json at the config root can point this service at an EXTERNAL
+# knowledge Postgres (set via the admin UI, or hand-edited by an operator).
+# When present we derive RAG_DATABASE_URL from it, overriding the DB_* build
+# below. Applied at boot only — changing it requires a restart.
+#
+# FAIL CLOSED: a present-but-unparseable config, an undecryptable secret, or a
+# config missing required fields aborts boot rather than silently falling back
+# to the bundled DB — mis-routing a customer's regulated data is worse than
+# not starting. An ABSENT config means "use the .env default" (unchanged).
+DEPLOY_CFG="${TALE_CONFIG_DIR:-/app/data}/deployment.json"
+DEPLOY_SECRETS="${TALE_CONFIG_DIR:-/app/data}/deployment.secrets.json"
+if [ -f "${DEPLOY_CFG}" ]; then
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "ERROR: ${DEPLOY_CFG} present but 'jq' is not installed in this image." >&2
+    exit 1
+  fi
+  if ! jq -e . "${DEPLOY_CFG}" >/dev/null 2>&1; then
+    echo "ERROR: ${DEPLOY_CFG} is present but not valid JSON (fail-closed)." >&2
+    exit 1
+  fi
+  kp_host="$(jq -r '.dataStores.knowledgePostgres.host // empty' "${DEPLOY_CFG}")"
+  if [ -n "${kp_host}" ]; then
+    kp_port="$(jq -r '.dataStores.knowledgePostgres.port // 5432' "${DEPLOY_CFG}")"
+    kp_db="$(jq -r '.dataStores.knowledgePostgres.database // empty' "${DEPLOY_CFG}")"
+    kp_user="$(jq -r '.dataStores.knowledgePostgres.user // empty' "${DEPLOY_CFG}")"
+    kp_sslmode="$(jq -r '.dataStores.knowledgePostgres.sslmode // "require"' "${DEPLOY_CFG}")"
+    if [ -z "${kp_db}" ] || [ -z "${kp_user}" ]; then
+      echo "ERROR: ${DEPLOY_CFG} knowledgePostgres is missing database/user (fail-closed)." >&2
+      exit 1
+    fi
+    kp_pass=""
+    if [ -f "${DEPLOY_SECRETS}" ]; then
+      if ! dec="$(sops -d --output-type json "${DEPLOY_SECRETS}" 2>/dev/null)"; then
+        echo "ERROR: could not decrypt ${DEPLOY_SECRETS} (fail-closed). Is SOPS_AGE_KEY / SOPS_AGE_KEY_FILE set?" >&2
+        exit 1
+      fi
+      kp_pass="$(printf '%s' "${dec}" | jq -r '."dataStores.knowledgePostgres.password" // empty')"
+    fi
+    # Password interpolated raw — matches the bundled DB_PASSWORD handling
+    # below; a password with URL-reserved chars (@ : / ?) needs percent-
+    # encoding (same limitation as the bundled path).
+    export RAG_DATABASE_URL="postgresql://${kp_user}:${kp_pass}@${kp_host}:${kp_port}/${kp_db}?sslmode=${kp_sslmode}"
+    echo "Deployment config: RAG knowledge DB → ${kp_host}:${kp_port}/${kp_db} (sslmode=${kp_sslmode})"
+    echo "       Reminder: an external knowledge DB must run ParadeDB (pgvector + pg_search) for full hybrid search; plain pgvector degrades to vector-only."
+  fi
+fi
+
 # --- Build database URL ----------------------------------------------------
 
 if [ -z "${RAG_DATABASE_URL:-}" ]; then
@@ -42,7 +90,13 @@ fi
 
 # --- Apply migrations (with retry for DB init race) ------------------------
 
-DBMATE_URL="${RAG_DATABASE_URL}?sslmode=disable"
+# Built-in URL has no query string → default sslmode=disable (local DB). An
+# external knowledge DB (deployment.json) already carries `?sslmode=…`; use it
+# as-is rather than appending a second, conflicting query.
+case "${RAG_DATABASE_URL}" in
+  *\?*) DBMATE_URL="${RAG_DATABASE_URL}" ;;
+  *) DBMATE_URL="${RAG_DATABASE_URL}?sslmode=disable" ;;
+esac
 DBMATE_LOG="$(mktemp)"
 
 echo "Applying RAG (private_knowledge) migrations..."

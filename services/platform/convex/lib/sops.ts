@@ -23,7 +23,12 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+import { resolveAgeRecipients } from './age_keygen';
 
 interface CacheEntry {
   data: Record<string, unknown>;
@@ -84,6 +89,77 @@ function emitPlaintextWarnOnce(filePath: string): void {
  */
 export function invalidateSecretsCache(filePath: string): void {
   cache.delete(filePath);
+}
+
+/**
+ * Encrypt a JSON plaintext string with SOPS, addressing ALL configured age
+ * recipients (so any key in `SOPS_AGE_KEY_FILE` can decrypt — the rotation
+ * primitive). Returns the encrypted SOPS-JSON string. Throws if no age key is
+ * configured or `sops` fails; callers wanting plaintext-mode fallback must
+ * check `hasSopsKey()` first.
+ *
+ * Writes the plaintext to a 0o600 file inside a 0o700 mkdtemp dir, runs
+ * `sops -e`, and cleans both up. Cleanup failures are warned (not swallowed)
+ * because a leaked temp file holds a plaintext secret until the OS reaper
+ * sweeps it.
+ */
+export function encryptJsonWithSops(plaintext: string): string {
+  const recipients = resolveAgeRecipients();
+  if (recipients.length === 0) {
+    throw new Error(
+      'No age secret key available. Set SOPS_AGE_KEY (inline) or ' +
+        'SOPS_AGE_KEY_FILE (path) in .env, or unset both to use plaintext mode.',
+    );
+  }
+  const tmpDir = mkdtempSync(path.join(tmpdir(), 'sops-'));
+  const tmpFile = path.join(tmpDir, 'plain.json');
+  try {
+    writeFileSync(tmpFile, plaintext, { encoding: 'utf-8', mode: 0o600 });
+    return execFileSync(
+      'sops',
+      [
+        '-e',
+        '--input-type',
+        'json',
+        '--output-type',
+        'json',
+        '--age',
+        recipients.join(','),
+        tmpFile,
+      ],
+      { encoding: 'utf-8', timeout: 10_000, stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Failed to encrypt secrets with SOPS: ${message}. ` +
+        'Ensure sops is installed and SOPS_AGE_KEY / SOPS_AGE_KEY_FILE is set.',
+      { cause: err },
+    );
+  } finally {
+    try {
+      unlinkSync(tmpFile);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.warn(
+          `[sops] failed to remove temp plaintext ${tmpFile}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+    try {
+      rmdirSync(tmpDir);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.warn(
+          `[sops] failed to remove temp dir ${tmpDir}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+  }
 }
 
 export async function decryptSecretsFile(
