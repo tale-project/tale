@@ -1,9 +1,13 @@
-import { createThread, saveMessage } from '@convex-dev/agent';
+import {
+  createThread,
+  listMessages,
+  saveMessage,
+  type MessageDoc,
+} from '@convex-dev/agent';
 import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
-import { getThreadMessages } from './get_thread_messages';
 
 export const createBranchThread = internalMutation({
   args: {
@@ -88,55 +92,55 @@ export const createBranchThread = internalMutation({
       createdAt,
     });
 
-    // Copy messages from source up to (but not including) the edited message,
-    // then append the new edited message content.
-    // Use getThreadMessages + saveMessage (same pattern as fork_thread.ts)
-    // to guarantee correct chronological ordering. We also build a
-    // parent → branch messageId map so artifact attribution can be rewritten
-    // to the branch's message ids when we snapshot artifacts below.
-    const { messages } = await getThreadMessages(ctx, args.sourceThreadId);
-    const messageIdMap = new Map<string, string>();
-
-    for (const msg of messages) {
-      // Stop before the edited message
-      if (msg._id === args.editedMessageId) break;
-      const { messageId: branchMessageId } = await saveMessage(
-        ctx,
-        components.agent,
-        {
-          threadId: branchThreadId,
-          userId: args.userId,
-          message: {
-            role: msg.role,
-            content: msg.content,
-          },
-        },
-      );
-      messageIdMap.set(msg._id, branchMessageId);
+    // Copy every source message strictly before the edited message's turn,
+    // preserving the FULL model content (reasoning blocks + tool calls/results),
+    // then append the new edited user message.
+    //
+    // We iterate the RAW agent messages (not the flattened text from
+    // getThreadMessages): the previous copy saved only `{ role, content: text }`,
+    // which dropped each turn's reasoning/tool parts. After a mid-thread edit
+    // that left every prior assistant turn on the branch with no thought-process
+    // timeline. Copying the raw model messages (tool messages included, in
+    // (order, stepOrder) sequence so tool-call/tool-result pairs stay adjacent)
+    // also hands the regeneration a faithful, non-lossy history.
+    const sourceMessages: MessageDoc[] = [];
+    let cursor: string | null = null;
+    let isDone = false;
+    while (!isDone) {
+      const page = await listMessages(ctx, components.agent, {
+        threadId: args.sourceThreadId,
+        paginationOpts: { cursor, numItems: 100 },
+      });
+      sourceMessages.push(...page.page);
+      cursor = page.continueCursor;
+      isDone = page.isDone;
     }
-
-    // Save the edited user message and map the original edited messageId to
-    // the new branch-side id (in case any artifact's createdByMessageId
-    // happens to be it — unlikely, since artifacts are created by assistant
-    // messages, but mapping it keeps the contract clean).
-    const { messageId: editedBranchMessageId } = await saveMessage(
-      ctx,
-      components.agent,
-      {
+    // listMessages returns newest-first; copy oldest-first.
+    const ordered = [...sourceMessages].sort((a, b) =>
+      a.order === b.order ? a.stepOrder - b.stepOrder : a.order - b.order,
+    );
+    for (const doc of ordered) {
+      // Everything from the edited turn onward is dropped (the branch
+      // regenerates from the edit point).
+      if (doc.order >= args.editedMessageOrder) break;
+      if (!doc.message) continue;
+      await saveMessage(ctx, components.agent, {
         threadId: branchThreadId,
         userId: args.userId,
-        message: {
-          role: 'user',
-          content: args.newMessage,
-        },
-      },
-    );
-    messageIdMap.set(args.editedMessageId, editedBranchMessageId);
+        message: doc.message,
+      });
+    }
 
-    // Artifact branch snapshotting removed — artifacts module deleted in
-    // the thread-workspace refactor. Branch threads start with an empty
-    // workspace; future versions may snapshot threadFiles instead.
-    void messageIdMap;
+    // Save the edited user message — the new fork point the branch regenerates
+    // off.
+    await saveMessage(ctx, components.agent, {
+      threadId: branchThreadId,
+      userId: args.userId,
+      message: {
+        role: 'user',
+        content: args.newMessage,
+      },
+    });
 
     return { branchThreadId, forkOrder: args.editedMessageOrder };
   },
