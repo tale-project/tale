@@ -163,7 +163,14 @@ export function PasswordPolicyEditor({
   const persistToggle = useCallback(
     (field: keyof PasswordPolicyForm, value: boolean) => {
       setValue(field, value, { shouldDirty: true, shouldValidate: true });
-      void editor.save();
+      // Fire-and-forget: `save()` already toasts real failures, and a
+      // validation failure (e.g. a numeric input mid-edit) surfaces inline on
+      // that field. Catch so the discarded promise never rejects unhandled.
+      editor.save().catch((err) => {
+        if (!(err instanceof Error && err.message === 'VALIDATION_FAILED')) {
+          console.error('[passwordPolicy] toggle save failed', err);
+        }
+      });
     },
     [editor, setValue],
   );

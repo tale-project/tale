@@ -468,7 +468,14 @@ export function DataTable<TData, TValue = unknown>({
     <Skeletonize loading={isSkeleton}>
       <Table
         stickyLayout={stickyLayout}
-        style={tableMinWidth ? { minWidth: tableMinWidth } : undefined}
+        // `max(100%, …)` so the table still fills a wide container (preserving
+        // the primitive's `min-w-full`) while gaining a content-based floor that
+        // forces horizontal scroll on narrow viewports instead of squashing.
+        style={
+          tableMinWidth
+            ? { minWidth: `max(100%, ${tableMinWidth})` }
+            : undefined
+        }
       >
         {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
         <TableHeader sticky={stickyLayout}>
