@@ -194,7 +194,26 @@ function MarkdownParagraph({ children }: { children?: ReactNode }) {
   return <p>{children}</p>;
 }
 
+// Plain heading renderers. Chat headings must stay plain text — the
+// `AnchoredHeading` (clickable `#` anchor + slug id) used by the docs markdown
+// is right for documentation but noise in a conversation. Overriding h1–h6
+// here guarantees chat never picks up an anchored-heading default; sizing comes
+// from `markdownWrapperStyles`.
+const plainHeading = (Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') =>
+  function PlainHeading({
+    node: _node,
+    ...props
+  }: { node?: unknown } & React.HTMLAttributes<HTMLHeadingElement>) {
+    return <Tag {...props} />;
+  };
+
 export const markdownComponents = {
+  h1: plainHeading('h1'),
+  h2: plainHeading('h2'),
+  h3: plainHeading('h3'),
+  h4: plainHeading('h4'),
+  h5: plainHeading('h5'),
+  h6: plainHeading('h6'),
   p: ({
     node: _node,
     ...props
