@@ -2,6 +2,7 @@ import { parseAcceptLanguage } from './accept-language';
 import { readLocaleCookie } from './cookie';
 import {
   isUrlPrefixedLocale,
+  localizedPath,
   type SupportedLocale,
   type UrlPrefixedLocale,
 } from './locales';
@@ -162,7 +163,7 @@ export function negotiatePathLocale(
   if (cookieLocale && cookieLocale !== 'en') {
     return {
       locale: cookieLocale,
-      redirectTo: prefixedPath(cookieLocale, pathname),
+      redirectTo: localizedPath(cookieLocale, pathname),
       setCookieValue: null,
       skip: false,
     };
@@ -188,13 +189,8 @@ export function negotiatePathLocale(
   }
   return {
     locale: detected,
-    redirectTo: prefixedPath(detected, pathname),
+    redirectTo: localizedPath(detected, pathname),
     setCookieValue: detected,
     skip: false,
   };
-}
-
-function prefixedPath(locale: UrlPrefixedLocale, pathname: string): string {
-  if (pathname === '/' || pathname === '') return `/${locale}`;
-  return `/${locale}${pathname}`;
 }

@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { type ComponentPropsWithoutRef } from 'react';
 import type { Components } from 'react-markdown';
 
+import { isHttpUrl } from './is-http-url';
 import { Markdown } from './markdown';
 
 interface RoutedMarkdownProps {
@@ -32,9 +33,7 @@ const NON_INTERNAL_HREF_RE = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|\/\/)/;
 function RoutedAnchor({ href, children }: ComponentPropsWithoutRef<'a'>) {
   const isExternal =
     typeof href === 'string' && NON_INTERNAL_HREF_RE.test(href);
-  const isHttpExternal =
-    typeof href === 'string' &&
-    (href.startsWith('http://') || href.startsWith('https://'));
+  const isHttpExternal = isHttpUrl(href);
   const isHash = typeof href === 'string' && href.startsWith('#');
 
   if (!href || isExternal || isHash) {

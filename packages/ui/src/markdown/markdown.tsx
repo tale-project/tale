@@ -13,6 +13,7 @@ import { AnchoredHeading } from './anchored-heading';
 import { CodeBlock } from './code-block';
 import { Callout } from './components/callout';
 import { Mermaid } from './components/mermaid';
+import { isHttpUrl } from './is-http-url';
 import { rehypeNumericColumns } from './plugins/rehype-numeric-columns';
 import { rehypePreserveCodeMeta } from './plugins/rehype-preserve-code-meta';
 
@@ -212,9 +213,7 @@ export const baseComponents: Components = {
     // so it can run anywhere (Storybook, SSR, non-routed apps). Consumers
     // that want SPA navigation pass their own `components.a` (e.g. a
     // TanStack-Router-aware <Link>) when calling <Markdown>.
-    const isExternal =
-      typeof href === 'string' &&
-      (href.startsWith('http://') || href.startsWith('https://'));
+    const isExternal = isHttpUrl(href);
     return (
       <a
         href={href}
