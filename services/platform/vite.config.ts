@@ -97,6 +97,20 @@ export default defineConfig({
       'remark-gfm',
       'rehype-raw',
       'rehype-sanitize',
+      // Custom markdown plugins (@tale/ui) reach *past* react-markdown and
+      // import these micromark/unist internals directly, so each becomes its
+      // own optimized entry that the react-markdown pre-bundle above does not
+      // cover. Discovered only when a markdown route mounts a plugin, they
+      // re-bundle the shared micromark chunk mid-session and 404 the in-flight
+      // `dev-*.js` request. Listing them keeps that chunk stable from cold start.
+      'micromark-core-commonmark',
+      'micromark-util-classify-character',
+      'unist-util-visit',
+      // Charting stack (analytics + automation metrics) is behind lazy routes,
+      // so the cold-start scanner never sees `recharts`. First chart mount
+      // discovers it plus its transitive prop-types -> react-is, forcing a
+      // re-optimization that 404s the in-flight `react-is-*.js` chunk.
+      'recharts',
     ],
     exclude: [
       '@tanstack/react-start/server',

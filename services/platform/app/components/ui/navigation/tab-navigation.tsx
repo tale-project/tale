@@ -83,6 +83,10 @@ export function TabNavigation({
   // to the right while only the tabs scroll. All measurement/scroll logic reads
   // this element, so the <nav> itself needs no ref.
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // The <nav> owns the bottom border, so the active indicator is anchored to it
+  // (not to `scrollRef`) — see the indicator's JSX comment for why.
+  const navRef = useRef<HTMLElement | null>(null);
+  const indicatorRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
   // Track if we should animate (only after initial render)
@@ -123,24 +127,33 @@ export function TabNavigation({
   // each cycle, and a parent that produces a fresh `items` array per render
   // would feed that cycle into a max-update-depth loop.
   const updateIndicator = useCallback(() => {
-    if (activeIndex !== -1 && itemRefs.current[activeIndex]) {
-      const activeElement = itemRefs.current[activeIndex];
-      if (activeElement) {
-        const nextWidth = activeElement.offsetWidth;
-        const nextLeft = activeElement.offsetLeft;
-        setIndicatorStyle((prev) =>
-          prev.width === nextWidth && prev.left === nextLeft
-            ? prev
-            : { width: nextWidth, left: nextLeft },
-        );
+    const navElement = navRef.current;
+    const activeElement =
+      activeIndex !== -1 ? itemRefs.current[activeIndex] : null;
+    if (navElement && activeElement) {
+      // Measure with bounding rects relative to the <nav>, not `offsetLeft`.
+      // The indicator now lives in the <nav> while the active tab lives in the
+      // horizontally-scrolling inner container, so they no longer share an
+      // offset parent. The tab's on-screen `left` already reflects the
+      // scroller's `scrollLeft`; subtracting the nav's `left` maps it into the
+      // indicator's containing block. (Assumes the <nav> has no horizontal
+      // padding/border — the component keeps `px-*` on the inner scroller.)
+      const navRect = navElement.getBoundingClientRect();
+      const itemRect = activeElement.getBoundingClientRect();
+      const nextWidth = itemRect.width;
+      const nextLeft = itemRect.left - navRect.left;
+      setIndicatorStyle((prev) =>
+        prev.width === nextWidth && prev.left === nextLeft
+          ? prev
+          : { width: nextWidth, left: nextLeft },
+      );
 
-        // Enable animations after first position is set
-        if (!hasInitialized.current) {
-          hasInitialized.current = true;
-          requestAnimationFrame(() => {
-            setShouldAnimate(true);
-          });
-        }
+      // Enable animations after first position is set
+      if (!hasInitialized.current) {
+        hasInitialized.current = true;
+        requestAnimationFrame(() => {
+          setShouldAnimate(true);
+        });
       }
     }
   }, [activeIndex]);
@@ -200,6 +213,34 @@ export function TabNavigation({
     });
   }, [activeIndex]);
 
+  // Keep the indicator pinned to the active tab while the strip scrolls
+  // horizontally. The indicator sits in the <nav> (so it can rest on the bottom
+  // border, which the overflow-clipped scroller can't reach), so unlike the old
+  // in-scroller indicator it does NOT move with the tabs for free — we
+  // re-measure on scroll. The slide transition is suppressed during the scroll
+  // so the underline tracks the tab 1:1 instead of lagging 200ms behind it, and
+  // restored once scrolling settles so tab switches still animate.
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return undefined;
+    let restoreTimer: ReturnType<typeof setTimeout> | undefined;
+    const onScroll = () => {
+      const indicator = indicatorRef.current;
+      if (indicator) indicator.style.transition = 'none';
+      updateIndicator();
+      if (restoreTimer) clearTimeout(restoreTimer);
+      restoreTimer = setTimeout(() => {
+        const settled = indicatorRef.current;
+        if (settled) settled.style.transition = '';
+      }, 150);
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      scroller.removeEventListener('scroll', onScroll);
+      if (restoreTimer) clearTimeout(restoreTimer);
+    };
+  }, [updateIndicator]);
+
   // Combine refs for resize observation. The scroll container's width drives
   // both the indicator measurement and the active-tab scroll-into-view.
   const allRefs = useMemo(() => {
@@ -218,6 +259,7 @@ export function TabNavigation({
 
   return (
     <nav
+      ref={navRef}
       className={cn(
         'relative border-b border-border min-h-11 flex items-stretch shrink-0',
         standalone && 'bg-background z-10',
@@ -267,24 +309,31 @@ export function TabNavigation({
             </Link>
           );
         })}
-
-        {/* Animated indicator */}
-        {activeIndex !== -1 && (
-          <div
-            className={cn(
-              'absolute bottom-0 h-0.5',
-              !accentColor && 'bg-foreground',
-              shouldAnimate &&
-                'transition-all duration-200 ease-out motion-reduce:transition-none',
-            )}
-            style={{
-              width: `${indicatorStyle.width}px`,
-              left: `${indicatorStyle.left}px`,
-              backgroundColor: accentColor || undefined,
-            }}
-          />
-        )}
       </div>
+
+      {/* Animated active indicator. Rendered as a child of the <nav> rather than
+          the scroll container so it can sit flush on the nav's bottom border:
+          the scroll container is `overflow-x: auto` (which forces `overflow-y`
+          to clip too), so a child anchored to `bottom-0` there floats above the
+          border by the nav's bottom padding. Its position is measured in JS
+          relative to the nav and re-synced on scroll. */}
+      {activeIndex !== -1 && (
+        <div
+          ref={indicatorRef}
+          aria-hidden="true"
+          className={cn(
+            'pointer-events-none absolute bottom-0 h-0.5',
+            !accentColor && 'bg-foreground',
+            shouldAnimate &&
+              'transition-all duration-200 ease-out motion-reduce:transition-none',
+          )}
+          style={{
+            width: `${indicatorStyle.width}px`,
+            left: `${indicatorStyle.left}px`,
+            backgroundColor: accentColor || undefined,
+          }}
+        />
+      )}
 
       {/* Trailing action group — pinned to the right, outside the scroll area,
           so it stays in view while the tabs scroll under it. The left shadow +
