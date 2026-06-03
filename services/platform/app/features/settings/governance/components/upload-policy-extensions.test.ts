@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { findConflictingExtensions } from './upload-policy-editor';
+import { findConflictingExtensions } from './upload-policy-extensions';
 
 // Regression test for #1479: the upload policy must not accept the same
 // extension in both the allowed and blocked lists.

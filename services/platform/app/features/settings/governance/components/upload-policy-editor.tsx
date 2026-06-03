@@ -20,6 +20,10 @@ import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import {
+  findConflictingExtensions,
+  stringToExtensions,
+} from './upload-policy-extensions';
 
 interface UploadPolicyEditorProps {
   organizationId: string;
@@ -44,31 +48,6 @@ function parseConfig(raw: unknown): UploadPolicyConfig {
 
 function extensionsToString(exts?: string[]): string {
   return exts?.join(', ') ?? '';
-}
-
-function stringToExtensions(value: string): string[] | undefined {
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  return trimmed
-    .split(/[,\s]+/)
-    .map((s) => s.trim().replace(/^\./, ''))
-    .filter(Boolean);
-}
-
-/**
- * Returns the extensions present in BOTH the allowed and blocked lists
- * (case-insensitive). Used to reject a contradictory upload policy (#1479).
- */
-export function findConflictingExtensions(
-  allowedValue: string,
-  blockedValue: string,
-): string[] {
-  const allowed = new Set(
-    (stringToExtensions(allowedValue) ?? []).map((e) => e.toLowerCase()),
-  );
-  return (stringToExtensions(blockedValue) ?? []).filter((e) =>
-    allowed.has(e.toLowerCase()),
-  );
 }
 
 function buildConfig(
