@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { SkeletonBox, SkeletonCircle, SkeletonText } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
 import { CheckCheck, ChevronLeft, Inbox } from 'lucide-react';
@@ -176,7 +176,7 @@ export function NotificationListPanel({
             // longer resets the query — the skeleton won't reappear on switch.
             <Skeletonize loading label={t('loading')}>
               <ul role="list" className="divide-border divide-y" aria-hidden>
-                {Array.from({ length: 3 }).map((_, i) => (
+                {Array.from({ length: 4 }).map((_, i) => (
                   <li key={i} className="flex items-start gap-3 px-4 py-3">
                     <SkeletonCircle>
                       <span className="mt-1.5 block size-2 rounded-full" />
@@ -184,16 +184,19 @@ export function NotificationListPanel({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
                         <SkeletonBox>
-                          <span className="text-sm font-medium">
-                            Notification title preview
-                          </span>
+                          <span className="block h-3.5 w-32" />
                         </SkeletonBox>
                         <SkeletonBox>
-                          <span className="text-[10px]">2h</span>
+                          <span className="block h-3 w-6" />
                         </SkeletonBox>
                       </div>
-                      <div className="mt-1">
-                        <SkeletonText lines={2} seed={i + 1} />
+                      <div className="mt-2 space-y-1.5">
+                        <SkeletonBox fullWidth>
+                          <span className="block h-3 w-full" />
+                        </SkeletonBox>
+                        <SkeletonBox fullWidth>
+                          <span className="block h-3 w-3/5" />
+                        </SkeletonBox>
                       </div>
                     </div>
                   </li>
