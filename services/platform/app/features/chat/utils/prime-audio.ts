@@ -36,12 +36,9 @@
  * helper just pre-warms whatever element it's handed.
  */
 
-let audioContext: AudioContext | null = null;
+import { type AudioContextGlobals } from './audio-context';
 
-interface AudioContextGlobals {
-  AudioContext?: typeof AudioContext;
-  webkitAudioContext?: typeof AudioContext;
-}
+let audioContext: AudioContext | null = null;
 
 function getOrCreateContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;

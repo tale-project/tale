@@ -1,12 +1,6 @@
-import { Id } from '@/convex/_generated/dataModel';
+import type { FileAttachment } from '../../hooks/use-convex-file-upload';
 
-export interface FileAttachment {
-  fileId: Id<'_storage'>;
-  fileName: string;
-  fileType: string;
-  fileSize: number;
-  previewUrl?: string;
-}
+export type { FileAttachment };
 
 export interface FilePart {
   type: 'file';

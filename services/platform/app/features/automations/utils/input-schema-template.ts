@@ -11,6 +11,8 @@
  * lets users add items without switching to source mode.
  */
 
+import { isRecord } from '@/lib/utils/type-guards';
+
 type SchemaType =
   | 'string'
   | 'number'
@@ -86,10 +88,6 @@ export function buildInputTemplateFromSchema(
   }
 
   return JSON.stringify(template, null, 2);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**

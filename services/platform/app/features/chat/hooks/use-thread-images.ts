@@ -6,6 +6,7 @@ import type {
   FileAttachment,
   FilePart,
 } from '../components/message-bubble/types';
+import { extractStorageFileId } from '../utils/storage-file-id';
 
 interface MessageLike {
   id: string;
@@ -32,14 +33,6 @@ export interface ThreadImage {
   timestamp: Date;
   /** Message this image was attached to / produced for. */
   messageId: string;
-}
-
-function extractStorageFileId(url: string): string | undefined {
-  try {
-    return new URL(url).searchParams.get('id') ?? undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /**

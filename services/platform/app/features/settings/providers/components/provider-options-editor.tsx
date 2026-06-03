@@ -10,6 +10,7 @@ import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-g
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { isRecord } from '@/lib/utils/type-guards';
 
 // Permissive client-side schema: server-side `providerJsonSchema.parse` is the
 // authoritative gate (it carries the deny-list). This schema only catches
@@ -42,11 +43,7 @@ function validateDraft(
   if (trimmed === '') return { ok: true };
   try {
     const parsed: unknown = JSON.parse(trimmed);
-    if (
-      parsed === null ||
-      typeof parsed !== 'object' ||
-      Array.isArray(parsed)
-    ) {
+    if (!isRecord(parsed)) {
       return { ok: false, error: objectRequiredError };
     }
     return { ok: true };

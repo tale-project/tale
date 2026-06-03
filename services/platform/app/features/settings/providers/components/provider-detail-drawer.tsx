@@ -39,6 +39,7 @@ import {
   type ProviderJson,
 } from '@/lib/shared/schemas/providers';
 import { cn } from '@/lib/utils/cn';
+import { isRecord } from '@/lib/utils/type-guards';
 
 import {
   useFetchConfiguredProviderModels,
@@ -852,15 +853,9 @@ function ModelsSection({
       if (trimmedProviderOptions) {
         try {
           const parsed: unknown = JSON.parse(trimmedProviderOptions);
-          if (
-            parsed != null &&
-            typeof parsed === 'object' &&
-            !Array.isArray(parsed)
-          ) {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime checks above narrow `parsed` to a non-null, non-array plain object; TS can't track the narrowing across JSON.parse
-            const obj = parsed as Record<string, unknown>;
-            if (Object.keys(obj).length > 0) {
-              providerOptions = obj;
+          if (isRecord(parsed)) {
+            if (Object.keys(parsed).length > 0) {
+              providerOptions = parsed;
             }
           }
         } catch (parseErr) {

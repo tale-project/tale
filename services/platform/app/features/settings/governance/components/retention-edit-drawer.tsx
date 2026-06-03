@@ -15,6 +15,7 @@ import {
   unitForCategory,
 } from '@/lib/shared/schemas/retention';
 
+import { readConvexErrorData } from '../convex-error-data';
 import { useUpsertRetentionPolicy } from '../hooks/mutations';
 import type { CategoryBounds } from '../hooks/use-retention-bounds';
 import { type CategoryWireMapping, WIRE_MAPPING } from './retention-categories';
@@ -27,22 +28,6 @@ interface RetentionEditDrawerProps {
   bounds: Map<RetentionCategory, CategoryBounds>;
   organizationId: string;
   cannotManage: boolean;
-}
-
-/**
- * Read structured `data` off a Convex error without `instanceof
- * ConvexError`. Vite chunk splitting can produce multiple ConvexError
- * class copies, breaking instanceof — duck-type instead.
- */
-function readConvexErrorData(
-  err: unknown,
-): Record<string, unknown> | undefined {
-  if (err == null || typeof err !== 'object') return undefined;
-  if (!('data' in err)) return undefined;
-  const data = (err as { data: unknown }).data;
-  if (data == null || typeof data !== 'object') return undefined;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- data is runtime-checked above
-  return data as Record<string, unknown>;
 }
 
 export function RetentionEditDrawer({

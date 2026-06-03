@@ -2,10 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-interface AudioContextGlobals {
-  AudioContext?: typeof AudioContext;
-  webkitAudioContext?: typeof AudioContext;
-}
+import { type AudioContextGlobals } from '../utils/audio-context';
 
 interface UseMicrophoneLevelOptions {
   /** When true, opens a microphone stream and reports the RMS level. */

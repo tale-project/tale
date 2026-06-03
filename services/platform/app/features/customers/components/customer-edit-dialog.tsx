@@ -13,8 +13,7 @@ import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateCustomer } from '../hooks/mutations';
-
-const CUSTOMER_STATUSES = ['active', 'churned', 'potential'] as const;
+import { CUSTOMER_STATUSES } from '../lib/customer-data';
 const LOCALE_PATTERN = /^[a-z]{2}(?:[-_][A-Za-z]{2,})?$/;
 
 type CustomerFormData = {

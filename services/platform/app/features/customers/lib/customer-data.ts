@@ -5,7 +5,9 @@ export type CustomerData = Doc<'customers'> | CustomerInfo;
 
 type CustomerStatus = Doc<'customers'>['status'];
 
-const VALID_STATUSES = new Set(['active', 'churned', 'potential']);
+export const CUSTOMER_STATUSES = ['active', 'churned', 'potential'] as const;
+
+const VALID_STATUSES = new Set<string>(CUSTOMER_STATUSES);
 
 export function isValidStatus(
   status: string | undefined,

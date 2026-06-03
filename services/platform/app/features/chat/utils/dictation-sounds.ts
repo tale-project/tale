@@ -15,10 +15,7 @@
  *    instantaneously starting and stopping a square-shape signal.
  */
 
-interface AudioContextGlobals {
-  AudioContext?: typeof AudioContext;
-  webkitAudioContext?: typeof AudioContext;
-}
+import { type AudioContextGlobals } from './audio-context';
 
 let cachedContext: AudioContext | null = null;
 

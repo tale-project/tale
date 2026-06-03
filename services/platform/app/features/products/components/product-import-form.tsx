@@ -21,8 +21,6 @@ interface ProductImportFormProps {
   organizationId: string;
 }
 
-type _DataSource = 'SYNC' | 'FILE_UPLOAD';
-
 export function ProductImportForm({
   hideTabs: _hideTabs,
   organizationId: _organizationId,

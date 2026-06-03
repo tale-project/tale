@@ -34,15 +34,8 @@ import {
 } from '@/lib/utils/text-file-types';
 
 import { useFileUrl } from '../../hooks/queries';
+import { extractStorageFileId } from '../../utils/storage-file-id';
 import type { FileAttachment, FilePart } from './types';
-
-function extractStorageFileId(url: string): string | undefined {
-  try {
-    return new URL(url).searchParams.get('id') ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 export { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 

@@ -1,7 +1,7 @@
 import { MAX_TTS_CHUNK_CHARS } from '@/lib/shared/constants/tts';
 import { parseMarkers } from '@/lib/utils/marker-parser';
 
-import { stripMarkdown } from '../hooks/markdown-strip';
+import { stripMarkdownOnce } from '../hooks/markdown-strip';
 
 const FALLBACK_SENTENCE_BOUNDARY = /(?<=[.!?。！？])\s+|\n{2,}/g;
 
@@ -51,7 +51,7 @@ export function segmentTextForTts(rawText: string, locale: string): string[] {
     .map((s) => s.content)
     .join('\n\n');
 
-  const cleaned = stripMarkdown(plain, { current: false }).trim();
+  const cleaned = stripMarkdownOnce(plain).trim();
   if (!cleaned) return [];
 
   const sentences = segmentSentences(cleaned, locale);
