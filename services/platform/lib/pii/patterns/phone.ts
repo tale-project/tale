@@ -72,7 +72,7 @@ function buildPhonePosMap(orig: string): {
   converted: string;
   mapToOrig: (pos: number) => number;
 } {
-  if (orig.indexOf('00') === -1) {
+  if (!orig.includes('00')) {
     return { converted: orig, mapToOrig: (p: number) => p };
   }
   let converted = '';

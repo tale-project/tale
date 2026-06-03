@@ -414,7 +414,6 @@ export function composeAddressRegex(
 ): RegExp {
   const cacheKey = locales
     .map((l) => l.locale)
-    .slice()
     .sort()
     .join(',');
   const cached = ADDRESS_REGEX_CACHE.get(cacheKey);

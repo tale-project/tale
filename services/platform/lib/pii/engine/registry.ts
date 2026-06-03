@@ -54,10 +54,9 @@ export class PatternRegistry {
    * mutations don't leak across instances.
    */
   static fromDefaults(): PatternRegistry {
-    const m = new Map<string, PiiPatternFactory>();
-    for (const [name, factory] of Object.entries(BUILT_IN_PATTERNS)) {
-      m.set(name, factory);
-    }
+    const m = new Map<string, PiiPatternFactory>(
+      Object.entries(BUILT_IN_PATTERNS),
+    );
     return new PatternRegistry(m);
   }
 

@@ -44,7 +44,6 @@ export const addressFactory: PiiPatternFactory = (locales) => {
 
   const cacheKey = locales
     .map((l) => l.locale)
-    .slice()
     .sort()
     .join(',');
   let regex = ADDRESS_REGEX_CACHE.get(cacheKey);

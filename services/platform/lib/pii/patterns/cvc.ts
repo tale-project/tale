@@ -45,7 +45,6 @@ const CVC_REGEX_CACHE = new Map<string, RegExp>();
 function composeCvcRegex(locales: ReadonlyArray<LocaleConfig>): RegExp {
   const cacheKey = locales
     .map((l) => l.locale)
-    .slice()
     .sort()
     .join(',');
   const cached = CVC_REGEX_CACHE.get(cacheKey);

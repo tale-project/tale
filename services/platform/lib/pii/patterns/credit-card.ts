@@ -117,8 +117,7 @@ function luhn(digits: string): boolean {
  */
 function stripSeparators(s: string): string {
   // Most matches contain no separators at all — fast-path that case.
-  if (s.indexOf(' ') === -1 && s.indexOf('-') === -1 && s.indexOf('.') === -1)
-    return s;
+  if (!s.includes(' ') && !s.includes('-') && !s.includes('.')) return s;
   const parts: string[] = [];
   let start = 0;
   for (let i = 0; i <= s.length; i++) {
