@@ -5782,6 +5782,11 @@
         "failed": "Restart failed: {error}",
         "defaultServices": "rag, convex",
         "unknownError": "unknown error"
+      },
+      "restartConfirm": {
+        "title": "Restart RAG and Convex?",
+        "description": "This applies the saved configuration by restarting the RAG and Convex containers. Expect a brief interruption while they come back up.",
+        "confirm": "Restart now"
       }
     }
   },

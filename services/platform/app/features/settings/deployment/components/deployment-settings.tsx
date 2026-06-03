@@ -18,6 +18,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useEffect, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -119,6 +120,31 @@ function pgFromConfig(pg: PgConfigJson | undefined): PgForm {
     user: pg.user ?? '',
     sslmode: pg.sslmode ?? 'require',
     password: '',
+  };
+}
+
+/** Loose shape of the stored Convex-storage config the read action returns. */
+type StorageConfigJson = {
+  mode?: string;
+  region?: string;
+  endpoint?: string;
+  forcePathStyle?: boolean;
+  buckets?: Record<string, string>;
+};
+
+function storageFromConfig(cs: StorageConfigJson | undefined): StorageForm {
+  return {
+    s3: cs?.mode === 's3',
+    region: cs?.region ?? '',
+    endpoint: cs?.endpoint ?? '',
+    forcePathStyle: Boolean(cs?.forcePathStyle),
+    files: cs?.buckets?.files ?? '',
+    exports: cs?.buckets?.exports ?? '',
+    snapshotImports: cs?.buckets?.snapshotImports ?? '',
+    modules: cs?.buckets?.modules ?? '',
+    search: cs?.buckets?.search ?? '',
+    accessKeyId: '',
+    secretAccessKey: '',
   };
 }
 
@@ -310,23 +336,9 @@ function DeploymentSettingsView({
   const [appPg, setAppPg] = useState<PgForm>(() =>
     pgFromConfig(ds.appPostgres),
   );
-  const [storage, setStorage] = useState<StorageForm>(() => {
-    const cs = ds.convexStorage;
-    const s3 = cs?.mode === 's3';
-    return {
-      s3,
-      region: cs?.region ?? '',
-      endpoint: cs?.endpoint ?? '',
-      forcePathStyle: Boolean(cs?.forcePathStyle),
-      files: cs?.buckets?.files ?? '',
-      exports: cs?.buckets?.exports ?? '',
-      snapshotImports: cs?.buckets?.snapshotImports ?? '',
-      modules: cs?.buckets?.modules ?? '',
-      search: cs?.buckets?.search ?? '',
-      accessKeyId: '',
-      secretAccessKey: '',
-    };
-  });
+  const [storage, setStorage] = useState<StorageForm>(() =>
+    storageFromConfig(ds.convexStorage),
+  );
 
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
@@ -342,6 +354,10 @@ function DeploymentSettingsView({
   const restartHook = useRequestRestart();
   const [restarting, setRestarting] = useState(false);
   const [restartMsg, setRestartMsg] = useState<string | null>(null);
+  // "Apply & restart" bounces the rag + convex containers (brief downtime), so
+  // it stays available (an operator may apply an earlier/hand-edited config)
+  // but always goes through a confirmation.
+  const [restartConfirmOpen, setRestartConfirmOpen] = useState(false);
 
   async function onRestart() {
     setRestarting(true);
@@ -372,15 +388,29 @@ function DeploymentSettingsView({
       setRestartMsg(err instanceof Error ? err.message : String(err));
     } finally {
       setRestarting(false);
+      setRestartConfirmOpen(false);
     }
   }
 
-  // Reset local form when a fresh read lands (e.g. after invalidation).
+  // Reset local form when a fresh read lands (e.g. after a save invalidates
+  // the query). Resetting all three sections to the freshly-read baseline is
+  // also what clears the dirty state after a successful save.
   useEffect(() => {
     setKnowledge(pgFromConfig(ds.knowledgePostgres));
     setAppPg(pgFromConfig(ds.appPostgres));
+    setStorage(storageFromConfig(ds.convexStorage));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.hash]);
+
+  // Dirty = the form differs from the loaded config, OR a write-only secret
+  // field was entered (secret fields are blank in the baseline, so a non-empty
+  // value naturally shows up as a diff). Drives whether Save is enabled.
+  const isDirty =
+    JSON.stringify(knowledge) !==
+      JSON.stringify(pgFromConfig(ds.knowledgePostgres)) ||
+    JSON.stringify(appPg) !== JSON.stringify(pgFromConfig(ds.appPostgres)) ||
+    JSON.stringify(storage) !==
+      JSON.stringify(storageFromConfig(ds.convexStorage));
 
   function buildPg(form: PgForm) {
     return {
@@ -443,6 +473,14 @@ function DeploymentSettingsView({
         config: buildConfig(),
         expectedHash: data?.hash ?? undefined,
       });
+      // Clear the write-only secret inputs now that they're persisted. A
+      // config change refetches and the reset effect re-baselines the form,
+      // but a secret-only save leaves the config hash unchanged — clearing the
+      // secret fields here is what drops the form back to a clean (non-dirty)
+      // state in that case.
+      setKnowledge((k) => ({ ...k, password: '' }));
+      setAppPg((a) => ({ ...a, password: '' }));
+      setStorage((s) => ({ ...s, accessKeyId: '', secretAccessKey: '' }));
       setSavedOk(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -759,12 +797,15 @@ function DeploymentSettingsView({
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={() => void onSave()} disabled={readOnly || saving}>
+          <Button
+            onClick={() => void onSave()}
+            disabled={readOnly || saving || !isDirty}
+          >
             {saving ? t('dataResidency.saving') : t('dataResidency.save')}
           </Button>
           <Button
             variant="secondary"
-            onClick={() => void onRestart()}
+            onClick={() => setRestartConfirmOpen(true)}
             disabled={readOnly || restarting}
             title={t('dataResidency.applyRestartTitle')}
           >
@@ -777,6 +818,17 @@ function DeploymentSettingsView({
           ) : null}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={restartConfirmOpen}
+        onOpenChange={setRestartConfirmOpen}
+        title={t('dataResidency.restartConfirm.title')}
+        description={t('dataResidency.restartConfirm.description')}
+        confirmText={t('dataResidency.restartConfirm.confirm')}
+        isLoading={restarting}
+        variant="destructive"
+        onConfirm={() => void onRestart()}
+      />
     </SettingsPage>
   );
 }

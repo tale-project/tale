@@ -5521,6 +5521,11 @@
         "failed": "Neustart fehlgeschlagen: {error}",
         "defaultServices": "rag, convex",
         "unknownError": "unbekannter Fehler"
+      },
+      "restartConfirm": {
+        "title": "RAG und Convex neu starten?",
+        "description": "Das wendet die gespeicherte Konfiguration an, indem die RAG- und Convex-Container neu gestartet werden. Rechne mit einer kurzen Unterbrechung, bis sie wieder laufen.",
+        "confirm": "Jetzt neu starten"
       }
     }
   },

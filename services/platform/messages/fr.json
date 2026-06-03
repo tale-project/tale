@@ -5522,6 +5522,11 @@
         "failed": "Échec du redémarrage : {error}",
         "defaultServices": "rag, convex",
         "unknownError": "erreur inconnue"
+      },
+      "restartConfirm": {
+        "title": "Redémarrer RAG et Convex ?",
+        "description": "Cela applique la configuration enregistrée en redémarrant les conteneurs RAG et Convex. Attends-toi à une brève interruption le temps qu'ils redémarrent.",
+        "confirm": "Redémarrer maintenant"
       }
     }
   },
