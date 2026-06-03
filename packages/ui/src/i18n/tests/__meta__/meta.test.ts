@@ -23,6 +23,7 @@ import { CHECKS } from '../registry';
 const EXPECTED_CHECK_IDS = [
   'parity',
   'usage',
+  'source-unicode-escape',
   'pronouns-formal',
   'terminology-loanword',
   'terminology-half-compound',

@@ -21,6 +21,7 @@ import { parity } from './checks/parity';
 import { placeholderDensity } from './checks/placeholder-density';
 import { pronounsFormal } from './checks/pronouns-formal';
 import { proseExclamation } from './checks/prose-exclamation';
+import { sourceUnicodeEscape } from './checks/source-unicode-escape';
 import { statusChatter } from './checks/status-chatter';
 import { styleApostrophes } from './checks/style-apostrophes';
 import { styleCurrency } from './checks/style-currency';
@@ -43,6 +44,7 @@ import { voiceStrikes } from './checks/voice-strikes';
 export const CHECKS: ReadonlyArray<Check> = [
   parity,
   usage,
+  sourceUnicodeEscape,
   pronounsFormal,
   terminologyLoanword,
   terminologyHalfCompound,
