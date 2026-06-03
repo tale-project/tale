@@ -1,6 +1,7 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
+import { SkeletonBox } from '@tale/ui/skeleton';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { forwardRef, useId, type HTMLAttributes, type ReactNode } from 'react';
 
@@ -56,7 +57,7 @@ export const SettingsSection = forwardRef<HTMLElement, SettingsSectionProps>(
                 id={descId}
                 className="text-muted-foreground text-sm"
               >
-                {description}
+                <SkeletonBox fullWidth>{description}</SkeletonBox>
               </Description>
             )}
           </div>

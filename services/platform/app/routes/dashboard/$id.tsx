@@ -206,12 +206,17 @@ function DashboardLayout() {
           <DirtyBlockerProvider>
             <AdaptiveHeaderProvider>
               <div className="flex h-full w-full flex-col overflow-hidden md:flex-row">
-                <header className="bg-background border-border flex items-center gap-2 border-b px-4 pt-[calc(var(--safe-top)+0.5rem)] pb-2 md:hidden">
-                  <MobileBackButton organizationId={organizationId} />
-                  <div className="min-w-0 flex-1">
-                    <AdaptiveHeaderSlot />
+                {/* Safe-area inset clears the notch; the inner fixed-height row
+                    vertically centers the back button, title and profile button
+                    so none of them sit high/low in the bar on notch devices. */}
+                <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
+                  <div className="flex min-h-12 items-center gap-2">
+                    <MobileBackButton organizationId={organizationId} />
+                    <div className="min-w-0 flex-1">
+                      <AdaptiveHeaderSlot />
+                    </div>
+                    <UserButton align="end" />
                   </div>
-                  <UserButton align="end" />
                 </header>
 
                 <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">

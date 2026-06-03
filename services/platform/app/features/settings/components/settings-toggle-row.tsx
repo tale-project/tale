@@ -1,6 +1,7 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
+import { SkeletonBox } from '@tale/ui/skeleton';
 import { forwardRef, useId, type ComponentRef, type ReactNode } from 'react';
 
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -72,7 +73,9 @@ export const SettingsToggleRow = forwardRef<
           </span>
           {description && (
             <Description id={descId} className="text-xs">
-              {description}
+              {/* Masked while loading so a skeletonized settings page shows a
+                  pulse here instead of raw (possibly stale) description text. */}
+              <SkeletonBox fullWidth>{description}</SkeletonBox>
             </Description>
           )}
         </div>

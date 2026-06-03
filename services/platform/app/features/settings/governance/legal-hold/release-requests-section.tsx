@@ -64,6 +64,7 @@ export function ReleaseRequestsSection({
             </Text>
           </div>
         ),
+        meta: { skeleton: { type: 'two-line' as const } },
         size: 200,
       },
       {
@@ -158,6 +159,7 @@ export function ReleaseRequestsSection({
             </Text>
           </div>
         ),
+        meta: { skeleton: { type: 'two-line' as const } },
         size: 200,
       },
       {

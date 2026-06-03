@@ -81,6 +81,7 @@ export function ActiveHoldsSection({
             </Badge>
           );
         },
+        meta: { skeleton: { type: 'badge' as const } },
         size: 150,
       },
       {
@@ -102,6 +103,7 @@ export function ActiveHoldsSection({
             </Text>
           </div>
         ),
+        meta: { skeleton: { type: 'two-line' as const } },
         size: 240,
       },
       {

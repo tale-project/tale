@@ -85,6 +85,7 @@ export function ReleaseHistorySection({
             </Text>
           </div>
         ),
+        meta: { skeleton: { type: 'two-line' as const } },
         size: 200,
       },
       {
@@ -115,6 +116,7 @@ export function ReleaseHistorySection({
             {t(`legalHold.filters.${row.original.status}`)}
           </Badge>
         ),
+        meta: { skeleton: { type: 'badge' as const } },
         size: 110,
       },
       {

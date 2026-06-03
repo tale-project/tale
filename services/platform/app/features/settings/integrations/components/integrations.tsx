@@ -134,6 +134,14 @@ export function Integrations({
   const isSsoVisible = tab === 'all' || (tab === 'connected' && !!ssoProvider);
   const showSearch = searchQuery.trim().length > 0;
 
+  // Nothing to search on the Connected tab when no integration is connected.
+  const connectedCount = useMemo(
+    () => integrations.filter((i) => i.isActive === true).length,
+    [integrations],
+  );
+  const searchDisabled =
+    !isLoading && tab === 'connected' && connectedCount === 0;
+
   const renderEmptyState = () => {
     if (showSearch) {
       return (
@@ -178,6 +186,7 @@ export function Integrations({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={t('integrations.searchPlaceholder')}
+          disabled={searchDisabled}
           className="w-64"
         />
       </HStack>

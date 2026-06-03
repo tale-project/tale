@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
-import { SkeletonText } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
@@ -522,7 +522,20 @@ function VoiceOutputSection({
   return (
     <SettingsToggleRow
       label={t('page.voiceOutput.label')}
-      description={switchDescription}
+      // The final wording depends on an async capability probe. While it
+      // resolves (after prefs have loaded), mask the description in place so it
+      // doesn't pop in / change text a beat after the rest of the row.
+      description={
+        providerAvailable === null && !isLoading ? (
+          <Skeletonize loading>
+            <SkeletonBox fullWidth>
+              <span>{t('page.voiceOutput.description')}</span>
+            </SkeletonBox>
+          </Skeletonize>
+        ) : (
+          switchDescription
+        )
+      }
       checked={enabled}
       disabled={disabled}
       ariaBusy={isLoading || providerAvailable === null}

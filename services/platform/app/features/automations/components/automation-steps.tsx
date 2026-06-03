@@ -151,6 +151,7 @@ function AutomationStepsInner({
   }, [edges]);
 
   const prevContainerWidthRef = useRef(0);
+  const hasMeasuredContainerRef = useRef(false);
   const fitViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -175,7 +176,13 @@ function AutomationStepsInner({
         height: Math.max(80, Math.min(calculatedHeight, 200)),
       });
 
-      if (
+      // Skip the first measurement: ReactFlow's own `fitView` prop already
+      // centers the initial graph (instantly). Firing another fitView here on
+      // mount caused the second, animated reposition the user saw.
+      if (!hasMeasuredContainerRef.current) {
+        hasMeasuredContainerRef.current = true;
+        prevContainerWidthRef.current = width;
+      } else if (
         Math.abs(width - prevContainerWidthRef.current) > WIDTH_CHANGE_THRESHOLD
       ) {
         prevContainerWidthRef.current = width;
@@ -325,7 +332,11 @@ function AutomationStepsInner({
             edgeTypes={edgeTypes}
             connectionLineType={ConnectionLineType.SmoothStep}
             fitView={true}
-            fitViewOptions={{ padding: 0.2, duration: 400, maxZoom: 1 }}
+            // No `duration` here: the INITIAL fit must snap so the graph
+            // appears already centered instead of visibly panning from the
+            // top-left corner. Later re-fits (container resize) animate via the
+            // explicit `fitView({ duration })` call in the resize observer.
+            fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
             defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
             minZoom={0.2}
             maxZoom={2}

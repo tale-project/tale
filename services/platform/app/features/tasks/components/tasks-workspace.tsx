@@ -2,6 +2,8 @@
 
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
 import { ListTodo, Plus } from 'lucide-react';
 import { useState } from 'react';
@@ -30,6 +32,67 @@ function isTaskView(value: string): value is TaskView {
   return (TASK_VIEWS as readonly string[]).includes(value);
 }
 
+/**
+ * First-load placeholder that fills the same `min-h-0 flex-1` slot as the real
+ * board/list/table. Rendered instead of mounting the loaded view against an
+ * empty task array (which used to flash a board full of "No tasks" lanes) so
+ * the reveal is a mask swap with no layout shift.
+ */
+function TasksSkeleton({ view }: { view: TaskView }) {
+  if (view === 'board') {
+    return (
+      <Skeletonize loading>
+        <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
+          {Array.from({ length: 4 }).map((_, col) => (
+            <div key={col} className="flex w-64 shrink-0 flex-col gap-2">
+              <div className="flex items-center justify-between px-1">
+                <SkeletonBox>
+                  <div className="h-3.5 w-20" />
+                </SkeletonBox>
+                <SkeletonBox>
+                  <div className="size-5 rounded" />
+                </SkeletonBox>
+              </div>
+              {Array.from({ length: 3 }).map((__, card) => (
+                <SkeletonBox key={card} fullWidth>
+                  <div className="h-20 w-full rounded-lg" />
+                </SkeletonBox>
+              ))}
+            </div>
+          ))}
+        </div>
+      </Skeletonize>
+    );
+  }
+  return (
+    <Skeletonize loading>
+      <div className="border-border min-h-0 flex-1 overflow-hidden rounded-lg border">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div
+            key={i}
+            className="border-border flex items-center gap-3 border-b px-4 py-3 last:border-b-0"
+          >
+            <SkeletonBox>
+              <div className="size-4 rounded" />
+            </SkeletonBox>
+            <div className="min-w-0 flex-1">
+              <SkeletonBox fullWidth>
+                <div className="h-3.5 w-1/2 max-w-xs" />
+              </SkeletonBox>
+            </div>
+            <SkeletonBox>
+              <div className="h-5 w-16 rounded-full" />
+            </SkeletonBox>
+            <SkeletonBox>
+              <div className="size-6 rounded-full" />
+            </SkeletonBox>
+          </div>
+        ))}
+      </div>
+    </Skeletonize>
+  );
+}
+
 export function TasksWorkspace({
   organizationId,
   projectId,
@@ -52,6 +115,10 @@ export function TasksWorkspace({
   const [openTaskId, setOpenTaskId] = useState<Id<'tasks'> | null>(null);
 
   const handleOpenTask = (task: TaskRow) => setOpenTaskId(task._id);
+
+  // Only skeletonize the genuine first load (no cached tasks yet). A background
+  // refetch with rows already present keeps showing them instead of flashing.
+  const isFirstLoad = isLoading && tasks.length === 0;
 
   return (
     <ContentArea gap={4} className="flex h-full flex-col py-4">

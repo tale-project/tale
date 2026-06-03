@@ -71,6 +71,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
             {t(`legalHold.filters.${row.original.status}`)}
           </Badge>
         ),
+        meta: { skeleton: { type: 'badge' as const } },
         size: 110,
       },
       {
