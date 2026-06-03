@@ -1,12 +1,13 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { useMutation } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { Volume2, VolumeOff } from 'lucide-react';
 import { useCallback } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { useSetVoiceOutput } from '@/app/features/settings/personalization/hooks/mutations';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -30,10 +31,13 @@ interface VoiceModeToggleProps {
  * Sits next to the dictation button in the composer (relocated from the
  * chat-header dropdown so the speak/listen controls live together).
  *
- * Writes a per-thread override via `setThreadVoiceOutputOverride` that wins
- * over the user's master switch in either direction, mirroring the old
- * header checkbox. On enable it banks the iOS user-gesture token through
- * `primeAudio` so the first synthesized chunk can autoplay.
+ * Once a thread exists it writes a per-thread override via
+ * `setThreadVoiceOutputOverride` that wins over the user's master switch in
+ * either direction. On a brand-new chat (no thread yet) it instead toggles the
+ * user-level default (`setUserVoiceOutput`) so "read replies out loud" is
+ * available before the first message and carries into the new thread. On enable
+ * it banks the iOS user-gesture token through `primeAudio` so the first
+ * synthesized chunk can autoplay.
  */
 export function VoiceModeToggle({
   threadId,
@@ -46,6 +50,13 @@ export function VoiceModeToggle({
   const setOverride = useMutation(
     api.tts.mutations.setThreadVoiceOutputOverride,
   );
+  // New-chat path: there's no thread to override yet, so reflect + write the
+  // user-level default instead.
+  const myPrefs = useQuery(
+    api.user_preferences.queries.getMyPreferences,
+    threadId ? 'skip' : { organizationId },
+  );
+  const { mutateAsync: setUserVoiceOutput } = useSetVoiceOutput();
   // `null` outside the VoiceOutputProvider (the composer is) — primeAudio
   // then banks only the AudioContext, which is all we can do here.
   const audioElement = useVoiceAudioElement();
@@ -58,17 +69,21 @@ export function VoiceModeToggle({
     useVoiceCapabilities(organizationId);
   const ttsUnavailable = !capsLoading && !hasTts;
 
-  const enabled = voiceMode.enabled;
+  const enabled = threadId ? voiceMode.enabled : Boolean(myPrefs?.voiceOutput);
 
   const handleToggle = useCallback(() => {
-    if (!threadId || ttsUnavailable) return;
+    if (ttsUnavailable) return;
     const next = !enabled;
     // Bank the user-gesture token synchronously on enable so iOS Safari's
     // autoplay gate accepts the first chunk after the mutation round-trip.
     if (next) primeAudio(audioElement);
     void (async () => {
       try {
-        await setOverride({ threadId, override: next });
+        if (threadId) {
+          await setOverride({ threadId, override: next });
+        } else {
+          await setUserVoiceOutput({ organizationId, enabled: next });
+        }
       } catch (err) {
         console.error('[voice] composer toggle failed', err);
         const serverMessage =
@@ -84,12 +99,22 @@ export function VoiceModeToggle({
         });
       }
     })();
-  }, [threadId, ttsUnavailable, enabled, audioElement, setOverride, toast, t]);
+  }, [
+    threadId,
+    organizationId,
+    ttsUnavailable,
+    enabled,
+    audioElement,
+    setOverride,
+    setUserVoiceOutput,
+    toast,
+    t,
+  ]);
 
-  // No per-thread target yet (fresh chat), or an org-level governance veto
-  // (`org_policy`) that no user override can lift → hide rather than show a
-  // misleading control.
-  if (!threadId || voiceMode.source === 'org_policy') return null;
+  // An org-level governance veto (`org_policy`) can only be detected once a
+  // thread exists — hide the control then. On a new chat we still show it (the
+  // new thread inherits any veto once created).
+  if (threadId && voiceMode.source === 'org_policy') return null;
 
   return (
     <Tooltip
