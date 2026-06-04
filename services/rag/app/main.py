@@ -15,6 +15,7 @@ from . import __version__
 from .auth import verify_auth_token, warn_if_auth_disabled
 from .config import settings
 from .models import ErrorResponse
+from .routers.admin import router as admin_router
 from .routers.documents import router as documents_router
 from .routers.health import (
     protected_router as health_protected_router,
@@ -151,6 +152,7 @@ app.include_router(health_public_router)
 app.include_router(health_protected_router, dependencies=[Depends(verify_auth_token)])
 app.include_router(documents_router, dependencies=[Depends(verify_auth_token)])
 app.include_router(search_router, dependencies=[Depends(verify_auth_token)])
+app.include_router(admin_router, dependencies=[Depends(verify_auth_token)])
 init_telemetry(app)
 
 # Round-2 review MEDIUM (E.4.6): the `@app.get("/")` route that lived

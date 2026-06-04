@@ -78,11 +78,12 @@ Si les deux ne sont pas définis, Tale stocke `providers/*.secrets.json` en JSON
 
 Bascules optionnelles pour des fonctionnalités non activées par défaut. Chaque drapeau active ou désactive une fonctionnalité au boot ; basculer demande un redémarrage du conteneur plateforme.
 
-| Nom                       | Défaut  | Description                                                                         |
-| ------------------------- | ------- | ----------------------------------------------------------------------------------- |
-| `MICROSOFT_AUTH_ENABLED`  | `false` | Active l'option de sign-in Microsoft Entra.                                         |
-| `TRUSTED_HEADERS_ENABLED` | `false` | Active le mode auth par trusted headers (identité fournie par le reverse proxy).    |
-| `FILE_EVENTS_ENABLED`     | `false` | Active les événements de surveillance de fichiers pour l'intégration OneDrive-sync. |
+| Nom                             | Défaut  | Description                                                                                                                                                           |
+| ------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MICROSOFT_AUTH_ENABLED`        | `false` | Active l'option de sign-in Microsoft Entra.                                                                                                                           |
+| `TRUSTED_HEADERS_ENABLED`       | `false` | Active le mode auth par trusted headers (identité fournie par le reverse proxy).                                                                                      |
+| `FILE_EVENTS_ENABLED`           | `false` | Active les événements de surveillance de fichiers pour l'intégration OneDrive-sync.                                                                                   |
+| `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Allowlist de courriels (séparés par des virgules) des opérateurs autorisés à modifier la résidence des données. Vide/non défini = lecture seule pour tous les admins. |
 
 ## Sessions
 

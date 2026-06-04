@@ -83,6 +83,7 @@ WORKDIR /app
 # Note: SOPS binary is already provided by COPY --from=builder /usr/local/bin
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    jq \
     libpq5 \
     && rm -rf /var/lib/apt/lists/* \
     # Strip system bloat

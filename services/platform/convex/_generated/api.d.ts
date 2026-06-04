@@ -259,6 +259,11 @@ import type * as customers_update_customer from "../customers/update_customer.js
 import type * as customers_update_customer_metadata from "../customers/update_customer_metadata.js";
 import type * as customers_update_customers from "../customers/update_customers.js";
 import type * as customers_validators from "../customers/validators.js";
+import type * as deployment_auth from "../deployment/auth.js";
+import type * as deployment_editors from "../deployment/editors.js";
+import type * as deployment_file_actions from "../deployment/file_actions.js";
+import type * as deployment_file_utils from "../deployment/file_utils.js";
+import type * as deployment_secret_io from "../deployment/secret_io.js";
 import type * as documents__helpers from "../documents/_helpers.js";
 import type * as documents_actions from "../documents/actions.js";
 import type * as documents_check_membership from "../documents/check_membership.js";
@@ -1483,6 +1488,11 @@ declare const fullApi: ApiFromModules<{
   "customers/update_customer_metadata": typeof customers_update_customer_metadata;
   "customers/update_customers": typeof customers_update_customers;
   "customers/validators": typeof customers_validators;
+  "deployment/auth": typeof deployment_auth;
+  "deployment/editors": typeof deployment_editors;
+  "deployment/file_actions": typeof deployment_file_actions;
+  "deployment/file_utils": typeof deployment_file_utils;
+  "deployment/secret_io": typeof deployment_secret_io;
   "documents/_helpers": typeof documents__helpers;
   "documents/actions": typeof documents_actions;
   "documents/check_membership": typeof documents_check_membership;

@@ -13,7 +13,8 @@
     "workspaceNotFound": "Der gesuchte Workspace existiert nicht oder wurde möglicherweise entfernt.",
     "disabled": "Dein Konto wurde deaktiviert. Kontaktiere den Support für Unterstützung.",
     "noMembership": "Du bist kein Mitglied dieses Workspace. Bitte kontaktiere einen Administrator für Zugriff.",
-    "unauthenticated": "Deine Sitzung ist abgelaufen. Melde dich erneut an, um fortzufahren."
+    "unauthenticated": "Deine Sitzung ist abgelaufen. Melde dich erneut an, um fortzufahren.",
+    "deployment": "Du benötigst Admin-Berechtigungen, um auf die Deployment-Einstellungen zuzugreifen."
   },
   "analytics": {
     "usage": {
@@ -3653,7 +3654,8 @@
     },
     "aria": {
       "primaryNavigation": "Hauptnavigation"
-    }
+    },
+    "dataResidency": "Datenresidenz"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -5439,6 +5441,107 @@
       "preview": "Branding-Vorschau",
       "validation": {
         "appNameRequired": "App-Name ist erforderlich"
+      }
+    },
+    "dataResidency": {
+      "pageDescription": "Richte die Wissensdatenbank und den Dateispeicher dieses Deployments auf Infrastruktur aus, die du selbst kontrollierst. Änderungen greifen, sobald die RAG- und Convex-Container neu starten.",
+      "readOnly": {
+        "before": "Bearbeitung ist auf die in",
+        "after": "(in der Deployment-.env) aufgeführten Operatoren beschränkt. Bitte einen Operator, deine E-Mail dort hinzuzufügen, und starte neu, um die Bearbeitung zu aktivieren.",
+        "yourEmail": "Deine Anmelde-E-Mail ist {email}."
+      },
+      "secretsEncryptedNoKey": "Die gespeicherten Secrets sind SOPS-verschlüsselt, aber es ist kein age-Schlüssel konfiguriert — bestehende Secrets lassen sich nicht lesen.",
+      "secretsUnreadable": "Die gespeicherten Secrets sind vorhanden, lassen sich aber nicht entschlüsseln (beschädigter Chiffretext oder ein fehlender/falscher age-Schlüssel). Gib die Werte erneut ein und speichere, um sie zu überschreiben.",
+      "externalPostgres": "Externes Postgres",
+      "usingSharedDatabase": "Verwendet die eingebaute gemeinsame Datenbank.",
+      "field": {
+        "host": "Host",
+        "port": "Port",
+        "database": "Datenbank",
+        "user": "Benutzer",
+        "sslMode": "SSL-Modus",
+        "password": "Passwort"
+      },
+      "password": {
+        "storedHint": "Gespeichert: {masked} — leer lassen, um zu behalten",
+        "storedNoPreviewHint": "Ein Wert ist gespeichert — leer lassen, um ihn zu behalten, oder einen neuen eingeben, um ihn zu ersetzen.",
+        "writeOnlyHint": "Nur Schreiben; leer lassen, um den gespeicherten Wert zu behalten"
+      },
+      "testConnection": "Verbindung testen",
+      "testing": "Teste…",
+      "result": {
+        "ok": "OK",
+        "failed": "Fehlgeschlagen"
+      },
+      "knowledge": {
+        "title": "Wissensdatenbank (RAG)",
+        "paradeDbNote": "Die externe Wissensdatenbank muss ParadeDB (pgvector + pg_search) verwenden, damit die volle Hybrid-Suche funktioniert; reines pgvector fällt auf reine Vektor-Suche zurück."
+      },
+      "storage": {
+        "title": "Dateispeicher (hochgeladene Dokumente)",
+        "externalS3": "Externes S3",
+        "region": "Region",
+        "endpoint": "Endpunkt (MinIO/R2; leer für AWS)",
+        "forcePathStyle": "Path-Style erzwingen (MinIO/R2)",
+        "bucket": {
+          "files": "Files-Bucket",
+          "exports": "Exports-Bucket",
+          "snapshotImports": "Snapshot-Imports-Bucket",
+          "modules": "Modules-Bucket",
+          "search": "Search-Bucket"
+        },
+        "accessKeyId": "Access Key ID",
+        "accessKeyIdStoredHint": "Gespeichert: {masked} — leer lassen, um zu behalten",
+        "writeOnly": "Nur Schreiben",
+        "secretAccessKey": "Secret Access Key",
+        "testReachability": "Erreichbarkeit testen",
+        "reachable": "Erreichbar",
+        "greenfieldWarning": "S3-Speicher ist Greenfield: Der Wechsel von lokal migriert bestehende hochgeladene Dateien NICHT. Lege das beim ersten Deploy fest, oder kopiere die lokalen Blobs separat in den Bucket.",
+        "localStorageNote": "Dateien liegen auf dem lokalen Convex-Volume."
+      },
+      "appDb": {
+        "summary": "Anwendungsdatenbank (erweitert)",
+        "title": "Convex-Metadaten-Datenbank",
+        "databaseNameNote": "Das Convex-Backend leitet seinen Datenbanknamen aus der Instanzkonfiguration ab, daher muss das externe Postgres diese Datenbank bereits enthalten. Das Feld „Datenbank“ oben wird nur für den Verbindungstest verwendet.",
+        "sslModeNote": "Der TLS-Modus für diese Datenbank wird vom Convex-Treiber vorgegeben und kann hier nicht konfiguriert werden."
+      },
+      "saved": {
+        "title": "Gespeichert — zum Anwenden neu starten.",
+        "runPrefix": "Befehl:",
+        "orPrefix": "(oder",
+        "tail": "für Zero-Downtime). Die Plattform selbst muss nicht neu gestartet werden."
+      },
+      "save": "Speichern",
+      "saving": "Speichern…",
+      "applyRestart": "Anwenden & neu starten",
+      "applyRestartTitle": "rag + convex über den Controller neu starten (falls aktiviert), sonst wird der manuelle Befehl angezeigt",
+      "applyRestartDirtyHint": "Speichern Sie Ihre Änderungen vor dem Neustart.",
+      "restarting": "Neu starten…",
+      "restart": {
+        "notEnabled": "Restart-Controller nicht aktiviert.",
+        "requested": "Neustart angefordert: {services}",
+        "failed": "Neustart fehlgeschlagen: {error}",
+        "defaultServices": "rag, convex",
+        "unknownError": "unbekannter Fehler"
+      },
+      "restartConfirm": {
+        "title": "RAG und Convex neu starten?",
+        "description": "Das wendet die gespeicherte Konfiguration an, indem die RAG- und Convex-Container neu gestartet werden. Rechne mit einer kurzen Unterbrechung, bis sie wieder laufen.",
+        "confirm": "Jetzt neu starten"
+      },
+      "forceOverwrite": {
+        "title": "Unlesbare Secrets überschreiben?",
+        "description": "Die vorhandene Secrets-Datei lässt sich nicht entschlüsseln. Beim Überschreiben wird sie durch die von dir eingegebenen Werte ersetzt — alle anderen darin enthaltenen Secrets gehen verloren. Fortfahren?",
+        "confirm": "Überschreiben"
+      },
+      "errors": {
+        "versionConflict": "Die Deployment-Konfiguration wurde in einer anderen Sitzung geändert. Lade neu, um den aktuellen Stand zu sehen, und wende deine Änderungen dann erneut an.",
+        "invalidConfig": "Die Konfiguration ist ungültig: {issues}",
+        "invalidConfigGeneric": "Die Konfiguration ist ungültig. Überprüfe die Felder und versuche es erneut.",
+        "forbidden": "Du bist nicht berechtigt, die Deployment-Konfiguration zu bearbeiten.",
+        "secretUnreadable": "Die vorhandene Secrets-Datei lässt sich nicht entschlüsseln. Bestätige das Überschreiben, um sie zu ersetzen.",
+        "configUnreadable": "Die Deployment-Konfiguration auf dem Datenträger lässt sich nicht lesen.",
+        "readFailed": "Die Deployment-Konfiguration konnte nicht geladen werden: {error}"
       }
     }
   },
