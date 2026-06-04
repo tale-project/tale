@@ -22,6 +22,7 @@ COPY services/rag/package.json ./services/rag/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
 COPY services/sandbox/package.json ./services/sandbox/
+COPY services/controller/package.json ./services/controller/
 COPY services/web/package.json ./services/web/
 COPY services/docs/package.json ./services/docs/
 COPY tools/cli/package.json ./tools/cli/
