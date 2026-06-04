@@ -442,6 +442,13 @@ export const testDeploymentConnection = action({
     const pg = parsed.data;
     checkProviderHostPolicy(`http://${pg.host}:${pg.port}`);
 
+    // The app (Convex metadata) DB connection cannot honor a chosen sslmode at
+    // boot (postgres-v5 rejects a `?sslmode=` URL), so its sslMode control is
+    // hidden in the UI. Probe with `prefer` — TLS if available, else plaintext —
+    // so the test mirrors the driver-default boot behavior instead of
+    // certifying an enforced mode the deployment won't actually use.
+    const testSslmode = args.target === 'appPostgres' ? 'prefer' : pg.sslmode;
+
     const password =
       args.password ||
       (await readStoredSecret(
@@ -466,7 +473,7 @@ export const testDeploymentConnection = action({
           database: pg.database,
           user: pg.user,
           password,
-          sslmode: pg.sslmode,
+          sslmode: testSslmode,
         }),
         timeoutMs: 12_000,
       });

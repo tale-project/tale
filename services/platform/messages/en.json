@@ -5763,7 +5763,8 @@
       "appDb": {
         "summary": "Application database (advanced)",
         "title": "Convex metadata database",
-        "databaseNameNote": "The Convex backend derives its database name from the instance configuration, so the external Postgres must already contain that database. The Database field above is used only for the connection test."
+        "databaseNameNote": "The Convex backend derives its database name from the instance configuration, so the external Postgres must already contain that database. The Database field above is used only for the connection test.",
+        "sslModeNote": "TLS mode for this database is fixed by the Convex driver and cannot be configured here."
       },
       "saved": {
         "title": "Saved — restart to apply.",
@@ -5775,6 +5776,7 @@
       "saving": "Saving…",
       "applyRestart": "Apply & restart",
       "applyRestartTitle": "Restart rag + convex via the controller (if enabled), or shows the manual command",
+      "applyRestartDirtyHint": "Save your changes before restarting.",
       "restarting": "Restarting…",
       "restart": {
         "notEnabled": "Restart controller not enabled.",

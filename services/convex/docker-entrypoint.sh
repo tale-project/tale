@@ -741,7 +741,6 @@ if [ -f "${DEPLOY_CFG}" ]; then
     ap_port="$(jq -r '.dataStores.appPostgres.port // 5432' "${DEPLOY_CFG}")"
     ap_db="$(jq -r '.dataStores.appPostgres.database // empty' "${DEPLOY_CFG}")"
     ap_user="$(jq -r '.dataStores.appPostgres.user // empty' "${DEPLOY_CFG}")"
-    ap_sslmode="$(jq -r '.dataStores.appPostgres.sslmode // "require"' "${DEPLOY_CFG}")"
     if [ -z "${ap_db}" ] || [ -z "${ap_user}" ]; then
       log_error "${DEPLOY_CFG} appPostgres is missing database/user (fail-closed)."
       exit 1
@@ -752,6 +751,10 @@ if [ -f "${DEPLOY_CFG}" ]; then
     # contains db name`). Match the convention in env.sh — host:port only, no
     # `/${ap_db}`, no `?sslmode=`. The external Postgres must therefore contain a
     # database named "${INSTANCE_NAME}". Userinfo is percent-encoded.
+    # NOTE: appPostgres.sslmode is intentionally NOT consumed — the driver can't
+    # carry it on this URL, so the UI hides the control (unlike knowledgePostgres,
+    # which RAG applies via `?sslmode=`). Don't reintroduce a read here without an
+    # out-of-band channel the backend actually honors.
     export POSTGRES_URL="postgresql://$(urlencode "${ap_user}"):$(urlencode "${ap_pass}")@${ap_host}:${ap_port}"
     log_info "Deployment config: Convex metadata DB → ${ap_host}:${ap_port} (database derived from INSTANCE_NAME=${INSTANCE_NAME})"
   fi

@@ -18,11 +18,10 @@
 
 import { ConvexError } from 'convex/values';
 
-import { defineAbilityFor } from '../../lib/permissions/ability';
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { authComponent } from '../auth';
-import { isDeploymentEditor } from './editors';
+import { decideInstanceAdmin } from './auth_policy';
 
 export interface InstanceAdminAuth {
   userId: string;
@@ -70,31 +69,27 @@ export async function requireInstanceAdmin(
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- adapter findMany returns paginated unknown
   const members = (memberRes as MemberPage).page ?? [];
-  const adminMember = members.find((m) =>
-    defineAbilityFor(m.role).can('read', 'orgSettings'),
-  );
-  if (!adminMember) {
+  const decision = decideInstanceAdmin({
+    email: authUser.email,
+    members,
+    write: Boolean(options.write),
+  });
+  if (!decision.ok) {
     throw new ConvexError({
-      code: 'FORBIDDEN_INSTANCE_ADMIN',
+      code: decision.code,
       message:
-        'Deployment configuration is restricted to organization administrators (instance administrators).',
-    });
-  }
-
-  if (options.write && !isDeploymentEditor(authUser.email)) {
-    throw new ConvexError({
-      code: 'FORBIDDEN_DEPLOYMENT_EDITOR',
-      message:
-        'Your account is not authorized to edit deployment configuration. Ask an ' +
-        'operator to add your email to TALE_DEPLOYMENT_CONFIG_ADMINS in the deployment ' +
-        '.env, then restart.',
+        decision.code === 'FORBIDDEN_INSTANCE_ADMIN'
+          ? 'Deployment configuration is restricted to organization administrators (instance administrators).'
+          : 'Your account is not authorized to edit deployment configuration. Ask an ' +
+            'operator to add your email to TALE_DEPLOYMENT_CONFIG_ADMINS in the deployment ' +
+            '.env, then restart.',
     });
   }
 
   return {
     userId,
     email: authUser.email,
-    organizationId: adminMember.organizationId,
-    role: adminMember.role,
+    organizationId: decision.adminMember.organizationId,
+    role: decision.adminMember.role,
   };
 }

@@ -23,13 +23,13 @@ Drei Speicher, jeder unabhängig und optional. Eine fehlende Einstellung bedeute
 
 - **Wissensdatenbank** — der RAG-Speicher: Dokumentmetadaten, der extrahierte Chunk-Text, Embeddings, der BM25-Index und der semantische Cache. Das ist der Speicher, um den sich Residenz-Anforderungen am meisten drehen, weil er deinen Dokumentinhalt hält.
 - **Dateispeicher** — wo hochgeladene Dateien (die ursprünglichen Blobs) liegen. Standardmäßig sitzen sie auf dem lokalen Convex-Volume; du kannst sie auf einen externen S3-kompatiblen Bucket ausrichten.
-- **Anwendungsdatenbank** (erweitert) — die Convex-Metadaten-Datenbank.
+- **Anwendungsdatenbank** (erweitert) — die Convex-Metadaten-Datenbank. Das Convex-Backend leitet den Namen dieser Datenbank aus `INSTANCE_NAME` (`tale_platform`) ab und verbindet sich nur über Host:Port, daher muss das externe Postgres eine Datenbank mit genau dem Namen `tale_platform` enthalten. Ihr TLS-Modus wird vom Convex-Treiber vorgegeben und ist nicht konfigurierbar.
 
 > Hinweis: Die Wissensdatenbank zu verlagern verschiebt den extrahierten Text und die Embeddings. Die ursprünglich hochgeladenen Dateien wandern erst mit, wenn du auch den **Dateispeicher** auf S3 ausrichtest.
 
 ## Die ParadeDB-Voraussetzung
 
-Die Wissensdatenbank nutzt zwei Postgres-Erweiterungen: `vector` (pgvector) für Embeddings und `pg_search` (ParadeDB) für die Volltext-/BM25-Hybrid-Suche. Ein externes Wissens-Postgres **muss ParadeDB ausführen** (das beide bündelt), damit die Suchqualität voll erhalten bleibt. Richtest du es auf ein schlichtes Postgres aus, das nur `pgvector` hat, funktionieren Indexierung und Vektor-Suche weiter, aber die Hybrid-Suche fällt auf **reine Vektor-Suche** zurück — die BM25-Hälfte wird still übersprungen. Der Knopf **Verbindung testen** meldet die Verfügbarkeit von `pgvector` und `pg_search`, damit du das siehst, bevor du dich festlegst. Die Datenbanken (`tale`, `tale_knowledge`) müssen bereits existieren; der RAG-Dienst führt beim Boot seine Migrationen gegen sie aus.
+Die Wissensdatenbank nutzt zwei Postgres-Erweiterungen: `vector` (pgvector) für Embeddings und `pg_search` (ParadeDB) für die Volltext-/BM25-Hybrid-Suche. Ein externes Wissens-Postgres **muss ParadeDB ausführen** (das beide bündelt), damit die Suchqualität voll erhalten bleibt. Richtest du es auf ein schlichtes Postgres aus, das nur `pgvector` hat, funktionieren Indexierung und Vektor-Suche weiter, aber die Hybrid-Suche fällt auf **reine Vektor-Suche** zurück — die BM25-Hälfte wird still übersprungen. Der Knopf **Verbindung testen** meldet die Verfügbarkeit von `pgvector` und `pg_search`, damit du das siehst, bevor du dich festlegst. Die externe Wissensdatenbank muss bereits existieren (sie kann jeden Namen tragen, den du einträgst — `tale_knowledge` per Konvention); der RAG-Dienst führt beim Boot seine Migrationen gegen sie aus.
 
 ## Dateispeicher auf S3
 

@@ -85,7 +85,13 @@ async def test_datastore_connection(req: DatastoreTestRequest) -> DatastoreTestR
         logger.info("datastore test-connection query failed for {}: {}", req.host, exc)
         return DatastoreTestResponse(ok=False, error=str(exc))
     finally:
-        await conn.close()
+        # Teardown must never override the probe result with a 500 (the endpoint
+        # contract is "never raises"). A half-dead socket can also make close()
+        # hang, so bound it and log rather than swallow.
+        try:
+            await conn.close(timeout=5)
+        except Exception as exc:
+            logger.warning("datastore test-connection close failed for {}: {}", req.host, exc)
 
     return DatastoreTestResponse(
         ok=True,

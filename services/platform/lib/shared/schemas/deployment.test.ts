@@ -124,6 +124,52 @@ describe('convexStorageSchema', () => {
     });
     expect(r.success).toBe(false);
   });
+
+  it('rejects non-http(s) endpoint schemes (SSRF / scheme smuggling)', () => {
+    const buckets = {
+      files: 'f',
+      exports: 'e',
+      snapshotImports: 's',
+      modules: 'm',
+      search: 'se',
+    };
+    for (const endpoint of [
+      'file:///etc/passwd',
+      'javascript:alert(1)',
+      'ftp://example.com',
+      'gopher://example.com',
+    ]) {
+      const r = convexStorageSchema.safeParse({
+        mode: 's3',
+        region: 'auto',
+        endpoint,
+        buckets,
+      });
+      expect(r.success, `${endpoint} should be rejected`).toBe(false);
+    }
+  });
+
+  it('accepts plain http(s) endpoints', () => {
+    const buckets = {
+      files: 'f',
+      exports: 'e',
+      snapshotImports: 's',
+      modules: 'm',
+      search: 'se',
+    };
+    for (const endpoint of [
+      'http://minio.internal:9000',
+      'https://s3.example.com',
+    ]) {
+      const r = convexStorageSchema.safeParse({
+        mode: 's3',
+        region: 'auto',
+        endpoint,
+        buckets,
+      });
+      expect(r.success, `${endpoint} should be accepted`).toBe(true);
+    }
+  });
 });
 
 describe('pgConnectionSchema', () => {

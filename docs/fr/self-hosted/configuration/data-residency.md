@@ -23,13 +23,13 @@ Trois banques de données, chacune indépendante et optionnelle. Un réglage abs
 
 - **Base de connaissances** — la banque RAG : métadonnées des documents, texte des fragments extraits, embeddings, index BM25 et cache sémantique. C'est la banque qui compte le plus pour les exigences de résidence, car elle détient le contenu de tes documents.
 - **Stockage de fichiers** — où vivent les fichiers téléversés (les blobs d'origine). Par défaut ils résident sur le volume Convex local ; tu peux les pointer vers un bucket externe compatible S3.
-- **Base de données applicative** (avancé) — la base de métadonnées Convex.
+- **Base de données applicative** (avancé) — la base de métadonnées Convex. Le backend Convex déduit le nom de cette base de `INSTANCE_NAME` (`tale_platform`) et se connecte uniquement via hôte:port, donc le Postgres externe doit contenir une base nommée exactement `tale_platform`. Son mode TLS est fixé par le pilote Convex et n'est pas configurable.
 
 > Note : relocaliser la base de connaissances déplace le texte extrait et les embeddings. Les fichiers téléversés d'origine ne suivent que si tu relocalises aussi le **stockage de fichiers** vers S3.
 
 ## Le prérequis ParadeDB
 
-La base de connaissances utilise deux extensions Postgres : `vector` (pgvector) pour les embeddings et `pg_search` (ParadeDB) pour la recherche hybride plein texte/BM25. Un Postgres de connaissances externe **doit faire tourner ParadeDB** (qui regroupe les deux) pour une qualité de recherche complète. Si tu le pointes vers un Postgres simple qui n'a que `pgvector`, l'indexation et la recherche vectorielle fonctionnent toujours, mais la recherche hybride se réduit à du **vectoriel seul** — la moitié BM25 est silencieusement sautée. Le bouton **Tester la connexion** signale la disponibilité de `pgvector` et de `pg_search` pour que tu le voies avant de t'engager. Les bases (`tale`, `tale_knowledge`) doivent déjà exister ; le service RAG exécute ses migrations contre elles au démarrage.
+La base de connaissances utilise deux extensions Postgres : `vector` (pgvector) pour les embeddings et `pg_search` (ParadeDB) pour la recherche hybride plein texte/BM25. Un Postgres de connaissances externe **doit faire tourner ParadeDB** (qui regroupe les deux) pour une qualité de recherche complète. Si tu le pointes vers un Postgres simple qui n'a que `pgvector`, l'indexation et la recherche vectorielle fonctionnent toujours, mais la recherche hybride se réduit à du **vectoriel seul** — la moitié BM25 est silencieusement sautée. Le bouton **Tester la connexion** signale la disponibilité de `pgvector` et de `pg_search` pour que tu le voies avant de t'engager. La base de connaissances externe doit déjà exister (elle peut porter n'importe quel nom que tu saisis — `tale_knowledge` par convention) ; le service RAG exécute ses migrations contre elle au démarrage.
 
 ## Stockage de fichiers sur S3
 

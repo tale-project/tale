@@ -5502,7 +5502,8 @@
       "appDb": {
         "summary": "Anwendungsdatenbank (erweitert)",
         "title": "Convex-Metadaten-Datenbank",
-        "databaseNameNote": "Das Convex-Backend leitet seinen Datenbanknamen aus der Instanzkonfiguration ab, daher muss das externe Postgres diese Datenbank bereits enthalten. Das Feld „Datenbank“ oben wird nur für den Verbindungstest verwendet."
+        "databaseNameNote": "Das Convex-Backend leitet seinen Datenbanknamen aus der Instanzkonfiguration ab, daher muss das externe Postgres diese Datenbank bereits enthalten. Das Feld „Datenbank“ oben wird nur für den Verbindungstest verwendet.",
+        "sslModeNote": "Der TLS-Modus für diese Datenbank wird vom Convex-Treiber vorgegeben und kann hier nicht konfiguriert werden."
       },
       "saved": {
         "title": "Gespeichert — zum Anwenden neu starten.",
@@ -5514,6 +5515,7 @@
       "saving": "Speichern…",
       "applyRestart": "Anwenden & neu starten",
       "applyRestartTitle": "rag + convex über den Controller neu starten (falls aktiviert), sonst wird der manuelle Befehl angezeigt",
+      "applyRestartDirtyHint": "Speichern Sie Ihre Änderungen vor dem Neustart.",
       "restarting": "Neu starten…",
       "restart": {
         "notEnabled": "Restart-Controller nicht aktiviert.",

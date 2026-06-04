@@ -19,6 +19,18 @@ function dockerRequest(
   path: string,
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
+    // Settle exactly once and always clear the deadline. Without this, both a
+    // late 'error' after 'end' and the deadline firing post-settle could call
+    // resolve/reject twice or leak the timer. `deadline` is a forward reference
+    // here (assigned just below) — guard only runs on async I/O events, well
+    // after it is initialised.
+    let settled = false;
+    const guard = (): boolean => {
+      if (settled) return false;
+      settled = true;
+      clearTimeout(deadline);
+      return true;
+    };
     const req = http.request(
       {
         socketPath: SOCKET,
@@ -32,42 +44,81 @@ function dockerRequest(
         res.on('data', (chunk) => {
           data += chunk;
         });
-        res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, body: data }),
-        );
+        res.on('end', () => {
+          if (guard()) resolve({ status: res.statusCode ?? 0, body: data });
+        });
+        // A socket closed mid-body (daemon restart, truncated response) emits
+        // 'error' on the RESPONSE stream — not on `req`. Without handling it the
+        // promise would never settle and the request handler hangs forever.
+        res.on('error', (err) => {
+          if (guard()) reject(err);
+        });
       },
     );
+    // Absolute upper bound. The `timeout` option above is socket-INACTIVITY only
+    // and does NOT fire once the socket has already closed after headers, so it
+    // cannot bound a truncated response — this deadline can. destroy() surfaces
+    // through the `req` 'error' handler below.
+    const deadline = setTimeout(() => {
+      req.destroy(
+        new Error(`docker request deadline after ${REQUEST_TIMEOUT_MS}ms`),
+      );
+    }, REQUEST_TIMEOUT_MS);
     req.on('timeout', () => {
       req.destroy(
         new Error(`docker socket timeout after ${REQUEST_TIMEOUT_MS}ms`),
       );
     });
-    req.on('error', reject);
+    req.on('error', (err) => {
+      if (guard()) reject(err);
+    });
     req.end();
   });
 }
 
 /**
- * Container ids for a compose service, scoped to the project when known so we
- * never touch another stack's containers on the same host.
+ * Container ids for one or more candidate compose service labels, scoped to a
+ * set of candidate projects so we never touch another stack on the same host.
+ *
+ * Why candidates rather than a single (project, service): rotatable services
+ * (e.g. `rag`) are deployed blue/green by the CLI as service `rag-<color>` under
+ * project `<project>-<color>`, while the hand-written compose runs them as plain
+ * `rag` under `<project>`. Matching `{rag, rag-blue, rag-green}` across
+ * `{project, project-blue, project-green}` resolves the live container in BOTH
+ * topologies. Docker's `label` filters are AND-combined, so OR is done by one
+ * list call per service label; the project is then filtered from the returned
+ * labels (exact membership — never a prefix — so a sibling stack is untouched).
  */
 export async function listContainerIds(
-  project: string | undefined,
-  service: string,
+  projects: string[] | undefined,
+  services: string[],
 ): Promise<string[]> {
-  const label = [`com.docker.compose.service=${service}`];
-  if (project) label.push(`com.docker.compose.project=${project}`);
-  const filters = encodeURIComponent(JSON.stringify({ label }));
-  const res = await dockerRequest(
-    'GET',
-    `/containers/json?all=false&filters=${filters}`,
-  );
-  if (res.status !== 200) {
-    throw new Error(`docker list failed (${res.status}): ${res.body}`);
+  const ids = new Set<string>();
+  for (const service of services) {
+    const filters = encodeURIComponent(
+      JSON.stringify({ label: [`com.docker.compose.service=${service}`] }),
+    );
+    const res = await dockerRequest(
+      'GET',
+      `/containers/json?all=false&filters=${filters}`,
+    );
+    if (res.status !== 200) {
+      throw new Error(`docker list failed (${res.status}): ${res.body}`);
+    }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- docker /containers/json returns an array of {Id,Labels,...}
+    const arr = JSON.parse(res.body) as {
+      Id: string;
+      Labels?: Record<string, string>;
+    }[];
+    for (const c of arr) {
+      if (projects) {
+        const proj = c.Labels?.['com.docker.compose.project'];
+        if (proj === undefined || !projects.includes(proj)) continue;
+      }
+      ids.add(c.Id);
+    }
   }
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- docker /containers/json returns an array of {Id,...}
-  const arr = JSON.parse(res.body) as { Id: string }[];
-  return arr.map((c) => c.Id);
+  return [...ids];
 }
 
 export async function restartContainer(

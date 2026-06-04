@@ -11,7 +11,8 @@
     "lint:fix": "bunx oxlint --type-aware --fix",
     "format": "bunx oxfmt",
     "format:check": "bunx oxfmt --check",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {},
   "devDependencies": {

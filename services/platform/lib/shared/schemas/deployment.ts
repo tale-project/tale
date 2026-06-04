@@ -88,7 +88,22 @@ export const convexStorageSchema = z.discriminatedUnion('mode', [
     .object({
       mode: z.literal('s3'),
       region: z.string().min(1),
-      endpoint: z.string().url().optional(),
+      // Restrict to http(s):// — `.url()` alone also admits file:/javascript:/
+      // ftp:/gopher:, and the SSRF host gate only checks the hostname, so a
+      // non-http scheme with a public host would otherwise flow to
+      // S3_ENDPOINT_URL. Mirrors moderationEndpointSchema in governance.ts.
+      endpoint: z
+        .string()
+        .url()
+        .refine((u) => {
+          try {
+            const p = new URL(u).protocol;
+            return p === 'https:' || p === 'http:';
+          } catch {
+            return false;
+          }
+        }, 'Endpoint must be http(s)://')
+        .optional(),
       forcePathStyle: z.boolean().default(false),
       buckets: s3BucketsSchema,
     })

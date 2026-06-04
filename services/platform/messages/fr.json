@@ -5503,7 +5503,8 @@
       "appDb": {
         "summary": "Base de données applicative (avancé)",
         "title": "Base de métadonnées Convex",
-        "databaseNameNote": "Le backend Convex déduit le nom de sa base de données de la configuration de l'instance ; le Postgres externe doit donc déjà contenir cette base. Le champ « Base de données » ci-dessus sert uniquement au test de connexion."
+        "databaseNameNote": "Le backend Convex déduit le nom de sa base de données de la configuration de l'instance ; le Postgres externe doit donc déjà contenir cette base. Le champ « Base de données » ci-dessus sert uniquement au test de connexion.",
+        "sslModeNote": "Le mode TLS de cette base de données est fixé par le pilote Convex et ne peut pas être configuré ici."
       },
       "saved": {
         "title": "Enregistré — redémarre pour appliquer.",
@@ -5515,6 +5516,7 @@
       "saving": "Enregistrement…",
       "applyRestart": "Appliquer & redémarrer",
       "applyRestartTitle": "Redémarre rag + convex via le controller (si activé), sinon affiche la commande manuelle",
+      "applyRestartDirtyHint": "Enregistrez vos modifications avant de redémarrer.",
       "restarting": "Redémarrage…",
       "restart": {
         "notEnabled": "Controller de redémarrage non activé.",

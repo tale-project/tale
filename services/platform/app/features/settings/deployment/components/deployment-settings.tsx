@@ -199,6 +199,7 @@ function PgSection({
   testing,
   testResult,
   disabled,
+  showSslMode = true,
 }: {
   title: string;
   state: PgForm;
@@ -210,6 +211,13 @@ function PgSection({
   testing: boolean;
   testResult?: { ok: boolean; message?: string };
   disabled: boolean;
+  /**
+   * Whether to render the SSL-mode control. Off for the app (Convex metadata)
+   * DB: its postgres-v5 driver derives the database from INSTANCE_NAME and
+   * rejects a `?sslmode=` URL, so the boot path cannot honor a chosen mode —
+   * offering the control would promise a guarantee we can't deliver.
+   */
+  showSslMode?: boolean;
 }) {
   const { t } = useT('settings');
   return (
@@ -257,20 +265,24 @@ function PgSection({
               onChange={(e) => setState({ ...state, user: e.target.value })}
             />
           </Labeled>
-          <Labeled label={t('dataResidency.field.sslMode')}>
-            <select
-              className="border-input bg-background h-9 rounded-md border px-2 text-sm"
-              value={state.sslmode}
-              disabled={disabled}
-              onChange={(e) => setState({ ...state, sslmode: e.target.value })}
-            >
-              {SSL_MODES.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </Labeled>
+          {showSslMode ? (
+            <Labeled label={t('dataResidency.field.sslMode')}>
+              <select
+                className="border-input bg-background h-9 rounded-md border px-2 text-sm"
+                value={state.sslmode}
+                disabled={disabled}
+                onChange={(e) =>
+                  setState({ ...state, sslmode: e.target.value })
+                }
+              >
+                {SSL_MODES.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </Labeled>
+          ) : null}
           <Labeled
             label={t('dataResidency.field.password')}
             hint={
@@ -497,23 +509,33 @@ function DeploymentSettingsView({
     return out;
   }
 
-  // Persist secrets (optionally force-overwriting an undecryptable sidecar) then
-  // the config. Raw setters clear the write-only secret inputs on success: a
-  // config change refetches and re-baselines the form, but a secret-only save
-  // leaves the config hash unchanged, so clearing here is what drops the form
-  // back to a clean (non-dirty) state in that case.
-  async function persist(force: boolean) {
-    const secrets = buildSecrets();
-    if (Object.keys(secrets).length > 0) {
-      await saveSecret.mutateAsync({
-        secrets,
-        ...(force ? { force: true } : {}),
-      });
-    }
+  // Persist the hash-guarded config. Config-first (saved before any secret) is
+  // load-bearing: on a concurrent change the stale `expectedHash` aborts HERE —
+  // before any secret is written — so a version conflict can neither orphan a
+  // secret on disk nor let the secret-save's query invalidation re-baseline
+  // (and wipe) the operator's unsaved edits.
+  async function persistConfig() {
     await saveConfig.mutateAsync({
       config: buildConfig(),
       expectedHash: data?.hash ?? undefined,
     });
+  }
+
+  // Persist secrets (optionally force-overwriting an undecryptable sidecar).
+  async function persistSecrets(force: boolean) {
+    const secrets = buildSecrets();
+    if (Object.keys(secrets).length === 0) return;
+    await saveSecret.mutateAsync({
+      secrets,
+      ...(force ? { force: true } : {}),
+    });
+  }
+
+  // Clear the write-only secret inputs + mark saved. A config change refetches
+  // and re-baselines the form, but a secret-only save leaves the config hash
+  // unchanged, so clearing here is what drops the form back to a clean
+  // (non-dirty) state in that case.
+  function finishSave() {
     setKnowledgeRaw((k) => ({ ...k, password: '' }));
     setAppPgRaw((a) => ({ ...a, password: '' }));
     setStorageRaw((s) => ({ ...s, accessKeyId: '', secretAccessKey: '' }));
@@ -525,12 +547,15 @@ function DeploymentSettingsView({
     setError(null);
     setSavedOk(false);
     try {
-      await persist(false);
+      await persistConfig();
+      await persistSecrets(false);
+      finishSave();
     } catch (err) {
       const mapped = mapDeploymentError(err, t);
       setError(mapped.message);
       // An undecryptable existing secrets sidecar can only be recovered by an
-      // explicit force-overwrite — offer it via a confirm dialog.
+      // explicit force-overwrite — offer it via a confirm dialog. The config is
+      // already persisted (config-first), so the retry re-saves ONLY the secret.
       if (mapped.canForceOverwrite) setForceOverwriteOpen(true);
     } finally {
       setSaving(false);
@@ -541,7 +566,11 @@ function DeploymentSettingsView({
     setSaving(true);
     setError(null);
     try {
-      await persist(true);
+      // Config is already saved; only the secret sidecar needs the force
+      // overwrite. Re-saving config here could spuriously version-conflict
+      // against its own just-written hash before the read query refetches.
+      await persistSecrets(true);
+      finishSave();
     } catch (err) {
       setError(mapDeploymentError(err, t).message);
     } finally {
@@ -850,10 +879,12 @@ function DeploymentSettingsView({
               testing={testing === 'appPostgres'}
               testResult={testResults.appPostgres}
               disabled={readOnly}
+              showSslMode={false}
             />
             {appPg.enabled ? (
               <p className="text-muted-foreground mt-2 text-xs">
-                {t('dataResidency.appDb.databaseNameNote')}
+                {t('dataResidency.appDb.databaseNameNote')}{' '}
+                {t('dataResidency.appDb.sslModeNote')}
               </p>
             ) : null}
           </div>
@@ -881,14 +912,21 @@ function DeploymentSettingsView({
           <Button
             variant="secondary"
             onClick={() => setRestartConfirmOpen(true)}
-            disabled={readOnly || restarting}
+            // Gate on a clean form: a restart applies the LAST-SAVED on-disk
+            // config, so allowing it while dirty would silently bounce into a
+            // config that differs from what's on screen.
+            disabled={readOnly || restarting || isDirty}
             title={t('dataResidency.applyRestartTitle')}
           >
             {restarting
               ? t('dataResidency.restarting')
               : t('dataResidency.applyRestart')}
           </Button>
-          {restartMsg && !isDirty ? (
+          {isDirty ? (
+            <span className="text-muted-foreground text-sm">
+              {t('dataResidency.applyRestartDirtyHint')}
+            </span>
+          ) : restartMsg ? (
             <span className="text-muted-foreground text-sm">{restartMsg}</span>
           ) : null}
         </div>

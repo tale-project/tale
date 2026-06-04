@@ -14,6 +14,7 @@ import {
   listContainerIds,
   restartContainer,
 } from './docker.ts';
+import { projectCandidates, serviceCandidates } from './targets.ts';
 
 const TOKEN = process.env.CONTROLLER_TOKEN ?? '';
 const PORT = Number(process.env.CONTROLLER_PORT ?? 8004);
@@ -52,7 +53,10 @@ async function restartService(
   const restarted: string[] = [];
   const errors: string[] = [];
   try {
-    const ids = await listContainerIds(PROJECT, svc);
+    const ids = await listContainerIds(
+      projectCandidates(PROJECT, svc),
+      serviceCandidates(svc),
+    );
     if (ids.length === 0) {
       errors.push(`${svc}: no running container found`);
       return { restarted, errors };
@@ -157,7 +161,12 @@ Bun.serve({
         errors.push(...r.errors);
       }
 
-      if (deferred.length > 0) {
+      // All-or-nothing: only schedule the deferred `convex` bounce when the
+      // immediate phase fully succeeded. A failed `rag` restart must NOT trigger
+      // a lone `convex` bounce — that would leave residency half-applied (convex
+      // on new config, rag on old) while the response already says ok:false.
+      const willDefer = deferred.length > 0 && errors.length === 0;
+      if (willDefer) {
         setTimeout(() => {
           void (async () => {
             for (const svc of deferred) {
@@ -176,7 +185,7 @@ Bun.serve({
       return Response.json({
         ok: errors.length === 0,
         restarted,
-        scheduled: deferred,
+        scheduled: willDefer ? deferred : [],
         errors,
       });
     }

@@ -23,13 +23,13 @@ Three stores, each independent and optional. An absent setting means "use the bu
 
 - **Knowledge database** — the RAG store: document metadata, the extracted chunk text, embeddings, the BM25 index, and the semantic cache. This is the store most residency requirements care about, because it holds your document content.
 - **File storage** — where uploaded files (the original blobs) live. By default they sit on the local Convex volume; you can point them at an external S3-compatible bucket.
-- **Application database** (advanced) — the Convex metadata database.
+- **Application database** (advanced) — the Convex metadata database. The Convex backend derives this database's name from `INSTANCE_NAME` (`tale_platform`) and connects on host:port only, so the external Postgres must contain a database named exactly `tale_platform`. Its TLS mode is fixed by the Convex driver and is not configurable.
 
 > Note: relocating the knowledge database moves the extracted text and embeddings. The original uploaded files move only when you also relocate **File storage** to S3.
 
 ## The ParadeDB prerequisite
 
-The knowledge database uses two Postgres extensions: `vector` (pgvector) for embeddings and `pg_search` (ParadeDB) for full-text/BM25 hybrid search. An external knowledge Postgres **must run ParadeDB** (which bundles both) for full search quality. If you point it at a plain Postgres that has only `pgvector`, indexing and vector search still work, but hybrid search degrades to **vector-only** — the BM25 leg is silently skipped. The **Test connection** button reports both `pgvector` and `pg_search` availability so you can see this before you commit. The databases (`tale`, `tale_knowledge`) must already exist; the RAG service runs its migrations against them on boot.
+The knowledge database uses two Postgres extensions: `vector` (pgvector) for embeddings and `pg_search` (ParadeDB) for full-text/BM25 hybrid search. An external knowledge Postgres **must run ParadeDB** (which bundles both) for full search quality. If you point it at a plain Postgres that has only `pgvector`, indexing and vector search still work, but hybrid search degrades to **vector-only** — the BM25 leg is silently skipped. The **Test connection** button reports both `pgvector` and `pg_search` availability so you can see this before you commit. The external knowledge database must already exist (it can have any name you enter — `tale_knowledge` by convention); the RAG service runs its migrations against it on boot.
 
 ## File storage on S3
 
