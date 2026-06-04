@@ -2,8 +2,8 @@ import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 const notificationDocValidator = v.object({
   _id: v.id('notifications'),
@@ -39,15 +39,11 @@ export const list = query({
     continueCursor: v.string(),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
     // Membership check throws if the caller isn't part of the org.
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
-    const userId = String(authUser._id);
+    await getOrganizationMember(ctx, args.organizationId, authUser);
+    const userId = authUser.userId;
 
     const result = await ctx.db
       .query('notifications')
@@ -91,9 +87,9 @@ export const unreadCount = query({
   args: { organizationId: v.string() },
   returns: v.number(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return 0;
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     let count = 0;
     for await (const n of ctx.db
       .query('notifications')

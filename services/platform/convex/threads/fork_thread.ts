@@ -3,8 +3,8 @@ import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
-import { authComponent } from '../auth';
 import { isOrgMember } from '../lib/rls/auth/check_org_membership';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getThreadMessages } from './get_thread_messages';
 
 const UUID_REGEX =
@@ -16,7 +16,7 @@ export const forkThread = mutation({
   },
   returns: v.string(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -38,7 +38,7 @@ export const forkThread = mutation({
     if (metadata.organizationId) {
       const isMember = await isOrgMember(
         ctx,
-        String(authUser._id),
+        authUser.userId,
         metadata.organizationId,
       );
       if (!isMember) {
@@ -57,7 +57,7 @@ export const forkThread = mutation({
       ? allMessages.filter((m) => m._creationTime <= sharedAt)
       : allMessages;
 
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     const title = metadata.title ? `Fork of ${metadata.title}` : 'Forked chat';
 
     const newThreadId = await createThread(ctx, components.agent, {

@@ -2,8 +2,8 @@ import { v } from 'convex/values';
 
 import { internalMutation, mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { jsonRecordValidator } from '../lib/validators/json';
 import { deleteSlackInstallationsForCredential } from './slack_installations';
 import {
@@ -80,17 +80,17 @@ export const updateCredentials = mutation({
   args: updateCredentialsArgs,
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const cred = await ctx.db.get(args.credentialId);
     if (!cred) throw new Error('Credential record not found');
 
-    const member = await getOrganizationMember(ctx, cred.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      cred.organizationId,
+      authUser,
+    );
 
     const { credentialId, ...updates } = args;
     const cleanUpdates = Object.fromEntries(
@@ -102,7 +102,7 @@ export const updateCredentials = mutation({
       auditCtx: {
         organizationId: cred.organizationId,
         actor: {
-          id: String(authUser._id),
+          id: authUser.userId,
           email: authUser.email,
           role: member?.role,
           type: 'user',
@@ -144,17 +144,17 @@ export const deleteCredentials = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const cred = await ctx.db.get(args.credentialId);
     if (!cred) throw new Error('Credential record not found');
 
-    const member = await getOrganizationMember(ctx, cred.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      cred.organizationId,
+      authUser,
+    );
 
     if (cred.iconStorageId) {
       await ctx.storage.delete(cred.iconStorageId);
@@ -170,7 +170,7 @@ export const deleteCredentials = mutation({
       auditCtx: {
         organizationId: cred.organizationId,
         actor: {
-          id: String(authUser._id),
+          id: authUser.userId,
           email: authUser.email,
           role: member?.role,
           type: 'user',

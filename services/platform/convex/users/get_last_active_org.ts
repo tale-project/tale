@@ -12,20 +12,20 @@ import { v } from 'convex/values';
 import { getString, isRecord } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
 export const getLastActiveOrganizationId = query({
   args: {},
   returns: v.union(v.string(), v.null()),
   handler: async (ctx) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return null;
     }
 
     const row = await ctx.runQuery(components.betterAuth.adapter.findOne, {
       model: 'user',
-      where: [{ field: '_id', value: String(authUser._id), operator: 'eq' }],
+      where: [{ field: '_id', value: authUser.userId, operator: 'eq' }],
     });
 
     if (!isRecord(row)) return null;

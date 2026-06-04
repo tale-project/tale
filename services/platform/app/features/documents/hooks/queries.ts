@@ -14,16 +14,31 @@ export function useApproxDocumentCount(organizationId: string) {
   });
 }
 
-export function useDocuments(organizationId: string) {
+export function useDocuments(
+  organizationId: string,
+  options?: { enabled?: boolean },
+) {
   const { data, isLoading } = useConvexQuery(
     api.documents.queries.listDocuments,
-    { organizationId },
+    options?.enabled === false ? 'skip' : { organizationId },
   );
 
   return {
     documents: data ?? [],
     isLoading,
   };
+}
+
+/**
+ * Point-query a single document by id (org/team access enforced server-side).
+ * Use instead of pulling the whole collection to find one document. Pass
+ * `undefined` to skip (e.g. dialog closed or only a storage id is available).
+ */
+export function useDocument(documentId: string | undefined) {
+  return useConvexQuery(
+    api.documents.queries.getDocumentById,
+    documentId ? { documentId: toId<'documents'>(documentId) } : 'skip',
+  );
 }
 
 export function useFolder(folderId: string | undefined) {

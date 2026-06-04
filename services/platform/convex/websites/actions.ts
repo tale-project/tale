@@ -4,8 +4,8 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { toWebsiteDomain } from './create_website';
 import {
   deregisterDomainFromCrawler,
@@ -28,7 +28,7 @@ import type {
  * org caller can't probe website existence by status code.
  */
 async function loadOwnedWebsite(ctx: ActionCtx, websiteId: Id<'websites'>) {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) throw new Error('Unauthenticated');
 
   const website = await ctx.runQuery(
@@ -41,7 +41,7 @@ async function loadOwnedWebsite(ctx: ActionCtx, websiteId: Id<'websites'>) {
     internal.websites.internal_queries.verifyOrganizationMembership,
     {
       organizationId: website.organizationId,
-      userId: authUser._id,
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     },
@@ -60,14 +60,14 @@ export const createWebsite = action({
   },
   returns: v.id('websites'),
   handler: async (ctx, args): Promise<Id<'websites'>> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await ctx.runQuery(
       internal.websites.internal_queries.verifyOrganizationMembership,
       {
         organizationId: args.organizationId,
-        userId: authUser._id,
+        userId: authUser.userId,
         email: authUser.email,
         name: authUser.name,
       },
@@ -109,7 +109,7 @@ export const deleteWebsite = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const website = await ctx.runQuery(
@@ -122,7 +122,7 @@ export const deleteWebsite = action({
       internal.websites.internal_queries.verifyOrganizationMembership,
       {
         organizationId: website.organizationId,
-        userId: authUser._id,
+        userId: authUser.userId,
         email: authUser.email,
         name: authUser.name,
       },
@@ -150,7 +150,7 @@ export const updateWebsite = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const website = await ctx.runQuery(
@@ -163,7 +163,7 @@ export const updateWebsite = action({
       internal.websites.internal_queries.verifyOrganizationMembership,
       {
         organizationId: website.organizationId,
-        userId: authUser._id,
+        userId: authUser.userId,
         email: authUser.email,
         name: authUser.name,
       },
@@ -222,14 +222,14 @@ export const syncStatuses = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await ctx.runQuery(
       internal.websites.internal_queries.verifyOrganizationMembership,
       {
         organizationId: args.organizationId,
-        userId: authUser._id,
+        userId: authUser.userId,
         email: authUser.email,
         name: authUser.name,
       },

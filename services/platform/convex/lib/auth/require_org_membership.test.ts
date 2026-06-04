@@ -2,11 +2,6 @@ import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockGetAuthUser = vi.fn();
-vi.mock('../../auth', () => ({
-  authComponent: {
-    getAuthUser: (...args: unknown[]) => mockGetAuthUser(...args),
-  },
-}));
 
 vi.mock('../../_generated/api', () => ({
   components: {
@@ -21,6 +16,12 @@ function makeCtx(handlers: {
   findMany?: { page?: unknown[] };
 }) {
   return {
+    auth: {
+      getUserIdentity: vi.fn(async () => {
+        const u = await mockGetAuthUser();
+        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      }),
+    },
     runQuery: vi.fn(async (ref: string) => {
       if (ref === 'findOne') return handlers.findOne ?? null;
       if (ref === 'findMany') return handlers.findMany ?? { page: [] };

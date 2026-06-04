@@ -1,8 +1,8 @@
 import { v } from 'convex/values';
 
 import { mutation } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 /**
  * Append the calling user to a notification's `readBy` set. Idempotent —
@@ -12,20 +12,16 @@ export const markRead = mutation({
   args: { notificationId: v.id('notifications') },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const notification = await ctx.db.get(args.notificationId);
     if (!notification) return null;
 
     // Authorization: caller must be a member of the notification's org.
-    await getOrganizationMember(ctx, notification.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, notification.organizationId, authUser);
 
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     if (notification.readBy.includes(userId)) return null;
 
     await ctx.db.patch(notification._id, {
@@ -39,16 +35,12 @@ export const markAllRead = mutation({
   args: { organizationId: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, args.organizationId, authUser);
 
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     for await (const n of ctx.db
       .query('notifications')
       .withIndex('by_org_created', (q) =>

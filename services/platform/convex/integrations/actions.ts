@@ -14,7 +14,7 @@ import { v } from 'convex/values';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { encryptCredentials } from './encrypt_credentials';
 import { generateOAuth2AuthUrl } from './generate_oauth2_auth_url';
@@ -54,12 +54,12 @@ export const saveCredentials = action({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const cred = await ctx.runQuery(
       internal.integrations.credential_queries.verifyCredentialAccess,
-      { credentialId: args.credentialId, userId: String(authUser._id) },
+      { credentialId: args.credentialId, userId: authUser.userId },
     );
     if (!cred) throw new Error('Credential not found or access denied');
 
@@ -97,12 +97,12 @@ export const testConnection = action({
   },
   returns: testConnectionResultValidator,
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const cred = await ctx.runQuery(
       internal.integrations.credential_queries.verifyCredentialAccess,
-      { credentialId: args.credentialId, userId: String(authUser._id) },
+      { credentialId: args.credentialId, userId: authUser.userId },
     );
     if (!cred) throw new Error('Credential not found or access denied');
 
@@ -117,12 +117,12 @@ export const generateOAuth2Url = action({
   },
   returns: v.string(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const cred = await ctx.runQuery(
       internal.integrations.credential_queries.verifyCredentialAccess,
-      { credentialId: args.credentialId, userId: String(authUser._id) },
+      { credentialId: args.credentialId, userId: authUser.userId },
     );
     if (!cred) throw new Error('Credential not found or access denied');
 
@@ -144,12 +144,12 @@ export const saveOAuth2ClientCredentials = action({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const cred = await ctx.runQuery(
       internal.integrations.credential_queries.verifyCredentialAccess,
-      { credentialId: args.credentialId, userId: String(authUser._id) },
+      { credentialId: args.credentialId, userId: authUser.userId },
     );
     if (!cred) throw new Error('Credential not found or access denied');
 
@@ -174,12 +174,12 @@ export const getSlackSetupInfo = action({
     manifest: v.string(),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const isMember = await ctx.runQuery(
       internal.integrations.credential_queries.verifyOrgMembership,
-      { organizationId: args.organizationId, userId: String(authUser._id) },
+      { organizationId: args.organizationId, userId: authUser.userId },
     );
     if (!isMember) throw new Error('Access denied');
 

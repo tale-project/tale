@@ -50,7 +50,7 @@ interface FeedbackMetricsPageProps {
 
 const PAGE_SIZE = 25;
 
-function periodToDays(p: FeedbackPeriod): 1 | 7 | 30 | 90 | undefined {
+export function periodToDays(p: FeedbackPeriod): 1 | 7 | 30 | 90 | undefined {
   if (p === 'all') return undefined;
   if (p === '1') return 1;
   if (p === '7') return 7;
@@ -319,13 +319,17 @@ export function FeedbackMetricsPage({
     data: stats,
     isLoading: statsLoading,
     error: statsError,
-  } = useConvexQuery(api.feedback.queries.getFeedbackStats, {
-    organizationId,
-    periodDays,
-    agentSlug,
-    model,
-    provider,
-  });
+  } = useConvexQuery(
+    api.feedback.queries.getFeedbackStats,
+    {
+      organizationId,
+      periodDays,
+      agentSlug,
+      model,
+      provider,
+    },
+    { enabled: !!organizationId },
+  );
 
   const recent = useCachedPaginatedQuery(
     api.feedback.queries.listRecentFeedback,

@@ -13,9 +13,7 @@ import {
 
 import type { DataModel } from '../../../_generated/dataModel';
 import { mutation, type MutationCtx } from '../../../_generated/server';
-import { getUserTeamIds } from '../../get_user_teams';
-import { getAuthUserIdentity } from '../auth/get_auth_user_identity';
-import { getUserOrganizations } from '../organization/get_user_organizations';
+import { getRequestAuthContext } from '../context/request_auth_cache';
 import { rlsRules } from './rls_rules';
 
 /**
@@ -33,14 +31,11 @@ const rlsConfig: RLSConfig = {
 export const mutationWithRLS = customMutation(
   mutation,
   customCtx(async (ctx: MutationCtx) => {
-    const user = await getAuthUserIdentity(ctx);
-
-    const [userOrganizations, userTeamIds] = user
-      ? await Promise.all([
-          getUserOrganizations(ctx, user),
-          getUserTeamIds(ctx, user.userId).then((ids) => new Set(ids)),
-        ])
-      : [[], new Set<string>()];
+    // Resolve identity/orgs/teams once per request (memoized; see
+    // getRequestAuthContext). JWT identity is 0 DB and org/team lookups run in
+    // parallel, so the wrapper adds no redundant cross-component round-trips.
+    const { user, userOrganizations, userTeamIds } =
+      await getRequestAuthContext(ctx);
 
     const rules = await rlsRules(ctx, { user, userOrganizations, userTeamIds });
 

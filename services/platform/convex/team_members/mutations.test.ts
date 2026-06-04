@@ -14,14 +14,16 @@ vi.mock('../_generated/api', () => ({
 }));
 
 const mockGetAuthUser = vi.fn();
-vi.mock('../auth', () => ({
-  authComponent: {
-    getAuthUser: (...args: unknown[]) => mockGetAuthUser(...args),
-  },
-}));
-
-vi.mock('../lib/rls', () => ({
+// Sources import these directly (not via the lib/rls barrel), so mock the
+// concrete modules.
+vi.mock('../lib/rls/organization/get_organization_member', () => ({
   getOrganizationMember: vi.fn(),
+}));
+vi.mock('../lib/rls/auth/get_auth_user_identity', () => ({
+  getAuthUserIdentity: vi.fn(async () => {
+    const u = await mockGetAuthUser();
+    return u ? { userId: String(u._id), email: u.email, name: u.name } : null;
+  }),
 }));
 
 vi.mock('convex/values', () => {

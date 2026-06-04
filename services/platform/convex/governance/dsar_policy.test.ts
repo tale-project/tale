@@ -162,6 +162,18 @@ function createMockCtx(state: MockState) {
         state.cancels.push(id);
       }),
     },
+    auth: {
+      // Production now uses getAuthUserIdentity (ctx.auth.getUserIdentity)
+      // instead of authComponent.getAuthUser. Derive the identity from the
+      // same mock source so existing test intent is preserved.
+      getUserIdentity: vi.fn(async () => {
+        const u = (await mockGetAuthUser()) as
+          | { _id: string; email?: string; name?: string }
+          | null
+          | undefined;
+        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      }),
+    },
   };
 }
 

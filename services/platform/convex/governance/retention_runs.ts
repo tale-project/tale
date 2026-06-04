@@ -20,7 +20,7 @@ import { ConvexError, v } from 'convex/values';
 
 import { internalMutation, internalQuery, query } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
@@ -227,18 +227,18 @@ export const getOpenRunForOrg = internalQuery({
 export const getRetentionRunStatus = query({
   args: { organizationId: v.string() },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: callerId,
-      email: authUser.email ?? '',
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
     if (!isAdmin(member.role)) {
       throw new ConvexError({
         code: 'forbidden',

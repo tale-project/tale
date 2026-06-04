@@ -5,8 +5,8 @@ import { v } from 'convex/values';
 import { TRANSCRIPTION_SLUG } from '../../lib/shared/constants/usage';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { resolveTranscriptionModel } from '../providers/resolve_model';
 
 const TRANSCRIBE_API_TIMEOUT_MS = 60_000;
@@ -40,14 +40,14 @@ export const transcribeDictation = action({
   },
   returns: v.object({ text: v.string() }),
   handler: async (ctx, args): Promise<{ text: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await ctx.runQuery(
       internal.approvals.internal_queries.verifyOrganizationMembership,
       {
         organizationId: args.organizationId,
-        userId: String(authUser._id),
+        userId: authUser.userId,
         email: authUser.email,
         name: authUser.name,
       },
@@ -119,7 +119,7 @@ export const transcribeDictation = action({
         internal.governance.internal_mutations.recordTranscriptionUsage,
         {
           organizationId: args.organizationId,
-          userId: String(authUser._id),
+          userId: authUser.userId,
           agentSlug: TRANSCRIPTION_SLUG,
           model: modelData.modelId,
           provider: modelData.providerName,

@@ -3,7 +3,6 @@ import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { internalMutation, mutation } from '../_generated/server';
-import { authComponent } from '../auth';
 import {
   assertThreadAccess,
   canAccessThread,
@@ -67,14 +66,14 @@ export const createChatThread = mutation({
   },
   returns: v.string(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
     const threadId = await createChatThreadHelper(
       ctx,
-      authUser._id,
+      authUser.userId,
       args.title,
       args.chatType ?? 'general',
       args.arenaGroupId && args.arenaModelId
@@ -109,14 +108,14 @@ export const createArenaThreadB = mutation({
   },
   returns: v.string(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const metaA = await ctx.db
       .query('threadMetadata')
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadIdA))
       .first();
-    if (!metaA || metaA.userId !== authUser._id) {
+    if (!metaA || metaA.userId !== authUser.userId) {
       throw new Error('Thread not found');
     }
 
@@ -129,7 +128,7 @@ export const createArenaThreadB = mutation({
     // Create Thread B as a branch of Thread A
     const threadIdB = await createChatThreadHelper(
       ctx,
-      authUser._id,
+      authUser.userId,
       metaA.title ?? '',
       metaA.chatType ?? 'general',
       {
@@ -148,7 +147,7 @@ export const createArenaThreadB = mutation({
       if (!msg.message) continue;
       await saveMessage(ctx, components.agent, {
         threadId: threadIdB,
-        userId: authUser._id,
+        userId: authUser.userId,
         message: msg.message,
       });
     }
@@ -211,14 +210,14 @@ export const cancelGeneration = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
     await cancelGenerationHelper(
       ctx,
-      String(authUser._id),
+      authUser.userId,
       args.threadId,
       args.displayedLength,
     );
@@ -444,7 +443,7 @@ export const cleanupArenaBranch = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     // Verify ownership of Thread A
@@ -452,7 +451,7 @@ export const cleanupArenaBranch = mutation({
       .query('threadMetadata')
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadIdA))
       .first();
-    if (!metaA || metaA.userId !== authUser._id) {
+    if (!metaA || metaA.userId !== authUser.userId) {
       throw new Error('Thread not found');
     }
 
@@ -463,7 +462,7 @@ export const cleanupArenaBranch = mutation({
       .first();
     if (
       !metaB ||
-      metaB.userId !== authUser._id ||
+      metaB.userId !== authUser.userId ||
       !metaA.arenaGroupId ||
       metaB.arenaGroupId !== metaA.arenaGroupId
     ) {
@@ -503,7 +502,7 @@ export const cleanupArenaBranch = mutation({
         if (!msg.message) continue;
         await saveMessage(ctx, components.agent, {
           threadId: args.threadIdA,
-          userId: authUser._id,
+          userId: authUser.userId,
           agentName: msg.agentName,
           message: msg.message,
           metadata: {

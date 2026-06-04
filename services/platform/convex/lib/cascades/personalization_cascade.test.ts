@@ -15,6 +15,7 @@ interface FakeRow {
 function createCtx(rowsByIndex: Record<string, FakeRow[]>) {
   const deleted: string[] = [];
   const storageDeleted: string[] = [];
+  const scheduled: Array<{ fn: unknown; args: unknown }> = [];
   const lastIndexUsed: { name: string; eq: Record<string, unknown> }[] = [];
   // Each `take()` empties the per-index store so a paged loop terminates
   // after one call — matches the real Convex behaviour for a single page.
@@ -58,9 +59,14 @@ function createCtx(rowsByIndex: Record<string, FakeRow[]>) {
         storageDeleted.push(id);
       }),
     },
+    scheduler: {
+      runAfter: vi.fn(async (_delay: number, fn: unknown, args: unknown) => {
+        scheduled.push({ fn, args });
+      }),
+    },
   } as never;
 
-  return { ctx, deleted, storageDeleted, lastIndexUsed };
+  return { ctx, deleted, storageDeleted, scheduled, lastIndexUsed };
 }
 
 describe('cascadeOnMemberRemoved', () => {
@@ -134,13 +140,31 @@ describe('cascadeOnOrgDeleted', () => {
       'by_organizationId_and_status',
     ]);
     expect(lastIndexUsed.every((u) => indexedNames.has(u.name))).toBe(true);
-    // 1 query each for memories + prefs (collect path), then the TTS and
-    // videoLink sweeps each page once — terminating when the returned
-    // slice is shorter than PAGE_SIZE.
+    // memories + prefs each page once via `by_organizationId` (bounded
+    // pagedHardDelete), then the TTS and videoLink sweeps each page once —
+    // terminating when the returned slice is shorter than PAGE_SIZE.
     expect(lastIndexUsed).toHaveLength(4);
     expect(deleted).toEqual(
       expect.arrayContaining(['mem_a', 'mem_b', 'pref_a', 'tts_a']),
     );
+  });
+
+  it('schedules a drain continuation when an org exceeds the per-pass budget', async () => {
+    // 30 pages × 200 = 6000 rows: the bounded pass deletes all of them but its
+    // final page is full, so it reports `exhausted` and the cascade schedules
+    // a self-rescheduling continuation to finish any remainder.
+    const manyMemories: FakeRow[] = Array.from({ length: 6000 }, (_, i) => ({
+      _id: `mem_${i}`,
+      organizationId: 'o_1',
+    }));
+    const { ctx, deleted, scheduled } = createCtx({
+      by_organizationId: manyMemories,
+    });
+
+    await cascadeOnOrgDeleted(ctx, 'o_1');
+
+    expect(deleted.length).toBeGreaterThanOrEqual(6000);
+    expect(scheduled).toHaveLength(1);
   });
 
   it('pages through TTS chunks when a single org has more than PAGE_SIZE rows', async () => {

@@ -1,9 +1,9 @@
 import { v } from 'convex/values';
 
 import { mutation } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { OrganizationMismatchError } from '../lib/rls/errors';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 const ARENA_MESSAGE_ID_PREFIX = 'arena:';
 
@@ -24,7 +24,7 @@ export const submitFeedback = mutation({
   },
   returns: v.id('messageFeedback'),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await getOrganizationMember(ctx, args.organizationId);
@@ -66,7 +66,7 @@ export const submitFeedback = mutation({
       }
     }
 
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
 
     const existing = await ctx.db
       .query('messageFeedback')
@@ -110,12 +110,12 @@ export const deleteFeedback = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await getOrganizationMember(ctx, args.organizationId);
 
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
 
     const existing = await ctx.db
       .query('messageFeedback')

@@ -5,8 +5,8 @@
 import { v } from 'convex/values';
 
 import { mutation, query } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 const prefsValidator = v.object({
   taskAssigned: v.optional(v.boolean()),
@@ -19,13 +19,13 @@ export const getNotificationPreferences = query({
   args: { organizationId: v.string() },
   returns: prefsValidator,
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
     const row = await ctx.db
       .query('notificationPreferences')
       .withIndex('by_userId_organizationId', (q) =>
@@ -51,13 +51,13 @@ export const setNotificationPreferences = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
     const existing = await ctx.db
       .query('notificationPreferences')
       .withIndex('by_userId_organizationId', (q) =>

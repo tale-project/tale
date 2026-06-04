@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
-import { getOrganizationMember } from '../lib/rls';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import * as ApprovalsHelpers from './helpers';
 import type { ApprovalItem } from './types';
 import { approvalItemValidator } from './validators';
@@ -21,8 +21,12 @@ export const verifyOrganizationMembership = internalQuery({
   args: {
     organizationId: v.string(),
     userId: v.string(),
-    email: v.string(),
-    name: v.string(),
+    // Optional: sourced from the JWT identity (getAuthUserIdentity), where
+    // email/name are optional. Forwarded to getOrganizationMember, which
+    // accepts an optional email/name (the email-fallback path is a no-op when
+    // absent).
+    email: v.optional(v.string()),
+    name: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await getOrganizationMember(ctx, args.organizationId, {

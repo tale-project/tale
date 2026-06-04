@@ -25,7 +25,7 @@ import { ConvexError } from 'convex/values';
 import { defineAbilityFor } from '../../lib/permissions/ability';
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 
 interface BetterAuthMember {
@@ -59,14 +59,14 @@ export async function requireOrgMembership(
   ctx: ActionCtx,
   orgSlug: string,
 ): Promise<ProviderActionAuth> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     throw new ConvexError({
       code: 'UNAUTHENTICATED',
       message: 'Authentication required.',
     });
   }
-  const userId = String(authUser._id);
+  const userId = authUser.userId;
 
   // Slug → org. Mirrors the lookup in auth.ts beforeCreateOrganization.
   const org = await ctx.runQuery(components.betterAuth.adapter.findOne, {

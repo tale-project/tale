@@ -212,6 +212,7 @@ import type * as conversations_delete_conversation from "../conversations/delete
 import type * as conversations_get_conversation_by_external_message_id from "../conversations/get_conversation_by_external_message_id.js";
 import type * as conversations_get_conversation_by_id from "../conversations/get_conversation_by_id.js";
 import type * as conversations_get_conversation_with_messages from "../conversations/get_conversation_with_messages.js";
+import type * as conversations_get_customers_by_ids from "../conversations/get_customers_by_ids.js";
 import type * as conversations_get_message_by_external_id from "../conversations/get_message_by_external_id.js";
 import type * as conversations_helpers from "../conversations/helpers.js";
 import type * as conversations_improve_message from "../conversations/improve_message.js";
@@ -260,6 +261,7 @@ import type * as customers_update_customer_metadata from "../customers/update_cu
 import type * as customers_update_customers from "../customers/update_customers.js";
 import type * as customers_validators from "../customers/validators.js";
 import type * as deployment_auth from "../deployment/auth.js";
+import type * as deployment_auth_policy from "../deployment/auth_policy.js";
 import type * as deployment_editors from "../deployment/editors.js";
 import type * as deployment_file_actions from "../deployment/file_actions.js";
 import type * as deployment_file_utils from "../deployment/file_utils.js";
@@ -516,6 +518,7 @@ import type * as lib_attachments_register_files from "../lib/attachments/registe
 import type * as lib_attachments_types from "../lib/attachments/types.js";
 import type * as lib_auth_require_org_admin_or_developer from "../lib/auth/require_org_admin_or_developer.js";
 import type * as lib_auth_require_org_membership from "../lib/auth/require_org_membership.js";
+import type * as lib_cascades_paged_delete from "../lib/cascades/paged_delete.js";
 import type * as lib_cascades_personalization_cascade from "../lib/cascades/personalization_cascade.js";
 import type * as lib_config_store_actions from "../lib/config_store/actions.js";
 import type * as lib_config_store_store from "../lib/config_store/store.js";
@@ -576,6 +579,7 @@ import type * as lib_rls_auth_get_trusted_auth_data from "../lib/rls/auth/get_tr
 import type * as lib_rls_auth_require_authenticated_user from "../lib/rls/auth/require_authenticated_user.js";
 import type * as lib_rls_context_create_org_query_builder from "../lib/rls/context/create_org_query_builder.js";
 import type * as lib_rls_context_create_rls_context from "../lib/rls/context/create_rls_context.js";
+import type * as lib_rls_context_request_auth_cache from "../lib/rls/context/request_auth_cache.js";
 import type * as lib_rls_errors from "../lib/rls/errors.js";
 import type * as lib_rls_helpers_access_control from "../lib/rls/helpers/access_control.js";
 import type * as lib_rls_helpers_mutation_with_rls from "../lib/rls/helpers/mutation_with_rls.js";
@@ -1441,6 +1445,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/get_conversation_by_external_message_id": typeof conversations_get_conversation_by_external_message_id;
   "conversations/get_conversation_by_id": typeof conversations_get_conversation_by_id;
   "conversations/get_conversation_with_messages": typeof conversations_get_conversation_with_messages;
+  "conversations/get_customers_by_ids": typeof conversations_get_customers_by_ids;
   "conversations/get_message_by_external_id": typeof conversations_get_message_by_external_id;
   "conversations/helpers": typeof conversations_helpers;
   "conversations/improve_message": typeof conversations_improve_message;
@@ -1489,6 +1494,7 @@ declare const fullApi: ApiFromModules<{
   "customers/update_customers": typeof customers_update_customers;
   "customers/validators": typeof customers_validators;
   "deployment/auth": typeof deployment_auth;
+  "deployment/auth_policy": typeof deployment_auth_policy;
   "deployment/editors": typeof deployment_editors;
   "deployment/file_actions": typeof deployment_file_actions;
   "deployment/file_utils": typeof deployment_file_utils;
@@ -1745,6 +1751,7 @@ declare const fullApi: ApiFromModules<{
   "lib/attachments/types": typeof lib_attachments_types;
   "lib/auth/require_org_admin_or_developer": typeof lib_auth_require_org_admin_or_developer;
   "lib/auth/require_org_membership": typeof lib_auth_require_org_membership;
+  "lib/cascades/paged_delete": typeof lib_cascades_paged_delete;
   "lib/cascades/personalization_cascade": typeof lib_cascades_personalization_cascade;
   "lib/config_store/actions": typeof lib_config_store_actions;
   "lib/config_store/store": typeof lib_config_store_store;
@@ -1805,6 +1812,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rls/auth/require_authenticated_user": typeof lib_rls_auth_require_authenticated_user;
   "lib/rls/context/create_org_query_builder": typeof lib_rls_context_create_org_query_builder;
   "lib/rls/context/create_rls_context": typeof lib_rls_context_create_rls_context;
+  "lib/rls/context/request_auth_cache": typeof lib_rls_context_request_auth_cache;
   "lib/rls/errors": typeof lib_rls_errors;
   "lib/rls/helpers/access_control": typeof lib_rls_helpers_access_control;
   "lib/rls/helpers/mutation_with_rls": typeof lib_rls_helpers_mutation_with_rls;

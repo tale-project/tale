@@ -17,8 +17,8 @@ import { ConvexError, v } from 'convex/values';
 import { defineAbilityFor } from '../../lib/permissions/ability';
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery, mutation, query } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 const defaultModeValidator = v.union(
   v.literal('allowlist'),
@@ -65,7 +65,7 @@ export const getRunCodePolicy = query({
   },
   returns: policyDocValidator,
   handler: async (ctx, args): Promise<Doc<'orgPackagePolicy'> | null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'UNAUTHENTICATED',
@@ -75,11 +75,7 @@ export const getRunCodePolicy = query({
     // Membership check — UnauthorizedError thrown by the helper bubbles up
     // unmodified; the UI dispatches on its `code` field for the access-denied
     // banner.
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, args.organizationId, authUser);
 
     const policy = await ctx.db
       .query('orgPackagePolicy')
@@ -102,20 +98,20 @@ export const upsertRunCodePolicy = mutation({
   },
   returns: v.id('orgPackagePolicy'),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'UNAUTHENTICATED',
         message: 'Authentication required.',
       });
     }
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
 
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId,
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
 
     // Capability gate matches `requireOrgAdminOrDeveloper`: owner / admin /
     // developer all hold `read developerSettings`. Member / editor / disabled

@@ -16,6 +16,14 @@ vi.mock('@tanstack/react-query', () => ({
   })),
 }));
 
+const mockUseConvexAuth = vi.fn(() => ({
+  isAuthenticated: true,
+  isLoading: false,
+}));
+vi.mock('convex/react', () => ({
+  useConvexAuth: () => mockUseConvexAuth(),
+}));
+
 import { convexQuery } from '@convex-dev/react-query';
 import { useQuery } from '@tanstack/react-query';
 
@@ -26,9 +34,18 @@ const mockUseQuery = vi.mocked(useQuery);
 
 const mockQueryRef = {} as Parameters<typeof useConvexQuery>[0];
 
+function lastEnabled(): boolean | undefined {
+  const passed = mockUseQuery.mock.calls[0]?.[0] as { enabled?: boolean };
+  return passed?.enabled;
+}
+
 describe('useConvexQuery', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseConvexAuth.mockReturnValue({
+      isAuthenticated: true,
+      isLoading: false,
+    });
   });
 
   it('passes query function and args to convexQuery', () => {
@@ -111,5 +128,64 @@ describe('useConvexQuery', () => {
       enabled?: boolean;
     };
     expect(passedOptions?.enabled).toBe(false);
+  });
+
+  it('gates on auth by default: disabled while unauthenticated', () => {
+    mockUseConvexAuth.mockReturnValue({
+      isAuthenticated: false,
+      isLoading: false,
+    });
+
+    useConvexQuery(mockQueryRef, { organizationId: 'org-123' });
+
+    expect(lastEnabled()).toBe(false);
+  });
+
+  it('enabled once authenticated by default', () => {
+    useConvexQuery(mockQueryRef, { organizationId: 'org-123' });
+
+    expect(lastEnabled()).toBe(true);
+  });
+
+  it('requireAuth:false runs even when unauthenticated', () => {
+    mockUseConvexAuth.mockReturnValue({
+      isAuthenticated: false,
+      isLoading: false,
+    });
+
+    useConvexQuery(
+      mockQueryRef,
+      { organizationId: 'org-123' },
+      {
+        requireAuth: false,
+      },
+    );
+
+    expect(lastEnabled()).toBe(true);
+  });
+
+  it('caller enabled:false still wins when authenticated', () => {
+    useConvexQuery(
+      mockQueryRef,
+      { organizationId: 'org-123' },
+      {
+        enabled: false,
+      },
+    );
+
+    expect(lastEnabled()).toBe(false);
+  });
+
+  it('does not leak requireAuth into useQuery options', () => {
+    useConvexQuery(
+      mockQueryRef,
+      { organizationId: 'org-123' },
+      {
+        requireAuth: false,
+      },
+    );
+
+    const passedOptions = mockUseQuery.mock.calls[0]?.[0];
+    expect(passedOptions).not.toHaveProperty('requireAuth');
   });
 });

@@ -29,8 +29,8 @@ import { ConvexError, v } from 'convex/values';
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
 import { loadActiveHolds } from '../governance/legal_hold';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
@@ -45,14 +45,14 @@ export const restoreChatThread = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required to restore threads.',
       });
     }
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
 
     const metadata = await ctx.db
       .query('threadMetadata')
@@ -82,7 +82,7 @@ export const restoreChatThread = mutation({
         const member = await getOrganizationMember(
           ctx,
           metadata.organizationId,
-          { userId, email: authUser.email ?? '' },
+          authUser,
         );
         orgAdmin = isAdmin(member.role);
       } catch (err) {

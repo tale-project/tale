@@ -5,7 +5,7 @@ import { v } from 'convex/values';
 import { internal } from '../../_generated/api';
 import { action } from '../../_generated/server';
 import type { ActionCtx } from '../../_generated/server';
-import { authComponent } from '../../auth';
+import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
 import {
   decryptSecret,
   encryptSecret,
@@ -69,14 +69,14 @@ export const saveModerationSecret = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await ctx.runQuery(
       internal.governance.internal_mutations.requireGovernanceAdminInternal,
       {
         organizationId: args.organizationId,
-        userId: String(authUser._id),
+        userId: authUser.userId,
         email: authUser.email,
         name: authUser.name,
       },
@@ -97,7 +97,7 @@ export const saveModerationSecret = action({
         nonce: encrypted.nonce,
         authTag: encrypted.authTag,
         keyFingerprint: encrypted.keyFingerprint,
-        updatedBy: String(authUser._id),
+        updatedBy: authUser.userId,
       },
     );
     return null;
@@ -110,14 +110,14 @@ export const hasModerationSecret = action({
   },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args): Promise<string | null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await ctx.runQuery(
       internal.governance.internal_mutations.requireGovernanceAdminInternal,
       {
         organizationId: args.organizationId,
-        userId: String(authUser._id),
+        userId: authUser.userId,
         email: authUser.email,
         name: authUser.name,
       },

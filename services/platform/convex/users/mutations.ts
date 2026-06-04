@@ -7,7 +7,7 @@
 import { v } from 'convex/values';
 
 import { mutation } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { createMember as createMemberHelper } from './create_member';
 import { setMemberPassword as setMemberPasswordHelper } from './set_member_password';
 import { updateUserName as updateUserNameHelper } from './update_user_name';
@@ -33,7 +33,7 @@ export const updateUserPassword = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }

@@ -4,8 +4,8 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
 import { encryptString } from '../lib/crypto/encrypt_string';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { jsonRecordValidator } from '../lib/validators/json';
 
 const transportTypeValidator = v.union(
@@ -76,7 +76,7 @@ export const create = action({
     oauth2Config: v.optional(oauth2InputValidator),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -130,7 +130,7 @@ export const update = action({
     oauth2Config: v.optional(oauth2InputValidator),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -163,7 +163,7 @@ export const remove = action({
     id: v.id('mcpServers'),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -182,7 +182,7 @@ export const updateStatus = action({
     status: v.union(v.literal('active'), v.literal('inactive')),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }

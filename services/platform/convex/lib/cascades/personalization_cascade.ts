@@ -1,5 +1,9 @@
-import type { MutationCtx } from '../../_generated/server';
+import { v } from 'convex/values';
+
+import { internal } from '../../_generated/api';
+import { internalMutation, type MutationCtx } from '../../_generated/server';
 import { cascadeOnTtsForMemberRemoved } from '../../tts/cascade_helpers';
+import { pagedHardDelete } from './paged_delete';
 
 /**
  * Active erasure cascades for the personalization tables. These run on
@@ -60,6 +64,58 @@ export async function cascadeOnMemberRemoved(
 }
 
 /**
+ * One bounded pass of org-wide memories + preferences deletion. Returns true
+ * if either table still has rows after the pass (the caller should drain
+ * again). Pure row deletes (no `_storage`), so it uses the shared
+ * {@link pagedHardDelete} helper.
+ */
+async function erasePersonalizationPage(
+  ctx: MutationCtx,
+  organizationId: string,
+): Promise<boolean> {
+  const memories = await pagedHardDelete(ctx, (n) =>
+    ctx.db
+      .query('userMemories')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', organizationId),
+      )
+      .take(n),
+  );
+  const prefs = await pagedHardDelete(ctx, (n) =>
+    ctx.db
+      .query('userPreferences')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', organizationId),
+      )
+      .take(n),
+  );
+  return memories.exhausted || prefs.exhausted;
+}
+
+/**
+ * Self-rescheduling drain for the org-wide memories + preferences erasure.
+ * Scheduled by {@link cascadeOnOrgDeleted} only when a single pass couldn't
+ * finish (very large org). Keeps each transaction within budget and guarantees
+ * the erasure eventually completes.
+ */
+export const continueOrgPersonalizationErasure = internalMutation({
+  args: { organizationId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const exhausted = await erasePersonalizationPage(ctx, args.organizationId);
+    if (exhausted) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.lib.cascades.personalization_cascade
+          .continueOrgPersonalizationErasure,
+        { organizationId: args.organizationId },
+      );
+    }
+    return null;
+  },
+});
+
+/**
  * Organization deleted: hard-delete all prefs + memories scoped to the org
  * across every user. Audit-log rows for the org are retained for the
  * configured audit retention window — do not call this hook to scrub
@@ -69,21 +125,21 @@ export async function cascadeOnOrgDeleted(
   ctx: MutationCtx,
   organizationId: string,
 ): Promise<void> {
-  const memories = await ctx.db
-    .query('userMemories')
-    .withIndex('by_organizationId', (q) =>
-      q.eq('organizationId', organizationId),
-    )
-    .collect();
-  await Promise.all(memories.map((m) => ctx.db.delete(m._id)));
-
-  const prefs = await ctx.db
-    .query('userPreferences')
-    .withIndex('by_organizationId', (q) =>
-      q.eq('organizationId', organizationId),
-    )
-    .collect();
-  await Promise.all(prefs.map((p) => ctx.db.delete(p._id)));
+  // Org-wide memories + preferences erasure. Previously an unbounded
+  // `.collect()` + `Promise.all(delete)` — which throws mid-transaction past
+  // Convex's read/write budget on a large org, leaving the org HALF-erased
+  // (a GDPR Art 17 gap). Now paged; if a single pass can't drain it, a
+  // self-rescheduling internal mutation finishes the rest (there is no cron
+  // backstop for these two tables, unlike TTS/videoLink below).
+  const exhausted = await erasePersonalizationPage(ctx, organizationId);
+  if (exhausted) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.lib.cascades.personalization_cascade
+        .continueOrgPersonalizationErasure,
+      { organizationId },
+    );
+  }
 
   // TTS audio chunks (rows + `_storage` blobs) are org-scoped: a deleted org
   // must not leave verbatim assistant-voice renderings behind. Thread-cascade

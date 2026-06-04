@@ -2,11 +2,11 @@ import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import type { QueryCtx } from '../_generated/server';
-import { authComponent } from '../auth';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { checkBudget } from './budget_enforcement';
 import { resolveFeatureFlags } from './feature_enforcement';
 import { getOrgUsageMetrics as getOrgUsageMetricsHandler } from './get_org_usage_metrics';
@@ -29,12 +29,12 @@ import {
 export const getPendingRetentionChange = query({
   args: { organizationId: v.string() },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
     const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email ?? '',
     });
     if (!isAdmin(member.role)) {
@@ -94,13 +94,13 @@ export const getPolicy = query({
     policyType: policyTypeValidator,
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });
@@ -151,13 +151,13 @@ export const listPolicies = query({
     organizationId: v.string(),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });
@@ -203,13 +203,13 @@ export const getUsageSummary = query({
     periodKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });
@@ -293,13 +293,13 @@ export const getOrgUsageMetrics = query({
     provider: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });
@@ -316,12 +316,12 @@ export const getMyFeatureFlags = query({
     organizationId: v.string(),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId,
       email: authUser.email,
@@ -345,12 +345,12 @@ export const getMyBudgetStatus = query({
     selectedTeamId: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return null;
     }
 
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId,
       email: authUser.email,
@@ -418,23 +418,23 @@ export const getAccessibleModelsForUser = query({
   },
   returns: v.array(v.string()),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });
 
-    const teamIds = await getUserTeamIds(ctx, String(authUser._id));
+    const teamIds = await getUserTeamIds(ctx, authUser.userId);
 
     return getAccessibleModels(
       ctx,
       args.organizationId,
-      String(authUser._id),
+      authUser.userId,
       teamIds,
       member.role,
       args.modelIds,
@@ -530,10 +530,10 @@ export const listTrashedRows = query({
     ctx,
     args,
   ): Promise<{ rows: TrashRow[]; nextCursor: TrashCursor | null }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
     const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });

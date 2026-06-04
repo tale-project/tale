@@ -7,7 +7,8 @@ import { ConvexError } from 'convex/values';
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
-import { createAuth, authComponent } from '../auth';
+import { createAuth } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { recordPasswordChange } from './password_metadata';
 import type { Role } from './types';
@@ -42,7 +43,7 @@ export async function createMember(
   args: CreateMemberArgs,
 ): Promise<CreateMemberResult> {
   // Verify the current user is authenticated and is an admin
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     throw new Error('Unauthenticated');
   }
@@ -55,7 +56,7 @@ export async function createMember(
       paginationOpts: { cursor: null, numItems: 1 },
       where: [
         { field: 'organizationId', value: args.organizationId, operator: 'eq' },
-        { field: 'userId', value: String(authUser._id), operator: 'eq' },
+        { field: 'userId', value: authUser.userId, operator: 'eq' },
       ],
     },
   );

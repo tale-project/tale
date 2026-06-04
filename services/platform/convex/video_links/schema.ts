@@ -148,6 +148,10 @@ export const videoLinkJobsTable = defineTable({
   ])
   // Subject-erasure cascade (GDPR right-to-be-forgotten).
   .index('by_org_user', ['organizationId', 'uploadedBy'])
+  // Welcome-page unbound-draft lookup: list a user's not-yet-thread-bound jobs
+  // without scanning (and discarding) all their thread-bound jobs. The
+  // `threadId` equality is part of the index range, not a post-scan filter.
+  .index('by_org_user_threadId', ['organizationId', 'uploadedBy', 'threadId'])
   // Reverse-lookup from a fileMetadata/transcript storage id back to the
   // owning job. Required by (a) the Whisper-branch heartbeat in
   // `internal_mutations.ts:heartbeatJobByStorageId` (called per chunk),

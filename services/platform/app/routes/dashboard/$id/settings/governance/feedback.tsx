@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import {
   FeedbackMetricsPage,
+  periodToDays,
   type FeedbackKind,
   type FeedbackPeriod,
 } from '@/app/features/analytics/feedback/feedback-metrics-page';
@@ -25,17 +26,26 @@ export const Route = createFileRoute(
   '/dashboard/$id/settings/governance/feedback',
 )({
   validateSearch: searchSchema,
-  // Warm the aggregated feedback stats for the default view (7d / no filters)
-  // so a warm navigation paints the real cards+arena+tables instead of the
-  // skeleton. Bounded aggregate; never fail the transition on a transient/auth
-  // error (the page's error/empty branches still render correctly).
-  loader: ({ context, params }) =>
+  // Preload the EXACT stats args the component will request on first paint so a
+  // deep-link (e.g. ?period=30&agent=foo) warms the right cache entry instead
+  // of the hardcoded default (which would skeleton-flash then refetch). Mirror
+  // the component: getFeedbackStats takes period/agent/model/provider (kind and
+  // withCommentOnly only feed the recent-feedback list, not the aggregate).
+  loaderDeps: ({ search }) => ({
+    period: search.period ?? '7',
+    agent: search.agent,
+    model: search.model,
+    provider: search.provider,
+  }),
+  // Bounded aggregate; never fail the transition on a transient/auth error
+  // (the page's error/empty branches still render correctly).
+  loader: ({ context, params, deps }) =>
     ensureConvexQuery(context, api.feedback.queries.getFeedbackStats, {
       organizationId: params.id,
-      periodDays: 7,
-      agentSlug: undefined,
-      model: undefined,
-      provider: undefined,
+      periodDays: periodToDays(deps.period),
+      agentSlug: deps.agent,
+      model: deps.model,
+      provider: deps.provider,
     }).catch((error: unknown) => {
       console.warn('Failed to preload feedback stats', error);
     }),

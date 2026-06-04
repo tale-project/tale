@@ -263,6 +263,7 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
       model,
       provider,
     },
+    { enabled: !!organizationId },
   );
 
   const handlePeriod = useCallback((v: string) => {

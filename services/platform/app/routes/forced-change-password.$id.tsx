@@ -65,8 +65,12 @@ function ForcedChangePasswordPage() {
     }
   };
 
+  // Password-recovery flow can run with a restricted/!isAuthenticated session;
+  // preserve the prior ungated behavior (the query enforces auth server-side).
   const { data: expiryStatus } = useConvexQuery(
     api.users.queries.getPasswordExpiryStatus,
+    {},
+    { requireAuth: false },
   );
   useEffect(() => {
     if (!expiryStatus) return;

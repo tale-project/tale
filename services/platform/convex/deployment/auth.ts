@@ -20,7 +20,7 @@ import { ConvexError } from 'convex/values';
 
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { decideInstanceAdmin } from './auth_policy';
 
 export interface InstanceAdminAuth {
@@ -53,14 +53,14 @@ export async function requireInstanceAdmin(
   ctx: ActionCtx,
   options: { write?: boolean } = {},
 ): Promise<InstanceAdminAuth> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     throw new ConvexError({
       code: 'UNAUTHENTICATED',
       message: 'Authentication required.',
     });
   }
-  const userId = String(authUser._id);
+  const userId = authUser.userId;
 
   const memberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
     model: 'member',

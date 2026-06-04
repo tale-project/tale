@@ -17,7 +17,6 @@ import { ConvexError, v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
 import {
   autoSubscribe,
   notifyTaskAssigned,
@@ -29,7 +28,8 @@ import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../lib/rate_limiter/helpers';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { emitEvent } from '../workflows/triggers/emit_event';
 import { canClaimTask, checkProjectAccess, normalizeAssignee } from './access';
 import {
@@ -93,14 +93,10 @@ async function getAuthContext(
   ctx: MutationCtx,
   organizationId: string,
 ): Promise<AuthContext> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
-  const member = await getOrganizationMember(ctx, organizationId, {
-    userId: String(authUser._id),
-    email: authUser.email,
-    name: authUser.name,
-  });
+  const member = await getOrganizationMember(ctx, organizationId, authUser);
   const teamIds = await getUserTeamIds(ctx, member.userId);
   return {
     userId: member.userId,

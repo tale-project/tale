@@ -2,8 +2,8 @@ import { v } from 'convex/values';
 
 import type { Doc } from '../../_generated/dataModel';
 import { query } from '../../_generated/server';
-import { authComponent } from '../../auth';
-import { getOrganizationMember } from '../../lib/rls';
+import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../../lib/rls/organization/get_organization_member';
 
 export const getSchedulesBySlug = query({
   args: {
@@ -11,11 +11,11 @@ export const getSchedulesBySlug = query({
     workflowSlug: v.string(),
   },
   handler: async (ctx, args): Promise<Doc<'wfSchedules'>[]> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });
@@ -40,11 +40,11 @@ export const getWebhooksBySlug = query({
     workflowSlug: v.string(),
   },
   handler: async (ctx, args): Promise<Doc<'wfWebhooks'>[]> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });
@@ -69,11 +69,11 @@ export const getEventSubscriptionsBySlug = query({
     workflowSlug: v.string(),
   },
   handler: async (ctx, args): Promise<Doc<'wfEventSubscriptions'>[]> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });
@@ -110,11 +110,11 @@ export const getTriggerActivityBySlug = query({
     totalTriggers: number;
     activeTriggers: number;
   }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });
@@ -155,11 +155,11 @@ export const getTriggerLogsBySlug = query({
     workflowSlug: v.string(),
   },
   handler: async (ctx, args): Promise<Doc<'wfTriggerLogs'>[]> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });

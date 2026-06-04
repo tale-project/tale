@@ -24,7 +24,7 @@ import type { Id } from '../_generated/dataModel';
 import { internalMutation, mutation } from '../_generated/server';
 import type { QueryCtx, MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
@@ -264,14 +264,14 @@ export const placeLegalHold = mutation({
   },
   returns: v.id('legalHolds'),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: callerId,
       email: authUser.email ?? '',
@@ -432,14 +432,14 @@ export const requestLegalHoldRelease = mutation({
   },
   returns: v.id('legalHoldReleaseRequests'),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
     // Authorize BEFORE reading the hold row. The previous order let any
     // authenticated user fetch any hold's metadata (reason, targetType,
     // targetId, organizationId) by passing a guessed holdId, then learned
@@ -549,14 +549,14 @@ export const approveLegalHoldRelease = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
 
     // Authorize before reading the request row — caller must declare
     // and belong to the org first, so request metadata never leaks
@@ -690,14 +690,14 @@ export const rejectLegalHoldRelease = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
     // Authorize before reading the request — same rationale as
     // `approveLegalHoldRelease`.
     const member = await getOrganizationMember(ctx, args.organizationId, {
@@ -848,14 +848,14 @@ export const bulkPlaceLegalHold = mutation({
         message: `bulkPlaceLegalHold capped at 200 per call (got ${args.holds.length}).`,
       });
     }
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: callerId,
       email: authUser.email ?? '',
@@ -1012,14 +1012,14 @@ export const upsertLegalMatter = mutation({
   },
   returns: v.id('legalMatters'),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: callerId,
       email: authUser.email ?? '',
@@ -1115,14 +1115,14 @@ export const closeLegalMatter = mutation({
     releaseRequestsFiled: v.number(),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
     const matter = await ctx.db.get(args.matterId);
     if (!matter) {
       throw new ConvexError({

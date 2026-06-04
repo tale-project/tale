@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganization as getOrganizationHelper } from './get_organization';
 import { hasAnyOrganization as hasAnyOrganizationHelper } from './has_any_organization';
 
@@ -40,7 +40,7 @@ export const instanceHasAnyOrganization = query({
   args: {},
   returns: v.boolean(),
   handler: async (ctx): Promise<boolean> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }

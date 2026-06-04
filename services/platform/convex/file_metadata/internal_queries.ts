@@ -37,6 +37,10 @@ export const listChatAttachmentsForThread = internalQuery({
     threadId: v.string(),
   },
   async handler(ctx, args) {
+    // Push the three exclusions into the query so they evaluate in the engine
+    // instead of materializing every thread attachment and filtering in JS.
+    // Equivalent to the prior predicates (undefined `source`/`lifecycleStatus`
+    // still pass the `neq` checks, matching `!== 'video_link'` / `!== 'trashed'`).
     const rows = await ctx.db
       .query('fileMetadata')
       .withIndex('by_organizationId_and_threadId', (q) =>
@@ -44,18 +48,21 @@ export const listChatAttachmentsForThread = internalQuery({
           .eq('organizationId', args.organizationId)
           .eq('threadId', args.threadId),
       )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('documentId'), undefined),
+          q.neq(q.field('source'), 'video_link'),
+          q.neq(q.field('lifecycleStatus'), 'trashed'),
+        ),
+      )
       .collect();
-    return rows
-      .filter((r) => r.documentId === undefined)
-      .filter((r) => r.source !== 'video_link')
-      .filter((r) => r.lifecycleStatus !== 'trashed')
-      .map((r) => ({
-        _id: r._id,
-        storageId: r.storageId,
-        fileName: r.fileName,
-        contentType: r.contentType,
-        size: r.size,
-      }));
+    return rows.map((r) => ({
+      _id: r._id,
+      storageId: r.storageId,
+      fileName: r.fileName,
+      contentType: r.contentType,
+      size: r.size,
+    }));
   },
 });
 
