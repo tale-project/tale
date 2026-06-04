@@ -111,11 +111,22 @@ export const chatWithAgent = action({
     // agent. See agents/auto_route.ts.
     let resolvedAgentSlug = args.agentSlug;
     if (args.agentSlug === AUTO_AGENT_SLUG) {
+      // A project-scoped chat pins which agents are allowed; Auto must route
+      // only within that allow-list. Empty/absent means no restriction.
+      const allowedAgentSlugs = args.projectId
+        ? await ctx.runQuery(
+            internal.projects.internal_queries.getProjectAllowedAgentSlugs,
+            { projectId: args.projectId },
+          )
+        : undefined;
       const route = await ctx.runAction(
         internal.agents.auto_route.resolveAutoRoute,
         {
           organizationId: args.organizationId,
           message: args.message,
+          ...(allowedAgentSlugs && allowedAgentSlugs.length > 0
+            ? { allowedAgentSlugs }
+            : {}),
         },
       );
       resolvedAgentSlug = route.agentSlug;

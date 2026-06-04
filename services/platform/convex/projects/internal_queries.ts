@@ -50,6 +50,21 @@ export const getProjectForInjection = internalQuery({
 });
 
 /**
+ * The agent slugs a project restricts chat to, if any. Used by Auto routing
+ * so a project-scoped "Auto" send only routes to agents on the project's
+ * allow-list. Returns `[]` when the project pins no agents (no restriction)
+ * or doesn't resolve — both mean "don't narrow the candidate set".
+ */
+export const getProjectAllowedAgentSlugs = internalQuery({
+  args: { projectId: v.id('projects') },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    return project?.allowedAgentSlugs ?? [];
+  },
+});
+
+/**
  * Load the projectId for a thread, if any. Used by chat runtime to
  * resolve the project context from a thread that already has it
  * persisted (e.g., follow-up message in an existing project thread).
