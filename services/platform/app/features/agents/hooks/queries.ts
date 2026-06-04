@@ -14,6 +14,11 @@ export function useListAgents(organizationId: string) {
     configKeys.list('agents', organizationId),
     api.agents.file_actions.listAgents,
     { organizationId },
+    // Never fire with an empty org id: callers fall back to `''` while the org
+    // context is still resolving (e.g. `useChatAgents(organizationId ?? '')`),
+    // and `listAgents('')` makes the Better Auth adapter `db.get('')`, which
+    // throws "Invalid ID length 0" server-side.
+    { enabled: !!organizationId },
   );
   return { agents: data, isLoading, error, refetch };
 }

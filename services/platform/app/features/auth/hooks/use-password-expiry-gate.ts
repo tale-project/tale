@@ -1,8 +1,7 @@
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import { usePasswordExpiry } from '@/app/context/account-bootstrap-context';
 
 const FORCED_CHANGE_PATH = 'forced-change-password';
 
@@ -18,10 +17,9 @@ export function usePasswordExpiryGate(organizationId: string): void {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams({ strict: false });
-  const { data } = useConvexQuery(
-    api.users.queries.getPasswordExpiryStatus,
-    organizationId ? {} : 'skip',
-  );
+  // Reads the shared dashboard bootstrap (password-expiry is org-independent),
+  // so the gate no longer fires its own per-navigation subscription.
+  const data = usePasswordExpiry();
 
   useEffect(() => {
     if (!data || !data.expired) return;

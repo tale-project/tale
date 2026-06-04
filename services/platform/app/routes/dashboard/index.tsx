@@ -5,13 +5,14 @@ import { useAction, useMutation } from 'convex/react';
 import { useEffect, useRef } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import { DashboardShellFrame } from '@/app/routes/dashboard/$id';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 
 export const Route = createFileRoute('/dashboard/')({
-  beforeLoad: async () => {
-    const session = await authClient.getSession();
+  beforeLoad: async ({ context }) => {
+    const session = await context.queryClient.fetchQuery(sessionQueryOptions);
     if (!session?.data?.user) {
       throw redirect({ to: '/log-in' });
     }

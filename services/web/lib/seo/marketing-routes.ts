@@ -14,7 +14,7 @@ interface MarketingRoute {
 export const MARKETING_ROUTES: readonly MarketingRoute[] = [
   {
     url: '/',
-    title: 'Tale: The Sovereign AI Platform',
+    title: 'Tale: The Orchestration Layer for AI Agents',
     description:
       'Self-hosted AI platform for data-sensitive organisations — local AI models, agents, and automations on your own infrastructure.',
   },

@@ -26,7 +26,7 @@ interface RouteSeo {
 const STATIC_ROUTES: RouteSeo[] = [
   {
     url: '/',
-    title: 'Tale: The Sovereign AI Platform',
+    title: 'Tale: The Orchestration Layer for AI Agents',
     description:
       'Self-hosted AI platform for data-sensitive organizations — local AI models, agents, and automations on your own infrastructure. ISO 27001 & SOC 2 certified.',
   },

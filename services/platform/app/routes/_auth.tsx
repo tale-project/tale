@@ -2,11 +2,11 @@ import { VStack, Spacer } from '@tale/ui/layout';
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
 
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
-import { authClient } from '@/lib/auth-client';
+import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 
 export const Route = createFileRoute('/_auth')({
-  beforeLoad: async () => {
-    const session = await authClient.getSession();
+  beforeLoad: async ({ context }) => {
+    const session = await context.queryClient.fetchQuery(sessionQueryOptions);
     if (session?.data?.user) {
       throw redirect({ to: '/dashboard' });
     }

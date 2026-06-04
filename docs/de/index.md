@@ -1,10 +1,10 @@
 ---
 title: Tale-Dokumentation
-description: Tale ist eine souveräne KI-Plattform. Die Dokumentation ist nach Edition (Cloud oder selbst gehostet), nach Produktbereich (Plattform) und nach Aufgabe (Tutorials, Entwicklung) gegliedert. Wähl den Einstieg, der zu dem passt, was du gerade vorhast.
+description: Tale ist die Orchestrierungsebene für KI-Agents. Die Dokumentation ist nach Edition (Cloud oder selbst gehostet), nach Produktbereich (Plattform) und nach Aufgabe (Tutorials, Entwicklung) gegliedert. Wähl den Einstieg, der zu dem passt, was du gerade vorhast.
 kind: index
 ---
 
-Tale ist eine souveräne KI-Plattform. Du chattest mit Modellen über deine eigenen Dokumente, baust Agents, die eine Aufgabe von Anfang bis Ende übernehmen, lässt Automatisierungen im Hintergrund laufen und verwaltest Kunden-Konversationen in einem einzigen Posteingang — mit deiner Wahl an KI-Anbietern und deinen Daten in einer Region, die du selbst bestimmst.
+Tale ist die Orchestrierungsebene für KI-Agents. Du chattest mit Modellen über deine eigenen Dokumente, baust Agents, die eine Aufgabe von Anfang bis Ende übernehmen, lässt Automatisierungen im Hintergrund laufen und verwaltest Kunden-Konversationen in einem einzigen Posteingang — mit deiner Wahl an KI-Anbietern und deinen Daten in einer Region, die du selbst bestimmst.
 
 Das Produkt erscheint in zwei Editionen; jedes Feature, jede API und jede Rolle ist zwischen beiden identisch. Der einzige Unterschied: wer den Stack betreibt. Wähl deine Edition und spring dann in den Abschnitt, der zu deiner täglichen Arbeit passt.
 

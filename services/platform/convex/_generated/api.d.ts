@@ -182,6 +182,7 @@ import type * as audit_logs_types from "../audit_logs/types.js";
 import type * as audit_logs_validators from "../audit_logs/validators.js";
 import type * as audit_logs_verify_integrity from "../audit_logs/verify_integrity.js";
 import type * as auth from "../auth.js";
+import type * as bootstrap_queries from "../bootstrap/queries.js";
 import type * as branding_file_actions from "../branding/file_actions.js";
 import type * as branding_file_utils from "../branding/file_utils.js";
 import type * as branding_internal_queries from "../branding/internal_queries.js";
@@ -1405,6 +1406,7 @@ declare const fullApi: ApiFromModules<{
   "audit_logs/validators": typeof audit_logs_validators;
   "audit_logs/verify_integrity": typeof audit_logs_verify_integrity;
   auth: typeof auth;
+  "bootstrap/queries": typeof bootstrap_queries;
   "branding/file_actions": typeof branding_file_actions;
   "branding/file_utils": typeof branding_file_utils;
   "branding/internal_queries": typeof branding_internal_queries;

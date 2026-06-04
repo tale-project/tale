@@ -4,6 +4,8 @@ import { QueryClient } from '@tanstack/react-query';
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 
 import { GlobalErrorDisplay } from '@/app/components/error-boundaries/displays/global-error-display';
+import { warmSession } from '@/app/lib/auth/session-query';
+import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
 import { getEnv } from '@/lib/env';
 
 import { routeTree } from './routeTree.gen';
@@ -36,6 +38,12 @@ export const queryClient = new QueryClient({
 });
 
 convexQueryClient.connect(queryClient);
+
+// Kick off the Better Auth session fetch at module load so the auth provider's
+// session (and the Convex token fetch it gates on, which authenticates the
+// websocket) resolves sooner — shrinking the cold-load auth handshake.
+warmSession();
+markColdLoad('module-load');
 
 export const router = createTanStackRouter({
   routeTree,

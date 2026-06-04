@@ -68,6 +68,17 @@ describe('requireOrgMembershipById', () => {
     });
   });
 
+  it('throws ORG_NOT_FOUND on an empty organization id (no adapter call)', async () => {
+    const ctx = makeCtx({});
+    await expect(
+      requireOrgMembershipById(ctx as never, ''),
+    ).rejects.toMatchObject({
+      data: { code: 'ORG_NOT_FOUND' },
+    });
+    // The empty id must never reach the adapter (`db.get('')` would throw).
+    expect(ctx.runQuery).not.toHaveBeenCalled();
+  });
+
   it('throws ORG_NOT_FOUND when the organization does not exist', async () => {
     const ctx = makeCtx({ findOne: null });
     await expect(

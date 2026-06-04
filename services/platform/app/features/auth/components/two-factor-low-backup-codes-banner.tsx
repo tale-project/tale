@@ -2,8 +2,7 @@
 
 import { Link } from '@tanstack/react-router';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import { useTwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { useT } from '@/lib/i18n/client';
 
 const LOW_BACKUP_CODES_THRESHOLD = 3;
@@ -24,7 +23,7 @@ export function TwoFactorLowBackupCodesBanner({
   organizationId: string;
 }) {
   const { t } = useT('twoFactor');
-  const { data: status } = useConvexQuery(api.two_factor.queries.getStatus, {});
+  const status = useTwoFactorStatus();
 
   if (!status || !status.authenticated) return null;
   if (!status.twoFactorEnabled) return null;

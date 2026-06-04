@@ -1,10 +1,10 @@
 ---
 title: Tale documentation
-description: Tale is a sovereign AI platform. The docs are organised by edition (Cloud or self-hosted), by product area (Platform), and by task (Tutorials, Develop). Pick the entry that matches what you're doing.
+description: Tale is the orchestration layer for AI agents. The docs are organised by edition (Cloud or self-hosted), by product area (Platform), and by task (Tutorials, Develop). Pick the entry that matches what you're doing.
 kind: index
 ---
 
-Tale is a sovereign AI platform. You can chat with models over your own documents, build agents that handle a job end to end, run automations in the background, and manage customer conversations from one inbox — with your choice of AI providers and your data pinned to a region you control.
+Tale is the orchestration layer for AI agents. You can chat with models over your own documents, build agents that handle a job end to end, run automations in the background, and manage customer conversations from one inbox — with your choice of AI providers and your data pinned to a region you control.
 
 The product ships in two editions; every feature, API, and role is identical between them. The only thing that differs is who runs the stack. Pick your edition, then jump to the section indexed by what you do day to day.
 

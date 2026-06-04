@@ -70,6 +70,16 @@ export async function requireOrgMembershipById(
   }
   const userId = String(authUser._id);
 
+  // Reject an empty id up front: the adapter resolves an `_id` `eq` filter via
+  // `db.get(value)`, and `db.get('')` throws the opaque "Invalid ID length 0"
+  // instead of a clean miss. Surface the same intent as an unknown org.
+  if (!organizationId) {
+    throw new ConvexError({
+      code: 'ORG_NOT_FOUND',
+      message: 'Organization id is required.',
+    });
+  }
+
   const org = await ctx.runQuery(components.betterAuth.adapter.findOne, {
     model: 'organization',
     where: [{ field: '_id', value: organizationId, operator: 'eq' }],

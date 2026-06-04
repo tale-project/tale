@@ -9,8 +9,7 @@ import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import { TOOL_NAMES } from '../agent_tools/tool_names';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 
 export const getBindingByAgent = query({
   args: {
@@ -18,11 +17,11 @@ export const getBindingByAgent = query({
     agentSlug: v.string(),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;
 
     await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });
@@ -45,7 +44,7 @@ export const hasBindingsByTeam = query({
     teamId: v.string(),
   },
   handler: async (ctx, args): Promise<boolean> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return false;
 
     // Check primary teamId via index
@@ -71,11 +70,11 @@ export const listBindingsByOrg = query({
     organizationId: v.string(),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
 
     await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });
@@ -122,11 +121,11 @@ export const getAvailableIntegrations = query({
     ctx,
     args,
   ): Promise<Array<{ name: string; title: string; type: string }>> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
 
     await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });

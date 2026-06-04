@@ -3,6 +3,7 @@
 import * as ToastPrimitives from '@radix-ui/react-toast';
 import { useEffect, useMemo, useRef } from 'react';
 
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
@@ -56,11 +57,17 @@ export function useSessionIdleWatchdog(): void {
   tRef.current = t;
 
   // Per-org window (member-readable). `skip` outside an org route — the
-  // effective window then falls back to the deployment backstop alone.
+  // effective window then falls back to the deployment backstop alone. Also
+  // skip until the Convex WebSocket is authenticated: on a cold load the route
+  // (and this watchdog) mount with an `organizationId` from the URL before auth
+  // lands, and `getPolicy` throws `Unauthenticated` server-side if it runs
+  // first. Gating in the args (not the options) is required — a `'skip'` arg
+  // sets `enabled: false`, which an `{ enabled }` option would override.
+  const { isAuthenticated } = useConvexAuth();
   const organizationId = useOrganizationId();
   const { data: policyRow } = useConvexQuery(
     api.governance.queries.getPolicy,
-    organizationId
+    organizationId && isAuthenticated
       ? { organizationId, policyType: 'session_idle_timeout' as const }
       : 'skip',
   );

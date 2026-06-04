@@ -3,8 +3,8 @@ import { v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { query } from '../_generated/server';
-import { authComponent } from '../auth';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 /**
@@ -128,10 +128,10 @@ async function projectJob(
 export const listForThread = query({
   args: { threadId: v.string(), organizationId: v.string() },
   async handler(ctx, args): Promise<VideoLinkJobView[]> {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
     const callerIdentity = {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     };
@@ -185,9 +185,9 @@ export const listForThread = query({
 export const listForUserUnboundChat = query({
   args: { organizationId: v.string() },
   async handler(ctx, args): Promise<VideoLinkJobView[]> {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
 
     try {
       await getOrganizationMember(ctx, args.organizationId, {

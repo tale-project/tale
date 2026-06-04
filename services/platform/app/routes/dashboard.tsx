@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import {
   Outlet,
   createFileRoute,
@@ -6,18 +7,15 @@ import {
 } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
+import { useTwoFactorStatus } from '@/app/context/account-bootstrap-context';
+import { AccountBootstrapProvider } from '@/app/context/account-bootstrap-provider';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useSessionIdleWatchdog } from '@/app/hooks/use-session-idle-watchdog';
+import { sessionQueryOptions } from '@/app/lib/auth/session-query';
+import { DashboardShellFrame } from '@/app/routes/dashboard/$id';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
-
-const sessionQueryOptions = {
-  queryKey: ['auth', 'session'],
-  queryFn: () => authClient.getSession(),
-  staleTime: 5 * 60 * 1000, // 5 minutes
-};
 
 export const Route = createFileRoute('/dashboard')({
   beforeLoad: async ({ context }) => {
@@ -28,11 +26,21 @@ export const Route = createFileRoute('/dashboard')({
     }
     return { user: session.data.user };
   },
+  loader: ({ context }) => {
+    // Warm the 2FA / password-expiry gate during the navigation phase so its
+    // query overlaps the websocket auth handshake instead of running only after
+    // the provider mounts. Without this the 2FA overlay holds content for one
+    // extra round-trip past auth; with it the overlay lifts as soon as auth
+    // completes (the provider reads the warm cache). Fire-and-forget so a slow
+    // gate can't stall the transition.
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.bootstrap.queries.getAccountBootstrap, {}),
+    );
+  },
   component: DashboardRedirect,
 });
 
 function DashboardRedirect() {
-  const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useConvexAuth();
 
   // Idle-timeout UX: warn and sign out proactively when the deployment sets
@@ -42,40 +50,6 @@ function DashboardRedirect() {
 
   const [sessionVerified, setSessionVerified] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(true);
-
-  // Client-side 2FA enforcement: when the org policy requires 2FA and the
-  // user is past their (effective) grace deadline, route them to
-  // /2fa-enroll. Catches normal entry paths (fresh login, existing
-  // session restore, SSO callback, direct-URL navigation). A determined
-  // client could still call Convex directly — server-side enforcement
-  // is tracked separately.
-  //
-  // Uses client-side navigation (not window.location) so the browser's
-  // `beforeunload` handlers in nested editors don't fire a "leave site?"
-  // confirm dialog when redirecting an unenrolled user.
-  const { data: twoFactorStatus } = useConvexQuery(
-    api.two_factor.queries.getStatus,
-    {},
-    { enabled: isAuthenticated },
-  );
-  useEffect(() => {
-    if (
-      twoFactorStatus?.authenticated &&
-      twoFactorStatus.decision === 'blocked'
-    ) {
-      const basePath = getEnv('BASE_PATH');
-      const pathname = window.location.pathname;
-      const routePath = basePath
-        ? pathname.replace(new RegExp(`^${basePath}`), '')
-        : pathname;
-      const redirectTo = routePath + window.location.search;
-      void navigate({
-        to: '/2fa-enroll',
-        search: { redirectTo },
-        replace: true,
-      });
-    }
-  }, [twoFactorStatus, navigate]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -106,27 +80,78 @@ function DashboardRedirect() {
     }
   }, [sessionVerified, hasValidSession]);
 
+  // Paint the dashboard shell immediately while the Convex websocket
+  // authenticates (was a blank `null` — the main cause of the cold-load
+  // "nothing on screen for seconds" feel).
   if (isLoading || (!isAuthenticated && !sessionVerified)) {
-    return null;
+    return <DashboardShellFrame />;
   }
 
+  // Hard-redirecting to /log-in (effect above) — keep the shell up so the
+  // transition doesn't flash blank.
   if (sessionVerified && !hasValidSession) {
-    return null;
+    return <DashboardShellFrame />;
   }
 
-  // Fail-closed: while authenticated but `getStatus` has not yet resolved
-  // (or errored), hold the dashboard. Otherwise a transient query failure
-  // would silently let a `'blocked'` user through.
-  if (isAuthenticated && twoFactorStatus === undefined) {
-    return null;
-  }
+  // Authenticated: mount the single account-bootstrap query for the whole
+  // dashboard subtree (2FA + password-expiry in one round-trip) and let the
+  // 2FA gate read it.
+  return (
+    <AccountBootstrapProvider>
+      <DashboardTwoFactorGate />
+    </AccountBootstrapProvider>
+  );
+}
 
-  if (
-    twoFactorStatus?.authenticated &&
-    twoFactorStatus.decision === 'blocked'
-  ) {
-    return null;
-  }
+/**
+ * Client-side 2FA enforcement gate.
+ *
+ * Renders the dashboard content immediately so its Convex subscriptions start
+ * in parallel with the 2FA check (no longer serialized behind it), but covers
+ * it with an opaque, non-interactive shell overlay until `getAccountBootstrap`
+ * confirms the user is not `blocked`. A `blocked` user is routed to
+ * `/2fa-enroll` (client-side navigation, so nested editors' `beforeunload`
+ * handlers don't fire a "leave site?" dialog); the overlay stays up until the
+ * navigation lands, so protected content is never interactive for them.
+ *
+ * Fail-closed: while the status is still `undefined` (or errored) the overlay
+ * stays up — a transient failure can't silently let a `blocked` user through.
+ * RLS still authorizes every underlying query server-side regardless of 2FA.
+ */
+function DashboardTwoFactorGate() {
+  const navigate = useNavigate();
+  const twoFactorStatus = useTwoFactorStatus();
 
-  return <Outlet />;
+  const isBlocked =
+    twoFactorStatus?.authenticated === true &&
+    twoFactorStatus.decision === 'blocked';
+
+  useEffect(() => {
+    if (!isBlocked) return;
+    const basePath = getEnv('BASE_PATH');
+    const pathname = window.location.pathname;
+    const routePath = basePath
+      ? pathname.replace(new RegExp(`^${basePath}`), '')
+      : pathname;
+    const redirectTo = routePath + window.location.search;
+    void navigate({
+      to: '/2fa-enroll',
+      search: { redirectTo },
+      replace: true,
+    });
+  }, [isBlocked, navigate]);
+
+  // Cover content while the 2FA decision is unknown or blocked.
+  const gateActive = twoFactorStatus === undefined || isBlocked;
+
+  return (
+    <>
+      <Outlet />
+      {gateActive && (
+        <div aria-hidden className="bg-background fixed inset-0 z-200">
+          <DashboardShellFrame />
+        </div>
+      )}
+    </>
+  );
 }

@@ -127,7 +127,7 @@ export default defineConfig({
       name: 'Tale Docs',
       shortName: 'Tale Docs',
       description:
-        'Documentation for Tale, the self-hosted sovereign AI platform.',
+        'Documentation for Tale, the self-hosted orchestration layer for AI agents.',
       themeColor: '#09090b',
       backgroundColor: '#fcfcfc',
       projectDir: import.meta.dirname,

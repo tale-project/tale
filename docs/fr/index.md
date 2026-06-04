@@ -1,10 +1,10 @@
 ---
 title: Documentation Tale
-description: Tale est une plateforme d'IA souveraine. La documentation s'organise par édition (Cloud ou auto-hébergé), par domaine produit (Plateforme) et par tâche (Tutoriels, Développement). Choisis l'entrée qui correspond à ce que tu fais.
+description: Tale est la couche d'orchestration pour agents IA. La documentation s'organise par édition (Cloud ou auto-hébergé), par domaine produit (Plateforme) et par tâche (Tutoriels, Développement). Choisis l'entrée qui correspond à ce que tu fais.
 kind: index
 ---
 
-Tale est une plateforme d'IA souveraine. Tu discutes avec des modèles sur tes propres documents, construis des agents qui prennent en charge une tâche de bout en bout, lances des automatisations en arrière-plan et gères les conversations clients depuis une seule boîte de réception — avec les fournisseurs d'IA de ton choix et tes données ancrées dans la région que tu décides.
+Tale est la couche d'orchestration pour agents IA. Tu discutes avec des modèles sur tes propres documents, construis des agents qui prennent en charge une tâche de bout en bout, lances des automatisations en arrière-plan et gères les conversations clients depuis une seule boîte de réception — avec les fournisseurs d'IA de ton choix et tes données ancrées dans la région que tu décides.
 
 Le produit ship en deux éditions ; chaque fonctionnalité, chaque API et chaque rôle est identique entre les deux. La seule différence : qui exploite la stack. Choisis ton édition, puis va dans la section qui correspond à ton quotidien.
 

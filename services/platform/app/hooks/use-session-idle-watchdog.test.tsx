@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   // memo dep doesn't churn and reset the timer.
   state: {
     orgId: undefined as string | undefined,
+    isAuthenticated: true,
     // `undefined` models the in-flight query (loading); `null` = loaded, no row.
     policyRow: null as { config: unknown } | null | undefined,
   },
@@ -29,8 +30,15 @@ vi.mock('@/lib/i18n/client', () => ({ useT: () => ({ t: h.t }) }));
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => h.state.orgId,
 }));
+vi.mock('@/app/hooks/use-convex-auth', () => ({
+  useConvexAuth: () => ({ isAuthenticated: h.state.isAuthenticated }),
+}));
 vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: h.state.policyRow }),
+  useConvexQuery: (_fn: unknown, args: unknown) => ({
+    // Mirror the real skip semantics: a skipped query is still in-flight
+    // (`undefined`), never a resolved value.
+    data: args === 'skip' ? undefined : h.state.policyRow,
+  }),
 }));
 vi.mock('@/convex/_generated/api', () => ({
   api: { governance: { queries: { getPolicy: 'getPolicy' } } },
@@ -46,6 +54,7 @@ beforeEach(() => {
   localStorage.clear();
   // Default: no org route, no policy → effective window comes from env alone.
   h.state.orgId = undefined;
+  h.state.isAuthenticated = true;
   h.state.policyRow = null;
   // jsdom's Location.href is non-configurable; replace the whole object so the
   // watchdog's redirect is observable instead of triggering a navigation.

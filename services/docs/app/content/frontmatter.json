@@ -630,7 +630,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Tale-Dokumentation",
-      "description": "Tale ist eine souveräne KI-Plattform. Die Dokumentation ist nach Edition (Cloud oder selbst gehostet), nach Produktbereich (Plattform) und nach Aufgabe (Tutorials, Entwicklung) gegliedert. Wähl den Einstieg, der zu dem passt, was du gerade vorhast.",
+      "description": "Tale ist die Orchestrierungsebene für KI-Agents. Die Dokumentation ist nach Edition (Cloud oder selbst gehostet), nach Produktbereich (Plattform) und nach Aufgabe (Tutorials, Entwicklung) gegliedert. Wähl den Einstieg, der zu dem passt, was du gerade vorhast.",
       "kind": "index"
     }
   },
@@ -1646,7 +1646,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Documentation Tale",
-      "description": "Tale est une plateforme d'IA souveraine. La documentation s'organise par édition (Cloud ou auto-hébergé), par domaine produit (Plateforme) et par tâche (Tutoriels, Développement). Choisis l'entrée qui correspond à ce que tu fais.",
+      "description": "Tale est la couche d'orchestration pour agents IA. La documentation s'organise par édition (Cloud ou auto-hébergé), par domaine produit (Plateforme) et par tâche (Tutoriels, Développement). Choisis l'entrée qui correspond à ce que tu fais.",
       "kind": "index"
     }
   },
@@ -2662,7 +2662,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Tale documentation",
-      "description": "Tale is a sovereign AI platform. The docs are organised by edition (Cloud or self-hosted), by product area (Platform), and by task (Tutorials, Develop). Pick the entry that matches what you're doing.",
+      "description": "Tale is the orchestration layer for AI agents. The docs are organised by edition (Cloud or self-hosted), by product area (Platform), and by task (Tutorials, Develop). Pick the entry that matches what you're doing.",
       "kind": "index"
     }
   },

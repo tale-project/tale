@@ -31,7 +31,9 @@ import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
+import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
+import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -73,6 +75,9 @@ function DashboardLayout() {
     isLoading: isQueryLoading,
     isError,
   } = useCurrentMemberContext(organizationId, isAuthLoading);
+  useEffect(() => {
+    if (memberContext) markColdLoad('member-context');
+  }, [memberContext]);
   const { t } = useT('accessDenied');
   const { t: tNotFound } = useT('common');
   const { t: tSettings } = useT('settings');
@@ -86,11 +91,7 @@ function DashboardLayout() {
   const recordOrgSwitch = useMutation(
     api.organizations.record_org_switch.recordOrgSwitch,
   );
-  const { data: session } = useQuery({
-    queryKey: ['auth', 'session'],
-    queryFn: () => authClient.getSession(),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: session } = useQuery(sessionQueryOptions);
   const activeOrganizationId = session?.data?.session?.activeOrganizationId;
   const orgSyncRef = useRef<string | null>(null);
   useEffect(() => {
