@@ -796,6 +796,7 @@
     "welcomeSuffix": "here, what are we working on?",
     "toast": {
       "sendFailed": "Failed to send message",
+      "arenaRequiresAgent": "Arena mode needs a specific agent — pick one instead of Auto to compare models.",
       "piiBlocked": "Message blocked by PII policy",
       "policyViolation": "Message blocked by content policy",
       "modelAccessDenied": "Model not available",

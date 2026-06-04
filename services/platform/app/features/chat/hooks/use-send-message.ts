@@ -276,7 +276,7 @@ export function useSendMessage({
       if (isArena && !selectedAgent) {
         sendingRef.current = false;
         toast({
-          title: t('toast.sendFailed'),
+          title: t('toast.arenaRequiresAgent'),
           variant: 'destructive',
         });
         return;

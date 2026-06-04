@@ -12,7 +12,6 @@ import { z } from 'zod/v4';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
-import { Label } from '@/app/components/ui/forms/label';
 import { ModelSelector } from '@/app/components/ui/forms/model-selector';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
@@ -109,14 +108,24 @@ export function CreateAgentDialog({
     [modelCatalog],
   );
 
-  // Seed a sensible default: when providers load and nothing is selected yet,
-  // pre-pick the first available model so a new agent is immediately usable.
-  // The user can add more or reorder to change the default.
+  // Keep the selection valid against the live catalog. Two jobs in one pass:
+  //   1. Drop any selected refs that no longer exist (a provider refresh can
+  //      remove a model) — otherwise a stale ref survives to submit and fails
+  //      with UNKNOWN_MODEL even though `hasModels` is true.
+  //   2. Seed a sensible default when nothing valid is left, so a new agent is
+  //      immediately usable. The user can add more or reorder to change it.
   useEffect(() => {
-    if (selectedModels.length === 0 && modelCatalog.length > 0) {
-      setSelectedModels([modelCatalog[0].ref]);
-    }
-  }, [selectedModels.length, modelCatalog]);
+    const validRefs = new Set(modelCatalog.map((m) => m.ref));
+    setSelectedModels((prev) => {
+      const filtered = prev.filter((ref) => validRefs.has(ref));
+      const unchanged =
+        filtered.length === prev.length &&
+        filtered.every((ref, i) => ref === prev[i]);
+      if (unchanged) return prev;
+      if (filtered.length > 0) return filtered;
+      return modelCatalog[0] ? [modelCatalog[0].ref] : [];
+    });
+  }, [modelCatalog]);
 
   const formSchema = useMemo(
     () =>
@@ -287,8 +296,13 @@ export function CreateAgentDialog({
           }
         />
       ) : (
-        <div className="space-y-1.5">
-          <Label htmlFor="model-select">{t('agents.createDialog.model')}</Label>
+        // A composite group (reorderable list + add button), not a single
+        // control — so a `Label htmlFor` would dangle. fieldset/legend gives
+        // assistive tech the group association instead.
+        <fieldset className="space-y-1.5">
+          <legend className="text-sm font-medium">
+            {t('agents.createDialog.model')}
+          </legend>
           <ModelSelector
             models={selectedModels}
             onChange={setSelectedModels}
@@ -299,7 +313,7 @@ export function CreateAgentDialog({
           <Text variant="caption">
             {t('agents.createDialog.modelDefaultHint')}
           </Text>
-        </div>
+        </fieldset>
       )}
     </FormDialog>
   );

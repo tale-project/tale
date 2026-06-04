@@ -796,6 +796,7 @@
     "welcomeSuffix": "hier, woran arbeiten wir?",
     "toast": {
       "sendFailed": "Nachricht konnte nicht gesendet werden",
+      "arenaRequiresAgent": "Der Arena-Modus benötigt einen bestimmten Agenten — wähle einen statt „Automatisch“, um Modelle zu vergleichen.",
       "piiBlocked": "Nachricht durch PII-Richtlinie blockiert",
       "policyViolation": "Nachricht durch Inhaltsrichtlinie blockiert",
       "modelAccessDenied": "Modell nicht verfügbar",

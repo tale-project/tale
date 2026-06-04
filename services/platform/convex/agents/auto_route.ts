@@ -107,9 +107,13 @@ export const resolveAutoRoute = internalAction({
 
     const fallback = pickDefault(candidates);
     if (!fallback) {
-      // No usable agent at all — hand back the conventional default so the
-      // downstream "agent not found" error is clear rather than routing
-      // silently to nothing.
+      // No usable agent at all — the org has nothing visible to route to. We
+      // can't conjure an agent, so hand back the conventional default and let
+      // the downstream resolve step raise its normal "agent not found" error.
+      // It may name `chat-agent` even if that too is absent, but this branch
+      // only fires in an already-broken org (zero chat-capable agents); a
+      // perfectly-worded error for that misconfiguration isn't worth threading
+      // a new error channel through unified_chat.
       return { agentSlug: DEFAULT_CHAT_AGENT_SLUG, reason: 'fallback' };
     }
 
