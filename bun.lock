@@ -225,7 +225,7 @@
         "fast-xml-parser": "5.8.0",
         "framer-motion": "12.38.0",
         "he": "1.2.0",
-        "hono": "4.12.18",
+        "hono": "4.12.21",
         "i18next": "26.0.4",
         "ipaddr.js": "^2.4.0",
         "jexl": "2.3.0",
@@ -386,7 +386,7 @@
     "defu": "6.1.6",
     "fast-uri": "3.1.2",
     "follow-redirects": "1.16.0",
-    "hono": "4.12.18",
+    "hono": "4.12.21",
     "immutable": "3.8.3",
     "ip-address": "10.1.1",
     "kysely": "0.28.17",
@@ -2838,7 +2838,7 @@
 
     "homedir-polyfill": ["homedir-polyfill@1.0.3", "", { "dependencies": { "parse-passwd": "^1.0.0" } }, "sha512-eSmmWE5bZTK2Nou4g0AI3zZ9rswp7GRKoKXS1BLUkvPviOqs4YTN1djQIqrXy9k5gEtdLPy86JjRwsNM9tnDcA=="],
 
-    "hono": ["hono@4.12.18", "", {}, "sha512-RWzP96k/yv0PQfyXnWjs6zot20TqfpfsNXhOnev8d1InAxubW93L11/oNUc3tQqn2G0bSdAOBpX+2uDFHV7kdQ=="],
+    "hono": ["hono@4.12.21", "", {}, "sha512-uV63apnb0kyPtAUwoWgaGh9HyIFcv8lgmzPZSiTBQAFOFGIzka5EZ1dZocmGnn0XdX0+XTqJ6Tqv7selMuGLRQ=="],
 
     "html-encoding-sniffer": ["html-encoding-sniffer@6.0.0", "", { "dependencies": { "@exodus/bytes": "^1.6.0" } }, "sha512-CV9TW3Y3f8/wT0BRFc1/KAVQ3TUHiXmaAb6VW9vtiMFf7SLoMd1PdAc4W3KFOFETBJUb90KatHqlsZMWV+R9Gg=="],
 
