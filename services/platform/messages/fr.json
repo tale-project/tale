@@ -837,6 +837,9 @@
     },
     "agentSelector": {
       "label": "Sélectionner un agent",
+      "auto": "Auto",
+      "viewDetails": "Voir les détails de l'agent",
+      "noAgents": "Aucun agent",
       "defaultAgent": "Assistant",
       "searchPlaceholder": "Rechercher des agents",
       "noResults": "Aucun agent trouvé",
@@ -847,9 +850,13 @@
       "searchPlaceholder": "Rechercher des modèles...",
       "noResults": "Aucun modèle trouvé",
       "auto": "Auto",
-      "autoDescription": "Sélectionne automatiquement le meilleur modèle disponible avec repli",
       "noModelsAvailable": "Aucun modèle disponible",
+      "noModelsAdminHint": "Aucun fournisseur d'IA n'est encore configuré. Cliquez pour ouvrir Paramètres → Fournisseurs d'IA et en ajouter un pour commencer à discuter.",
+      "noModelsAgentHint": "Cet assistant n'a aucun modèle utilisable. Vérifiez que ses modèles autorisés correspondent à un fournisseur configuré — cliquez pour ouvrir les fournisseurs d'IA.",
+      "noModelsMemberHint": "Aucun modèle d'IA n'est encore disponible. Demandez à l'administrateur de votre espace de travail de configurer un fournisseur d'IA pour pouvoir discuter.",
+      "noModelsRestricted": "Aucun modèle ne vous est disponible ici. Les restrictions de modèles de ce projet excluent tous les modèles auxquels vous avez accès — contactez votre administrateur pour demander l'accès.",
       "recommended": "Recommandé",
+      "viewProvider": "Voir les paramètres du fournisseur",
       "noApiKey": "Aucune clé API configurée pour le fournisseur de ce modèle — ajoutes-en une dans Paramètres → API.",
       "tags": {
         "chat": "Chat",
@@ -4297,7 +4304,7 @@
       "searchAgent": "Rechercher des agents",
       "columns": {
         "displayName": "Nom",
-        "model": "Modèle",
+        "model": "Modèle par défaut",
         "tools": "Outils"
       },
       "deleteAgent": "Supprimer l'agent",
@@ -4346,9 +4353,7 @@
         "continue": "Continuer",
         "creating": "Création...",
         "model": "Modèle",
-        "modelPlaceholder": "Sélectionner un modèle",
-        "modelSearch": "Rechercher des modèles…",
-        "modelEmpty": "Aucun modèle trouvé",
+        "modelDefaultHint": "Le premier modèle est celui par défaut ; les autres servent de solutions de repli. Glissez pour réordonner ou ajoutez-en d'autres — modifiable à tout moment.",
         "noModelsTitle": "Aucun modèle disponible",
         "noModelsDescription": "Un agent a besoin d'un modèle pour fonctionner. Configurez d'abord un fournisseur avec au moins un modèle.",
         "noModelsLink": "Ajouter un fournisseur"

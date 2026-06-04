@@ -16,6 +16,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { composerProfilesValidator } from '../../lib/shared/composer-profiles';
+import { AUTO_AGENT_SLUG } from '../../lib/shared/constants/agents';
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import { internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
@@ -99,6 +100,30 @@ export const chatWithAgent = action({
     console.log(
       `[chatWithAgent] START threadId=${args.threadId} agentSlug=${args.agentSlug}`,
     );
+
+    // "Auto" mode: the composer sends the AUTO_AGENT_SLUG sentinel when the
+    // user hasn't pinned an agent. Resolve it to a concrete slug BEFORE
+    // markGenerating so the thread commits the real agent (the UI shows the
+    // correct agent from the first frame, no re-patch). The cheap gates are
+    // synchronous; only the genuinely-ambiguous multi-agent case spends a
+    // timeout-raced classifier call, and that cost is bounded by
+    // ROUTE_TIMEOUT_MS — on timeout/failure it falls back to the default
+    // agent. See agents/auto_route.ts.
+    let resolvedAgentSlug = args.agentSlug;
+    if (args.agentSlug === AUTO_AGENT_SLUG) {
+      const route = await ctx.runAction(
+        internal.agents.auto_route.resolveAutoRoute,
+        {
+          organizationId: args.organizationId,
+          message: args.message,
+        },
+      );
+      resolvedAgentSlug = route.agentSlug;
+      console.log(
+        `[chatWithAgent] auto-route threadId=${args.threadId} -> ${resolvedAgentSlug} (${route.reason})`,
+      );
+    }
+
     const {
       streamId: preAllocatedStreamId,
       userId: authUserId,
@@ -109,7 +134,7 @@ export const chatWithAgent = action({
       {
         threadId: args.threadId,
         organizationId: args.organizationId,
-        agentSlug: args.agentSlug,
+        agentSlug: resolvedAgentSlug,
       },
     );
     console.log(
@@ -175,7 +200,7 @@ export const chatWithAgent = action({
         : null,
       resolveAgentConfigInline(ctx, {
         orgSlug,
-        agentSlug: args.agentSlug,
+        agentSlug: resolvedAgentSlug,
         organizationId: args.organizationId,
         modelId: args.modelId,
       }),
@@ -267,7 +292,7 @@ export const chatWithAgent = action({
           organizationId: args.organizationId,
           orgSlug,
           threadId: args.threadId,
-          agentSlug: args.agentSlug,
+          agentSlug: resolvedAgentSlug,
           actorId: authUserId,
           actorEmail: authUserEmail,
           actorType: 'user',
@@ -307,7 +332,7 @@ export const chatWithAgent = action({
             metadata: {
               requestedModelId: args.modelId,
               reason: accessCheck.reason ?? null,
-              agentSlug: args.agentSlug,
+              agentSlug: resolvedAgentSlug,
             },
           },
         );
@@ -338,7 +363,7 @@ export const chatWithAgent = action({
         additionalContext: args.additionalContext,
         userContext: args.userContext,
         agentConfig,
-        agentSlug: args.agentSlug,
+        agentSlug: resolvedAgentSlug,
         preAllocatedStreamId,
         capabilityBindings: args.capabilityBindings,
         projectId: args.projectId,

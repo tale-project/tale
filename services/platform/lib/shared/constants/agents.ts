@@ -15,3 +15,16 @@ export const PROTECTED_AGENT_NAMES = [
   'chat-agent',
   'workflow-assistant',
 ] as const;
+
+/** The org's general-purpose default assistant. Auto routing falls back to
+ *  this when no specialist clearly fits (or there's no signal to route on). */
+export const DEFAULT_CHAT_AGENT_SLUG = 'chat-agent';
+
+/**
+ * Sentinel agentSlug the composer sends when the user is in "Auto" mode and
+ * hasn't pinned a specific assistant. The server (see `agents/auto_route.ts`)
+ * resolves it to a concrete slug before generation. Lives here — a
+ * dependency-free module reachable from both client and Convex — so neither
+ * side hard-codes the string. Must never collide with a real agent filename.
+ */
+export const AUTO_AGENT_SLUG = 'auto';

@@ -138,6 +138,8 @@ import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools
 import type * as agents_access from "../agents/access.js";
 import type * as agents_arena_chat from "../agents/arena_chat.js";
 import type * as agents_audit_mutations from "../agents/audit_mutations.js";
+import type * as agents_auto_route from "../agents/auto_route.js";
+import type * as agents_auto_route_helpers from "../agents/auto_route_helpers.js";
 import type * as agents_config from "../agents/config.js";
 import type * as agents_file_actions from "../agents/file_actions.js";
 import type * as agents_file_utils from "../agents/file_utils.js";
@@ -1362,6 +1364,8 @@ declare const fullApi: ApiFromModules<{
   "agents/access": typeof agents_access;
   "agents/arena_chat": typeof agents_arena_chat;
   "agents/audit_mutations": typeof agents_audit_mutations;
+  "agents/auto_route": typeof agents_auto_route;
+  "agents/auto_route_helpers": typeof agents_auto_route_helpers;
   "agents/config": typeof agents_config;
   "agents/file_actions": typeof agents_file_actions;
   "agents/file_utils": typeof agents_file_utils;

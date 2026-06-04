@@ -12,7 +12,8 @@ import { z } from 'zod/v4';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
+import { Label } from '@/app/components/ui/forms/label';
+import { ModelSelector } from '@/app/components/ui/forms/model-selector';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
@@ -46,15 +47,18 @@ export function CreateAgentDialog({
     useListProviders(organizationId);
   const { locale } = useLocale();
 
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
-  const [modelSelectOpen, setModelSelectOpen] = useState(false);
+  // Ordered list of selected model refs (qualified `provider:id`). The FIRST
+  // entry is the agent's default/primary model; the rest are its fallback
+  // chain — same convention the agent edit page and runtime
+  // (`config.ts` → `model: supportedModels[0]`) use. Reordering the list (via
+  // ModelSelector) changes the default.
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
 
-  const modelOptions = useMemo(() => {
-    const allModels: {
-      id: string;
-      displayName: string;
-      providerName: string;
-    }[] = [];
+  // Every model across all configured providers, as qualified refs. Used both
+  // to seed the default and to resolve display/provider names for the list.
+  const modelCatalog = useMemo(() => {
+    const all: { ref: string; displayName: string; providerName: string }[] =
+      [];
     for (const provider of providers) {
       if (
         !provider ||
@@ -64,39 +68,55 @@ export function CreateAgentDialog({
         continue;
       for (const model of provider.models) {
         const resolved = resolveModelLocale(model, provider.i18n, locale);
-        allModels.push({
-          id: model.id,
+        all.push({
+          // Qualified form pins routing to this exact provider.
+          ref: `${provider.name}:${model.id}`,
           displayName: resolved.displayName || model.displayName,
           providerName: provider.name,
         });
       }
     }
-    return allModels.map((m) => ({
-      // Qualified form pins routing to this exact provider.
-      value: `${m.providerName}:${m.id}`,
-      label: m.displayName,
-      description: t('agents.form.viaProvider', {
-        provider: m.providerName,
-      }),
-    }));
-  }, [providers, t, locale]);
+    return all;
+  }, [providers, locale]);
 
   // No models means no provider is configured (or none exposes a model).
   // An agent must reference a real model, so creation can't proceed until one
   // exists — we surface this explicitly instead of letting submit no-op.
-  const hasModels = modelOptions.length > 0;
+  const hasModels = modelCatalog.length > 0;
 
-  // Auto-select first model when providers load and no selection exists
+  // Options offered in the "add model" picker: everything not already selected.
+  const availableOptions = useMemo(() => {
+    const selected = new Set(selectedModels);
+    return modelCatalog
+      .filter((m) => !selected.has(m.ref))
+      .map((m) => ({
+        value: m.ref,
+        label: m.displayName,
+        description: t('agents.form.viaProvider', { provider: m.providerName }),
+      }));
+  }, [modelCatalog, selectedModels, t]);
+
+  const getDisplayName = useCallback(
+    (ref: string) =>
+      modelCatalog.find((m) => m.ref === ref)?.displayName ??
+      ref.split(':').pop() ??
+      ref,
+    [modelCatalog],
+  );
+
+  const getProviderName = useCallback(
+    (ref: string) => modelCatalog.find((m) => m.ref === ref)?.providerName,
+    [modelCatalog],
+  );
+
+  // Seed a sensible default: when providers load and nothing is selected yet,
+  // pre-pick the first available model so a new agent is immediately usable.
+  // The user can add more or reorder to change the default.
   useEffect(() => {
-    if (!selectedModelId && modelOptions.length > 0) {
-      setSelectedModelId(modelOptions[0].value);
+    if (selectedModels.length === 0 && modelCatalog.length > 0) {
+      setSelectedModels([modelCatalog[0].ref]);
     }
-  }, [selectedModelId, modelOptions]);
-
-  const handleModelChange = useCallback((value: string) => {
-    setSelectedModelId(value);
-    setModelSelectOpen(false);
-  }, []);
+  }, [selectedModels.length, modelCatalog]);
 
   const formSchema = useMemo(
     () =>
@@ -142,13 +162,20 @@ export function CreateAgentDialog({
   useEffect(() => {
     if (!open) {
       reset();
-      setSelectedModelId(null);
+      setSelectedModels([]);
     }
   }, [open, reset]);
 
   const onSubmit = async (data: FormData) => {
-    const modelId = selectedModelId ?? modelOptions[0]?.value;
-    if (!modelId) return;
+    // First entry is the default; the rest are fallbacks. Fall back to the
+    // first catalog model if (somehow) nothing is selected.
+    const models =
+      selectedModels.length > 0
+        ? selectedModels
+        : modelCatalog[0]
+          ? [modelCatalog[0].ref]
+          : [];
+    if (models.length === 0) return;
 
     try {
       await saveAgent({
@@ -159,7 +186,11 @@ export function CreateAgentDialog({
           displayName: data.displayName,
           description: data.description,
           systemInstructions: 'You are a helpful assistant.',
-          supportedModels: [modelId],
+          supportedModels: models,
+          // Agents created from chat should be usable in chat immediately —
+          // `visibleInChat` is treated as false unless explicitly true
+          // (see useChatAgents filter), so set it on creation.
+          visibleInChat: true,
         },
       });
       toast({
@@ -256,19 +287,19 @@ export function CreateAgentDialog({
           }
         />
       ) : (
-        <SearchableSelect
-          id="model-select"
-          label={t('agents.createDialog.model')}
-          placeholder={t('agents.createDialog.modelPlaceholder')}
-          value={selectedModelId}
-          onValueChange={handleModelChange}
-          options={modelOptions}
-          open={modelSelectOpen}
-          onOpenChange={setModelSelectOpen}
-          searchPlaceholder={t('agents.createDialog.modelSearch')}
-          emptyText={t('agents.createDialog.modelEmpty')}
-          aria-label={t('agents.createDialog.model')}
-        />
+        <div className="space-y-1.5">
+          <Label htmlFor="model-select">{t('agents.createDialog.model')}</Label>
+          <ModelSelector
+            models={selectedModels}
+            onChange={setSelectedModels}
+            availableOptions={availableOptions}
+            getDisplayName={getDisplayName}
+            getProviderName={getProviderName}
+          />
+          <Text variant="caption">
+            {t('agents.createDialog.modelDefaultHint')}
+          </Text>
+        </div>
       )}
     </FormDialog>
   );

@@ -27,6 +27,9 @@ interface ReorderListProps<T extends ReorderItem> {
   renderItem: (props: ReorderListItemProps<T>) => ReactNode;
   /** When true, hides drag handle, up/down arrows, and remove button */
   readonlyOrder?: boolean;
+  /** Minimum number of items that must remain — the remove button is disabled
+   *  (rather than silently no-op) once the list is at this floor. Default 0. */
+  minItems?: number;
   className?: string;
   moveUpLabel: string;
   moveDownLabel: string;
@@ -39,6 +42,8 @@ interface ReorderListRowProps<T extends ReorderItem> {
   index: number;
   total: number;
   readonlyOrder: boolean;
+  /** When true, the remove button is disabled (list is at its minimum). */
+  removeDisabled: boolean;
   onMoveUp: (index: number) => void;
   onMoveDown: (index: number) => void;
   onRemove: (id: string) => void;
@@ -54,6 +59,7 @@ function ReorderListRow<T extends ReorderItem>({
   index,
   total,
   readonlyOrder,
+  removeDisabled,
   onMoveUp,
   onMoveDown,
   onRemove,
@@ -92,6 +98,7 @@ function ReorderListRow<T extends ReorderItem>({
         <>
           <div className="flex shrink-0 flex-row">
             <IconButton
+              type="button"
               icon={ChevronUp}
               aria-label={moveUpLabel}
               onClick={() => onMoveUp(index)}
@@ -100,6 +107,7 @@ function ReorderListRow<T extends ReorderItem>({
               iconSize={4}
             />
             <IconButton
+              type="button"
               icon={ChevronDown}
               aria-label={moveDownLabel}
               onClick={() => onMoveDown(index)}
@@ -110,9 +118,11 @@ function ReorderListRow<T extends ReorderItem>({
           </div>
 
           <IconButton
+            type="button"
             icon={X}
             aria-label={removeLabel}
             onClick={() => onRemove(item.id)}
+            disabled={removeDisabled}
             className="shrink-0"
             iconSize={4}
           />
@@ -130,12 +140,14 @@ export function ReorderList<T extends ReorderItem>({
   onRemove,
   renderItem,
   readonlyOrder = false,
+  minItems = 0,
   className,
   moveUpLabel,
   moveDownLabel,
   dragHandleLabel,
   removeLabel,
 }: ReorderListProps<T>) {
+  const removeDisabled = items.length <= minItems;
   const handleReorder = useCallback(
     (newItems: T[]) => {
       onReorder(newItems);
@@ -157,6 +169,7 @@ export function ReorderList<T extends ReorderItem>({
           index={index}
           total={items.length}
           readonlyOrder={readonlyOrder}
+          removeDisabled={removeDisabled}
           onMoveUp={onMoveUp}
           onMoveDown={onMoveDown}
           onRemove={onRemove}
