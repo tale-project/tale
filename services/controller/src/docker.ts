@@ -9,13 +9,24 @@ import http from 'node:http';
 
 const SOCKET = process.env.DOCKER_SOCKET ?? '/var/run/docker.sock';
 
+// Upper bound on a single socket call. A restart waits up to ~10s for graceful
+// stop, so this sits comfortably above that; its job is to fail fast when the
+// daemon is wedged rather than hang the request handler forever.
+const REQUEST_TIMEOUT_MS = 30_000;
+
 function dockerRequest(
   method: string,
   path: string,
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { socketPath: SOCKET, method, path, headers: { Host: 'localhost' } },
+      {
+        socketPath: SOCKET,
+        method,
+        path,
+        headers: { Host: 'localhost' },
+        timeout: REQUEST_TIMEOUT_MS,
+      },
       (res) => {
         let data = '';
         res.on('data', (chunk) => {
@@ -26,6 +37,11 @@ function dockerRequest(
         );
       },
     );
+    req.on('timeout', () => {
+      req.destroy(
+        new Error(`docker socket timeout after ${REQUEST_TIMEOUT_MS}ms`),
+      );
+    });
     req.on('error', reject);
     req.end();
   });

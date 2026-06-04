@@ -4449,9 +4449,6 @@
       },
       "governance": {
         "description": "Policies, security, audit logs, and data retention."
-      },
-      "dataResidency": {
-        "description": "Where this deployment's data physically lives."
       }
     },
     "account": {
@@ -5715,6 +5712,7 @@
         "yourEmail": "Your sign-in email is {email}."
       },
       "secretsEncryptedNoKey": "The stored secrets are SOPS-encrypted but no age key is configured — existing secrets can't be read.",
+      "secretsUnreadable": "The stored secrets exist but can't be decrypted (corrupt ciphertext, or a missing/incorrect age key). Re-enter the values and save to overwrite them.",
       "externalPostgres": "External Postgres",
       "usingSharedDatabase": "Using the built-in shared database.",
       "field": {
@@ -5727,6 +5725,7 @@
       },
       "password": {
         "storedHint": "Stored: {masked} — leave blank to keep",
+        "storedNoPreviewHint": "A value is stored — leave blank to keep it, or enter a new one to replace it.",
         "writeOnlyHint": "Write-only; leave blank to keep the stored value"
       },
       "testConnection": "Test connection",
@@ -5763,7 +5762,8 @@
       },
       "appDb": {
         "summary": "Application database (advanced)",
-        "title": "Convex metadata database"
+        "title": "Convex metadata database",
+        "databaseNameNote": "The Convex backend derives its database name from the instance configuration, so the external Postgres must already contain that database. The Database field above is used only for the connection test."
       },
       "saved": {
         "title": "Saved — restart to apply.",
@@ -5778,7 +5778,7 @@
       "restarting": "Restarting…",
       "restart": {
         "notEnabled": "Restart controller not enabled.",
-        "restarted": "Restarted: {services}",
+        "requested": "Restart requested: {services}",
         "failed": "Restart failed: {error}",
         "defaultServices": "rag, convex",
         "unknownError": "unknown error"
@@ -5787,6 +5787,20 @@
         "title": "Restart RAG and Convex?",
         "description": "This applies the saved configuration by restarting the RAG and Convex containers. Expect a brief interruption while they come back up.",
         "confirm": "Restart now"
+      },
+      "forceOverwrite": {
+        "title": "Overwrite unreadable secrets?",
+        "description": "The existing secrets file can't be decrypted. Overwriting replaces it with the values you entered — any other secrets it held will be lost. Continue?",
+        "confirm": "Overwrite"
+      },
+      "errors": {
+        "versionConflict": "The deployment config changed in another session. Reload to see the latest, then re-apply your changes.",
+        "invalidConfig": "The configuration is invalid: {issues}",
+        "invalidConfigGeneric": "The configuration is invalid. Check the fields and try again.",
+        "forbidden": "You're not authorized to edit deployment configuration.",
+        "secretUnreadable": "The existing secrets file can't be decrypted. Confirm overwrite to replace it.",
+        "configUnreadable": "The deployment configuration on disk can't be read.",
+        "readFailed": "Couldn't load the deployment configuration: {error}"
       }
     }
   },

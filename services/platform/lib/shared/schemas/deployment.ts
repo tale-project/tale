@@ -30,7 +30,18 @@ export const DEPLOYMENT_CONFIG_VERSION = 1 as const;
  */
 export const pgConnectionSchema = z
   .object({
-    host: z.string().min(1),
+    // Restrict to hostname / IPv4 / IPv6 characters. Rejecting URL
+    // metacharacters (`/ ? & @ , space % #`) keeps a crafted host from
+    // smuggling libpq params / downgrading TLS once it is interpolated into a
+    // connection URL or DSN downstream (the SSRF-gate URL parser and the pg
+    // driver's DSN parser must not be able to disagree on the host).
+    host: z
+      .string()
+      .min(1)
+      .regex(
+        /^[A-Za-z0-9._:[\]-]+$/,
+        'Host may only contain letters, digits, and . _ - : [ ] (no URL metacharacters).',
+      ),
     port: z.number().int().min(1).max(65535).default(5432),
     database: z.string().min(1),
     user: z.string().min(1),

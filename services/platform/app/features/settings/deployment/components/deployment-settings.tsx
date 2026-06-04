@@ -15,7 +15,7 @@
 import { Button } from '@tale/ui/button';
 import { Input } from '@tale/ui/input';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { useEffect, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -23,6 +23,7 @@ import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
+import { mapDeploymentError } from '../deployment-errors';
 import {
   useRequestRestart,
   useSaveDeploymentConfig,
@@ -96,6 +97,8 @@ type ConnTestResult = {
   error?: string;
   errors?: string[];
   restarted?: string[];
+  /** Services whose restart was deferred until after the reply (e.g. convex). */
+  scheduled?: string[];
   hint?: string;
   latencyMs?: number;
 };
@@ -191,6 +194,7 @@ function PgSection({
   state,
   setState,
   secretMasked,
+  secretPresent,
   onTest,
   testing,
   testResult,
@@ -200,6 +204,8 @@ function PgSection({
   state: PgForm;
   setState: (next: PgForm) => void;
   secretMasked?: string;
+  /** A stored password exists (no preview shown for credential-class secrets). */
+  secretPresent?: boolean;
   onTest: () => void;
   testing: boolean;
   testResult?: { ok: boolean; message?: string };
@@ -272,7 +278,9 @@ function PgSection({
                 ? t('dataResidency.password.storedHint', {
                     masked: secretMasked,
                   })
-                : t('dataResidency.password.writeOnlyHint')
+                : secretPresent
+                  ? t('dataResidency.password.storedNoPreviewHint')
+                  : t('dataResidency.password.writeOnlyHint')
             }
           >
             <Input
@@ -330,23 +338,50 @@ function DeploymentSettingsView({
   const canEdit: boolean = Boolean(data?.canEdit);
   const readOnly = !canEdit;
 
-  const [knowledge, setKnowledge] = useState<PgForm>(() =>
+  const [knowledge, setKnowledgeRaw] = useState<PgForm>(() =>
     pgFromConfig(ds.knowledgePostgres),
   );
-  const [appPg, setAppPg] = useState<PgForm>(() =>
+  const [appPg, setAppPgRaw] = useState<PgForm>(() =>
     pgFromConfig(ds.appPostgres),
   );
-  const [storage, setStorage] = useState<StorageForm>(() =>
+  const [storage, setStorageRaw] = useState<StorageForm>(() =>
     storageFromConfig(ds.convexStorage),
   );
 
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forceOverwriteOpen, setForceOverwriteOpen] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<
     Record<string, { ok: boolean; message?: string }>
   >({});
+
+  // Editing a section clears the stale failed-save banner and that section's
+  // now-outdated test result so the operator never sees feedback that no longer
+  // matches the form. (The "Saved" and restart banners are gated on !isDirty in
+  // render, so they hide on edit without being cleared here.)
+  function clearStaleFeedback(section: string) {
+    setError(null);
+    setTestResults((prev) => {
+      if (!(section in prev)) return prev;
+      const next = { ...prev };
+      delete next[section];
+      return next;
+    });
+  }
+  const setKnowledge: Dispatch<SetStateAction<PgForm>> = (a) => {
+    clearStaleFeedback('knowledgePostgres');
+    setKnowledgeRaw(a);
+  };
+  const setAppPg: Dispatch<SetStateAction<PgForm>> = (a) => {
+    clearStaleFeedback('appPostgres');
+    setAppPgRaw(a);
+  };
+  const setStorage: Dispatch<SetStateAction<StorageForm>> = (a) => {
+    clearStaleFeedback('convexStorage');
+    setStorageRaw(a);
+  };
 
   const saveConfig = useSaveDeploymentConfig();
   const saveSecret = useSaveDeploymentSecret();
@@ -367,11 +402,13 @@ function DeploymentSettingsView({
       if (res?.configured === false) {
         setRestartMsg(res.error || t('dataResidency.restart.notEnabled'));
       } else if (res?.ok) {
+        // `convex` is bounced just after this reply, so it arrives under
+        // `scheduled` rather than `restarted` — surface both as "requested".
+        const services = [...(res.restarted ?? []), ...(res.scheduled ?? [])];
         setRestartMsg(
-          t('dataResidency.restart.restarted', {
+          t('dataResidency.restart.requested', {
             services:
-              (res.restarted ?? []).join(', ') ||
-              t('dataResidency.restart.defaultServices'),
+              services.join(', ') || t('dataResidency.restart.defaultServices'),
           }),
         );
       } else {
@@ -385,7 +422,7 @@ function DeploymentSettingsView({
         );
       }
     } catch (err) {
-      setRestartMsg(err instanceof Error ? err.message : String(err));
+      setRestartMsg(mapDeploymentError(err, t).message);
     } finally {
       setRestarting(false);
       setRestartConfirmOpen(false);
@@ -460,32 +497,56 @@ function DeploymentSettingsView({
     return out;
   }
 
+  // Persist secrets (optionally force-overwriting an undecryptable sidecar) then
+  // the config. Raw setters clear the write-only secret inputs on success: a
+  // config change refetches and re-baselines the form, but a secret-only save
+  // leaves the config hash unchanged, so clearing here is what drops the form
+  // back to a clean (non-dirty) state in that case.
+  async function persist(force: boolean) {
+    const secrets = buildSecrets();
+    if (Object.keys(secrets).length > 0) {
+      await saveSecret.mutateAsync({
+        secrets,
+        ...(force ? { force: true } : {}),
+      });
+    }
+    await saveConfig.mutateAsync({
+      config: buildConfig(),
+      expectedHash: data?.hash ?? undefined,
+    });
+    setKnowledgeRaw((k) => ({ ...k, password: '' }));
+    setAppPgRaw((a) => ({ ...a, password: '' }));
+    setStorageRaw((s) => ({ ...s, accessKeyId: '', secretAccessKey: '' }));
+    setSavedOk(true);
+  }
+
   async function onSave() {
     setSaving(true);
     setError(null);
     setSavedOk(false);
     try {
-      const secrets = buildSecrets();
-      if (Object.keys(secrets).length > 0) {
-        await saveSecret.mutateAsync({ secrets });
-      }
-      await saveConfig.mutateAsync({
-        config: buildConfig(),
-        expectedHash: data?.hash ?? undefined,
-      });
-      // Clear the write-only secret inputs now that they're persisted. A
-      // config change refetches and the reset effect re-baselines the form,
-      // but a secret-only save leaves the config hash unchanged — clearing the
-      // secret fields here is what drops the form back to a clean (non-dirty)
-      // state in that case.
-      setKnowledge((k) => ({ ...k, password: '' }));
-      setAppPg((a) => ({ ...a, password: '' }));
-      setStorage((s) => ({ ...s, accessKeyId: '', secretAccessKey: '' }));
-      setSavedOk(true);
+      await persist(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const mapped = mapDeploymentError(err, t);
+      setError(mapped.message);
+      // An undecryptable existing secrets sidecar can only be recovered by an
+      // explicit force-overwrite — offer it via a confirm dialog.
+      if (mapped.canForceOverwrite) setForceOverwriteOpen(true);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onForceOverwrite() {
+    setSaving(true);
+    setError(null);
+    try {
+      await persist(true);
+    } catch (err) {
+      setError(mapDeploymentError(err, t).message);
+    } finally {
+      setSaving(false);
+      setForceOverwriteOpen(false);
     }
   }
 
@@ -535,7 +596,7 @@ function DeploymentSettingsView({
         ...prev,
         [target]: {
           ok: false,
-          message: err instanceof Error ? err.message : String(err),
+          message: mapDeploymentError(err, t).message,
         },
       }));
     } finally {
@@ -567,6 +628,9 @@ function DeploymentSettingsView({
             {t('dataResidency.secretsEncryptedNoKey')}
           </Banner>
         ) : null}
+        {data?.secretsError === 'unreadable' ? (
+          <Banner tone="warning">{t('dataResidency.secretsUnreadable')}</Banner>
+        ) : null}
 
         <PgSection
           title={t('dataResidency.knowledge.title')}
@@ -574,6 +638,9 @@ function DeploymentSettingsView({
           setState={setKnowledge}
           secretMasked={
             secretState['dataStores.knowledgePostgres.password']?.masked
+          }
+          secretPresent={
+            secretState['dataStores.knowledgePostgres.password']?.present
           }
           onTest={() => void runTest('knowledgePostgres')}
           testing={testing === 'knowledgePostgres'}
@@ -776,16 +843,24 @@ function DeploymentSettingsView({
               secretMasked={
                 secretState['dataStores.appPostgres.password']?.masked
               }
+              secretPresent={
+                secretState['dataStores.appPostgres.password']?.present
+              }
               onTest={() => void runTest('appPostgres')}
               testing={testing === 'appPostgres'}
               testResult={testResults.appPostgres}
               disabled={readOnly}
             />
+            {appPg.enabled ? (
+              <p className="text-muted-foreground mt-2 text-xs">
+                {t('dataResidency.appDb.databaseNameNote')}
+              </p>
+            ) : null}
           </div>
         </details>
 
         {error ? <Banner tone="warning">{error}</Banner> : null}
-        {savedOk ? (
+        {savedOk && !isDirty ? (
           <Banner tone="info">
             <strong>{t('dataResidency.saved.title')}</strong>{' '}
             {t('dataResidency.saved.runPrefix')}{' '}
@@ -813,7 +888,7 @@ function DeploymentSettingsView({
               ? t('dataResidency.restarting')
               : t('dataResidency.applyRestart')}
           </Button>
-          {restartMsg ? (
+          {restartMsg && !isDirty ? (
             <span className="text-muted-foreground text-sm">{restartMsg}</span>
           ) : null}
         </div>
@@ -829,11 +904,24 @@ function DeploymentSettingsView({
         variant="destructive"
         onConfirm={() => void onRestart()}
       />
+
+      <ConfirmDialog
+        open={forceOverwriteOpen}
+        onOpenChange={setForceOverwriteOpen}
+        title={t('dataResidency.forceOverwrite.title')}
+        description={t('dataResidency.forceOverwrite.description')}
+        confirmText={t('dataResidency.forceOverwrite.confirm')}
+        isLoading={saving}
+        variant="destructive"
+        onConfirm={() => void onForceOverwrite()}
+      />
     </SettingsPage>
   );
 }
 
 export function DeploymentSettings() {
+  const { t } = useT('settings');
+  const { t: tNav } = useT('navigation');
   const { t: tAccessDenied } = useT('accessDenied');
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -841,6 +929,23 @@ export function DeploymentSettings() {
 
   if (!abilityLoading && ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={tAccessDenied('deployment')} />;
+  }
+
+  // A failed read must not fall through to a blank, editable-looking default
+  // form — that would imply "no overrides configured" when the truth is unknown.
+  if (query.isError) {
+    return (
+      <SettingsPage
+        title={tNav('dataResidency')}
+        description={t('dataResidency.pageDescription')}
+      >
+        <Banner tone="warning">
+          {t('dataResidency.errors.readFailed', {
+            error: mapDeploymentError(query.error, t).message,
+          })}
+        </Banner>
+      </SettingsPage>
+    );
   }
 
   return (

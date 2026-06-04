@@ -26,6 +26,47 @@ const PROJECT =
 /** Hard allowlist — the only services this control plane may ever restart. */
 const ALLOWED = new Set(['rag', 'convex']);
 
+// Delay before bouncing the caller's own container (`convex`) so the signed
+// HTTP response is flushed and the Convex action can return its result first.
+const DEFERRED_RESTART_DELAY_MS = 1500;
+
+// Replay guard. The signature already binds the request to a timestamp within
+// a ~60s skew window; tracking each nonce for that long makes a captured
+// request single-use. Single-instance sidecar, so an in-memory map suffices.
+const NONCE_TTL_MS = 60_000;
+const seenNonces = new Map<string, number>();
+function claimNonce(nonce: string): boolean {
+  const now = Date.now();
+  for (const [n, exp] of seenNonces) {
+    if (exp <= now) seenNonces.delete(n);
+  }
+  if (seenNonces.has(nonce)) return false;
+  seenNonces.set(nonce, now + NONCE_TTL_MS);
+  return true;
+}
+
+/** Restart every running container for one allowlisted compose service. */
+async function restartService(
+  svc: string,
+): Promise<{ restarted: string[]; errors: string[] }> {
+  const restarted: string[] = [];
+  const errors: string[] = [];
+  try {
+    const ids = await listContainerIds(PROJECT, svc);
+    if (ids.length === 0) {
+      errors.push(`${svc}: no running container found`);
+      return { restarted, errors };
+    }
+    for (const id of ids) {
+      await restartContainer(id);
+      restarted.push(`${svc}:${id.slice(0, 12)}`);
+    }
+  } catch (err) {
+    errors.push(`${svc}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return { restarted, errors };
+}
+
 if (!TOKEN) {
   console.error(
     '[controller] CONTROLLER_TOKEN is required — refusing to start.',
@@ -60,13 +101,27 @@ Bun.serve({
         );
       }
 
-      let parsed: { services?: unknown };
+      let parsed: { services?: unknown; nonce?: unknown };
       try {
         parsed = JSON.parse(body);
       } catch {
         return Response.json(
           { ok: false, error: 'invalid JSON' },
           { status: 400 },
+        );
+      }
+
+      // Single-use nonce (signed as part of the body) → no replay within skew.
+      if (typeof parsed.nonce !== 'string' || parsed.nonce.length === 0) {
+        return Response.json(
+          { ok: false, error: 'missing nonce' },
+          { status: 400 },
+        );
+      }
+      if (!claimNonce(parsed.nonce)) {
+        return Response.json(
+          { ok: false, error: 'replayed request' },
+          { status: 409 },
         );
       }
 
@@ -86,26 +141,44 @@ Bun.serve({
         );
       }
 
+      // `convex` is co-located with the caller (the action that signed this
+      // request). Restarting it synchronously would sever this connection
+      // before the reply is flushed, so a successful restart would surface as a
+      // network error. Restart the others now; defer `convex` until just after
+      // the response is sent.
+      const immediate = services.filter((s) => s !== 'convex');
+      const deferred = services.filter((s) => s === 'convex');
+
       const restarted: string[] = [];
       const errors: string[] = [];
-      for (const svc of services) {
-        try {
-          const ids = await listContainerIds(PROJECT, svc);
-          if (ids.length === 0) {
-            errors.push(`${svc}: no running container found`);
-            continue;
-          }
-          for (const id of ids) {
-            await restartContainer(id);
-            restarted.push(`${svc}:${id.slice(0, 12)}`);
-          }
-        } catch (err) {
-          errors.push(
-            `${svc}: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
+      for (const svc of immediate) {
+        const r = await restartService(svc);
+        restarted.push(...r.restarted);
+        errors.push(...r.errors);
       }
-      return Response.json({ ok: errors.length === 0, restarted, errors });
+
+      if (deferred.length > 0) {
+        setTimeout(() => {
+          void (async () => {
+            for (const svc of deferred) {
+              const r = await restartService(svc);
+              for (const line of r.restarted) {
+                console.log(`[controller] deferred restart ${line}`);
+              }
+              for (const line of r.errors) {
+                console.error(`[controller] deferred restart error: ${line}`);
+              }
+            }
+          })();
+        }, DEFERRED_RESTART_DELAY_MS);
+      }
+
+      return Response.json({
+        ok: errors.length === 0,
+        restarted,
+        scheduled: deferred,
+        errors,
+      });
     }
 
     return new Response('not found', { status: 404 });

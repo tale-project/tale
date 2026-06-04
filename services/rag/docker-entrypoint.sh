@@ -36,8 +36,13 @@ rm -f "${DATA_DIR}/.write-probe"
 # config missing required fields aborts boot rather than silently falling back
 # to the bundled DB — mis-routing a customer's regulated data is worse than
 # not starting. An ABSENT config means "use the .env default" (unchanged).
-DEPLOY_CFG="${TALE_CONFIG_DIR:-/app/data}/deployment.json"
-DEPLOY_SECRETS="${TALE_CONFIG_DIR:-/app/data}/deployment.secrets.json"
+# The config is WRITTEN by the Convex action into the convex-data volume and
+# surfaced here READ-ONLY via the shared-config mount (TALE_PLATFORM_SHARED_CONFIG_DIR,
+# /app/platform-config). Prefer it over the per-service TALE_CONFIG_DIR (which in
+# RAG is the unrelated rag-data volume) — mirrors tale_shared/config/providers.py.
+DEPLOY_CFG_ROOT="${TALE_PLATFORM_SHARED_CONFIG_DIR:-${TALE_CONFIG_DIR:-/app/data}}"
+DEPLOY_CFG="${DEPLOY_CFG_ROOT}/deployment.json"
+DEPLOY_SECRETS="${DEPLOY_CFG_ROOT}/deployment.secrets.json"
 if [ -f "${DEPLOY_CFG}" ]; then
   if ! command -v jq >/dev/null 2>&1; then
     echo "ERROR: ${DEPLOY_CFG} present but 'jq' is not installed in this image." >&2
@@ -47,6 +52,8 @@ if [ -f "${DEPLOY_CFG}" ]; then
     echo "ERROR: ${DEPLOY_CFG} is present but not valid JSON (fail-closed)." >&2
     exit 1
   fi
+  # RFC 3986 percent-encode a string for safe use in a connection URL.
+  urlencode() { jq -rn --arg x "$1" '$x|@uri'; }
   kp_host="$(jq -r '.dataStores.knowledgePostgres.host // empty' "${DEPLOY_CFG}")"
   if [ -n "${kp_host}" ]; then
     kp_port="$(jq -r '.dataStores.knowledgePostgres.port // 5432' "${DEPLOY_CFG}")"
@@ -59,16 +66,23 @@ if [ -f "${DEPLOY_CFG}" ]; then
     fi
     kp_pass=""
     if [ -f "${DEPLOY_SECRETS}" ]; then
-      if ! dec="$(sops -d --output-type json "${DEPLOY_SECRETS}" 2>/dev/null)"; then
-        echo "ERROR: could not decrypt ${DEPLOY_SECRETS} (fail-closed). Is SOPS_AGE_KEY / SOPS_AGE_KEY_FILE set?" >&2
-        exit 1
+      # The secrets sidecar is hybrid: SOPS-encrypted when an age key is
+      # configured, plaintext JSON otherwise (a supported mode — see
+      # platform/convex/lib/sops.ts isSopsEncryptedShape). Detect the shape
+      # before decrypting so plaintext mode doesn't fail-closed on `sops -d`.
+      if jq -e 'has("sops")' "${DEPLOY_SECRETS}" >/dev/null 2>&1; then
+        if ! dec="$(sops -d --output-type json "${DEPLOY_SECRETS}")"; then
+          echo "ERROR: could not decrypt ${DEPLOY_SECRETS} (fail-closed). Is SOPS_AGE_KEY / SOPS_AGE_KEY_FILE set?" >&2
+          exit 1
+        fi
+      else
+        dec="$(cat "${DEPLOY_SECRETS}")"
       fi
       kp_pass="$(printf '%s' "${dec}" | jq -r '."dataStores.knowledgePostgres.password" // empty')"
     fi
-    # Password interpolated raw — matches the bundled DB_PASSWORD handling
-    # below; a password with URL-reserved chars (@ : / ?) needs percent-
-    # encoding (same limitation as the bundled path).
-    export RAG_DATABASE_URL="postgresql://${kp_user}:${kp_pass}@${kp_host}:${kp_port}/${kp_db}?sslmode=${kp_sslmode}"
+    # Percent-encode userinfo so a credential with URL-reserved chars
+    # (@ : / ? # %) can't corrupt or smuggle into the connection URL.
+    export RAG_DATABASE_URL="postgresql://$(urlencode "${kp_user}"):$(urlencode "${kp_pass}")@${kp_host}:${kp_port}/${kp_db}?sslmode=${kp_sslmode}"
     echo "Deployment config: RAG knowledge DB → ${kp_host}:${kp_port}/${kp_db} (sslmode=${kp_sslmode})"
     echo "       Reminder: an external knowledge DB must run ParadeDB (pgvector + pg_search) for full hybrid search; plain pgvector degrades to vector-only."
   fi

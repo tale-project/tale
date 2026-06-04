@@ -716,11 +716,21 @@ if [ -f "${DEPLOY_CFG}" ]; then
     log_error "${DEPLOY_CFG} is present but not valid JSON (fail-closed)."
     exit 1
   fi
+  # RFC 3986 percent-encode a string for safe use in a connection URL.
+  urlencode() { jq -rn --arg x "$1" '$x|@uri'; }
   DEPLOY_SECRETS_JSON=""
   if [ -f "${DEPLOY_SECRETS}" ]; then
-    if ! DEPLOY_SECRETS_JSON="$(sops -d --output-type json "${DEPLOY_SECRETS}" 2>/dev/null)"; then
-      log_error "Could not decrypt ${DEPLOY_SECRETS} (fail-closed). Is SOPS_AGE_KEY / SOPS_AGE_KEY_FILE set?"
-      exit 1
+    # The secrets sidecar is hybrid: SOPS-encrypted when an age key is
+    # configured, plaintext JSON otherwise (a supported mode — see
+    # platform/convex/lib/sops.ts isSopsEncryptedShape). Detect the shape
+    # before decrypting so plaintext mode doesn't fail-closed on `sops -d`.
+    if jq -e 'has("sops")' "${DEPLOY_SECRETS}" >/dev/null 2>&1; then
+      if ! DEPLOY_SECRETS_JSON="$(sops -d --output-type json "${DEPLOY_SECRETS}")"; then
+        log_error "Could not decrypt ${DEPLOY_SECRETS} (fail-closed). Is SOPS_AGE_KEY / SOPS_AGE_KEY_FILE set?"
+        exit 1
+      fi
+    else
+      DEPLOY_SECRETS_JSON="$(cat "${DEPLOY_SECRETS}")"
     fi
   fi
   deploy_secret() { printf '%s' "${DEPLOY_SECRETS_JSON}" | jq -r --arg k "$1" '.[$k] // empty'; }
@@ -737,8 +747,13 @@ if [ -f "${DEPLOY_CFG}" ]; then
       exit 1
     fi
     ap_pass="$(deploy_secret 'dataStores.appPostgres.password')"
-    export POSTGRES_URL="postgresql://${ap_user}:${ap_pass}@${ap_host}:${ap_port}/${ap_db}?sslmode=${ap_sslmode}"
-    log_info "Deployment config: Convex metadata DB → ${ap_host}:${ap_port}/${ap_db} (sslmode=${ap_sslmode})"
+    # The postgres-v5 driver derives the database from INSTANCE_NAME and REJECTS
+    # a URL that carries a path db name or query string (`cluster url already
+    # contains db name`). Match the convention in env.sh — host:port only, no
+    # `/${ap_db}`, no `?sslmode=`. The external Postgres must therefore contain a
+    # database named "${INSTANCE_NAME}". Userinfo is percent-encoded.
+    export POSTGRES_URL="postgresql://$(urlencode "${ap_user}"):$(urlencode "${ap_pass}")@${ap_host}:${ap_port}"
+    log_info "Deployment config: Convex metadata DB → ${ap_host}:${ap_port} (database derived from INSTANCE_NAME=${INSTANCE_NAME})"
   fi
 
   # (b) convexStorage.mode=s3 → external S3 file storage (all-or-nothing)

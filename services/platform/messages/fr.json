@@ -4189,9 +4189,6 @@
       },
       "governance": {
         "description": "Politiques, sécurité, journaux d'audit et conservation des données."
-      },
-      "dataResidency": {
-        "description": "Où les données de ce déploiement résident physiquement."
       }
     },
     "account": {
@@ -5455,6 +5452,7 @@
         "yourEmail": "Ton courriel de connexion est {email}."
       },
       "secretsEncryptedNoKey": "Les secrets stockés sont chiffrés avec SOPS, mais aucune clé age n'est configurée — les secrets existants ne peuvent pas être lus.",
+      "secretsUnreadable": "Les secrets stockés existent mais ne peuvent pas être déchiffrés (texte chiffré corrompu, ou clé age manquante/incorrecte). Saisis à nouveau les valeurs et enregistre pour les écraser.",
       "externalPostgres": "Postgres externe",
       "usingSharedDatabase": "Utilise la base de données partagée intégrée.",
       "field": {
@@ -5466,6 +5464,7 @@
         "password": "Mot de passe"
       },
       "password": {
+        "storedNoPreviewHint": "Une valeur est stockée — laisse vide pour la conserver, ou saisis-en une nouvelle pour la remplacer.",
         "storedHint": "Stocké : {masked} — laisse vide pour conserver",
         "writeOnlyHint": "Écriture seule ; laisse vide pour conserver la valeur stockée"
       },
@@ -5503,7 +5502,8 @@
       },
       "appDb": {
         "summary": "Base de données applicative (avancé)",
-        "title": "Base de métadonnées Convex"
+        "title": "Base de métadonnées Convex",
+        "databaseNameNote": "Le backend Convex déduit le nom de sa base de données de la configuration de l'instance ; le Postgres externe doit donc déjà contenir cette base. Le champ « Base de données » ci-dessus sert uniquement au test de connexion."
       },
       "saved": {
         "title": "Enregistré — redémarre pour appliquer.",
@@ -5518,7 +5518,7 @@
       "restarting": "Redémarrage…",
       "restart": {
         "notEnabled": "Controller de redémarrage non activé.",
-        "restarted": "Redémarré : {services}",
+        "requested": "Redémarrage demandé : {services}",
         "failed": "Échec du redémarrage : {error}",
         "defaultServices": "rag, convex",
         "unknownError": "erreur inconnue"
@@ -5527,6 +5527,20 @@
         "title": "Redémarrer RAG et Convex ?",
         "description": "Cela applique la configuration enregistrée en redémarrant les conteneurs RAG et Convex. Attends-toi à une brève interruption le temps qu'ils redémarrent.",
         "confirm": "Redémarrer maintenant"
+      },
+      "forceOverwrite": {
+        "title": "Écraser les secrets illisibles ?",
+        "description": "Le fichier de secrets existant ne peut pas être déchiffré. L'écraser le remplace par les valeurs que tu as saisies — tout autre secret qu'il contenait sera perdu. Continuer ?",
+        "confirm": "Écraser"
+      },
+      "errors": {
+        "versionConflict": "La configuration du déploiement a changé dans une autre session. Recharge pour voir l'état le plus récent, puis réapplique tes modifications.",
+        "invalidConfig": "La configuration est invalide : {issues}",
+        "invalidConfigGeneric": "La configuration est invalide. Vérifie les champs et réessaie.",
+        "forbidden": "Tu n'es pas autorisé à modifier la configuration du déploiement.",
+        "secretUnreadable": "Le fichier de secrets existant ne peut pas être déchiffré. Confirme l'écrasement pour le remplacer.",
+        "configUnreadable": "La configuration du déploiement sur le disque ne peut pas être lue.",
+        "readFailed": "Impossible de charger la configuration du déploiement : {error}"
       }
     }
   },

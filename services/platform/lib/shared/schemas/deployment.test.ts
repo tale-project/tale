@@ -149,6 +149,39 @@ describe('pgConnectionSchema', () => {
     });
     expect(r.success).toBe(false);
   });
+
+  it('accepts hostnames, IPv4, and bracketed IPv6 hosts', () => {
+    for (const host of [
+      'db.internal',
+      'pg-1.example.com',
+      '10.0.0.5',
+      '[::1]',
+    ]) {
+      const r = pgConnectionSchema.safeParse({
+        host,
+        database: 'd',
+        user: 'u',
+      });
+      expect(r.success).toBe(true);
+    }
+  });
+
+  it('rejects hosts carrying URL metacharacters (DSN-smuggle guard)', () => {
+    for (const host of [
+      'good.com/?sslmode=disable&x=1', // path + query smuggle
+      'a.com,169.254.169.254', // multi-host
+      'evil@host', // userinfo split
+      'host name', // whitespace
+      'h%2f', // percent escape
+    ]) {
+      const r = pgConnectionSchema.safeParse({
+        host,
+        database: 'd',
+        user: 'u',
+      });
+      expect(r.success).toBe(false);
+    }
+  });
 });
 
 describe('deploymentSecretsSchema', () => {

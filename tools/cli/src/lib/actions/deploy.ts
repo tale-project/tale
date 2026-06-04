@@ -325,8 +325,16 @@ export async function deploy(options: DeployOptions): Promise<void> {
           hostAlias,
         );
 
+        // The opt-in controller sidecar is emitted into the stateful compose
+        // only when CONTROLLER_TOKEN is set; bring it up alongside the stateful
+        // services (it isn't in any rotation list of its own). Idempotent.
+        const controllerEnabled = Boolean(process.env.CONTROLLER_TOKEN);
+        const statefulUp = controllerEnabled
+          ? [...statefulToUpdate, 'controller']
+          : [...statefulToUpdate];
+
         if (dryRun) {
-          for (const service of statefulToUpdate) {
+          for (const service of statefulUp) {
             logger.info(`${prefix}Would deploy stateful service: ${service}`);
           }
         } else {
@@ -336,7 +344,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
               'up',
               '-d',
               ...(options.forceRecreate ? ['--force-recreate'] : []),
-              ...statefulToUpdate,
+              ...statefulUp,
             ],
             { projectName: getProjectId(), cwd: env.DEPLOY_DIR },
           );
@@ -349,7 +357,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
             );
           }
 
-          for (const service of statefulToUpdate) {
+          for (const service of statefulUp) {
             startedContainers.push(`${getProjectId()}-${service}`);
           }
 
@@ -362,6 +370,21 @@ export async function deploy(options: DeployOptions): Promise<void> {
             });
             if (!healthy) {
               throw new Error(`Service ${service} failed health check`);
+            }
+          }
+
+          // The controller is a non-critical opt-in sidecar: warn if it doesn't
+          // come up, but never fail the deploy of the core services over it.
+          if (controllerEnabled) {
+            const containerName = `${getProjectId()}-controller`;
+            const healthy = await waitForHealthy(containerName, {
+              timeout: env.HEALTH_CHECK_TIMEOUT,
+              streamLogs,
+            });
+            if (!healthy) {
+              logger.warn(
+                `${prefix}Controller sidecar did not become healthy; one-click "Apply & restart" may be unavailable until it recovers.`,
+              );
             }
           }
         }
