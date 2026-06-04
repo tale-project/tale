@@ -33,7 +33,7 @@ export const AccountBootstrapContext =
  * "consistent-components-exports"). Mirrors `ability-context.tsx` /
  * `use-ability.ts`.
  */
-export function useAccountBootstrapContext(): AccountBootstrapContextValue | null {
+function useAccountBootstrapContext(): AccountBootstrapContextValue | null {
   return useContext(AccountBootstrapContext);
 }
 

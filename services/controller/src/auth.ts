@@ -14,7 +14,7 @@ export const TIMESTAMP_HEADER = 'x-controller-timestamp';
 /** Reject timestamps more than this far from now (replay / clock-skew guard). */
 const MAX_SKEW_MS = 60_000;
 
-export function sign(token: string, timestamp: string, body: string): string {
+function sign(token: string, timestamp: string, body: string): string {
   return createHmac('sha256', token)
     .update(`${timestamp}.${body}`)
     .digest('hex');

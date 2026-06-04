@@ -51,8 +51,6 @@ export const pgConnectionSchema = z
   })
   .strict();
 
-export type PgConnection = z.infer<typeof pgConnectionSchema>;
-
 /**
  * The five Convex storage use-cases. When storage mode is `s3`, the
  * self-hosted `convex-local-backend` puts ALL of them in S3 (it is
@@ -110,8 +108,6 @@ export const convexStorageSchema = z.discriminatedUnion('mode', [
     .strict(),
 ]);
 
-export type ConvexStorage = z.infer<typeof convexStorageSchema>;
-
 /**
  * `dataStores` section — where the deployment's data physically lives.
  * - `knowledgePostgres`: the RAG knowledge DB (documents + chunk text +
@@ -123,15 +119,13 @@ export type ConvexStorage = z.infer<typeof convexStorageSchema>;
  * All optional — an absent section means "use the `.env` default" (today's
  * built-in stores).
  */
-export const dataStoresSchema = z
+const dataStoresSchema = z
   .object({
     knowledgePostgres: pgConnectionSchema.optional(),
     convexStorage: convexStorageSchema.optional(),
     appPostgres: pgConnectionSchema.optional(),
   })
   .strict();
-
-export type DataStores = z.infer<typeof dataStoresSchema>;
 
 /**
  * Root deployment config. `version` pins the file format (future migrations

@@ -5,7 +5,7 @@
 // under `<project>`. Matching both shapes keeps "Apply & restart" working on
 // every deployment. Stateful services (`convex`) are never colored.
 
-export const ROTATABLE = new Set(['rag']);
+const ROTATABLE = new Set(['rag']);
 const COLORS = ['blue', 'green'] as const;
 
 /** Candidate compose service labels for a service across blue/green topologies. */

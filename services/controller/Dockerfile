@@ -25,4 +25,15 @@ COPY services/controller/src/ ./src/
 ENV CONTROLLER_PORT=8004
 EXPOSE 8004
 
+# Healthcheck mirrors compose.yml's external probe so a direct `docker run`
+# (without compose) gets the same liveness signal. No curl in the image — Bun's
+# fetch reaches the in-process /health endpoint (which also pings the socket).
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
+  CMD bun -e 'const r=await fetch("http://127.0.0.1:8004/health");process.exit(r.ok?0:1)' || exit 1
+
+# Root by design — see the header comment. The mounted docker socket is the
+# security boundary, not the in-container UID. DS-0002 is accepted, scoped to
+# this Dockerfile, in .trivyignore.yaml.
+USER root
+
 CMD ["bun", "src/server.ts"]

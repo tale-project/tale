@@ -4,7 +4,8 @@
  * Deployment-level data-residency settings (instance admin).
  *
  * This is the first panel of an extensible deployment-settings surface; future
- * deployment sections (SMTP, telemetry, …) can render alongside `DataStores`.
+ * deployment sections (SMTP, telemetry, …) can render alongside the data
+ * stores panel.
  * `api.deployment.*` resolves after `convex codegen` (runs on dev/deploy).
  *
  * Strings live in `settings.dataResidency.*` / `navigation.dataResidency` /
