@@ -24,6 +24,8 @@ class ModelConfig:
     tags: list[str]
     description: str = ""
     dimensions: int | None = None
+    # Optional per-model env-var name holding the API key (issue #1711).
+    secrets_env: str | None = None
 
 
 @dataclass
@@ -38,6 +40,63 @@ class ProviderConfig:
     supports_structured_outputs: bool = False
     api_key: str | None = None
     defaults: dict[str, str] = field(default_factory=dict)
+    # Optional provider-level env-var name holding the API key (issue #1711).
+    secrets_env: str | None = None
+
+
+# Reserved prefix every env-var name sourcing a provider API key must carry
+# (issue #1711). Fail-closed: any name outside the prefix is rejected. Mirrors
+# `SECRETS_ENV_PREFIX` in
+# `services/platform/lib/shared/schemas/providers.ts` and the runtime gate in
+# `services/platform/convex/providers/secret_resolver.ts` — keep all three in sync.
+_SECRETS_ENV_PREFIX = "TALE_PROVIDER_KEY_"
+
+
+def _env_secret(name: str | None) -> str | None:
+    """Resolve an env-var name to its trimmed value, honoring the reserved prefix.
+
+    Returns None when the name is missing, not prefixed, or the env var is
+    empty/whitespace. Trailing-newline normalization (a common Vault/k8s
+    injection footgun) is applied to env values here.
+
+    `name` is operator-authored, hand-editable config: a non-string value
+    (e.g. ``"secretsEnv": 123`` in a hand-edited JSON) degrades to the file
+    fallback rather than raising ``AttributeError`` from ``.startswith`` —
+    mirroring the TS resolver, which rejects it gracefully at the zod boundary.
+    """
+    if not name or not isinstance(name, str):
+        return None
+    if not name.startswith(_SECRETS_ENV_PREFIX):
+        logger.warning(
+            "secretsEnv %r does not start with the reserved prefix %s — falling back to the secrets file",
+            name,
+            _SECRETS_ENV_PREFIX,
+        )
+        return None
+    value = os.environ.get(name, "").strip()
+    if not value:
+        logger.warning(
+            "secretsEnv %r is set but the env var is empty/unset — falling back to the secrets file",
+            name,
+        )
+        return None
+    return value
+
+
+def _resolve_api_key(provider: "ProviderConfig", model: "ModelConfig") -> str:
+    """Resolve the effective API key for a model (issue #1711).
+
+    Order: model env -> provider env -> provider file key. The Python loader has
+    no per-model file-key tier (only `apiKey`), so this is 3-tier. Returns ""
+    (never None) when nothing resolves, preserving the previous
+    ``provider.api_key or ""`` contract and the config-equality used by the
+    rag/crawler per-org client caches.
+    """
+    for name in (model.secrets_env, provider.secrets_env):
+        value = _env_secret(name)
+        if value:
+            return value
+    return provider.api_key or ""
 
 
 def load_providers(
@@ -115,6 +174,7 @@ def load_providers(
                     tags=m.get("tags", []),
                     description=m.get("description", ""),
                     dimensions=m.get("dimensions"),
+                    secrets_env=m.get("secretsEnv"),
                 )
             )
 
@@ -140,6 +200,7 @@ def load_providers(
                 supports_structured_outputs=data.get("supportsStructuredOutputs", False),
                 api_key=api_key,
                 defaults=defaults,
+                secrets_env=data.get("secretsEnv"),
             )
         )
 
@@ -185,7 +246,7 @@ def get_chat_model(
         raise ValueError(f"No chat model found in provider configuration files for org '{org_slug}'.")
 
     provider, model = match
-    api_key = provider.api_key or ""
+    api_key = _resolve_api_key(provider, model)
     return (provider.base_url, api_key, model.id)
 
 
@@ -200,7 +261,7 @@ def get_embedding_model(
         raise ValueError(f"No embedding model found in provider configuration files for org '{org_slug}'.")
 
     provider, model = match
-    api_key = provider.api_key or ""
+    api_key = _resolve_api_key(provider, model)
     dims = model.dimensions
     if dims is None:
         raise ValueError(
@@ -220,5 +281,5 @@ def get_vision_model(
         raise ValueError(f"No vision model found in provider configuration files for org '{org_slug}'.")
 
     provider, model = match
-    api_key = provider.api_key or ""
+    api_key = _resolve_api_key(provider, model)
     return (provider.base_url, api_key, model.id)

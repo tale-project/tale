@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isTransientProviderError,
+  MissingApiKeyError,
   NoProviderAvailableError,
   ProviderUnavailableError,
   shouldFailoverToNextModel,
@@ -81,6 +82,21 @@ describe('shouldFailoverToNextModel', () => {
   it('returns false for null/undefined', () => {
     expect(shouldFailoverToNextModel(null)).toBe(false);
     expect(shouldFailoverToNextModel(undefined)).toBe(false);
+  });
+
+  it('fails over for a per-model MissingApiKeyError (instance + reserialized message)', () => {
+    expect(
+      shouldFailoverToNextModel(
+        new MissingApiKeyError('openrouter', 'gpt-4o', 'OPENAI_API_KEY'),
+      ),
+    ).toBe(true);
+    // Convex reserializes cross-action throws as a plain Error whose message is
+    // prefixed with the class name; the message-pattern branch must still match.
+    expect(
+      shouldFailoverToNextModel({
+        message: 'Uncaught MissingApiKeyError: No API key configured',
+      }),
+    ).toBe(true);
   });
 
   it('returns false for content_policy violation', () => {

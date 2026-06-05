@@ -138,6 +138,8 @@ import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools
 import type * as agents_access from "../agents/access.js";
 import type * as agents_arena_chat from "../agents/arena_chat.js";
 import type * as agents_audit_mutations from "../agents/audit_mutations.js";
+import type * as agents_auto_route from "../agents/auto_route.js";
+import type * as agents_auto_route_helpers from "../agents/auto_route_helpers.js";
 import type * as agents_config from "../agents/config.js";
 import type * as agents_file_actions from "../agents/file_actions.js";
 import type * as agents_file_utils from "../agents/file_utils.js";
@@ -798,6 +800,7 @@ import type * as providers_file_actions from "../providers/file_actions.js";
 import type * as providers_file_utils from "../providers/file_utils.js";
 import type * as providers_resolve_model from "../providers/resolve_model.js";
 import type * as providers_secret_io from "../providers/secret_io.js";
+import type * as providers_secret_resolver from "../providers/secret_resolver.js";
 import type * as providers_validators from "../providers/validators.js";
 import type * as sandbox_internal_mutations from "../sandbox/internal_mutations.js";
 import type * as sandbox_output_mutations from "../sandbox/output_mutations.js";
@@ -1371,6 +1374,8 @@ declare const fullApi: ApiFromModules<{
   "agents/access": typeof agents_access;
   "agents/arena_chat": typeof agents_arena_chat;
   "agents/audit_mutations": typeof agents_audit_mutations;
+  "agents/auto_route": typeof agents_auto_route;
+  "agents/auto_route_helpers": typeof agents_auto_route_helpers;
   "agents/config": typeof agents_config;
   "agents/file_actions": typeof agents_file_actions;
   "agents/file_utils": typeof agents_file_utils;
@@ -2031,6 +2036,7 @@ declare const fullApi: ApiFromModules<{
   "providers/file_utils": typeof providers_file_utils;
   "providers/resolve_model": typeof providers_resolve_model;
   "providers/secret_io": typeof providers_secret_io;
+  "providers/secret_resolver": typeof providers_secret_resolver;
   "providers/validators": typeof providers_validators;
   "sandbox/internal_mutations": typeof sandbox_internal_mutations;
   "sandbox/output_mutations": typeof sandbox_output_mutations;

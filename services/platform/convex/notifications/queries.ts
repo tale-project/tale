@@ -89,6 +89,10 @@ export const unreadCount = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return 0;
+    // Membership check throws if the caller isn't part of the org — mirrors
+    // `list`/`markAllRead`. Without it any authenticated user could read an
+    // arbitrary org's unread count by passing its id.
+    await getOrganizationMember(ctx, args.organizationId, authUser);
     const userId = authUser.userId;
     let count = 0;
     for await (const n of ctx.db

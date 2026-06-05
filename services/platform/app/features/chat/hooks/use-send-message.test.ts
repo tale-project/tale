@@ -132,7 +132,9 @@ describe('useSendMessage — error handling', () => {
     );
   });
 
-  it('does not send when no agent is selected', async () => {
+  it('sends in Auto mode (no agent selected) with the auto sentinel slug', async () => {
+    // A null selection is "Auto" mode: the composer sends AUTO_AGENT_SLUG and
+    // the server routes to a concrete agent. It must NOT be blocked.
     const params = createParams({ selectedAgent: null });
     const { result } = renderHook(() => useSendMessage(params));
 
@@ -140,8 +142,40 @@ describe('useSendMessage — error handling', () => {
       await result.current.sendMessage('Hello');
     });
 
+    expect(mockChatWithAgent).toHaveBeenCalledTimes(1);
+    expect(mockChatWithAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ agentSlug: 'auto', message: 'Hello' }),
+    );
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('blocks arena mode when no agent is selected (Auto is unsupported there)', async () => {
+    // Arena compares two models on ONE chosen agent, so it can't run in Auto.
+    // With no selection it must fail fast — toast, no send, no pending state.
+    const params = createParams({
+      selectedAgent: null,
+      arena: {
+        isArenaMode: true,
+        modelA: 'model-a',
+        modelB: 'model-b',
+        arenaThreadIdA: null,
+        arenaThreadIdB: null,
+        setArenaThreadIdA: vi.fn(),
+        setArenaThreadIdB: vi.fn(),
+      },
+    });
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Hello');
+    });
+
+    expect(mockArenaChat).not.toHaveBeenCalled();
     expect(mockChatWithAgent).not.toHaveBeenCalled();
     expect(params.setPendingMessage).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'destructive' }),
+    );
   });
 
   it('shows toast every time precheck blocks (does not wedge sendingRef)', async () => {

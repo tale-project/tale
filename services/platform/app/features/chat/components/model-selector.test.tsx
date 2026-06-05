@@ -36,7 +36,6 @@ vi.mock('@/lib/i18n/client', () => ({
         'modelSelector.searchPlaceholder': 'Search models...',
         'modelSelector.noResults': 'No models found',
         'modelSelector.auto': 'Auto',
-        'modelSelector.autoDescription': 'Auto description',
         'modelSelector.noModelsAvailable': 'No models available',
       };
       return translations[key] ?? key;

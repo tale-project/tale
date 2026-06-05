@@ -14,6 +14,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import type { ComposerProfiles } from '@/lib/shared/composer-profiles';
+import { AUTO_AGENT_SLUG } from '@/lib/shared/constants/agents';
 
 type GuardrailsBlockedCode =
   | 'pii.blocked'
@@ -175,13 +176,13 @@ export function useSendMessage({
       videoLinkSnapshot?: VideoLinkJob[],
     ) => {
       if (sendingRef.current) return;
-      if (!selectedAgent) {
-        toast({
-          title: t('toast.sendFailed'),
-          variant: 'destructive',
-        });
-        return;
-      }
+
+      // "Auto" mode is represented by a null selection (the persisted default
+      // for new users). In Auto we send the AUTO_AGENT_SLUG sentinel and the
+      // server routes to a concrete agent. A pinned agent sends its own slug.
+      // Arena mode is the exception — it compares two models on one chosen
+      // agent, so it still requires an explicit selection (enforced below).
+      const agentSlugToSend = selectedAgent?.name ?? AUTO_AGENT_SLUG;
 
       sendingRef.current = true;
 
@@ -268,6 +269,18 @@ export function useSendMessage({
       const modelA = currentArena?.modelA;
       const modelB = currentArena?.modelB;
       const isArena = currentArena?.isArenaMode && modelA && modelB;
+
+      // Arena compares two models on ONE chosen agent, so it can't run in
+      // "Auto" mode — it needs an explicit selection. Fail fast before any
+      // optimistic UI, and release the send lock taken above.
+      if (isArena && !selectedAgent) {
+        sendingRef.current = false;
+        toast({
+          title: t('toast.arenaRequiresAgent'),
+          variant: 'destructive',
+        });
+        return;
+      }
 
       // Set pending thread scope (null for new-chat page)
       setPendingThreadId(threadId ?? null);
@@ -613,7 +626,9 @@ export function useSendMessage({
 
           // Start both models generating (split view shows "Thinking")
           await arenaChatRef.current({
-            agentSlug: selectedAgent.name,
+            // Guarded above: arena requires a pinned agent, so this is never
+            // the Auto sentinel here.
+            agentSlug: agentSlugToSend,
             threadIdA: tIdA,
             threadIdB: tIdB,
             organizationId,
@@ -741,7 +756,7 @@ export function useSendMessage({
           markPending(currentThreadId);
 
           await chatWithAgent({
-            agentSlug: selectedAgent.name,
+            agentSlug: agentSlugToSend,
             threadId: currentThreadId,
             organizationId,
             message: messageToSend,

@@ -1,6 +1,28 @@
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { api } from '@/convex/_generated/api';
+import type {
+  EnvSecretStatus,
+  ProviderJson,
+} from '@/lib/shared/schemas/providers';
+
+/**
+ * Shape returned by the `readProvider` action. The action declares `v.any()`,
+ * so consumers cast to this to read `envSecretStatus` (issue #1711) and the
+ * masked keys with types.
+ */
+export type ReadProviderResult =
+  | {
+      ok: true;
+      config: ProviderJson;
+      hash: string;
+      maskedModelKeys?: Record<string, string>;
+      envSecretStatus?: {
+        provider: EnvSecretStatus;
+        models: Record<string, EnvSecretStatus>;
+      };
+    }
+  | { ok: false; error: string; message: string };
 
 // ---------------------------------------------------------------------------
 // Action-based hooks (filesystem reads — cached via TanStack Query,

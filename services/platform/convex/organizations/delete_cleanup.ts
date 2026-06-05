@@ -74,9 +74,14 @@ export const prepareOrganizationDeletion = mutation({
       metadata: { slug },
     });
 
-    // Personalization cascade: hard-delete prefs + memories scoped to
-    // this org for every member. Safe to run before Better Auth deletes
-    // the org row — these tables are independent of Better Auth state.
+    // Personalization cascade: schedule a bounded, self-rescheduling drain
+    // that erases prefs + memories + TTS chunks + videoLink blobs scoped to
+    // this org across every member. Scheduling (rather than deleting inline)
+    // keeps this mutation within the per-mutation write budget on a large org;
+    // the schedule is transactional with this mutation (rolled back if it
+    // throws) and safe to run before/after Better Auth deletes the org row —
+    // these tables key on organizationId and are independent of Better Auth
+    // state.
     await cascadeOnOrgDeleted(ctx, args.organizationId);
 
     // Schedule filesystem cleanup. Runs after Better Auth deletes the
