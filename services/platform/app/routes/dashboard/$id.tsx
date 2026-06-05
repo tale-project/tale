@@ -269,29 +269,61 @@ function DashboardLayout() {
   );
 }
 
-// Masked desktop side-nav rail shown while access resolves (the CASL-gated item
-// count isn't known yet, so the middle is an empty spacer). Mirrors the real
-// Navigation rail geometry so it slots in without reflow.
+// One masked nav icon — mirrors the real NavigationItem footprint: a `size-5`
+// glyph centered in a `p-2 rounded-lg` hover target. Used for both the primary
+// list and the pinned footer buttons so the rail reads as a populated nav.
+function NavIconSkeleton() {
+  return (
+    <div className="flex items-center justify-center rounded-lg p-2">
+      <SkeletonBox>
+        <div className="size-5" />
+      </SkeletonBox>
+    </div>
+  );
+}
+
+// The full primary nav (chat, projects, conversations, knowledge, agents,
+// automations). The real list is CASL-gated down to 3–6 items and the gated
+// count isn't known until access resolves, so the placeholder optimistically
+// renders the whole set — that's a pixel match for the common admin/owner case
+// and only over-draws a slot or two for limited members. The middle is a
+// top-aligned `flex-1` region with a pinned footer, so the count never reflows
+// the rail; it only sets which icon slots the placeholder fills.
+const PLACEHOLDER_NAV_ITEMS = 6;
+
+// Masked desktop side-nav rail shown while access resolves. Mirrors the real
+// Navigation geometry — logo, primary icon list, and the pinned footer (bell +
+// two settings icons + user avatar) — so it slots in without reflow.
 function NavRailPlaceholder() {
   return (
     <Skeletonize loading>
       <div className="border-border flex h-full flex-col">
         <div className="flex flex-shrink-0 items-center justify-center py-3">
-          <SkeletonBox>
-            <div className="size-8" />
-          </SkeletonBox>
+          <div className="flex size-8 items-center justify-center">
+            <SkeletonBox>
+              <div className="size-5" />
+            </SkeletonBox>
+          </div>
         </div>
-        <div className="mx-1 min-h-0 flex-1 overflow-y-auto py-4" />
+        <div className="mx-1 min-h-0 flex-1 overflow-y-auto py-4">
+          <div className="space-y-2">
+            {Array.from({ length: PLACEHOLDER_NAV_ITEMS }, (_, i) => (
+              // eslint-disable-next-line react/no-array-index-key
+              <NavIconSkeleton key={i} />
+            ))}
+          </div>
+        </div>
         <div className="flex flex-shrink-0 flex-col items-center gap-2 py-3">
-          <SkeletonCircle>
-            <div className="size-9" />
-          </SkeletonCircle>
-          <SkeletonCircle>
-            <div className="size-9" />
-          </SkeletonCircle>
-          <SkeletonCircle>
-            <div className="size-9" />
-          </SkeletonCircle>
+          {/* Notification bell + the two pinned settings icons */}
+          <NavIconSkeleton />
+          <NavIconSkeleton />
+          <NavIconSkeleton />
+          {/* UserButton avatar */}
+          <div className="flex items-center justify-center rounded-lg p-2">
+            <SkeletonCircle>
+              <div className="size-5" />
+            </SkeletonCircle>
+          </div>
         </div>
       </div>
     </Skeletonize>
