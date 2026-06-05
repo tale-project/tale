@@ -8,8 +8,9 @@
  * caller can drain the remainder across further transactions.
  *
  * Storage-bearing tables (TTS chunks, video-link jobs) keep their own inline
- * loops because they must order `db.delete` before the out-of-band
- * `storage.delete`; this helper is only for plain row deletion.
+ * loops because each row also owns a `_storage` blob that must be deleted
+ * alongside it (with the delete-ordering the existing cascade helpers
+ * document); this helper is only for plain row deletion.
  */
 
 import type { TableNamesInDataModel } from 'convex/server';

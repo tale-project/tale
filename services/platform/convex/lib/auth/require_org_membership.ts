@@ -35,7 +35,7 @@ import { ConvexError } from 'convex/values';
 
 import { components } from '../../_generated/api';
 import type { ActionCtx, MutationCtx } from '../../_generated/server';
-import { getAuthUserIdentity } from '../rls';
+import { getAuthUserIdentity } from '../rls/auth/get_auth_user_identity';
 
 interface BetterAuthMember {
   _id: string;

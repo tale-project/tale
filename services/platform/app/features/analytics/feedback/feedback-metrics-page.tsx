@@ -17,6 +17,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { ArenaSummary } from './arena-summary';
+import { periodToDays, type FeedbackPeriod } from './feedback-period';
 import { FeedbackSummaryCards } from './feedback-summary-cards';
 import { FilterChips } from './filter-chips';
 import { RecentFeedbackTable } from './recent-feedback-table';
@@ -25,7 +26,7 @@ import { TopMatchupsFeedbackTable } from './top-matchups-feedback-table';
 import { TopModelsFeedbackTable } from './top-models-feedback-table';
 import type { RecentFeedbackItem } from './types';
 
-export type FeedbackPeriod = '1' | '7' | '30' | '90' | 'all';
+export type { FeedbackPeriod } from './feedback-period';
 export type FeedbackKind = 'all' | 'message' | 'arena';
 
 type FeedbackStats = FunctionReturnType<
@@ -49,14 +50,6 @@ interface FeedbackMetricsPageProps {
 }
 
 const PAGE_SIZE = 25;
-
-export function periodToDays(p: FeedbackPeriod): 1 | 7 | 30 | 90 | undefined {
-  if (p === 'all') return undefined;
-  if (p === '1') return 1;
-  if (p === '7') return 7;
-  if (p === '30') return 30;
-  return 90;
-}
 
 interface FeedbackMetricsPageViewProps {
   organizationId: string;

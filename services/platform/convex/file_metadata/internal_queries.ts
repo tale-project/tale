@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
+import type { Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
 
 export const getByStorageId = internalQuery({
@@ -41,7 +42,13 @@ export const listChatAttachmentsForThread = internalQuery({
     // instead of materializing every thread attachment and filtering in JS.
     // Equivalent to the prior predicates (undefined `source`/`lifecycleStatus`
     // still pass the `neq` checks, matching `!== 'video_link'` / `!== 'trashed'`).
-    const rows = await ctx.db
+    const out: Array<
+      Pick<
+        Doc<'fileMetadata'>,
+        '_id' | 'storageId' | 'fileName' | 'contentType' | 'size'
+      >
+    > = [];
+    for await (const r of ctx.db
       .query('fileMetadata')
       .withIndex('by_organizationId_and_threadId', (q) =>
         q
@@ -54,15 +61,16 @@ export const listChatAttachmentsForThread = internalQuery({
           q.neq(q.field('source'), 'video_link'),
           q.neq(q.field('lifecycleStatus'), 'trashed'),
         ),
-      )
-      .collect();
-    return rows.map((r) => ({
-      _id: r._id,
-      storageId: r.storageId,
-      fileName: r.fileName,
-      contentType: r.contentType,
-      size: r.size,
-    }));
+      )) {
+      out.push({
+        _id: r._id,
+        storageId: r.storageId,
+        fileName: r.fileName,
+        contentType: r.contentType,
+        size: r.size,
+      });
+    }
+    return out;
   },
 });
 

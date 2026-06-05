@@ -4,10 +4,12 @@ import { z } from 'zod';
 
 import {
   FeedbackMetricsPage,
-  periodToDays,
   type FeedbackKind,
-  type FeedbackPeriod,
 } from '@/app/features/analytics/feedback/feedback-metrics-page';
+import {
+  periodToDays,
+  type FeedbackPeriod,
+} from '@/app/features/analytics/feedback/feedback-period';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
 import { api } from '@/convex/_generated/api';
 
