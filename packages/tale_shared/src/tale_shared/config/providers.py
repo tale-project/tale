@@ -24,6 +24,8 @@ class ModelConfig:
     tags: list[str]
     description: str = ""
     dimensions: int | None = None
+    # Optional per-model env-var name holding the API key (issue #1711).
+    secrets_env: str | None = None
 
 
 @dataclass
@@ -38,6 +40,60 @@ class ProviderConfig:
     supports_structured_outputs: bool = False
     api_key: str | None = None
     defaults: dict[str, str] = field(default_factory=dict)
+    # Optional provider-level env-var name holding the API key (issue #1711).
+    secrets_env: str | None = None
+
+
+# Deployment allowlist (empty = locked) gating which env-var names may source a
+# provider API key. Mirrors the platform's `TALE_PROVIDER_SECRET_ENV_ALLOWLIST`
+# so the platform and the Python services resolve the same effective key. See
+# `services/platform/convex/providers/secret_resolver.ts`.
+_ALLOWLIST_ENV = "TALE_PROVIDER_SECRET_ENV_ALLOWLIST"
+
+
+def _env_secret(name: str | None) -> str | None:
+    """Resolve an env-var name to its trimmed value, honoring the allowlist.
+
+    Returns None when the name is missing, not allowlisted, or the env var is
+    empty/whitespace. Trailing-newline normalization (a common Vault/k8s
+    injection footgun) is applied to env values here.
+    """
+    if not name:
+        return None
+    raw = os.environ.get(_ALLOWLIST_ENV, "")
+    allowlist = {n.strip() for n in raw.split(",") if n.strip()}
+    if name not in allowlist:
+        logger.warning(
+            "secretsEnv %r is not in %s (empty allowlist disables the env key "
+            "source) — falling back to the secrets file",
+            name,
+            _ALLOWLIST_ENV,
+        )
+        return None
+    value = os.environ.get(name, "").strip()
+    if not value:
+        logger.warning(
+            "secretsEnv %r is set but the env var is empty/unset — falling back to the secrets file",
+            name,
+        )
+        return None
+    return value
+
+
+def _resolve_api_key(provider: "ProviderConfig", model: "ModelConfig") -> str:
+    """Resolve the effective API key for a model (issue #1711).
+
+    Order: model env -> provider env -> provider file key. The Python loader has
+    no per-model file-key tier (only `apiKey`), so this is 3-tier. Returns ""
+    (never None) when nothing resolves, preserving the previous
+    ``provider.api_key or ""`` contract and the config-equality used by the
+    rag/crawler per-org client caches.
+    """
+    for name in (model.secrets_env, provider.secrets_env):
+        value = _env_secret(name)
+        if value:
+            return value
+    return provider.api_key or ""
 
 
 def load_providers(
@@ -115,6 +171,7 @@ def load_providers(
                     tags=m.get("tags", []),
                     description=m.get("description", ""),
                     dimensions=m.get("dimensions"),
+                    secrets_env=m.get("secretsEnv"),
                 )
             )
 
@@ -140,6 +197,7 @@ def load_providers(
                 supports_structured_outputs=data.get("supportsStructuredOutputs", False),
                 api_key=api_key,
                 defaults=defaults,
+                secrets_env=data.get("secretsEnv"),
             )
         )
 
@@ -185,7 +243,7 @@ def get_chat_model(
         raise ValueError(f"No chat model found in provider configuration files for org '{org_slug}'.")
 
     provider, model = match
-    api_key = provider.api_key or ""
+    api_key = _resolve_api_key(provider, model)
     return (provider.base_url, api_key, model.id)
 
 
@@ -200,7 +258,7 @@ def get_embedding_model(
         raise ValueError(f"No embedding model found in provider configuration files for org '{org_slug}'.")
 
     provider, model = match
-    api_key = provider.api_key or ""
+    api_key = _resolve_api_key(provider, model)
     dims = model.dimensions
     if dims is None:
         raise ValueError(
@@ -220,5 +278,5 @@ def get_vision_model(
         raise ValueError(f"No vision model found in provider configuration files for org '{org_slug}'.")
 
     provider, model = match
-    api_key = provider.api_key or ""
+    api_key = _resolve_api_key(provider, model)
     return (provider.base_url, api_key, model.id)

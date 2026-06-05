@@ -46,6 +46,34 @@ export class NoProviderAvailableError extends Error {
   }
 }
 
+/**
+ * Thrown when a specific model cannot resolve an API key (issue #1711): no
+ * env-var source (`secretsEnv` unset/empty/not allowlisted) and no file key.
+ *
+ * Unlike {@link NoProviderAvailableError}, this is PER-MODEL — a provider may be
+ * loaded because a sibling model has an env key while this one has none — so it
+ * is intentionally **failover-eligible**: a different fallback model on another
+ * provider may have a valid key. See {@link shouldFailoverToNextModel}.
+ */
+export class MissingApiKeyError extends Error {
+  readonly provider: string;
+  readonly model: string;
+  readonly secretsEnv?: string;
+  constructor(provider: string, model: string, secretsEnv?: string) {
+    super(
+      secretsEnv
+        ? `No API key for model "${model}" on provider "${provider}": ` +
+            `secretsEnv "${secretsEnv}" is empty, unset, or not in ` +
+            `TALE_PROVIDER_SECRET_ENV_ALLOWLIST, and no file key is configured.`
+        : `No API key configured for model "${model}" on provider "${provider}".`,
+    );
+    this.name = 'MissingApiKeyError';
+    this.provider = provider;
+    this.model = model;
+    this.secretsEnv = secretsEnv;
+  }
+}
+
 const TRANSIENT_STATUS_CODES = new Set([429, 502, 503, 504]);
 
 /**
@@ -182,6 +210,18 @@ export function shouldFailoverToNextModel(error: unknown): boolean {
     message.includes('noprovideravailableerror')
   ) {
     return false;
+  }
+
+  // A per-model missing API key (issue #1711) IS failoverable — a different
+  // fallback model on another provider may have a valid key. Classify it
+  // explicitly (rather than leaning on the conservative default) so a future
+  // NO_FAILOVER_PATTERNS addition can't accidentally make it terminal. Match
+  // by class and by the reserialized cross-action message prefix.
+  if (
+    error instanceof MissingApiKeyError ||
+    message.includes('missingapikeyerror')
+  ) {
+    return true;
   }
 
   // All transient errors are failoverable (superset).

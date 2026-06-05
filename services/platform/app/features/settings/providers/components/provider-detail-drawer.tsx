@@ -35,6 +35,7 @@ import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
+  type EnvSecretStatus,
   modelTagLiterals,
   type ProviderJson,
 } from '@/lib/shared/schemas/providers';
@@ -189,6 +190,7 @@ export function ProviderDetailDrawer({
                 providerName={providerName}
                 maskedKey={maskedKey ?? null}
                 maskedModelKeys={okData?.maskedModelKeys ?? {}}
+                providerEnvStatus={okData?.envSecretStatus?.provider}
                 isLoading={isLoading}
               />
             </ProviderConfigProvider>
@@ -204,12 +206,14 @@ function ProviderDetailBody({
   providerName,
   maskedKey,
   maskedModelKeys,
+  providerEnvStatus,
   isLoading,
 }: {
   organizationId: string;
   providerName: string;
   maskedKey: string | null;
   maskedModelKeys: Record<string, string>;
+  providerEnvStatus?: EnvSecretStatus;
   isLoading: boolean;
 }) {
   return (
@@ -222,6 +226,7 @@ function ProviderDetailBody({
         organizationId={organizationId}
         providerName={providerName}
         maskedKey={maskedKey}
+        providerEnvStatus={providerEnvStatus}
         isLoading={isLoading}
       />
       <DefaultModelsSection
@@ -447,11 +452,14 @@ function ApiKeySection({
   organizationId,
   providerName,
   maskedKey,
+  providerEnvStatus,
   isLoading,
 }: {
   organizationId: string;
   providerName: string;
   maskedKey: string | null;
+  /** Provider-level `secretsEnv` resolution status (issue #1711). */
+  providerEnvStatus?: EnvSecretStatus;
   isLoading: boolean;
 }) {
   const { t } = useT('settings');
@@ -568,24 +576,55 @@ function ApiKeySection({
           </HStack>
         </HStack>
         <Card contentClassName="p-0">
-          {hasSecret ? (
-            <HStack gap={4} align="center" className="flex-wrap px-4 py-2.5">
-              <SkeletonBox>
-                <Badge variant="green" dot>
-                  {t('providers.apiKeyConfigured')}
-                </Badge>
-              </SkeletonBox>
-              <Text className="text-muted-foreground font-mono text-sm">
-                <SkeletonBox>{maskedKey ?? 'sk-••••••••••••'}</SkeletonBox>
+          {/* Env-var key source (issue #1711). When a `secretsEnv` is
+              configured it is the preferred source; show whether it currently
+              resolves. The file-key chrome below still renders when the env var
+              is unresolved (the file is then the effective fallback). */}
+          {providerEnvStatus?.name && (
+            <HStack
+              gap={3}
+              align="center"
+              className={cn(
+                'flex-wrap px-4 py-2.5',
+                !providerEnvStatus.resolved && 'border-b',
+              )}
+            >
+              <Badge
+                variant={providerEnvStatus.resolved ? 'green' : 'outline'}
+                dot
+              >
+                {providerEnvStatus.resolved
+                  ? t('providers.envVarSet')
+                  : providerEnvStatus.allowlisted
+                    ? t('providers.envVarNotSet')
+                    : t('providers.envVarNotAllowlisted')}
+              </Badge>
+              <Text className="text-muted-foreground text-sm">
+                {t('providers.keyFromEnvVar', {
+                  name: providerEnvStatus.name,
+                })}
               </Text>
             </HStack>
-          ) : (
-            <HStack gap={3} align="center" className="px-4 py-2.5">
-              <Badge variant="outline">
-                {t('providers.apiKeyNotConfigured')}
-              </Badge>
-            </HStack>
           )}
+          {(!providerEnvStatus?.name || !providerEnvStatus.resolved) &&
+            (hasSecret ? (
+              <HStack gap={4} align="center" className="flex-wrap px-4 py-2.5">
+                <SkeletonBox>
+                  <Badge variant="green" dot>
+                    {t('providers.apiKeyConfigured')}
+                  </Badge>
+                </SkeletonBox>
+                <Text className="text-muted-foreground font-mono text-sm">
+                  <SkeletonBox>{maskedKey ?? 'sk-••••••••••••'}</SkeletonBox>
+                </Text>
+              </HStack>
+            ) : (
+              <HStack gap={3} align="center" className="px-4 py-2.5">
+                <Badge variant="outline">
+                  {t('providers.apiKeyNotConfigured')}
+                </Badge>
+              </HStack>
+            ))}
         </Card>
       </Stack>
 
@@ -667,6 +706,7 @@ interface ModelFormState {
   imageCostPerImage: string;
   imageGenerationMode: '' | 'images-api' | 'chat-multimodal';
   baseUrl: string;
+  secretsEnv: string;
   apiKey: string;
   providerOptionsJson: string;
 }
@@ -682,6 +722,7 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   imageCostPerImage: '',
   imageGenerationMode: '',
   baseUrl: '',
+  secretsEnv: '',
   apiKey: '',
   providerOptionsJson: '',
 };
@@ -808,6 +849,9 @@ function ModelsSection({
             : '',
         imageGenerationMode: model.imageGenerationMode ?? '',
         baseUrl: model.baseUrl ?? '',
+        // Hydrate the saved per-model env-var name (issue #1711) — omitting
+        // this would reset it to '' and wipe the binding on the next save.
+        secretsEnv: model.secretsEnv ?? '',
         apiKey: '',
         providerOptionsJson: providerOptionsToJsonString(model.providerOptions),
       };
@@ -880,6 +924,7 @@ function ModelsSection({
             ? form.imageGenerationMode
             : undefined,
         baseUrl: form.baseUrl.trim() || undefined,
+        secretsEnv: form.secretsEnv.trim() || undefined,
         cost,
         providerOptions,
       };
@@ -1472,6 +1517,24 @@ function ModelsSection({
               />
               <Text className="text-muted-foreground text-xs">
                 {t('providers.modelBaseUrlHelp')}
+              </Text>
+              <Input
+                label={t('providers.modelSecretsEnv')}
+                value={form.secretsEnv}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, secretsEnv: e.target.value }))
+                }
+                placeholder={t('providers.modelSecretsEnvPlaceholder')}
+                errorMessage={
+                  form.secretsEnv.trim() &&
+                  (form.secretsEnv.trim().length > 40 ||
+                    !/^[A-Za-z_][A-Za-z0-9_]*$/.test(form.secretsEnv.trim()))
+                    ? t('providers.secretsEnvPatternError')
+                    : undefined
+                }
+              />
+              <Text className="text-muted-foreground text-xs">
+                {t('providers.modelSecretsEnvHelp')}
               </Text>
               {maskedModelKeys[form.id] && modelKeyAction === 'none' ? (
                 <HStack gap={2} align="center" className="flex-wrap">

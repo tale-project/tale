@@ -571,4 +571,65 @@ describe('providerJsonSchema', () => {
       expect(result.success).toBe(false);
     });
   });
+
+  describe('secretsEnv', () => {
+    it('accepts a provider-level secretsEnv', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        secretsEnv: 'OPENROUTER_API_KEY',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a per-model secretsEnv', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'test/model-1',
+            displayName: 'Test Model 1',
+            tags: ['chat'],
+            secretsEnv: 'MODEL_KEY',
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.models[0].secretsEnv).toBe('MODEL_KEY');
+      }
+    });
+
+    it('accepts a leading-underscore name', () => {
+      expect(
+        providerJsonSchema.safeParse({ ...baseProvider, secretsEnv: '_KEY' })
+          .success,
+      ).toBe(true);
+    });
+
+    it('rejects names with spaces, leading digits, or "="', () => {
+      for (const bad of ['FOO BAR', '1FOO', 'A=B', 'FOO-BAR']) {
+        const result = providerJsonSchema.safeParse({
+          ...baseProvider,
+          secretsEnv: bad,
+        });
+        expect(result.success, `should reject "${bad}"`).toBe(false);
+      }
+    });
+
+    it('rejects names longer than 40 chars (Convex env-sync limit)', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        secretsEnv: 'A'.repeat(41),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects an empty secretsEnv', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        secretsEnv: '',
+      });
+      expect(result.success).toBe(false);
+    });
+  });
 });

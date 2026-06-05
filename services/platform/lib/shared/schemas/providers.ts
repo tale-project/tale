@@ -241,6 +241,24 @@ export type ReasoningCapabilityConfig = z.infer<
   typeof reasoningCapabilitySchema
 >;
 
+/**
+ * Optional name of an environment variable holding the API key (issue #1711).
+ * Lives in the PUBLIC provider config (a var name is not a secret). The
+ * resolution path prefers this over the file `apiKey`. The 40-char cap matches
+ * the platform→Convex env-name sync limit in `docker-entrypoint.sh` — a longer
+ * name would resolve in the Python services but silently never reach the Node
+ * action chat path. Reads are additionally gated by the
+ * `TALE_PROVIDER_SECRET_ENV_ALLOWLIST` deployment allowlist (see
+ * `convex/providers/secret_resolver.ts`).
+ */
+const secretsEnvSchema = z
+  .string()
+  .regex(
+    /^[A-Za-z_][A-Za-z0-9_]*$/,
+    'must be a valid environment variable name',
+  )
+  .max(40);
+
 const modelDefinitionSchema = z.object({
   id: z.string().min(1).max(200),
   displayName: z.string().min(1).max(200),
@@ -253,6 +271,8 @@ const modelDefinitionSchema = z.object({
   reasoning: reasoningCapabilitySchema.optional(),
   fallbackModelId: z.string().min(1).max(200).optional(),
   baseUrl: z.string().url().optional(),
+  /** Per-model override of the provider-level `secretsEnv`; see `secretsEnvSchema`. */
+  secretsEnv: secretsEnvSchema.optional(),
   imageGenerationMode: imageGenerationModeSchema.optional(),
   cost: z
     .object({
@@ -371,6 +391,12 @@ export const providerJsonSchema = z
     displayName: z.string().min(1).max(200),
     description: z.string().max(1000).optional(),
     baseUrl: z.string().url(),
+    /**
+     * Optional env-var name holding this provider's API key (issue #1711).
+     * Each model may override it with its own `secretsEnv`. See
+     * `secretsEnvSchema`.
+     */
+    secretsEnv: secretsEnvSchema.optional(),
     supportsStructuredOutputs: z.boolean().optional(),
     defaults: providerDefaultsSchema.optional(),
     /**
@@ -459,3 +485,18 @@ export const providerSecretsSchema = z.object({
 });
 
 export type ProviderSecrets = z.infer<typeof providerSecretsSchema>;
+
+/**
+ * Resolution status of a `secretsEnv` name for the settings UI (issue #1711).
+ * Carries no key material — only whether the name is configured, allowlisted,
+ * and currently resolves. Single canonical shape shared by the server
+ * (`readProvider` / `secret_resolver.ts`) and the provider settings UI.
+ */
+export interface EnvSecretStatus {
+  /** The configured env-var name, if any. */
+  name?: string;
+  /** Whether `name` appears in `TALE_PROVIDER_SECRET_ENV_ALLOWLIST`. */
+  allowlisted: boolean;
+  /** Whether the env var currently resolves to a non-empty value. */
+  resolved: boolean;
+}

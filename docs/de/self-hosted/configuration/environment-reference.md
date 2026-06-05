@@ -67,12 +67,15 @@ Die auto-konstruierte Form ist `postgresql://tale:${DB_PASSWORD}@db:5432`. Conve
 
 ## Provider-Secrets-Verschlüsselung
 
-| Name                | Default | Beschreibung                                                                                                                                                      |
-| ------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SOPS_AGE_KEY`      | unset   | Inline-age-Secret-Key. Verschlüsselt `providers/*.secrets.json`. Standardmodus nach `tale init`. Mehrere Keys sind inline nicht unterstützt.                      |
-| `SOPS_AGE_KEY_FILE` | unset   | Pfad zu einer Datei mit einem oder mehreren age-Keys (einer pro Zeile; `#`-Kommentare erlaubt). Pflicht für Key-Rotation. Schliesst sich mit der Inline-Form aus. |
+| Name                                 | Default | Beschreibung                                                                                                                                                                                                                                                     |
+| ------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SOPS_AGE_KEY`                       | unset   | Inline-age-Secret-Key. Verschlüsselt `providers/*.secrets.json`. Standardmodus nach `tale init`. Mehrere Keys sind inline nicht unterstützt.                                                                                                                     |
+| `SOPS_AGE_KEY_FILE`                  | unset   | Pfad zu einer Datei mit einem oder mehreren age-Keys (einer pro Zeile; `#`-Kommentare erlaubt). Pflicht für Key-Rotation. Schliesst sich mit der Inline-Form aus.                                                                                                |
+| `TALE_PROVIDER_SECRET_ENV_ALLOWLIST` | unset   | Kommagetrennte Allowlist der Env-Var-Namen, die das `secretsEnv` eines Anbieters lesen darf. Leer oder nicht gesetzt deaktiviert die Umgebungsvariablen-Schlüsselquelle. Namen müssen 40 Zeichen oder kürzer sein. Niemals ein Deployment-Secret hier auflisten. |
 
-Wenn beide unset sind, speichert Tale `providers/*.secrets.json` als Klartext-JSON mit Modus 0600. Erreich diesen Modus nur, wenn der Host-Storage at-rest verschlüsselt ist oder die Dateien von externem Tooling erzeugt werden (ein Kubernetes-Secret-Mount, ein Vault-Template). Einen age-Key zu rotieren bedeutet, den neuen Key anzuhängen, jeden Provider in der UI neu zu speichern, dann den alten Key zu entfernen. Siehe [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops) für den vollen Rotations-Walkthrough.
+Wenn beide age-Vars unset sind, speichert Tale `providers/*.secrets.json` als Klartext-JSON mit Modus 0600. Erreich diesen Modus nur, wenn der Host-Storage at-rest verschlüsselt ist oder die Dateien von externem Tooling erzeugt werden (ein Kubernetes-Secret-Mount, ein Vault-Template). Einen age-Key zu rotieren bedeutet, den neuen Key anzuhängen, jeden Provider in der UI neu zu speichern, dann den alten Key zu entfernen. Siehe [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops) für den vollen Rotations-Walkthrough.
+
+`TALE_PROVIDER_SECRET_ENV_ALLOWLIST` schaltet die Umgebungsvariablen-Schlüsselquelle frei: ein Anbieter kann seinen Schlüssel aus einer benannten Umgebungsvariable statt aus einer Secrets-Datei lesen, aber nur, wenn dieser Variablenname in dieser Allowlist auftaucht. Der Mechanismus — Auflösungs-Reihenfolge, die 40-Zeichen-Grenze, die Neustart-Anforderung — ist in [Anbieter](/de/self-hosted/configuration/providers#environment-variable-key-source) dokumentiert.
 
 ## Feature-Flags
 

@@ -816,7 +816,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Anbieter",
-      "description": "Das Zwei-Datei-Anbieter-Format auf Platte — `<name>.config.json` für die öffentliche Form, `<name>.secrets.json` für die Schlüssel — plus der Workflow zum Hinzufügen, Austauschen und Deaktivieren eines Modell-Anbieters."
+      "description": "Das Zwei-Datei-Anbieter-Format auf Platte — `<name>.json` für die öffentliche Form, `<name>.secrets.json` für die Schlüssel — plus der Workflow zum Hinzufügen, Austauschen und Deaktivieren eines Modell-Anbieters."
     }
   },
   "de:self-hosted/configuration/secrets-with-sops": {
@@ -1840,7 +1840,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Fournisseurs",
-      "description": "Le format à deux fichiers des fournisseurs sur disque — `<name>.config.json` pour la forme publique, `<name>.secrets.json` pour les clés — plus le workflow pour ajouter, échanger et désactiver un fournisseur de modèle."
+      "description": "Le format à deux fichiers des fournisseurs sur disque — `<name>.json` pour la forme publique, `<name>.secrets.json` pour les clés — plus le workflow pour ajouter, échanger et désactiver un fournisseur de modèle."
     }
   },
   "fr:self-hosted/configuration/secrets-with-sops": {
@@ -2864,7 +2864,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Providers",
-      "description": "The two-file provider format on disk — `<name>.config.json` for the public shape, `<name>.secrets.json` for the keys — plus the workflow for adding, swapping, and disabling a model provider."
+      "description": "The two-file provider format on disk — `<name>.json` for the public shape, `<name>.secrets.json` for the keys — plus the workflow for adding, swapping, and disabling a model provider."
     }
   },
   "en:self-hosted/configuration/secrets-with-sops": {

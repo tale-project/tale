@@ -1,15 +1,15 @@
 ---
 title: Providers
-description: The two-file provider format on disk — `<name>.config.json` for the public shape, `<name>.secrets.json` for the keys — plus the workflow for adding, swapping, and disabling a model provider.
+description: The two-file provider format on disk — `<name>.json` for the public shape, `<name>.secrets.json` for the keys — plus the workflow for adding, swapping, and disabling a model provider.
 ---
 
-Tale stores every model provider as two files under `providers/` — a `<name>.config.json` for the public shape (base URL, models, capabilities) and a `<name>.secrets.json` for the API keys. The split exists so the config is safe to commit and the secrets get the encrypted treatment SOPS gives them. The `tale-platform` container reads both at boot and watches them for changes; restarting the container is not required to pick up edits.
+Tale stores every model provider as two files under `providers/` — a `<name>.json` for the public shape (base URL, models, capabilities) and a `<name>.secrets.json` for the API keys. The split exists so the config is safe to commit and the secrets get the encrypted treatment SOPS gives them. The `tale-platform` container reads both at boot and watches them for changes; restarting the container is not required to pick up edits.
 
 The reference is the file format on disk and the order operations follow when adding a provider. The UI-driven flow ("Settings > Providers") sits on top of the same files; both produce identical results.
 
 ## The config file
 
-`providers/<name>.config.json` describes the provider's public shape. The `displayName` shows up in the UI, the `models` array names everything reachable through this provider, and each model declares its tags (`chat`, `vision`, `embedding`, `transcription`, `text-to-speech`).
+`providers/<name>.json` describes the provider's public shape. The `displayName` shows up in the UI, the `models` array names everything reachable through this provider, and each model declares its tags (`chat`, `vision`, `embedding`, `transcription`, `text-to-speech`).
 
 ```json
 {
@@ -45,11 +45,40 @@ The full set of fields lives in [`examples/default/providers/`](https://github.c
 
 With `SOPS_AGE_KEY` or `SOPS_AGE_KEY_FILE` set, this file is stored encrypted on disk. With both unset, it is plaintext at file mode 0600 — reach that mode only on disks encrypted at rest. The full encryption walkthrough lives in [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops).
 
+## Environment-variable key source
+
+If your secrets already live in Kubernetes Secrets, Vault, or a cloud secret manager, you can point a provider at an **environment variable** instead of a secrets file. Add a `secretsEnv` to the config file (it names the variable; the name itself is not a secret, so it stays in the committable config):
+
+```json
+{
+  "displayName": "OpenRouter",
+  "baseUrl": "https://openrouter.ai/api/v1",
+  "secretsEnv": "OPENROUTER_API_KEY",
+  "models": [
+    {
+      "id": "openai/gpt-4o",
+      "displayName": "GPT-4o",
+      "tags": ["chat", "vision"],
+      "secretsEnv": "OPENAI_DIRECT_KEY"
+    }
+  ]
+}
+```
+
+Two guardrails apply:
+
+- **Allowlist (required).** The variable name must appear in `TALE_PROVIDER_SECRET_ENV_ALLOWLIST` (a comma-separated list set on the deployment). An empty or unset allowlist disables the env-var source entirely, so a config that only names a variable resolves to no key. This stops a config-write actor from pointing `secretsEnv` at an unrelated deployment secret (e.g. `SOPS_AGE_KEY`) and having it sent to a provider URL.
+- **Length.** The name must be 40 characters or fewer — the platform syncs env vars to its Convex backend, which caps variable names at 40.
+
+Resolution order, highest first: model-level `secretsEnv` → provider-level `secretsEnv` → the secrets file (`modelKeys[id]` then `apiKey`). Each tier is skipped when it yields nothing, so a configured-but-empty variable falls back to the file. Env values are trimmed (a trailing newline from a mounted secret is a common cause of `401`s).
+
+Unlike the secrets **file** — which the watcher re-reads on every request — an env-var **value** is read once at process start. Changing it requires **restarting the `tale-platform` container** (it re-syncs env to Convex at boot) and recreating the `tale-rag` / `tale-crawler` containers (they read `os.environ` directly). The variable must be present everywhere the key is consumed: the platform syncs it to Convex automatically; the Python services receive it via their compose `env_file`.
+
 ## Adding a provider
 
 The order matters — the watcher reads the config file first to know the provider exists, then resolves the secret on the first request.
 
-1. Drop the config file at `providers/<name>.config.json`.
+1. Drop the config file at `providers/<name>.json`.
 2. Drop the secrets file at `providers/<name>.secrets.json` (encrypted or plaintext per your SOPS mode).
 3. Refresh **Settings > Providers** in the UI — the new provider appears within a few seconds (the watcher polls every 2 s).
 4. Pick the new provider's default model under **Settings > Models** so agents that resolve "default" land on it.
@@ -58,7 +87,7 @@ If the config file is malformed, the platform logs a warning and skips the provi
 
 ## Swapping a key
 
-Edit the secrets file in place — the watcher picks up the change and the next request to that provider uses the new key. Existing in-flight requests still hold the old key; cancel and retry to force re-resolution.
+Edit the secrets file in place — the watcher picks up the change and the next request to that provider uses the new key. Existing in-flight requests still hold the old key; cancel and retry to force re-resolution. (Keys sourced from an [environment variable](#environment-variable-key-source) are the exception: changing the value requires a container restart, not just a file edit.)
 
 ## Disabling a provider
 

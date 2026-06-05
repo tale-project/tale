@@ -67,7 +67,9 @@ Le modèle de risque change : un dump de système de fichiers leaké est mainten
 
 ## Stores de secret externes
 
-Pour Vault, les mounts de Kubernetes Secret, ou systemd `LoadCredential`, le pattern supporté est : écris les fichiers `*.secrets.json` en clair depuis le store externe et fais tourner Tale en mode clair. Ne sauvegarde pas de clés de fournisseur via l'UI dans ce setup — l'UI écraserait le mount.
+Quand tes clés vivent déjà dans Vault, un gestionnaire de secrets cloud ou Kubernetes Secrets, le pattern de première classe est la source de clé par variable d'environnement : pointe chaque fournisseur sur une **variable d'environnement** avec `secretsEnv` et laisse ton store de secrets remplir cette variable. Aucun fichier en clair ne touche le disque, et la barrière de l'allowlist empêche un acteur qui écrit la config de lire un secret de déploiement étranger. Le mécanisme complet — la barrière `TALE_PROVIDER_SECRET_ENV_ALLOWLIST`, l'ordre de résolution et le comportement de redémarrage au changement — vit dans [Fournisseurs](/fr/self-hosted/configuration/providers#environment-variable-key-source).
+
+L'approche par mount de fichier est l'alternative legacy : écris les fichiers `*.secrets.json` en clair depuis le store externe et fais tourner Tale en mode clair. Cela fonctionne toujours, mais pose la clé en clair sur le disque et casse si tu sauvegardes un fournisseur via l'UI — l'UI écrase le mount. Préfère la source par variable d'environnement, sauf si une contrainte impose la forme fichier.
 
 ## Où cela s'inscrit
 
