@@ -798,6 +798,7 @@ import type * as providers_file_actions from "../providers/file_actions.js";
 import type * as providers_file_utils from "../providers/file_utils.js";
 import type * as providers_resolve_model from "../providers/resolve_model.js";
 import type * as providers_secret_io from "../providers/secret_io.js";
+import type * as providers_secret_resolver from "../providers/secret_resolver.js";
 import type * as providers_validators from "../providers/validators.js";
 import type * as sandbox_internal_mutations from "../sandbox/internal_mutations.js";
 import type * as sandbox_output_mutations from "../sandbox/output_mutations.js";
@@ -2031,6 +2032,7 @@ declare const fullApi: ApiFromModules<{
   "providers/file_utils": typeof providers_file_utils;
   "providers/resolve_model": typeof providers_resolve_model;
   "providers/secret_io": typeof providers_secret_io;
+  "providers/secret_resolver": typeof providers_secret_resolver;
   "providers/validators": typeof providers_validators;
   "sandbox/internal_mutations": typeof sandbox_internal_mutations;
   "sandbox/output_mutations": typeof sandbox_output_mutations;
