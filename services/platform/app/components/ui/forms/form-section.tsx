@@ -32,7 +32,7 @@ export function FormSection({
           {label && (
             <span
               id={`${id}-label`}
-              className="text-muted-foreground text-xs font-medium md:text-sm"
+              className="text-foreground text-xs font-medium md:text-sm"
             >
               {label}
             </span>

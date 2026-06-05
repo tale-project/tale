@@ -4,7 +4,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import { useCallback, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -55,8 +54,7 @@ interface SetPasswordFormData {
 // wraps the real `SettingsPage narrow` view in `<Skeletonize>` so the skeleton
 // inherits the SAME narrow centering and section structure (no horizontal
 // shift on load, and no empty-Input → real-value flash). Skeleton-aware leaves
-// (Input, Button) and `<SkeletonText>` for the read-only email mask themselves
-// while loading.
+// (Input, Button) mask themselves while loading.
 // =============================================================================
 export function AccountForm() {
   const { data: hasCredential, isLoading: isCredentialLoading } =
@@ -178,9 +176,11 @@ function ProfileSection() {
   );
 }
 
-/** Read-only email row. `Text` isn't a skeleton-aware leaf, so mask it with
- *  `<SkeletonText>` sized to the body line-height while loading — without this
- *  the value pops in after the user query resolves. */
+/** Read-only email row. Visually mirrors the `CopyableField` pill used for the
+ *  Organization ID elsewhere in settings — same bg, border, radius, padding —
+ *  so any "you can read this but can't edit it here" surface looks consistent.
+ *  Doesn't render a copy button because nobody copies their own email out of
+ *  Account settings. */
 function EmailField({ email }: { email: string }) {
   const { t: tSettings } = useT('settings');
   const loading = useSkeleton();
@@ -188,15 +188,9 @@ function EmailField({ email }: { email: string }) {
   return (
     <div className="flex max-w-sm flex-col gap-1.5">
       <Label>{tSettings('account.profile.email')}</Label>
-      {loading ? (
-        <div className="w-48 text-base leading-normal">
-          <SkeletonText />
-        </div>
-      ) : (
-        <Text as="span" variant="body">
-          {email}
-        </Text>
-      )}
+      <div className="bg-muted/40 ring-border text-muted-foreground flex w-full items-center rounded-lg border px-3 py-2.25 text-sm">
+        {loading ? <SkeletonText /> : email}
+      </div>
     </div>
   );
 }

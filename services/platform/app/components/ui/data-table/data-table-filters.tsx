@@ -186,7 +186,7 @@ export function DataTableFilters({
               modal={false}
               align="start"
               onOpenAutoFocus={(e) => e.preventDefault()}
-              contentClassName="p-0"
+              contentClassName="bg-card p-0"
               trigger={
                 <div>
                   <FilterButton
