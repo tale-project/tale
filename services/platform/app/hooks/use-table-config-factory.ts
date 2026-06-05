@@ -10,6 +10,12 @@ import type { Namespace } from '@/lib/i18n/types';
 
 type TranslationFn = (key: string) => string;
 
+/**
+ * Default first-page size for entity list tables. Exported so route loaders can
+ * prime the paginated cache with the same count the table renders.
+ */
+export const DEFAULT_TABLE_PAGE_SIZE = 20;
+
 interface TableConfigMetadata {
   searchPlaceholder: string;
   stickyLayout: boolean;
@@ -32,7 +38,7 @@ interface CreateTableConfigOptions<TTableName extends TableNames> {
   defaultSort: keyof Doc<TTableName> | (string & {});
   /** Sort descending by default (default: true) */
   defaultSortDesc?: boolean;
-  /** Page size (default: 10) */
+  /** Page size (default: {@link DEFAULT_TABLE_PAGE_SIZE}) */
   pageSize?: number;
   /** Enable sticky layout (default: true) */
   stickyLayout?: boolean;
@@ -92,7 +98,7 @@ export function createTableConfigHook<TTableName extends TableNames>(
     additionalNamespaces = [],
     defaultSort,
     defaultSortDesc = true,
-    pageSize = 20,
+    pageSize = DEFAULT_TABLE_PAGE_SIZE,
     stickyLayout = true,
     infiniteScroll = true,
   } = options;

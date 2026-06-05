@@ -4,6 +4,8 @@ import { z } from 'zod';
 
 import { useHasMicrosoftAccount } from '@/app/features/auth/hooks/queries';
 import { DocumentsTable } from '@/app/features/documents/components/documents-table';
+import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
@@ -18,9 +20,28 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/documents')({
     meta: seo('documents'),
   }),
   validateSearch: searchSchema,
-  loader: ({ context }) => {
+  loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.accounts.queries.hasMicrosoftAccount, {}),
+    );
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.documents.queries.approxCountDocuments, {
+        organizationId: params.id,
+      }),
+    );
+    // Root folder list — matches useFolders(orgId) with no parentId.
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.folders.queries.listFolders, {
+        organizationId: params.id,
+      }),
+    );
+    // Prime the paginated document list (root folder, no filters) so the table
+    // paints without a skeleton flash on first nav.
+    void primeCachedPaginatedQuery(
+      context.convexQueryClient.convexClient,
+      api.documents.queries.listDocumentsPaginated,
+      { organizationId: params.id },
+      { initialNumItems: DEFAULT_TABLE_PAGE_SIZE },
     );
   },
   component: DocumentsPage,

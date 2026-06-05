@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
+import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
@@ -38,6 +39,7 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
   const { t: tSettings } = useT('settings');
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
+  const preloadRoute = usePreloadRoute();
   const queryClient = useQueryClient();
   const { agents: rawAgents, isLoading } = useListAgents(organizationId);
   const { i18n: i18nCtx } = useTranslation();
@@ -122,6 +124,18 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
     [navigate, organizationId],
   );
 
+  const handleRowMouseEnter = useCallback(
+    (row: Row<AgentRow>) => {
+      // Warm the detail route (runs its loader → readAgent) on hover so the
+      // click lands on already-fetched data.
+      preloadRoute({
+        to: '/dashboard/$id/agents/$agentId',
+        params: { id: organizationId, agentId: row.original.name },
+      });
+    },
+    [preloadRoute, organizationId],
+  );
+
   const list = useListPage<AgentRow>({
     dataSource: {
       type: 'query',
@@ -147,6 +161,7 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
           : ''
       }
       onRowClick={handleRowClick}
+      onRowMouseEnter={handleRowMouseEnter}
       actionMenu={<AgentsActionMenu organizationId={organizationId} />}
       emptyState={{
         icon: Bot,

@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { Heading } from '@tale/ui/heading';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -19,10 +20,20 @@ import {
 } from '@/app/components/ui/navigation/tab-navigation';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 export const Route = createFileRoute('/dashboard/$id/projects/$projectId')({
+  loader: ({ context, params }) => {
+    // Warm the gating project query so the detail header/content paint without
+    // a skeleton — also runs on the projects list's row-hover preload.
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.projects.queries.getProject, {
+        projectId: asProjectId(params.projectId),
+      }),
+    );
+  },
   component: ProjectDetailLayout,
 });
 

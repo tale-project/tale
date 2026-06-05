@@ -33,6 +33,12 @@ export const queryClient = new QueryClient({
       // expires with zero observers). Aligned with the codebase's 5min staleTime
       // and TanStack defaults.
       gcTime: 15 * 60 * 1000,
+      // Convex keeps subscribed queries live over the WS (setQueryData on each
+      // update) regardless of staleTime, so this only suppresses redundant
+      // one-shot refetches on mount/focus — it never serves stale Convex data.
+      // useActionQuery overrides to Infinity; the session query sets its own.
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
     },
   },
 });
