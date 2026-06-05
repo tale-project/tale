@@ -4981,8 +4981,6 @@
       "testLatency": "{latencyMs} ms",
       "testKeyFailed": "Échec de la connexion",
       "addKey": "Ajouter une clé API",
-      "addApiKey": "Ajouter une clé API",
-      "replaceApiKey": "Remplacer la clé API",
       "replaceApiKeyDescription": "Clé actuelle : {maskedKey}",
       "apiKeyEnter": "Saisis la clé API",
       "searchProvider": "Rechercher des fournisseurs...",

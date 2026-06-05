@@ -4980,8 +4980,6 @@
       "testLatency": "{latencyMs} ms",
       "testKeyFailed": "Verbindung fehlgeschlagen",
       "addKey": "API-Schlüssel hinzufügen",
-      "addApiKey": "API-Schlüssel hinzufügen",
-      "replaceApiKey": "API-Schlüssel ersetzen",
       "replaceApiKeyDescription": "Aktueller Schlüssel: {maskedKey}",
       "apiKeyEnter": "API-Schlüssel eingeben",
       "searchProvider": "Anbieter suchen...",

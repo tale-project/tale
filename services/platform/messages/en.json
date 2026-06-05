@@ -5241,8 +5241,6 @@
       "testLatency": "{latencyMs} ms",
       "testKeyFailed": "Connection failed",
       "addKey": "Add API key",
-      "addApiKey": "Add API Key",
-      "replaceApiKey": "Replace API Key",
       "replaceApiKeyDescription": "Current key: {maskedKey}",
       "apiKeyEnter": "Enter API key",
       "searchProvider": "Search providers...",
