@@ -53,13 +53,13 @@ Si tes secrets vivent déjà dans Kubernetes Secrets, Vault ou un gestionnaire d
 {
   "displayName": "OpenRouter",
   "baseUrl": "https://openrouter.ai/api/v1",
-  "secretsEnv": "OPENROUTER_API_KEY",
+  "secretsEnv": "TALE_PROVIDER_KEY_OPENROUTER",
   "models": [
     {
       "id": "openai/gpt-4o",
       "displayName": "GPT-4o",
       "tags": ["chat", "vision"],
-      "secretsEnv": "OPENAI_DIRECT_KEY"
+      "secretsEnv": "TALE_PROVIDER_KEY_OPENAI_DIRECT"
     }
   ]
 }
@@ -67,7 +67,7 @@ Si tes secrets vivent déjà dans Kubernetes Secrets, Vault ou un gestionnaire d
 
 Deux garde-fous s'appliquent :
 
-- **Allowlist (obligatoire).** Le nom de la variable doit apparaître dans `TALE_PROVIDER_SECRET_ENV_ALLOWLIST` (une liste séparée par des virgules définie sur le déploiement). Une allowlist vide ou non définie désactive entièrement la source par variable d'environnement, donc une config qui ne nomme qu'une variable se résout à aucune clé. Cela empêche un acteur qui écrit la config de pointer `secretsEnv` sur un secret de déploiement étranger (par ex. `SOPS_AGE_KEY`) et de le faire envoyer à une URL de fournisseur.
+- **Préfixe réservé (obligatoire).** Le nom de la variable doit commencer par `TALE_PROVIDER_KEY_` (par ex. `TALE_PROVIDER_KEY_OPENROUTER`). Tout autre nom est rejeté, donc une config qui nomme une variable sans préfixe se résout à aucune clé. Cela empêche un acteur qui écrit la config de pointer `secretsEnv` sur un secret de déploiement étranger (par ex. `SOPS_AGE_KEY`) et de le faire envoyer à une URL de fournisseur. La barrière de préfixe est codée en dur — il n'y a aucun commutateur de déploiement à définir.
 - **Longueur.** Le nom doit faire 40 caractères ou moins — la plateforme synchronise les variables d'environnement vers son backend Convex, qui plafonne les noms de variables à 40.
 
 Ordre de résolution, le plus haut d'abord : `secretsEnv` au niveau modèle → `secretsEnv` au niveau fournisseur → le fichier de secrets (`modelKeys[id]` puis `apiKey`). Chaque palier est sauté quand il ne donne rien, donc une variable configurée mais vide retombe sur le fichier. Les valeurs d'env sont trimmées (un retour à la ligne en queue venant d'un secret monté est une cause fréquente de `401`).

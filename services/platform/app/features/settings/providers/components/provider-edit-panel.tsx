@@ -76,7 +76,6 @@ export function ProviderEditPanel({
   const [form, setForm] = useState({
     name: providerName,
     baseUrl: config.baseUrl,
-    secretsEnv: config.secretsEnv ?? '',
     perLocale: buildPerLocale(config, defaultLocale),
   });
 
@@ -88,7 +87,6 @@ export function ProviderEditPanel({
     setForm({
       name: providerName,
       baseUrl: config.baseUrl,
-      secretsEnv: config.secretsEnv ?? '',
       perLocale: buildPerLocale(config, defaultLocale),
     });
     setEditingLocale(defaultLocale);
@@ -172,7 +170,6 @@ export function ProviderEditPanel({
           displayName: defaultFields.displayName.trim(),
           description: defaultFields.description.trim() || undefined,
           baseUrl: form.baseUrl,
-          secretsEnv: form.secretsEnv.trim() || undefined,
           i18n: Object.keys(newI18n).length > 0 ? newI18n : undefined,
         });
         toast({ title: t('providers.saved'), variant: 'success' });
@@ -196,25 +193,16 @@ export function ProviderEditPanel({
     ],
   );
 
-  // Mirror the server schema's `secretsEnv` validation (issue #1711) so the
-  // operator gets immediate feedback instead of a save-time zod error.
-  const secretsEnvError = useMemo(() => {
-    const value = form.secretsEnv.trim();
-    if (!value) return false;
-    return value.length > 40 || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
-  }, [form.secretsEnv]);
-
   const isValid = useMemo(() => {
     const baseValid =
       form.baseUrl.trim().length > 0 && URL.canParse(form.baseUrl.trim());
     const defaultDisplayName =
       form.perLocale[defaultLocale]?.displayName.trim() ?? '';
-    return baseValid && defaultDisplayName.length > 0 && !secretsEnvError;
-  }, [form.baseUrl, form.perLocale, defaultLocale, secretsEnvError]);
+    return baseValid && defaultDisplayName.length > 0;
+  }, [form.baseUrl, form.perLocale, defaultLocale]);
 
   const isDirty = useMemo(() => {
     if (form.baseUrl !== config.baseUrl) return true;
-    if (form.secretsEnv.trim() !== (config.secretsEnv ?? '')) return true;
     for (const locale of SUPPORTED_LOCALES) {
       const next = form.perLocale[locale];
       if (locale === defaultLocale) {
@@ -258,19 +246,6 @@ export function ProviderEditPanel({
         onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
         placeholder={t('providers.baseUrlPlaceholder')}
       />
-
-      <Input
-        label={t('providers.secretsEnv')}
-        value={form.secretsEnv}
-        onChange={(e) => setForm((f) => ({ ...f, secretsEnv: e.target.value }))}
-        placeholder={t('providers.secretsEnvPlaceholder')}
-        errorMessage={
-          secretsEnvError ? t('providers.secretsEnvPatternError') : undefined
-        }
-      />
-      <Text variant="caption" className="text-muted-foreground -mt-2">
-        {t('providers.secretsEnvHelp')}
-      </Text>
 
       <LocaleTabs
         defaultLocale={defaultLocale}

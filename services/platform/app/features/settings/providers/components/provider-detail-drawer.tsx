@@ -27,6 +27,7 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
+import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -38,6 +39,8 @@ import {
   type EnvSecretStatus,
   modelTagLiterals,
   type ProviderJson,
+  SECRETS_ENV_PREFIX,
+  SECRETS_ENV_REGEX,
 } from '@/lib/shared/schemas/providers';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
@@ -464,6 +467,9 @@ function ApiKeySection({
 }) {
   const { t } = useT('settings');
   const { t: tAccessDenied } = useT('accessDenied');
+  // Env-var key source (issue #1711) lives in the public provider config, so it
+  // is read/written via the same config context as the General/Options editors.
+  const { config, saveConfig } = useProviderConfig();
   // While loading we don't yet know whether a key exists; render the
   // "configured" chrome with a placeholder value so the masked row has its
   // natural size (the pulse covers the placeholder text).
@@ -473,6 +479,14 @@ function ApiKeySection({
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
+  // Key-source chooser state. Seeded from config on open via `openDialog`.
+  const [keySource, setKeySource] = useState<'file' | 'env'>('file');
+  const [envName, setEnvName] = useState(SECRETS_ENV_PREFIX);
+  const envError = useMemo(() => {
+    const value = envName.trim();
+    if (!value) return false;
+    return value.length > 40 || !SECRETS_ENV_REGEX.test(value);
+  }, [envName]);
   const [overwritePrompt, setOverwritePrompt] = useState<{
     kind: 'encrypted_no_key' | 'undecryptable_existing';
     path: string;
@@ -529,17 +543,84 @@ function ApiKeySection({
     [apiKey, organizationId, providerName, saveSecret, t, tAccessDenied],
   );
 
+  // Persist the env-var NAME into the public provider config (not the secrets
+  // file). The file key, if any, stays as the resolver's fallback — the env
+  // source wins until cleared.
+  const performSaveEnv = useCallback(async () => {
+    const name = envName.trim();
+    if (!name || envError) return;
+    setSaving(true);
+    try {
+      await saveConfig({ secretsEnv: name });
+      setDialogOpen(false);
+      toast({ title: t('providers.saved'), variant: 'success' });
+    } catch (err) {
+      if (
+        !dispatchOrgAccessError(err, tAccessDenied) &&
+        !dispatchForbiddenDeveloperSettings(err, t) &&
+        !dispatchVersionConflict(err, t)
+      ) {
+        toast({
+          title: t('providers.secretSaveFailed'),
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [envName, envError, saveConfig, t, tAccessDenied]);
+
+  const clearEnv = useCallback(async () => {
+    setSaving(true);
+    try {
+      await saveConfig({ secretsEnv: undefined });
+      setDialogOpen(false);
+      toast({ title: t('providers.envVarCleared'), variant: 'success' });
+    } catch (err) {
+      if (
+        !dispatchOrgAccessError(err, tAccessDenied) &&
+        !dispatchForbiddenDeveloperSettings(err, t) &&
+        !dispatchVersionConflict(err, t)
+      ) {
+        toast({
+          title: t('providers.secretSaveFailed'),
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [saveConfig, t, tAccessDenied]);
+
   const handleSaveKey = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      await performSave(false);
+      if (keySource === 'env') {
+        await performSaveEnv();
+      } else {
+        await performSave(false);
+      }
     },
-    [performSave],
+    [keySource, performSaveEnv, performSave],
   );
 
   const handleConfirmOverwrite = useCallback(() => {
     void performSave(true);
   }, [performSave]);
+
+  // Seed the chooser from the saved config each time the dialog opens, then
+  // keep the user's in-dialog edits even if a sibling refetch lands.
+  const openDialog = useCallback(() => {
+    setKeySource(config.secretsEnv ? 'env' : 'file');
+    setEnvName(config.secretsEnv ?? SECRETS_ENV_PREFIX);
+    setApiKey('');
+    setDialogOpen(true);
+  }, [config.secretsEnv]);
+
+  const dialogValid =
+    keySource === 'env'
+      ? !envError && envName.trim().length > SECRETS_ENV_PREFIX.length
+      : apiKey.trim().length > 0;
 
   return (
     <>
@@ -565,13 +646,11 @@ function ApiKeySection({
               <Zap className="mr-1 size-3.5" />
               {t('providers.testConnection')}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDialogOpen(true)}
-            >
+            <Button variant="ghost" size="sm" onClick={openDialog}>
               <Pencil className="mr-1 size-3.5" />
-              {hasSecret ? t('providers.editKey') : t('providers.addKey')}
+              {hasSecret || config.secretsEnv
+                ? t('providers.editKey')
+                : t('providers.addKey')}
             </Button>
           </HStack>
         </HStack>
@@ -595,9 +674,9 @@ function ApiKeySection({
               >
                 {providerEnvStatus.resolved
                   ? t('providers.envVarSet')
-                  : providerEnvStatus.allowlisted
+                  : providerEnvStatus.allowed
                     ? t('providers.envVarNotSet')
-                    : t('providers.envVarNotAllowlisted')}
+                    : t('providers.envVarNotPrefixed')}
               </Badge>
               <Text className="text-muted-foreground text-sm">
                 {t('providers.keyFromEnvVar', {
@@ -634,31 +713,72 @@ function ApiKeySection({
           setDialogOpen(open);
           if (!open) setApiKey('');
         }}
-        title={
-          hasSecret ? t('providers.replaceApiKey') : t('providers.addApiKey')
-        }
+        title={t('providers.apiKey')}
         onSubmit={handleSaveKey}
         isSubmitting={saving}
-        isValid={apiKey.trim().length > 0}
+        isValid={dialogValid}
         submitText={t('providers.saveKey')}
         submittingText={t('providers.saving')}
       >
-        {hasSecret && (
-          <Text className="text-muted-foreground text-sm">
-            {t('providers.replaceApiKeyDescription', {
-              maskedKey: maskedKey ?? '',
-            })}
-          </Text>
-        )}
-        <Input
-          ref={apiKeyInputRef}
-          autoFocus
-          type="password"
-          label={t('providers.apiKey')}
-          placeholder={t('providers.apiKeyEnter')}
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
+        <RadioGroup
+          label={t('providers.keySourceLabel')}
+          value={keySource}
+          onValueChange={(value) => {
+            if (value === 'file' || value === 'env') setKeySource(value);
+          }}
+          options={[
+            { value: 'file', label: t('providers.keySourceFile') },
+            { value: 'env', label: t('providers.keySourceEnv') },
+          ]}
         />
+        {keySource === 'file' ? (
+          <>
+            {hasSecret && (
+              <Text className="text-muted-foreground text-sm">
+                {t('providers.replaceApiKeyDescription', {
+                  maskedKey: maskedKey ?? '',
+                })}
+              </Text>
+            )}
+            <Input
+              ref={apiKeyInputRef}
+              autoFocus
+              type="password"
+              label={t('providers.apiKey')}
+              placeholder={t('providers.apiKeyEnter')}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+            />
+          </>
+        ) : (
+          <>
+            <Input
+              autoFocus
+              label={t('providers.secretsEnv')}
+              placeholder={t('providers.secretsEnvPlaceholder')}
+              value={envName}
+              onChange={(e) => setEnvName(e.target.value)}
+              errorMessage={
+                envError ? t('providers.secretsEnvPatternError') : undefined
+              }
+            />
+            <Text variant="caption" className="text-muted-foreground -mt-2">
+              {t('providers.secretsEnvHelp')}
+            </Text>
+            {config.secretsEnv && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="self-start"
+                onClick={clearEnv}
+                disabled={saving}
+              >
+                {t('providers.clearEnvVar')}
+              </Button>
+            )}
+          </>
+        )}
       </FormDialog>
 
       <TestConnectionSheet
@@ -1528,7 +1648,7 @@ function ModelsSection({
                 errorMessage={
                   form.secretsEnv.trim() &&
                   (form.secretsEnv.trim().length > 40 ||
-                    !/^[A-Za-z_][A-Za-z0-9_]*$/.test(form.secretsEnv.trim()))
+                    !SECRETS_ENV_REGEX.test(form.secretsEnv.trim()))
                     ? t('providers.secretsEnvPatternError')
                     : undefined
                 }

@@ -53,13 +53,13 @@ Liegen deine Secrets schon in Kubernetes Secrets, Vault oder einem Cloud-Secret-
 {
   "displayName": "OpenRouter",
   "baseUrl": "https://openrouter.ai/api/v1",
-  "secretsEnv": "OPENROUTER_API_KEY",
+  "secretsEnv": "TALE_PROVIDER_KEY_OPENROUTER",
   "models": [
     {
       "id": "openai/gpt-4o",
       "displayName": "GPT-4o",
       "tags": ["chat", "vision"],
-      "secretsEnv": "OPENAI_DIRECT_KEY"
+      "secretsEnv": "TALE_PROVIDER_KEY_OPENAI_DIRECT"
     }
   ]
 }
@@ -67,7 +67,7 @@ Liegen deine Secrets schon in Kubernetes Secrets, Vault oder einem Cloud-Secret-
 
 Zwei Leitplanken gelten:
 
-- **Allowlist (Pflicht).** Der Variablenname muss in `TALE_PROVIDER_SECRET_ENV_ALLOWLIST` auftauchen (eine kommagetrennte Liste, die auf dem Deployment gesetzt wird). Eine leere oder nicht gesetzte Allowlist deaktiviert die Umgebungsvariablen-Quelle ganz, sodass eine Config, die nur eine Variable nennt, zu keinem Schlüssel auflöst. Das hindert einen Config-Schreib-Akteur daran, `secretsEnv` auf ein fremdes Deployment-Secret (z. B. `SOPS_AGE_KEY`) zu zeigen und es an eine Anbieter-URL senden zu lassen.
+- **Reserviertes Präfix (Pflicht).** Der Variablenname muss mit `TALE_PROVIDER_KEY_` beginnen (z. B. `TALE_PROVIDER_KEY_OPENROUTER`). Jeder andere Name wird abgelehnt, sodass eine Config, die eine Variable ohne Präfix nennt, zu keinem Schlüssel auflöst. Das hindert einen Config-Schreib-Akteur daran, `secretsEnv` auf ein fremdes Deployment-Secret (z. B. `SOPS_AGE_KEY`) zu zeigen und es an eine Anbieter-URL senden zu lassen. Die Präfix-Schranke ist fest verdrahtet — es gibt keinen Deployment-Schalter.
 - **Länge.** Der Name muss 40 Zeichen oder kürzer sein — die Plattform synct Umgebungsvariablen zu ihrem Convex-Backend, das Variablennamen bei 40 kappt.
 
 Auflösungs-Reihenfolge, höchste zuerst: modell-level `secretsEnv` → anbieter-level `secretsEnv` → die Secrets-Datei (`modelKeys[id]`, dann `apiKey`). Jede Stufe wird übersprungen, wenn sie nichts liefert, sodass eine konfigurierte-aber-leere Variable auf die Datei zurückfällt. Env-Werte werden getrimmt (ein nachgestellter Zeilenumbruch aus einem gemounteten Secret ist eine häufige Ursache für `401`s).

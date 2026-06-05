@@ -292,8 +292,8 @@ async function loadAllProviders(
       const reason = err instanceof Error ? err.message : String(err);
       // No usable secrets file. Before skipping, check whether the config can
       // resolve a key from the environment (issue #1711): provider-level
-      // `secretsEnv` or any model-level `secretsEnv`, gated by the operator
-      // allowlist. If so, keep the provider with `secrets: null` — the
+      // `secretsEnv` or any model-level `secretsEnv`, gated by the reserved
+      // prefix. If so, keep the provider with `secrets: null` — the
       // per-resolution `resolveApiKey` reads the env value. Otherwise skip as
       // before. ENOENT (the common "config but no key yet" case) drives the
       // UI's Settings → Providers hint.
@@ -425,7 +425,7 @@ export const readProvider = action({
     // Env-var key source status (issue #1711): which `secretsEnv` names are
     // configured and whether they currently resolve, so the API Key section can
     // distinguish "not configured" / "configured but empty" / "not
-    // allowlisted". Never includes the value itself.
+    // prefixed". Never includes the value itself.
     const envSecretStatusByLevel: {
       provider: EnvSecretStatus;
       models: Record<string, EnvSecretStatus>;
@@ -1962,7 +1962,7 @@ export const testProviderConnection = action({
           modelId: model.id,
           reason:
             model.secretsEnv || config.secretsEnv
-              ? 'No API key resolved (secretsEnv unset/empty or not allowlisted, and no file key)'
+              ? 'No API key resolved (secretsEnv unset/empty or not prefixed, and no file key)'
               : 'No API key configured',
         });
         continue;

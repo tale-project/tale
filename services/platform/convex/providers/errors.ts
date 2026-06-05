@@ -48,7 +48,7 @@ export class NoProviderAvailableError extends Error {
 
 /**
  * Thrown when a specific model cannot resolve an API key (issue #1711): no
- * env-var source (`secretsEnv` unset/empty/not allowlisted) and no file key.
+ * env-var source (`secretsEnv` unset/empty/not prefixed) and no file key.
  *
  * Unlike {@link NoProviderAvailableError}, this is PER-MODEL — a provider may be
  * loaded because a sibling model has an env key while this one has none — so it
@@ -63,8 +63,8 @@ export class MissingApiKeyError extends Error {
     super(
       secretsEnv
         ? `No API key for model "${model}" on provider "${provider}": ` +
-            `secretsEnv "${secretsEnv}" is empty, unset, or not in ` +
-            `TALE_PROVIDER_SECRET_ENV_ALLOWLIST, and no file key is configured.`
+            `secretsEnv "${secretsEnv}" is empty, unset, or does not start with ` +
+            `the reserved prefix TALE_PROVIDER_KEY_, and no file key is configured.`
         : `No API key configured for model "${model}" on provider "${provider}".`,
     );
     this.name = 'MissingApiKeyError';

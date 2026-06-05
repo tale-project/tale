@@ -242,22 +242,39 @@ export type ReasoningCapabilityConfig = z.infer<
 >;
 
 /**
+ * Reserved prefix every `secretsEnv` name must carry (issue #1711). The
+ * env-var key source is gated by this prefix rather than an operator allowlist:
+ * a Convex Node action can read ALL deployment secrets via `process.env`
+ * (`SOPS_AGE_KEY`, `BETTER_AUTH_SECRET`, …), so restricting `secretsEnv` to a
+ * dedicated namespace stops a config-write actor from naming a deployment
+ * secret and exfiltrating it via a provider `baseUrl`. Fail-closed: any name
+ * outside the prefix is rejected. Changing this is a one-line edit — the schema
+ * regex, the TS resolver (`convex/providers/secret_resolver.ts`), and the
+ * Python loader (`tale_shared/config/providers.py`) all derive from it. The
+ * 18-char prefix leaves 22 chars for the suffix under the 40-char cap.
+ */
+export const SECRETS_ENV_PREFIX = 'TALE_PROVIDER_KEY_';
+
+/** Save-time validation regex for `secretsEnv`: reserved prefix + ≥1 suffix
+ * char (letters, digits, underscores). Mirrored client-side in the provider
+ * settings UI. */
+export const SECRETS_ENV_REGEX = /^TALE_PROVIDER_KEY_[A-Za-z0-9_]+$/;
+
+/**
  * Optional name of an environment variable holding the API key (issue #1711).
  * Lives in the PUBLIC provider config (a var name is not a secret). The
- * resolution path prefers this over the file `apiKey`. The 40-char cap matches
- * the platform→Convex env-name sync limit in `docker-entrypoint.sh` — a longer
- * name would resolve in the Python services but silently never reach the Node
- * action chat path. Reads are additionally gated by the
- * `TALE_PROVIDER_SECRET_ENV_ALLOWLIST` deployment allowlist (see
- * `convex/providers/secret_resolver.ts`).
+ * resolution path prefers this over the file `apiKey`. The name must start with
+ * `SECRETS_ENV_PREFIX` (see above). The 40-char cap matches the platform→Convex
+ * env-name sync limit in `docker-entrypoint.sh` — a longer name would resolve
+ * in the Python services but silently never reach the Node action chat path.
  */
 const secretsEnvSchema = z
   .string()
+  .max(40)
   .regex(
-    /^[A-Za-z_][A-Za-z0-9_]*$/,
-    'must be a valid environment variable name',
-  )
-  .max(40);
+    SECRETS_ENV_REGEX,
+    'must start with TALE_PROVIDER_KEY_ and contain only letters, digits, and underscores',
+  );
 
 const modelDefinitionSchema = z.object({
   id: z.string().min(1).max(200),
@@ -488,15 +505,15 @@ export type ProviderSecrets = z.infer<typeof providerSecretsSchema>;
 
 /**
  * Resolution status of a `secretsEnv` name for the settings UI (issue #1711).
- * Carries no key material — only whether the name is configured, allowlisted,
- * and currently resolves. Single canonical shape shared by the server
- * (`readProvider` / `secret_resolver.ts`) and the provider settings UI.
+ * Carries no key material — only whether the name is configured, valid (matches
+ * the reserved prefix), and currently resolves. Single canonical shape shared by
+ * the server (`readProvider` / `secret_resolver.ts`) and the provider settings UI.
  */
 export interface EnvSecretStatus {
   /** The configured env-var name, if any. */
   name?: string;
-  /** Whether `name` appears in `TALE_PROVIDER_SECRET_ENV_ALLOWLIST`. */
-  allowlisted: boolean;
+  /** Whether `name` starts with the reserved `SECRETS_ENV_PREFIX`. */
+  allowed: boolean;
   /** Whether the env var currently resolves to a non-empty value. */
   resolved: boolean;
 }

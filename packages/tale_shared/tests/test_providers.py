@@ -7,7 +7,12 @@ from unittest.mock import patch
 
 from tale_shared.config.providers import get_chat_model, load_providers
 
-ALLOWLIST = "TALE_PROVIDER_SECRET_ENV_ALLOWLIST"
+# Reserved prefix every env-var key source must carry (mirrors the platform).
+PROVIDER_ENV = "TALE_PROVIDER_KEY_OPENROUTER"
+MODEL_ENV = "TALE_PROVIDER_KEY_MODEL"
+PROVIDER_ENV2 = "TALE_PROVIDER_KEY_PROVIDER"
+# A name outside the reserved prefix — must never resolve.
+NON_PREFIXED = "OPENROUTER_API_KEY"
 ORG = "default"
 
 
@@ -41,11 +46,11 @@ def _write_provider(
 
 
 def test_env_only_provider_resolves(tmp_path: Path) -> None:
-    """No secrets file: an allowlisted provider-level env var supplies the key."""
-    _write_provider(tmp_path, provider_secrets_env="OPENROUTER_API_KEY")
+    """No secrets file: a prefixed provider-level env var supplies the key."""
+    _write_provider(tmp_path, provider_secrets_env=PROVIDER_ENV)
     with patch.dict(
         os.environ,
-        {ALLOWLIST: "OPENROUTER_API_KEY", "OPENROUTER_API_KEY": "sk-env"},
+        {PROVIDER_ENV: "sk-env"},
         clear=True,
     ):
         base_url, api_key, model_id = get_chat_model(ORG, config_dir=str(tmp_path))
@@ -54,12 +59,12 @@ def test_env_only_provider_resolves(tmp_path: Path) -> None:
     assert base_url == "https://openrouter.example/v1"
 
 
-def test_allowlist_locked_falls_back_to_file(tmp_path: Path) -> None:
-    """An env var that is set but NOT allowlisted must not be used."""
-    _write_provider(tmp_path, provider_secrets_env="OPENROUTER_API_KEY", file_api_key="sk-file")
+def test_non_prefixed_falls_back_to_file(tmp_path: Path) -> None:
+    """An env var that is set but NOT prefixed must not be used."""
+    _write_provider(tmp_path, provider_secrets_env=NON_PREFIXED, file_api_key="sk-file")
     with patch.dict(
         os.environ,
-        {ALLOWLIST: "", "OPENROUTER_API_KEY": "sk-env"},
+        {NON_PREFIXED: "sk-env"},
         clear=True,
     ):
         _, api_key, _ = get_chat_model(ORG, config_dir=str(tmp_path))
@@ -67,10 +72,10 @@ def test_allowlist_locked_falls_back_to_file(tmp_path: Path) -> None:
 
 
 def test_env_overrides_file(tmp_path: Path) -> None:
-    _write_provider(tmp_path, provider_secrets_env="OPENROUTER_API_KEY", file_api_key="sk-file")
+    _write_provider(tmp_path, provider_secrets_env=PROVIDER_ENV, file_api_key="sk-file")
     with patch.dict(
         os.environ,
-        {ALLOWLIST: "OPENROUTER_API_KEY", "OPENROUTER_API_KEY": "sk-env"},
+        {PROVIDER_ENV: "sk-env"},
         clear=True,
     ):
         _, api_key, _ = get_chat_model(ORG, config_dir=str(tmp_path))
@@ -78,11 +83,11 @@ def test_env_overrides_file(tmp_path: Path) -> None:
 
 
 def test_empty_env_falls_back_to_file(tmp_path: Path) -> None:
-    """Allowlisted name but the env var is empty/unset → use the file key."""
-    _write_provider(tmp_path, provider_secrets_env="OPENROUTER_API_KEY", file_api_key="sk-file")
+    """Prefixed name but the env var is empty/unset → use the file key."""
+    _write_provider(tmp_path, provider_secrets_env=PROVIDER_ENV, file_api_key="sk-file")
     with patch.dict(
         os.environ,
-        {ALLOWLIST: "OPENROUTER_API_KEY", "OPENROUTER_API_KEY": "   "},
+        {PROVIDER_ENV: "   "},
         clear=True,
     ):
         _, api_key, _ = get_chat_model(ORG, config_dir=str(tmp_path))
@@ -90,10 +95,10 @@ def test_empty_env_falls_back_to_file(tmp_path: Path) -> None:
 
 
 def test_env_value_is_trimmed(tmp_path: Path) -> None:
-    _write_provider(tmp_path, provider_secrets_env="OPENROUTER_API_KEY")
+    _write_provider(tmp_path, provider_secrets_env=PROVIDER_ENV)
     with patch.dict(
         os.environ,
-        {ALLOWLIST: "OPENROUTER_API_KEY", "OPENROUTER_API_KEY": "sk-env\n"},
+        {PROVIDER_ENV: "sk-env\n"},
         clear=True,
     ):
         _, api_key, _ = get_chat_model(ORG, config_dir=str(tmp_path))
@@ -103,15 +108,14 @@ def test_env_value_is_trimmed(tmp_path: Path) -> None:
 def test_model_env_beats_provider_env(tmp_path: Path) -> None:
     _write_provider(
         tmp_path,
-        provider_secrets_env="PROVIDER_KEY",
-        model_secrets_env="MODEL_KEY",
+        provider_secrets_env=PROVIDER_ENV2,
+        model_secrets_env=MODEL_ENV,
     )
     with patch.dict(
         os.environ,
         {
-            ALLOWLIST: "MODEL_KEY,PROVIDER_KEY",
-            "MODEL_KEY": "sk-model",
-            "PROVIDER_KEY": "sk-provider",
+            MODEL_ENV: "sk-model",
+            PROVIDER_ENV2: "sk-provider",
         },
         clear=True,
     ):
@@ -130,11 +134,11 @@ def test_no_key_returns_empty_string(tmp_path: Path) -> None:
 def test_secrets_env_parsed_onto_dataclasses(tmp_path: Path) -> None:
     _write_provider(
         tmp_path,
-        provider_secrets_env="PROVIDER_KEY",
-        model_secrets_env="MODEL_KEY",
+        provider_secrets_env=PROVIDER_ENV2,
+        model_secrets_env=MODEL_ENV,
     )
     with patch.dict(os.environ, {}, clear=True):
         providers = load_providers(ORG, config_dir=str(tmp_path))
     assert len(providers) == 1
-    assert providers[0].secrets_env == "PROVIDER_KEY"
-    assert providers[0].models[0].secrets_env == "MODEL_KEY"
+    assert providers[0].secrets_env == PROVIDER_ENV2
+    assert providers[0].models[0].secrets_env == MODEL_ENV

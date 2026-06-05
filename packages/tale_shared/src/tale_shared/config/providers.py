@@ -44,30 +44,28 @@ class ProviderConfig:
     secrets_env: str | None = None
 
 
-# Deployment allowlist (empty = locked) gating which env-var names may source a
-# provider API key. Mirrors the platform's `TALE_PROVIDER_SECRET_ENV_ALLOWLIST`
-# so the platform and the Python services resolve the same effective key. See
-# `services/platform/convex/providers/secret_resolver.ts`.
-_ALLOWLIST_ENV = "TALE_PROVIDER_SECRET_ENV_ALLOWLIST"
+# Reserved prefix every env-var name sourcing a provider API key must carry
+# (issue #1711). Fail-closed: any name outside the prefix is rejected. Mirrors
+# `SECRETS_ENV_PREFIX` in
+# `services/platform/lib/shared/schemas/providers.ts` and the runtime gate in
+# `services/platform/convex/providers/secret_resolver.ts` — keep all three in sync.
+_SECRETS_ENV_PREFIX = "TALE_PROVIDER_KEY_"
 
 
 def _env_secret(name: str | None) -> str | None:
-    """Resolve an env-var name to its trimmed value, honoring the allowlist.
+    """Resolve an env-var name to its trimmed value, honoring the reserved prefix.
 
-    Returns None when the name is missing, not allowlisted, or the env var is
+    Returns None when the name is missing, not prefixed, or the env var is
     empty/whitespace. Trailing-newline normalization (a common Vault/k8s
     injection footgun) is applied to env values here.
     """
     if not name:
         return None
-    raw = os.environ.get(_ALLOWLIST_ENV, "")
-    allowlist = {n.strip() for n in raw.split(",") if n.strip()}
-    if name not in allowlist:
+    if not name.startswith(_SECRETS_ENV_PREFIX):
         logger.warning(
-            "secretsEnv %r is not in %s (empty allowlist disables the env key "
-            "source) — falling back to the secrets file",
+            "secretsEnv %r does not start with the reserved prefix %s — falling back to the secrets file",
             name,
-            _ALLOWLIST_ENV,
+            _SECRETS_ENV_PREFIX,
         )
         return None
     value = os.environ.get(name, "").strip()

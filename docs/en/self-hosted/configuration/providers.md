@@ -53,13 +53,13 @@ If your secrets already live in Kubernetes Secrets, Vault, or a cloud secret man
 {
   "displayName": "OpenRouter",
   "baseUrl": "https://openrouter.ai/api/v1",
-  "secretsEnv": "OPENROUTER_API_KEY",
+  "secretsEnv": "TALE_PROVIDER_KEY_OPENROUTER",
   "models": [
     {
       "id": "openai/gpt-4o",
       "displayName": "GPT-4o",
       "tags": ["chat", "vision"],
-      "secretsEnv": "OPENAI_DIRECT_KEY"
+      "secretsEnv": "TALE_PROVIDER_KEY_OPENAI_DIRECT"
     }
   ]
 }
@@ -67,7 +67,7 @@ If your secrets already live in Kubernetes Secrets, Vault, or a cloud secret man
 
 Two guardrails apply:
 
-- **Allowlist (required).** The variable name must appear in `TALE_PROVIDER_SECRET_ENV_ALLOWLIST` (a comma-separated list set on the deployment). An empty or unset allowlist disables the env-var source entirely, so a config that only names a variable resolves to no key. This stops a config-write actor from pointing `secretsEnv` at an unrelated deployment secret (e.g. `SOPS_AGE_KEY`) and having it sent to a provider URL.
+- **Reserved prefix (required).** The variable name must start with `TALE_PROVIDER_KEY_` (e.g. `TALE_PROVIDER_KEY_OPENROUTER`). Any other name is rejected, so a config that names a non-prefixed variable resolves to no key. This stops a config-write actor from pointing `secretsEnv` at an unrelated deployment secret (e.g. `SOPS_AGE_KEY`) and having it sent to a provider URL. The prefix gate is hardcoded — there is no deployment switch to set.
 - **Length.** The name must be 40 characters or fewer — the platform syncs env vars to its Convex backend, which caps variable names at 40.
 
 Resolution order, highest first: model-level `secretsEnv` → provider-level `secretsEnv` → the secrets file (`modelKeys[id]` then `apiKey`). Each tier is skipped when it yields nothing, so a configured-but-empty variable falls back to the file. Env values are trimmed (a trailing newline from a mounted secret is a common cause of `401`s).
