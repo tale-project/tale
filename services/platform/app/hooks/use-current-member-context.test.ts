@@ -15,6 +15,12 @@ vi.mock('@tanstack/react-query', () => ({
   })),
 }));
 
+// useConvexQuery now reads WS auth via useConvexAuth (convex/react) for its
+// default auth gate; stub it so the hook runs without a ConvexProvider.
+vi.mock('convex/react', () => ({
+  useConvexAuth: () => ({ isAuthenticated: true, isLoading: false }),
+}));
+
 vi.mock('@/convex/_generated/api', () => ({
   api: {
     members: {

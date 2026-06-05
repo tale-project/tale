@@ -23,13 +23,13 @@ import {
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../lib/rate_limiter/helpers';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { emitEvent } from '../workflows/triggers/emit_event';
 import { ADMIN_ROLES, checkProjectAccess, isOrgWideProject } from './access';
 import { PROJECT_AUDIT_ACTIONS, PROJECT_RESOURCE_TYPE } from './audit_actions';
@@ -66,14 +66,10 @@ async function getAuthContext(
   ctx: MutationCtx,
   organizationId: string,
 ): Promise<AuthContext> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
-  const member = await getOrganizationMember(ctx, organizationId, {
-    userId: String(authUser._id),
-    email: authUser.email,
-    name: authUser.name,
-  });
+  const member = await getOrganizationMember(ctx, organizationId, authUser);
   const teamIds = await getUserTeamIds(ctx, member.userId);
   return {
     userId: member.userId,
@@ -995,9 +991,9 @@ export const moveThreadToProject = mutation({
       .first();
     if (!thread) throw new ConvexError({ code: 'THREAD_NOT_FOUND' });
 
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
-    if (thread.userId !== String(authUser._id)) {
+    if (thread.userId !== authUser.userId) {
       throw new ConvexError({ code: 'THREAD_FORBIDDEN' });
     }
 
@@ -1089,9 +1085,9 @@ export const setThreadSharedWithProject = mutation({
     if (!thread.projectId)
       throw new ConvexError({ code: 'THREAD_NOT_IN_PROJECT' });
 
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
-    if (thread.userId !== String(authUser._id)) {
+    if (thread.userId !== authUser.userId) {
       throw new ConvexError({ code: 'THREAD_FORBIDDEN' });
     }
 

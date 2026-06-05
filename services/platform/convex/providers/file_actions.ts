@@ -15,7 +15,10 @@ import path from 'node:path';
 
 import { ConvexError, v } from 'convex/values';
 
-import type { ProviderSecrets } from '../../lib/shared/schemas/providers';
+import type {
+  EnvSecretStatus,
+  ProviderSecrets,
+} from '../../lib/shared/schemas/providers';
 import { providerJsonSchema } from '../../lib/shared/schemas/providers';
 import { parseModelRef } from '../../lib/shared/utils/model-ref';
 import { internal } from '../_generated/api';
@@ -48,7 +51,7 @@ import {
   requireOrgMembership,
   requireOrgMembershipById,
 } from './auth';
-import { NoProviderAvailableError } from './errors';
+import { MissingApiKeyError, NoProviderAvailableError } from './errors';
 import type { ProviderJson, ProviderReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -65,6 +68,12 @@ import {
   UndecryptableExistingSecretError,
   prepareMergedSecrets,
 } from './secret_io';
+import {
+  envSecret,
+  envSecretStatus,
+  providerHasEnvKey,
+  resolveApiKey,
+} from './secret_resolver';
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -215,7 +224,12 @@ async function readProviderFile(
 interface ProviderWithSecrets {
   name: string;
   config: ProviderJson;
-  secrets: ProviderSecrets;
+  /**
+   * File secrets, or `null` when the provider has no `*.secrets.json` and
+   * relies entirely on an env-var key source (`secretsEnv`). The per-resolution
+   * key is computed via `resolveApiKey`, which falls back to these file values.
+   */
+  secrets: ProviderSecrets | null;
 }
 
 const FRIENDLY_NO_PROVIDER =
@@ -270,15 +284,31 @@ async function loadAllProviders(
     }
 
     const secretsPath = path.join(dir, `${providerName}.secrets.json`);
-    let secrets: ProviderSecrets;
+    let secrets: ProviderSecrets | null;
     try {
       const raw = await decryptSecretsFile(secretsPath);
       secrets = parseProviderSecrets(raw);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      // ENOENT on the secrets file means the operator has a provider
-      // config but no API key yet — the common "I just created an org"
-      // case. Classify so the UI can point at Settings → Providers.
+      // No usable secrets file. Before skipping, check whether the config can
+      // resolve a key from the environment (issue #1711): provider-level
+      // `secretsEnv` or any model-level `secretsEnv`, gated by the reserved
+      // prefix. If so, keep the provider with `secrets: null` — the
+      // per-resolution `resolveApiKey` reads the env value. Otherwise skip as
+      // before. ENOENT (the common "config but no key yet" case) drives the
+      // UI's Settings → Providers hint.
+      if (providerHasEnvKey(result.data)) {
+        console.warn(
+          `Provider "${providerName}": no secrets file, using env key source.`,
+          reason,
+        );
+        providers.push({
+          name: providerName,
+          config: result.data,
+          secrets: null,
+        });
+        continue;
+      }
       if (/ENOENT/i.test(reason)) {
         anyMissingSecret = true;
       }
@@ -304,6 +334,162 @@ async function loadAllProviders(
   return providers;
 }
 
+/**
+ * Resolve the effective API key for a model on a loaded provider, preferring
+ * the env-var source (`secretsEnv`) over file secrets (issue #1711). Throws a
+ * per-model `MissingApiKeyError` when nothing resolves — reachable when a
+ * provider is kept alive by a sibling model's env key but the queried model has
+ * neither an env nor a file key. The throw is failover-eligible (see
+ * `errors.ts`), so the agent fallback chain moves on to the next model.
+ */
+function resolveModelApiKeyOrNull(
+  provider: ProviderWithSecrets,
+  definition: { id: string; secretsEnv?: string },
+): string | null {
+  return resolveApiKey({
+    modelSecretsEnv: definition.secretsEnv,
+    providerSecretsEnv: provider.config.secretsEnv,
+    fileModelKey: provider.secrets?.modelKeys?.[definition.id],
+    fileApiKey: provider.secrets?.apiKey,
+  });
+}
+
+function resolveModelApiKey(
+  provider: ProviderWithSecrets,
+  definition: { id: string; secretsEnv?: string },
+): string {
+  const apiKey = resolveModelApiKeyOrNull(provider, definition);
+  if (!apiKey) {
+    throw new MissingApiKeyError(
+      provider.name,
+      definition.id,
+      definition.secretsEnv ?? provider.config.secretsEnv,
+    );
+  }
+  return apiKey;
+}
+
+/**
+ * Assemble the `resolveModelByTag` result object for a (provider, model) pair
+ * whose API key has already been resolved. Shared by the per-tag-default pass
+ * and the first-tag-match pass so the (large) shape lives in one place.
+ */
+function buildResolvedTagModel(
+  provider: ProviderWithSecrets,
+  definition: ProviderJson['models'][number],
+  apiKey: string,
+) {
+  return {
+    providerName: provider.name,
+    baseUrl: definition.baseUrl ?? provider.config.baseUrl,
+    apiKey,
+    modelId: definition.id,
+    tags: [...definition.tags],
+    dimensions: definition.dimensions,
+    maxOutputTokens: definition.maxOutputTokens,
+    supportsStructuredOutputs:
+      definition.supportsStructuredOutputs ??
+      provider.config.supportsStructuredOutputs ??
+      false,
+    imageGenerationMode: definition.imageGenerationMode,
+    inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
+    outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
+    imageCentsPerImage: definition.cost?.imageCentsPerImage,
+    centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+    centsPerMillionCharacters: definition.cost?.centsPerMillionCharacters,
+    defaultVoice: definition.defaultVoice,
+    voicesByLocale: definition.voicesByLocale,
+    defaultInstructions: definition.defaultInstructions,
+    instructionsByLocale: definition.instructionsByLocale,
+    audioFormat: definition.audioFormat,
+    providerOptions: mergeModelLevel(
+      provider.config.providerOptions,
+      definition.providerOptions,
+    ),
+    reasoning: definition.reasoning,
+  };
+}
+
+/**
+ * Two-pass tag → model resolution over already-loaded candidate providers.
+ * Pass 1 honors an explicit per-tag default; pass 2 takes the first tagged
+ * model. Both SKIP a model whose API key does not resolve so a keyless match
+ * never masks a usable sibling — a provider may be kept loaded by one model's
+ * env key (`providerHasEnvKey` is provider-OR-any-model) while another tagged
+ * model has none. Throws the per-model, failover-eligible `MissingApiKeyError`
+ * when a tag match existed but none resolved a key (transcription/TTS resolve
+ * via this path with no failover wrapper, so a premature throw on the first
+ * keyless hit would be terminal); throws `UNKNOWN_MODEL` when no model carries
+ * the tag at all. Pure (no IO) so the resolution policy is unit-testable.
+ */
+export function selectModelByTag(
+  candidates: ProviderWithSecrets[],
+  tag: string,
+  providerName: string | undefined,
+): ReturnType<typeof buildResolvedTagModel> {
+  // A tag match whose API key did not resolve — kept so that, if NO candidate
+  // resolves a key, we throw the failover-eligible MissingApiKeyError instead
+  // of terminating on the first keyless hit.
+  let lastKeyless: {
+    provider: ProviderWithSecrets;
+    definition: ProviderJson['models'][number];
+  } | null = null;
+
+  // First pass: explicit per-tag default. Skip a keyless default so the
+  // first-tag-match pass can still surface a usable sibling.
+  for (const provider of candidates) {
+    const defaults = provider.config.defaults;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- defaults keys are 'chat' | 'vision' | 'embedding'; tag may not match but undefined access is handled below
+    const tagKey = tag as keyof NonNullable<typeof defaults>;
+    const defaultModelId = defaults?.[tagKey];
+    if (!defaultModelId) continue;
+    const definition = provider.config.models.find(
+      (m) => m.id === defaultModelId,
+    );
+    if (!definition) continue;
+    const apiKey = resolveModelApiKeyOrNull(provider, definition);
+    if (!apiKey) {
+      lastKeyless = { provider, definition };
+      continue;
+    }
+    return buildResolvedTagModel(provider, definition, apiKey);
+  }
+
+  // Fallback: every model with a matching tag, across all candidates. Return
+  // the first one that resolves a key — a keyless first match must not mask a
+  // usable sibling, including one on the same provider.
+  for (const provider of candidates) {
+    for (const definition of provider.config.models) {
+      if (!(definition.tags as readonly string[]).includes(tag)) {
+        continue;
+      }
+      const apiKey = resolveModelApiKeyOrNull(provider, definition);
+      if (!apiKey) {
+        lastKeyless = { provider, definition };
+        continue;
+      }
+      return buildResolvedTagModel(provider, definition, apiKey);
+    }
+  }
+
+  // A tag match existed but none resolved a key: throw the per-model,
+  // failover-eligible MissingApiKeyError (a different fallback model on
+  // another provider may resolve) rather than the terminal UNKNOWN_MODEL.
+  if (lastKeyless) {
+    throw new MissingApiKeyError(
+      lastKeyless.provider.name,
+      lastKeyless.definition.id,
+      lastKeyless.definition.secretsEnv ??
+        lastKeyless.provider.config.secretsEnv,
+    );
+  }
+
+  throw new ConvexError({
+    code: 'UNKNOWN_MODEL',
+    message: `No model with tag "${tag}" found${providerName ? ` in provider "${providerName}"` : ' in any provider'}.`,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Public CRUD actions (called from frontend)
 // ---------------------------------------------------------------------------
@@ -315,7 +501,13 @@ export const readProvider = action({
     ctx,
     args,
   ): Promise<
-    ProviderReadResult & { maskedModelKeys?: Record<string, string> }
+    ProviderReadResult & {
+      maskedModelKeys?: Record<string, string>;
+      envSecretStatus?: {
+        provider: EnvSecretStatus;
+        models: Record<string, EnvSecretStatus>;
+      };
+    }
   > => {
     // Returns the masked-key preview, so gate on developerSettings to match
     // the dashboard route that's the only legit consumer.
@@ -358,7 +550,30 @@ export const readProvider = action({
       }
     }
 
-    return { ...result, maskedModelKeys };
+    // Env-var key source status (issue #1711): which `secretsEnv` names are
+    // configured and whether they currently resolve, so the API Key section can
+    // distinguish "not configured" / "configured but empty" / "not
+    // prefixed". Never includes the value itself.
+    const envSecretStatusByLevel: {
+      provider: EnvSecretStatus;
+      models: Record<string, EnvSecretStatus>;
+    } = {
+      provider: envSecretStatus(result.config.secretsEnv),
+      models: {},
+    };
+    for (const model of result.config.models) {
+      if (model.secretsEnv) {
+        envSecretStatusByLevel.models[model.id] = envSecretStatus(
+          model.secretsEnv,
+        );
+      }
+    }
+
+    return {
+      ...result,
+      maskedModelKeys,
+      envSecretStatus: envSecretStatusByLevel,
+    };
   },
 });
 
@@ -417,6 +632,15 @@ export const listProviders = action({
             }
           }
 
+          // Fold in the env-var key source (issue #1711). Provider-level
+          // `hasApiKey` must use ONLY the provider-level env — NOT a
+          // model-OR'd signal — so a sibling model's env key never falsely
+          // un-blocks the composer for a keyless model. Per-model env folds
+          // into `hasApiKeyOverride`, exactly mirroring file `modelKeys`.
+          if (!hasApiKey && envSecret(result.config.secretsEnv) != null) {
+            hasApiKey = true;
+          }
+
           return {
             name,
             displayName: result.config.displayName,
@@ -434,7 +658,8 @@ export const listProviders = action({
               description: m.description ?? '',
               tags: m.tags,
               hasBaseUrlOverride: m.baseUrl != null,
-              hasApiKeyOverride: modelKeys?.[m.id] != null,
+              hasApiKeyOverride:
+                modelKeys?.[m.id] != null || envSecret(m.secretsEnv) != null,
               // Surface quantization variants so the UI selectors can split
               // each model into one selectable entry per declared weight
               // format. Read from merged provider+model providerOptions to
@@ -725,9 +950,7 @@ export const resolveModelData = internalAction({
       return {
         providerName: provider.name,
         baseUrl: definition.baseUrl ?? provider.config.baseUrl,
-        apiKey:
-          provider.secrets.modelKeys?.[definition.id] ??
-          provider.secrets.apiKey,
+        apiKey: resolveModelApiKey(provider, definition),
         // The wire-side request uses the bare config id; the variant lives
         // only in providerOptions.provider.quantizations.
         modelId: bareModelId,
@@ -834,97 +1057,7 @@ export const resolveModelByTag = internalAction({
       });
     }
 
-    // First pass: check for explicit per-tag default
-    for (const provider of candidates) {
-      const defaults = provider.config.defaults;
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- defaults keys are 'chat' | 'vision' | 'embedding'; tag may not match but undefined access is handled below
-      const tagKey = args.tag as keyof NonNullable<typeof defaults>;
-      const defaultModelId = defaults?.[tagKey];
-      if (defaultModelId) {
-        const definition = provider.config.models.find(
-          (m) => m.id === defaultModelId,
-        );
-        if (definition) {
-          return {
-            providerName: provider.name,
-            baseUrl: definition.baseUrl ?? provider.config.baseUrl,
-            apiKey:
-              provider.secrets.modelKeys?.[definition.id] ??
-              provider.secrets.apiKey,
-            modelId: definition.id,
-            tags: [...definition.tags],
-            dimensions: definition.dimensions,
-            maxOutputTokens: definition.maxOutputTokens,
-            supportsStructuredOutputs:
-              definition.supportsStructuredOutputs ??
-              provider.config.supportsStructuredOutputs ??
-              false,
-            imageGenerationMode: definition.imageGenerationMode,
-            inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
-            outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
-            imageCentsPerImage: definition.cost?.imageCentsPerImage,
-            centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
-            centsPerMillionCharacters:
-              definition.cost?.centsPerMillionCharacters,
-            defaultVoice: definition.defaultVoice,
-            voicesByLocale: definition.voicesByLocale,
-            defaultInstructions: definition.defaultInstructions,
-            instructionsByLocale: definition.instructionsByLocale,
-            audioFormat: definition.audioFormat,
-            providerOptions: mergeModelLevel(
-              provider.config.providerOptions,
-              definition.providerOptions,
-            ),
-            reasoning: definition.reasoning,
-          };
-        }
-      }
-    }
-
-    // Fallback: first model with matching tag
-    for (const provider of candidates) {
-      const definition = provider.config.models.find((m) =>
-        (m.tags as readonly string[]).includes(args.tag),
-      );
-      if (definition) {
-        return {
-          providerName: provider.name,
-          baseUrl: definition.baseUrl ?? provider.config.baseUrl,
-          apiKey:
-            provider.secrets.modelKeys?.[definition.id] ??
-            provider.secrets.apiKey,
-          modelId: definition.id,
-          tags: [...definition.tags],
-          dimensions: definition.dimensions,
-          maxOutputTokens: definition.maxOutputTokens,
-          supportsStructuredOutputs:
-            definition.supportsStructuredOutputs ??
-            provider.config.supportsStructuredOutputs ??
-            false,
-          imageGenerationMode: definition.imageGenerationMode,
-          inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
-          outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
-          imageCentsPerImage: definition.cost?.imageCentsPerImage,
-          centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
-          centsPerMillionCharacters: definition.cost?.centsPerMillionCharacters,
-          defaultVoice: definition.defaultVoice,
-          voicesByLocale: definition.voicesByLocale,
-          defaultInstructions: definition.defaultInstructions,
-          instructionsByLocale: definition.instructionsByLocale,
-          audioFormat: definition.audioFormat,
-          providerOptions: mergeModelLevel(
-            provider.config.providerOptions,
-            definition.providerOptions,
-          ),
-          reasoning: definition.reasoning,
-        };
-      }
-    }
-
-    throw new ConvexError({
-      code: 'UNKNOWN_MODEL',
-      message: `No model with tag "${args.tag}" found${args.providerName ? ` in provider "${args.providerName}"` : ' in any provider'}.`,
-    });
+    return selectModelByTag(candidates, args.tag, args.providerName);
   },
 });
 
@@ -1278,26 +1411,40 @@ export const fetchConfiguredProviderModels = action({
     const config = configResult.config;
 
     const secretsPath = resolveProviderSecretsPath(orgSlug, args.providerName);
-    let apiKey: string | undefined;
+    let fileApiKey: string | undefined;
     try {
       const secrets = parseProviderSecrets(
         await decryptSecretsFile(secretsPath),
       );
-      apiKey = secrets.apiKey;
+      fileApiKey = secrets.apiKey;
     } catch (err) {
-      // Decryption can fail if INSTANCE_SECRET rotated or the file got
-      // corrupted; parsing can fail if the JSON shape changed. Surface
-      // both as the user-facing PROVIDER_FETCH_FAILED rather than
-      // leaking the raw error class to the dashboard.
-      throw new ConvexError({
-        code: 'PROVIDER_FETCH_FAILED',
-        message: `Failed to read provider secrets: ${sanitizeError(err)}`,
-      });
+      // A missing secrets file is fine when the provider uses an env-var key
+      // source (issue #1711) — fall through to `resolveApiKey` below. But a
+      // genuine decrypt/parse failure (rotated INSTANCE_SECRET, corrupt JSON)
+      // must still surface so the operator sees the real cause instead of a
+      // generic "no key" message; surface it as PROVIDER_FETCH_FAILED rather
+      // than leaking the raw error class.
+      if (!isErrnoCode(err, 'ENOENT')) {
+        throw new ConvexError({
+          code: 'PROVIDER_FETCH_FAILED',
+          message: `Failed to read provider secrets: ${sanitizeError(err)}`,
+        });
+      }
     }
+    // Model listing queries one provider-wide /models endpoint with a single
+    // bearer, so it has no per-model concept — resolve at provider level only
+    // (provider `secretsEnv`, then file `apiKey`). A provider configured with
+    // ONLY model-level `secretsEnv` is intentionally not listable here; its
+    // models are still usable in chat and can be added manually.
+    const apiKey = resolveApiKey({
+      providerSecretsEnv: config.secretsEnv,
+      fileApiKey,
+    });
     if (!apiKey) {
       throw new ConvexError({
         code: 'PROVIDER_FETCH_FAILED',
-        message: 'Provider has no API key configured',
+        message:
+          'No provider-level API key configured (file apiKey or provider secretsEnv). Model listing requires one.',
       });
     }
 
@@ -1822,14 +1969,46 @@ export const testProviderConnection = action({
     checkProviderHostPolicy(config.baseUrl);
 
     const secretsPath = resolveProviderSecretsPath(orgSlug, args.providerName);
-    const secrets = parseProviderSecrets(await decryptSecretsFile(secretsPath));
+    let secrets: ProviderSecrets | null = null;
+    try {
+      secrets = parseProviderSecrets(await decryptSecretsFile(secretsPath));
+    } catch (err) {
+      // Env-only providers (issue #1711) have no secrets file — fall through to
+      // the env key source per model. A genuine decrypt/parse failure (rotated
+      // INSTANCE_SECRET, corrupt file) is logged rather than silently swallowed.
+      if (!isErrnoCode(err, 'ENOENT')) {
+        console.warn(
+          `[testProviderConnection] Provider "${args.providerName}": secrets read failed`,
+          sanitizeError(err),
+        );
+      }
+    }
 
     const probes: Promise<ProbeResult>[] = [];
     const skipped: { modelId: string; reason: string }[] = [];
     const listingCache = new Map<string, Promise<ListingResult>>();
 
     for (const model of config.models) {
-      const apiKey = secrets.modelKeys?.[model.id] ?? secrets.apiKey;
+      // Resolve the per-model key (env source preferred). On nothing resolved,
+      // skip this model with a clear reason BEFORE any probe dispatch — keeps
+      // empty keys out of the probe helpers and the apiKey-keyed listingCache,
+      // and never throws the whole action for a partially-configured provider.
+      const apiKey = resolveApiKey({
+        modelSecretsEnv: model.secretsEnv,
+        providerSecretsEnv: config.secretsEnv,
+        fileModelKey: secrets?.modelKeys?.[model.id],
+        fileApiKey: secrets?.apiKey,
+      });
+      if (!apiKey) {
+        skipped.push({
+          modelId: model.id,
+          reason:
+            model.secretsEnv || config.secretsEnv
+              ? 'No API key resolved (secretsEnv unset/empty or not prefixed, and no file key)'
+              : 'No API key configured',
+        });
+        continue;
+      }
       const isChat =
         model.tags.includes('chat') || model.tags.includes('vision');
       const isEmbedding = model.tags.includes('embedding');

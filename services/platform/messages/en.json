@@ -13,7 +13,8 @@
     "workspaceNotFound": "The workspace you're looking for doesn't exist or may have been removed.",
     "disabled": "Your account has been disabled. Contact support for assistance.",
     "noMembership": "You are not a member of this workspace. Please contact an administrator for access.",
-    "unauthenticated": "Your session expired. Sign in again to continue."
+    "unauthenticated": "Your session expired. Sign in again to continue.",
+    "deployment": "You need Admin permissions to access deployment settings."
   },
   "analytics": {
     "usage": {
@@ -3661,7 +3662,8 @@
     },
     "aria": {
       "primaryNavigation": "Primary navigation"
-    }
+    },
+    "dataResidency": "Data residency"
   },
   "notifications": {
     "title": "Notifications",
@@ -5176,6 +5178,32 @@
       "displayNamePlaceholder": "e.g., OpenAI",
       "descriptionPlaceholder": "e.g., OpenAI GPT models",
       "baseUrlPlaceholder": "e.g., https://api.openai.com/v1",
+      "secretsEnv": "API key environment variable",
+      "secretsEnvPlaceholder": "e.g., TALE_PROVIDER_KEY_OPENROUTER",
+      "secretsEnvHelp": "Read the API key from this environment variable instead of the secrets file. The name must start with TALE_PROVIDER_KEY_. Changing the value requires restarting the platform.",
+      "secretsEnvPatternError": "Must start with TALE_PROVIDER_KEY_ followed by letters, digits, or underscores (40 characters max).",
+      "modelSecretsEnv": "API key environment variable (override)",
+      "modelSecretsEnvPlaceholder": "Leave empty to use the provider's variable",
+      "modelSecretsEnvHelp": "Override the provider's API key environment variable for this model only. The name must start with TALE_PROVIDER_KEY_.",
+      "keyFromEnvVar": "Key sourced from environment variable {name}",
+      "effectiveSourceEnvTitle": "Using environment variable",
+      "effectiveSourceEnv": "This provider reads its API key from {name}.",
+      "effectiveSourceEnvUnresolvedTitle": "Environment variable not resolving",
+      "effectiveSourceFallbackToFile": "{name} is configured but unset at runtime — falling back to the stored key below.",
+      "effectiveSourceEnvUnresolvedNoFile": "{name} is configured but unset at runtime, and no stored key exists. This provider has no usable API key.",
+      "effectiveSourceEnvNotPrefixed": "{name} does not start with the required prefix {prefix} and is ignored.",
+      "effectiveSourceStored": "This provider uses the stored API key.",
+      "effectiveSourceNone": "No API key configured for this provider.",
+      "storedKeyLabel": "Stored API key",
+      "storedKeyFallbackNote": "The stored key below is kept as a fallback if the variable is ever unset.",
+      "storedKeyFallbackBadge": "Fallback",
+      "replaceStoredKeyLabel": "Replace stored key",
+      "setEnvVar": "Use environment variable",
+      "clearEnvVar": "Clear environment variable",
+      "envVarCleared": "Environment variable cleared",
+      "envVarSet": "Set",
+      "envVarNotSet": "Not set",
+      "envVarNotPrefixed": "Invalid prefix",
       "modelIdPlaceholder": "e.g., gpt-4o",
       "modelDisplayNamePlaceholder": "e.g., GPT-4o",
       "modelDescriptionPlaceholder": "e.g., Multimodal model with vision capabilities",
@@ -5229,9 +5257,6 @@
       "testLatency": "{latencyMs} ms",
       "testKeyFailed": "Connection failed",
       "addKey": "Add API key",
-      "addApiKey": "Add API Key",
-      "replaceApiKey": "Replace API Key",
-      "replaceApiKeyDescription": "Current key: {maskedKey}",
       "apiKeyEnter": "Enter API key",
       "searchProvider": "Search providers...",
       "created": "Provider created",
@@ -5706,6 +5731,107 @@
       "preview": "Branding preview",
       "validation": {
         "appNameRequired": "App name is required"
+      }
+    },
+    "dataResidency": {
+      "pageDescription": "Point this deployment's knowledge database and file storage at infrastructure you control. Changes apply when the RAG and Convex containers restart.",
+      "readOnly": {
+        "before": "Editing is restricted to the operators listed in",
+        "after": "(in the deployment .env). Ask an operator to add your email there and restart to enable editing.",
+        "yourEmail": "Your sign-in email is {email}."
+      },
+      "secretsEncryptedNoKey": "The stored secrets are SOPS-encrypted but no age key is configured — existing secrets can't be read.",
+      "secretsUnreadable": "The stored secrets exist but can't be decrypted (corrupt ciphertext, or a missing/incorrect age key). Re-enter the values and save to overwrite them.",
+      "externalPostgres": "External Postgres",
+      "usingSharedDatabase": "Using the built-in shared database.",
+      "field": {
+        "host": "Host",
+        "port": "Port",
+        "database": "Database",
+        "user": "User",
+        "sslMode": "SSL mode",
+        "password": "Password"
+      },
+      "password": {
+        "storedHint": "Stored: {masked} — leave blank to keep",
+        "storedNoPreviewHint": "A value is stored — leave blank to keep it, or enter a new one to replace it.",
+        "writeOnlyHint": "Write-only; leave blank to keep the stored value"
+      },
+      "testConnection": "Test connection",
+      "testing": "Testing…",
+      "result": {
+        "ok": "OK",
+        "failed": "Failed"
+      },
+      "knowledge": {
+        "title": "Knowledge database (RAG)",
+        "paradeDbNote": "The external knowledge database must run ParadeDB (pgvector + pg_search) for full hybrid search; plain pgvector degrades to vector-only."
+      },
+      "storage": {
+        "title": "File storage (uploaded documents)",
+        "externalS3": "External S3",
+        "region": "Region",
+        "endpoint": "Endpoint (MinIO/R2; blank for AWS)",
+        "forcePathStyle": "Force path-style (MinIO/R2)",
+        "bucket": {
+          "files": "Files bucket",
+          "exports": "Exports bucket",
+          "snapshotImports": "Snapshot-imports bucket",
+          "modules": "Modules bucket",
+          "search": "Search bucket"
+        },
+        "accessKeyId": "Access key ID",
+        "accessKeyIdStoredHint": "Stored: {masked} — leave blank to keep",
+        "writeOnly": "Write-only",
+        "secretAccessKey": "Secret access key",
+        "testReachability": "Test reachability",
+        "reachable": "Reachable",
+        "greenfieldWarning": "S3 storage is greenfield: switching from local does NOT migrate existing uploaded files. Set this at initial deploy, or copy the local blobs into the bucket separately.",
+        "localStorageNote": "Files are stored on the local Convex volume."
+      },
+      "appDb": {
+        "summary": "Application database (advanced)",
+        "title": "Convex metadata database",
+        "databaseNameNote": "The Convex backend derives its database name from the instance configuration, so the external Postgres must already contain that database. The Database field above is used only for the connection test.",
+        "sslModeNote": "TLS mode for this database is fixed by the Convex driver and cannot be configured here."
+      },
+      "saved": {
+        "title": "Saved — restart to apply.",
+        "runPrefix": "Run",
+        "orPrefix": "(or",
+        "tail": "for zero-downtime). The platform itself does not need restarting."
+      },
+      "save": "Save",
+      "saving": "Saving…",
+      "applyRestart": "Apply & restart",
+      "applyRestartTitle": "Restart rag + convex via the controller (if enabled), or shows the manual command",
+      "applyRestartDirtyHint": "Save your changes before restarting.",
+      "restarting": "Restarting…",
+      "restart": {
+        "notEnabled": "Restart controller not enabled.",
+        "requested": "Restart requested: {services}",
+        "failed": "Restart failed: {error}",
+        "defaultServices": "rag, convex",
+        "unknownError": "unknown error"
+      },
+      "restartConfirm": {
+        "title": "Restart RAG and Convex?",
+        "description": "This applies the saved configuration by restarting the RAG and Convex containers. Expect a brief interruption while they come back up.",
+        "confirm": "Restart now"
+      },
+      "forceOverwrite": {
+        "title": "Overwrite unreadable secrets?",
+        "description": "The existing secrets file can't be decrypted. Overwriting replaces it with the values you entered — any other secrets it held will be lost. Continue?",
+        "confirm": "Overwrite"
+      },
+      "errors": {
+        "versionConflict": "The deployment config changed in another session. Reload to see the latest, then re-apply your changes.",
+        "invalidConfig": "The configuration is invalid: {issues}",
+        "invalidConfigGeneric": "The configuration is invalid. Check the fields and try again.",
+        "forbidden": "You're not authorized to edit deployment configuration.",
+        "secretUnreadable": "The existing secrets file can't be decrypted. Confirm overwrite to replace it.",
+        "configUnreadable": "The deployment configuration on disk can't be read.",
+        "readFailed": "Couldn't load the deployment configuration: {error}"
       }
     }
   },

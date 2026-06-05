@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
+import type { Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
 
 export const getByStorageId = internalQuery({
@@ -37,25 +38,39 @@ export const listChatAttachmentsForThread = internalQuery({
     threadId: v.string(),
   },
   async handler(ctx, args) {
-    const rows = await ctx.db
+    // Push the three exclusions into the query so they evaluate in the engine
+    // instead of materializing every thread attachment and filtering in JS.
+    // Equivalent to the prior predicates (undefined `source`/`lifecycleStatus`
+    // still pass the `neq` checks, matching `!== 'video_link'` / `!== 'trashed'`).
+    const out: Array<
+      Pick<
+        Doc<'fileMetadata'>,
+        '_id' | 'storageId' | 'fileName' | 'contentType' | 'size'
+      >
+    > = [];
+    for await (const r of ctx.db
       .query('fileMetadata')
       .withIndex('by_organizationId_and_threadId', (q) =>
         q
           .eq('organizationId', args.organizationId)
           .eq('threadId', args.threadId),
       )
-      .collect();
-    return rows
-      .filter((r) => r.documentId === undefined)
-      .filter((r) => r.source !== 'video_link')
-      .filter((r) => r.lifecycleStatus !== 'trashed')
-      .map((r) => ({
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('documentId'), undefined),
+          q.neq(q.field('source'), 'video_link'),
+          q.neq(q.field('lifecycleStatus'), 'trashed'),
+        ),
+      )) {
+      out.push({
         _id: r._id,
         storageId: r.storageId,
         fileName: r.fileName,
         contentType: r.contentType,
         size: r.size,
-      }));
+      });
+    }
+    return out;
   },
 });
 

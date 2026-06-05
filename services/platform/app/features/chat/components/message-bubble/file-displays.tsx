@@ -451,7 +451,6 @@ export const FilePartDisplay = memo(function FilePartDisplay({
           onOpenChange={(open) => {
             if (!open) setPreviewOpen(false);
           }}
-          organizationId={organizationId}
           fileId={fileId}
           fileName={fileName}
         />

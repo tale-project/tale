@@ -52,9 +52,12 @@ export function SharedChatView({
   const { toast } = useToast();
   const [inputValue, setInputValue] = useState('');
 
+  // Public share link: viewers are typically unauthenticated, so this must run
+  // without the default auth gate.
   const { data: sharedThread, isLoading } = useConvexQuery(
     api.threads.queries.getSharedThread,
     { shareToken },
+    { requireAuth: false },
   );
 
   const { mutate: forkThread, isPending: isForking } = useForkThread();

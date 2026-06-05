@@ -9,7 +9,8 @@ import type { Doc } from '../_generated/dataModel';
 import { query } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { countItemsInOrg } from '../lib/helpers/count_items_in_org';
-import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
 import { isActiveDocument } from './_helpers';
 import { listDocumentsPaginated as listDocumentsPaginatedHelper } from './list_documents_paginated';
@@ -64,6 +65,38 @@ export const listDocuments = query({
     }
 
     return await transformDocumentsBatch(ctx, documents);
+  },
+});
+
+/**
+ * Point-query a single document by id, with the SAME access control as
+ * `listDocuments` (org membership + team access + active lifecycle). Lets the
+ * client fetch one document directly instead of pulling the whole collection
+ * and filtering client-side. Returns null on not-found or any access failure
+ * (never leaks a document from another org/team).
+ */
+export const getDocumentById = query({
+  args: {
+    documentId: v.id('documents'),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+
+    const doc = await ctx.db.get(args.documentId);
+    if (!doc || !isActiveDocument(doc)) return null;
+
+    try {
+      await getOrganizationMember(ctx, doc.organizationId, authUser);
+    } catch {
+      return null;
+    }
+
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
+    if (!hasTeamAccess(doc, userTeamIds)) return null;
+
+    const [item] = await transformDocumentsBatch(ctx, [doc]);
+    return item ?? null;
   },
 });
 

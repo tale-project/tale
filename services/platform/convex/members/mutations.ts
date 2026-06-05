@@ -4,9 +4,9 @@ import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
-import { authComponent } from '../auth';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { cascadeOnMemberRemoved } from '../lib/cascades/personalization_cascade';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import type {
   BetterAuthMember,
@@ -42,7 +42,7 @@ export const addMember = mutation({
   },
   returns: v.string(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -57,7 +57,7 @@ export const addMember = mutation({
             value: args.organizationId,
             operator: 'eq',
           },
-          { field: 'userId', value: String(authUser._id), operator: 'eq' },
+          { field: 'userId', value: authUser.userId, operator: 'eq' },
         ],
       }),
     );
@@ -97,7 +97,7 @@ export const addMember = mutation({
       auditCtx: {
         organizationId: args.organizationId,
         actor: {
-          id: String(authUser._id),
+          id: authUser.userId,
           email: authUser.email,
           role: callerMember?.role,
           type: 'user',
@@ -121,7 +121,7 @@ export const removeMember = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -147,7 +147,7 @@ export const removeMember = mutation({
             value: member.organizationId,
             operator: 'eq',
           },
-          { field: 'userId', value: String(authUser._id), operator: 'eq' },
+          { field: 'userId', value: authUser.userId, operator: 'eq' },
         ],
       }),
     );
@@ -201,7 +201,7 @@ export const removeMember = mutation({
       auditCtx: {
         organizationId: member.organizationId,
         actor: {
-          id: String(authUser._id),
+          id: authUser.userId,
           email: authUser.email,
           role: callerMember?.role,
           type: 'user',
@@ -226,7 +226,7 @@ export const updateMemberRole = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -252,7 +252,7 @@ export const updateMemberRole = mutation({
             value: member.organizationId,
             operator: 'eq',
           },
-          { field: 'userId', value: String(authUser._id), operator: 'eq' },
+          { field: 'userId', value: authUser.userId, operator: 'eq' },
         ],
       }),
     );
@@ -348,7 +348,7 @@ export const updateMemberRole = mutation({
       auditCtx: {
         organizationId: member.organizationId,
         actor: {
-          id: String(authUser._id),
+          id: authUser.userId,
           email: authUser.email,
           role: callerMember?.role,
           type: 'user',
@@ -373,7 +373,7 @@ export const transferOwnership = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -399,7 +399,7 @@ export const transferOwnership = mutation({
             value: targetMember.organizationId,
             operator: 'eq',
           },
-          { field: 'userId', value: String(authUser._id), operator: 'eq' },
+          { field: 'userId', value: authUser.userId, operator: 'eq' },
         ],
       }),
     );
@@ -447,7 +447,7 @@ export const transferOwnership = mutation({
       auditCtx: {
         organizationId: targetMember.organizationId,
         actor: {
-          id: String(authUser._id),
+          id: authUser.userId,
           email: authUser.email,
           role: 'owner',
           type: 'user',
@@ -458,7 +458,7 @@ export const transferOwnership = mutation({
       resourceType: 'member',
       resourceId: args.targetMemberId,
       resourceName: targetUser?.email ?? targetMember.userId,
-      previousState: { previousOwner: String(authUser._id) },
+      previousState: { previousOwner: authUser.userId },
       newState: { newOwner: targetMember.userId },
     });
 
@@ -473,7 +473,7 @@ export const updateMemberDisplayName = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -499,7 +499,7 @@ export const updateMemberDisplayName = mutation({
     const previousName = targetUser?.name;
 
     let callerRole: string | undefined;
-    const isOwnProfile = String(authUser._id) === member.userId;
+    const isOwnProfile = authUser.userId === member.userId;
     if (!isOwnProfile) {
       const callerMember = findOneMember(
         await ctx.runQuery(components.betterAuth.adapter.findMany, {
@@ -511,7 +511,7 @@ export const updateMemberDisplayName = mutation({
               value: member.organizationId,
               operator: 'eq',
             },
-            { field: 'userId', value: String(authUser._id), operator: 'eq' },
+            { field: 'userId', value: authUser.userId, operator: 'eq' },
           ],
         }),
       );
@@ -534,7 +534,7 @@ export const updateMemberDisplayName = mutation({
       auditCtx: {
         organizationId: member.organizationId,
         actor: {
-          id: String(authUser._id),
+          id: authUser.userId,
           email: authUser.email,
           role: callerRole,
           type: 'user',

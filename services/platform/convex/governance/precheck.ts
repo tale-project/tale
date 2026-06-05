@@ -3,7 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { loadGuardrailsSnapshot, sanitizeMessage } from './sanitize';
 
 /**
@@ -55,14 +55,14 @@ export const precheckInput = action({
     categoryLabels?: string[];
     maskedText?: string;
   }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await ctx.runQuery(
       internal.governance.internal_mutations.requireOrganizationMemberInternal,
       {
         organizationId: args.organizationId,
-        userId: String(authUser._id),
+        userId: authUser.userId,
         email: authUser.email,
         name: authUser.name,
       },
@@ -83,7 +83,7 @@ export const precheckInput = action({
         organizationId: args.organizationId,
         orgSlug: 'default',
         threadId: 'precheck',
-        actorId: String(authUser._id),
+        actorId: authUser.userId,
         actorEmail: authUser.email,
         actorType: 'user',
       });

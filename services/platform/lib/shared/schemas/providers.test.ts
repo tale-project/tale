@@ -571,4 +571,106 @@ describe('providerJsonSchema', () => {
       expect(result.success).toBe(false);
     });
   });
+
+  describe('secretsEnv', () => {
+    it('accepts a provider-level secretsEnv carrying the reserved prefix', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        secretsEnv: 'TALE_PROVIDER_KEY_OPENROUTER',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a per-model secretsEnv carrying the reserved prefix', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'test/model-1',
+            displayName: 'Test Model 1',
+            tags: ['chat'],
+            secretsEnv: 'TALE_PROVIDER_KEY_MODEL',
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.models[0].secretsEnv).toBe(
+          'TALE_PROVIDER_KEY_MODEL',
+        );
+      }
+    });
+
+    it('accepts underscores and digits in the suffix', () => {
+      expect(
+        providerJsonSchema.safeParse({
+          ...baseProvider,
+          secretsEnv: 'TALE_PROVIDER_KEY__9_FOO',
+        }).success,
+      ).toBe(true);
+    });
+
+    it('rejects a name without the reserved prefix (fail-closed)', () => {
+      for (const bad of [
+        'OPENROUTER_API_KEY',
+        'SOPS_AGE_KEY',
+        '_KEY',
+        'TALE_PROVIDER_OPENAI',
+      ]) {
+        const result = providerJsonSchema.safeParse({
+          ...baseProvider,
+          secretsEnv: bad,
+        });
+        expect(result.success, `should reject "${bad}"`).toBe(false);
+      }
+    });
+
+    it('rejects the bare prefix with no suffix', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        secretsEnv: 'TALE_PROVIDER_KEY_',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects invalid characters in the suffix', () => {
+      for (const bad of [
+        'TALE_PROVIDER_KEY_FOO BAR',
+        'TALE_PROVIDER_KEY_A=B',
+        'TALE_PROVIDER_KEY_FOO-BAR',
+      ]) {
+        const result = providerJsonSchema.safeParse({
+          ...baseProvider,
+          secretsEnv: bad,
+        });
+        expect(result.success, `should reject "${bad}"`).toBe(false);
+      }
+    });
+
+    it('accepts a name exactly at the 40-char cap', () => {
+      // 18-char prefix + 22-char suffix = 40 chars
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        secretsEnv: `TALE_PROVIDER_KEY_${'A'.repeat(22)}`,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects names longer than 40 chars (Convex env-sync limit)', () => {
+      // 18-char prefix + 23-char suffix = 41 chars
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        secretsEnv: `TALE_PROVIDER_KEY_${'A'.repeat(23)}`,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects an empty secretsEnv', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        secretsEnv: '',
+      });
+      expect(result.success).toBe(false);
+    });
+  });
 });

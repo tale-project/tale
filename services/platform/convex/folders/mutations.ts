@@ -4,13 +4,13 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { mutation } from '../_generated/server';
-import { authComponent } from '../auth';
 import { teamIdsToFields } from '../documents/team_fields';
 import { type ActiveHolds, loadActiveHolds } from '../governance/legal_hold';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
 
 type TeamFields = {
@@ -172,16 +172,12 @@ export const createFolder = mutation({
   },
   returns: v.id('folders'),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, args.organizationId, authUser);
 
     await checkOrganizationRateLimit(ctx, 'folder:mutate', args.organizationId);
 
@@ -195,7 +191,7 @@ export const createFolder = mutation({
         throw new Error('Parent folder not found');
       }
       if (parent.teamId || parent.teamTags?.length) {
-        const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+        const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
         if (!hasTeamAccess(parent, userTeamIds)) {
           throw new Error('Parent folder not accessible');
         }
@@ -219,7 +215,7 @@ export const createFolder = mutation({
     }
 
     if (effectiveTeamId) {
-      const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+      const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
       if (!userTeamIds.includes(effectiveTeamId)) {
         throw new Error('Cannot create folder in a team you do not belong to');
       }
@@ -237,7 +233,7 @@ export const createFolder = mutation({
       name: trimmedName,
       parentId: args.parentId,
       teamId: effectiveTeamId,
-      createdBy: String(authUser._id),
+      createdBy: authUser.userId,
     });
   },
 });
@@ -249,7 +245,7 @@ export const renameFolder = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -259,11 +255,7 @@ export const renameFolder = mutation({
       throw new Error('Folder not found');
     }
 
-    await getOrganizationMember(ctx, folder.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, folder.organizationId, authUser);
 
     await checkOrganizationRateLimit(
       ctx,
@@ -272,7 +264,7 @@ export const renameFolder = mutation({
     );
 
     if (folder.teamId || folder.teamTags?.length) {
-      const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+      const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
       if (!hasTeamAccess(folder, userTeamIds)) {
         throw new Error('Access denied');
       }
@@ -299,7 +291,7 @@ export const deleteFolder = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -309,11 +301,7 @@ export const deleteFolder = mutation({
       throw new Error('Folder not found');
     }
 
-    await getOrganizationMember(ctx, folder.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, folder.organizationId, authUser);
 
     await checkOrganizationRateLimit(
       ctx,
@@ -322,7 +310,7 @@ export const deleteFolder = mutation({
     );
 
     if (folder.teamId || folder.teamTags?.length) {
-      const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+      const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
       if (!hasTeamAccess(folder, userTeamIds)) {
         throw new Error('Access denied');
       }
@@ -360,7 +348,7 @@ export const updateFolderTeams = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -370,11 +358,7 @@ export const updateFolderTeams = mutation({
       throw new Error('Folder not found');
     }
 
-    await getOrganizationMember(ctx, folder.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, folder.organizationId, authUser);
 
     await checkOrganizationRateLimit(
       ctx,
@@ -389,7 +373,7 @@ export const updateFolderTeams = mutation({
       }
     }
 
-    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
 
     if (folder.teamId || folder.teamTags?.length) {
       if (!hasTeamAccess(folder, userTeamIds)) {

@@ -325,9 +325,20 @@ export async function deploy(options: DeployOptions): Promise<void> {
           hostAlias,
         );
 
+        // The opt-in controller sidecar is emitted into the stateful compose
+        // only when CONTROLLER_TOKEN is set. It is brought up SEPARATELY from the
+        // core services (below) so a controller image/start problem can never
+        // block db/proxy/convex.
+        const controllerEnabled = Boolean(process.env.CONTROLLER_TOKEN);
+
         if (dryRun) {
           for (const service of statefulToUpdate) {
             logger.info(`${prefix}Would deploy stateful service: ${service}`);
+          }
+          if (controllerEnabled) {
+            logger.info(
+              `${prefix}Would deploy controller sidecar (separate, non-blocking)`,
+            );
           }
         } else {
           const result = await dockerCompose(
@@ -362,6 +373,40 @@ export async function deploy(options: DeployOptions): Promise<void> {
             });
             if (!healthy) {
               throw new Error(`Service ${service} failed health check`);
+            }
+          }
+
+          // The controller is a non-critical opt-in sidecar. Bring it up in its
+          // OWN `up -d` only after the core services are healthy, and treat any
+          // failure (e.g. the image isn't published/pulled yet) as a warning —
+          // never fail the deploy of the core services over it.
+          if (controllerEnabled) {
+            const up = await dockerCompose(
+              statefulCompose,
+              [
+                'up',
+                '-d',
+                ...(options.forceRecreate ? ['--force-recreate'] : []),
+                'controller',
+              ],
+              { projectName: getProjectId(), cwd: env.DEPLOY_DIR },
+            );
+            if (!up.success) {
+              logger.warn(
+                `${prefix}Controller sidecar did not start (one-click "Apply & restart" may be unavailable): ${up.stderr.trim().slice(0, 300) || 'no stderr captured'}`,
+              );
+            } else {
+              startedContainers.push(`${getProjectId()}-controller`);
+              const containerName = `${getProjectId()}-controller`;
+              const healthy = await waitForHealthy(containerName, {
+                timeout: env.HEALTH_CHECK_TIMEOUT,
+                streamLogs,
+              });
+              if (!healthy) {
+                logger.warn(
+                  `${prefix}Controller sidecar did not become healthy; one-click "Apply & restart" may be unavailable until it recovers.`,
+                );
+              }
             }
           }
         }

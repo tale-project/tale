@@ -17,6 +17,8 @@ import {
 import { AgentNavigation } from '@/app/features/agents/components/agent-navigation';
 import { useReadAgent } from '@/app/features/agents/hooks/queries';
 import { AgentConfigProvider } from '@/app/features/agents/hooks/use-agent-config-context';
+import { configKeys } from '@/app/hooks/config-query-keys';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { cn } from '@/lib/utils/cn';
@@ -26,6 +28,22 @@ export const Route = createFileRoute('/dashboard/$id/agents/$agentId')({
   head: () => ({
     meta: seo('agent'),
   }),
+  loader: ({ context, params }) => {
+    const { id: organizationId, agentId: agentName } = params;
+    // Warm the agent config (filesystem-backed action) so the detail paints
+    // without a skeleton — also runs on the agents list's row-hover preload.
+    // Mirrors useReadAgent's key + args so the component reads it warm.
+    void context.queryClient.prefetchQuery({
+      queryKey: configKeys.detail('agents', organizationId, agentName),
+      queryFn: () =>
+        context.convexQueryClient.convexClient.action(
+          api.agents.file_actions.readAgent,
+          { organizationId, agentName },
+        ),
+      staleTime: Infinity,
+      retry: false,
+    });
+  },
   component: AgentDetailLayout,
 });
 

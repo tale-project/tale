@@ -816,7 +816,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Anbieter",
-      "description": "Das Zwei-Datei-Anbieter-Format auf Platte — `<name>.config.json` für die öffentliche Form, `<name>.secrets.json` für die Schlüssel — plus der Workflow zum Hinzufügen, Austauschen und Deaktivieren eines Modell-Anbieters."
+      "description": "Das Zwei-Datei-Anbieter-Format auf Platte — `<name>.json` für die öffentliche Form, `<name>.secrets.json` für die Schlüssel — plus der Workflow zum Hinzufügen, Austauschen und Deaktivieren eines Modell-Anbieters."
     }
   },
   "de:self-hosted/configuration/secrets-with-sops": {
@@ -833,6 +833,14 @@
     "frontmatter": {
       "title": "TLS und Domains",
       "description": "Wie der Caddy-Proxy TLS terminiert — selbst signiert für Development, Let's Encrypt für Produktion, external für einen vorgelagerten Proxy — plus Custom-Domain- und Custom-Cert-Setups."
+    }
+  },
+  "de:self-hosted/configuration/data-residency": {
+    "slug": "self-hosted/configuration/data-residency",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Datenresidenz",
+      "description": "Richte die Wissensdatenbank, die Anwendungsdatenbank und den Speicher für hochgeladene Dateien einer selbst gehosteten Tale-Installation auf Infrastruktur aus, die du selbst kontrollierst — von Administratoren unter Einstellungen > Datenresidenz konfiguriert und beim Neustart angewendet."
     }
   },
   "de:self-hosted/configuration/observability-config": {
@@ -1832,7 +1840,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Fournisseurs",
-      "description": "Le format à deux fichiers des fournisseurs sur disque — `<name>.config.json` pour la forme publique, `<name>.secrets.json` pour les clés — plus le workflow pour ajouter, échanger et désactiver un fournisseur de modèle."
+      "description": "Le format à deux fichiers des fournisseurs sur disque — `<name>.json` pour la forme publique, `<name>.secrets.json` pour les clés — plus le workflow pour ajouter, échanger et désactiver un fournisseur de modèle."
     }
   },
   "fr:self-hosted/configuration/secrets-with-sops": {
@@ -1849,6 +1857,14 @@
     "frontmatter": {
       "title": "TLS et domaines",
       "description": "Comment le proxy Caddy termine TLS — auto-signé pour développement, Let's Encrypt pour production, externe pour un proxy amont — plus les setups domaine personnalisé et certificat personnalisé."
+    }
+  },
+  "fr:self-hosted/configuration/data-residency": {
+    "slug": "self-hosted/configuration/data-residency",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Résidence des données",
+      "description": "Pointe la base de connaissances, la base de données applicative et le stockage des fichiers téléversés d'une installation Tale auto-hébergée vers une infrastructure que tu contrôles — configuré par les administrateurs dans Paramètres > Résidence des données et appliqué au redémarrage."
     }
   },
   "fr:self-hosted/configuration/observability-config": {
@@ -2848,7 +2864,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Providers",
-      "description": "The two-file provider format on disk — `<name>.config.json` for the public shape, `<name>.secrets.json` for the keys — plus the workflow for adding, swapping, and disabling a model provider."
+      "description": "The two-file provider format on disk — `<name>.json` for the public shape, `<name>.secrets.json` for the keys — plus the workflow for adding, swapping, and disabling a model provider."
     }
   },
   "en:self-hosted/configuration/secrets-with-sops": {
@@ -2865,6 +2881,14 @@
     "frontmatter": {
       "title": "TLS and domains",
       "description": "How the Caddy proxy terminates TLS — self-signed for development, Let's Encrypt for production, external for an upstream proxy — plus custom domain and custom certificate setups."
+    }
+  },
+  "en:self-hosted/configuration/data-residency": {
+    "slug": "self-hosted/configuration/data-residency",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Data residency",
+      "description": "Point a self-hosted Tale deployment's knowledge database, application database, and uploaded-file storage at infrastructure you control, configured by administrators in Settings > Data residency and applied on restart."
     }
   },
   "en:self-hosted/configuration/observability-config": {

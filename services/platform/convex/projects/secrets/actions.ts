@@ -4,7 +4,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { action, type ActionCtx } from '../../_generated/server';
-import { authComponent } from '../../auth';
+import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
 import {
   decryptSecret,
   encryptSecret,
@@ -18,7 +18,7 @@ async function requireAdmin(
   organizationId: string,
   projectId: string,
 ): Promise<{ userId: string }> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) throw new Error('Unauthenticated');
   await ctx.runQuery(
     internal.projects.secrets.internal.requireProjectAdminInternal,
@@ -26,12 +26,12 @@ async function requireAdmin(
       organizationId,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- projectId arrives as a string id from the client
       projectId: projectId as never,
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     },
   );
-  return { userId: String(authUser._id) };
+  return { userId: authUser.userId };
 }
 
 /** Create or update a project secret (encrypts the value, stores ciphertext). */

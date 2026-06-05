@@ -9,18 +9,31 @@
  * 2. For scheduled triggers: creates a wfSchedules record
  * 3. Updates stepType to 'start' with clean config
  *
+ * Bounded per invocation: it walks `wfStepDefs` one page at a time so a large
+ * deployment can't blow the per-mutation read/write budget (the prior
+ * unbounded `.collect()` would throw and leave the migration half-applied).
+ * Re-run with the returned `continueCursor` until `isDone` is true.
+ *
  * Usage:
  *   bunx convex run migrations/trigger_steps_to_start:migrateTriggerStepsToStart
+ *   # then, while isDone === false:
+ *   bunx convex run migrations/trigger_steps_to_start:migrateTriggerStepsToStart '{"cursor":"<continueCursor>"}'
  */
+
+import { v } from 'convex/values';
 
 import { getString } from '../../lib/utils/type-guards';
 import { internalMutation } from '../_generated/server';
 
+const PAGE_SIZE = 200;
+
 export const migrateTriggerStepsToStart = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const allSteps = await ctx.db.query('wfStepDefs').collect();
-    const triggerSteps = allSteps.filter((s) => s.stepType === 'trigger');
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query('wfStepDefs')
+      .paginate({ cursor: args.cursor ?? null, numItems: PAGE_SIZE });
+    const triggerSteps = result.page.filter((s) => s.stepType === 'trigger');
 
     let stepsUpdated = 0;
     let schedulesCreated = 0;
@@ -99,7 +112,9 @@ export const migrateTriggerStepsToStart = internalMutation({
     }
 
     return {
-      totalSteps: allSteps.length,
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+      pageSize: result.page.length,
       triggerStepsFound: triggerSteps.length,
       stepsUpdated,
       schedulesCreated,

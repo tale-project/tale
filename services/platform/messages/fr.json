@@ -13,7 +13,8 @@
     "workspaceNotFound": "L'espace de travail que tu recherches n'existe pas ou a été supprimé.",
     "disabled": "Ton compte a été désactivé. Contacte le support pour obtenir de l'aide.",
     "noMembership": "Tu n'es pas membre de cet espace de travail. Merci de contacter un administrateur pour obtenir l'accès.",
-    "unauthenticated": "Ta session a expiré. Reconnecte-toi pour continuer."
+    "unauthenticated": "Ta session a expiré. Reconnecte-toi pour continuer.",
+    "deployment": "Tu dois disposer des permissions Admin pour accéder aux paramètres de déploiement."
   },
   "analytics": {
     "usage": {
@@ -3662,7 +3663,8 @@
     },
     "aria": {
       "primaryNavigation": "Navigation principale"
-    }
+    },
+    "dataResidency": "Résidence des données"
   },
   "notifications": {
     "title": "Notifications",
@@ -4916,6 +4918,32 @@
       "displayNamePlaceholder": "ex., OpenAI",
       "descriptionPlaceholder": "ex., Modèles GPT d'OpenAI",
       "baseUrlPlaceholder": "ex., https://api.openai.com/v1",
+      "secretsEnv": "Variable d'environnement de la clé API",
+      "secretsEnvPlaceholder": "ex., TALE_PROVIDER_KEY_OPENROUTER",
+      "secretsEnvHelp": "Lit la clé API depuis cette variable d'environnement au lieu du fichier de secrets. Le nom doit commencer par TALE_PROVIDER_KEY_. Modifier la valeur nécessite un redémarrage de la plateforme.",
+      "secretsEnvPatternError": "Doit commencer par TALE_PROVIDER_KEY_ suivi de lettres, chiffres ou underscores (40 caractères maximum).",
+      "modelSecretsEnv": "Variable d'environnement de la clé API (spécifique)",
+      "modelSecretsEnvPlaceholder": "Laisser vide pour utiliser la variable du fournisseur",
+      "modelSecretsEnvHelp": "Remplace la variable d'environnement de la clé API du fournisseur pour ce modèle uniquement. Le nom doit commencer par TALE_PROVIDER_KEY_.",
+      "keyFromEnvVar": "Clé provenant de la variable d'environnement {name}",
+      "effectiveSourceEnvTitle": "Variable d'environnement utilisée",
+      "effectiveSourceEnv": "Ce fournisseur lit sa clé API depuis {name}.",
+      "effectiveSourceEnvUnresolvedTitle": "Variable d'environnement non résolue",
+      "effectiveSourceFallbackToFile": "{name} est configurée mais non définie à l'exécution — repli sur la clé enregistrée ci-dessous.",
+      "effectiveSourceEnvUnresolvedNoFile": "{name} est configurée mais non définie à l'exécution, et aucune clé enregistrée n'existe. Ce fournisseur n'a aucune clé API utilisable.",
+      "effectiveSourceEnvNotPrefixed": "{name} ne commence pas par le préfixe requis {prefix} et est ignorée.",
+      "effectiveSourceStored": "Ce fournisseur utilise la clé API enregistrée.",
+      "effectiveSourceNone": "Aucune clé API configurée pour ce fournisseur.",
+      "storedKeyLabel": "Clé API enregistrée",
+      "storedKeyFallbackNote": "La clé enregistrée ci-dessous est conservée comme repli si la variable n'est jamais définie.",
+      "storedKeyFallbackBadge": "Repli",
+      "replaceStoredKeyLabel": "Remplacer la clé enregistrée",
+      "setEnvVar": "Utiliser la variable d'environnement",
+      "clearEnvVar": "Effacer la variable d'environnement",
+      "envVarCleared": "Variable d'environnement effacée",
+      "envVarSet": "Définie",
+      "envVarNotSet": "Non définie",
+      "envVarNotPrefixed": "Préfixe invalide",
       "modelIdPlaceholder": "ex., gpt-4o",
       "modelDisplayNamePlaceholder": "ex., GPT-4o",
       "modelDescriptionPlaceholder": "ex., Modèle multimodal avec capacités de vision",
@@ -4969,9 +4997,6 @@
       "testLatency": "{latencyMs} ms",
       "testKeyFailed": "Échec de la connexion",
       "addKey": "Ajouter une clé API",
-      "addApiKey": "Ajouter une clé API",
-      "replaceApiKey": "Remplacer la clé API",
-      "replaceApiKeyDescription": "Clé actuelle : {maskedKey}",
       "apiKeyEnter": "Saisis la clé API",
       "searchProvider": "Rechercher des fournisseurs...",
       "created": "Fournisseur créé",
@@ -5446,6 +5471,107 @@
       "preview": "Aperçu de la marque",
       "validation": {
         "appNameRequired": "Le nom de l'application est requis"
+      }
+    },
+    "dataResidency": {
+      "pageDescription": "Pointe la base de connaissances et le stockage de fichiers de ce déploiement vers une infrastructure que tu contrôles. Les changements prennent effet au redémarrage des conteneurs RAG et Convex.",
+      "readOnly": {
+        "before": "La modification est réservée aux opérateurs listés dans",
+        "after": "(dans le .env du déploiement). Demande à un opérateur d'y ajouter ton courriel, puis redémarre pour activer la modification.",
+        "yourEmail": "Ton courriel de connexion est {email}."
+      },
+      "secretsEncryptedNoKey": "Les secrets stockés sont chiffrés avec SOPS, mais aucune clé age n'est configurée — les secrets existants ne peuvent pas être lus.",
+      "secretsUnreadable": "Les secrets stockés existent mais ne peuvent pas être déchiffrés (texte chiffré corrompu, ou clé age manquante/incorrecte). Saisis à nouveau les valeurs et enregistre pour les écraser.",
+      "externalPostgres": "Postgres externe",
+      "usingSharedDatabase": "Utilise la base de données partagée intégrée.",
+      "field": {
+        "host": "Hôte",
+        "port": "Port",
+        "database": "Base de données",
+        "user": "Utilisateur",
+        "sslMode": "Mode SSL",
+        "password": "Mot de passe"
+      },
+      "password": {
+        "storedNoPreviewHint": "Une valeur est stockée — laisse vide pour la conserver, ou saisis-en une nouvelle pour la remplacer.",
+        "storedHint": "Stocké : {masked} — laisse vide pour conserver",
+        "writeOnlyHint": "Écriture seule ; laisse vide pour conserver la valeur stockée"
+      },
+      "testConnection": "Tester la connexion",
+      "testing": "Test…",
+      "result": {
+        "ok": "OK",
+        "failed": "Échec"
+      },
+      "knowledge": {
+        "title": "Base de connaissances (RAG)",
+        "paradeDbNote": "La base de connaissances externe doit utiliser ParadeDB (pgvector + pg_search) pour la recherche hybride complète ; pgvector seul se limite à la recherche vectorielle."
+      },
+      "storage": {
+        "title": "Stockage de fichiers (documents téléversés)",
+        "externalS3": "S3 externe",
+        "region": "Région",
+        "endpoint": "Endpoint (MinIO/R2 ; vide pour AWS)",
+        "forcePathStyle": "Forcer le path-style (MinIO/R2)",
+        "bucket": {
+          "files": "Bucket Files",
+          "exports": "Bucket Exports",
+          "snapshotImports": "Bucket Snapshot-Imports",
+          "modules": "Bucket Modules",
+          "search": "Bucket Search"
+        },
+        "accessKeyId": "Access Key ID",
+        "accessKeyIdStoredHint": "Stocké : {masked} — laisse vide pour conserver",
+        "writeOnly": "Écriture seule",
+        "secretAccessKey": "Secret Access Key",
+        "testReachability": "Tester l'accessibilité",
+        "reachable": "Accessible",
+        "greenfieldWarning": "Le stockage S3 est greenfield : passer du local ne migre PAS les fichiers déjà téléversés. Définis-le au premier déploiement, ou copie les blobs locaux dans le bucket séparément.",
+        "localStorageNote": "Les fichiers sont stockés sur le volume Convex local."
+      },
+      "appDb": {
+        "summary": "Base de données applicative (avancé)",
+        "title": "Base de métadonnées Convex",
+        "databaseNameNote": "Le backend Convex déduit le nom de sa base de données de la configuration de l'instance ; le Postgres externe doit donc déjà contenir cette base. Le champ « Base de données » ci-dessus sert uniquement au test de connexion.",
+        "sslModeNote": "Le mode TLS de cette base de données est fixé par le pilote Convex et ne peut pas être configuré ici."
+      },
+      "saved": {
+        "title": "Enregistré — redémarre pour appliquer.",
+        "runPrefix": "Exécute",
+        "orPrefix": "(ou",
+        "tail": "pour le Zero-Downtime). La plateforme elle-même n'a pas besoin de redémarrer."
+      },
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "applyRestart": "Appliquer & redémarrer",
+      "applyRestartTitle": "Redémarre rag + convex via le controller (si activé), sinon affiche la commande manuelle",
+      "applyRestartDirtyHint": "Enregistrez vos modifications avant de redémarrer.",
+      "restarting": "Redémarrage…",
+      "restart": {
+        "notEnabled": "Controller de redémarrage non activé.",
+        "requested": "Redémarrage demandé : {services}",
+        "failed": "Échec du redémarrage : {error}",
+        "defaultServices": "rag, convex",
+        "unknownError": "erreur inconnue"
+      },
+      "restartConfirm": {
+        "title": "Redémarrer RAG et Convex ?",
+        "description": "Cela applique la configuration enregistrée en redémarrant les conteneurs RAG et Convex. Attends-toi à une brève interruption le temps qu'ils redémarrent.",
+        "confirm": "Redémarrer maintenant"
+      },
+      "forceOverwrite": {
+        "title": "Écraser les secrets illisibles ?",
+        "description": "Le fichier de secrets existant ne peut pas être déchiffré. L'écraser le remplace par les valeurs que tu as saisies — tout autre secret qu'il contenait sera perdu. Continuer ?",
+        "confirm": "Écraser"
+      },
+      "errors": {
+        "versionConflict": "La configuration du déploiement a changé dans une autre session. Recharge pour voir l'état le plus récent, puis réapplique tes modifications.",
+        "invalidConfig": "La configuration est invalide : {issues}",
+        "invalidConfigGeneric": "La configuration est invalide. Vérifie les champs et réessaie.",
+        "forbidden": "Tu n'es pas autorisé à modifier la configuration du déploiement.",
+        "secretUnreadable": "Le fichier de secrets existant ne peut pas être déchiffré. Confirme l'écrasement pour le remplacer.",
+        "configUnreadable": "La configuration du déploiement sur le disque ne peut pas être lue.",
+        "readFailed": "Impossible de charger la configuration du déploiement : {error}"
       }
     }
   },

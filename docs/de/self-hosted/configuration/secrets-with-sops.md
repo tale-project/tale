@@ -67,7 +67,9 @@ Das Risikomodell verschiebt sich: Ein durchgesickerter Dateisystem-Dump ist jetz
 
 ## Externe Secret-Stores
 
-Für Vault, Kubernetes-Secret-Mounts oder systemd `LoadCredential` ist das unterstützte Pattern: Schreib die Klartext-`*.secrets.json`-Dateien aus dem externen Store und betreib Tale im Klartext-Modus. Speichere keine Anbieter-Schlüssel über die UI in diesem Setup — die UI würde den Mount überschreiben.
+Wenn deine Schlüssel schon in Vault, einem Cloud-Secret-Manager oder Kubernetes Secrets liegen, ist die Umgebungsvariablen-Schlüsselquelle das erstklassige Pattern: zeig jeden Anbieter mit `secretsEnv` auf eine **Umgebungsvariable** und lass deinen Secret-Store diese Variable befüllen. Keine Klartext-Datei landet auf der Platte, und die Präfix-Schranke hindert einen Config-Schreib-Akteur daran, ein fremdes Deployment-Secret zu lesen. Der vollständige Mechanismus — die `TALE_PROVIDER_KEY_`-Präfix-Schranke, die Auflösungs-Reihenfolge und das Neustart-bei-Änderung-Verhalten — lebt in [Anbieter](/de/self-hosted/configuration/providers#environment-variable-key-source).
+
+Der Datei-Mount-Ansatz ist die Legacy-Alternative: Schreib die Klartext-`*.secrets.json`-Dateien aus dem externen Store und betreib Tale im Klartext-Modus. Das funktioniert weiterhin, legt aber den Klartext-Schlüssel auf die Platte und bricht, wenn du einen Anbieter über die UI speicherst — die UI überschreibt den Mount. Bevorzuge die Umgebungsvariablen-Quelle, sofern dich kein Zwang zur Datei-Form drängt.
 
 ## Wo das hingehört
 

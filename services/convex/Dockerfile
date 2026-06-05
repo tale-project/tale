@@ -47,6 +47,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get -o Acquire::Retries=3 update \
     && apt-get install -y --no-install-recommends \
     curl unzip tini gosu postgresql-client ca-certificates \
+    jq \
     ffmpeg \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
     # yt-dlp: per-arch asset selection + SHA256 verification against the

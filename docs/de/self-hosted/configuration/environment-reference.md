@@ -72,17 +72,20 @@ Die auto-konstruierte Form ist `postgresql://tale:${DB_PASSWORD}@db:5432`. Conve
 | `SOPS_AGE_KEY`      | unset   | Inline-age-Secret-Key. Verschlüsselt `providers/*.secrets.json`. Standardmodus nach `tale init`. Mehrere Keys sind inline nicht unterstützt.                      |
 | `SOPS_AGE_KEY_FILE` | unset   | Pfad zu einer Datei mit einem oder mehreren age-Keys (einer pro Zeile; `#`-Kommentare erlaubt). Pflicht für Key-Rotation. Schliesst sich mit der Inline-Form aus. |
 
-Wenn beide unset sind, speichert Tale `providers/*.secrets.json` als Klartext-JSON mit Modus 0600. Erreich diesen Modus nur, wenn der Host-Storage at-rest verschlüsselt ist oder die Dateien von externem Tooling erzeugt werden (ein Kubernetes-Secret-Mount, ein Vault-Template). Einen age-Key zu rotieren bedeutet, den neuen Key anzuhängen, jeden Provider in der UI neu zu speichern, dann den alten Key zu entfernen. Siehe [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops) für den vollen Rotations-Walkthrough.
+Wenn beide age-Vars unset sind, speichert Tale `providers/*.secrets.json` als Klartext-JSON mit Modus 0600. Erreich diesen Modus nur, wenn der Host-Storage at-rest verschlüsselt ist oder die Dateien von externem Tooling erzeugt werden (ein Kubernetes-Secret-Mount, ein Vault-Template). Einen age-Key zu rotieren bedeutet, den neuen Key anzuhängen, jeden Provider in der UI neu zu speichern, dann den alten Key zu entfernen. Siehe [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops) für den vollen Rotations-Walkthrough.
+
+Die Umgebungsvariablen-Schlüsselquelle braucht keinen Deployment-Schalter: ein Anbieter kann seinen Schlüssel aus einer Umgebungsvariable statt aus einer Secrets-Datei lesen, solange die Variable mit dem reservierten Präfix `TALE_PROVIDER_KEY_` benannt ist (jeder andere Name wird abgelehnt). Der Mechanismus — die Präfix-Schranke, Auflösungs-Reihenfolge, die 40-Zeichen-Grenze, die Neustart-Anforderung — ist in [Anbieter](/de/self-hosted/configuration/providers#environment-variable-key-source) dokumentiert.
 
 ## Feature-Flags
 
 Optionale Schalter für Features, die standardmässig nicht aktiviert sind. Jeder Flag schaltet ein Feature beim Boot ein oder aus; das Umschalten braucht einen Neustart des Plattform-Containers.
 
-| Name                      | Default | Beschreibung                                                                      |
-| ------------------------- | ------- | --------------------------------------------------------------------------------- |
-| `MICROSOFT_AUTH_ENABLED`  | `false` | Aktiviert die Microsoft-Entra-Sign-in-Option.                                     |
-| `TRUSTED_HEADERS_ENABLED` | `false` | Aktiviert den Trusted-Headers-Auth-Modus (Identität vom Reverse-Proxy geliefert). |
-| `FILE_EVENTS_ENABLED`     | `false` | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Integration.                |
+| Name                            | Default | Beschreibung                                                                                                                              |
+| ------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `MICROSOFT_AUTH_ENABLED`        | `false` | Aktiviert die Microsoft-Entra-Sign-in-Option.                                                                                             |
+| `TRUSTED_HEADERS_ENABLED`       | `false` | Aktiviert den Trusted-Headers-Auth-Modus (Identität vom Reverse-Proxy geliefert).                                                         |
+| `FILE_EVENTS_ENABLED`           | `false` | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Integration.                                                                        |
+| `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Kommagetrennte E-Mail-Allowlist der Operatoren, die die Datenresidenz bearbeiten dürfen. Leer/nicht gesetzt = nur lesend für alle Admins. |
 
 ## Sitzungen
 

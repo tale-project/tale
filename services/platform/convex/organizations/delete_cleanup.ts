@@ -11,9 +11,9 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { logSuccess } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { cascadeOnOrgDeleted } from '../lib/cascades/personalization_cascade';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { resolveOrgSlug } from './resolve_org_slug';
 
@@ -25,7 +25,7 @@ export const prepareOrganizationDeletion = mutation({
     orgSlug: v.string(),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -54,14 +54,14 @@ export const prepareOrganizationDeletion = mutation({
       'org',
       args.organizationId,
       undefined,
-      String(authUser._id),
+      authUser.userId,
     );
 
     await logSuccess(ctx, {
       auditCtx: {
         organizationId: args.organizationId,
         actor: {
-          id: String(authUser._id),
+          id: authUser.userId,
           email: authUser.email,
           role: member.role,
           type: 'user',
@@ -74,9 +74,14 @@ export const prepareOrganizationDeletion = mutation({
       metadata: { slug },
     });
 
-    // Personalization cascade: hard-delete prefs + memories scoped to
-    // this org for every member. Safe to run before Better Auth deletes
-    // the org row — these tables are independent of Better Auth state.
+    // Personalization cascade: schedule a bounded, self-rescheduling drain
+    // that erases prefs + memories + TTS chunks + videoLink blobs scoped to
+    // this org across every member. Scheduling (rather than deleting inline)
+    // keeps this mutation within the per-mutation write budget on a large org;
+    // the schedule is transactional with this mutation (rolled back if it
+    // throws) and safe to run before/after Better Auth deletes the org row —
+    // these tables key on organizationId and are independent of Better Auth
+    // state.
     await cascadeOnOrgDeleted(ctx, args.organizationId);
 
     // Schedule filesystem cleanup. Runs after Better Auth deletes the

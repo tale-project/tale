@@ -4,7 +4,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { action } from '../../_generated/server';
-import { authComponent } from '../../auth';
+import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
 import { loadGuardrailsSnapshot } from '../sanitize';
 
 type ErrorClass =
@@ -85,14 +85,14 @@ export const testModerationProvider = action({
     hint: v.optional(v.string()),
   }),
   handler: async (ctx, args): Promise<TestResult> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     await ctx.runQuery(
       internal.governance.internal_mutations.requireGovernanceAdminInternal,
       {
         organizationId: args.organizationId,
-        userId: String(authUser._id),
+        userId: authUser.userId,
         email: authUser.email,
         name: authUser.name,
       },

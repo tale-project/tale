@@ -141,8 +141,12 @@ export function AgentKnowledge({
 
   const isEnabled = knowledgeMode !== 'off';
 
+  // Only the org-knowledge branch consumes these, so don't pull the whole
+  // document collection unless that branch is actually active.
   const { documents: allDocuments, isLoading: isDocumentsLoading } =
-    useDocuments(organizationId);
+    useDocuments(organizationId, {
+      enabled: isEnabled && includeOrgKnowledge,
+    });
 
   const documents = useMemo(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex query result matches DocumentEntry shape

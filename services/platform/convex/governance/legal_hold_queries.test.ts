@@ -18,7 +18,11 @@ vi.mock('../auth', () => ({
 }));
 
 const mockGetOrganizationMember = vi.fn();
-vi.mock('../lib/rls', () => ({
+// Only `getOrganizationMember` is stubbed (role control); the real
+// `getAuthUserIdentity` is left unmocked so the migrated auth path runs against
+// the mock ctx's `ctx.auth.getUserIdentity()`. Mock the concrete module
+// (sources import it directly, not via the lib/rls barrel).
+vi.mock('../lib/rls/organization/get_organization_member', () => ({
   getOrganizationMember: (...args: unknown[]) =>
     mockGetOrganizationMember(...args),
 }));
@@ -96,18 +100,89 @@ interface MockReleaseRequest {
   rejectReason?: string;
 }
 
+// Minimal evaluator for the Convex `.filter()` expression DSL so the mock
+// honors predicates the queries now push into the query layer (e.g.
+// `q.eq(q.field('releasedAt'), undefined)`). Queries without `.filter()` leave
+// `filterPred` null, so `collect`/`first` return every row exactly as before.
+type FieldRef = { __field: string };
+function resolveOperand(
+  operand: unknown,
+  row: Record<string, unknown>,
+): unknown {
+  return operand && typeof operand === 'object' && '__field' in operand
+    ? row[(operand as FieldRef).__field]
+    : operand;
+}
+type RowPred = (row: Record<string, unknown>) => boolean;
+const FILTER_DSL = {
+  field: (name: string): FieldRef => ({ __field: name }),
+  eq:
+    (a: unknown, b: unknown): RowPred =>
+    (row) =>
+      resolveOperand(a, row) === resolveOperand(b, row),
+  neq:
+    (a: unknown, b: unknown): RowPred =>
+    (row) =>
+      resolveOperand(a, row) !== resolveOperand(b, row),
+  and:
+    (...preds: RowPred[]): RowPred =>
+    (row) =>
+      preds.every((p) => p(row)),
+  or:
+    (...preds: RowPred[]): RowPred =>
+    (row) =>
+      preds.some((p) => p(row)),
+};
+
 function makeBuilder(rows: unknown[]) {
+  let filterPred: RowPred | null = null;
+  // Index `eq` constraints captured from withIndex's callback, AND-ed into
+  // `applies` so the mock honors the index range (not just the .filter()).
+  const indexConstraints: Array<[string, unknown]> = [];
+  const applies = (row: unknown): boolean => {
+    const r = row as Record<string, unknown>;
+    for (const [field, value] of indexConstraints) {
+      if (r[field] !== value) return false;
+    }
+    return filterPred ? filterPred(r) : true;
+  };
+  const matching = (): unknown[] => rows.filter((r) => applies(r));
   const builder = {
-    withIndex: vi.fn().mockReturnThis(),
-    filter: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    first: vi.fn().mockResolvedValue(rows[0] ?? null),
-    collect: vi.fn().mockResolvedValue(rows),
-    paginate: vi.fn().mockResolvedValue({
-      page: rows,
+    withIndex: vi.fn(
+      (
+        _name: string,
+        cb?: (q: { eq: (f: string, v: unknown) => unknown }) => unknown,
+      ) => {
+        if (cb) {
+          const idxQ: { eq: (f: string, v: unknown) => typeof idxQ } = {
+            eq: (field, value) => {
+              indexConstraints.push([field, value]);
+              return idxQ;
+            },
+          };
+          cb(idxQ);
+        }
+        return builder;
+      },
+    ),
+    filter: vi.fn((fn: (q: typeof FILTER_DSL) => RowPred) => {
+      filterPred = fn(FILTER_DSL);
+      return builder;
+    }),
+    order: vi.fn(() => builder),
+    first: vi
+      .fn()
+      .mockImplementation(async () => rows.find((r) => applies(r)) ?? null),
+    collect: vi.fn().mockImplementation(async () => matching()),
+    paginate: vi.fn().mockImplementation(async () => ({
+      page: matching(),
       isDone: true,
       continueCursor: '',
-    }),
+    })),
+    // Support `for await (const row of query)` (the no-`.collect()` pattern).
+    async *[Symbol.asyncIterator]() {
+      for (const r of matching()) yield r;
+    },
   };
   return builder;
 }
@@ -122,6 +197,16 @@ function createMockCtx({
   matters?: Array<{ _id: string; organizationId: string; name: string }>;
 } = {}) {
   return {
+    // Production code now authorizes via `getAuthUserIdentity`, which reads
+    // `ctx.auth.getUserIdentity()`. Derive the identity from the same
+    // `mockGetAuthUser` source so existing `mockResolvedValue(ADMIN_USER)`
+    // / `null` expectations keep driving the auth path unchanged.
+    auth: {
+      getUserIdentity: vi.fn(async () => {
+        const u = await mockGetAuthUser();
+        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      }),
+    },
     db: {
       query: vi.fn((table: string) => {
         if (table === 'legalHolds') return makeBuilder(holds);
@@ -477,10 +562,33 @@ describe('legal_hold_queries.getLegalHoldByTarget — user-custodian cascade', (
           isDone: true,
           continueCursor: '',
         }),
+        // Support `for await (const row of query)` — yields the same set
+        // `collect()` would, honoring the captured index/filter constraints.
+        async *[Symbol.asyncIterator]() {
+          const matched =
+            captured.size === 0
+              ? rows
+              : rows.filter((row) =>
+                  [...captured.entries()].every(
+                    ([key, value]) =>
+                      (row as Record<string, unknown>)[key] === value,
+                  ),
+                );
+          for (const row of matched) yield row;
+        },
       };
       return builder;
     }
     return {
+      // Member-readable cascade queries authorize via getAuthUserIdentity
+      // (ctx.auth.getUserIdentity); derive it from the same mockGetAuthUser
+      // source used by createMockCtx.
+      auth: {
+        getUserIdentity: vi.fn(async () => {
+          const u = await mockGetAuthUser();
+          return u ? { subject: u._id, email: u.email, name: u.name } : null;
+        }),
+      },
       db: {
         query: vi.fn((table: string) => {
           if (table === 'legalHolds') return makeFilteringBuilder(holds);

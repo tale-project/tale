@@ -50,6 +50,7 @@ import { Route as DashboardIdSettingsMcpServersRouteImport } from './routes/dash
 import { Route as DashboardIdSettingsMcpRouteImport } from './routes/dashboard/$id/settings/mcp';
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs';
 import { Route as DashboardIdSettingsIntegrationsRouteImport } from './routes/dashboard/$id/settings/integrations';
+import { Route as DashboardIdSettingsDeploymentRouteImport } from './routes/dashboard/$id/settings/deployment';
 import { Route as DashboardIdSettingsBrandingRouteImport } from './routes/dashboard/$id/settings/branding';
 import { Route as DashboardIdSettingsApiKeysRouteImport } from './routes/dashboard/$id/settings/api-keys';
 import { Route as DashboardIdSettingsAgentsRouteImport } from './routes/dashboard/$id/settings/agents';
@@ -324,6 +325,12 @@ const DashboardIdSettingsIntegrationsRoute =
   DashboardIdSettingsIntegrationsRouteImport.update({
     id: '/integrations',
     path: '/integrations',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any);
+const DashboardIdSettingsDeploymentRoute =
+  DashboardIdSettingsDeploymentRouteImport.update({
+    id: '/deployment',
+    path: '/deployment',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any);
 const DashboardIdSettingsBrandingRoute =
@@ -709,6 +716,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute;
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute;
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute;
+  '/dashboard/$id/settings/deployment': typeof DashboardIdSettingsDeploymentRoute;
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute;
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp': typeof DashboardIdSettingsMcpRoute;
@@ -797,6 +805,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute;
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute;
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute;
+  '/dashboard/$id/settings/deployment': typeof DashboardIdSettingsDeploymentRoute;
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute;
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp': typeof DashboardIdSettingsMcpRoute;
@@ -896,6 +905,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute;
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute;
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute;
+  '/dashboard/$id/settings/deployment': typeof DashboardIdSettingsDeploymentRoute;
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute;
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp': typeof DashboardIdSettingsMcpRoute;
@@ -996,6 +1006,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/agents'
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
+    | '/dashboard/$id/settings/deployment'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp'
@@ -1084,6 +1095,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/agents'
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
+    | '/dashboard/$id/settings/deployment'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp'
@@ -1182,6 +1194,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/agents'
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
+    | '/dashboard/$id/settings/deployment'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp'
@@ -1538,6 +1551,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations';
       fullPath: '/dashboard/$id/settings/integrations';
       preLoaderRoute: typeof DashboardIdSettingsIntegrationsRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
+    '/dashboard/$id/settings/deployment': {
+      id: '/dashboard/$id/settings/deployment';
+      path: '/deployment';
+      fullPath: '/dashboard/$id/settings/deployment';
+      preLoaderRoute: typeof DashboardIdSettingsDeploymentRouteImport;
       parentRoute: typeof DashboardIdSettingsRoute;
     };
     '/dashboard/$id/settings/branding': {
@@ -2212,6 +2232,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsAgentsRoute: typeof DashboardIdSettingsAgentsRoute;
   DashboardIdSettingsApiKeysRoute: typeof DashboardIdSettingsApiKeysRoute;
   DashboardIdSettingsBrandingRoute: typeof DashboardIdSettingsBrandingRoute;
+  DashboardIdSettingsDeploymentRoute: typeof DashboardIdSettingsDeploymentRoute;
   DashboardIdSettingsIntegrationsRoute: typeof DashboardIdSettingsIntegrationsRoute;
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute;
   DashboardIdSettingsMcpRoute: typeof DashboardIdSettingsMcpRoute;
@@ -2236,6 +2257,7 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsAgentsRoute: DashboardIdSettingsAgentsRoute,
   DashboardIdSettingsApiKeysRoute: DashboardIdSettingsApiKeysRoute,
   DashboardIdSettingsBrandingRoute: DashboardIdSettingsBrandingRoute,
+  DashboardIdSettingsDeploymentRoute: DashboardIdSettingsDeploymentRoute,
   DashboardIdSettingsIntegrationsRoute: DashboardIdSettingsIntegrationsRoute,
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
   DashboardIdSettingsMcpRoute: DashboardIdSettingsMcpRoute,

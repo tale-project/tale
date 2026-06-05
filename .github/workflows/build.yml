@@ -93,6 +93,8 @@ jobs:
               - 'services/proxy/**'
             convex:
               - 'services/convex/**'
+            controller:
+              - 'services/controller/**'
             web:
               - 'services/web/**'
               - 'packages/ui/**'
@@ -137,7 +139,7 @@ jobs:
           # trio that `build` actually pushes to GHCR. Web and docs use their
           # own compose stacks and are reachable via security.yml's
           # filesystem scan.
-          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "crawler" or . == "rag" or . == "platform" or . == "proxy" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-runtime")]')
+          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "controller" or . == "crawler" or . == "rag" or . == "platform" or . == "proxy" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-runtime")]')
           echo "scannable=${SCANNABLE}" >> "$GITHUB_OUTPUT"
           echo "Services to scan: ${SCANNABLE}"
 
@@ -191,6 +193,7 @@ jobs:
           [
             db,
             convex,
+            controller,
             crawler,
             rag,
             platform,
@@ -340,7 +343,7 @@ jobs:
           # locally so smoke tests with PULL_POLICY=never find it.
           TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db convex crawler rag platform proxy sandbox sandbox-egress sandbox-runtime; do
+          for svc in db convex controller crawler rag platform proxy sandbox sandbox-egress sandbox-runtime; do
             IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
@@ -541,7 +544,7 @@ jobs:
           # locally so PULL_POLICY=never validation finds it.
           TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db convex crawler rag platform proxy sandbox sandbox-egress sandbox-runtime; do
+          for svc in db convex controller crawler rag platform proxy sandbox sandbox-egress sandbox-runtime; do
             IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"

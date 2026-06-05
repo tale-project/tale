@@ -23,6 +23,7 @@ type SettingsLabelKey =
   | 'api'
   | 'branding'
   | 'governance'
+  | 'dataResidency'
   | 'personalization'
   | 'account';
 
@@ -76,6 +77,14 @@ export function SettingsNavigation({
       label: t('branding'),
       href: `/dashboard/${organizationId}/settings/branding`,
       can: ['read', 'orgSettings'],
+    },
+    {
+      // Deployment-level data residency (instance admin).
+      labelKey: 'dataResidency',
+      label: t('dataResidency'),
+      href: `/dashboard/${organizationId}/settings/deployment`,
+      can: ['read', 'orgSettings'],
+      matchMode: 'startsWith',
     },
     {
       labelKey: 'providers',

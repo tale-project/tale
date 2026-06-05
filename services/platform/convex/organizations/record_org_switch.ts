@@ -29,7 +29,7 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { logSuccess } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 const DEDUP_WINDOW_MS = 30 * 60 * 1000;
@@ -40,7 +40,7 @@ export const recordOrgSwitch = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -50,7 +50,7 @@ export const recordOrgSwitch = mutation({
     // client cannot spam audit logs for tenants they don't belong to.
     const member = await getOrganizationMember(ctx, args.organizationId);
 
-    const actorId = String(authUser._id);
+    const actorId = authUser.userId;
     const cutoff = Date.now() - DEDUP_WINDOW_MS;
     let hasRecentEntry = false;
     // Scope the scan to THIS actor via the actorId index, so we walk only this
@@ -99,7 +99,7 @@ export const recordOrgSwitch = mutation({
     await ctx.runMutation(components.betterAuth.adapter.updateMany, {
       input: {
         model: 'user' as const,
-        where: [{ field: '_id', value: String(authUser._id), operator: 'eq' }],
+        where: [{ field: '_id', value: authUser.userId, operator: 'eq' }],
         update: { lastActiveOrganizationId: args.organizationId },
       },
       paginationOpts: { cursor: null, numItems: 1 },

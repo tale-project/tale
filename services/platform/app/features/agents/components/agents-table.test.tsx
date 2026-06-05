@@ -21,6 +21,7 @@ vi.mock('@/lib/i18n/client', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
+  useRouter: () => ({ preloadRoute: vi.fn() }),
   useParams: () => ({ id: 'test-org-id' }),
   Link: ({
     children,

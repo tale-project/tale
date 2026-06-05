@@ -9,12 +9,21 @@ import { api } from '@/convex/_generated/api';
 
 type WorkflowFilter = 'installed' | 'templates' | 'all';
 
+/**
+ * Query key for the workflows list. Exported so a route loader can prefetch the
+ * exact key useListWorkflows reads (keeps loader and hook drift-proof).
+ */
+export const workflowListKey = (
+  organizationId: string,
+  filter?: WorkflowFilter,
+) => [...configKeys.list('workflows', organizationId), filter] as const;
+
 export function useListWorkflows(
   organizationId: string,
   filter?: WorkflowFilter,
 ) {
   const { data, isLoading, error, refetch } = useActionQuery(
-    ['config', 'workflows', organizationId, '_list', filter],
+    workflowListKey(organizationId, filter),
     api.workflows.file_actions.listWorkflows,
     { organizationId, filter },
   );

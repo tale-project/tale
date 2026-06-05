@@ -23,7 +23,7 @@ import type {
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import {
   RetentionBoundsViolation,
@@ -100,7 +100,7 @@ export const getRetentionBoundsAction = action({
     retentionDisabled: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
@@ -109,7 +109,7 @@ export const getRetentionBoundsAction = action({
     }
     await ctx.runQuery(internal.governance.internal_queries.verifyOrgMember, {
       organizationId: args.organizationId,
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email ?? '',
       name: authUser.name,
     });
@@ -161,7 +161,7 @@ export const upsertRetentionPolicyAction = action({
   },
   returns: v.id('governancePolicies'),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
@@ -172,7 +172,7 @@ export const upsertRetentionPolicyAction = action({
       internal.governance.internal_queries.verifyOrgAdmin,
       {
         organizationId: args.organizationId,
-        userId: String(authUser._id),
+        userId: authUser.userId,
         email: authUser.email ?? '',
         name: authUser.name,
       },
@@ -244,7 +244,7 @@ export const upsertRetentionPolicyAction = action({
         {
           organizationId: args.organizationId,
           config: args.config,
-          actorId: String(authUser._id),
+          actorId: authUser.userId,
           actorEmail: authUser.email,
           actorName: authUser.name,
         },

@@ -44,7 +44,10 @@ vi.mock('../auth', () => ({
   },
 }));
 
-vi.mock('../lib/rls', () => ({
+// Sources import these directly (not via the lib/rls barrel), so mock the
+// concrete module. The real getAuthUserIdentity is left unmocked so the
+// migrated auth path runs against the mock ctx's ctx.auth.getUserIdentity().
+vi.mock('../lib/rls/organization/get_organization_member', () => ({
   getOrganizationMember: vi.fn().mockResolvedValue({
     _id: 'member_1',
     organizationId: 'org_1',
@@ -98,6 +101,15 @@ function createMockCtx() {
       get: vi.fn().mockResolvedValue(null),
       insert: vi.fn().mockResolvedValue('fm_new'),
       patch: vi.fn().mockResolvedValue(undefined),
+    },
+    auth: {
+      // Production now reads JWT identity via getAuthUserIdentity, which
+      // calls ctx.auth.getUserIdentity(). Derive it from the same
+      // mockGetAuthUser source, mapping _id -> subject.
+      getUserIdentity: vi.fn(async () => {
+        const u = await mockGetAuthUser();
+        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      }),
     },
     runMutation: vi.fn().mockResolvedValue('fm_new'),
     scheduler: {

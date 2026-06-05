@@ -61,11 +61,11 @@ import {
 } from '../_generated/server';
 import * as ApprovalsHelpers from '../approvals/helpers';
 import { createAuditLog } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { hashEmailForAudit } from '../lib/helpers/pii_hash';
 import { ragFetch } from '../lib/helpers/rag_config';
 import { rateLimiter } from '../lib/rate_limiter';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -202,14 +202,14 @@ export const requestErasure = mutation({
     threadsTargeted: v.number(),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: callerId,
@@ -2287,14 +2287,14 @@ export const cancelErasureRequest = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
 
     const row = await ctx.db.get(args.requestId);
     if (!row) {
@@ -2469,14 +2469,14 @@ export const retryErasureRequest = mutation({
   args: { requestId: v.id('gdprErasureRequests') },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
 
     const row = await ctx.db.get(args.requestId);
     if (!row) {
@@ -2661,14 +2661,14 @@ export const extendErasureDeadline = mutation({
     extensionDeadlineAt: v.number(),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
 
     const row = await ctx.db.get(args.requestId);
     if (!row) {

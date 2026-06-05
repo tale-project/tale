@@ -27,7 +27,7 @@ import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
 import type { Document } from '../hooks/queries';
-import { useDocuments } from '../hooks/queries';
+import { useDocument } from '../hooks/queries';
 import { DocumentPreview } from './document-preview';
 import { PreviewPaneSkeleton } from './preview-pane';
 import { RagStatusBadge } from './rag-status-badge';
@@ -35,7 +35,6 @@ import { RagStatusBadge } from './rag-status-badge';
 interface DocumentPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  organizationId: string;
   documentId?: string;
   /** Convex storage ID — used when documentId is not available (e.g. citation source cards). */
   fileId?: string;
@@ -204,7 +203,6 @@ function DetailsSidebar({
 export function DocumentPreviewDialog({
   open,
   onOpenChange,
-  organizationId,
   documentId,
   fileId,
   fileName,
@@ -213,15 +211,15 @@ export function DocumentPreviewDialog({
   const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
 
-  const { documents, isLoading: isLoadingDocs } = useDocuments(organizationId);
-
-  const doc = useMemo(() => {
-    if (!documents || !open) return undefined;
-    if (documentId) {
-      return documents.find((d: Document) => d.id === documentId);
-    }
-    return undefined;
-  }, [documents, open, documentId]);
+  // Point-query just this document instead of fetching the whole collection
+  // and finding it client-side. Skips while the dialog is closed or when only
+  // a storage id (citation source) is available.
+  const { data: docData, isLoading: isLoadingDoc } = useDocument(
+    open && documentId ? documentId : undefined,
+  );
+  // Normalize the point-query's `null` (not-found / no-access) to `undefined`
+  // to match the rest of this component's optional-document handling.
+  const doc = docData ?? undefined;
 
   // When no documentId is available, resolve fileId (storage ID) directly to a URL
   const { data: storageUrl, isLoading: isLoadingUrl } = useFileUrl(
@@ -230,7 +228,7 @@ export function DocumentPreviewDialog({
   );
 
   const resolvedUrl = doc?.url ?? storageUrl ?? undefined;
-  const isLoading = documentId ? isLoadingDocs : isLoadingUrl;
+  const isLoading = documentId ? isLoadingDoc : isLoadingUrl;
   const displayName = fileName || doc?.name || t('preview.document');
 
   const handleDownload = async () => {

@@ -1,9 +1,9 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 /**
  * Recent guardrails events for the Guardrails Overview dashboard.
@@ -35,14 +35,14 @@ export const listRecent = query({
     ),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
     if (!isAdmin(member.role)) {
       throw new Error('Only admins can view guardrails events');
     }

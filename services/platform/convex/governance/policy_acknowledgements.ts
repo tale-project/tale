@@ -21,7 +21,7 @@ import { ConvexError, v } from 'convex/values';
 import { dataNoticeConfigSchema } from '../../lib/shared/schemas/governance';
 import { mutation, query } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 // Closed set of ackable policy types. Today only the data-classification
@@ -41,14 +41,14 @@ export const acknowledgePolicy = mutation({
   },
   returns: v.id('policyAcknowledgements'),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
 
     // RLS: the caller must actually be a member of the org they're
     // ack-ing on behalf of. Without this, any signed-in user can write
@@ -133,9 +133,9 @@ export const getPolicyAcknowledgement = query({
     policyType: ackablePolicyTypeValidator,
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     // RLS — see acknowledgePolicy. Reading another org's ack rows is a
     // (small) information leak (acked-or-not + version + timestamp);
     // close the same hole here.

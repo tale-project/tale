@@ -10,11 +10,11 @@ import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
 import { checkBudget } from '../governance/budget_enforcement';
 import { resolveBudgetContext } from '../governance/resolve_budget_context';
 import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 /** Per-org cap on in-flight video-link jobs. Prevents one org from soaking
@@ -74,11 +74,11 @@ export const ingestVideoUrl = mutation({
     userLocale: v.optional(v.string()),
   },
   async handler(ctx, args) {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     const callerIdentity = {
       userId,
       email: authUser.email,
@@ -315,9 +315,9 @@ export const ingestVideoUrl = mutation({
 export const cancelVideoLink = mutation({
   args: { jobId: v.id('videoLinkJobs') },
   async handler(ctx, args) {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
 
     const job = await ctx.db.get(args.jobId);
     if (!job) throw new Error('Video link not found');
@@ -400,9 +400,9 @@ export const cancelVideoLink = mutation({
 export const retryVideoLink = mutation({
   args: { jobId: v.id('videoLinkJobs') },
   async handler(ctx, args) {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
 
     const job = await ctx.db.get(args.jobId);
     if (!job) throw new Error('Video link not found');
@@ -551,9 +551,9 @@ export const bindCompletedJobsToMessage = mutation({
     threadId: v.string(),
   },
   async handler(ctx, args) {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     const callerIdentity = {
       userId,
       email: authUser.email,
@@ -691,9 +691,9 @@ export const bindCompletedJobsToMessage = mutation({
 export const unbindJobsFromMessage = mutation({
   args: { jobIds: v.array(v.id('videoLinkJobs')) },
   async handler(ctx, args) {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     const callerIdentity = {
       userId,
       email: authUser.email,

@@ -667,6 +667,63 @@ services:
       - internal
       - sandbox
 
+  # ============================================================================
+  # Tale Controller — privileged control-plane sidecar (OPT-IN)
+  # ----------------------------------------------------------------------------
+  # Restarts allowlisted compose services ({rag, convex}) on an HMAC-signed
+  # request from convex/platform, so a deployment-config change (external
+  # knowledge Postgres / Convex S3 storage) takes effect WITHOUT giving the
+  # browser-facing platform docker-socket access.
+  #
+  # OPT-IN: only starts under the `controller` profile
+  # (`docker compose --profile controller up -d`). When absent, the UI falls
+  # back to showing the manual `docker compose restart rag convex` command.
+  #
+  # SECURITY: mounts /var/run/docker.sock = host root — the same accepted
+  # boundary as the sandbox spawner, but constrained to list+restart of
+  # {rag, convex}, HMAC-verified, internal-network-only, no published port.
+  # Set CONTROLLER_TOKEN (shared with platform/convex) in .env.
+  # ============================================================================
+  controller:
+    image: ghcr.io/tale-project/tale/tale-controller:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
+    build:
+      context: .
+      dockerfile: services/controller/Dockerfile
+    container_name: tale-controller
+    profiles:
+      - controller
+    env_file:
+      - .env
+    environment:
+      CONTROLLER_PORT: '8004'
+      # Scope restarts to this compose project so another stack is never touched.
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-tale}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    mem_limit: 256m
+    pids_limit: 256
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'bun',
+          '-e',
+          'const r=await fetch("http://127.0.0.1:8004/health");process.exit(r.ok?0:1)',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - internal
+
 # ============================================================================
 # Volumes
 # ============================================================================

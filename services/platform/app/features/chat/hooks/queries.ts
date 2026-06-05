@@ -51,12 +51,18 @@ export function useThreads({
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- paginationOpts is optional to handle Convex reconnection replays; usePaginatedQuery always provides it at runtime
   const listThreadsQuery = api.threads.queries
     .listThreads as unknown as Parameters<typeof useCachedPaginatedQuery>[0];
-  const queryArgs = skip
-    ? ('skip' as const)
-    : {
-        ...(teamId ? { teamId } : {}),
-        ...(organizationId ? { organizationId } : {}),
-      };
+  // Memoize so a parent re-render doesn't hand the paginated query a fresh
+  // args object (new reference) and churn the subscription.
+  const queryArgs = useMemo(
+    () =>
+      skip
+        ? ('skip' as const)
+        : {
+            ...(teamId ? { teamId } : {}),
+            ...(organizationId ? { organizationId } : {}),
+          },
+    [skip, teamId, organizationId],
+  );
   const { results, status, loadMore, isLoading } = useCachedPaginatedQuery(
     listThreadsQuery,
     queryArgs,
@@ -96,12 +102,16 @@ export function useArchivedThreads({
     .listArchivedThreads as unknown as Parameters<
     typeof useCachedPaginatedQuery
   >[0];
-  const queryArgs = skip
-    ? ('skip' as const)
-    : {
-        ...(teamId ? { teamId } : {}),
-        ...(organizationId ? { organizationId } : {}),
-      };
+  const queryArgs = useMemo(
+    () =>
+      skip
+        ? ('skip' as const)
+        : {
+            ...(teamId ? { teamId } : {}),
+            ...(organizationId ? { organizationId } : {}),
+          },
+    [skip, teamId, organizationId],
+  );
   const { results, status, loadMore, isLoading } = useCachedPaginatedQuery(
     listArchivedThreadsQuery,
     queryArgs,

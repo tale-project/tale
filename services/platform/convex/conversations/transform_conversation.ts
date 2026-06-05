@@ -13,15 +13,35 @@ const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
 export async function transformConversation(
   ctx: QueryCtx,
   conversation: Doc<'conversations'>,
-  options?: { includeAllMessages?: boolean },
+  options?: {
+    includeAllMessages?: boolean;
+    // When a caller has batch-fetched customers for a page (see
+    // get_customers_by_ids), it passes the resolved customer (or null) here to
+    // avoid a per-conversation `ctx.db.get` N+1. Absent → self-fetch (default
+    // for single-conversation callers).
+    customer?: Doc<'customers'> | null;
+  },
 ): Promise<ConversationItem> {
   const includeAllMessages = options?.includeAllMessages ?? false;
+  const customerPrefetched = options !== undefined && 'customer' in options;
+  // Only trust a prefetched customer that actually belongs to this conversation
+  // (guards against a caller mapping the wrong customer); a prefetched `null` is
+  // trusted as "no customer". Anything else falls back to a direct fetch.
+  const prefetched = customerPrefetched
+    ? (options.customer ?? null)
+    : undefined;
+  const prefetchUsable =
+    prefetched === undefined ||
+    prefetched === null ||
+    prefetched._id === conversation.customerId;
 
   // Load customer and messages in parallel
   const [customerDoc, messageDocs] = await Promise.all([
-    conversation.customerId
-      ? ctx.db.get(conversation.customerId)
-      : Promise.resolve(null),
+    customerPrefetched && prefetchUsable
+      ? Promise.resolve(prefetched ?? null)
+      : conversation.customerId
+        ? ctx.db.get(conversation.customerId)
+        : Promise.resolve(null),
     (async () => {
       if (includeAllMessages) {
         const docs: Array<Doc<'conversationMessages'>> = [];

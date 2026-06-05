@@ -10,6 +10,7 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useListPage } from '@/app/hooks/use-list-page';
+import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { useT } from '@/lib/i18n/client';
 
 import { useProjects, type ProjectListItem } from '../hooks/queries';
@@ -37,6 +38,7 @@ function formatRelative(timestamp: number, locale: string): string {
 export function ProjectsTable({ organizationId }: ProjectsTableProps) {
   const { t } = useT('projects');
   const navigate = useNavigate();
+  const preloadRoute = usePreloadRoute();
   const [includeArchived, setIncludeArchived] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const { projects, isLoading } = useProjects(organizationId, {
@@ -53,6 +55,18 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       });
     },
     [navigate, organizationId],
+  );
+
+  const handleRowMouseEnter = useCallback(
+    (row: Row<ProjectListItem>) => {
+      // Warm the detail route (runs its loader → getProject) on hover so the
+      // click lands on already-fetched data.
+      preloadRoute({
+        to: '/dashboard/$id/projects/$projectId',
+        params: { id: organizationId, projectId: String(row.original._id) },
+      });
+    },
+    [preloadRoute, organizationId],
   );
 
   const locale =
@@ -158,6 +172,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         {...list.tableProps}
         columns={columns}
         onRowClick={handleRowClick}
+        onRowMouseEnter={handleRowMouseEnter}
         filtersContent={
           <Checkbox
             id="projects-show-archived"

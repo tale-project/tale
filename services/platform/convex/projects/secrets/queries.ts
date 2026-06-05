@@ -2,9 +2,9 @@ import { v } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
 import { query, type QueryCtx } from '../../_generated/server';
-import { authComponent } from '../../auth';
 import { getUserTeamIds } from '../../lib/get_user_teams';
-import { getOrganizationMember } from '../../lib/rls';
+import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../../lib/rls/organization/get_organization_member';
 import { checkProjectAccess } from '../access';
 
 async function assertProjectAdmin(
@@ -13,13 +13,13 @@ async function assertProjectAdmin(
 ): Promise<void> {
   const project = await ctx.db.get(projectId);
   if (!project) throw new Error('PROJECT_NOT_FOUND');
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) throw new Error('Unauthenticated');
-  const member = await getOrganizationMember(ctx, project.organizationId, {
-    userId: String(authUser._id),
-    email: authUser.email,
-    name: authUser.name,
-  });
+  const member = await getOrganizationMember(
+    ctx,
+    project.organizationId,
+    authUser,
+  );
   const teamIds = await getUserTeamIds(ctx, member.userId);
   if (!checkProjectAccess(project, teamIds, member.role).canAdminister) {
     throw new Error('SECRET_FORBIDDEN');

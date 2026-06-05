@@ -72,17 +72,20 @@ Setting `METRICS_BEARER_TOKEN` exposes four endpoints behind the token: `/metric
 | `SOPS_AGE_KEY`      | unset   | Inline age secret key. Encrypts `providers/*.secrets.json`. Default mode after `tale init`. Multiple keys are not supported inline.                |
 | `SOPS_AGE_KEY_FILE` | unset   | Path to a file with one or more age keys (one per line; `#` comments allowed). Required for key rotation. Mutually exclusive with the inline form. |
 
-When both are unset, Tale stores `providers/*.secrets.json` as plaintext JSON at mode 0600. Reach this mode only when the host disk is encrypted at rest or the files are produced by external tooling (a Kubernetes Secret mount, a Vault template). Rotating an age key is appending the new key, re-saving each provider in the UI, then dropping the old key. See [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops) for the full rotation walk.
+When both age vars are unset, Tale stores `providers/*.secrets.json` as plaintext JSON at mode 0600. Reach this mode only when the host disk is encrypted at rest or the files are produced by external tooling (a Kubernetes Secret mount, a Vault template). Rotating an age key is appending the new key, re-saving each provider in the UI, then dropping the old key. See [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops) for the full rotation walk.
+
+The env-var key source needs no environment-level switch: a provider can read its key from an environment variable instead of a secrets file, as long as the variable is named with the reserved `TALE_PROVIDER_KEY_` prefix (any other name is rejected). The mechanism — the prefix gate, resolution order, the 40-character cap, the restart requirement — is documented in [Providers](/self-hosted/configuration/providers#environment-variable-key-source).
 
 ## Feature flags
 
 Optional toggles for features not enabled by default. Each flag turns one feature on or off at boot; toggling requires a restart of the platform container.
 
-| Name                      | Default | Description                                                                     |
-| ------------------------- | ------- | ------------------------------------------------------------------------------- |
-| `MICROSOFT_AUTH_ENABLED`  | `false` | Enables the Microsoft Entra sign-in option.                                     |
-| `TRUSTED_HEADERS_ENABLED` | `false` | Enables the trusted-headers auth mode (identity supplied by the reverse proxy). |
-| `FILE_EVENTS_ENABLED`     | `false` | Enables file-watching events for the OneDrive-sync integration.                 |
+| Name                            | Default | Description                                                                                                                     |
+| ------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `MICROSOFT_AUTH_ENABLED`        | `false` | Enables the Microsoft Entra sign-in option.                                                                                     |
+| `TRUSTED_HEADERS_ENABLED`       | `false` | Enables the trusted-headers auth mode (identity supplied by the reverse proxy).                                                 |
+| `FILE_EVENTS_ENABLED`           | `false` | Enables file-watching events for the OneDrive-sync integration.                                                                 |
+| `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Comma-separated email allowlist of operators allowed to edit deployment data residency. Empty/unset = read-only for all admins. |
 
 ## Sessions
 

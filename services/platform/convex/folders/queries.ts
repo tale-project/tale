@@ -3,9 +3,9 @@ import { v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { query } from '../_generated/server';
-import { authComponent } from '../auth';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
 
 export const listFolders = query({
@@ -14,18 +14,14 @@ export const listFolders = query({
     parentId: v.optional(v.id('folders')),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, args.organizationId, authUser);
 
-    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
     const folders: Doc<'folders'>[] = [];
 
     const q = ctx.db
@@ -50,7 +46,7 @@ export const getFolder = query({
     folderId: v.id('folders'),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -58,13 +54,9 @@ export const getFolder = query({
     const folder = await ctx.db.get(args.folderId);
     if (!folder) return null;
 
-    await getOrganizationMember(ctx, folder.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, folder.organizationId, authUser);
 
-    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
     if (!hasTeamAccess(folder, userTeamIds)) return null;
 
     return {
@@ -82,7 +74,7 @@ export const getFolderBreadcrumb = query({
     folderId: v.id('folders'),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -92,13 +84,9 @@ export const getFolderBreadcrumb = query({
       return [];
     }
 
-    await getOrganizationMember(ctx, folder.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, folder.organizationId, authUser);
 
-    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
 
     if (folder.teamId && !hasTeamAccess(folder, userTeamIds)) {
       return [];

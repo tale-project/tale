@@ -24,7 +24,6 @@ import { brandingJsonSchema } from '../../lib/shared/schemas/branding';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
 import {
   atomicWrite,
   atomicWriteBuffer,
@@ -35,6 +34,7 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getTrustedAuthData } from '../lib/rls/auth/get_trusted_auth_data';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import type { BrandingJsonConfig, BrandingReadResult } from './file_utils';
@@ -54,7 +54,7 @@ import {
 const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 
 async function requireBrandingAdmin(ctx: ActionCtx): Promise<void> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) throw new Error('Unauthenticated');
 
   const trustedData = await getTrustedAuthData(ctx);
@@ -70,7 +70,7 @@ async function requireBrandingAdmin(ctx: ActionCtx): Promise<void> {
 
   const isUserAdmin = await ctx.runQuery(
     internal.branding.internal_queries.isCallerAdmin,
-    { userId: String(authUser._id) },
+    { userId: authUser.userId },
   );
   if (!isUserAdmin) {
     throw new Error('Only admins can modify branding');

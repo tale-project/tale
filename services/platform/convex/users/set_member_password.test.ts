@@ -68,7 +68,12 @@ function createMockCtx() {
     runQuery: vi.fn(),
     runMutation: vi.fn(),
     db: {},
-    auth: {},
+    auth: {
+      getUserIdentity: vi.fn(async () => {
+        const u = await mockGetAuthUser();
+        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      }),
+    },
   };
 }
 

@@ -24,8 +24,8 @@ import type { QueryCtx } from '../_generated/server';
 import { query } from '../_generated/server';
 import { getResourceAuditTrail } from '../audit_logs/helpers';
 import { auditLogItemValidator } from '../audit_logs/validators';
-import { authComponent } from '../auth';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { jsonRecordValidator } from '../lib/validators/json';
@@ -43,19 +43,15 @@ async function requireAdmin(
   ctx: QueryCtx,
   organizationId: string,
 ): Promise<{ userId: string; role: string }> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     throw new Error('Unauthenticated');
   }
-  const member = await getOrganizationMember(ctx, organizationId, {
-    userId: String(authUser._id),
-    email: authUser.email ?? '',
-    name: authUser.name ?? undefined,
-  });
+  const member = await getOrganizationMember(ctx, organizationId, authUser);
   if (!isAdmin(member.role)) {
     throw new Error('Admin role required.');
   }
-  return { userId: String(authUser._id), role: member.role };
+  return { userId: authUser.userId, role: member.role };
 }
 
 async function shapeSummaries(

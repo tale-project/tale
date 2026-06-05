@@ -8,7 +8,9 @@
 
 import type { PaginationOptions } from 'convex/server';
 
+import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
+import { getCustomersByIds } from './get_customers_by_ids';
 import { transformConversation } from './transform_conversation';
 import type { ConversationItem, ConversationStatus } from './types';
 
@@ -71,8 +73,20 @@ export async function listConversationsPaginated(
 
   const result = await query.paginate(args.paginationOpts);
 
+  // Batch-fetch (and dedupe) the page's customers once, then hand each
+  // pre-resolved customer to transformConversation so it skips the per-row
+  // ctx.db.get — collapsing the N+1 customer fan-out for the page.
+  const customerIds = result.page
+    .map((c) => c.customerId)
+    .filter((id): id is Id<'customers'> => id !== undefined);
+  const customers = await getCustomersByIds(ctx, customerIds);
+
   const page = await Promise.all(
-    result.page.map((c) => transformConversation(ctx, c)),
+    result.page.map((c) =>
+      transformConversation(ctx, c, {
+        customer: c.customerId ? (customers.get(c.customerId) ?? null) : null,
+      }),
+    ),
   );
 
   return {

@@ -72,17 +72,20 @@ Définir `METRICS_BEARER_TOKEN` expose quatre endpoints derrière le token : `/m
 | `SOPS_AGE_KEY`      | non défini | Clé secrète age inline. Chiffre `providers/*.secrets.json`. Mode par défaut après `tale init`. Plusieurs clés ne sont pas supportées en inline.                               |
 | `SOPS_AGE_KEY_FILE` | non défini | Chemin vers un fichier avec une ou plusieurs clés age (une par ligne ; commentaires `#` autorisés). Obligatoire pour la rotation. S'exclut mutuellement avec la forme inline. |
 
-Si les deux ne sont pas définis, Tale stocke `providers/*.secrets.json` en JSON clair en mode 0600. Atteins ce mode seulement si le disque hôte est chiffré au repos ou si les fichiers sont produits par un outillage externe (un montage de secret Kubernetes, un template Vault). Faire tourner une clé age, c'est ajouter la nouvelle clé, réenregistrer chaque fournisseur dans l'UI, puis retirer l'ancienne. Voir [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops) pour la marche complète de rotation.
+Si les deux clés age ne sont pas définies, Tale stocke `providers/*.secrets.json` en JSON clair en mode 0600. Atteins ce mode seulement si le disque hôte est chiffré au repos ou si les fichiers sont produits par un outillage externe (un montage de secret Kubernetes, un template Vault). Faire tourner une clé age, c'est ajouter la nouvelle clé, réenregistrer chaque fournisseur dans l'UI, puis retirer l'ancienne. Voir [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops) pour la marche complète de rotation.
+
+La source de clé par variable d'environnement ne nécessite aucun commutateur de déploiement : un fournisseur peut lire sa clé depuis une variable d'environnement plutôt que depuis un fichier de secrets, tant que la variable est nommée avec le préfixe réservé `TALE_PROVIDER_KEY_` (tout autre nom est rejeté). Le mécanisme — la barrière de préfixe, l'ordre de résolution, le plafond de 40 caractères, l'exigence de redémarrage — est documenté dans [Fournisseurs](/fr/self-hosted/configuration/providers#environment-variable-key-source).
 
 ## Drapeaux de fonctionnalité
 
 Bascules optionnelles pour des fonctionnalités non activées par défaut. Chaque drapeau active ou désactive une fonctionnalité au boot ; basculer demande un redémarrage du conteneur plateforme.
 
-| Nom                       | Défaut  | Description                                                                         |
-| ------------------------- | ------- | ----------------------------------------------------------------------------------- |
-| `MICROSOFT_AUTH_ENABLED`  | `false` | Active l'option de sign-in Microsoft Entra.                                         |
-| `TRUSTED_HEADERS_ENABLED` | `false` | Active le mode auth par trusted headers (identité fournie par le reverse proxy).    |
-| `FILE_EVENTS_ENABLED`     | `false` | Active les événements de surveillance de fichiers pour l'intégration OneDrive-sync. |
+| Nom                             | Défaut  | Description                                                                                                                                                           |
+| ------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MICROSOFT_AUTH_ENABLED`        | `false` | Active l'option de sign-in Microsoft Entra.                                                                                                                           |
+| `TRUSTED_HEADERS_ENABLED`       | `false` | Active le mode auth par trusted headers (identité fournie par le reverse proxy).                                                                                      |
+| `FILE_EVENTS_ENABLED`           | `false` | Active les événements de surveillance de fichiers pour l'intégration OneDrive-sync.                                                                                   |
+| `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Allowlist de courriels (séparés par des virgules) des opérateurs autorisés à modifier la résidence des données. Vide/non défini = lecture seule pour tous les admins. |
 
 ## Sessions
 

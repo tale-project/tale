@@ -5,7 +5,7 @@
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
 export interface UpdateUserNameArgs {
   name: string;
@@ -15,7 +15,7 @@ export async function updateUserName(
   ctx: MutationCtx,
   args: UpdateUserNameArgs,
 ): Promise<void> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     throw new Error('Unauthenticated');
   }
@@ -32,7 +32,7 @@ export async function updateUserName(
   const userRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
     model: 'user',
     paginationOpts: { cursor: null, numItems: 1 },
-    where: [{ field: '_id', value: String(authUser._id), operator: 'eq' }],
+    where: [{ field: '_id', value: authUser.userId, operator: 'eq' }],
   });
   const userRaw = userRes?.page?.[0];
   const user = isRecord(userRaw) ? userRaw : undefined;

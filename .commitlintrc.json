@@ -6,6 +6,7 @@
       "always",
       [
         "cli",
+        "controller",
         "convex",
         "crawler",
         "db",

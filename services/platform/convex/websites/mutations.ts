@@ -1,8 +1,8 @@
 import { v } from 'convex/values';
 
 import { mutation } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import * as WebsitesHelpers from './helpers';
 import { websiteStatusValidator } from './validators';
 
@@ -17,7 +17,7 @@ export const updateWebsite = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -27,11 +27,7 @@ export const updateWebsite = mutation({
       throw new Error('Website not found');
     }
 
-    await getOrganizationMember(ctx, website.organizationId, {
-      userId: authUser._id,
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, website.organizationId, authUser);
 
     await WebsitesHelpers.updateWebsite(ctx, args);
     return null;
