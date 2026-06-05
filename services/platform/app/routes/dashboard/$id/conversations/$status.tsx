@@ -7,8 +7,11 @@ import {
   useApproxConversationCountByStatus,
   useListConversationsPaginated,
 } from '@/app/features/conversations/hooks/queries';
+import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
+
+const INITIAL_NUM_ITEMS = 30;
 
 const VALID_STATUSES = ['open', 'closed', 'archived', 'spam'] as const;
 type ValidStatus = (typeof VALID_STATUSES)[number];
@@ -39,21 +42,24 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
   },
   loader: ({ context, params }) => {
     if (isValidStatus(params.status)) {
-      void context.queryClient.prefetchQuery(
-        convexQuery(api.conversations.queries.listConversationsPaginated, {
-          organizationId: params.id,
-          status: params.status,
-          paginationOpts: { numItems: 30, cursor: null },
-        }),
-      );
+      const status = params.status;
       void context.queryClient.prefetchQuery(
         convexQuery(
           api.conversations.queries.approxCountConversationsByStatus,
           {
             organizationId: params.id,
-            status: params.status,
+            status,
           },
         ),
+      );
+      // Prime the paginated list cache so the first page paints without a
+      // skeleton flash on first nav. Args mirror useListConversationsPaginated's
+      // base args (priority/search are in-page filters — live subscription).
+      void primeCachedPaginatedQuery(
+        context.convexQueryClient.convexClient,
+        api.conversations.queries.listConversationsPaginated,
+        { organizationId: params.id, status },
+        { initialNumItems: INITIAL_NUM_ITEMS },
       );
     }
   },
@@ -87,7 +93,7 @@ function ConversationsStatusPage() {
     organizationId,
     status: mappedStatus,
     priority: priority && priority.length > 0 ? priority : undefined,
-    initialNumItems: 30,
+    initialNumItems: INITIAL_NUM_ITEMS,
   });
 
   return (

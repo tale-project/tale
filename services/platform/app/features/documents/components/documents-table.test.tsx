@@ -33,6 +33,10 @@ vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({ pathname: '/dashboard/test-org/documents' }),
 }));
 
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ prefetchQuery: vi.fn() }),
+}));
+
 vi.mock('@/app/hooks/use-team-filter', () => ({
   useTeamFilter: () => ({ teams: [], selectedTeamId: undefined }),
 }));

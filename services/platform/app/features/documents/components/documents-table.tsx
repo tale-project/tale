@@ -1,5 +1,7 @@
 'use client';
 
+import { convexQuery } from '@convex-dev/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
 import { FileText } from 'lucide-react';
@@ -11,6 +13,8 @@ import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
+import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import type { DocumentItem, RagStatus } from '@/types/documents';
 
@@ -42,6 +46,7 @@ export function DocumentsTable({
   hasMicrosoftAccount = false,
 }: DocumentsTableProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { t: tDocuments } = useT('documents');
 
   const { data: docCount } = useApproxDocumentCount(organizationId);
@@ -273,6 +278,20 @@ export function DocumentsTable({
     [navigateToFolder, openPreview],
   );
 
+  const handleRowMouseEnter = useCallback(
+    (row: Row<DocumentItem>) => {
+      // Warm the preview's point query on hover (cheap single-doc read) so the
+      // preview dialog opens without a loading flash on click.
+      if (row.original.type !== 'file') return;
+      void queryClient.prefetchQuery(
+        convexQuery(api.documents.queries.getDocumentById, {
+          documentId: toId<'documents'>(row.original.id),
+        }),
+      );
+    },
+    [queryClient],
+  );
+
   const closePreview = useCallback(() => {
     void navigate({
       to: '/dashboard/$id/documents',
@@ -357,6 +376,7 @@ export function DocumentsTable({
       <DataTable
         columns={columns}
         onRowClick={handleRowClick}
+        onRowMouseEnter={handleRowMouseEnter}
         rowClassName={getRowClassName}
         stickyLayout={stickyLayout}
         actionMenu={

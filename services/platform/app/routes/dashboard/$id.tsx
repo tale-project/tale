@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { FullPageCenter } from '@tale/ui/full-page-center';
 import { VStack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
@@ -48,6 +49,13 @@ export const Route = createFileRoute('/dashboard/$id')({
   // transition — the component renders a skeleton while the live subscription
   // catches up.
   loader: ({ context, params }) => {
+    // The team filter (TeamFilterProvider) reads getMyTeams on every dashboard
+    // page; warm it alongside the gating member context.
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.members.queries.getMyTeams, {
+        organizationId: params.id,
+      }),
+    );
     const preload = ensureConvexQuery(
       context,
       api.members.queries.getCurrentMemberContext,

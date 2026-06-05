@@ -7,8 +7,10 @@ import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { AutomationsActionMenu } from '@/app/features/automations/components/automations-action-menu';
 import { AutomationsTable } from '@/app/features/automations/components/automations-table';
 import type { AutomationTableItem } from '@/app/features/automations/components/automations-table';
+import { workflowListKey } from '@/app/features/automations/hooks/file-queries';
 import { useAutomationsTableConfig } from '@/app/features/automations/hooks/use-automations-table-config';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -21,6 +23,21 @@ export const Route = createFileRoute('/dashboard/$id/automations/')({
     meta: seo('automations'),
   }),
   validateSearch: searchSchema,
+  loader: ({ context, params }) => {
+    // Warm the workflows list (filesystem-backed action) so the table paints
+    // without a skeleton on first nav. AutomationsTable mounts
+    // useListWorkflows(orgId, 'installed'); match that key + args.
+    void context.queryClient.prefetchQuery({
+      queryKey: workflowListKey(params.id, 'installed'),
+      queryFn: () =>
+        context.convexQueryClient.convexClient.action(
+          api.workflows.file_actions.listWorkflows,
+          { organizationId: params.id, filter: 'installed' },
+        ),
+      staleTime: Infinity,
+      retry: false,
+    });
+  },
   component: AutomationsPage,
 });
 
