@@ -797,6 +797,7 @@
     "welcomeSuffix": "hier, woran arbeiten wir?",
     "toast": {
       "sendFailed": "Nachricht konnte nicht gesendet werden",
+      "arenaRequiresAgent": "Der Arena-Modus benötigt einen bestimmten Agenten — wähle einen statt „Automatisch“, um Modelle zu vergleichen.",
       "piiBlocked": "Nachricht durch PII-Richtlinie blockiert",
       "policyViolation": "Nachricht durch Inhaltsrichtlinie blockiert",
       "modelAccessDenied": "Modell nicht verfügbar",
@@ -837,6 +838,9 @@
     },
     "agentSelector": {
       "label": "Agent auswählen",
+      "auto": "Automatisch",
+      "viewDetails": "Agentdetails anzeigen",
+      "noAgents": "Keine Agents",
       "defaultAgent": "Assistent",
       "searchPlaceholder": "Agents suchen",
       "noResults": "Keine Agents gefunden",
@@ -847,9 +851,13 @@
       "searchPlaceholder": "Modelle suchen...",
       "noResults": "Keine Modelle gefunden",
       "auto": "Auto",
-      "autoDescription": "Wählt automatisch das beste verfügbare Modell mit Fallback",
       "noModelsAvailable": "Keine Modelle verfügbar",
+      "noModelsAdminHint": "Es ist noch kein KI-Anbieter eingerichtet. Klicke, um Einstellungen → KI-Anbieter zu öffnen, und füge einen hinzu, um zu chatten.",
+      "noModelsAgentHint": "Dieser Assistent hat kein nutzbares Modell. Prüfe, ob seine zugelassenen Modelle zu einem konfigurierten Anbieter passen — klicke, um die KI-Anbieter zu öffnen.",
+      "noModelsMemberHint": "Es sind noch keine KI-Modelle verfügbar. Bitte deinen Workspace-Admin, einen KI-Anbieter einzurichten, damit du chatten kannst.",
+      "noModelsRestricted": "Hier sind keine Modelle für dich verfügbar. Die Modelleinschränkungen dieses Projekts schließen jedes Modell aus, auf das du Zugriff hast — wende dich an deinen Admin, um Zugriff anzufordern.",
       "recommended": "Empfohlen",
+      "viewProvider": "Anbietereinstellungen anzeigen",
       "noApiKey": "Für den Anbieter dieses Modells ist kein API-Schlüssel konfiguriert — füge in Einstellungen → API einen hinzu.",
       "tags": {
         "chat": "Chat",
@@ -4298,7 +4306,7 @@
       "searchAgent": "Agents suchen",
       "columns": {
         "displayName": "Name",
-        "model": "Modell",
+        "model": "Standardmodell",
         "tools": "Tools"
       },
       "deleteAgent": "Agent löschen",
@@ -4347,9 +4355,7 @@
         "continue": "Weiter",
         "creating": "Erstelle...",
         "model": "Modell",
-        "modelPlaceholder": "Modell auswählen",
-        "modelSearch": "Modelle suchen…",
-        "modelEmpty": "Keine Modelle gefunden",
+        "modelDefaultHint": "Das erste Modell ist die Standardwahl; die übrigen sind Fallbacks. Zum Sortieren ziehen oder weitere hinzufügen — jederzeit änderbar.",
         "noModelsTitle": "Keine Modelle verfügbar",
         "noModelsDescription": "Ein Agent benötigt ein Modell zum Ausführen. Richten Sie zuerst einen Anbieter mit mindestens einem Modell ein.",
         "noModelsLink": "Anbieter hinzufügen"

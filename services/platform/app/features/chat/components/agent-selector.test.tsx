@@ -1,4 +1,5 @@
 import { within } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
@@ -12,6 +13,7 @@ vi.mock('@/lib/i18n/client', () => ({
       const translations: Record<string, string> = {
         'agentSelector.label': 'Select agent',
         'agentSelector.defaultAgent': 'Default agent',
+        'agentSelector.viewDetails': 'View agent details',
         'agentSelector.searchPlaceholder': 'Search agents...',
         'agentSelector.noResults': 'No agents found',
         'agentSelector.addAgent': 'Add agent',
@@ -22,9 +24,10 @@ vi.mock('@/lib/i18n/client', () => ({
 }));
 
 const mockSetSelectedAgent = vi.fn();
+let mockSelectedAgent: { name: string; displayName: string } | null = null;
 vi.mock('../context/chat-layout-context', () => ({
   useChatLayout: () => ({
-    selectedAgent: null,
+    selectedAgent: mockSelectedAgent,
     setSelectedAgent: mockSetSelectedAgent,
   }),
 }));
@@ -116,6 +119,28 @@ vi.mock('@tanstack/react-router', () => ({
   useSearch: () => ({}),
   useLocation: () => ({ pathname: '/dashboard/org-1/chat' }),
   useNavigate: () => mockNavigate,
+  // The "view agent details" row link renders a TanStack `Link`. Stub it as a
+  // plain anchor so tests don't need a RouterProvider. Router-only props (`to`,
+  // `params`) are dropped so React doesn't get object-valued DOM attributes.
+  Link: ({
+    children,
+    'aria-label': ariaLabel,
+    className,
+    onClick,
+  }: {
+    children: ReactNode;
+    'aria-label'?: string;
+    className?: string;
+    onClick?: (e: unknown) => void;
+  }) => (
+    // `href` gives the stub the implicit ARIA `link` role (getByRole('link')).
+    // This is a router-Link test double, not real navigation — the a11y rule
+    // about href+onClick anchors doesn't apply.
+    // oxlint-disable-next-line jsx-a11y/anchor-is-valid
+    <a href="#" aria-label={ariaLabel} className={className} onClick={onClick}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock('../hooks/use-composer-capabilities', () => ({
@@ -133,6 +158,7 @@ beforeEach(() => {
   mockAgents = defaultAgents;
   mockEffectiveAgent = { name: 'chat-agent', displayName: 'Default Chat' };
   mockEffectiveAgentLoading = false;
+  mockSelectedAgent = null;
 });
 
 describe('AgentSelector', () => {
@@ -141,18 +167,25 @@ describe('AgentSelector', () => {
     expect(screen.getByLabelText('Select agent')).toBeInTheDocument();
   });
 
-  it('displays the effective agent name', () => {
+  it('displays the effective agent name when an agent is pinned', () => {
+    // With a pinned selection the trigger reflects that agent (not "Auto",
+    // which is only the label when the selection is null/Auto).
+    mockSelectedAgent = { name: 'chat-agent', displayName: 'Default Chat' };
     render(<AgentSelector organizationId="org-1" />);
     expect(screen.getByText('Default Chat')).toBeInTheDocument();
   });
 
   it('falls back to translation when no effective agent', () => {
+    // Single agent → "Auto" is not offered, so a null selection resolves to the
+    // effective agent (here null) and falls back to the default-agent label.
+    mockAgents = [defaultAgents[0]];
     mockEffectiveAgent = null;
     render(<AgentSelector organizationId="org-1" />);
     expect(screen.getByText('Default agent')).toBeInTheDocument();
   });
 
   it('renders a skeleton inside the trigger while the effective agent is loading', () => {
+    mockAgents = [defaultAgents[0]];
     mockEffectiveAgent = null;
     mockEffectiveAgentLoading = true;
     render(<AgentSelector organizationId="org-1" />);
@@ -199,6 +232,49 @@ describe('AgentSelector', () => {
     await user.click(trigger);
 
     expect(screen.queryByText('Add agent')).not.toBeInTheDocument();
+  });
+
+  it('shows a "view agent details" link on each agent row (not Auto) for managers', async () => {
+    const { user } = render(<AgentSelector organizationId="org-1" />);
+
+    await user.click(screen.getByLabelText('Select agent'));
+
+    // One link per real agent (chat-agent + custom-agent), none on the Auto row.
+    const links = screen.getAllByRole('link', { name: 'View agent details' });
+    expect(links).toHaveLength(2);
+    // The Auto option (a pseudo-agent) has no details link.
+    const autoOption = screen
+      .getAllByRole('option')
+      .find((el) => el.textContent?.includes('agentSelector.auto'));
+    expect(autoOption).toBeDefined();
+    expect(
+      within(autoOption as HTMLElement).queryByRole('link'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('hides the "view agent details" link when the user cannot manage agents', async () => {
+    mockCanWrite = false;
+
+    const { user } = render(<AgentSelector organizationId="org-1" />);
+
+    await user.click(screen.getByLabelText('Select agent'));
+
+    expect(
+      screen.queryByRole('link', { name: 'View agent details' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not select the agent when its details link is clicked', async () => {
+    const { user } = render(<AgentSelector organizationId="org-1" />);
+
+    await user.click(screen.getByLabelText('Select agent'));
+
+    const links = screen.getAllByRole('link', { name: 'View agent details' });
+    await user.click(links[0]);
+
+    // The link's onClick stops propagation, so the row's select handler must
+    // not fire.
+    expect(mockSetSelectedAgent).not.toHaveBeenCalled();
   });
 
   it('opens create dialog when "Add agent" is clicked', async () => {
@@ -275,6 +351,9 @@ describe('AgentSelector', () => {
       },
     ];
     mockEffectiveAgent = { name: 'chat-agent', displayName: 'Assistant' };
+    // Pin the agent so the highlighted option is that agent rather than "Auto"
+    // (the selected option when the selection is null/Auto).
+    mockSelectedAgent = { name: 'chat-agent', displayName: 'Assistant' };
 
     const { user } = render(<AgentSelector organizationId="org-1" />);
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Plus } from 'lucide-react';
@@ -105,6 +106,7 @@ function ModelSelectorBase({
         onMoveDown={handleMoveDown}
         onRemove={handleRemove}
         readonlyOrder={readonlyOrder}
+        minItems={minModels}
         moveUpLabel={t('agents.form.modelSelector.moveUp')}
         moveDownLabel={t('agents.form.modelSelector.moveDown')}
         dragHandleLabel={t('agents.form.modelSelector.dragHandle')}
@@ -136,13 +138,9 @@ function ModelSelectorBase({
         emptyText={t('agents.form.noModelsFound')}
         aria-label={t('agents.form.addModel')}
         trigger={
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm transition-colors"
-          >
-            <Plus className="size-3.5" />
-            <span>{t('agents.form.addModel')}</span>
-          </button>
+          <Button type="button" variant="link" size="sm" icon={Plus}>
+            {t('agents.form.addModel')}
+          </Button>
         }
       />
     </div>

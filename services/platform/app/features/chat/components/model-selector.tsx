@@ -5,8 +5,13 @@ import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import startCase from 'lodash/startCase';
-import { AlertTriangle, ChevronDown, Cpu } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import {
+  AlertTriangle,
+  ChevronDown,
+  Cpu,
+  SlidersHorizontal,
+} from 'lucide-react';
 import {
   memo,
   type ReactNode,
@@ -20,10 +25,12 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
+import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import {
   expandModelVariants,
@@ -75,6 +82,12 @@ export const ModelSelector = memo(function ModelSelector({
   const { locale } = useLocale();
   const { selectedModelOverrides, setSelectedModelOverride } = useChatLayout();
   const [open, setOpen] = useState(false);
+  const ability = useAbility();
+  const abilityLoading = useAbilityLoading();
+  // Provider/model setup is gated by the `integrations` ability (same gate as
+  // the /settings/providers route). Drives whether the no-models hint offers a
+  // setup link (admins/devs) or a "ask your admin" message (everyone else).
+  const canSetUpProviders = ability.can('write', 'integrations');
 
   const activeAgent = useMemo(
     () => agents?.find((a) => a.name === effectiveAgent?.name),
@@ -136,13 +149,39 @@ export const ModelSelector = memo(function ModelSelector({
     [modelInfoMap],
   );
 
-  const renderTagIcons = useCallback(
+  // Right-side action per option: the capability tag icons, plus — for admins
+  // who can manage providers — a link to that model's provider settings. The
+  // link replaces the old always-on provider badge: provenance moves to an
+  // affordance that does something, instead of a label repeated on every row.
+  const renderOptionAction = useCallback(
     (option: SearchableSelectOption): ReactNode => {
       const info = modelInfoMap.get(stripModelRefQualifier(option.value));
-      if (!info?.tags.length) return null;
-      return <ModelTagIcons tags={info.tags} t={t} />;
+      const providerSlug = canSetUpProviders
+        ? getProviderSlug(option.value)
+        : undefined;
+      if (!info?.tags.length && !providerSlug) return null;
+      return (
+        <div className="flex shrink-0 items-start gap-1.5">
+          {info?.tags.length ? <ModelTagIcons tags={info.tags} t={t} /> : null}
+          {providerSlug ? (
+            <Tooltip content={t('modelSelector.viewProvider')} side="top">
+              <Link
+                to="/dashboard/$id/settings/providers/$providerName"
+                params={{ id: organizationId, providerName: providerSlug }}
+                aria-label={t('modelSelector.viewProvider')}
+                className="text-muted-foreground hover:text-foreground mt-0.5 flex items-center rounded-sm transition-colors"
+                // Stop the row's select-and-close handler: clicking the link
+                // should navigate to provider settings, not pick the model.
+                onClick={(e) => e.stopPropagation()}
+              >
+                <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+              </Link>
+            </Tooltip>
+          ) : null}
+        </div>
+      );
     },
-    [modelInfoMap, t],
+    [modelInfoMap, canSetUpProviders, getProviderSlug, organizationId, t],
   );
 
   const chatModels = useMemo(() => {
@@ -264,33 +303,44 @@ export const ModelSelector = memo(function ModelSelector({
 
   const isLoading = agentsLoading || providersLoading;
 
-  // While agents/providers load, render the REAL closed-trigger structure
-  // (the same Button + Cpu icon the resolved selector shows) with its dynamic
-  // label masked inside <Skeletonize loading>. No whole-tree swap to a
-  // standalone skeleton — the trigger is the real control.
+  // While agents/providers load, render the REAL closed-trigger Button (same
+  // structure the resolved selector shows) and mask ONLY the dynamic label —
+  // mirroring the agent selector, where <Skeletonize> wraps the label span, not
+  // the whole Button. Wrapping the Button itself made the skeleton render
+  // bulkier than the real pill.
   if (isLoading) {
     return (
-      <Skeletonize loading label={t('modelSelector.label')}>
-        <Button
-          type="button"
-          className="gap-2"
-          size="icon"
-          variant="ghost"
-          aria-label={t('modelSelector.label')}
-          disabled
-        >
-          <Cpu className="size-3.5" aria-hidden="true" />
+      <Button
+        type="button"
+        className="gap-1.5"
+        size="icon"
+        variant="ghost"
+        aria-label={t('modelSelector.label')}
+        disabled
+      >
+        <Cpu className="size-3.5" aria-hidden="true" />
+        <Skeletonize loading label={t('modelSelector.label')}>
           <SkeletonBox>
-            <span className="inline-block h-4 w-24" />
+            <span>{t('modelSelector.auto')}</span>
           </SkeletonBox>
-          <ChevronDown className="size-3" aria-hidden="true" />
-        </Button>
-      </Skeletonize>
+        </Skeletonize>
+        <ChevronDown className="size-3" aria-hidden="true" />
+      </Button>
     );
   }
 
   if (!filteredModels.length) {
-    return (
+    // Be honest about the cause — only claim what we can actually tell apart
+    // from the client. Three distinguishable cases:
+    //   1. No model exists anywhere in the org → cold start, needs setup.
+    //   2. A project explicitly pins an allowed-models list → project restriction.
+    //   3. Everything else (governance policy, the agent's supportedModels not
+    //      matching configured models, a missing tag, …) → we genuinely can't
+    //      diagnose which from here, so we DON'T assert a specific cause.
+    const noProviderConfigured = modelInfoMap.size === 0;
+    const projectRestricts = !!allowedModels && allowedModels.length > 0;
+
+    const warningLabel = (
       <span
         className="text-destructive flex items-center gap-1.5 text-xs"
         role="status"
@@ -298,6 +348,57 @@ export const ModelSelector = memo(function ModelSelector({
         <AlertTriangle className="size-3.5" aria-hidden="true" />
         <span>{t('modelSelector.noModelsAvailable')}</span>
       </span>
+    );
+
+    // Hover guidance is cause- and role-aware. While the ability is still
+    // loading we omit role-specific copy to avoid flashing the wrong message.
+    let tooltipContent: string | null;
+    if (noProviderConfigured) {
+      tooltipContent = abilityLoading
+        ? null
+        : canSetUpProviders
+          ? t('modelSelector.noModelsAdminHint')
+          : t('modelSelector.noModelsMemberHint');
+    } else if (projectRestricts) {
+      tooltipContent = t('modelSelector.noModelsRestricted');
+    } else {
+      // Org has models, but none reach this assistant — cause is not knowable
+      // client-side, so the copy stays non-presumptuous.
+      tooltipContent = abilityLoading
+        ? null
+        : canSetUpProviders
+          ? t('modelSelector.noModelsAgentHint')
+          : t('modelSelector.noModelsMemberHint');
+    }
+
+    // Admins/devs get a clickable affordance to where they'd investigate/fix:
+    // provider settings. (Covers both the cold-start and the "configured but
+    // not reaching this agent" cases — providers is the right starting point.)
+    const adminCanAct =
+      !abilityLoading && canSetUpProviders && !projectRestricts;
+    if (adminCanAct) {
+      return (
+        <Tooltip content={tooltipContent} side="top">
+          <Link
+            to="/dashboard/$id/settings/providers"
+            params={{ id: organizationId }}
+            className="cursor-pointer rounded-sm hover:underline"
+            aria-label={
+              noProviderConfigured
+                ? t('modelSelector.noModelsAdminHint')
+                : t('modelSelector.noModelsAgentHint')
+            }
+          >
+            {warningLabel}
+          </Link>
+        </Tooltip>
+      );
+    }
+
+    return (
+      <Tooltip content={tooltipContent} side="top">
+        {warningLabel}
+      </Tooltip>
     );
   }
 
@@ -320,17 +421,11 @@ export const ModelSelector = memo(function ModelSelector({
   const modelOptions = filteredModels
     .map((ref) => {
       const info = modelInfoMap.get(stripModelRefQualifier(ref));
-      const providerSlug = getProviderSlug(ref);
       const { quantization } = parseModelRef(ref);
       const isRecommended = recommendedSet.has(stripModelRefQualifier(ref));
       const recommendedBadge = isRecommended ? (
         <Badge variant="green" className="text-[10px] font-normal">
           {t('modelSelector.recommended')}
-        </Badge>
-      ) : null;
-      const providerBadge = providerSlug ? (
-        <Badge variant="outline" className="text-[10px] font-normal">
-          {startCase(providerSlug)}
         </Badge>
       ) : null;
       const variantBadge = quantization ? (
@@ -343,10 +438,9 @@ export const ModelSelector = memo(function ModelSelector({
         label: getDisplayName(ref),
         isRecommended,
         labelBadge:
-          recommendedBadge || providerBadge || variantBadge ? (
+          recommendedBadge || variantBadge ? (
             <>
               {recommendedBadge}
-              {providerBadge}
               {variantBadge}
             </>
           ) : undefined,
@@ -363,7 +457,6 @@ export const ModelSelector = memo(function ModelSelector({
         {
           value: AUTO_MODEL,
           label: t('modelSelector.auto'),
-          description: t('modelSelector.autoDescription'),
         },
         ...modelOptions,
       ];
@@ -384,7 +477,7 @@ export const ModelSelector = memo(function ModelSelector({
       searchPlaceholder={t('modelSelector.searchPlaceholder')}
       emptyText={t('modelSelector.noResults')}
       aria-label={t('modelSelector.label')}
-      optionAction={renderTagIcons}
+      optionAction={renderOptionAction}
       showRadio
       trigger={
         <Button

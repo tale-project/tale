@@ -797,6 +797,7 @@
     "welcomeSuffix": "here, what are we working on?",
     "toast": {
       "sendFailed": "Failed to send message",
+      "arenaRequiresAgent": "Arena mode needs a specific agent — pick one instead of Auto to compare models.",
       "piiBlocked": "Message blocked by PII policy",
       "policyViolation": "Message blocked by content policy",
       "modelAccessDenied": "Model not available",
@@ -837,6 +838,9 @@
     },
     "agentSelector": {
       "label": "Select agent",
+      "auto": "Auto",
+      "viewDetails": "View agent details",
+      "noAgents": "No agents",
       "defaultAgent": "Assistant",
       "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
@@ -847,9 +851,13 @@
       "searchPlaceholder": "Search models...",
       "noResults": "No models found",
       "auto": "Auto",
-      "autoDescription": "Automatically selects the best available model with fallback",
       "noModelsAvailable": "No models available",
+      "noModelsAdminHint": "No AI provider is set up yet. Click to open Settings → AI providers and add one to start chatting.",
+      "noModelsAgentHint": "This assistant has no usable model. Check that its allowed models match a configured provider — click to open AI providers.",
+      "noModelsMemberHint": "No AI models are available yet. Ask your workspace admin to set up an AI provider so you can start chatting.",
+      "noModelsRestricted": "No models are available to you here. This project's model restrictions exclude every model you can access — contact your admin to request access.",
       "recommended": "Recommended",
+      "viewProvider": "View provider settings",
       "noApiKey": "No API key configured for this model's provider — add one in Settings → API.",
       "tags": {
         "chat": "Chat",
@@ -4559,7 +4567,7 @@
       "searchAgent": "Search agents",
       "columns": {
         "displayName": "Name",
-        "model": "Model",
+        "model": "Default model",
         "tools": "Tools"
       },
       "deleteAgent": "Delete agent",
@@ -4608,9 +4616,7 @@
         "continue": "Continue",
         "creating": "Creating...",
         "model": "Model",
-        "modelPlaceholder": "Select a model",
-        "modelSearch": "Search models…",
-        "modelEmpty": "No models found",
+        "modelDefaultHint": "The first model is the default; the rest are fallbacks. Drag to reorder, or add more — you can change these anytime.",
         "noModelsTitle": "No models available",
         "noModelsDescription": "An agent needs a model to run. Configure a provider with at least one model first.",
         "noModelsLink": "Add a provider"
