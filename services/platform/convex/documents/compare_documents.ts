@@ -3,8 +3,8 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { fetchDocumentComparisonByUrls } from '../agent_tools/documents/helpers/fetch_document_comparison';
-import { authComponent } from '../auth';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { toId } from '../lib/type_cast_helpers';
 
 export const compareDocuments = action({
@@ -16,7 +16,7 @@ export const compareDocuments = action({
     comparisonFileName: v.string(),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -25,7 +25,7 @@ export const compareDocuments = action({
       internal.documents.internal_queries.verifyOrganizationMembership,
       {
         organizationId: args.organizationId,
-        userId: String(authUser._id),
+        userId: authUser.userId,
       },
     );
     if (!isMember) {

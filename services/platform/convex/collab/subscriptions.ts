@@ -6,9 +6,9 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
 import { mutation, query, type QueryCtx } from '../_generated/server';
-import { authComponent } from '../auth';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { checkProjectAccess } from '../projects/access';
 
 async function resolveTaskAccess(
@@ -19,13 +19,13 @@ async function resolveTaskAccess(
   if (!task) throw new ConvexError({ code: 'TASK_NOT_FOUND' });
   const project = await ctx.db.get(task.projectId);
   if (!project) throw new ConvexError({ code: 'PROJECT_NOT_FOUND' });
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
-  const member = await getOrganizationMember(ctx, task.organizationId, {
-    userId: String(authUser._id),
-    email: authUser.email,
-    name: authUser.name,
-  });
+  const member = await getOrganizationMember(
+    ctx,
+    task.organizationId,
+    authUser,
+  );
   const teamIds = await getUserTeamIds(ctx, member.userId);
   if (!checkProjectAccess(project, teamIds, member.role).canRead) {
     throw new ConvexError({ code: 'TASK_FORBIDDEN' });

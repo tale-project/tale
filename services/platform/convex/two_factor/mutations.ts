@@ -9,7 +9,7 @@ import { v } from 'convex/values';
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components, internal } from '../_generated/api';
 import { mutation, type MutationCtx } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 
 interface MemberRecord {
@@ -112,7 +112,7 @@ export const resetForUser = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const member = await findMember(ctx, args.memberId);
@@ -121,7 +121,7 @@ export const resetForUser = mutation({
     const callerMembership = await findCallerMembership(
       ctx,
       member.organizationId,
-      String(authUser._id),
+      authUser.userId,
     );
     if (!callerMembership || !isAdmin(callerMembership.role)) {
       throw new Error('Only admins can reset two-factor for members');
@@ -131,8 +131,7 @@ export const resetForUser = mutation({
     // owner. Self-reset goes through the account settings path.
     if (
       member.role === 'owner' &&
-      (callerMembership.role !== 'owner' ||
-        String(authUser._id) === member.userId)
+      (callerMembership.role !== 'owner' || authUser.userId === member.userId)
     ) {
       throw new Error('Cannot reset two-factor for this member');
     }
@@ -174,7 +173,7 @@ export const resetForUser = mutation({
       internal.two_factor.internal_mutations.logEnrollmentEvent,
       {
         userId: member.userId,
-        actorId: String(authUser._id),
+        actorId: authUser.userId,
         actorEmail: authUser.email,
         action: '2fa_reset_by_admin',
         metadata: { memberId: args.memberId },

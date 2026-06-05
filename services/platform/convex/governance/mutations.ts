@@ -25,9 +25,9 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation, mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 
 const policyTypeValidator = v.union(
@@ -116,14 +116,14 @@ export const upsertPolicy = mutation({
   },
   returns: v.id('governancePolicies'),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
     if (!isAdmin(member.role)) {
       throw new Error('Only admins can modify governance policies');
     }
@@ -356,7 +356,7 @@ export const upsertPolicy = mutation({
       await ctx.db.patch(existing._id, {
         config: args.config,
         updatedAt: Date.now(),
-        updatedBy: String(authUser._id),
+        updatedBy: authUser.userId,
         ...(configEnabled !== undefined ? { enabled: configEnabled } : {}),
         ...(nextEffectiveAt !== undefined
           ? { effectiveAt: nextEffectiveAt }
@@ -370,7 +370,7 @@ export const upsertPolicy = mutation({
         enabled: configEnabled ?? true,
         config: args.config,
         updatedAt: Date.now(),
-        updatedBy: String(authUser._id),
+        updatedBy: authUser.userId,
         ...(nextEffectiveAt !== undefined
           ? { effectiveAt: nextEffectiveAt }
           : {}),
@@ -379,7 +379,7 @@ export const upsertPolicy = mutation({
 
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
-      actorId: String(authUser._id),
+      actorId: authUser.userId,
       actorEmail: authUser.email,
       actorType: 'user',
       action: existing ? 'policy.updated' : 'policy.created',
@@ -410,14 +410,14 @@ export const cancelPendingRetentionChange = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: callerId,
       email: authUser.email ?? '',

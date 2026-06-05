@@ -11,9 +11,15 @@ vi.mock('../_generated/api', () => ({
   components: { agent: { threads: { getThread: 'getThread' } } },
 }));
 
-vi.mock('../_generated/server', () => ({
-  mutation: ({ handler }: { handler: Function }) => handler,
-}));
+vi.mock('../_generated/server', async (importOriginal) => {
+  // Spread the real module so transitively-loaded builders (e.g. internalQuery
+  // from lib/get_user_teams, now reachable via the lib/rls barrel) stay defined.
+  const mod = await importOriginal<Record<string, unknown>>();
+  return {
+    ...mod,
+    mutation: ({ handler }: { handler: Function }) => handler,
+  };
+});
 
 const mockGetAuthUser = vi.fn();
 vi.mock('../auth', () => ({
@@ -62,6 +68,12 @@ function createMockCtx(metadata?: Record<string, unknown> | null) {
         insert: insertFn,
       },
       runQuery: vi.fn().mockResolvedValue({ _creationTime: 1000 }),
+      auth: {
+        getUserIdentity: vi.fn(async () => {
+          const u = await mockGetAuthUser();
+          return u ? { subject: u._id, email: u.email, name: u.name } : null;
+        }),
+      },
     },
     insertFn,
   };

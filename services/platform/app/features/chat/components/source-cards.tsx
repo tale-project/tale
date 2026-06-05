@@ -201,7 +201,6 @@ function SourceCardsComponent({ citations, organizationId }: SourceCardsProps) {
           onOpenChange={(open) => {
             if (!open) setSelectedSource(null);
           }}
-          organizationId={organizationId}
           fileId={selectedSource.fileId}
           fileName={selectedSource.filename}
         />

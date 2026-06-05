@@ -3,9 +3,9 @@ import { ConvexError, v } from 'convex/values';
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { loadActiveHolds } from './legal_hold';
 import {
   restoreRowToActive,
@@ -40,20 +40,20 @@ export const restoreSoftDeletedRow = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required to restore.',
       });
     }
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
 
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId,
-      email: authUser.email ?? '',
-      name: authUser.name,
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
     if (!isAdmin(member.role)) {
       throw new ConvexError({
         code: 'forbidden',

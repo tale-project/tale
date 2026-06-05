@@ -3,15 +3,15 @@
  */
 
 import type { MutationCtx } from '../_generated/server';
-import { authComponent } from '../auth';
-import { validateOrganizationAccess } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { validateOrganizationAccess } from '../lib/rls/organization/validate_organization_access';
 
 export async function deleteOrganization(
   ctx: MutationCtx,
   organizationId: string,
 ): Promise<void> {
   // Ensure user is authenticated
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     throw new Error('Unauthenticated');
   }

@@ -5,8 +5,8 @@ import { components, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import * as ApprovalsHelpers from './helpers';
 import { approvalStatusValidator } from './validators';
 
@@ -20,7 +20,7 @@ export const updateApprovalStatus = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -37,7 +37,7 @@ export const updateApprovalStatus = mutation({
     await ApprovalsHelpers.updateApprovalStatus(ctx, {
       approvalId: args.approvalId,
       status: args.status,
-      approvedBy: String(authUser._id),
+      approvedBy: authUser.userId,
       comments: args.comments,
     });
 
@@ -48,7 +48,7 @@ export const updateApprovalStatus = mutation({
       auditCtx: {
         organizationId: approval.organizationId,
         actor: {
-          id: String(authUser._id),
+          id: authUser.userId,
           email: authUser.email,
           type: 'user',
         },
@@ -71,7 +71,7 @@ export const updateApprovalStatus = mutation({
       const requestId = approval.resourceId as Id<'gdprErasureRequests'>;
       await ctx.runMutation(
         internal.governance.erasure.confirmAndScheduleErasure,
-        { requestId, approverId: String(authUser._id) },
+        { requestId, approverId: authUser.userId },
       );
     }
 
@@ -105,7 +105,7 @@ export const removeRecommendedProduct = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -126,7 +126,7 @@ export const removeRecommendedProduct = mutation({
       auditCtx: {
         organizationId: approval.organizationId,
         actor: {
-          id: String(authUser._id),
+          id: authUser.userId,
           email: authUser.email,
           type: 'user',
         },

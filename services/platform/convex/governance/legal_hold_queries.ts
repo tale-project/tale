@@ -22,10 +22,10 @@ import { components } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { query } from '../_generated/server';
 import type { QueryCtx } from '../_generated/server';
-import { authComponent } from '../auth';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 const TARGET_TYPES = [
   'thread',
@@ -60,36 +60,36 @@ async function requireAdmin(
   ctx: QueryCtx,
   organizationId: string,
 ): Promise<{ userId: string; role: string }> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     throw new Error('Unauthenticated');
   }
   const member = await getOrganizationMember(ctx, organizationId, {
-    userId: String(authUser._id),
+    userId: authUser.userId,
     email: authUser.email ?? '',
     name: authUser.name ?? undefined,
   });
   if (!isAdmin(member.role)) {
     throw new Error('Admin role required.');
   }
-  return { userId: String(authUser._id), role: member.role };
+  return { userId: authUser.userId, role: member.role };
 }
 
 async function requireMember(
   ctx: QueryCtx,
   organizationId: string,
 ): Promise<{ userId: string; role: string; isAdmin: boolean }> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     throw new Error('Unauthenticated');
   }
   const member = await getOrganizationMember(ctx, organizationId, {
-    userId: String(authUser._id),
+    userId: authUser.userId,
     email: authUser.email ?? '',
     name: authUser.name ?? undefined,
   });
   return {
-    userId: String(authUser._id),
+    userId: authUser.userId,
     role: member.role,
     isAdmin: isAdmin(member.role),
   };
@@ -129,27 +129,34 @@ export const listLegalHolds = query({
     const status = args.status ?? 'active';
 
     const targetType = args.targetType;
-    const rows: Doc<'legalHolds'>[] = targetType
-      ? await ctx.db
+    const baseQuery = targetType
+      ? ctx.db
           .query('legalHolds')
           .withIndex('by_organizationId_targetType', (q) =>
             q
               .eq('organizationId', args.organizationId)
               .eq('targetType', targetType),
           )
-          .collect()
-      : await ctx.db
+      : ctx.db
           .query('legalHolds')
           .withIndex('by_organizationId', (q) =>
             q.eq('organizationId', args.organizationId),
-          )
-          .collect();
+          );
 
-    const filtered = rows.filter((row) => {
-      if (status === 'active') return row.releasedAt === undefined;
-      if (status === 'released') return row.releasedAt !== undefined;
-      return true;
-    });
+    // Push the active/released predicate into the query so released holds
+    // (retained indefinitely) don't all materialize when listing the active
+    // set. Any other status keeps every row (no predicate). Equivalent to the
+    // prior post-collect JS filter.
+    const filteredQuery =
+      status === 'active'
+        ? baseQuery.filter((q) => q.eq(q.field('releasedAt'), undefined))
+        : status === 'released'
+          ? baseQuery.filter((q) => q.neq(q.field('releasedAt'), undefined))
+          : baseQuery;
+    const filtered: Doc<'legalHolds'>[] = [];
+    for await (const row of filteredQuery) {
+      filtered.push(row);
+    }
 
     const userIds = new Set<string>();
     for (const row of filtered) {
@@ -694,36 +701,35 @@ export const listActiveHoldTargetIds = query({
       .first();
     const orgHeld = orgRow !== null;
 
-    // Direct holds against the requested target type.
-    const directRows = await ctx.db
+    // Direct holds against the requested target type. Filter to active
+    // (un-released) rows in the query so released holds never materialize.
+    const ids = new Set<string>();
+    for await (const row of ctx.db
       .query('legalHolds')
       .withIndex('by_organizationId_targetType', (q) =>
         q
           .eq('organizationId', args.organizationId)
           .eq('targetType', args.targetType),
       )
-      .collect();
-    const ids = new Set<string>(
-      directRows
-        .filter((r) => r.releasedAt === undefined)
-        .map((r) => r.targetId),
-    );
+      .filter((q) => q.eq(q.field('releasedAt'), undefined))) {
+      ids.add(row.targetId);
+    }
 
     // Cascade: for thread / document badges, also include entities whose
     // author is on a userMembership hold. execution has no author field;
     // userMembership / org don't cascade.
     if (args.targetType === 'thread' || args.targetType === 'document') {
-      const heldUserRows = await ctx.db
+      const heldUserIds: string[] = [];
+      for await (const row of ctx.db
         .query('legalHolds')
         .withIndex('by_organizationId_targetType', (q) =>
           q
             .eq('organizationId', args.organizationId)
             .eq('targetType', 'userMembership'),
         )
-        .collect();
-      const heldUserIds = heldUserRows
-        .filter((r) => r.releasedAt === undefined)
-        .map((r) => r.targetId);
+        .filter((q) => q.eq(q.field('releasedAt'), undefined))) {
+        heldUserIds.push(row.targetId);
+      }
 
       if (heldUserIds.length > 0) {
         if (args.targetType === 'thread') {

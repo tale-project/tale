@@ -208,10 +208,12 @@ export const listForUserUnboundChat = query({
     const out: VideoLinkJobView[] = [];
     for await (const job of ctx.db
       .query('videoLinkJobs')
-      .withIndex('by_org_user', (q) =>
-        q.eq('organizationId', args.organizationId).eq('uploadedBy', userId),
+      .withIndex('by_org_user_threadId', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('uploadedBy', userId)
+          .eq('threadId', undefined),
       )
-      .filter((q) => q.eq(q.field('threadId'), undefined))
       .order('asc')) {
       out.push(await projectJob(ctx, job));
     }

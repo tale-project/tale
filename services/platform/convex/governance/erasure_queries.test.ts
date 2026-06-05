@@ -119,6 +119,15 @@ function createMockCtx(rows: MockErasureRow[] = []) {
         Promise.resolve(rows.find((r) => r._id === id) ?? null),
       ),
     },
+    auth: {
+      // Production now reads JWT identity via getAuthUserIdentity ->
+      // ctx.auth.getUserIdentity() instead of authComponent.getAuthUser.
+      // Derive the identity from the same mock source to preserve intent.
+      getUserIdentity: vi.fn(async () => {
+        const u = await mockGetAuthUser();
+        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      }),
+    },
   };
 }
 

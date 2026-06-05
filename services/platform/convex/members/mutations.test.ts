@@ -75,7 +75,20 @@ function createMockCtx() {
     storage: {
       delete: vi.fn(),
     },
-    auth: {},
+    // The handler now resolves the caller via the JWT identity
+    // (getAuthUserIdentity → ctx.auth.getUserIdentity) instead of the
+    // cross-component authComponent.getAuthUser. Derive the identity from the
+    // same `mockGetAuthUser` source so existing per-test setup still drives it.
+    auth: {
+      getUserIdentity: vi.fn(async () => {
+        const u = (await mockGetAuthUser()) as {
+          _id: string;
+          email?: string;
+          name?: string;
+        } | null;
+        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      }),
+    },
   };
 }
 

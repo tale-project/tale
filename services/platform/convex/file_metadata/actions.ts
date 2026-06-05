@@ -5,9 +5,9 @@ import { v } from 'convex/values';
 import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { ragFetch } from '../lib/helpers/rag_config';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
 /**
  * Check RAG indexing status for a list of files and update fileMetadata.
@@ -31,12 +31,12 @@ export const checkFileRagStatuses = action({
   handler: async (ctx, args): Promise<null> => {
     if (args.storageIds.length === 0) return null;
 
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       console.warn('[checkFileRagStatuses] unauthenticated caller — refused');
       return null;
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
 
     // Filter storageIds down to ones the caller is authorized to see, and
     // get the org for each so we can call RAG (which is now per-org) with

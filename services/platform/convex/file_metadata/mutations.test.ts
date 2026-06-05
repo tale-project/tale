@@ -56,6 +56,12 @@ function createMockCtx(existingDoc: Record<string, unknown> | null = null) {
   };
 
   const ctx = {
+    auth: {
+      getUserIdentity: vi.fn(async () => {
+        const u = await mockGetAuthUser();
+        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      }),
+    },
     db: {
       query: vi.fn().mockReturnValue(builder),
       insert: vi.fn().mockResolvedValue('fm_new'),

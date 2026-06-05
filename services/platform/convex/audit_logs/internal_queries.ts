@@ -110,7 +110,10 @@ export const verifyAdminAccess = internalQuery({
   args: {
     organizationId: v.string(),
     userId: v.string(),
-    email: v.string(),
+    // Optional: sourced from the JWT identity (email/name optional). Only
+    // userId is used in the handler; email/name are accepted for call-shape
+    // parity with the membership-verify helpers.
+    email: v.optional(v.string()),
     name: v.optional(v.string()),
   },
   returns: v.any(),

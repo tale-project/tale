@@ -2,9 +2,9 @@ import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 export const addMember = mutation({
   args: {
@@ -13,16 +13,16 @@ export const addMember = mutation({
     organizationId: v.string(),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
-    const callerMember = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const callerMember = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
 
     if (!isAdmin(callerMember.role)) {
       throw new Error('Only admins can add team members');
@@ -90,16 +90,16 @@ export const removeMember = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
-    const callerMember = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const callerMember = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
 
     const memberToRemove = await ctx.runQuery(
       components.betterAuth.adapter.findOne,
@@ -113,8 +113,7 @@ export const removeMember = mutation({
       throw new Error('Team member not found');
     }
 
-    const isSelfRemoval =
-      String(memberToRemove.userId) === String(authUser._id);
+    const isSelfRemoval = String(memberToRemove.userId) === authUser.userId;
     if (!isAdmin(callerMember.role) && !isSelfRemoval) {
       throw new Error('Only admins can remove other team members');
     }

@@ -1,8 +1,7 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getAuthUserIdentity } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
 export const getUserStorageUsage = query({
   args: {
@@ -10,7 +9,7 @@ export const getUserStorageUsage = query({
   },
   returns: v.object({ totalBytes: v.number() }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return { totalBytes: 0 };
 
     let totalBytes = 0;
@@ -19,7 +18,7 @@ export const getUserStorageUsage = query({
       .withIndex('by_org_user', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('uploadedBy', String(authUser._id)),
+          .eq('uploadedBy', authUser.userId),
       )) {
       totalBytes += meta.size;
     }

@@ -2,8 +2,8 @@ import { v } from 'convex/values';
 
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { deleteIntegration as deleteIntegrationHelper } from './delete_integration';
 
 export const updateIcon = mutation({
@@ -13,7 +13,7 @@ export const updateIcon = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -23,11 +23,7 @@ export const updateIcon = mutation({
       throw new Error('Integration not found');
     }
 
-    await getOrganizationMember(ctx, integration.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, integration.organizationId, authUser);
 
     if (integration.iconStorageId) {
       await ctx.storage.delete(integration.iconStorageId);
@@ -47,7 +43,7 @@ export const deleteIntegration = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -60,11 +56,7 @@ export const deleteIntegration = mutation({
     const member = await getOrganizationMember(
       ctx,
       integration.organizationId,
-      {
-        userId: String(authUser._id),
-        email: authUser.email,
-        name: authUser.name,
-      },
+      authUser,
     );
 
     await deleteIntegrationHelper(ctx, args.integrationId);
@@ -73,7 +65,7 @@ export const deleteIntegration = mutation({
       auditCtx: {
         organizationId: integration.organizationId,
         actor: {
-          id: String(authUser._id),
+          id: authUser.userId,
           email: authUser.email,
           role: member?.role,
           type: 'user',

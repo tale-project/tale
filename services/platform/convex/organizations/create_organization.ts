@@ -3,7 +3,7 @@
  */
 
 import type { MutationCtx } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
 export interface CreateOrganizationArgs {
   name: string;
@@ -14,7 +14,7 @@ export async function createOrganization(
   _args: CreateOrganizationArgs,
 ): Promise<string> {
   // Ensure user is authenticated
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     throw new Error('Unauthenticated');
   }

@@ -9,8 +9,8 @@ import { v } from 'convex/values';
 
 import { api, internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
 import { userContextValidator } from '../lib/agent_response/validators';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
 export const arenaChat = action({
   args: {
@@ -42,7 +42,7 @@ export const arenaChat = action({
     ctx,
     args,
   ): Promise<{ streamIdA: string; streamIdB: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     // Copy message history from Thread A to Thread B if requested
@@ -51,7 +51,7 @@ export const arenaChat = action({
       await ctx.runMutation(internal.threads.mutations.copyThreadMessages, {
         sourceThreadId: args.threadIdA,
         targetThreadId: args.threadIdB,
-        userId: authUser._id,
+        userId: authUser.userId,
       });
     }
 

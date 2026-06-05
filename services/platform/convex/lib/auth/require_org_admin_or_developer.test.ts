@@ -18,6 +18,20 @@ const { requireOrgAdminOrDeveloper } =
 
 function makeCtx(role: 'owner' | 'admin' | 'developer' | 'member') {
   return {
+    // The membership helper now resolves the caller via getAuthUserIdentity
+    // (ctx.auth.getUserIdentity), not authComponent.getAuthUser. Derive the
+    // identity from the same mockGetAuthUser source so existing expectations
+    // (happyAuthUser / null) keep driving the auth path.
+    auth: {
+      getUserIdentity: vi.fn(async () => {
+        const u = (await mockGetAuthUser()) as {
+          _id: string;
+          email?: string;
+          name?: string;
+        } | null;
+        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      }),
+    },
     runQuery: vi.fn(async (ref: string) => {
       if (ref === 'findOne') return { _id: 'org_a', slug: 'acme' };
       if (ref === 'findMany') return { page: [{ _id: 'mem_1', role }] };

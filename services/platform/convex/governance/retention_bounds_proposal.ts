@@ -37,7 +37,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { action, internalAction } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import {
   RetentionConfigMissingError,
@@ -288,7 +288,7 @@ export const getPendingBoundsProposal = action({
     }),
   ),
   handler: async (ctx, args): Promise<PendingBoundsProposal | null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
@@ -297,7 +297,7 @@ export const getPendingBoundsProposal = action({
     }
     await ctx.runQuery(internal.governance.internal_queries.verifyOrgMember, {
       organizationId: args.organizationId,
-      userId: String(authUser._id),
+      userId: authUser.userId,
       email: authUser.email ?? '',
       name: authUser.name,
     });
@@ -373,7 +373,7 @@ export const applyBoundsProposal = action({
   },
   returns: v.id('retentionAppliedBounds'),
   handler: async (ctx, args): Promise<Id<'retentionAppliedBounds'>> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
@@ -384,7 +384,7 @@ export const applyBoundsProposal = action({
       internal.governance.internal_queries.verifyOrgAdmin,
       {
         organizationId: args.organizationId,
-        userId: String(authUser._id),
+        userId: authUser.userId,
         email: authUser.email ?? '',
         name: authUser.name,
       },
@@ -414,7 +414,7 @@ export const applyBoundsProposal = action({
         organizationId: args.organizationId,
         appliedBounds: proposedBounds,
         appliedBoundsHash: liveHash,
-        actorId: String(authUser._id),
+        actorId: authUser.userId,
         actorEmail: authUser.email ?? undefined,
         actorType: 'user',
         auditAction: 'policy.retention_bounds_proposal_applied',
@@ -438,7 +438,7 @@ export const rejectBoundsProposal = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
@@ -449,7 +449,7 @@ export const rejectBoundsProposal = action({
       internal.governance.internal_queries.verifyOrgAdmin,
       {
         organizationId: args.organizationId,
-        userId: String(authUser._id),
+        userId: authUser.userId,
         email: authUser.email ?? '',
         name: authUser.name,
       },
@@ -491,7 +491,7 @@ export const rejectBoundsProposal = action({
         organizationId: args.organizationId,
         rejectedBoundsHash: liveHash,
         proposedBounds,
-        actorId: String(authUser._id),
+        actorId: authUser.userId,
         actorEmail: authUser.email ?? undefined,
       },
     );

@@ -378,7 +378,6 @@ export function DocumentsTable({
       <DocumentPreviewDialog
         open={!!docId}
         onOpenChange={(open) => !open && closePreview()}
-        organizationId={organizationId}
         documentId={docId ?? undefined}
         fileName={previewFileName ?? undefined}
       />

@@ -6,17 +6,15 @@ import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { ActionCtx, action } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import type { AuthenticatedUser } from '../lib/rls/types';
 
 type JsonValue = Infer<typeof jsonValueValidator>;
-type AuthUser = NonNullable<
-  Awaited<ReturnType<typeof authComponent.getAuthUser>>
->;
 
 async function verifyApprovalAccess(
   ctx: ActionCtx,
   approvalId: Id<'approvals'>,
-  authUser: AuthUser,
+  authUser: AuthenticatedUser,
 ) {
   const approval = await ctx.runQuery(
     internal.approvals.internal_queries.getApprovalById,
@@ -29,9 +27,11 @@ async function verifyApprovalAccess(
     internal.approvals.internal_queries.verifyOrganizationMembership,
     {
       organizationId: approval.organizationId,
-      userId: String(authUser._id),
+      userId: authUser.userId,
+      // Pass identity email/name through as-is (optional). `?? ''` would
+      // disable getOrganizationMember's email-fallback (empty string is falsy).
       email: authUser.email,
-      name: authUser.name ?? '',
+      name: authUser.name,
     },
   );
 }
@@ -42,7 +42,7 @@ export const executeApprovedIntegrationOperation = action({
   },
   returns: jsonValueValidator,
   handler: async (ctx, args): Promise<JsonValue> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -54,7 +54,7 @@ export const executeApprovedIntegrationOperation = action({
         .executeApprovedOperation,
       {
         approvalId: args.approvalId,
-        approvedBy: String(authUser._id),
+        approvedBy: authUser.userId,
       },
     );
   },
@@ -66,7 +66,7 @@ export const executeApprovedWorkflowRun = action({
   },
   returns: jsonValueValidator,
   handler: async (ctx, args): Promise<JsonValue> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -78,7 +78,7 @@ export const executeApprovedWorkflowRun = action({
         .executeApprovedWorkflowRun,
       {
         approvalId: args.approvalId,
-        approvedBy: String(authUser._id),
+        approvedBy: authUser.userId,
       },
     );
   },
@@ -90,7 +90,7 @@ export const executeApprovedWorkflowCreation = action({
   },
   returns: jsonValueValidator,
   handler: async (ctx, args): Promise<JsonValue> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -102,7 +102,7 @@ export const executeApprovedWorkflowCreation = action({
         .executeApprovedWorkflowCreation,
       {
         approvalId: args.approvalId,
-        approvedBy: String(authUser._id),
+        approvedBy: authUser.userId,
       },
     );
   },
@@ -114,7 +114,7 @@ export const executeApprovedDocumentWrite = action({
   },
   returns: jsonValueValidator,
   handler: async (ctx, args): Promise<JsonValue> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -126,7 +126,7 @@ export const executeApprovedDocumentWrite = action({
         .executeApprovedDocumentWrite,
       {
         approvalId: args.approvalId,
-        approvedBy: String(authUser._id),
+        approvedBy: authUser.userId,
       },
     );
   },
@@ -138,7 +138,7 @@ export const executeApprovedWorkflowUpdate = action({
   },
   returns: jsonValueValidator,
   handler: async (ctx, args): Promise<JsonValue> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -150,7 +150,7 @@ export const executeApprovedWorkflowUpdate = action({
         .executeApprovedWorkflowUpdate,
       {
         approvalId: args.approvalId,
-        approvedBy: String(authUser._id),
+        approvedBy: authUser.userId,
       },
     );
   },

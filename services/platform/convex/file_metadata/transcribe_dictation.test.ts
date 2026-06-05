@@ -24,10 +24,16 @@ vi.mock('convex/values', () => {
   };
 });
 
-vi.mock('../_generated/server', () => ({
-  action: vi.fn((config) => config),
-  internalAction: vi.fn((config) => config),
-}));
+vi.mock('../_generated/server', async (importOriginal) => {
+  // Spread the real module so transitively-loaded builders (e.g. internalQuery
+  // from lib/get_user_teams, now reachable via the lib/rls barrel) stay defined.
+  const mod = await importOriginal<Record<string, unknown>>();
+  return {
+    ...mod,
+    action: vi.fn((config) => config),
+    internalAction: vi.fn((config) => config),
+  };
+});
 
 vi.mock('../_generated/api', () => ({
   internal: {
@@ -98,12 +104,22 @@ const handler = (transcribeDictation as unknown as ActionConfig).handler;
 interface MockCtx {
   runQuery: ReturnType<typeof vi.fn>;
   runMutation: ReturnType<typeof vi.fn>;
+  auth: { getUserIdentity: ReturnType<typeof vi.fn> };
 }
 
 function createMockCtx(): MockCtx {
   return {
     runQuery: vi.fn().mockResolvedValue(undefined),
     runMutation: vi.fn().mockResolvedValue(null),
+    // Production now calls getAuthUserIdentity (ctx.auth.getUserIdentity)
+    // instead of authComponent.getAuthUser. Derive the identity from the
+    // same mock source so the existing test intent is preserved.
+    auth: {
+      getUserIdentity: vi.fn(async () => {
+        const u = await mockGetAuthUser();
+        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      }),
+    },
   };
 }
 

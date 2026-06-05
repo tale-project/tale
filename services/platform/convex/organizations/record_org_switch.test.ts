@@ -11,21 +11,40 @@ vi.mock('../_generated/api', () => ({
 }));
 
 const mockGetAuthUser = vi.fn();
-vi.mock('../auth', () => ({
-  authComponent: {
-    getAuthUser: (...args: unknown[]) => mockGetAuthUser(...args),
-  },
-}));
-
 const mockLogSuccess = vi.fn();
 vi.mock('../audit_logs/helpers', () => ({
   logSuccess: (...args: unknown[]) => mockLogSuccess(...args),
 }));
 
 const mockGetOrganizationMember = vi.fn();
+// The handler now resolves identity via getAuthUserIdentity (0-DB, reads the
+// JWT subject through ctx.auth.getUserIdentity) instead of
+// authComponent.getAuthUser. Mock the rls barrel: keep getOrganizationMember
+// mocked, and provide a faithful getAuthUserIdentity that maps the JWT identity
+// (sourced from the same mockGetAuthUser fixture via ctx.auth) into the
+// { userId, email, name } shape the real helper returns.
+// Sources import these directly (not via the lib/rls barrel), so mock the
+// concrete modules.
 vi.mock('../lib/rls/organization/get_organization_member', () => ({
   getOrganizationMember: (...args: unknown[]) =>
     mockGetOrganizationMember(...args),
+}));
+vi.mock('../lib/rls/auth/get_auth_user_identity', () => ({
+  getAuthUserIdentity: async (ctx: {
+    auth: { getUserIdentity: () => Promise<unknown> };
+  }) => {
+    const identity = (await ctx.auth.getUserIdentity()) as {
+      subject?: string;
+      email?: string;
+      name?: string;
+    } | null;
+    if (!identity || !identity.subject) return null;
+    return {
+      userId: identity.subject,
+      email: identity.email ?? undefined,
+      name: identity.name ?? undefined,
+    };
+  },
 }));
 
 vi.mock('convex/values', () => {
@@ -97,7 +116,12 @@ function createMockCtx(recentEntries: AuditEntry[] = []) {
   return {
     db: { query },
     runMutation: vi.fn().mockResolvedValue(undefined),
-    auth: {},
+    auth: {
+      getUserIdentity: vi.fn(async () => {
+        const u = await mockGetAuthUser();
+        return u ? { subject: u._id, email: u.email, name: u.name } : null;
+      }),
+    },
     _builders: { query, withIndex, order },
   };
 }

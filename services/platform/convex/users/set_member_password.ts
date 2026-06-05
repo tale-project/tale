@@ -15,8 +15,8 @@ import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
 import { getPasswordPolicy } from '../governance/helpers';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { recordPasswordChange } from './password_metadata';
 
@@ -29,7 +29,7 @@ export async function setMemberPassword(
   ctx: MutationCtx,
   args: SetMemberPasswordArgs,
 ): Promise<void> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     throw new Error('Unauthenticated');
   }
@@ -65,7 +65,7 @@ export async function setMemberPassword(
         value: memberOrgId,
         operator: 'eq',
       },
-      { field: 'userId', value: String(authUser._id), operator: 'eq' },
+      { field: 'userId', value: authUser.userId, operator: 'eq' },
     ],
   });
   const callerMemberRaw = callerRes?.page?.[0];
@@ -169,7 +169,7 @@ export async function setMemberPassword(
 
   await createAuditLog(ctx, {
     organizationId: memberOrgId,
-    actorId: String(authUser._id),
+    actorId: authUser.userId,
     actorEmail: authUser.email,
     actorType: 'user',
     action: 'member_password.set',

@@ -35,7 +35,7 @@ import { ConvexError } from 'convex/values';
 
 import { components } from '../../_generated/api';
 import type { ActionCtx, MutationCtx } from '../../_generated/server';
-import { authComponent } from '../../auth';
+import { getAuthUserIdentity } from '../rls/auth/get_auth_user_identity';
 
 interface BetterAuthMember {
   _id: string;
@@ -61,14 +61,14 @@ export async function requireOrgMembershipById(
   ctx: ActionCtx | MutationCtx,
   organizationId: string,
 ): Promise<OrgMembershipAuth> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     throw new ConvexError({
       code: 'UNAUTHENTICATED',
       message: 'Authentication required.',
     });
   }
-  const userId = String(authUser._id);
+  const userId = authUser.userId;
 
   // Reject an empty id up front: the adapter resolves an `_id` `eq` filter via
   // `db.get(value)`, and `db.get('')` throws the opaque "Invalid ID length 0"

@@ -2,10 +2,10 @@ import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
-import { authComponent } from '../auth';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import {
   computeFeedbackStats,
   type FeedbackStats,
@@ -53,10 +53,10 @@ export const getMessageFeedback = query({
     messageId: v.string(),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;
 
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
 
     return await ctx.db
       .query('messageFeedback')
@@ -80,14 +80,14 @@ export const getFeedbackStats = query({
     provider: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<FeedbackStatsResult | null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;
 
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
     if (!isAdmin(member.role)) {
       throw new Error('Only admins can view feedback metrics');
     }
@@ -168,16 +168,16 @@ export const listRecentFeedback = query({
     provider: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
     if (!isAdmin(member.role)) {
       throw new Error('Only admins can view feedback metrics');
     }

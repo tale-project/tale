@@ -2,7 +2,7 @@ import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
-import { getOrganizationMember } from '../lib/rls';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import * as WebsitesHelpers from './helpers';
 import { listWebsitesPaginated as listWebsitesPaginatedHelper } from './list_websites_paginated';
 
@@ -19,8 +19,10 @@ export const verifyOrganizationMembership = internalQuery({
   args: {
     organizationId: v.string(),
     userId: v.string(),
-    email: v.string(),
-    name: v.string(),
+    // Optional: sourced from the JWT identity (getAuthUserIdentity), where
+    // email/name are optional. getOrganizationMember accepts them optionally.
+    email: v.optional(v.string()),
+    name: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await getOrganizationMember(ctx, args.organizationId, {

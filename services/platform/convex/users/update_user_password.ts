@@ -15,6 +15,7 @@ import { hasCredentialAccount } from '../accounts/helpers';
 import { createAuditLog } from '../audit_logs/helpers';
 import { createAuth, authComponent } from '../auth';
 import { getStrictestPasswordPolicyForUser } from '../governance/helpers';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getUserOrganizations } from '../lib/rls/organization/get_user_organizations';
 import { recordPasswordChange } from './password_metadata';
 
@@ -41,17 +42,13 @@ export async function updateUserPassword(
   ctx: MutationCtx,
   args: UpdateUserPasswordArgs,
 ): Promise<void> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     throw new Error('Unauthenticated');
   }
   const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
 
-  const orgs = await getUserOrganizations(ctx, {
-    userId: String(authUser._id),
-    email: authUser.email,
-    name: authUser.name,
-  });
+  const orgs = await getUserOrganizations(ctx, authUser);
   const { policy } = await getStrictestPasswordPolicyForUser(
     ctx,
     orgs.map((o) => o.organizationId),
@@ -68,11 +65,7 @@ export async function updateUserPassword(
   const trigger = args.trigger ?? 'voluntary';
 
   if (hasPassword && trigger === 'forced') {
-    await forcedResetCredentialPassword(
-      ctx,
-      String(authUser._id),
-      args.newPassword,
-    );
+    await forcedResetCredentialPassword(ctx, authUser.userId, args.newPassword);
     // Revoke every session for this user EXCEPT the caller's current
     // one. Delegating to Better Auth's own API (rather than matching
     // session rows manually) guarantees we use the same identity it
@@ -100,7 +93,7 @@ export async function updateUserPassword(
     });
   }
 
-  await recordPasswordChange(ctx, String(authUser._id));
+  await recordPasswordChange(ctx, authUser.userId);
 
   // Audit the change against every org the user belongs to, so each
   // org's compliance trail records the credential rotation. Fall back
@@ -113,13 +106,13 @@ export async function updateUserPassword(
     orgs.map((o) =>
       createAuditLog(ctx, {
         organizationId: o.organizationId,
-        actorId: String(authUser._id),
+        actorId: authUser.userId,
         actorEmail: authUser.email,
         actorType: 'user',
         action: 'user_password.changed',
         category: 'auth',
         resourceType: 'user',
-        resourceId: String(authUser._id),
+        resourceId: authUser.userId,
         status: 'success',
         metadata: { trigger },
       }),

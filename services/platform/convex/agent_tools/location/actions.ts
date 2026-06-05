@@ -4,8 +4,8 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { action } from '../../_generated/server';
-import { authComponent } from '../../auth';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
+import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
 
 export const submitLocationResponse = action({
   args: {
@@ -27,7 +27,7 @@ export const submitLocationResponse = action({
     threadId?: string;
     streamId?: string;
   }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     // Read approval to get threadId and organizationId
@@ -45,7 +45,7 @@ export const submitLocationResponse = action({
       internal.approvals.internal_queries.verifyOrganizationMembership,
       {
         organizationId: approvalInfo.organizationId,
-        userId: String(authUser._id),
+        userId: authUser.userId,
         email: authUser.email,
         name: authUser.name,
       },
@@ -77,8 +77,8 @@ export const submitLocationResponse = action({
         approvalId: args.approvalId,
         location: args.location,
         denied: args.denied,
-        respondedBy: authUser.email ?? String(authUser._id),
-        approvedBy: String(authUser._id),
+        respondedBy: authUser.email ?? authUser.userId,
+        approvedBy: authUser.userId,
         agentConfig: resolvedAgentConfig,
       },
     );

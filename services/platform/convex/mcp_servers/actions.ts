@@ -11,7 +11,7 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { jsonRecordValidator } from '../lib/validators/json';
 import type { McpServerConfig } from './client_factory';
 import { discoverTools, executeTool } from './client_factory';
@@ -38,7 +38,7 @@ export const testConnection = action({
     id: v.id('mcpServers'),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }

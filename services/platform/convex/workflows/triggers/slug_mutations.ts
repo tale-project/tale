@@ -2,8 +2,8 @@ import { v } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
 import { mutation, type MutationCtx } from '../../_generated/server';
-import { authComponent } from '../../auth';
-import { getOrganizationMember } from '../../lib/rls';
+import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../../lib/rls/organization/get_organization_member';
 import { jsonRecordValidator } from '../../lib/validators/json';
 import { isValidEventType } from './event_types';
 import { generateToken } from './helpers/crypto';
@@ -41,18 +41,14 @@ export const createScheduleBySlug = mutation({
   },
   returns: v.id('wfSchedules'),
   handler: async (ctx, args): Promise<Id<'wfSchedules'>> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     if (!validateWorkflowSlug(args.workflowSlug)) {
       throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, args.organizationId, authUser);
 
     await assertWorkflowInstalled(ctx, args.organizationId, args.workflowSlug);
 
@@ -63,7 +59,7 @@ export const createScheduleBySlug = mutation({
       timezone: args.timezone,
       isActive: true,
       createdAt: Date.now(),
-      createdBy: authUser.email ?? String(authUser._id),
+      createdBy: authUser.email ?? authUser.userId,
       variables: args.variables,
     });
   },
@@ -76,17 +72,13 @@ export const toggleScheduleBySlug = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const schedule = await ctx.db.get(args.scheduleId);
     if (!schedule) throw new Error('Schedule not found');
 
-    await getOrganizationMember(ctx, schedule.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, schedule.organizationId, authUser);
 
     if (args.isActive && schedule.workflowSlug) {
       await assertWorkflowInstalled(
@@ -110,17 +102,13 @@ export const updateScheduleBySlug = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const schedule = await ctx.db.get(args.scheduleId);
     if (!schedule) throw new Error('Schedule not found');
 
-    await getOrganizationMember(ctx, schedule.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, schedule.organizationId, authUser);
 
     await ctx.db.patch(args.scheduleId, {
       cronExpression: args.cronExpression,
@@ -135,17 +123,13 @@ export const deleteScheduleBySlug = mutation({
   args: { scheduleId: v.id('wfSchedules') },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const schedule = await ctx.db.get(args.scheduleId);
     if (!schedule) throw new Error('Schedule not found');
 
-    await getOrganizationMember(ctx, schedule.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, schedule.organizationId, authUser);
 
     await ctx.db.delete(args.scheduleId);
     return null;
@@ -165,18 +149,14 @@ export const createWebhookBySlug = mutation({
     ctx,
     args,
   ): Promise<{ webhookId: Id<'wfWebhooks'>; token: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     if (!validateWorkflowSlug(args.workflowSlug)) {
       throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, args.organizationId, authUser);
 
     await assertWorkflowInstalled(ctx, args.organizationId, args.workflowSlug);
 
@@ -188,7 +168,7 @@ export const createWebhookBySlug = mutation({
       token,
       isActive: true,
       createdAt: Date.now(),
-      createdBy: authUser.email ?? String(authUser._id),
+      createdBy: authUser.email ?? authUser.userId,
     });
 
     return { webhookId, token };
@@ -202,17 +182,13 @@ export const toggleWebhookBySlug = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const webhook = await ctx.db.get(args.webhookId);
     if (!webhook) throw new Error('Webhook not found');
 
-    await getOrganizationMember(ctx, webhook.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, webhook.organizationId, authUser);
 
     if (args.isActive && webhook.workflowSlug) {
       await assertWorkflowInstalled(
@@ -231,17 +207,13 @@ export const deleteWebhookBySlug = mutation({
   args: { webhookId: v.id('wfWebhooks') },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const webhook = await ctx.db.get(args.webhookId);
     if (!webhook) throw new Error('Webhook not found');
 
-    await getOrganizationMember(ctx, webhook.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, webhook.organizationId, authUser);
 
     await ctx.db.delete(args.webhookId);
     return null;
@@ -257,18 +229,14 @@ export const createEventSubscriptionBySlug = mutation({
   },
   returns: v.id('wfEventSubscriptions'),
   handler: async (ctx, args): Promise<Id<'wfEventSubscriptions'>> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     if (!validateWorkflowSlug(args.workflowSlug)) {
       throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, args.organizationId, authUser);
 
     if (!isValidEventType(args.eventType)) {
       throw new Error(`Invalid event type: ${String(args.eventType)}`);
@@ -306,7 +274,7 @@ export const createEventSubscriptionBySlug = mutation({
       eventType: args.eventType,
       isActive: true,
       createdAt: Date.now(),
-      createdBy: authUser.email ?? String(authUser._id),
+      createdBy: authUser.email ?? authUser.userId,
       ...(cleanFilter !== undefined && { eventFilter: cleanFilter }),
     };
     return await ctx.db.insert('wfEventSubscriptions', insertData);
@@ -320,17 +288,13 @@ export const toggleEventSubscriptionBySlug = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const sub = await ctx.db.get(args.subscriptionId);
     if (!sub) throw new Error('Event subscription not found');
 
-    await getOrganizationMember(ctx, sub.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, sub.organizationId, authUser);
 
     if (args.isActive && sub.workflowSlug) {
       await assertWorkflowInstalled(ctx, sub.organizationId, sub.workflowSlug);
@@ -348,17 +312,13 @@ export const updateEventSubscriptionBySlug = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const sub = await ctx.db.get(args.subscriptionId);
     if (!sub) throw new Error('Event subscription not found');
 
-    await getOrganizationMember(ctx, sub.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, sub.organizationId, authUser);
 
     await ctx.db.patch(args.subscriptionId, {
       eventFilter: args.eventFilter,
@@ -371,17 +331,13 @@ export const deleteEventSubscriptionBySlug = mutation({
   args: { subscriptionId: v.id('wfEventSubscriptions') },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const sub = await ctx.db.get(args.subscriptionId);
     if (!sub) throw new Error('Event subscription not found');
 
-    await getOrganizationMember(ctx, sub.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, sub.organizationId, authUser);
 
     await ctx.db.delete(args.subscriptionId);
     return null;

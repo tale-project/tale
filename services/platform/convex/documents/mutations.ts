@@ -10,11 +10,11 @@ import {
 } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
-import { authComponent } from '../auth';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { checkUploadPolicy } from '../governance/upload_enforcement';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
 import { createDocument } from './create_document';
 import { extractExtension } from './extract_extension';
@@ -35,7 +35,7 @@ export const updateDocument = mutation({
     teamIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -45,16 +45,12 @@ export const updateDocument = mutation({
       throw new Error('Document not found');
     }
 
-    await getOrganizationMember(ctx, document.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, document.organizationId, authUser);
 
     await updateDocumentHelper(ctx, {
       ...args,
       teamIds: args.teamIds,
-      userId: String(authUser._id),
+      userId: authUser.userId,
     });
   },
 });
@@ -65,7 +61,7 @@ export const deleteDocument = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -75,11 +71,7 @@ export const deleteDocument = mutation({
       throw new Error('Document not found');
     }
 
-    await getOrganizationMember(ctx, document.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, document.organizationId, authUser);
 
     // Synchronous hold check so the user sees an immediate error instead
     // of a silent success while the async cleanup throws (round-2 v08 B4).
@@ -123,23 +115,19 @@ export const createDocumentFromUpload = mutation({
     documentId: v.id('documents'),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, args.organizationId, authUser);
 
     const resolvedContentType = resolveFileType(
       args.fileName,
       args.contentType ?? '',
     );
 
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     const ext = extractExtension(args.fileName);
     const policyCheck = await checkUploadPolicy(
       ctx,
@@ -169,7 +157,7 @@ export const createDocumentFromUpload = mutation({
         throw new Error('Folder not found');
       }
       if (folder.teamId) {
-        const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+        const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
         if (!hasTeamAccess(folder, userTeamIds)) {
           throw new Error('Folder not accessible');
         }
@@ -201,7 +189,7 @@ export const createDocumentFromUpload = mutation({
       sourceProvider: 'upload',
       teamId: effectiveTeamId,
       metadata: args.metadata,
-      createdBy: String(authUser._id),
+      createdBy: authUser.userId,
       folderId: args.folderId,
     });
 

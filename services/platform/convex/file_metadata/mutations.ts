@@ -3,12 +3,12 @@ import { v } from 'convex/values';
 import { extractExtension } from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
-import { authComponent } from '../auth';
 import { checkUploadPolicy } from '../governance/upload_enforcement';
 import {
   RateLimitExceededError,
   checkOrganizationRateLimit,
 } from '../lib/rate_limiter/helpers';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
 export const saveFileMetadata = mutation({
   args: {
@@ -30,12 +30,12 @@ export const saveFileMetadata = mutation({
     threadId: v.optional(v.string()),
   },
   async handler(ctx, args) {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     const ext = extractExtension(args.fileName);
     const check = await checkUploadPolicy(
       ctx,
@@ -237,7 +237,7 @@ export const skipTranscription = mutation({
     organizationId: v.string(),
   },
   async handler(ctx, args) {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -291,7 +291,7 @@ export const retryTranscription = mutation({
     organizationId: v.string(),
   },
   async handler(ctx, args) {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }

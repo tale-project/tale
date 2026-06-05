@@ -6,7 +6,7 @@ import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 
 export const startWorkflowFromFile = action({
@@ -19,7 +19,7 @@ export const startWorkflowFromFile = action({
   },
   returns: v.union(v.id('wfExecutions'), v.null()),
   handler: async (ctx, args): Promise<Id<'wfExecutions'> | null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -28,9 +28,11 @@ export const startWorkflowFromFile = action({
       internal.approvals.internal_queries.verifyOrganizationMembership,
       {
         organizationId: args.organizationId,
-        userId: String(authUser._id),
+        userId: authUser.userId,
+        // Pass identity email/name through as-is (optional). `?? ''` would
+        // disable getOrganizationMember's email-fallback (empty string is falsy).
         email: authUser.email,
-        name: authUser.name ?? '',
+        name: authUser.name,
       },
     );
 
@@ -46,7 +48,7 @@ export const startWorkflowFromFile = action({
         input: args.input,
         triggeredBy: args.triggeredBy,
         triggerData: args.triggerData,
-        userId: String(authUser._id),
+        userId: authUser.userId,
       },
     );
   },

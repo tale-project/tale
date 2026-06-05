@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getThreadMessages } from './get_thread_messages';
 
 export const forkOwnThread = mutation({
@@ -13,7 +13,7 @@ export const forkOwnThread = mutation({
   },
   returns: v.string(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
@@ -27,7 +27,7 @@ export const forkOwnThread = mutation({
       throw new Error('Thread not found');
     }
 
-    const userId = String(authUser._id);
+    const userId = authUser.userId;
     if (metadata.userId !== userId) {
       throw new Error('Not authorized to fork this thread');
     }

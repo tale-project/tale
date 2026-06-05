@@ -10,7 +10,7 @@ import { internal } from '../_generated/api';
 import type { DataModel } from '../_generated/dataModel';
 import { internalMutation, mutation, query } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { writeNotificationForOrgs } from '../notifications/helpers';
 
@@ -112,13 +112,13 @@ export const getDsarPolicyForUi = query({
     callerIsOwner: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
     // Allow any org member with admin/owner role to read; only
     // owner can write (enforced separately in the write paths).
     if (member.role !== 'owner' && member.role !== 'admin') {
@@ -192,14 +192,14 @@ export const proposeDsarPolicy = mutation({
     effectiveAt: v.optional(v.number()),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: callerId,
@@ -354,14 +354,14 @@ export const cancelPendingDsarPolicyChange = mutation({
   args: { organizationId: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
     }
-    const callerId = String(authUser._id);
+    const callerId = authUser.userId;
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: callerId,

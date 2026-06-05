@@ -5,8 +5,8 @@
 import { v } from 'convex/values';
 
 import { mutation, query, type QueryCtx } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import {
   notificationActorTypeValidator,
   notificationTypeValidator,
@@ -18,13 +18,9 @@ async function resolveUserId(
   ctx: QueryCtx,
   organizationId: string,
 ): Promise<string> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) throw new Error('Unauthenticated');
-  const member = await getOrganizationMember(ctx, organizationId, {
-    userId: String(authUser._id),
-    email: authUser.email,
-    name: authUser.name,
-  });
+  const member = await getOrganizationMember(ctx, organizationId, authUser);
   return member.userId;
 }
 
