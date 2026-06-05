@@ -2,6 +2,7 @@
   "displayName": "OpenRouter",
   "description": "Multi-model AI gateway with access to leading LLM providers",
   "baseUrl": "https://openrouter.ai/api/v1",
+  "secretsEnv": "TALE_PROVIDER_KEY_OPENROUTER",
   "supportsStructuredOutputs": true,
   "defaults": {
     "chat": "deepseek/deepseek-v4-flash",
