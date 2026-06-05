@@ -142,3 +142,29 @@ def test_secrets_env_parsed_onto_dataclasses(tmp_path: Path) -> None:
     assert len(providers) == 1
     assert providers[0].secrets_env == PROVIDER_ENV2
     assert providers[0].models[0].secrets_env == MODEL_ENV
+
+
+def test_non_string_secrets_env_degrades_to_file(tmp_path: Path) -> None:
+    """A hand-edited non-string secretsEnv (e.g. an int) must degrade to the
+    file key, not raise AttributeError from `.startswith` (mirrors the TS
+    resolver, which rejects it at the zod boundary)."""
+    providers_dir = tmp_path / ORG / "providers"
+    providers_dir.mkdir(parents=True, exist_ok=True)
+    config = {
+        "displayName": "OpenRouter",
+        "baseUrl": "https://openrouter.example/v1",
+        "secretsEnv": 123,  # non-string: hand-edited footgun
+        "models": [
+            {
+                "id": "chat-model",
+                "displayName": "Chat",
+                "tags": ["chat"],
+                "secretsEnv": ["nope"],  # non-string at the model level too
+            }
+        ],
+    }
+    (providers_dir / "openrouter.json").write_text(json.dumps(config))
+    (providers_dir / "openrouter.secrets.json").write_text(json.dumps({"apiKey": "sk-file"}))
+    with patch.dict(os.environ, {}, clear=True):
+        _, api_key, _ = get_chat_model(ORG, config_dir=str(tmp_path))
+    assert api_key == "sk-file"

@@ -879,6 +879,16 @@ function ModelsSection({
   >('none');
   const modelIdInputRef = useRef<HTMLInputElement>(null);
 
+  // A non-empty model-level secretsEnv must satisfy the reserved-prefix
+  // pattern and length cap. Mirrors the provider dialog's `envError` so the
+  // model Save button can gate on it (otherwise an invalid name reaches the
+  // server and fails with an opaque INVALID_PROVIDER_CONFIG toast).
+  const modelSecretsEnvInvalid = useMemo(() => {
+    const value = form.secretsEnv.trim();
+    if (!value) return false;
+    return value.length > 40 || !SECRETS_ENV_REGEX.test(value);
+  }, [form.secretsEnv]);
+
   // Fetched-but-not-yet-configured model IDs from the provider's /models
   // endpoint. Configured models live in config.models — this list holds the
   // delta the user can opt into via checkbox.
@@ -1646,9 +1656,7 @@ function ModelsSection({
                 }
                 placeholder={t('providers.modelSecretsEnvPlaceholder')}
                 errorMessage={
-                  form.secretsEnv.trim() &&
-                  (form.secretsEnv.trim().length > 40 ||
-                    !SECRETS_ENV_REGEX.test(form.secretsEnv.trim()))
+                  modelSecretsEnvInvalid
                     ? t('providers.secretsEnvPatternError')
                     : undefined
                 }
@@ -1755,6 +1763,7 @@ function ModelsSection({
                 disabled={
                   isSaving ||
                   savingSecret ||
+                  modelSecretsEnvInvalid ||
                   !(
                     form.id.trim().length > 0 &&
                     form.displayName.trim().length > 0 &&

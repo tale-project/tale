@@ -58,8 +58,13 @@ def _env_secret(name: str | None) -> str | None:
     Returns None when the name is missing, not prefixed, or the env var is
     empty/whitespace. Trailing-newline normalization (a common Vault/k8s
     injection footgun) is applied to env values here.
+
+    `name` is operator-authored, hand-editable config: a non-string value
+    (e.g. ``"secretsEnv": 123`` in a hand-edited JSON) degrades to the file
+    fallback rather than raising ``AttributeError`` from ``.startswith`` —
+    mirroring the TS resolver, which rejects it gracefully at the zod boundary.
     """
-    if not name:
+    if not name or not isinstance(name, str):
         return None
     if not name.startswith(_SECRETS_ENV_PREFIX):
         logger.warning(

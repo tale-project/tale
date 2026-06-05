@@ -342,16 +342,23 @@ async function loadAllProviders(
  * neither an env nor a file key. The throw is failover-eligible (see
  * `errors.ts`), so the agent fallback chain moves on to the next model.
  */
-function resolveModelApiKey(
+function resolveModelApiKeyOrNull(
   provider: ProviderWithSecrets,
   definition: { id: string; secretsEnv?: string },
-): string {
-  const apiKey = resolveApiKey({
+): string | null {
+  return resolveApiKey({
     modelSecretsEnv: definition.secretsEnv,
     providerSecretsEnv: provider.config.secretsEnv,
     fileModelKey: provider.secrets?.modelKeys?.[definition.id],
     fileApiKey: provider.secrets?.apiKey,
   });
+}
+
+function resolveModelApiKey(
+  provider: ProviderWithSecrets,
+  definition: { id: string; secretsEnv?: string },
+): string {
+  const apiKey = resolveModelApiKeyOrNull(provider, definition);
   if (!apiKey) {
     throw new MissingApiKeyError(
       provider.name,
@@ -360,6 +367,127 @@ function resolveModelApiKey(
     );
   }
   return apiKey;
+}
+
+/**
+ * Assemble the `resolveModelByTag` result object for a (provider, model) pair
+ * whose API key has already been resolved. Shared by the per-tag-default pass
+ * and the first-tag-match pass so the (large) shape lives in one place.
+ */
+function buildResolvedTagModel(
+  provider: ProviderWithSecrets,
+  definition: ProviderJson['models'][number],
+  apiKey: string,
+) {
+  return {
+    providerName: provider.name,
+    baseUrl: definition.baseUrl ?? provider.config.baseUrl,
+    apiKey,
+    modelId: definition.id,
+    tags: [...definition.tags],
+    dimensions: definition.dimensions,
+    maxOutputTokens: definition.maxOutputTokens,
+    supportsStructuredOutputs:
+      definition.supportsStructuredOutputs ??
+      provider.config.supportsStructuredOutputs ??
+      false,
+    imageGenerationMode: definition.imageGenerationMode,
+    inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
+    outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
+    imageCentsPerImage: definition.cost?.imageCentsPerImage,
+    centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+    centsPerMillionCharacters: definition.cost?.centsPerMillionCharacters,
+    defaultVoice: definition.defaultVoice,
+    voicesByLocale: definition.voicesByLocale,
+    defaultInstructions: definition.defaultInstructions,
+    instructionsByLocale: definition.instructionsByLocale,
+    audioFormat: definition.audioFormat,
+    providerOptions: mergeModelLevel(
+      provider.config.providerOptions,
+      definition.providerOptions,
+    ),
+    reasoning: definition.reasoning,
+  };
+}
+
+/**
+ * Two-pass tag → model resolution over already-loaded candidate providers.
+ * Pass 1 honors an explicit per-tag default; pass 2 takes the first tagged
+ * model. Both SKIP a model whose API key does not resolve so a keyless match
+ * never masks a usable sibling — a provider may be kept loaded by one model's
+ * env key (`providerHasEnvKey` is provider-OR-any-model) while another tagged
+ * model has none. Throws the per-model, failover-eligible `MissingApiKeyError`
+ * when a tag match existed but none resolved a key (transcription/TTS resolve
+ * via this path with no failover wrapper, so a premature throw on the first
+ * keyless hit would be terminal); throws `UNKNOWN_MODEL` when no model carries
+ * the tag at all. Pure (no IO) so the resolution policy is unit-testable.
+ */
+export function selectModelByTag(
+  candidates: ProviderWithSecrets[],
+  tag: string,
+  providerName: string | undefined,
+): ReturnType<typeof buildResolvedTagModel> {
+  // A tag match whose API key did not resolve — kept so that, if NO candidate
+  // resolves a key, we throw the failover-eligible MissingApiKeyError instead
+  // of terminating on the first keyless hit.
+  let lastKeyless: {
+    provider: ProviderWithSecrets;
+    definition: ProviderJson['models'][number];
+  } | null = null;
+
+  // First pass: explicit per-tag default. Skip a keyless default so the
+  // first-tag-match pass can still surface a usable sibling.
+  for (const provider of candidates) {
+    const defaults = provider.config.defaults;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- defaults keys are 'chat' | 'vision' | 'embedding'; tag may not match but undefined access is handled below
+    const tagKey = tag as keyof NonNullable<typeof defaults>;
+    const defaultModelId = defaults?.[tagKey];
+    if (!defaultModelId) continue;
+    const definition = provider.config.models.find(
+      (m) => m.id === defaultModelId,
+    );
+    if (!definition) continue;
+    const apiKey = resolveModelApiKeyOrNull(provider, definition);
+    if (!apiKey) {
+      lastKeyless = { provider, definition };
+      continue;
+    }
+    return buildResolvedTagModel(provider, definition, apiKey);
+  }
+
+  // Fallback: every model with a matching tag, across all candidates. Return
+  // the first one that resolves a key — a keyless first match must not mask a
+  // usable sibling, including one on the same provider.
+  for (const provider of candidates) {
+    for (const definition of provider.config.models) {
+      if (!(definition.tags as readonly string[]).includes(tag)) {
+        continue;
+      }
+      const apiKey = resolveModelApiKeyOrNull(provider, definition);
+      if (!apiKey) {
+        lastKeyless = { provider, definition };
+        continue;
+      }
+      return buildResolvedTagModel(provider, definition, apiKey);
+    }
+  }
+
+  // A tag match existed but none resolved a key: throw the per-model,
+  // failover-eligible MissingApiKeyError (a different fallback model on
+  // another provider may resolve) rather than the terminal UNKNOWN_MODEL.
+  if (lastKeyless) {
+    throw new MissingApiKeyError(
+      lastKeyless.provider.name,
+      lastKeyless.definition.id,
+      lastKeyless.definition.secretsEnv ??
+        lastKeyless.provider.config.secretsEnv,
+    );
+  }
+
+  throw new ConvexError({
+    code: 'UNKNOWN_MODEL',
+    message: `No model with tag "${tag}" found${providerName ? ` in provider "${providerName}"` : ' in any provider'}.`,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -929,93 +1057,7 @@ export const resolveModelByTag = internalAction({
       });
     }
 
-    // First pass: check for explicit per-tag default
-    for (const provider of candidates) {
-      const defaults = provider.config.defaults;
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- defaults keys are 'chat' | 'vision' | 'embedding'; tag may not match but undefined access is handled below
-      const tagKey = args.tag as keyof NonNullable<typeof defaults>;
-      const defaultModelId = defaults?.[tagKey];
-      if (defaultModelId) {
-        const definition = provider.config.models.find(
-          (m) => m.id === defaultModelId,
-        );
-        if (definition) {
-          return {
-            providerName: provider.name,
-            baseUrl: definition.baseUrl ?? provider.config.baseUrl,
-            apiKey: resolveModelApiKey(provider, definition),
-            modelId: definition.id,
-            tags: [...definition.tags],
-            dimensions: definition.dimensions,
-            maxOutputTokens: definition.maxOutputTokens,
-            supportsStructuredOutputs:
-              definition.supportsStructuredOutputs ??
-              provider.config.supportsStructuredOutputs ??
-              false,
-            imageGenerationMode: definition.imageGenerationMode,
-            inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
-            outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
-            imageCentsPerImage: definition.cost?.imageCentsPerImage,
-            centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
-            centsPerMillionCharacters:
-              definition.cost?.centsPerMillionCharacters,
-            defaultVoice: definition.defaultVoice,
-            voicesByLocale: definition.voicesByLocale,
-            defaultInstructions: definition.defaultInstructions,
-            instructionsByLocale: definition.instructionsByLocale,
-            audioFormat: definition.audioFormat,
-            providerOptions: mergeModelLevel(
-              provider.config.providerOptions,
-              definition.providerOptions,
-            ),
-            reasoning: definition.reasoning,
-          };
-        }
-      }
-    }
-
-    // Fallback: first model with matching tag
-    for (const provider of candidates) {
-      const definition = provider.config.models.find((m) =>
-        (m.tags as readonly string[]).includes(args.tag),
-      );
-      if (definition) {
-        return {
-          providerName: provider.name,
-          baseUrl: definition.baseUrl ?? provider.config.baseUrl,
-          apiKey: resolveModelApiKey(provider, definition),
-          modelId: definition.id,
-          tags: [...definition.tags],
-          dimensions: definition.dimensions,
-          maxOutputTokens: definition.maxOutputTokens,
-          supportsStructuredOutputs:
-            definition.supportsStructuredOutputs ??
-            provider.config.supportsStructuredOutputs ??
-            false,
-          imageGenerationMode: definition.imageGenerationMode,
-          inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
-          outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
-          imageCentsPerImage: definition.cost?.imageCentsPerImage,
-          centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
-          centsPerMillionCharacters: definition.cost?.centsPerMillionCharacters,
-          defaultVoice: definition.defaultVoice,
-          voicesByLocale: definition.voicesByLocale,
-          defaultInstructions: definition.defaultInstructions,
-          instructionsByLocale: definition.instructionsByLocale,
-          audioFormat: definition.audioFormat,
-          providerOptions: mergeModelLevel(
-            provider.config.providerOptions,
-            definition.providerOptions,
-          ),
-          reasoning: definition.reasoning,
-        };
-      }
-    }
-
-    throw new ConvexError({
-      code: 'UNKNOWN_MODEL',
-      message: `No model with tag "${args.tag}" found${args.providerName ? ` in provider "${args.providerName}"` : ' in any provider'}.`,
-    });
+    return selectModelByTag(candidates, args.tag, args.providerName);
   },
 });
 

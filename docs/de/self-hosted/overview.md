@@ -35,7 +35,7 @@ Alles andere ist flüchtig. Container können ohne Datenverlust ersetzt werden, 
 
 ## Provider-Secrets und die SOPS-Schicht
 
-Provider-Keys (OpenAI, Anthropic, Azure, Ollama, etc.) leben auf dem Storage in einem `providers/`-Verzeichnis, das in den Plattform-Container gemountet wird. Jeder Provider hat eine `<name>.config.json` und eine `<name>.secrets.json`; die Secrets-Datei ist mit SOPS und der Variable [`SOPS_AGE_KEY`](/de/self-hosted/configuration/environment-reference) verschlüsselt.
+Provider-Keys (OpenAI, Anthropic, Azure, Ollama, etc.) leben auf dem Storage in einem `providers/`-Verzeichnis, das in den Plattform-Container gemountet wird. Jeder Provider hat eine `<name>.json` und eine `<name>.secrets.json`; die Secrets-Datei ist mit SOPS und der Variable [`SOPS_AGE_KEY`](/de/self-hosted/configuration/environment-reference) verschlüsselt.
 
 Diese Trennung existiert aus zwei Gründen. Einen Provider-Key zu rotieren ist eine Datei zu bearbeiten, nicht die Plattform neu zu starten; die verschlüsselte Datei zu sichern ist sicher, sie neben der Infrastruktur zu committen. Der Klartext-Modus (kein SOPS, Secrets in Klartext) wird für streng kontrollierte Umgebungen unterstützt, wo der Storage selbst at-rest verschlüsselt ist.
 

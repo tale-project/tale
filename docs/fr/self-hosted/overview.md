@@ -35,7 +35,7 @@ Tout le reste est éphémère. Les conteneurs peuvent être remplacés sans pert
 
 ## Secrets de fournisseur et couche SOPS
 
-Les clés de fournisseur (OpenAI, Anthropic, Azure, Ollama, etc.) vivent sur le disque dans un répertoire `providers/` monté dans le conteneur plateforme. Chaque fournisseur a un `<nom>.config.json` et un `<nom>.secrets.json` ; le fichier secrets est chiffré avec SOPS et la variable [`SOPS_AGE_KEY`](/fr/self-hosted/configuration/environment-reference).
+Les clés de fournisseur (OpenAI, Anthropic, Azure, Ollama, etc.) vivent sur le disque dans un répertoire `providers/` monté dans le conteneur plateforme. Chaque fournisseur a un `<nom>.json` et un `<nom>.secrets.json` ; le fichier secrets est chiffré avec SOPS et la variable [`SOPS_AGE_KEY`](/fr/self-hosted/configuration/environment-reference).
 
 Cette séparation existe pour deux raisons. Faire tourner une clé de fournisseur, c'est éditer un fichier, pas redémarrer la plateforme ; sauvegarder le fichier chiffré est sûr à committer aux côtés de l'infrastructure. Le mode clair (pas de SOPS, secrets en clair) est supporté pour des environnements étroitement contrôlés où le disque lui-même est chiffré au repos.
 
