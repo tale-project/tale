@@ -67,7 +67,9 @@ The risk model shifts: a leaked filesystem dump is now a leaked credential dump.
 
 ## External secret stores
 
-For Vault, Kubernetes Secret mounts, or systemd `LoadCredential`, the supported pattern is: write the cleartext `*.secrets.json` files from the external store and run Tale in plaintext mode. Do not save provider keys through the UI in this setup — the UI would overwrite the mount.
+When your keys already live in Vault, a cloud secret manager, or Kubernetes Secrets, the first-class pattern is the env-var key source: point each provider at an **environment variable** with `secretsEnv` and let your secret store populate that variable. No cleartext file touches the disk, and the reserved-prefix gate keeps a config-write actor from reading an unrelated deployment secret. The full mechanism — the `TALE_PROVIDER_KEY_` prefix gate, resolution order, and the restart-on-change behaviour — lives in [Providers](/self-hosted/configuration/providers#environment-variable-key-source).
+
+The file-mount approach is the legacy alternative: write the cleartext `*.secrets.json` files from the external store and run Tale in plaintext mode. It still works, but it puts the cleartext key on disk and breaks if you save a provider through the UI — the UI overwrites the mount. Prefer the env-var source unless a constraint forces the file form.
 
 ## Where this fits
 

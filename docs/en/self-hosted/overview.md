@@ -35,7 +35,7 @@ Everything else is ephemeral. Containers can be replaced without data loss as lo
 
 ## Provider secrets and the SOPS layer
 
-Provider keys (OpenAI, Anthropic, Azure, Ollama, etc.) live on disk in a `providers/` directory mounted into the platform container. Each provider has a `<name>.config.json` and a `<name>.secrets.json`; the secrets file is encrypted with SOPS and the [`SOPS_AGE_KEY`](/self-hosted/configuration/environment-reference) variable.
+Provider keys (OpenAI, Anthropic, Azure, Ollama, etc.) live on disk in a `providers/` directory mounted into the platform container. Each provider has a `<name>.json` and a `<name>.secrets.json`; the secrets file is encrypted with SOPS and the [`SOPS_AGE_KEY`](/self-hosted/configuration/environment-reference) variable.
 
 This split exists for two reasons. Rotating a provider key is editing one file, not re-running the platform; backing up the encrypted file is safe to commit alongside infrastructure. The plaintext mode (no SOPS, secrets in cleartext) is supported for tightly controlled environments where the disk itself is encrypted at rest.
 
