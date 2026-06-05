@@ -27,7 +27,6 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
-import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -54,6 +53,7 @@ import {
   ProviderConfigProvider,
   useProviderConfig,
 } from '../hooks/use-provider-config-context';
+import { computeEffectiveKeyState } from '../utils/effective-key-source';
 import {
   dispatchForbiddenDeveloperSettings,
   dispatchOrgAccessError,
@@ -467,6 +467,7 @@ function ApiKeySection({
 }) {
   const { t } = useT('settings');
   const { t: tAccessDenied } = useT('accessDenied');
+  const { t: tCommon } = useT('common');
   // Env-var key source (issue #1711) lives in the public provider config, so it
   // is read/written via the same config context as the General/Options editors.
   const { config, saveConfig } = useProviderConfig();
@@ -479,8 +480,7 @@ function ApiKeySection({
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
-  // Key-source chooser state. Seeded from config on open via `openDialog`.
-  const [keySource, setKeySource] = useState<'file' | 'env'>('file');
+  // Env-var override name. Seeded from config on open via `openDialog`.
   const [envName, setEnvName] = useState(SECRETS_ENV_PREFIX);
   const envError = useMemo(() => {
     const value = envName.trim();
@@ -492,7 +492,6 @@ function ApiKeySection({
     path: string;
     reason?: string;
   } | null>(null);
-  const apiKeyInputRef = useRef<HTMLInputElement>(null);
 
   const performSave = useCallback(
     async (force: boolean) => {
@@ -505,8 +504,9 @@ function ApiKeySection({
           apiKey: apiKey.trim(),
           force: force || undefined,
         });
+        // Leave the dialog open so the operator can also adjust the env
+        // override in one session; dismissal is via the footer "Close" button.
         setApiKey('');
-        setDialogOpen(false);
         setOverwritePrompt(null);
         toast({
           title: t('providers.apiKeyUpdated'),
@@ -552,7 +552,6 @@ function ApiKeySection({
     setSaving(true);
     try {
       await saveConfig({ secretsEnv: name });
-      setDialogOpen(false);
       toast({ title: t('providers.saved'), variant: 'success' });
     } catch (err) {
       if (
@@ -574,7 +573,6 @@ function ApiKeySection({
     setSaving(true);
     try {
       await saveConfig({ secretsEnv: undefined });
-      setDialogOpen(false);
       toast({ title: t('providers.envVarCleared'), variant: 'success' });
     } catch (err) {
       if (
@@ -592,35 +590,84 @@ function ApiKeySection({
     }
   }, [saveConfig, t, tAccessDenied]);
 
-  const handleSaveKey = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (keySource === 'env') {
-        await performSaveEnv();
-      } else {
-        await performSave(false);
-      }
-    },
-    [keySource, performSaveEnv, performSave],
-  );
-
   const handleConfirmOverwrite = useCallback(() => {
     void performSave(true);
   }, [performSave]);
 
-  // Seed the chooser from the saved config each time the dialog opens, then
-  // keep the user's in-dialog edits even if a sibling refetch lands.
+  // Seed the env-var field from the saved config each time the dialog opens,
+  // then keep the user's in-dialog edits even if a sibling refetch lands.
   const openDialog = useCallback(() => {
-    setKeySource(config.secretsEnv ? 'env' : 'file');
     setEnvName(config.secretsEnv ?? SECRETS_ENV_PREFIX);
     setApiKey('');
     setDialogOpen(true);
   }, [config.secretsEnv]);
 
-  const dialogValid =
-    keySource === 'env'
-      ? !envError && envName.trim().length > SECRETS_ENV_PREFIX.length
-      : apiKey.trim().length > 0;
+  // Effective key source (mirrors the backend resolver: env-resolves wins,
+  // file is the fallback). Drives the dialog banner so precedence is legible.
+  const effectiveKeyState = computeEffectiveKeyState({
+    providerEnvStatus,
+    hasSecret,
+  });
+  const envVarName = providerEnvStatus?.name ?? '';
+  const banner: {
+    variant: 'default' | 'warning' | 'destructive';
+    icon?: typeof AlertTriangle;
+    title?: string;
+    description: string;
+  } = (() => {
+    switch (effectiveKeyState) {
+      case 'env-resolving':
+        return {
+          variant: 'default',
+          title: t('providers.effectiveSourceEnvTitle'),
+          description: hasSecret
+            ? `${t('providers.effectiveSourceEnv', { name: envVarName })} ${t('providers.storedKeyFallbackNote')}`
+            : t('providers.effectiveSourceEnv', { name: envVarName }),
+        };
+      case 'env-unresolved-fallback':
+        return {
+          variant: 'warning',
+          icon: AlertTriangle,
+          title: t('providers.effectiveSourceEnvUnresolvedTitle'),
+          description: t('providers.effectiveSourceFallbackToFile', {
+            name: envVarName,
+          }),
+        };
+      case 'env-unresolved-no-file':
+        return {
+          variant: 'warning',
+          icon: AlertTriangle,
+          title: t('providers.effectiveSourceEnvUnresolvedTitle'),
+          description: t('providers.effectiveSourceEnvUnresolvedNoFile', {
+            name: envVarName,
+          }),
+        };
+      case 'env-not-prefixed':
+        return {
+          variant: 'destructive',
+          icon: AlertTriangle,
+          title: t('providers.effectiveSourceEnvUnresolvedTitle'),
+          description: t('providers.effectiveSourceEnvNotPrefixed', {
+            name: envVarName,
+            prefix: SECRETS_ENV_PREFIX,
+          }),
+        };
+      case 'stored-only':
+        return {
+          variant: 'default',
+          description: t('providers.effectiveSourceStored'),
+        };
+      case 'none':
+        return {
+          variant: 'default',
+          description: t('providers.effectiveSourceNone'),
+        };
+      default: {
+        const _exhaustive: never = effectiveKeyState;
+        throw new Error('Unhandled key source state: ' + String(_exhaustive));
+      }
+    }
+  })();
 
   return (
     <>
@@ -657,16 +704,14 @@ function ApiKeySection({
         <Card contentClassName="p-0">
           {/* Env-var key source (issue #1711). When a `secretsEnv` is
               configured it is the preferred source; show whether it currently
-              resolves. The file-key chrome below still renders when the env var
-              is unresolved (the file is then the effective fallback). */}
+              resolves. A stored key is shown below whenever one exists — even
+              when the env var resolves — so a shadowed fallback is never
+              invisible (it carries a "fallback" badge in that case). */}
           {providerEnvStatus?.name && (
             <HStack
               gap={3}
               align="center"
-              className={cn(
-                'flex-wrap px-4 py-2.5',
-                !providerEnvStatus.resolved && 'border-b',
-              )}
+              className={cn('flex-wrap px-4 py-2.5', hasSecret && 'border-b')}
             >
               <Badge
                 variant={providerEnvStatus.resolved ? 'green' : 'outline'}
@@ -685,25 +730,31 @@ function ApiKeySection({
               </Text>
             </HStack>
           )}
-          {(!providerEnvStatus?.name || !providerEnvStatus.resolved) &&
-            (hasSecret ? (
-              <HStack gap={4} align="center" className="flex-wrap px-4 py-2.5">
-                <SkeletonBox>
-                  <Badge variant="green" dot>
-                    {t('providers.apiKeyConfigured')}
-                  </Badge>
-                </SkeletonBox>
-                <Text className="text-muted-foreground font-mono text-sm">
-                  <SkeletonBox>{maskedKey ?? 'sk-••••••••••••'}</SkeletonBox>
-                </Text>
-              </HStack>
-            ) : (
+          {hasSecret ? (
+            <HStack gap={4} align="center" className="flex-wrap px-4 py-2.5">
+              <SkeletonBox>
+                <Badge variant="green" dot>
+                  {t('providers.apiKeyConfigured')}
+                </Badge>
+              </SkeletonBox>
+              <Text className="text-muted-foreground font-mono text-sm">
+                <SkeletonBox>{maskedKey ?? 'sk-••••••••••••'}</SkeletonBox>
+              </Text>
+              {providerEnvStatus?.name && providerEnvStatus.resolved && (
+                <Badge variant="outline">
+                  {t('providers.storedKeyFallbackBadge')}
+                </Badge>
+              )}
+            </HStack>
+          ) : (
+            !providerEnvStatus?.name && (
               <HStack gap={3} align="center" className="px-4 py-2.5">
                 <Badge variant="outline">
                   {t('providers.apiKeyNotConfigured')}
                 </Badge>
               </HStack>
-            ))}
+            )
+          )}
         </Card>
       </Stack>
 
@@ -714,71 +765,111 @@ function ApiKeySection({
           if (!open) setApiKey('');
         }}
         title={t('providers.apiKey')}
-        onSubmit={handleSaveKey}
         isSubmitting={saving}
-        isValid={dialogValid}
-        submitText={t('providers.saveKey')}
-        submittingText={t('providers.saving')}
+        customFooter={
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setDialogOpen(false)}
+            disabled={saving}
+          >
+            {tCommon('actions.close')}
+          </Button>
+        }
       >
-        <RadioGroup
-          label={t('providers.keySourceLabel')}
-          value={keySource}
-          onValueChange={(value) => {
-            if (value === 'file' || value === 'env') setKeySource(value);
-          }}
-          options={[
-            { value: 'file', label: t('providers.keySourceFile') },
-            { value: 'env', label: t('providers.keySourceEnv') },
-          ]}
+        {/* Effective-source banner: what the provider uses *right now*, and why.
+            Env-resolves wins over the stored key; otherwise the stored key is
+            the fallback (see `computeEffectiveKeyState`). */}
+        <Alert
+          variant={banner.variant}
+          icon={banner.icon}
+          title={banner.title}
+          description={banner.description}
         />
-        {keySource === 'file' ? (
-          <>
-            {hasSecret && (
-              <Text className="text-muted-foreground text-sm">
-                {t('providers.replaceApiKeyDescription', {
-                  maskedKey: maskedKey ?? '',
-                })}
+
+        {/* Stored API key — the SOPS file secret. Always editable; it stays the
+            resolver's fallback even when an env override is configured. */}
+        <Stack gap={2}>
+          <Text as="h3" className="text-foreground text-sm font-semibold">
+            {t('providers.storedKeyLabel')}
+          </Text>
+          <HStack gap={3} align="center" className="flex-wrap">
+            <Badge variant={hasSecret ? 'green' : 'outline'} dot>
+              {hasSecret
+                ? t('providers.apiKeyConfigured')
+                : t('providers.apiKeyNotConfigured')}
+            </Badge>
+            {hasSecret && maskedKey && (
+              <Text className="text-muted-foreground font-mono text-sm">
+                {maskedKey}
               </Text>
             )}
-            <Input
-              ref={apiKeyInputRef}
-              autoFocus
-              type="password"
-              label={t('providers.apiKey')}
-              placeholder={t('providers.apiKeyEnter')}
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-            />
-          </>
-        ) : (
-          <>
-            <Input
-              autoFocus
-              label={t('providers.secretsEnv')}
-              placeholder={t('providers.secretsEnvPlaceholder')}
-              value={envName}
-              onChange={(e) => setEnvName(e.target.value)}
-              errorMessage={
-                envError ? t('providers.secretsEnvPatternError') : undefined
+          </HStack>
+          <Input
+            type="password"
+            label={
+              hasSecret
+                ? t('providers.replaceStoredKeyLabel')
+                : t('providers.apiKey')
+            }
+            placeholder={t('providers.apiKeyEnter')}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+          />
+          <Button
+            type="button"
+            size="sm"
+            className="self-start"
+            onClick={() => performSave(false)}
+            disabled={saving || apiKey.trim().length === 0}
+          >
+            {t('providers.saveKey')}
+          </Button>
+        </Stack>
+
+        {/* Environment-variable override (issue #1711). When set + resolved it
+            shadows the stored key above; otherwise it falls back to it. */}
+        <Stack gap={2}>
+          <Text as="h3" className="text-foreground text-sm font-semibold">
+            {t('providers.secretsEnv')}
+          </Text>
+          <Input
+            placeholder={t('providers.secretsEnvPlaceholder')}
+            value={envName}
+            onChange={(e) => setEnvName(e.target.value)}
+            errorMessage={
+              envError ? t('providers.secretsEnvPatternError') : undefined
+            }
+          />
+          <Text variant="caption" className="text-muted-foreground -mt-2">
+            {t('providers.secretsEnvHelp')}
+          </Text>
+          <HStack gap={2} align="center" wrap>
+            <Button
+              type="button"
+              size="sm"
+              onClick={performSaveEnv}
+              disabled={
+                saving ||
+                !SECRETS_ENV_REGEX.test(envName.trim()) ||
+                envName.trim() === config.secretsEnv
               }
-            />
-            <Text variant="caption" className="text-muted-foreground -mt-2">
-              {t('providers.secretsEnvHelp')}
-            </Text>
+            >
+              {t('providers.setEnvVar')}
+            </Button>
             {config.secretsEnv && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="self-start"
                 onClick={clearEnv}
                 disabled={saving}
               >
                 {t('providers.clearEnvVar')}
               </Button>
             )}
-          </>
-        )}
+          </HStack>
+        </Stack>
       </FormDialog>
 
       <TestConnectionSheet
