@@ -72,9 +72,7 @@ export function CheckboxGroup({
         </Label>
       )}
       {description && (
-        <Description id={descriptionId} className="text-xs">
-          {description}
-        </Description>
+        <Description id={descriptionId}>{description}</Description>
       )}
       {options ? (
         <div className={cn('grid gap-2', columns === 2 && 'grid-cols-2')}>

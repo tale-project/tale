@@ -371,7 +371,7 @@ function SearchableSelectBase({
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={searchPlaceholder}
-              className="placeholder:text-muted-foreground flex-1 bg-transparent text-sm outline-none"
+              className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none"
               aria-expanded={isOpen}
               aria-controls={listboxId}
               aria-activedescendant={
@@ -438,9 +438,7 @@ function SearchableSelectBase({
       )}
       {popover}
       {description && (
-        <Description id={descriptionId} className="text-xs">
-          {description}
-        </Description>
+        <Description id={descriptionId}>{description}</Description>
       )}
     </div>
   );

@@ -72,7 +72,7 @@ export const SettingsToggleRow = forwardRef<
             {label}
           </span>
           {description && (
-            <Description id={descId} className="text-xs">
+            <Description id={descId}>
               {/* Masked while loading so a skeletonized settings page shows a
                   pulse here instead of raw (possibly stale) description text. */}
               <SkeletonBox fullWidth>{description}</SkeletonBox>

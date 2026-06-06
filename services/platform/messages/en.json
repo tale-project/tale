@@ -860,7 +860,12 @@
       "noModelsRestricted": "No models are available to you here. This project's model restrictions exclude every model you can access — contact your admin to request access.",
       "recommended": "Recommended",
       "viewProvider": "View provider settings",
-      "noApiKey": "No API key configured for this model's provider — add one in Settings → API.",
+      "viewInfo": "Model details",
+      "noApiKey": "No API key configured for this model's provider — add one in Settings → AI providers.",
+      "info": {
+        "provider": "Provider",
+        "type": "Type"
+      },
       "tags": {
         "chat": "Chat",
         "embedding": "Embedding",
@@ -3644,10 +3649,8 @@
     "automations": "Automations",
     "more": "More",
     "userSettings": "Settings",
-    "orgSettings": "Organization settings",
     "notifications": "Notifications",
-    "organization": "General",
-    "people": "People",
+    "organization": "Organization",
     "teams": "Teams",
     "integrations": "Integrations",
     "mcp": "MCP",
@@ -4438,10 +4441,10 @@
         "description": "How Tale adapts to you — memory, instructions, and voice."
       },
       "organization": {
-        "description": "Workspace name, language, and identifiers."
+        "description": "Workspace name, members, and identifiers."
       },
-      "people": {
-        "description": "Members, roles, and teams."
+      "teams": {
+        "description": "Teams and their members."
       },
       "branding": {
         "description": "Logo, colors, and the name shown to your users."
@@ -4491,7 +4494,8 @@
       "organizationId": "Organization ID",
       "organizationIdDescription": "Reference this ID in API requests and integrations.",
       "copyOrganizationId": "Copy organization ID",
-      "membersTitle": "Organization members",
+      "membersSectionTitle": "Members",
+      "membersDescription": "People who have access to this organization.",
       "membersEntityLabel": "members",
       "defaultLocale": "Default language (for agents)",
       "searchMember": "Search member",
@@ -5189,7 +5193,7 @@
       "baseUrlPlaceholder": "e.g., https://api.openai.com/v1",
       "secretsEnv": "API key environment variable",
       "secretsEnvPlaceholder": "e.g., TALE_PROVIDER_KEY_OPENROUTER",
-      "secretsEnvHelp": "Read the API key from this environment variable instead of the secrets file. The name must start with TALE_PROVIDER_KEY_. Changing the value requires restarting the platform.",
+      "secretsEnvHelp": "Read the API key from this environment variable instead of the secrets file. Changing the value requires restarting the platform.",
       "secretsEnvPatternError": "Must start with TALE_PROVIDER_KEY_ followed by letters, digits, or underscores (40 characters max).",
       "modelSecretsEnv": "API key environment variable (override)",
       "modelSecretsEnvPlaceholder": "Leave empty to use the provider's variable",

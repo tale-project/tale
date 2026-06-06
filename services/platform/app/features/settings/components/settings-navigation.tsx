@@ -1,7 +1,5 @@
 'use client';
 
-import { useLocation } from '@tanstack/react-router';
-
 import { EditorActions, useActiveEditor } from '@/app/components/ui/editor';
 import {
   TabNavigation,
@@ -16,7 +14,7 @@ interface SettingsNavigationProps {
 
 type SettingsLabelKey =
   | 'organization'
-  | 'people'
+  | 'teams'
   | 'integrations'
   | 'providers'
   | 'skills'
@@ -27,31 +25,17 @@ type SettingsLabelKey =
   | 'personalization'
   | 'account';
 
-const USER_KEYS: ReadonlySet<SettingsLabelKey> = new Set([
-  'account',
-  'personalization',
-]);
-
-function isUserScope(pathname: string): boolean {
-  return (
-    pathname.includes('/settings/account') ||
-    pathname.includes('/settings/personalization')
-  );
-}
-
 export function SettingsNavigation({
   organizationId,
   showAccountTab = true,
 }: SettingsNavigationProps) {
   const { t } = useT('navigation');
   const { t: tCommon } = useT('common');
-  const location = useLocation();
-  const userScope = isUserScope(location.pathname);
 
   // Ordered by descending visit frequency / relevance, grouped:
   //   1. Identity         — account, personalization (user scope only)
   //   2. Org identity     — organization, branding
-  //   3. Collaboration    — people
+  //   3. Collaboration    — teams
   //   4. Capabilities     — providers, integrations, skills
   //   5. Developer access — api
   //   6. Policy           — governance
@@ -76,17 +60,17 @@ export function SettingsNavigation({
       can: ['read', 'orgSettings'],
     },
     {
+      labelKey: 'teams',
+      label: t('teams'),
+      href: `/dashboard/${organizationId}/settings/teams`,
+      can: ['read', 'orgSettings'],
+      matchMode: 'startsWith',
+    },
+    {
       labelKey: 'branding',
       label: t('branding'),
       href: `/dashboard/${organizationId}/settings/branding`,
       can: ['read', 'orgSettings'],
-    },
-    {
-      labelKey: 'people',
-      label: t('people'),
-      href: `/dashboard/${organizationId}/settings/people`,
-      can: ['read', 'orgSettings'],
-      matchMode: 'startsWith',
     },
     {
       labelKey: 'providers',
@@ -135,11 +119,12 @@ export function SettingsNavigation({
     },
   ];
 
-  const navigationItems = allItems.filter((item) => {
-    if (!showAccountTab && item.labelKey === 'account') return false;
-    const inUserScope = USER_KEYS.has(item.labelKey);
-    return userScope ? inUserScope : !inUserScope;
-  });
+  // One combined strip: every section shown in a single row, gated only by
+  // permissions (TabNavigation honors each item's `can`). Account can be
+  // suppressed by callers via `showAccountTab`.
+  const navigationItems = allItems.filter(
+    (item) => showAccountTab || item.labelKey !== 'account',
+  );
 
   return (
     <TabNavigation
@@ -157,7 +142,7 @@ export function SettingsNavigation({
 /**
  * Reads the active child controller (settings sub-page form) and renders
  * the unified Save/Discard cluster in the settings tab strip. Sub-pages
- * without forms (people, integrations list, audit logs) clear the active
+ * without forms (teams, integrations list, audit logs) clear the active
  * editor and the cluster doesn't render.
  */
 function SettingsEditorActionsSlot() {

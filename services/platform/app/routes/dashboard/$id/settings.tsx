@@ -27,12 +27,7 @@ function SettingsLayout() {
   const { t: tNav } = useT('navigation');
   const location = useLocation();
 
-  const isUserScope =
-    location.pathname.includes('/settings/account') ||
-    location.pathname.includes('/settings/personalization') ||
-    location.pathname.endsWith('/settings/personal') ||
-    location.pathname.includes('/settings/personal/');
-  const headerTitle = isUserScope ? tNav('userSettings') : tNav('orgSettings');
+  const headerTitle = tNav('userSettings');
 
   // The Governance and API sections render their own sidebar + internally
   // scrolling content pane (see their `route.tsx`) and cancel ContentArea's

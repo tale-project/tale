@@ -94,8 +94,8 @@ vi.mock('../hooks/use-default-model', () => ({
   useDefaultModel: () => ({ data: null }),
 }));
 
-vi.mock('./model-tag-icons', () => ({
-  ModelTagIcons: () => null,
+vi.mock('./model-info-popover', () => ({
+  ModelInfoPopover: () => null,
 }));
 
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({

@@ -860,7 +860,12 @@
       "noModelsRestricted": "Hier sind keine Modelle für dich verfügbar. Die Modelleinschränkungen dieses Projekts schließen jedes Modell aus, auf das du Zugriff hast — wende dich an deinen Admin, um Zugriff anzufordern.",
       "recommended": "Empfohlen",
       "viewProvider": "Anbietereinstellungen anzeigen",
-      "noApiKey": "Für den Anbieter dieses Modells ist kein API-Schlüssel konfiguriert — füge in Einstellungen → API einen hinzu.",
+      "viewInfo": "Modelldetails",
+      "noApiKey": "Für den Anbieter dieses Modells ist kein API-Schlüssel konfiguriert — füge in Einstellungen → KI-Anbieter einen hinzu.",
+      "info": {
+        "provider": "Anbieter",
+        "type": "Typ"
+      },
       "tags": {
         "chat": "Chat",
         "embedding": "Embedding",
@@ -3644,10 +3649,8 @@
     "automations": "Automatisierungen",
     "more": "Mehr",
     "userSettings": "Einstellungen",
-    "orgSettings": "Organisationseinstellungen",
     "notifications": "Benachrichtigungen",
     "organization": "Organisation",
-    "people": "Personen",
     "teams": "Teams",
     "integrations": "Integrationen",
     "mcp": "MCP",
@@ -4177,10 +4180,10 @@
         "description": "Wie Tale sich an dich anpasst — Gedächtnis, Instruktionen und Stimme."
       },
       "organization": {
-        "description": "Name des Arbeitsbereichs, Sprache und Identifikatoren."
+        "description": "Name des Arbeitsbereichs, Mitglieder und Identifikatoren."
       },
-      "people": {
-        "description": "Mitglieder, Rollen und Teams."
+      "teams": {
+        "description": "Teams und ihre Mitglieder."
       },
       "branding": {
         "description": "Logo, Farben und der Name, den deine Nutzer sehen."
@@ -4230,7 +4233,8 @@
       "organizationId": "Organisations-ID",
       "organizationIdDescription": "Verwende diese ID in API-Anfragen und Integrationen.",
       "copyOrganizationId": "Organisations-ID kopieren",
-      "membersTitle": "Organisationsmitglieder",
+      "membersSectionTitle": "Mitglieder",
+      "membersDescription": "Personen, die Zugriff auf diese Organisation haben.",
       "membersEntityLabel": "Mitglieder",
       "defaultLocale": "Standardsprache (für Agenten)",
       "searchMember": "Mitglied suchen",
@@ -4928,7 +4932,7 @@
       "baseUrlPlaceholder": "z. B. https://api.openai.com/v1",
       "secretsEnv": "Umgebungsvariable für den API-Schlüssel",
       "secretsEnvPlaceholder": "z. B. TALE_PROVIDER_KEY_OPENROUTER",
-      "secretsEnvHelp": "Liest den API-Schlüssel aus dieser Umgebungsvariable statt aus der Secrets-Datei. Der Name muss mit TALE_PROVIDER_KEY_ beginnen. Eine Wertänderung erfordert einen Neustart der Plattform.",
+      "secretsEnvHelp": "Liest den API-Schlüssel aus dieser Umgebungsvariable statt aus der Secrets-Datei. Eine Wertänderung erfordert einen Neustart der Plattform.",
       "secretsEnvPatternError": "Muss mit TALE_PROVIDER_KEY_ beginnen, gefolgt von Buchstaben, Ziffern oder Unterstrichen (maximal 40 Zeichen).",
       "modelSecretsEnv": "Umgebungsvariable für den API-Schlüssel (Überschreibung)",
       "modelSecretsEnvPlaceholder": "Leer lassen, um die Variable des Anbieters zu verwenden",

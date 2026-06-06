@@ -38,9 +38,7 @@ export function FormSection({
             </span>
           )}
           {description && (
-            <Description id={`${id}-desc`} className="text-xs">
-              {description}
-            </Description>
+            <Description id={`${id}-desc`}>{description}</Description>
           )}
         </div>
       )}

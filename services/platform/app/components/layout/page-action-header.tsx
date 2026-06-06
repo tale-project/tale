@@ -44,7 +44,7 @@ export function PageActionHeader({
             </span>
           )}
           {description && (
-            <Description className="text-muted-foreground truncate text-xs">
+            <Description muted className="truncate">
               {description}
             </Description>
           )}

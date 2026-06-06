@@ -291,17 +291,17 @@ function NavIconSkeleton() {
 }
 
 // The full primary nav (chat, projects, conversations, knowledge, agents,
-// automations). The real list is CASL-gated down to 3–6 items and the gated
-// count isn't known until access resolves, so the placeholder optimistically
-// renders the whole set — that's a pixel match for the common admin/owner case
-// and only over-draws a slot or two for limited members. The middle is a
-// top-aligned `flex-1` region with a pinned footer, so the count never reflows
-// the rail; it only sets which icon slots the placeholder fills.
-const PLACEHOLDER_NAV_ITEMS = 6;
+// automations, settings). The real list is CASL-gated down to a few items and
+// the gated count isn't known until access resolves, so the placeholder
+// optimistically renders the whole set — that's a pixel match for the common
+// admin/owner case and only over-draws a slot or two for limited members. The
+// middle is a top-aligned `flex-1` region with a pinned footer, so the count
+// never reflows the rail; it only sets which icon slots the placeholder fills.
+const PLACEHOLDER_NAV_ITEMS = 7;
 
 // Masked desktop side-nav rail shown while access resolves. Mirrors the real
 // Navigation geometry — logo, primary icon list, and the pinned footer (bell +
-// two settings icons + user avatar) — so it slots in without reflow.
+// user avatar) — so it slots in without reflow.
 function NavRailPlaceholder() {
   return (
     <Skeletonize loading>
@@ -322,9 +322,7 @@ function NavRailPlaceholder() {
           </div>
         </div>
         <div className="flex flex-shrink-0 flex-col items-center gap-2 py-3">
-          {/* Notification bell + the two pinned settings icons */}
-          <NavIconSkeleton />
-          <NavIconSkeleton />
+          {/* Notification bell */}
           <NavIconSkeleton />
           {/* UserButton avatar */}
           <div className="flex items-center justify-center rounded-lg p-2">

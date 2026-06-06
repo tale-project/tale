@@ -16,7 +16,9 @@ import { Select } from '@/app/components/ui/forms/select';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { MembersSettings } from '@/app/features/settings/organization/components/members-settings';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -24,6 +26,17 @@ import { SUPPORTED_AGENT_LOCALES } from '@/lib/shared/constants/agents';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 
 type Organization = { _id: string; name: string; metadata?: unknown } | null;
+
+type MemberContext = {
+  memberId?: string;
+  organizationId?: string;
+  userId?: string;
+  role?: string | null;
+  createdAt?: number;
+  displayName?: string;
+  isAdmin?: boolean;
+  canManageMembers?: boolean;
+};
 
 interface OrganizationFormData {
   name: string;
@@ -62,14 +75,17 @@ function parseMetadata(metadata: unknown): {
 export function OrganizationSettingsView({
   controller,
   organization,
+  organizationId,
+  memberContext,
   onSave,
 }: {
   controller: OrganizationController;
   organization: Organization;
+  organizationId: string;
+  memberContext: MemberContext | null;
   onSave: (values: OrganizationFormData) => Promise<void>;
 }) {
   const { t: tSettings } = useT('settings');
-  const { t: tNav } = useT('navigation');
   const { t: tGlobal } = useT('global');
 
   const { form, isLoading, isSaving } = controller;
@@ -86,11 +102,7 @@ export function OrganizationSettingsView({
   );
 
   return (
-    <SettingsPage
-      title={tNav('organization')}
-      description={tSettings('menu.organization.description')}
-      narrow
-    >
+    <SettingsPage>
       <SettingsSection
         title={tSettings('organization.detailsTitle')}
         description={tSettings('organization.detailsDescription')}
@@ -146,6 +158,17 @@ export function OrganizationSettingsView({
           className="max-w-sm"
         />
       </SettingsSection>
+
+      <SettingsSection
+        title={tSettings('organization.membersSectionTitle')}
+        description={tSettings('organization.membersDescription')}
+        gap={5}
+      >
+        <MembersSettings
+          organizationId={organizationId}
+          memberContext={memberContext}
+        />
+      </SettingsSection>
     </SettingsPage>
   );
 }
@@ -169,6 +192,7 @@ export function OrganizationSettings({
   const abilityLoading = useAbilityLoading();
   const { data: organization, isLoading: isOrgLoading } =
     useOrganization(organizationId);
+  const { data: memberContext } = useCurrentMemberContext(organizationId);
 
   const existingMetadata = useMemo(
     () => parseMetadata(organization?.metadata),
@@ -233,6 +257,8 @@ export function OrganizationSettings({
       <OrganizationSettingsView
         controller={editor}
         organization={organization ?? null}
+        organizationId={organizationId}
+        memberContext={memberContext ?? null}
         onSave={save}
       />
     </Skeletonize>

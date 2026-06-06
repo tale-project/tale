@@ -9,8 +9,12 @@ interface SettingsPageProps extends Omit<
   HTMLAttributes<HTMLDivElement>,
   'title'
 > {
-  /** Page title (h1). */
-  title: ReactNode;
+  /**
+   * Page title (h1). Omit to render a header-less page — the whole title
+   * block is skipped when there's no title and no header/sticky action. Used
+   * by the Organization page, whose tab strip already names the section.
+   */
+  title?: ReactNode;
   /** One-sentence description shown directly below the title. */
   description?: ReactNode;
   /** Optional right-aligned action(s) in the page header (e.g. export). */
@@ -63,6 +67,7 @@ export function SettingsPage({
   ...props
 }: SettingsPageProps) {
   const headerSlot = stickyActions ?? headerAction;
+  const showHeader = title != null || description != null || headerSlot != null;
   return (
     <div
       className={cn(
@@ -73,29 +78,33 @@ export function SettingsPage({
       )}
       {...props}
     >
-      <header
-        className={cn(
-          'flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6',
-          stickyActions &&
-            'bg-background/80 sticky top-0 z-20 -mx-4 px-4 py-3 backdrop-blur-md sm:items-center',
-        )}
-      >
-        <div className="flex min-w-0 flex-col gap-1">
-          <h1 className="text-foreground text-lg leading-tight font-semibold">
-            {title}
-          </h1>
-          {description && (
-            <Description className="text-muted-foreground text-sm">
-              {description}
-            </Description>
+      {showHeader && (
+        <header
+          className={cn(
+            'flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6',
+            stickyActions &&
+              'bg-background/80 sticky top-0 z-20 -mx-4 px-4 py-3 backdrop-blur-md sm:items-center',
           )}
-        </div>
-        {headerSlot && (
-          <div className="flex shrink-0 items-center justify-end">
-            {headerSlot}
+        >
+          <div className="flex min-w-0 flex-col gap-1">
+            {title != null && (
+              <h1 className="text-foreground text-lg leading-tight font-semibold">
+                {title}
+              </h1>
+            )}
+            {description && (
+              <Description className="text-muted-foreground text-sm">
+                {description}
+              </Description>
+            )}
           </div>
-        )}
-      </header>
+          {headerSlot && (
+            <div className="flex shrink-0 items-center justify-end">
+              {headerSlot}
+            </div>
+          )}
+        </header>
+      )}
       {children && (
         <div
           className={cn(

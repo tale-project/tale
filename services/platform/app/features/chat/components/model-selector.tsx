@@ -6,12 +6,7 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Link } from '@tanstack/react-router';
-import {
-  AlertTriangle,
-  ChevronDown,
-  Cpu,
-  SlidersHorizontal,
-} from 'lucide-react';
+import { AlertTriangle, ChevronDown, Cpu } from 'lucide-react';
 import {
   memo,
   type ReactNode,
@@ -40,12 +35,15 @@ import {
   parseModelRef,
   stripModelRefQualifier,
 } from '@/lib/shared/utils/model-ref';
-import { resolveModelLocale } from '@/lib/shared/utils/resolve-provider-locale';
+import {
+  resolveModelLocale,
+  resolveProviderLocale,
+} from '@/lib/shared/utils/resolve-provider-locale';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
-import { ModelTagIcons } from './model-tag-icons';
+import { ModelInfoPopover } from './model-info-popover';
 
 const AUTO_MODEL = 'auto';
 
@@ -111,6 +109,7 @@ export const ModelSelector = memo(function ModelSelector({
         description?: string;
         tags: string[];
         providerName: string;
+        providerDisplayName: string;
         quantizations?: string[];
       }
     >();
@@ -121,6 +120,7 @@ export const ModelSelector = memo(function ModelSelector({
         !Array.isArray(provider.models)
       )
         continue;
+      const resolvedProvider = resolveProviderLocale(provider, locale);
       for (const model of provider.models) {
         const resolved = resolveModelLocale(model, provider.i18n, locale);
         map.set(model.id, {
@@ -128,6 +128,10 @@ export const ModelSelector = memo(function ModelSelector({
           description: resolved.description || undefined,
           tags: model.tags ?? [],
           providerName: provider.name,
+          providerDisplayName:
+            resolvedProvider.displayName ||
+            provider.displayName ||
+            provider.name,
           quantizations: Array.isArray(model.quantizations)
             ? model.quantizations
             : undefined,
@@ -149,35 +153,27 @@ export const ModelSelector = memo(function ModelSelector({
     [modelInfoMap],
   );
 
-  // Right-side action per option: the capability tag icons, plus — for admins
-  // who can manage providers — a link to that model's provider settings. The
-  // link replaces the old always-on provider badge: provenance moves to an
-  // affordance that does something, instead of a label repeated on every row.
+  // Right-side action per option: a single info affordance that opens a popover
+  // summarising the model's provider, capability types, and — for admins who can
+  // manage providers — a link to that provider's settings. Replaces the old
+  // capability-icon strip + sliders settings link with one consolidated control.
   const renderOptionAction = useCallback(
     (option: SearchableSelectOption): ReactNode => {
       const info = modelInfoMap.get(stripModelRefQualifier(option.value));
       const providerSlug = canSetUpProviders
         ? getProviderSlug(option.value)
         : undefined;
-      if (!info?.tags.length && !providerSlug) return null;
+      if (!info) return null;
       return (
         <div className="flex shrink-0 items-start gap-1.5">
-          {info?.tags.length ? <ModelTagIcons tags={info.tags} t={t} /> : null}
-          {providerSlug ? (
-            <Tooltip content={t('modelSelector.viewProvider')} side="top">
-              <Link
-                to="/dashboard/$id/settings/providers/$providerName"
-                params={{ id: organizationId, providerName: providerSlug }}
-                aria-label={t('modelSelector.viewProvider')}
-                className="text-muted-foreground hover:text-foreground mt-0.5 flex items-center rounded-sm transition-colors"
-                // Stop the row's select-and-close handler: clicking the link
-                // should navigate to provider settings, not pick the model.
-                onClick={(e) => e.stopPropagation()}
-              >
-                <SlidersHorizontal className="size-3.5" aria-hidden="true" />
-              </Link>
-            </Tooltip>
-          ) : null}
+          <ModelInfoPopover
+            providerName={info.providerDisplayName}
+            description={info.description}
+            tags={info.tags}
+            providerSlug={providerSlug}
+            organizationId={organizationId}
+            t={t}
+          />
         </div>
       );
     },
@@ -420,7 +416,6 @@ export const ModelSelector = memo(function ModelSelector({
 
   const modelOptions = filteredModels
     .map((ref) => {
-      const info = modelInfoMap.get(stripModelRefQualifier(ref));
       const { quantization } = parseModelRef(ref);
       const isRecommended = recommendedSet.has(stripModelRefQualifier(ref));
       const recommendedBadge = isRecommended ? (
@@ -444,7 +439,8 @@ export const ModelSelector = memo(function ModelSelector({
               {variantBadge}
             </>
           ) : undefined,
-        description: info?.description,
+        // Model description lives in the info popover (renderOptionAction), not
+        // under the radio label — keeps each row to a single tidy line.
       };
     })
     // Project-recommended models float to the top; order is otherwise stable.

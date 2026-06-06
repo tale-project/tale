@@ -128,7 +128,7 @@ function HumanInputFieldsComponent({
                   <div className="flex-1">
                     <span className="text-sm font-medium">{option.label}</span>
                     {option.description && (
-                      <Description className="mt-1 text-xs">
+                      <Description className="mt-1">
                         {option.description}
                       </Description>
                     )}
@@ -173,7 +173,7 @@ function HumanInputFieldsComponent({
                   <div className="flex-1">
                     <span className="text-sm font-medium">{option.label}</span>
                     {option.description && (
-                      <Description className="mt-1 text-xs">
+                      <Description className="mt-1">
                         {option.description}
                       </Description>
                     )}
@@ -231,7 +231,7 @@ function HumanInputFieldsComponent({
               )}
             </Label>
             {field.description && (
-              <Description className="text-xs">{field.description}</Description>
+              <Description>{field.description}</Description>
             )}
             {renderFieldInput(field, fieldId)}
           </Stack>

@@ -221,6 +221,7 @@ export const AgentSelector = memo(function AgentSelector({
         // scannable when there are many agents.
         descriptionMode="tooltip"
         optionAction={renderOptionAction}
+        showRadio
         trigger={
           // min-w-32 (128 px) pins the trigger so the loading→loaded swap
           // doesn't reflow for common labels. Names longer than ~128 px

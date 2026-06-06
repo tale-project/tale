@@ -108,9 +108,7 @@ const CopyableFieldBase = React.memo(function CopyableFieldBase({
         )}
       </button>
       {description && (
-        <Description id={descriptionId} className="text-xs">
-          {description}
-        </Description>
+        <Description id={descriptionId}>{description}</Description>
       )}
       <span id={statusId} className="sr-only" role="status" aria-live="polite">
         {copied ? tCommon('actions.copied') : ''}

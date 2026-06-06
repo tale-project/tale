@@ -61,9 +61,9 @@ export function useSettingsMenuGroups(
         can: ['read', 'orgSettings'],
       },
       {
-        key: 'people',
+        key: 'teams',
         icon: Users,
-        path: 'people',
+        path: 'teams',
         can: ['read', 'orgSettings'],
       },
       {
@@ -112,16 +112,20 @@ export function useSettingsMenuGroups(
     const filter = (cfgs: SectionConfig[]) =>
       cfgs.filter((c) => !c.can || ability.can(c.can[0], c.can[1])).map(toItem);
 
+    const youGroup: SettingsSectionListGroup = {
+      key: 'you',
+      label: tSettings('menu.groups.you'),
+      items: filter(personalConfig),
+    };
+
+    // The combined Settings entry routes mobile users to the workspace
+    // overview, so it leads with the personal `you` group too — otherwise
+    // Account/Preferences would be unreachable on mobile.
     const groups: SettingsSectionListGroup[] =
       scope === 'personal'
-        ? [
-            {
-              key: 'you',
-              label: tSettings('menu.groups.you'),
-              items: filter(personalConfig),
-            },
-          ]
+        ? [youGroup]
         : [
+            youGroup,
             {
               key: 'workspace',
               label: tSettings('menu.groups.workspace'),
