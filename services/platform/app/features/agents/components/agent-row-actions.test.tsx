@@ -55,7 +55,7 @@ describe('AgentRowActions', () => {
     await user.click(
       screen.getByRole('button', { name: 'common.actions.openMenu' }),
     );
-    await user.click(screen.getByText('common.duplicate'));
+    await user.click(screen.getByText('common.actions.duplicate'));
 
     await waitFor(() =>
       expect(onDuplicated).toHaveBeenCalledWith('my-agent-1'),

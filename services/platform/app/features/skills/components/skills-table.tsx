@@ -3,7 +3,7 @@
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Row } from '@tanstack/react-table';
+import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Sparkles } from 'lucide-react';
 import {
   useCallback,
@@ -14,9 +14,11 @@ import {
 } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
+import { useDeleteSkill } from '../hooks/mutations';
 import { useListSkills } from '../hooks/queries';
 import {
   useSkillsTableConfig,
@@ -113,10 +115,44 @@ export function SkillsTable({
     void queryClient.invalidateQueries({ queryKey: ['config', 'skills'] });
   }, [queryClient]);
 
+  // Bulk delete is only offered in the settings context (no `bindingMode`),
+  // where rows aren't already claimed by the agent-binding checkbox column.
+  const bulkDeletable = bindingMode == null;
+  const { mutateAsync: deleteSkill } = useDeleteSkill();
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  const handleClearSelection = useCallback(() => {
+    setRowSelection({});
+  }, []);
+
+  // SKILL.md hash observed at list time, keyed by slug — forwarded to the
+  // delete mutation's CAS guard so a concurrently-edited skill isn't deleted
+  // from a stale view (mirrors the single-row delete dialog).
+  const skillHashBySlug = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of skills) {
+      if (s.hash) map.set(s.slug, s.hash);
+    }
+    return map;
+  }, [skills]);
+
+  const handleBulkDeleteItem = useCallback(
+    // Reuses the single-row delete mutation; the bar batches + toasts.
+    async (slug: string) => {
+      await deleteSkill({
+        organizationId,
+        slug,
+        expectedHash: skillHashBySlug.get(slug),
+      });
+    },
+    [deleteSkill, organizationId, skillHashBySlug],
+  );
+
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useSkillsTableConfig({
       organizationId,
       onDeleted: invalidateSkills,
+      onDuplicated: setDetailSlug,
       bindingMode,
     });
 
@@ -175,6 +211,23 @@ export function SkillsTable({
         {...list.tableProps}
         columns={columns}
         stickyLayout={stickyLayout}
+        enableRowSelection={bulkDeletable}
+        rowSelection={bulkDeletable ? rowSelection : undefined}
+        onRowSelectionChange={bulkDeletable ? setRowSelection : undefined}
+        getRowId={bulkDeletable ? (row) => row.slug : undefined}
+        footer={
+          bulkDeletable ? (
+            <BulkDeleteBar
+              rowSelection={rowSelection}
+              onClearSelection={handleClearSelection}
+              onDeleteItem={handleBulkDeleteItem}
+              onDeleteComplete={() => {
+                handleClearSelection();
+                invalidateSkills();
+              }}
+            />
+          ) : undefined
+        }
         onRowClick={handleRowClick}
         actionMenu={
           hideActionMenu ? undefined : (

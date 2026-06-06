@@ -90,12 +90,31 @@ export const EntityRowActions = React.memo(function EntityRowActions({
     return null;
   }
 
+  // Group actions into separated sections. A divider is inserted either where
+  // a call-site asks for one (`separator`) or — automatically — before the
+  // first destructive action (delete / archive / …) so every menu visually
+  // splits "normal" actions from dangerous ones without each call-site opting
+  // in. Consecutive destructive actions, or a section already opened by an
+  // explicit separator, stay together (no extra divider between them).
   const menuItems: DropdownMenuGroup[] = [];
   let currentGroup: DropdownMenuItem[] = [];
+  let currentGroupIsDestructiveSection = false;
   for (const action of visibleActions) {
-    if (action.separator && currentGroup.length > 0) {
+    const startsDestructiveSection =
+      !!action.destructive && !currentGroupIsDestructiveSection;
+    if (
+      currentGroup.length > 0 &&
+      (action.separator || startsDestructiveSection)
+    ) {
       menuItems.push(currentGroup);
       currentGroup = [];
+      currentGroupIsDestructiveSection = false;
+    }
+    // Once a section is opened by an explicit separator or contains a
+    // destructive action, later destructive actions join it (no extra divider
+    // between consecutive dangerous actions like archive + delete).
+    if (action.separator || action.destructive) {
+      currentGroupIsDestructiveSection = true;
     }
     currentGroup.push({
       type: 'item',

@@ -839,6 +839,7 @@
     "agentSelector": {
       "label": "Select agent",
       "auto": "Auto",
+      "autoDescription": "Let Tale pick the best agent for each message based on what you ask.",
       "viewDetails": "View agent details",
       "noAgents": "No agents",
       "defaultAgent": "Assistant",
@@ -851,6 +852,7 @@
       "searchPlaceholder": "Search models...",
       "noResults": "No models found",
       "auto": "Auto",
+      "autoDescription": "Let Tale pick the best model for each message — balances quality, speed, and cost.",
       "noModelsAvailable": "No models available",
       "noModelsAdminHint": "No AI provider is set up yet. Click to open Settings → AI providers and add one to start chatting.",
       "noModelsAgentHint": "This assistant has no usable model. Check that its allowed models match a configured provider — click to open AI providers.",
@@ -1520,6 +1522,9 @@
       "warningTitle": "You'll be signed out soon",
       "warningDescription": "Your session ends after a period of inactivity. Interact with the page or use the button below to keep working.",
       "staySignedIn": "Stay signed in"
+    },
+    "dataTable": {
+      "dateFilterUnavailable": "Date filter unavailable"
     }
   },
   "composer": {
@@ -1548,10 +1553,14 @@
     "styleFriendly": "Friendly"
   },
   "connectivity": {
-    "reconnectingTitle": "Reconnecting…",
-    "reconnectingDescription": "Lost connection to Tale. Hold on while we get you back.",
+    "tabTitle": "Reconnecting",
+    "deviceTitle": "You're offline",
+    "deviceDescription": "Check your internet connection. Tale will reconnect automatically when you're back online.",
+    "backendTitle": "Can't reach Tale",
+    "backendDescription": "Tale's server isn't responding. We're trying to reconnect — hold tight.",
     "retry": "Try again",
-    "statusReconnecting": "Reconnecting"
+    "getApp": "Get the app",
+    "reachingServer": "Trying to reach the server"
   },
   "conversations": {
     "title": "Conversations",
@@ -4534,7 +4543,7 @@
       "columns": {
         "name": "Name",
         "members": "Members",
-        "created": "Created"
+        "created": "Added on"
       },
       "editTeam": "Edit team",
       "deleteTeam": "Delete team",
@@ -5353,7 +5362,7 @@
       "columns": {
         "name": "Name",
         "key": "Key",
-        "created": "Created",
+        "created": "Added on",
         "lastUsed": "Last used"
       },
       "form": {
@@ -5977,7 +5986,6 @@
       "source": "Source",
       "updated": "Updated",
       "modified": "Modified",
-      "uploadedAt": "Uploaded at",
       "member": "Member",
       "role": "Role",
       "joined": "Joined",
@@ -5994,7 +6002,7 @@
       "teams": "Teams",
       "uploadedBy": "Uploaded by",
       "actions": "Actions",
-      "created": "Created",
+      "created": "Added on",
       "description": "Description",
       "email": "Email",
       "product": "Product",
@@ -6002,7 +6010,6 @@
       "stock": "Stock",
       "price": "Price",
       "category": "Category",
-      "title": "Title",
       "website": "Website"
     },
     "cells": {

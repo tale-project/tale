@@ -37,7 +37,9 @@ export interface Thread {
   projectId?: string;
 }
 
-const THREADS_PAGE_SIZE = 20;
+// Shared so the `/dashboard/$id/chat` loader primes the same page size the
+// sidebar's `useThreads` reads — single source of truth.
+export const THREADS_PAGE_SIZE = 20;
 
 export function useThreads({
   skip = false,

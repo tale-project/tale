@@ -36,6 +36,7 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('../hooks/mutations', () => ({
   useSyncWebsiteStatuses: () => ({ mutate: vi.fn() }),
   useCreateWebsite: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteWebsite: () => ({ mutateAsync: vi.fn() }),
 }));
 
 vi.mock('../hooks/queries', () => ({

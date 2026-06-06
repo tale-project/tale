@@ -457,6 +457,11 @@ export const ModelSelector = memo(function ModelSelector({
         {
           value: AUTO_MODEL,
           label: t('modelSelector.auto'),
+          // Mirrors the agent selector's Auto: a hover/keyboard tooltip
+          // explaining what "Auto" actually does (server-side routing).
+          // The picker passes this through to SearchableSelect, which
+          // already decides inline vs tooltip rendering per its own mode.
+          description: t('modelSelector.autoDescription'),
         },
         ...modelOptions,
       ];
@@ -472,6 +477,7 @@ export const ModelSelector = memo(function ModelSelector({
       side="top"
       sideOffset={8}
       contentClassName="w-[22rem]"
+      descriptionMode="tooltip"
       tooltip={t('modelSelector.label')}
       tooltipSide="top"
       searchPlaceholder={t('modelSelector.searchPlaceholder')}

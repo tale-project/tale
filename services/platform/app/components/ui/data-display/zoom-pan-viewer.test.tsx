@@ -258,24 +258,24 @@ describe('ZoomPanViewer', () => {
       expect(screen.getByText('50%')).toBeInTheDocument();
     });
 
-    it('cannot zoom above maximum (300%)', () => {
+    it('cannot zoom above maximum (500%)', () => {
       render(<ZoomPanViewer {...defaultProps} />);
 
-      // Zoom in 8 times: 100 -> 125 -> 150 -> 175 -> 200 -> 225 -> 250 -> 275 -> 300
-      for (let i = 0; i < 8; i++) {
+      // Zoom in 16 times: 100% + 16 × 25% = 500% (the max).
+      for (let i = 0; i < 16; i++) {
         fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
       }
-      expect(screen.getByText('300%')).toBeInTheDocument();
+      expect(screen.getByText('500%')).toBeInTheDocument();
 
-      // Further zoom in stays at 300%
+      // Further zoom in stays at 500%
       fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
-      expect(screen.getByText('300%')).toBeInTheDocument();
+      expect(screen.getByText('500%')).toBeInTheDocument();
     });
 
     it('disables zoom in button at maximum', () => {
       render(<ZoomPanViewer {...defaultProps} />);
 
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 16; i++) {
         fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
       }
 

@@ -77,6 +77,13 @@ export const IconButton = forwardRef<
       />
     );
 
+    // The base Button's `focus-visible:ring-ring` previously resolved to a
+    // saturated accent blue that, on a small ghost icon button, read as a
+    // heavy halo around an otherwise quiet glyph — visually loud, especially
+    // for icon-only toolbar clusters. Override to `border-strong` so focus
+    // stays visible for keyboard users (a11y) without the loud ring.
+    const focusOverride = 'focus-visible:ring-border-strong';
+
     if (asChild && isValidElement(slotChild)) {
       // Wrap the consumer's slotChild (typically `<a>` or router `<Link>`)
       // and inject the icon as its sole child via Radix Slot semantics.
@@ -87,7 +94,7 @@ export const IconButton = forwardRef<
           variant={variant}
           size="icon"
           aria-label={ariaLabel}
-          className={cn(className)}
+          className={cn(focusOverride, className)}
           {...props}
         >
           {cloneElement(slotChild, undefined, iconNode)}
@@ -101,7 +108,7 @@ export const IconButton = forwardRef<
         variant={variant}
         size="icon"
         aria-label={ariaLabel}
-        className={cn(className)}
+        className={cn(focusOverride, className)}
         {...props}
       >
         {iconNode}

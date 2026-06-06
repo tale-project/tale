@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
+import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 import type { DocumentItem } from '@/types/documents';
@@ -282,30 +283,15 @@ export function useDocumentsTableConfig({
           />
         ),
       },
-      {
-        accessorKey: 'uploadedAt',
-        header: () => (
-          <span className="block w-full text-right">
-            {tTables('headers.uploadedAt')}
-          </span>
-        ),
-        size: 192,
-        meta: {
-          headerLabel: tTables('headers.uploadedAt'),
-          align: 'right' as const,
-        },
-        cell: ({ row }) => (
-          <CopyableTimestamp
-            date={row.original.uploadedAt}
-            preset="long"
-            customFormat="ll LT"
-            alignRight
-          />
-        ),
-      },
+      // `uploadedAt` column dropped — for documents this duplicates
+      // `modifiedAt` for the majority of rows (initial upload sets both),
+      // and the few cases where they differ are visible on the detail
+      // panel. Keeping only `modifiedAt` frees a 192px column for the
+      // Teams / RAG status columns to render their badges without
+      // overflow.
       {
         id: 'actions',
-        size: 56,
+        size: ACTIONS_COLUMN_SIZE,
         meta: { isAction: true },
         cell: ({ row }) => (
           <HStack justify="end">

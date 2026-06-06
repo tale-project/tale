@@ -6,6 +6,11 @@ import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
+import {
+  ACTIONS_COLUMN_SIZE,
+  createSelectColumn,
+} from '@/app/components/ui/data-table/column-builders';
+import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useT } from '@/lib/i18n/client';
 import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
 
@@ -35,6 +40,10 @@ export function useAgentsTableConfig({
 
   const columns = useMemo<ColumnDef<AgentRow>[]>(
     () => [
+      // Multi-row select — canonical 40px column matching every other entity
+      // table. The container gates `enableRowSelection` to non-protected agents
+      // so the built-in agents can't be bulk-deleted.
+      createSelectColumn<AgentRow>(),
       {
         id: 'displayName',
         header: t('agents.columns.displayName'),
@@ -77,6 +86,9 @@ export function useAgentsTableConfig({
       {
         id: 'actions',
         header: '',
+        // Locked to `ACTIONS_COLUMN_SIZE` so the 3-dot column aligns with
+        // every other table's actions column.
+        size: ACTIONS_COLUMN_SIZE,
         meta: { isAction: true },
         cell: ({ row }) => (
           <HStack gap={1} justify="end">
@@ -88,7 +100,6 @@ export function useAgentsTableConfig({
             />
           </HStack>
         ),
-        size: 80,
       },
     ],
     [t, organizationId, onDuplicated, onDeleted],
@@ -98,6 +109,9 @@ export function useAgentsTableConfig({
     columns,
     searchPlaceholder: t('agents.searchAgent'),
     stickyLayout: false,
-    pageSize: 50,
+    // Aligned to the shared default (was 50) so every entity table paginates
+    // consistently. Agents lists are short enough that 20-per-page rarely
+    // requires a "load more" click anyway.
+    pageSize: DEFAULT_TABLE_PAGE_SIZE,
   };
 }

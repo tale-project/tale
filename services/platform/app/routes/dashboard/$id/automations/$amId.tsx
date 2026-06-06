@@ -27,7 +27,10 @@ import {
   useWorkflowConfig,
 } from '@/app/features/automations/hooks/use-workflow-config-context';
 import { useWorkflowActivity } from '@/app/features/automations/triggers/hooks/queries';
+import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useUrlState } from '@/app/hooks/use-url-state';
+import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -50,6 +53,22 @@ export const Route = createFileRoute('/dashboard/$id/automations/$amId')({
     meta: seo('automation'),
   }),
   validateSearch: searchSchema,
+  // The Executions tab is one click away on every automation detail page,
+  // but it's off-screen on first paint (the canvas tab lands by default).
+  // Prime the executions list cache fire-and-forget so opening Executions
+  // paints instantly with the first page already warm — same pattern as the
+  // chat sidebar and the knowledge tables. Filter-free args mirror the
+  // table's unfiltered call site; filtered views still hit the network
+  // (different cache key) but those are user-driven, not on-load.
+  loader: ({ context, params }) => {
+    const wfDefinitionId = urlParamToSlug(params.amId);
+    void primeCachedPaginatedQuery(
+      context.convexQueryClient.convexClient,
+      api.wf_executions.queries.listExecutions,
+      { wfDefinitionId },
+      { initialNumItems: DEFAULT_TABLE_PAGE_SIZE },
+    );
+  },
   component: AutomationDetailLayout,
 });
 

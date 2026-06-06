@@ -55,6 +55,25 @@ interface ActionsColumnOptions {
   headerLabel?: string;
 }
 
+/**
+ * Canonical width for the row-actions column. Sized for a single icon-only
+ * `MoreVertical` trigger (the `EntityRowActions` shape every table should
+ * use). Locked across tables so the 3-dot column lands at the exact same
+ * x-offset whether you're looking at customers, vendors, teams, or any
+ * future entity list — visual rhythm across the dashboard depends on it.
+ *
+ * Override only when a row genuinely needs an in-line button cluster (rare
+ * — collapse into the dropdown instead), and document the reason in code.
+ */
+export const ACTIONS_COLUMN_SIZE = 56;
+
+/**
+ * Canonical width for the multi-select column. Mirrors the actions column's
+ * `ACTIONS_COLUMN_SIZE` purpose on the opposite side of the row: a single
+ * 24px Checkbox centered in a 40px column. See `createSelectColumn`.
+ */
+export const SELECT_COLUMN_SIZE = 40;
+
 interface CreationTimeColumnOptions {
   size?: number;
 }
@@ -83,6 +102,12 @@ interface TextColumnOptions {
 /**
  * Creates the standard actions column for row actions.
  *
+ * Pin this last in your `columns` array so the 3-dot trigger sits at the
+ * row's right edge consistently across every table. The default width is
+ * `ACTIONS_COLUMN_SIZE` — don't override unless you genuinely have more
+ * than a single dropdown trigger (in which case, prefer collapsing the
+ * cluster into the dropdown instead).
+ *
  * @example
  * ```tsx
  * createActionsColumn(CustomerRowActions, 'customer')
@@ -98,7 +123,7 @@ export function createActionsColumn<TData, TPropName extends string>(
     header: options?.headerLabel
       ? () => <span className="sr-only">{options.headerLabel}</span>
       : undefined,
-    size: options?.size ?? 140,
+    size: options?.size ?? ACTIONS_COLUMN_SIZE,
     meta: { isAction: true },
     cell: ({ row }) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Computed property key loses type narrowing
@@ -291,27 +316,38 @@ export function createTextColumn<TData, K extends keyof TData>(
 export function createSelectColumn<TData>(): ColumnDef<TData> {
   return {
     id: 'select',
-    size: 40,
+    size: SELECT_COLUMN_SIZE,
+    // Cells with multi-line content (avatar + name + caption) make the row
+    // taller than the checkbox's intrinsic height. `TableCell` does set
+    // `vertical-align: middle`, but the checkbox is `inline-flex` and ends up
+    // sitting on the first text line. Wrapping in `flex h-full items-center`
+    // anchors the checkbox to the row's true vertical center, matching the
+    // column text alongside it. `justify-center` keeps it centered within the
+    // 40px column width.
     header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected()
-            ? true
-            : table.getIsSomePageRowsSelected()
-              ? 'indeterminate'
-              : false
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label={i18n.t('common.aria.selectAll')}
-      />
+      <div className="flex h-full items-center justify-center">
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected()
+              ? true
+              : table.getIsSomePageRowsSelected()
+                ? 'indeterminate'
+                : false
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label={i18n.t('common:aria.selectAll')}
+        />
+      </div>
     ),
     cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        onClick={(e) => e.stopPropagation()}
-        aria-label={i18n.t('common.aria.selectRow')}
-      />
+      <div className="flex h-full items-center justify-center">
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={i18n.t('common:aria.selectRow')}
+        />
+      </div>
     ),
     meta: { skeleton: { type: 'action' } },
   };

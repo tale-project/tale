@@ -1,8 +1,8 @@
 'use client';
 
 import { Text } from '@tale/ui/text';
-import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
-import { memo } from 'react';
+import { RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { memo, useCallback } from 'react';
 
 import { useZoomPan } from '@/app/hooks/use-zoom-pan';
 import { useT } from '@/lib/i18n/client';
@@ -34,6 +34,13 @@ interface ZoomPanViewerProps {
   onLoad?: () => void;
   /** Called when the image fails to load */
   onError?: () => void;
+  /**
+   * When provided, renders a close (✕) button at the far right of the
+   * overlay header. Use from dialog/lightbox contexts where the wrapping
+   * `<Dialog>` is rendered with `hideClose` and the viewer owns the
+   * dismiss affordance. Ignored when `toolbarPosition` is not `'overlay'`.
+   */
+  onClose?: () => void;
 }
 
 export const ZoomPanViewer = memo(function ZoomPanViewer({
@@ -47,6 +54,7 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
   imageClassName,
   onLoad,
   onError,
+  onClose,
 }: ZoomPanViewerProps) {
   const { t } = useT('common');
   const {
@@ -56,12 +64,26 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
     zoomIn,
     zoomOut,
     reset,
+    toggleZoom,
     pointerHandlers,
     canZoomIn,
     canZoomOut,
     isZoomed,
     transformStyle,
   } = useZoomPan({ resetTrigger });
+
+  // Double-click toggles between fit (1x) and the configured zoom-in target,
+  // anchored to the click point so the spot the user double-clicked stays
+  // put as the image grows around it. Drag-while-zoomed sometimes ends with
+  // a synthetic dblclick if the user lifts the pointer fast — guard on
+  // `isDragging` so a pan release doesn't accidentally reset the zoom.
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (isDragging) return;
+      toggleZoom({ x: e.clientX, y: e.clientY });
+    },
+    [isDragging, toggleZoom],
+  );
 
   const isBottom = toolbarPosition === 'bottom';
 
@@ -119,9 +141,25 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
     switch (toolbarPosition) {
       case 'overlay':
         return (
-          <div className="absolute top-4 right-4 left-4 z-10 flex items-center justify-between">
+          <div className="absolute top-4 right-4 left-4 z-10 flex items-center justify-between gap-2">
             {headerContent ?? <span />}
-            {toolbar}
+            <div className="flex items-center gap-2">
+              {toolbar}
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="bg-muted text-foreground hover:bg-muted/80 grid size-8 place-items-center rounded-lg transition"
+                  // `common.imagePreview.*` is a missing group — the sibling
+                  // zoom buttons fall through to literal keys (pre-existing
+                  // bug). Use the canonical `common.aria.close` until the
+                  // group is filled in.
+                  aria-label={t('aria.close')}
+                >
+                  <X className="size-4" />
+                </button>
+              )}
+            </div>
           </div>
         );
       case 'bottom':
@@ -140,9 +178,13 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
       <div
         ref={containerRef}
         tabIndex={isZoomed ? 0 : -1}
+        onDoubleClick={handleDoubleClick}
         className={cn(
           'flex flex-1 items-center justify-center overflow-hidden outline-none',
-          isZoomed ? 'cursor-grab' : 'cursor-default',
+          // At fit-level the pointer hints "double-click to zoom"; once zoomed
+          // it flips to grab / grabbing during drag-pan. `zoom-in` is a real
+          // CSS cursor recognized by all evergreen browsers.
+          isZoomed ? 'cursor-grab' : 'cursor-zoom-in',
           isDragging && 'cursor-grabbing',
           'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2',
         )}

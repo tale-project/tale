@@ -2,17 +2,24 @@
 
 import { HStack } from '@tale/ui/layout';
 import { useNavigate } from '@tanstack/react-router';
-import type { ColumnDef, Row } from '@tanstack/react-table';
+import type { ColumnDef, Row, RowSelectionState } from '@tanstack/react-table';
 import { Folder, Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import {
+  ACTIONS_COLUMN_SIZE,
+  createSelectColumn,
+} from '@/app/components/ui/data-table/column-builders';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
+import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
+import { useDeleteProject } from '../hooks/mutations';
 import { useProjects, type ProjectListItem } from '../hooks/queries';
 import { ProjectCreateDialog } from './project-create-dialog';
 import { ProjectRowActions } from './project-row-actions';
@@ -41,9 +48,31 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
   const preloadRoute = usePreloadRoute();
   const [includeArchived, setIncludeArchived] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const { projects, isLoading } = useProjects(organizationId, {
     includeArchived,
   });
+  const { mutateAsync: deleteProject } = useDeleteProject();
+
+  const handleClearSelection = useCallback(() => {
+    setRowSelection({});
+  }, []);
+
+  const handleDeleteItem = useCallback(
+    async (id: string) => {
+      // RowSelectionState keys are the row IDs (Convex doc `_id` here).
+      // `mode: 'detach'` matches the single-row delete dialog's default
+      // (unchecked "cascade") — bulk-delete with cascade would also need a
+      // per-project confirm phrase, which doesn't translate to a multi-row
+      // gesture, so cascade stays single-row-only via the row dialog.
+      await deleteProject({
+        // RowSelectionState keys are the row `_id`s by construction (getRowId).
+        projectId: toId<'projects'>(id),
+        mode: 'detach',
+      });
+    },
+    [deleteProject],
+  );
 
   const handleRowClick = useCallback(
     (row: Row<ProjectListItem>) => {
@@ -76,6 +105,9 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
 
   const columns = useMemo<ColumnDef<ProjectListItem>[]>(
     () => [
+      // Multi-row select — canonical 40px column, identical to every other
+      // entity table. Enables bulk delete via the `BulkDeleteBar` footer.
+      createSelectColumn<ProjectListItem>(),
       {
         accessorKey: 'name',
         header: t('list.columnName'),
@@ -127,13 +159,11 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       {
         id: 'actions',
         header: '',
-        // Matches the canonical pattern shared by agents / customers /
-        // documents / vendors / products / websites tables: `isAction`
-        // meta flag + right-justified HStack. The DataTable applies the
-        // platform's standard action-cell width + alignment from this
-        // meta hint.
+        // Matches the canonical pattern shared by every other entity
+        // table: `isAction` meta flag + right-justified HStack, locked to
+        // `ACTIONS_COLUMN_SIZE` so the 3-dot column aligns across the app.
         meta: { isAction: true },
-        size: 56,
+        size: ACTIONS_COLUMN_SIZE,
         cell: ({ row }) => (
           <HStack justify="end">
             <ProjectRowActions
@@ -168,9 +198,18 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
   return (
     <>
       <DataTable
+        // `p-4` gives this table the same 16px page inset every other
+        // top-level entity table has — knowledge tables inherit it from the
+        // `_knowledge` layout's `<ContentArea py-4>`, agents sets it here the
+        // same way. `PageLayout` itself adds no padding, so without this the
+        // table renders flush to the edge (no gap) and its select / 3-dot
+        // columns sit out of line with the rest of the app.
         className="p-4"
         {...list.tableProps}
         columns={columns}
+        enableRowSelection
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
         onRowClick={handleRowClick}
         onRowMouseEnter={handleRowMouseEnter}
         filtersContent={
@@ -193,6 +232,14 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
           title: t('list.emptyTitle'),
           description: t('list.emptyDescription'),
         }}
+        footer={
+          <BulkDeleteBar
+            rowSelection={rowSelection}
+            onClearSelection={handleClearSelection}
+            onDeleteItem={handleDeleteItem}
+            onDeleteComplete={handleClearSelection}
+          />
+        }
       />
       <ProjectCreateDialog
         open={createOpen}

@@ -3,8 +3,15 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 
 const DEFAULT_MIN_ZOOM = 0.5;
-const DEFAULT_MAX_ZOOM = 3;
+// 5x covers reading screenshots / fine UI at native pixels on a typical
+// retina display. Beyond ~5x the image's source resolution usually starts
+// to look pixelated, so going higher isn't helpful.
+const DEFAULT_MAX_ZOOM = 5;
 const DEFAULT_ZOOM_STEP = 0.25;
+// Where double-click lands on the first zoom-in. 2x is the universal
+// "tap to zoom" target (maps/lightboxes/etc.) and leaves plenty of headroom
+// to keep zooming with the wheel/+ key afterward.
+const DEFAULT_DOUBLE_CLICK_ZOOM = 2;
 const WHEEL_THROTTLE_MS = 50;
 const PAN_KEY_STEP = 50;
 
@@ -12,6 +19,8 @@ interface UseZoomPanOptions {
   minZoom?: number;
   maxZoom?: number;
   zoomStep?: number;
+  /** Target zoom level applied by `toggleZoom` when starting from 1x. */
+  doubleClickZoom?: number;
   /**
    * When this value changes, zoom and pan reset to defaults.
    * Pass dialog open state or image src to auto-reset between views.
@@ -35,6 +44,15 @@ interface UseZoomPanReturn {
   zoomIn: () => void;
   zoomOut: () => void;
   reset: () => void;
+  /**
+   * Toggle between 1x and `doubleClickZoom`. When zooming in, pass the
+   * client-space point under the cursor (`e.clientX/Y`) so the image is
+   * anchored to that point instead of the container center — the pixel
+   * under the cursor stays put as the image grows around it, which is what
+   * users expect from a double-click. When zooming out, the argument is
+   * ignored.
+   */
+  toggleZoom: (clientPoint?: { x: number; y: number }) => void;
   pointerHandlers: ZoomPanPointerHandlers;
   canZoomIn: boolean;
   canZoomOut: boolean;
@@ -47,6 +65,10 @@ export function useZoomPan(options?: UseZoomPanOptions): UseZoomPanReturn {
   const minZoom = options?.minZoom ?? DEFAULT_MIN_ZOOM;
   const maxZoom = options?.maxZoom ?? DEFAULT_MAX_ZOOM;
   const zoomStep = options?.zoomStep ?? DEFAULT_ZOOM_STEP;
+  const doubleClickZoom = Math.min(
+    options?.doubleClickZoom ?? DEFAULT_DOUBLE_CLICK_ZOOM,
+    maxZoom,
+  );
 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -123,6 +145,57 @@ export function useZoomPan(options?: UseZoomPanOptions): UseZoomPanReturn {
     [],
   );
 
+  /**
+   * Adjust pan so the content under a given screen-space point stays fixed
+   * while the zoom level changes — the "anchor zoom" behavior users expect
+   * from wheel and double-click. Math: the transform is
+   * `scale(z) translate(pan/z)` with `transform-origin: center`, so a screen
+   * offset `o` from the container center maps to content coord `(o - pan) / z`.
+   * Solving for the new pan that keeps that content coord under the same
+   * screen offset after zoom change z0 → z1 gives:
+   *   panNew = o * (1 - z1/z0) + panOld * (z1/z0)
+   */
+  const zoomToward = useCallback(
+    (
+      nextZoom: number,
+      clientPoint: { x: number; y: number } | undefined,
+      prevZoom: number,
+      prevPan: { x: number; y: number },
+    ) => {
+      const container = containerRef.current;
+      if (!container || !clientPoint || nextZoom <= 1) {
+        // No anchor, or we're going back to fit — pan resets to 0 either way
+        // (clampPan would force it there next render).
+        return nextZoom <= 1 ? { x: 0, y: 0 } : prevPan;
+      }
+      const rect = container.getBoundingClientRect();
+      const offsetX = clientPoint.x - (rect.left + rect.width / 2);
+      const offsetY = clientPoint.y - (rect.top + rect.height / 2);
+      const ratio = nextZoom / prevZoom;
+      const raw = {
+        x: offsetX * (1 - ratio) + prevPan.x * ratio,
+        y: offsetY * (1 - ratio) + prevPan.y * ratio,
+      };
+      return clampPan(raw, nextZoom);
+    },
+    [clampPan],
+  );
+
+  const toggleZoom = useCallback(
+    (clientPoint?: { x: number; y: number }) => {
+      setZoom((prev) => {
+        if (prev > 1) {
+          setPan({ x: 0, y: 0 });
+          return 1;
+        }
+        const next = doubleClickZoom;
+        setPan((prevPan) => zoomToward(next, clientPoint, prev, prevPan));
+        return next;
+      });
+    },
+    [doubleClickZoom, zoomToward],
+  );
+
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (!isDragging) return;
@@ -149,20 +222,31 @@ export function useZoomPan(options?: UseZoomPanOptions): UseZoomPanReturn {
       if (now - lastWheelRef.current < WHEEL_THROTTLE_MS) return;
       lastWheelRef.current = now;
 
-      if (e.deltaY < 0) {
-        setZoom((prev) => Math.min(prev + zoomStep, maxZoom));
-      } else {
-        setZoom((prev) => {
-          const next = Math.max(prev - zoomStep, minZoom);
-          if (next <= 1) setPan({ x: 0, y: 0 });
-          return next;
-        });
-      }
+      // Capture the cursor point on the wheel event so the pan adjust keeps
+      // whatever's under the pointer fixed as the image grows/shrinks. Center-
+      // anchored zoom (the old behavior) yanks the visible region away from
+      // wherever the user is looking.
+      const point = { x: e.clientX, y: e.clientY };
+      const direction = e.deltaY < 0 ? 1 : -1;
+
+      setZoom((prev) => {
+        const next =
+          direction > 0
+            ? Math.min(prev + zoomStep, maxZoom)
+            : Math.max(prev - zoomStep, minZoom);
+        if (next === prev) return prev;
+        if (next <= 1) {
+          setPan({ x: 0, y: 0 });
+        } else {
+          setPan((prevPan) => zoomToward(next, point, prev, prevPan));
+        }
+        return next;
+      });
     };
 
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
-  }, [zoomStep, minZoom, maxZoom]);
+  }, [zoomStep, minZoom, maxZoom, zoomToward]);
 
   // Keyboard shortcuts on the container
   useEffect(() => {
@@ -244,6 +328,7 @@ export function useZoomPan(options?: UseZoomPanOptions): UseZoomPanReturn {
     zoomIn: zoomInFn,
     zoomOut: zoomOutFn,
     reset,
+    toggleZoom,
     pointerHandlers: {
       onPointerDown: handlePointerDown,
       onPointerMove: handlePointerMove,

@@ -9,6 +9,10 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+vi.mock('../hooks/mutations', () => ({
+  useRemoveMember: () => ({ mutateAsync: vi.fn() }),
+}));
+
 vi.mock('./member-row-actions', () => ({
   MemberRowActions: () => <button type="button">actions</button>,
 }));

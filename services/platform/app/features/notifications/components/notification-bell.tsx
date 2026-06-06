@@ -1,6 +1,7 @@
 'use client';
 
-import { Popover } from '@tale/ui/popover';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Bell } from 'lucide-react';
 import { useState } from 'react';
 
@@ -16,6 +17,17 @@ interface NotificationBellProps {
   label?: string;
 }
 
+/**
+ * Mirrors the styles from `@tale/ui/popover`'s `CONTENT_CLASSES` so the panel
+ * surface matches every other popover in the platform. Inlined because this
+ * component talks to `PopoverPrimitive` directly (see the trigger composition
+ * note below) — `@tale/ui/popover`'s wrapper hard-codes `<Trigger asChild>`
+ * one layer deep, which prevented the second `<TooltipPrimitive.Trigger
+ * asChild>` from reaching the button and quietly dropped the click handler.
+ */
+const POPOVER_CONTENT_CLASSES =
+  'z-50 min-w-[14.5rem] max-w-64 w-auto p-4 rounded-lg ring-1 ring-border bg-muted text-popover-foreground shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none';
+
 export function NotificationBell({
   organizationId,
   label,
@@ -25,7 +37,7 @@ export function NotificationBell({
   const { data: unread } = useNotificationsUnreadCount(organizationId);
   const unreadCount = unread ?? 0;
 
-  const trigger = (
+  const buttonNode = (
     <button
       type="button"
       aria-label={tNav('notifications')}
@@ -49,20 +61,59 @@ export function NotificationBell({
     </button>
   );
 
+  // The mobile-nav variant renders an inline text label next to the bell and
+  // doesn't need a tooltip — skip both the Popover + Tooltip overhead, just
+  // mount the plain button. (Mobile navigates via parent link logic.)
+  if (label) {
+    return buttonNode;
+  }
+
+  // Composing PopoverPrimitive + TooltipPrimitive directly is the only way
+  // to land both `asChild` triggers on the same `<button>`. Going through the
+  // `@tale/ui` `Popover` wrapper buries its `<PopoverPrimitive.Trigger
+  // asChild>` one level deep — passing a Tooltip-wrapped trigger then meets
+  // a non-DOM intermediary (`TooltipPrimitive.Provider`/`Root`), Radix's
+  // `Slot` can't merge the `onClick` through, and the panel never opens.
+  // Nested `asChild` Triggers via Slot, in contrast, merge cleanly: each
+  // wraps the next, and the innermost child (the button) ends up with both
+  // sets of event listeners + refs.
   return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      align="end"
-      side="right"
-      sideOffset={8}
-      contentClassName="bg-card w-96 max-w-[calc(100vw-2rem)] p-0"
-      trigger={trigger}
-    >
-      <NotificationListPanel
-        organizationId={organizationId}
-        className="h-[28rem]"
-      />
-    </Popover>
+    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <TooltipPrimitive.Provider delayDuration={300}>
+        <TooltipPrimitive.Root>
+          <PopoverPrimitive.Trigger asChild>
+            <TooltipPrimitive.Trigger asChild>
+              {buttonNode}
+            </TooltipPrimitive.Trigger>
+          </PopoverPrimitive.Trigger>
+          <TooltipPrimitive.Portal>
+            <TooltipPrimitive.Content
+              side="right"
+              sideOffset={8}
+              collisionPadding={8}
+              className="bg-foreground text-background motion-safe:animate-in motion-safe:fade-in-0 data-[state=closed]:motion-safe:animate-out data-[state=closed]:motion-safe:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
+            >
+              {tNav('notifications')}
+            </TooltipPrimitive.Content>
+          </TooltipPrimitive.Portal>
+        </TooltipPrimitive.Root>
+      </TooltipPrimitive.Provider>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          align="end"
+          side="right"
+          sideOffset={8}
+          className={cn(
+            POPOVER_CONTENT_CLASSES,
+            'bg-card w-96 max-w-[calc(100vw-2rem)] p-0',
+          )}
+        >
+          <NotificationListPanel
+            organizationId={organizationId}
+            className="h-[28rem]"
+          />
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
   );
 }

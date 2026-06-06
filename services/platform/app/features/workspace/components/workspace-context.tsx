@@ -5,11 +5,16 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
+  useState,
   type ReactNode,
 } from 'react';
 
-import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import { useSetThreadCanvasState } from '@/app/features/chat/hooks/mutations';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
 
 interface WorkspaceState {
   isOpen: boolean;
@@ -46,47 +51,123 @@ interface WorkspaceProviderProps {
   children: ReactNode;
 }
 
+/**
+ * Persists canvas (workspace) pane state PER CHAT via Convex so it follows
+ * the user across devices and tabs.
+ *
+ * Storage:
+ *   - With `threadId`: source of truth is `getThreadMeta.canvasState`,
+ *     written via `setThreadCanvasState` with an optimistic patch so
+ *     toggles feel instant. The same `getThreadMeta` query is already
+ *     consumed by `ChatInterface` + `useMessageProcessing`, so reading
+ *     it here adds no new WS subscription.
+ *   - Without `threadId` (brand-new chat, before the first message
+ *     creates the thread): kept in component-local React state,
+ *     defaulting to closed. This is *not* carried into Convex when the
+ *     thread materializes — opening the canvas pre-thread is rare and
+ *     the mirror+handoff seam wasn't worth the complexity. Users opening
+ *     the canvas after sending the first message hit the Convex path
+ *     from then on.
+ *
+ * `INITIAL_STATE` (closed, no active file path) is also returned while the
+ * `getThreadMeta` query is loading on a cold cache, so the canvas never
+ * flashes open then closed when navigating back to a thread it was open
+ * on. The live subscription replaces it the moment the first result lands.
+ */
 export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
-  // Persist the canvas open/active-file state PER CHAT so reopening a thread
-  // restores whether its canvas was open. `usePersistedState` re-reads the new
-  // key's value when `threadId` changes, so switching chats restores each
-  // thread's own state. New chats (no threadId) share a transient slot that
-  // `resetWorkspace` clears on thread→new transitions.
   const threadMatch = useMatch({
     from: '/dashboard/$id/chat/$threadId',
     shouldThrow: false,
   });
   const threadId = threadMatch?.params?.threadId;
-  const [state, setState, clearState] = usePersistedState(
-    threadId
-      ? `tale.platform.chat.${threadId}.canvas`
-      : 'tale.platform.chat.new.canvas',
-    INITIAL_STATE,
+
+  const { data: threadMeta } = useConvexQuery(
+    api.threads.queries.getThreadMeta,
+    threadId ? { threadId } : 'skip',
+  );
+
+  const [localState, setLocalState] = useState(INITIAL_STATE);
+  const { mutate: setCanvasState } = useSetThreadCanvasState();
+
+  // Reset the transient new-chat state on every thread switch so navigating
+  // away from a closed canvas and back to another new-chat surface doesn't
+  // inherit the previous tab's open/file state.
+  const prevThreadIdRef = useRef(threadId);
+  useEffect(() => {
+    if (prevThreadIdRef.current !== threadId) {
+      setLocalState(INITIAL_STATE);
+      prevThreadIdRef.current = threadId;
+    }
+  }, [threadId]);
+
+  // Memoize so `value` (below) doesn't re-create every render — a fresh object
+  // literal here would defeat the `useMemo` that depends on it.
+  const state = useMemo<WorkspaceState>(
+    () =>
+      threadId
+        ? threadMeta?.canvasState
+          ? {
+              isOpen: threadMeta.canvasState.isOpen,
+              activeFilePath: threadMeta.canvasState.activeFilePath,
+            }
+          : INITIAL_STATE
+        : localState,
+    [threadId, threadMeta?.canvasState, localState],
   );
 
   const openWorkspace = useCallback(
     (path?: string) => {
-      setState((prev) => ({
-        isOpen: true,
-        activeFilePath: path ?? prev.activeFilePath,
-      }));
+      if (threadId) {
+        setCanvasState({
+          threadId,
+          canvasOpen: true,
+          // Only pass the path through when the caller supplied one; omitting
+          // it tells the server-side mutation to leave the existing value
+          // alone (so `openWorkspace()` with no arg preserves the active
+          // file across an open→close→open cycle).
+          ...(path !== undefined ? { canvasActiveFilePath: path } : {}),
+        });
+      } else {
+        setLocalState((prev) => ({
+          isOpen: true,
+          activeFilePath: path ?? prev.activeFilePath,
+        }));
+      }
     },
-    [setState],
+    [threadId, setCanvasState],
   );
 
   const closeWorkspace = useCallback(() => {
-    setState((prev) => ({ ...prev, isOpen: false }));
-  }, [setState]);
+    if (threadId) {
+      setCanvasState({ threadId, canvasOpen: false });
+    } else {
+      setLocalState((prev) => ({ ...prev, isOpen: false }));
+    }
+  }, [threadId, setCanvasState]);
 
   const resetWorkspace = useCallback(() => {
-    clearState();
-  }, [clearState]);
+    if (threadId) {
+      // Reset = close pane AND clear the active-file override so a future
+      // open falls back to the first listed file.
+      setCanvasState({
+        threadId,
+        canvasOpen: false,
+        canvasActiveFilePath: null,
+      });
+    } else {
+      setLocalState(INITIAL_STATE);
+    }
+  }, [threadId, setCanvasState]);
 
   const setActiveFilePath = useCallback(
     (path: string | null) => {
-      setState((prev) => ({ ...prev, activeFilePath: path }));
+      if (threadId) {
+        setCanvasState({ threadId, canvasActiveFilePath: path });
+      } else {
+        setLocalState((prev) => ({ ...prev, activeFilePath: path }));
+      }
     },
-    [setState],
+    [threadId, setCanvasState],
   );
 
   const value = useMemo(

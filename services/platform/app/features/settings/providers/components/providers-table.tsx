@@ -5,11 +5,16 @@ import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Row } from '@tanstack/react-table';
+import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Ellipsis, Pencil, Plus, Server, Trash2, Zap } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import {
+  ACTIONS_COLUMN_SIZE,
+  createSelectColumn,
+} from '@/app/components/ui/data-table/column-builders';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { toast } from '@/app/hooks/use-toast';
@@ -66,7 +71,25 @@ export function ProvidersTable({
   const [detailProvider, setDetailProvider] = useState(
     initialDetailProvider ?? null,
   );
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const deleteProviderMutation = useDeleteProvider();
+
+  const handleClearSelection = useCallback(() => {
+    setRowSelection({});
+  }, []);
+
+  const handleBulkDeleteItem = useCallback(
+    async (providerName: string) => {
+      // Per-row delete reuses the same mutation as the single-row dialog so
+      // server-side audit logging stays consistent. The bar surfaces a
+      // destructive toast for the batch on failure.
+      await deleteProviderMutation.mutateAsync({
+        organizationId,
+        providerName,
+      });
+    },
+    [deleteProviderMutation, organizationId],
+  );
 
   const providers = useMemo(() => {
     if (!rawProviders) return [];
@@ -130,10 +153,16 @@ export function ProvidersTable({
 
   const columnsWithActions = useMemo(
     () => [
+      // Multi-row select — canonical 40px column matching every other entity
+      // table. Enables bulk-delete via the `BulkDeleteBar` footer.
+      createSelectColumn<ProviderRow>(),
       ...columns,
       {
         id: 'actions',
-        size: 44,
+        // Single canonical width so the 3-dot column lands at the same
+        // x-offset as every other table's actions column. See
+        // `ACTIONS_COLUMN_SIZE` for the source-of-truth comment.
+        size: ACTIONS_COLUMN_SIZE,
         cell: ({ row }: { row: Row<ProviderRow> }) => (
           <ProviderRowActions
             onEdit={() => setEditProvider(row.original)}
@@ -162,6 +191,15 @@ export function ProvidersTable({
         {...list.tableProps}
         columns={columnsWithActions}
         stickyLayout={stickyLayout}
+        enableRowSelection
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
+        // Providers are keyed by `name`, not `_id` — RowSelectionState uses
+        // the row's `id` field by default, which TanStack derives from the
+        // row's accessor when no `getRowId` is supplied. Pin it to `name`
+        // explicitly so the bulk handler receives the same string the
+        // delete mutation expects.
+        getRowId={(row) => row.name}
         onRowClick={handleRowClick}
         actionMenu={
           <Button onClick={() => setAddDialogOpen(true)}>
@@ -174,6 +212,14 @@ export function ProvidersTable({
           title: tEmpty('providers.title'),
           description: tEmpty('providers.description'),
         }}
+        footer={
+          <BulkDeleteBar
+            rowSelection={rowSelection}
+            onClearSelection={handleClearSelection}
+            onDeleteItem={handleBulkDeleteItem}
+            onDeleteComplete={handleClearSelection}
+          />
+        }
       />
 
       <ProviderAddPanel

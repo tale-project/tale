@@ -290,6 +290,13 @@ export const getThreadMeta = query({
         }),
       ),
       failedErrors: v.record(v.string(), v.string()),
+      // Per-thread canvas (workspace pane) state — the WorkspaceProvider
+      // reads this on mount so reopening a thread restores its layout.
+      // `null` activeFilePath means "use the first listed file".
+      canvasState: v.object({
+        isOpen: v.boolean(),
+        activeFilePath: v.union(v.string(), v.null()),
+      }),
     }),
   ),
   handler: async (ctx, args) => {
@@ -336,6 +343,10 @@ export const getThreadMeta = query({
       isGenerating,
       forkInfo,
       failedErrors,
+      canvasState: {
+        isOpen: metadata.canvasOpen ?? false,
+        activeFilePath: metadata.canvasActiveFilePath ?? null,
+      },
     };
   },
 });

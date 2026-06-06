@@ -1,10 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
-import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
-import { CheckCheck, ChevronLeft, Inbox } from 'lucide-react';
+import { CheckCheck, ChevronLeft, Inbox, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -171,38 +169,20 @@ export function NotificationListPanel({
       <div className="flex-1 overflow-y-auto">
         {items.length === 0 ? (
           status === 'LoadingFirstPage' ? (
-            // Skeleton list mirroring the real row layout for the genuine first
-            // load only. The Unread/All filter is client-side, so toggling it no
-            // longer resets the query — the skeleton won't reappear on switch.
-            <Skeletonize loading label={t('loading')}>
-              <ul role="list" className="divide-border divide-y" aria-hidden>
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <li key={i} className="flex items-start gap-3 px-4 py-3">
-                    <SkeletonCircle>
-                      <span className="mt-1.5 block size-2 rounded-full" />
-                    </SkeletonCircle>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <SkeletonBox>
-                          <span className="block h-3.5 w-32" />
-                        </SkeletonBox>
-                        <SkeletonBox>
-                          <span className="block h-3 w-6" />
-                        </SkeletonBox>
-                      </div>
-                      <div className="mt-2 space-y-1.5">
-                        <SkeletonBox fullWidth>
-                          <span className="block h-3 w-full" />
-                        </SkeletonBox>
-                        <SkeletonBox fullWidth>
-                          <span className="block h-3 w-3/5" />
-                        </SkeletonBox>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </Skeletonize>
+            // Short-lived async load — a centered spinner + label reads
+            // cleaner than a fake-content skeleton when items typically
+            // arrive in under a second.
+            <div
+              role="status"
+              aria-live="polite"
+              className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 px-6 text-center"
+            >
+              <Loader2
+                aria-hidden="true"
+                className="size-5 motion-safe:animate-spin"
+              />
+              <p className="text-xs">{t('loading')}</p>
+            </div>
           ) : (
             <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
               {filter === 'unread' ? (

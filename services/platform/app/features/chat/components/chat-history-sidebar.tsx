@@ -2,7 +2,6 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
-import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -43,11 +42,11 @@ import {
 } from '@/app/features/projects/hooks/queries';
 import { useActiveHoldTargetIds } from '@/app/features/settings/governance/hooks/queries';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import { useRelativeNow } from '@/app/hooks/use-relative-now';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { formatRelativeTime } from '@/lib/utils/format/relative-time';
 
 import { useUpdateThread } from '../hooks/mutations';
 import {
@@ -152,7 +151,7 @@ function SidebarSectionHeader({
       <Text
         as="div"
         variant="caption"
-        className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+        className="text-muted-foreground/70 text-[11px] font-normal tracking-wider uppercase"
       >
         {label}
       </Text>
@@ -541,8 +540,15 @@ export function ChatHistorySidebar({
                     key={`project-${i}`}
                     className="flex min-h-[1.5rem] items-center gap-1.5 px-2 py-1.5"
                   >
+                    {/* Chevron + plain icon — matches the loaded folder row
+                        (chevron `size-3.5` + plain-variant icon `size-3`)
+                        instead of the legacy colored chip the skeleton used
+                        to suggest. */}
                     <SkeletonBox>
-                      <div className="size-4 rounded" />
+                      <div className="size-3.5 rounded-sm" />
+                    </SkeletonBox>
+                    <SkeletonBox>
+                      <div className="size-3 rounded-sm" />
                     </SkeletonBox>
                     <SkeletonBox fullWidth>
                       <div
@@ -870,6 +876,7 @@ function ProjectFolder({
             icon={project.icon}
             color={project.color}
             size={16}
+            variant="plain"
           />
           <span className="flex-1 truncate text-sm leading-snug font-medium">
             {project.name}
@@ -969,7 +976,6 @@ function LooseChatsDropZone({
 
 function ChatRow({ chat }: { chat: ChatItem }) {
   const { t } = useT('chat');
-  const { locale } = useLocale();
   const ctx = useChatRowContext();
   const isEditing = ctx.editingChatId === chat._id;
   const isPending = ctx.pendingThreadIds.has(chat._id);
@@ -977,6 +983,13 @@ function ChatRow({ chat }: { chat: ChatItem }) {
     !isPending &&
     (chat.generationStatus === 'generating' ||
       ctx.executingThreadIds.has(chat._id));
+  // "Time since last activity" tracks the most recent AI reply, falling back
+  // to the chat's creation time for brand-new threads. Paused while the AI
+  // is still generating — the row's `animate-pulse` title already conveys
+  // the live state, and ticking against a stale timestamp would be noise.
+  const relativeAge = useRelativeNow(chat.lastReplyAt ?? chat.createdAt, {
+    paused: isGenerating,
+  });
   const isHeld = ctx.isThreadHeld(chat._id);
   // "New response" badge: a generation finished more recently than the owner
   // last read this thread, and it isn't the open / actively-generating one.
@@ -1122,9 +1135,9 @@ function ChatRow({ chat }: { chat: ChatItem }) {
               actions menu takes over (desktop). Always hidden on touch since
               the menu is in-flow there. Suppressed when a new-response badge
               is showing so the row doesn't crowd. */}
-          {!hasNewResponse && (
+          {!hasNewResponse && relativeAge !== null && (
             <span className="text-muted-foreground pointer-events-none relative z-10 hidden shrink-0 text-xs tabular-nums md:inline md:group-hover:hidden">
-              {formatRelativeTime(chat.createdAt, locale, 'narrow')}
+              {relativeAge}
             </span>
           )}
           {/* On desktop the actions menu is an absolute overlay so it reserves

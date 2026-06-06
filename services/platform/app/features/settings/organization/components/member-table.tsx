@@ -3,15 +3,21 @@
 import { Button } from '@tale/ui/button';
 import { Stack, HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import type { ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef, RowSelectionState } from '@tanstack/react-table';
 import { ChevronDownIcon, Users } from 'lucide-react';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 
 import { TableTimestampCell } from '@/app/components/ui/data-display/table-date-cell';
+import {
+  ACTIONS_COLUMN_SIZE,
+  createSelectColumn,
+} from '@/app/components/ui/data-table/column-builders';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useT } from '@/lib/i18n/client';
 import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
 
+import { useRemoveMember } from '../hooks/mutations';
 import { MemberRowActions } from './member-row-actions';
 
 type Member = {
@@ -51,12 +57,36 @@ export function MemberTable({
   const { t: tTables } = useT('tables');
   const { t: tSettings } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const removeMember = useRemoveMember();
   const handleSort = useCallback(() => {
     onSortChange(sortOrder === 'asc' ? 'desc' : 'asc');
   }, [sortOrder, onSortChange]);
 
+  const handleClearSelection = useCallback(() => {
+    setRowSelection({});
+  }, []);
+
+  const handleDeleteItem = useCallback(
+    async (id: string) => {
+      // `removeMember` takes the member doc's id as `v.string()` (the
+      // members table lives in the better-auth component, not Convex's
+      // user table — so no `Id<'members'>` schema type). The row id we
+      // pull from RowSelectionState matches `Member._id` directly.
+      // Let failures propagate so `BulkDeleteBar` surfaces a single batch
+      // toast instead of one per failed row.
+      await removeMember.mutateAsync({ memberId: id });
+    },
+    [removeMember],
+  );
+
   const columns = useMemo<ColumnDef<Member>[]>(
     () => [
+      // Multi-row select — canonical 40px column. Enables bulk-remove via
+      // the `BulkDeleteBar` footer. Note: `removeMember` doesn't cascade
+      // to better-auth; bulk-remove of org owners would partial-fail and
+      // the bar surfaces a destructive toast for the failed ids.
+      createSelectColumn<Member>(),
       {
         id: 'member',
         header: () => (
@@ -127,6 +157,9 @@ export function MemberTable({
       {
         id: 'actions',
         header: '',
+        // Locked to `ACTIONS_COLUMN_SIZE` so the 3-dot column aligns with
+        // every other table's actions column.
+        size: ACTIONS_COLUMN_SIZE,
         cell: ({ row }) => (
           <HStack gap={1} justify="end">
             <MemberRowActions
@@ -135,7 +168,6 @@ export function MemberTable({
             />
           </HStack>
         ),
-        size: 140,
       },
     ],
     [handleSort, sortOrder, memberContext, tTables, tSettings],
@@ -148,6 +180,9 @@ export function MemberTable({
       getRowId={(row) => row._id}
       isLoading={isLoading}
       approxRowCount={approxRowCount}
+      enableRowSelection
+      rowSelection={rowSelection}
+      onRowSelectionChange={setRowSelection}
       pagination={{
         clientSide: true,
         pageSize: 10,
@@ -160,6 +195,14 @@ export function MemberTable({
         title: tEmpty('members.title'),
         description: tEmpty('members.description'),
       }}
+      footer={
+        <BulkDeleteBar
+          rowSelection={rowSelection}
+          onClearSelection={handleClearSelection}
+          onDeleteItem={handleDeleteItem}
+          onDeleteComplete={handleClearSelection}
+        />
+      }
     />
   );
 }

@@ -54,6 +54,10 @@ vi.mock('../hooks/queries', () => ({
   useListAgents: () => ({ agents: [], isLoading: false }),
 }));
 
+vi.mock('../hooks/mutations', () => ({
+  useDeleteAgent: () => ({ mutateAsync: vi.fn() }),
+}));
+
 vi.mock('../hooks/use-agents-table-config', () => ({
   useAgentsTableConfig: () => ({
     columns: [],

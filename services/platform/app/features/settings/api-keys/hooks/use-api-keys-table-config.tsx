@@ -6,6 +6,10 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
+import {
+  ACTIONS_COLUMN_SIZE,
+  createSelectColumn,
+} from '@/app/components/ui/data-table/column-builders';
 import { useT } from '@/lib/i18n/client';
 
 import { ApiKeyRowActions } from '../components/api-key-row-actions';
@@ -26,6 +30,9 @@ export function useApiKeysTableConfig(
 
   const columns = useMemo<ColumnDef<ApiKey>[]>(
     () => [
+      // Multi-row select — canonical 40px column matching every other entity
+      // table. Enables bulk-revoke via the `BulkDeleteBar` footer.
+      createSelectColumn<ApiKey>(),
       {
         accessorKey: 'name',
         header: tSettings('apiKeys.columns.name'),
@@ -82,7 +89,9 @@ export function useApiKeysTableConfig(
       },
       {
         id: 'actions',
-        size: 44,
+        // Locked to `ACTIONS_COLUMN_SIZE` so the 3-dot column aligns with
+        // every other table's actions column.
+        size: ACTIONS_COLUMN_SIZE,
         meta: { isAction: true },
         cell: ({ row }) => (
           <ActionRow justify="end">

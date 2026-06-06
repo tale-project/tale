@@ -105,6 +105,10 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
         }
         className="flex-1 p-8 pt-16"
         resetTrigger={currentSrc}
+        // The Dialog renders with `hideClose` + empty customHeader, so the
+        // only existing dismiss paths were Esc / backdrop click. Wiring
+        // onClose surfaces an explicit ✕ in the viewer's overlay toolbar.
+        onClose={() => onOpenChange(false)}
       />
       {isGallery && (
         <>

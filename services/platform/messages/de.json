@@ -839,6 +839,7 @@
     "agentSelector": {
       "label": "Agent auswählen",
       "auto": "Automatisch",
+      "autoDescription": "Tale wählt für jede Nachricht den passenden Agent basierend auf deiner Anfrage.",
       "viewDetails": "Agentdetails anzeigen",
       "noAgents": "Keine Agents",
       "defaultAgent": "Assistent",
@@ -851,6 +852,7 @@
       "searchPlaceholder": "Modelle suchen...",
       "noResults": "Keine Modelle gefunden",
       "auto": "Auto",
+      "autoDescription": "Tale wählt für jede Nachricht das passende Modell — abgewogen zwischen Qualität, Geschwindigkeit und Kosten.",
       "noModelsAvailable": "Keine Modelle verfügbar",
       "noModelsAdminHint": "Es ist noch kein KI-Anbieter eingerichtet. Klicke, um Einstellungen → KI-Anbieter zu öffnen, und füge einen hinzu, um zu chatten.",
       "noModelsAgentHint": "Dieser Assistent hat kein nutzbares Modell. Prüfe, ob seine zugelassenen Modelle zu einem konfigurierten Anbieter passen — klicke, um die KI-Anbieter zu öffnen.",
@@ -1520,6 +1522,9 @@
       "warningTitle": "Du wirst bald abgemeldet",
       "warningDescription": "Deine Sitzung endet nach einer Phase der Inaktivität. Interagiere mit der Seite oder nutze die Schaltfläche, um weiterzuarbeiten.",
       "staySignedIn": "Angemeldet bleiben"
+    },
+    "dataTable": {
+      "dateFilterUnavailable": "Datumsfilter nicht verfügbar"
     }
   },
   "composer": {
@@ -1548,10 +1553,14 @@
     "styleFriendly": "Freundlich"
   },
   "connectivity": {
-    "reconnectingTitle": "Verbindung wird wiederhergestellt…",
-    "reconnectingDescription": "Die Verbindung zu Tale ist abgebrochen. Einen Moment, wir versuchen es erneut.",
+    "tabTitle": "Verbindung wird wiederhergestellt",
+    "deviceTitle": "Du bist offline",
+    "deviceDescription": "Prüfe deine Internetverbindung. Tale verbindet sich automatisch wieder, sobald du online bist.",
+    "backendTitle": "Tale ist nicht erreichbar",
+    "backendDescription": "Der Tale-Server antwortet nicht. Wir versuchen, die Verbindung wiederherzustellen — einen Moment Geduld.",
     "retry": "Erneut versuchen",
-    "statusReconnecting": "Verbinde"
+    "getApp": "App herunterladen",
+    "reachingServer": "Verbindung zum Server wird hergestellt"
   },
   "conversations": {
     "title": "Konversationen",
@@ -4273,7 +4282,7 @@
       "columns": {
         "name": "Name",
         "members": "Mitglieder",
-        "created": "Erstellt"
+        "created": "Hinzugefügt am"
       },
       "editTeam": "Team bearbeiten",
       "deleteTeam": "Team löschen",
@@ -5092,7 +5101,7 @@
       "columns": {
         "name": "Name",
         "key": "Schlüssel",
-        "created": "Erstellt",
+        "created": "Hinzugefügt am",
         "lastUsed": "Zuletzt verwendet"
       },
       "form": {
@@ -5716,7 +5725,6 @@
       "source": "Quelle",
       "updated": "Aktualisiert",
       "modified": "Geändert",
-      "uploadedAt": "Hochgeladen am",
       "member": "Mitglied",
       "role": "Rolle",
       "joined": "Beigetreten",
@@ -5733,7 +5741,7 @@
       "teams": "Teams",
       "uploadedBy": "Hochgeladen von",
       "actions": "Aktionen",
-      "created": "Erstellt",
+      "created": "Hinzugefügt am",
       "description": "Beschreibung",
       "email": "E-Mail",
       "product": "Produkt",
@@ -5741,7 +5749,6 @@
       "stock": "Bestand",
       "price": "Preis",
       "category": "Kategorie",
-      "title": "Titel",
       "website": "Website"
     },
     "cells": {

@@ -48,6 +48,16 @@ export function SettingsNavigation({
   const location = useLocation();
   const userScope = isUserScope(location.pathname);
 
+  // Ordered by descending visit frequency / relevance, grouped:
+  //   1. Identity         — account, personalization (user scope only)
+  //   2. Org identity     — organization, branding
+  //   3. Collaboration    — people
+  //   4. Capabilities     — providers, integrations, skills
+  //   5. Developer access — api
+  //   6. Policy           — governance
+  //   7. Infra (rarest)   — dataResidency
+  // The filter below keeps user-scope and org-scope items in separate strips,
+  // so within each scope this is the rendered order.
   const allItems: (TabNavigationItem & { labelKey: SettingsLabelKey })[] = [
     {
       labelKey: 'account',
@@ -66,23 +76,15 @@ export function SettingsNavigation({
       can: ['read', 'orgSettings'],
     },
     {
-      labelKey: 'people',
-      label: t('people'),
-      href: `/dashboard/${organizationId}/settings/people`,
-      can: ['read', 'orgSettings'],
-      matchMode: 'startsWith',
-    },
-    {
       labelKey: 'branding',
       label: t('branding'),
       href: `/dashboard/${organizationId}/settings/branding`,
       can: ['read', 'orgSettings'],
     },
     {
-      // Deployment-level data residency (instance admin).
-      labelKey: 'dataResidency',
-      label: t('dataResidency'),
-      href: `/dashboard/${organizationId}/settings/deployment`,
+      labelKey: 'people',
+      label: t('people'),
+      href: `/dashboard/${organizationId}/settings/people`,
       can: ['read', 'orgSettings'],
       matchMode: 'startsWith',
     },
@@ -119,6 +121,15 @@ export function SettingsNavigation({
       labelKey: 'governance',
       label: t('governance'),
       href: `/dashboard/${organizationId}/settings/governance`,
+      can: ['read', 'orgSettings'],
+      matchMode: 'startsWith',
+    },
+    {
+      // Deployment-level data residency (instance admin). Moved last — most
+      // orgs configure this once at setup and never revisit it.
+      labelKey: 'dataResidency',
+      label: t('dataResidency'),
+      href: `/dashboard/${organizationId}/settings/deployment`,
       can: ['read', 'orgSettings'],
       matchMode: 'startsWith',
     },

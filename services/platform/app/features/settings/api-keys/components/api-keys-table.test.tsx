@@ -10,6 +10,10 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+vi.mock('../hooks/use-api-keys', () => ({
+  useRevokeApiKey: () => ({ mutateAsync: vi.fn() }),
+}));
+
 vi.mock('../hooks/use-api-keys-table-config', () => ({
   useApiKeysTableConfig: () => ({
     columns: [

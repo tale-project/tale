@@ -240,12 +240,18 @@
   --popover-foreground: 0 0% 100%;
   --primary: 0 0% 100%;
   --primary-foreground: 222 73% 3%;
-  --primary-muted: 218 11% 75%;
-  --secondary: 218 11% 85%;
+  /* Dark-mode neutrals: dropped the slight blue tint (was hue 218) on the
+     muted / secondary / muted-foreground / accent tokens so the surface
+     palette reads as a true grayscale in dark mode, matching the platform's
+     white `--color-accent-base`. Light mode is already grayscale; `--info`,
+     `--destructive`, `--warning`, and `--chart-*` keep their hues because
+     they're semantic (informational badges, charts) rather than chrome. */
+  --primary-muted: 0 0% 75%;
+  --secondary: 0 0% 85%;
   --secondary-foreground: 0 0% 100%;
   --muted: 0 0% 14.9%;
-  --muted-foreground: 218 11% 65%;
-  --accent: 217 19% 17%;
+  --muted-foreground: 0 0% 65%;
+  --accent: 0 0% 17%;
   --accent-foreground: 0 0% 100%;
   --destructive: 0 91% 71%;
   --destructive-foreground: 0 0% 100%;
@@ -257,7 +263,11 @@
   --info-foreground: 214 80% 65%;
   --border: 0 0% 24%;
   --input: 0 0% 5.88%;
-  --ring: 217 100% 66%;
+  /* Focus ring: was a saturated blue (`217 100% 66%`) that read as a hard
+     halo on dark surfaces. Drop to a near-white neutral — still clearly
+     visible for keyboard focus while matching the white `--primary` /
+     `--color-accent-base` intent color used everywhere else. */
+  --ring: 0 0% 90%;
   --sidebar: 0 0% 5.88%;
   --tab: 0 0% 25.1%;
   --chart-1: 220 70% 50%;

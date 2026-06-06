@@ -21,11 +21,13 @@ import {
   useChatLayout,
 } from '@/app/features/chat/context/chat-layout-context';
 import { StreamingToolProvider } from '@/app/features/chat/context/streaming-tool-context';
+import { THREADS_PAGE_SIZE } from '@/app/features/chat/hooks/queries';
 import { CanvasPane } from '@/app/features/workspace/components/canvas-pane';
 import {
   WorkspaceProvider,
   useWorkspace,
 } from '@/app/features/workspace/components/workspace-context';
+import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
@@ -52,6 +54,33 @@ export const Route = createFileRoute('/dashboard/$id/chat')({
     meta: seo('chat'),
   }),
   validateSearch: chatSearchSchema,
+  // The history sidebar is off-screen on first paint (collapsed by default on
+  // most viewports), so the threads list isn't on the critical path — fire
+  // the cache prime fire-and-forget so by the time the user opens the
+  // sidebar the first page is already warm. `primeCachedPaginatedQuery`
+  // skips the network call when the key is already cached, so re-navs to
+  // the chat route after the cache is filled are free.
+  //
+  // Args mirror `useThreads`'s base call site (`{ organizationId }` only —
+  // no `teamId`). When a team is selected the hook's cache key differs and
+  // we'll miss the prime; that's still correct (we'd just see the normal
+  // first-load skeleton), and the more common "no team scope" case wins.
+  loader: ({ context, params }) => {
+    // `listThreads`'s `paginationOpts` is `v.optional(...)` (it tolerates
+    // reconnection replays that drop the arg), so the generated type doesn't
+    // satisfy Convex's `PaginatedQueryReference` constraint. The runtime call
+    // shape is correct — the same cast is used by `useThreads` for the same
+    // reason. See `services/platform/app/features/chat/hooks/queries.ts`.
+    void primeCachedPaginatedQuery(
+      context.convexQueryClient.convexClient,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listThreads's `paginationOpts` is `v.optional`, so the generated type is missing the constraint primeCachedPaginatedQuery expects; same cast pattern as `useThreads` in features/chat/hooks/queries.ts
+      api.threads.queries.listThreads as unknown as Parameters<
+        typeof primeCachedPaginatedQuery
+      >[1],
+      { organizationId: params.id },
+      { initialNumItems: THREADS_PAGE_SIZE },
+    );
+  },
   component: ChatLayout,
 });
 
