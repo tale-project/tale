@@ -1,16 +1,17 @@
 'use client';
 
 import { useNavigate } from '@tanstack/react-router';
-import type { Row } from '@tanstack/react-table';
+import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Globe } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useSyncWebsiteStatuses } from '../hooks/mutations';
+import { useDeleteWebsite, useSyncWebsiteStatuses } from '../hooks/mutations';
 import {
   useApproxWebsiteCount,
   useListWebsitesPaginated,
@@ -134,6 +135,8 @@ export function WebsitesTable({
   );
 
   const [viewingWebsiteId, setViewingWebsiteId] = useState<string | null>(null);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const { mutateAsync: deleteWebsite } = useDeleteWebsite();
 
   const viewingWebsite = useMemo(
     () =>
@@ -147,6 +150,17 @@ export function WebsitesTable({
   const handleRowClick = useCallback((row: Row<Website>) => {
     setViewingWebsiteId(row.original._id);
   }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setRowSelection({});
+  }, []);
+
+  const handleDeleteItem = useCallback(
+    async (id: string) => {
+      await deleteWebsite({ websiteId: id as Website['_id'] });
+    },
+    [deleteWebsite],
+  );
 
   const list = useListPage<Website>({
     dataSource: {
@@ -174,6 +188,9 @@ export function WebsitesTable({
       <DataTable
         columns={columns}
         stickyLayout={stickyLayout}
+        enableRowSelection
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
         onRowClick={handleRowClick}
         actionMenu={<WebsitesActionMenu organizationId={organizationId} />}
         emptyState={{
@@ -181,6 +198,14 @@ export function WebsitesTable({
           title: tEmpty('websites.title'),
           description: tEmpty('websites.description'),
         }}
+        footer={
+          <BulkDeleteBar
+            rowSelection={rowSelection}
+            onClearSelection={handleClearSelection}
+            onDeleteItem={handleDeleteItem}
+            onDeleteComplete={handleClearSelection}
+          />
+        }
         {...list.tableProps}
       />
 

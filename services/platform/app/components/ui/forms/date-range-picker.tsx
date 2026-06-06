@@ -132,6 +132,12 @@ export interface DatePickerWithRangeProps extends Omit<
   onChange: (date: DateRange | undefined) => void;
   defaultDate?: DateRange;
   isLoading?: boolean;
+  /**
+   * When true, the date and preset triggers render disabled — distinct from
+   * `isLoading` (which also shows a spinner). Use for "no rows to filter
+   * against" states so the affordance reads as inert rather than busy.
+   */
+  disabled?: boolean;
   presets?: DatePreset[];
   label?: string;
   description?: ReactNode;
@@ -185,6 +191,7 @@ interface CustomInputProps {
   value?: string;
   onClick?: () => void;
   isLoading?: boolean;
+  disabled?: boolean;
   placeholder?: string;
   presetLabel?: string;
   presetOptions: { key: DatePreset; label: string }[];
@@ -197,6 +204,7 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
       value,
       onClick,
       isLoading,
+      disabled,
       placeholder,
       presetLabel,
       presetOptions,
@@ -210,7 +218,7 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
         size="sm"
         type="button"
         variant="secondary"
-        disabled={isLoading}
+        disabled={isLoading || disabled}
         onClick={onClick}
         className={cn(
           'w-auto justify-start text-sm text-left font-normal space-x-2 px-2.5 rounded-r-none border-r-0 ring-0',
@@ -240,7 +248,7 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
             size="sm"
             type="button"
             variant="secondary"
-            disabled={isLoading}
+            disabled={isLoading || disabled}
             className="w-[8.25rem] justify-between gap-1.5 rounded-l-none px-2.5 ring-0"
           >
             <Text as="span" variant="muted" className="font-normal">
@@ -272,6 +280,7 @@ function DatePickerWithRangeBase({
   onChange,
   defaultDate,
   isLoading = false,
+  disabled = false,
   presets = DEFAULT_PRESETS,
   label,
   description,
@@ -363,11 +372,12 @@ function DatePickerWithRangeBase({
         endDate={endDate}
         onChange={handleDateChange}
         dateFormat="dd / MM / yyyy"
-        disabled={isLoading}
+        disabled={isLoading || disabled}
         placeholderText={t('upload.pickADate')}
         customInput={
           <CustomInput
             isLoading={isLoading}
+            disabled={disabled}
             presetLabel={presetLabel}
             presetOptions={presetOptions}
             onPresetSelect={handlePresetSelect}

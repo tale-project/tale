@@ -6,6 +6,10 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { AlertTriangle } from 'lucide-react';
 import { useMemo } from 'react';
 
+import {
+  ACTIONS_COLUMN_SIZE,
+  createSelectColumn,
+} from '@/app/components/ui/data-table/column-builders';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useT } from '@/lib/i18n/client';
 
@@ -28,12 +32,14 @@ export interface SkillsTableBindingMode {
 interface SkillsTableConfigOptions {
   organizationId: string;
   onDeleted?: () => void;
+  onDuplicated?: (newSlug: string) => void;
   bindingMode?: SkillsTableBindingMode;
 }
 
 export function useSkillsTableConfig({
   organizationId,
   onDeleted,
+  onDuplicated,
   bindingMode,
 }: SkillsTableConfigOptions): SkillsTableConfig {
   const { t } = useT('settings');
@@ -48,6 +54,9 @@ export function useSkillsTableConfig({
 
   const columns = useMemo<ColumnDef<SkillRow>[]>(
     () => [
+      // Settings context gets the canonical multi-select column (bulk delete).
+      // Binding context uses its own single-purpose `binding` checkbox instead.
+      ...(bindingMode ? [] : [createSelectColumn<SkillRow>()]),
       ...(bindingMode
         ? [
             {
@@ -152,6 +161,9 @@ export function useSkillsTableConfig({
             {
               id: 'actions',
               header: '',
+              // Locked to `ACTIONS_COLUMN_SIZE` so the 3-dot column aligns
+              // with every other table's actions column.
+              size: ACTIONS_COLUMN_SIZE,
               meta: { isAction: true },
               cell: ({ row }) => (
                 <HStack
@@ -165,14 +177,22 @@ export function useSkillsTableConfig({
                     organizationId={organizationId}
                     expectedHash={row.original.hash}
                     onDeleted={onDeleted}
+                    onDuplicated={onDuplicated}
                   />
                 </HStack>
               ),
-              size: 60,
             } satisfies ColumnDef<SkillRow>,
           ]),
     ],
-    [t, organizationId, onDeleted, bindingMode, selectedSet, atCap],
+    [
+      t,
+      organizationId,
+      onDeleted,
+      onDuplicated,
+      bindingMode,
+      selectedSet,
+      atCap,
+    ],
   );
 
   return {

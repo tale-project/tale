@@ -115,6 +115,19 @@ export const threadMetadataTable = defineTable({
    */
   lastReplyAt: v.optional(v.number()),
   lastReadAt: v.optional(v.number()),
+  /**
+   * Persisted canvas (workspace) pane state, scoped per-thread. The chat
+   * surface reads these on mount so reopening a thread restores whether
+   * the canvas was open and which artifact path was active; writes happen
+   * when the user toggles the pane or switches files. Both optional for
+   * backward-compat — missing means "default closed, first file active".
+   *
+   * `canvasOpen`           — pane visible (`true`) / hidden (`undefined` ≈ `false`).
+   * `canvasActiveFilePath` — relative path of the artifact currently shown;
+   *                          `undefined` means "use the first listed file".
+   */
+  canvasOpen: v.optional(v.boolean()),
+  canvasActiveFilePath: v.optional(v.string()),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [

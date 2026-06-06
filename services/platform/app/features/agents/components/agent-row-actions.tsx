@@ -84,20 +84,20 @@ export function AgentRowActions({
   const actions = [
     {
       key: 'duplicate',
-      label: tCommon('duplicate'),
+      label: tCommon('actions.duplicate'),
       icon: Copy,
       onClick: () => void handleDuplicate(),
     },
     {
       key: 'rename',
-      label: tCommon('rename'),
+      label: tCommon('actions.rename'),
       icon: Pencil,
       onClick: handleRename,
       visible: !isProtected,
     },
     {
       key: 'delete',
-      label: tCommon('delete'),
+      label: tCommon('actions.delete'),
       icon: Trash2,
       destructive: true,
       visible: !isProtected,

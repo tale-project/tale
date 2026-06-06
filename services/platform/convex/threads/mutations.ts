@@ -266,6 +266,60 @@ export const unarchiveChatThread = mutation({
   },
 });
 
+/**
+ * Persist the canvas (workspace) pane state for a thread. The frontend
+ * `WorkspaceProvider` calls this with an optimistic update when the user
+ * toggles the pane or switches the active artifact file, so reopening the
+ * thread (or visiting from another device) restores the same layout.
+ *
+ * Both fields are independently optional so a caller can update one without
+ * touching the other (e.g. switching files while keeping the pane open).
+ * Passing `null` for `canvasActiveFilePath` clears the override — the chat
+ * surface will fall back to "first listed file".
+ */
+export const setThreadCanvasState = mutation({
+  args: {
+    threadId: v.string(),
+    canvasOpen: v.optional(v.boolean()),
+    canvasActiveFilePath: v.optional(v.union(v.string(), v.null())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
+      throw new Error('Unauthenticated');
+    }
+
+    // Cross-tenant gate, mirrors setThreadPinned / markThreadRead — the row
+    // is keyed only by threadId, so without this any signed-in user could
+    // mutate another tenant's thread metadata by guessing the id.
+    await assertThreadAccess(ctx, args.threadId, identity);
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+    if (!metadata) return null;
+
+    // `ctx.db.patch` ignores `undefined`, so only the fields the caller
+    // explicitly passed (including `null` to clear `canvasActiveFilePath`)
+    // are written. `null` is mapped to `undefined` on the way in because
+    // the schema field is `v.optional(v.string())` — undefined removes it.
+    const patch: {
+      canvasOpen?: boolean;
+      canvasActiveFilePath?: string | undefined;
+    } = {};
+    if (args.canvasOpen !== undefined) patch.canvasOpen = args.canvasOpen;
+    if (args.canvasActiveFilePath !== undefined) {
+      patch.canvasActiveFilePath = args.canvasActiveFilePath ?? undefined;
+    }
+    if (Object.keys(patch).length === 0) return null;
+
+    await ctx.db.patch(metadata._id, patch);
+    return null;
+  },
+});
+
 export const setThreadPinned = mutation({
   args: {
     threadId: v.string(),

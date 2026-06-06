@@ -1,11 +1,15 @@
 'use client';
 
 import { PageSection } from '@tale/ui/page-section';
+import type { RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
+import { toast } from '@/app/hooks/use-toast';
+import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
 import type { Team } from '../hooks/queries';
@@ -42,10 +46,36 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const { t: tSettings } = useT('settings');
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const handleViewTeam = useCallback((team: Team) => {
     setSelectedTeam(team);
   }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setRowSelection({});
+  }, []);
+
+  // Bulk delete: the per-team delete path goes through Better Auth's
+  // `removeTeam` (same call the single-row TeamDeleteDialog uses), wrapped
+  // here so the BulkDeleteBar can run them in parallel. Throwing on error
+  // lets the bar surface a failure toast for the whole batch.
+  const handleDeleteItem = useCallback(
+    async (id: string) => {
+      const result = await authClient.organization.removeTeam({
+        teamId: id,
+        organizationId,
+      });
+      if (result.error) {
+        toast({
+          title: tSettings('teams.teamDeleteFailed'),
+          variant: 'destructive',
+        });
+        throw new Error(result.error.message || 'Failed to delete team');
+      }
+    },
+    [organizationId, tSettings],
+  );
 
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useTeamsTableConfig(organizationId, handleViewTeam);
@@ -71,6 +101,9 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
       <DataTable
         columns={columns}
         stickyLayout={stickyLayout}
+        enableRowSelection
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
         actionMenu={<TeamsActionMenu organizationId={organizationId} />}
         emptyState={{
           icon: Users,
@@ -79,6 +112,14 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
         }}
         onRowClick={(row) => setSelectedTeam(row.original)}
         clickableRows
+        footer={
+          <BulkDeleteBar
+            rowSelection={rowSelection}
+            onClearSelection={handleClearSelection}
+            onDeleteItem={handleDeleteItem}
+            onDeleteComplete={handleClearSelection}
+          />
+        }
         {...list.tableProps}
       />
 

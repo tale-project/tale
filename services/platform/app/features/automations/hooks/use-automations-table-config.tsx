@@ -6,19 +6,39 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Folder, Workflow } from 'lucide-react';
 import { useMemo } from 'react';
 
+import {
+  ACTIONS_COLUMN_SIZE,
+  createSelectColumn,
+} from '@/app/components/ui/data-table/column-builders';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 import { AutomationRowActions } from '../components/automation-row-actions';
 import type { AutomationTableItem } from '../components/automations-table';
 
-export function useAutomationsTableConfig(organizationId: string) {
+interface AutomationsTableConfigOptions {
+  /**
+   * Prefix each workflow's name with its folder path (e.g. "github / GitHub
+   * Issue Sync"). Used when the list is flattened across folders (search), so
+   * it stays clear which folder a result belongs to.
+   */
+  showFolderPath?: boolean;
+}
+
+export function useAutomationsTableConfig(
+  organizationId: string,
+  { showFolderPath = false }: AutomationsTableConfigOptions = {},
+) {
   const { t: tTables } = useT('tables');
   const { t: tAutomations } = useT('automations');
   const { formatDate } = useFormatDate();
 
   const columns = useMemo<ColumnDef<AutomationTableItem>[]>(
     () => [
+      // Multi-row select — canonical 40px column. The container table gates
+      // `enableRowSelection` to only workflow rows (not folder aggregates),
+      // so the checkbox in folder rows renders disabled.
+      createSelectColumn<AutomationTableItem>(),
       {
         id: 'name',
         header: tTables('headers.automation'),
@@ -40,7 +60,16 @@ export function useAutomationsTableConfig(organizationId: string) {
             <div className="flex min-h-8 items-center gap-3">
               <Workflow className="text-muted-foreground size-4 shrink-0" />
               <Text as="span" variant="label" truncate>
-                {row.original.name}
+                {showFolderPath && row.original.category ? (
+                  <>
+                    <span className="text-muted-foreground">
+                      {row.original.category} /{' '}
+                    </span>
+                    {row.original.name}
+                  </>
+                ) : (
+                  row.original.name
+                )}
               </Text>
             </div>
           );
@@ -69,7 +98,9 @@ export function useAutomationsTableConfig(organizationId: string) {
       },
       {
         id: 'actions',
-        size: 50,
+        // Locked to `ACTIONS_COLUMN_SIZE` so the 3-dot column aligns with
+        // every other table's actions column.
+        size: ACTIONS_COLUMN_SIZE,
         header: () => null,
         meta: {
           noTruncate: true,
@@ -97,7 +128,7 @@ export function useAutomationsTableConfig(organizationId: string) {
         },
       },
     ],
-    [tTables, organizationId, formatDate],
+    [tTables, organizationId, formatDate, showFolderPath],
   );
 
   return {

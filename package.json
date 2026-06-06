@@ -20,7 +20,7 @@
     "tools/plop"
   ],
   "scripts": {
-    "dev": "bunx turbo run dev",
+    "dev": "bunx turbo run dev --filter=!@tale/docs --filter=!@tale/web",
     "serve": "bunx turbo run serve",
     "build": "bunx turbo run build",
     "lint": "bunx turbo run lint",

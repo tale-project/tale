@@ -6,6 +6,10 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
+import {
+  ACTIONS_COLUMN_SIZE,
+  createSelectColumn,
+} from '@/app/components/ui/data-table/column-builders';
 import { useT } from '@/lib/i18n/client';
 
 import { TeamRowActions } from '../components/team-row-actions';
@@ -27,6 +31,9 @@ export function useTeamsTableConfig(
 
   const columns = useMemo<ColumnDef<Team>[]>(
     () => [
+      // Multi-row select — canonical 40px column, identical to every other
+      // entity table. Enables bulk-delete via the `BulkDeleteBar` footer.
+      createSelectColumn<Team>(),
       {
         accessorKey: 'name',
         header: tSettings('teams.columns.name'),
@@ -65,7 +72,9 @@ export function useTeamsTableConfig(
       },
       {
         id: 'actions',
-        size: 44,
+        // Locked to `ACTIONS_COLUMN_SIZE` so the 3-dot column aligns with
+        // every other table's actions column.
+        size: ACTIONS_COLUMN_SIZE,
         meta: { isAction: true },
         cell: ({ row }) => (
           <HStack justify="end">

@@ -93,6 +93,19 @@ export interface SearchableSelectProps {
   /** Optional action element rendered on the right side of each option */
   optionAction?: (option: SearchableSelectOption) => ReactNode;
   /**
+   * How an option's `description` is presented.
+   *   - `'inline'` (default): rendered as a caption row below the label —
+   *     good when descriptions are short and the list is small.
+   *   - `'tooltip'`: hidden in the row, surfaced in a Radix tooltip when the
+   *     row is hovered or keyboard-highlighted — keeps a long list scannable
+   *     while still letting users get details on demand. Used by the agent
+   *     selector where the agent count + per-agent prose would otherwise
+   *     blow the picker out vertically.
+   *
+   * @default 'inline'
+   */
+  descriptionMode?: 'inline' | 'tooltip';
+  /**
    * Optional hover/focus tooltip for the trigger. When set, the trigger is
    * composed with a Radix tooltip (both triggers collapse onto the same DOM
    * node via `asChild`), so the popover still opens on click while the tooltip
@@ -159,6 +172,7 @@ function SearchableSelectBase({
   filterFn,
   showRadio,
   optionAction,
+  descriptionMode = 'inline',
   tooltip,
   tooltipSide = 'top',
 }: SearchableSelectProps) {
@@ -388,6 +402,7 @@ function SearchableSelectBase({
                 onSelect={handleSelect}
                 onMouseEnter={setHighlightedIndex}
                 showRadio={showRadio}
+                descriptionMode={descriptionMode}
                 action={optionAction?.(option)}
               />
             ))}
@@ -459,6 +474,7 @@ function SearchableSelectOptionItem({
   onSelect,
   onMouseEnter,
   showRadio,
+  descriptionMode = 'inline',
   action,
 }: {
   option: SearchableSelectOption;
@@ -469,9 +485,22 @@ function SearchableSelectOptionItem({
   onSelect: (value: string) => void;
   onMouseEnter: (index: number) => void;
   showRadio?: boolean;
+  descriptionMode?: 'inline' | 'tooltip';
   action?: ReactNode;
 }) {
-  return (
+  // Inline mode renders the description directly under the label; tooltip
+  // mode hides it from the row and surfaces it on hover/keyboard-highlight.
+  // The `items-start` vs `items-center` swap is only relevant for inline —
+  // tooltip mode keeps a single-line row regardless of whether a description
+  // exists.
+  const showInlineDescription =
+    descriptionMode === 'inline' && Boolean(option.description);
+  const tooltipContent =
+    descriptionMode === 'tooltip' && option.description
+      ? option.description
+      : null;
+
+  const row = (
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- keyboard handled via aria-activedescendant
     <div
       role="option"
@@ -484,7 +513,7 @@ function SearchableSelectOptionItem({
       onMouseEnter={() => onMouseEnter(index)}
       className={cn(
         'group/option flex w-full cursor-default gap-2 rounded-md p-2 text-left text-sm transition-colors',
-        option.description ? 'items-start' : 'items-center',
+        showInlineDescription ? 'items-start' : 'items-center',
         isHighlighted && 'bg-accent',
         option.disabled && 'pointer-events-none opacity-50',
       )}
@@ -521,7 +550,7 @@ function SearchableSelectOptionItem({
           </Text>
           {option.labelBadge}
         </div>
-        {option.description && (
+        {showInlineDescription && (
           <Text as="div" variant="caption">
             {option.description}
           </Text>
@@ -532,5 +561,31 @@ function SearchableSelectOptionItem({
       )}
       {action}
     </div>
+  );
+
+  if (!tooltipContent) return row;
+
+  // In tooltip mode the description is hidden from the row and surfaced on
+  // hover (or keyboard highlight, which fires onMouseEnter via this row's
+  // own pointer events as the listbox scrolls a focused option into view).
+  // `side="right"` keeps the popover from overlapping the next row's label;
+  // `align="start"` anchors it to the row top so long descriptions don't
+  // float into the row above.
+  return (
+    <TooltipPrimitive.Provider delayDuration={250}>
+      <TooltipPrimitive.Root>
+        <TooltipPrimitive.Trigger asChild>{row}</TooltipPrimitive.Trigger>
+        <TooltipPrimitive.Portal>
+          <TooltipContent
+            side="right"
+            align="start"
+            collisionPadding={8}
+            className="max-w-xs text-xs leading-relaxed"
+          >
+            {tooltipContent}
+          </TooltipContent>
+        </TooltipPrimitive.Portal>
+      </TooltipPrimitive.Root>
+    </TooltipPrimitive.Provider>
   );
 }

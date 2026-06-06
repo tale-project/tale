@@ -36,12 +36,14 @@ import {
   useRef,
   useEffect,
   useCallback,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import type { DateRange } from 'react-day-picker';
 
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
+import { SELECT_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
 import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
 import { useInfiniteScroll } from '@/app/hooks/use-infinite-scroll';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -136,8 +138,13 @@ export interface DataTableProps<TData, TValue = unknown> {
   isLoading?: boolean;
   /** Sorting configuration from useDataTable hook */
   sorting?: DataTableSortingConfig;
-  /** Enable row selection */
-  enableRowSelection?: boolean;
+  /**
+   * Enable row selection. Pass `true` to allow selecting any row, or a
+   * predicate `(row) => boolean` to gate selectability per-row (folder
+   * aggregates, read-only rows, etc.). Mirrors TanStack Table's own
+   * `enableRowSelection` shape so the function form goes straight through.
+   */
+  enableRowSelection?: boolean | ((row: Row<TData>) => boolean);
   /** Row selection state (controlled) */
   rowSelection?: RowSelectionState;
   /** Callback when row selection changes */
@@ -322,7 +329,9 @@ export function DataTable<TData, TValue = unknown>({
       onSortingChange: onSortingChange ?? setInternalSorting,
     }),
     ...(enableRowSelection && {
-      enableRowSelection: true,
+      // Forward the consumer's predicate (or `true`) straight to TanStack so
+      // per-row gating works without an intermediate translation.
+      enableRowSelection,
       onRowSelectionChange: onRowSelectionChange ?? setInternalRowSelection,
     }),
     ...(enableExpanding && {
@@ -450,6 +459,9 @@ export function DataTable<TData, TValue = unknown>({
         filters={filters}
         dateRange={dateRange}
         isLoading={isFiltersLoading}
+        // Mirror `searchDisabled`: empty table + no active filters → also
+        // disable the filter affordance (nothing to filter against).
+        disabled={searchDisabled}
         onClearAll={onClearFilters}
       >
         {filtersContent}
@@ -462,12 +474,65 @@ export function DataTable<TData, TValue = unknown>({
 
   const rows = table.getRowModel().rows;
 
+  // The table renders with `table-layout: auto`, where a column's `width` is
+  // only a hint: when the columns' natural widths don't fill the container the
+  // browser distributes the slack across *all* columns. That inflated the
+  // fixed-size select / actions columns and shifted the checkbox + 3-dot
+  // trigger to a different x on every table (the slack varies with column
+  // count + content). To keep those utility columns pinned, they render with a
+  // 1px width so auto-layout can't grow them, and their content sits in a
+  // fixed-size box (`utilityCellBox`) that sets the column's real width.
+  // The remaining slack then flows only to the content columns, which grow
+  // proportionally to their declared sizes — no single runaway column.
+  const isUtilityCol = (id: string, isAction?: boolean) =>
+    id === 'select' || id === 'actions' || !!isAction;
+  // Utility columns render at 1px so auto-layout can't grow them; their content
+  // box (below) dictates the real, pinned width. Content columns take their
+  // declared size and share the leftover space proportionally.
+  const cellWidthStyle = (
+    id: string,
+    size: number | undefined,
+    isAction?: boolean,
+  ): CSSProperties =>
+    isUtilityCol(id, isAction)
+      ? // A *percentage* width (not px) is what makes auto-layout leave this
+        // column at its content size instead of handing it a share of the
+        // slack — px widths still grow. 1% always loses to the fixed-size box.
+        { width: '1%' }
+      : { width: size !== undefined && size !== 150 ? size : undefined };
+  // Wrap a utility cell's content in a fixed-width box so the column shrinks to
+  // exactly its declared size (the select checkbox centered, the row-actions
+  // trigger right-aligned) — identical on every table. `p-0` on the cell hands
+  // all spacing to this box so padding doesn't widen the pinned column.
+  const utilityCellBox = (
+    id: string,
+    size: number | undefined,
+    node: ReactNode,
+  ): ReactNode => (
+    <div
+      style={{
+        width: size !== undefined && size !== 150 ? size : SELECT_COLUMN_SIZE,
+      }}
+      className={cn(
+        'flex h-full items-center',
+        id === 'select' ? 'mx-auto justify-center' : 'ml-auto justify-end pr-3',
+      )}
+    >
+      {node}
+    </div>
+  );
+
   // Shared table content. Wrapped in Skeletonize (outside <table>) so the
   // placeholder cells below pulse while loading; idle it adds no box.
   const tableContent = (
     <Skeletonize loading={isSkeleton}>
       <Table
-        stickyLayout={stickyLayout}
+        // Always render the bare <table> (no primitive scroll wrapper). Both
+        // layout branches below supply their own scroll container with the
+        // border placed on an inner `w-fit min-w-full` wrapper, so the rounded
+        // border wraps the full table width and scrolls with the content
+        // instead of being pinned to the visible viewport.
+        stickyLayout
         // `max(100%, …)` so the table still fills a wide container (preserving
         // the primitive's `min-w-full`) while gaining a content-based floor that
         // forces horizontal scroll on narrow viewports instead of squashing.
@@ -482,30 +547,34 @@ export function DataTable<TData, TValue = unknown>({
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id} className="bg-muted">
               {enableExpanding && <TableHead className="w-[3rem]" />}
-              {headerGroup.headers.map((headerCell) => (
-                <TableHead
-                  key={headerCell.id}
-                  className={cn(
-                    'text-sm font-medium',
-                    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
-                    (headerCell.column.columnDef.meta as ColumnMeta | undefined)
-                      ?.className,
-                  )}
-                  style={{
-                    width:
-                      headerCell.column.getSize() !== 150
-                        ? headerCell.column.getSize()
-                        : undefined,
-                  }}
-                >
-                  {headerCell.isPlaceholder
-                    ? null
-                    : flexRender(
-                        headerCell.column.columnDef.header,
-                        headerCell.getContext(),
-                      )}
-                </TableHead>
-              ))}
+              {headerGroup.headers.map((headerCell) => {
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+                const meta = headerCell.column.columnDef.meta as
+                  | ColumnMeta
+                  | undefined;
+                const id = headerCell.column.id;
+                const size = headerCell.column.getSize();
+                const utility = isUtilityCol(id, meta?.isAction);
+                const content = headerCell.isPlaceholder
+                  ? null
+                  : flexRender(
+                      headerCell.column.columnDef.header,
+                      headerCell.getContext(),
+                    );
+                return (
+                  <TableHead
+                    key={headerCell.id}
+                    className={cn(
+                      'text-sm font-medium',
+                      utility && 'p-0',
+                      meta?.className,
+                    )}
+                    style={cellWidthStyle(id, size, meta?.isAction)}
+                  >
+                    {utility ? utilityCellBox(id, size, content) : content}
+                  </TableHead>
+                );
+              })}
             </TableRow>
           ))}
         </TableHeader>
@@ -633,18 +702,17 @@ export function DataTable<TData, TValue = unknown>({
                     );
                   }
 
+                  const id = col.id ?? '';
+                  const utility = isUtilityCol(id, isActionCol);
                   return (
                     <TableCell
                       key={colIndex}
-                      className={meta?.className}
-                      style={{
-                        width:
-                          col.size !== undefined && col.size !== 150
-                            ? col.size
-                            : undefined,
-                      }}
+                      className={cn(utility && 'p-0', meta?.className)}
+                      style={cellWidthStyle(id, col.size, isActionCol)}
                     >
-                      {cellContent}
+                      {utility
+                        ? utilityCellBox(id, col.size, cellContent)
+                        : cellContent}
                     </TableCell>
                   );
                 })}
@@ -693,6 +761,11 @@ export function DataTable<TData, TValue = unknown>({
                   <TableRow
                     className={cn(
                       'group',
+                      // Consistent baseline row height across every table — text-
+                      // only rows (e.g. projects) would otherwise sit shorter than
+                      // rows with an avatar/icon. `h-12` is a *minimum* for table
+                      // rows, so multi-line cells still grow past it.
+                      'h-12',
                       index === rows.length - 1 ? 'border-b-0' : '',
                       clickableRows || onRowClick ? 'cursor-pointer' : '',
                       isNewRow && 'animate-row-enter',
@@ -718,27 +791,30 @@ export function DataTable<TData, TValue = unknown>({
                         />
                       </TableCell>
                     )}
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={
-                          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
-                          (cell.column.columnDef.meta as ColumnMeta | undefined)
-                            ?.className
-                        }
-                        style={{
-                          width:
-                            cell.column.getSize() !== 150
-                              ? cell.column.getSize()
-                              : undefined,
-                        }}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
+                    {row.getVisibleCells().map((cell) => {
+                      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+                      const meta = cell.column.columnDef.meta as
+                        | ColumnMeta
+                        | undefined;
+                      const id = cell.column.id;
+                      const size = cell.column.getSize();
+                      const utility = isUtilityCol(id, meta?.isAction);
+                      const content = flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      );
+                      return (
+                        <TableCell
+                          key={cell.id}
+                          className={cn(utility && 'p-0', meta?.className)}
+                          style={cellWidthStyle(id, size, meta?.isAction)}
+                        >
+                          {utility
+                            ? utilityCellBox(id, size, content)
+                            : content}
+                        </TableCell>
+                      );
+                    })}
                   </TableRow>
                   {enableExpanding && isExpanded && renderExpandedRow && (
                     <TableRow className="border-0 hover:bg-transparent">
@@ -868,10 +944,17 @@ export function DataTable<TData, TValue = unknown>({
       >
         <div className={cn('space-y-4', className)}>
           {headerContent}
-          <div className="border-border overflow-x-auto rounded-lg border">
-            {tableContent}
-            {infiniteScrollContent}
-            {entityCountFooter}
+          {/* Scroll container holds no border; the bordered wrapper inside is
+              `w-fit min-w-full` so it grows to the full table width and scrolls
+              with the content — the border frames the whole table, not just the
+              visible slice. `overflow-hidden` clips the rounded corners (safe
+              here: this layout has no sticky header). */}
+          <div className="overflow-x-auto">
+            <div className="border-border w-fit min-w-full overflow-hidden rounded-lg border">
+              {tableContent}
+              {infiniteScrollContent}
+              {entityCountFooter}
+            </div>
           </div>
           {paginationContent}
           {footer}
@@ -894,18 +977,30 @@ export function DataTable<TData, TValue = unknown>({
     >
       <div className={cn('flex flex-col flex-1 min-h-0 min-w-0', className)}>
         {headerContent && <div className="shrink-0 pb-4">{headerContent}</div>}
+        {/* The scroll container itself carries no border so the bordered,
+            `w-fit min-w-full` wrapper inside grows to the full table width and
+            scrolls with it (border frames the whole table, not just the visible
+            slice). No `overflow-hidden` on the wrapper here — that would make it
+            the scrollport and break the sticky header, which must stick to the
+            outer `scrollContainerRef`. */}
         <div
           ref={scrollContainerRef}
-          className="border-border min-h-0 overflow-auto overscroll-contain rounded-lg border"
+          className="min-h-0 overflow-auto overscroll-contain"
         >
-          {tableContent}
-          {infiniteScrollContent}
-          {entityCountFooter}
+          <div className="border-border w-fit min-w-full rounded-lg border">
+            {tableContent}
+            {infiniteScrollContent}
+            {entityCountFooter}
+          </div>
         </div>
         {paginationContent && (
           <div className="shrink-0 pt-6">{paginationContent}</div>
         )}
-        {footer}
+        {/* `pt-4` matches the gap the non-sticky layout gets from `space-y-4`.
+            `empty:hidden` collapses the wrapper when the footer renders nothing
+            (e.g. the bulk-delete bar with no selection) so it adds no phantom
+            gap. */}
+        {footer && <div className="shrink-0 pt-4 empty:hidden">{footer}</div>}
       </div>
     </ErrorBoundaryBase>
   );

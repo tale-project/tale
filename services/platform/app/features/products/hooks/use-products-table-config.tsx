@@ -38,15 +38,10 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
         </HStack>
       ),
     },
-    {
-      accessorKey: 'description',
-      header: tTables('headers.description'),
-      cell: ({ row }) => (
-        <Text as="div" variant="caption" truncate className="max-w-sm">
-          {row.original.description ? `"${row.original.description}"` : '-'}
-        </Text>
-      ),
-    },
+    // Description column dropped — at the table's row truncation width it
+    // collapses to a few words and earns zero scannability vs the detail
+    // view, which already shows the full description on click. Frees space
+    // for the price/stock/category columns to breathe at sensible widths.
     {
       accessorKey: 'stock',
       header: () => (

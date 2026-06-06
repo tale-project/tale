@@ -52,6 +52,17 @@ export interface ProjectAvatarProps {
   icon?: string | null;
   color?: string | null;
   size?: 16 | 20 | 24 | 32;
+  /**
+   * `'filled'` (default): colored chip — the project's brand color as a
+   * background, white/black icon on top. Use in headers, dialogs, anywhere
+   * the avatar carries the project's identity.
+   *
+   * `'plain'`: just the icon in a neutral muted tone, no background. Use
+   * in dense lists where many side-by-side colored chips would crowd the
+   * eye (e.g. the chat sidebar's project folders, where the row is already
+   * named and the icon is just a glanceable marker).
+   */
+  variant?: 'filled' | 'plain';
   className?: string;
 }
 
@@ -73,17 +84,21 @@ export function ProjectAvatar({
   icon,
   color,
   size = 24,
+  variant = 'filled',
   className,
 }: ProjectAvatarProps) {
   const IconComponent = resolveIcon(icon);
+  const surfaceClasses =
+    variant === 'plain'
+      ? 'text-muted-foreground'
+      : cn(SIZE_CLASSES[size], resolveColor(color));
   return (
     <span
       role="img"
       aria-label={name}
       className={cn(
         'inline-flex shrink-0 items-center justify-center',
-        SIZE_CLASSES[size],
-        resolveColor(color),
+        surfaceClasses,
         className,
       )}
     >

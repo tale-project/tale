@@ -1,3 +1,4 @@
+import { updateDocumentQuery } from '@/app/hooks/optimistic-updates';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
@@ -78,6 +79,44 @@ export function useUpdateThread() {
 
 export function useSetThreadPinned() {
   return useConvexMutation(api.threads.mutations.setThreadPinned);
+}
+
+/**
+ * Persist the canvas (workspace) pane state for a thread. Wraps the server
+ * mutation in an optimistic patch against the shared `getThreadMeta` query
+ * so toggling the pane (or switching files) updates the UI instantly —
+ * Convex rolls the patch back if the server mutation fails.
+ *
+ * Field semantics:
+ *   - `canvasOpen` undefined  → keep current value
+ *   - `canvasActiveFilePath`:
+ *       undefined → keep current value
+ *       null      → clear the override (next render uses the first listed file)
+ *       string    → set the active path
+ */
+export function useSetThreadCanvasState() {
+  return useConvexMutation(api.threads.mutations.setThreadCanvasState, {
+    // Pane toggles are best-effort UI state — a transient failure already
+    // rolls back via the optimistic patch; surfacing a toast on every
+    // re-mount-during-disconnect would be noise.
+    errorToast: false,
+    optimisticUpdate: (store, args) =>
+      updateDocumentQuery(
+        store,
+        api.threads.queries.getThreadMeta,
+        { threadId: args.threadId },
+        (current) => ({
+          ...current,
+          canvasState: {
+            isOpen: args.canvasOpen ?? current.canvasState.isOpen,
+            activeFilePath:
+              args.canvasActiveFilePath === undefined
+                ? current.canvasState.activeFilePath
+                : args.canvasActiveFilePath,
+          },
+        }),
+      ),
+  });
 }
 
 export function useMarkThreadRead() {

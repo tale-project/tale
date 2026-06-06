@@ -24,6 +24,9 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
     defaultSort: '_creationTime',
   },
   ({ tTables, tEntity, builders }) => [
+    // Multi-row select — canonical 40px column matching every other entity
+    // table. Enables bulk-delete via the `BulkDeleteBar` footer.
+    builders.createSelectColumn(),
     {
       accessorKey: 'domain',
       header: tTables('headers.website'),
@@ -60,16 +63,11 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
         );
       },
     },
-    {
-      accessorKey: 'title',
-      header: tTables('headers.title'),
-      size: 192,
-      cell: ({ row }) => (
-        <Text as="div" truncate className="max-w-sm">
-          {row.original.title || tTables('cells.empty')}
-        </Text>
-      ),
-    },
+    // `title` column dropped — for monitored websites the domain (already
+    // shown in the first column) is the disambiguator users scan on, and
+    // page titles often duplicate the domain or fall back to "—". Users
+    // who need the title still see it on the website detail view. Frees
+    // 192px for the indexed/last-scanned/interval columns to breathe.
     {
       id: 'indexed',
       header: () => (

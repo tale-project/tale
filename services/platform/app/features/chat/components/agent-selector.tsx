@@ -77,6 +77,11 @@ export const AgentSelector = memo(function AgentSelector({
         return {
           value: agent.name,
           label: agent.displayName,
+          // Surfaced as a hover/keyboard tooltip on the row (see
+          // `descriptionMode: 'tooltip'` on the SearchableSelect below) so the
+          // picker stays scannable when an org has many agents while still
+          // letting users get the "what does this one do?" answer on demand.
+          description: agent.description,
           isDefaultChat: agent.name === 'chat-agent',
           labelBadge: missingTitle ? (
             <span className="text-muted-foreground text-xs">
@@ -101,6 +106,10 @@ export const AgentSelector = memo(function AgentSelector({
       {
         value: AUTO_AGENT_SLUG,
         label: t('agentSelector.auto'),
+        // Surfaced as a hover tooltip (the picker is in `descriptionMode:
+        // 'tooltip'` mode) so users hovering Auto get the "what does this
+        // do?" answer without an inline second-line caption crowding the row.
+        description: t('agentSelector.autoDescription'),
         isDefaultChat: false,
         labelBadge: undefined,
         ready: true,
@@ -207,6 +216,10 @@ export const AgentSelector = memo(function AgentSelector({
         searchPlaceholder={t('agentSelector.searchPlaceholder')}
         emptyText={t('agentSelector.noResults')}
         aria-label={t('agentSelector.label')}
+        // Surface each agent's description on hover/keyboard-highlight rather
+        // than inline — keeps the row height consistent and the list
+        // scannable when there are many agents.
+        descriptionMode="tooltip"
         optionAction={renderOptionAction}
         trigger={
           // min-w-32 (128 px) pins the trigger so the loading→loaded swap

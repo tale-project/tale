@@ -1,8 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { StatusIndicator } from '@tale/ui/status-indicator';
-import { WifiOff } from 'lucide-react';
+import { useInstallPrompt } from '@tale/ui/pwa/use-install-prompt';
+import { Download, WifiOff } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { useConvexConnectionState } from '@/app/hooks/use-convex-connection-state';
@@ -15,38 +15,57 @@ interface OnlineGateProps {
   children: ReactNode;
 }
 
+type OfflineReason = 'device' | 'backend';
+
 /**
- * Full-screen overlay that appears when Convex has been disconnected for
- * longer than the grace window. Mounted once near the router root. The
- * overlay is additive — children continue to render underneath so transient
- * blips don't unmount the app.
+ * Full-screen overlay that appears when the app can't talk to its backend.
+ * Mounted once near the router root; children continue to render underneath
+ * so a transient blip doesn't unmount the app.
  *
- * `navigator.onLine` is deliberately NOT consulted: it reports
- * device-level external connectivity, but the platform's only hard
- * dependency at runtime is the Convex websocket. A laptop without
- * external internet but a healthy local Convex backend (the common
- * `bun run dev` setup, or the offline-first self-hosted appliance) is
- * fully functional and shouldn't be blocked by the overlay.
+ * Two distinct reasons drive the overlay, each with its own copy:
+ *   - `'device'`  — `navigator.onLine === false`. The user's device is
+ *                   offline. We surface this even when the Convex WS is
+ *                   still nominally connected, because nothing the user
+ *                   does will round-trip until the network returns.
+ *   - `'backend'` — device thinks it's online but Convex's websocket has
+ *                   been stale longer than the grace window. Tale's server
+ *                   is unreachable from here.
+ *
+ * The grace window prevents the overlay from flashing on benign blips
+ * (HMR push, tab waking from sleep, brief WS reconnect on auth refresh).
  */
 export function OnlineGate({ children }: OnlineGateProps) {
-  const offline = useOfflineState();
-
+  const reason = useOfflineReason();
   return (
     <>
       {children}
-      {offline && <OfflineOverlay />}
+      {reason !== null && <OfflineOverlay reason={reason} />}
     </>
   );
 }
 
-function useOfflineState(): boolean {
+function useOfflineReason(): OfflineReason | null {
   const connection = useConvexConnectionState();
-  const [convexStale, setConvexStale] = useState(false);
+  const [isDeviceOffline, setIsDeviceOffline] = useState(
+    () => typeof navigator !== 'undefined' && navigator.onLine === false,
+  );
+  const [isWsStale, setIsWsStale] = useState(false);
   const graceTimer = useRef<number | null>(null);
 
   useEffect(() => {
+    const sync = () => setIsDeviceOffline(navigator.onLine === false);
+    sync();
+    window.addEventListener('online', sync);
+    window.addEventListener('offline', sync);
+    return () => {
+      window.removeEventListener('online', sync);
+      window.removeEventListener('offline', sync);
+    };
+  }, []);
+
+  useEffect(() => {
     if (connection.isWebSocketConnected) {
-      setConvexStale(false);
+      setIsWsStale(false);
       if (graceTimer.current !== null) {
         window.clearTimeout(graceTimer.current);
         graceTimer.current = null;
@@ -55,7 +74,7 @@ function useOfflineState(): boolean {
     }
     if (graceTimer.current !== null) return undefined;
     graceTimer.current = window.setTimeout(() => {
-      setConvexStale(true);
+      setIsWsStale(true);
       graceTimer.current = null;
     }, DISCONNECT_GRACE_MS);
     return () => {
@@ -66,11 +85,51 @@ function useOfflineState(): boolean {
     };
   }, [connection.isWebSocketConnected]);
 
-  return convexStale;
+  // The overlay only appears when Convex's WS is actually unreachable —
+  // `navigator.onLine` is unreliable on its own (a laptop with no WAN can
+  // still talk to a local self-hosted backend, the common `bun run dev`
+  // shape). Once the WS is stale, we use `navigator.onLine` purely to
+  // *classify* the cause so the copy matches reality: device-offline vs
+  // server-unreachable.
+  if (!isWsStale) return null;
+  return isDeviceOffline ? 'device' : 'backend';
 }
 
-function OfflineOverlay() {
+interface OfflineOverlayProps {
+  reason: OfflineReason;
+}
+
+function OfflineOverlay({ reason }: OfflineOverlayProps) {
   const { t } = useT('connectivity');
+  const { canInstall, promptInstall } = useInstallPrompt();
+  // Bumping the nonce remounts the indicator so the pulse animation restarts
+  // on "Try again" — a small visual ack that the gesture registered, without
+  // any disabled/loading "Checking…" intermediate state.
+  const [retryNonce, setRetryNonce] = useState(0);
+
+  // Surface the reconnect state in the tab title so a glance at a window
+  // chooser / tab strip shows which tab dropped — and so "Tale" stays in
+  // the title even on routes whose own title strips the suffix. Restore the
+  // prior title on dismiss so we don't permanently overwrite it.
+  useEffect(() => {
+    const previous = document.title;
+    document.title = `${t('tabTitle')} — Tale`;
+    return () => {
+      document.title = previous;
+    };
+  }, [t]);
+
+  const heading = reason === 'device' ? t('deviceTitle') : t('backendTitle');
+  const description =
+    reason === 'device' ? t('deviceDescription') : t('backendDescription');
+
+  const handleRetry = () => {
+    // Convex's client already auto-reconnects continuously, so we don't need
+    // to wire a manual reconnect call — bumping the nonce just restarts the
+    // ring animation so the user sees the gesture register. The overlay
+    // dismisses on its own once the WS handshake completes.
+    setRetryNonce((n) => n + 1);
+  };
 
   return (
     <div
@@ -85,39 +144,80 @@ function OfflineOverlay() {
       )}
     >
       <div className="mx-auto flex w-full max-w-sm flex-col items-center text-center">
-        <div
-          aria-hidden="true"
-          className="bg-muted text-muted-foreground mb-6 flex size-16 items-center justify-center rounded-full"
-        >
-          <WifiOff className="size-7" />
-        </div>
+        <ReachingServerIndicator key={retryNonce} label={t('reachingServer')} />
         <h2
           id="online-gate-title"
-          className="text-foreground text-2xl leading-tight font-semibold tracking-tight"
+          className="text-foreground mt-8 text-2xl leading-tight font-semibold tracking-tight"
         >
-          {t('reconnectingTitle')}
+          {heading}
         </h2>
         <p
           id="online-gate-description"
           className="text-muted-foreground mt-3 text-base leading-relaxed"
         >
-          {t('reconnectingDescription')}
+          {description}
         </p>
-        <div className="mt-6">
-          <StatusIndicator variant="warning" pulse size="md">
-            {t('statusReconnecting')}
-          </StatusIndicator>
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <Button
+            type="button"
+            variant="primary"
+            className="min-h-11 px-5"
+            onClick={handleRetry}
+          >
+            {t('retry')}
+          </Button>
+          {canInstall && (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={Download}
+              className="min-h-11 px-5"
+              onClick={() => {
+                void promptInstall();
+              }}
+            >
+              {t('getApp')}
+            </Button>
+          )}
         </div>
-        <Button
-          type="button"
-          variant="primary"
-          className="mt-8 min-h-11 px-5"
-          onClick={() => {
-            window.location.reload();
-          }}
-        >
-          {t('retry')}
-        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface ReachingServerIndicatorProps {
+  label: string;
+}
+
+/**
+ * The "we're actively trying" visual. Two concentric `animate-ping` rings
+ * pulse outward from a static wifi-off badge — a familiar "radar reach"
+ * pattern. The staggered animation delay keeps a ring in flight at all
+ * times instead of synchronizing into a single throb.
+ *
+ * `motion-safe:` gates the rings so users with `prefers-reduced-motion`
+ * see a static icon, with the `aria-label` carrying the meaning instead.
+ */
+function ReachingServerIndicator({ label }: ReachingServerIndicatorProps) {
+  return (
+    <div
+      role="status"
+      aria-label={label}
+      className="relative flex size-24 items-center justify-center"
+    >
+      <span
+        aria-hidden="true"
+        className="bg-muted-foreground/20 absolute inline-flex size-16 rounded-full motion-safe:animate-ping"
+      />
+      <span
+        aria-hidden="true"
+        className="bg-muted-foreground/15 absolute inline-flex size-12 rounded-full [animation-delay:700ms] motion-safe:animate-ping"
+      />
+      <div
+        aria-hidden="true"
+        className="bg-muted text-muted-foreground relative flex size-16 items-center justify-center rounded-full"
+      >
+        <WifiOff className="size-7" />
       </div>
     </div>
   );

@@ -251,8 +251,40 @@ export function TabNavigation({
     return { current: refs };
   }, [accessibleItems]);
 
-  // Re-measure on resize
-  useResizeObserver(allRefs, updateIndicator, {
+  // Re-measure on resize. Horizontal window/container drags fire the observer
+  // many times per second; the indicator's 200ms slide transition chases each
+  // measurement and shows up as a visible flicker (the underline lagging /
+  // jittering behind the active tab as it moves with the layout). Vertical
+  // resize doesn't reach this codepath because none of the measured rects
+  // change. Pattern mirrors the scroll handler below: suppress the transition
+  // for the duration of the resize burst, then restore after a short idle so
+  // genuine tab switches still animate.
+  const resizeRestoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const updateIndicatorForResize = useCallback(() => {
+    const indicator = indicatorRef.current;
+    if (indicator) indicator.style.transition = 'none';
+    updateIndicator();
+    if (resizeRestoreTimerRef.current) {
+      clearTimeout(resizeRestoreTimerRef.current);
+    }
+    resizeRestoreTimerRef.current = setTimeout(() => {
+      const settled = indicatorRef.current;
+      if (settled) settled.style.transition = '';
+      resizeRestoreTimerRef.current = null;
+    }, 150);
+  }, [updateIndicator]);
+  useEffect(
+    () => () => {
+      if (resizeRestoreTimerRef.current) {
+        clearTimeout(resizeRestoreTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  useResizeObserver(allRefs, updateIndicatorForResize, {
     listenToWindow: true,
     deps: [accessibleItems.length],
   });
@@ -292,7 +324,7 @@ export function TabNavigation({
               preload={prefetch ? 'render' : false}
               aria-current={isActive ? 'page' : undefined}
               className={cn(
-                "relative h-full flex items-center gap-1.5 py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0 rounded-sm focus-visible:outline-none focus-visible:after:content-[''] focus-visible:after:absolute focus-visible:after:-inset-x-1 focus-visible:after:inset-y-0.5 focus-visible:after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset focus-visible:after:pointer-events-none justify-center",
+                'relative flex h-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm py-1 text-sm font-medium transition-colors outline-none focus-visible:outline-none',
                 isActive
                   ? 'text-foreground'
                   : 'text-muted-foreground hover:text-foreground',

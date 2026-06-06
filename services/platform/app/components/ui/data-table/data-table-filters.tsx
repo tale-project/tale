@@ -89,6 +89,12 @@ export interface DataTableFiltersProps {
   };
   /** Whether filters are loading */
   isLoading?: boolean;
+  /**
+   * When `true`, the filter button is rendered disabled and its popover is
+   * suppressed — used by `DataTable` when the table has no rows and no
+   * active filters, so the affordance can't be opened over an empty set.
+   */
+  disabled?: boolean;
   /** Callback to clear all filters */
   onClearAll?: () => void;
   /** Additional content to render in the filter bar */
@@ -112,6 +118,7 @@ export function DataTableFilters({
   filters = EMPTY_FILTERS,
   dateRange,
   isLoading = false,
+  disabled = false,
   onClearAll,
   children,
   className,
@@ -121,6 +128,14 @@ export function DataTableFilters({
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({});
+  // `DatePickerWithRange` reads `defaultDate` only via its useState initializer
+  // (true `default*` semantics), so calling `dateRange.onChange(undefined)`
+  // from `handleClearAll` only updates the parent state — the picker's own
+  // local `startDate`/`endDate` survive, and the trigger still shows the old
+  // range. Bumping this key forces a remount so the initializer re-reads the
+  // now-undefined `defaultDate` and the trigger paints empty again. Cheaper
+  // than making the picker fully controlled across every caller.
+  const [dateResetKey, setDateResetKey] = useState(0);
 
   const totalActiveFilters = filters.reduce(
     (acc, filter) => acc + filter.selectedValues.length,
@@ -151,6 +166,9 @@ export function DataTableFilters({
     filters.forEach((filter) => filter.onChange([]));
     if (dateRange?.onChange) {
       dateRange.onChange(undefined);
+      // Remount the date picker so its uncontrolled internal state clears.
+      // See `dateResetKey`'s declaration for the why.
+      setDateResetKey((n) => n + 1);
     }
     onClearAll?.();
     setIsFilterOpen(false);
@@ -179,7 +197,19 @@ export function DataTableFilters({
             />
           )}
 
-          {filters.length > 0 && (
+          {filters.length > 0 && disabled && (
+            // Empty table, no active filters — render a plain disabled
+            // FilterButton instead of the Popover so the affordance can't be
+            // opened over a guaranteed-empty result set. A disabled button on
+            // the Popover trigger isn't sufficient: the trigger's wrapper div
+            // still toggles the popover.
+            <FilterButton
+              hasActiveFilters={false}
+              isLoading={isLoading}
+              disabled
+            />
+          )}
+          {filters.length > 0 && !disabled && (
             <Popover
               open={isFilterOpen}
               onOpenChange={setIsFilterOpen}
@@ -345,9 +375,13 @@ export function DataTableFilters({
             }
           >
             <DatePickerWithRange
+              key={dateResetKey}
               defaultDate={{ from: dateRange.from, to: dateRange.to }}
               onChange={dateRange.onChange}
               presets={dateRange.presets}
+              // Mirror the filter button + search: empty table + no active
+              // filters => nothing to filter by date against either.
+              disabled={disabled}
             />
           </SuspenseBoundary>
         )}

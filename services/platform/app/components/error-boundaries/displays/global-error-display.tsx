@@ -1,102 +1,71 @@
 'use client';
 
 import * as Sentry from '@sentry/tanstackstart-react';
+import { Button } from '@tale/ui/button';
 import { useRouter } from '@tanstack/react-router';
+import { AlertTriangle, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { useEffect, useState } from 'react';
+
+import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 interface GlobalErrorDisplayProps {
   error: Error;
   reset?: () => void;
 }
 
+// Hardcoded English copy used only when `useT` / the i18n bundle isn't
+// available. The error boundary is also rendered very early in the tree
+// (above the i18n provider in some misconfigurations), so we still need a
+// resilient default — the message file's `common.errors.*` keys win when
+// they load.
 const FALLBACK_TEXT = {
   somethingWentWrong: 'Something went wrong',
-  errorLoadingPage: 'An error occurred while loading this page.',
+  errorLoadingPage:
+    'An error occurred while loading this page. You can try again or navigate to another section.',
   tryAgain: 'Try again',
   persistsProblem: 'If this problem persists, please',
   contactSupport: 'contact support',
-  showError: 'Show error',
-  hideError: 'Hide error',
+  showDetails: 'Show details',
+  hideDetails: 'Hide details',
 };
 
-function useIsDarkMode() {
-  const [isDark, setIsDark] = useState(false);
-
-  useEffect(() => {
-    const checkDarkMode = () => {
-      setIsDark(document.documentElement.classList.contains('dark'));
+function useFallbackTranslator() {
+  // `useT` throws if the i18n provider isn't mounted (the error boundary
+  // can render above it). Catch and degrade to the hardcoded copy so the
+  // page still has something to show.
+  try {
+    const { t } = useT('common');
+    return (key: keyof typeof FALLBACK_TEXT): string => {
+      switch (key) {
+        case 'somethingWentWrong':
+          return t('errors.somethingWentWrong');
+        case 'errorLoadingPage':
+          return t('errors.errorLoadingPage');
+        case 'tryAgain':
+          return t('errors.tryAgain');
+        case 'persistsProblem':
+          return t('errors.persistsProblem');
+        case 'contactSupport':
+          return t('errors.contactSupport');
+        // No translation key for the show/hide toggle yet — fall through.
+        default:
+          return FALLBACK_TEXT[key];
+      }
     };
-
-    checkDarkMode();
-
-    const observer = new MutationObserver(checkDarkMode);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    });
-
-    return () => observer.disconnect();
-  }, []);
-
-  return isDark;
-}
-
-function ErrorDetails({
-  error,
-  show,
-  isDark,
-}: {
-  error: Error;
-  show: boolean;
-  isDark: boolean;
-}) {
-  if (!show) return null;
-
-  const errorString = error.message || String(error);
-  const stack = error.stack;
-
-  return (
-    <div
-      style={{
-        marginTop: '1rem',
-        padding: '0.75rem',
-        backgroundColor: isDark ? '#2d1f1f' : '#fef2f2',
-        border: `1px solid ${isDark ? '#5c2c2c' : '#fecaca'}`,
-        borderRadius: '0.375rem',
-        textAlign: 'left',
-        maxHeight: '200px',
-        overflow: 'auto',
-      }}
-    >
-      <pre
-        style={{
-          margin: 0,
-          fontSize: '0.7rem',
-          color: isDark ? '#f87171' : '#dc2626',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          fontFamily: 'monospace',
-        }}
-      >
-        <code>{stack || errorString}</code>
-      </pre>
-    </div>
-  );
+  } catch {
+    return (key: keyof typeof FALLBACK_TEXT) => FALLBACK_TEXT[key];
+  }
 }
 
 export function GlobalErrorDisplay({ error, reset }: GlobalErrorDisplayProps) {
   const router = useRouter();
   const [showError, setShowError] = useState(false);
-  const isDarkMode = useIsDarkMode();
-
-  const textColor = isDarkMode ? '#f3f4f6' : '#111827';
-  const mutedColor = isDarkMode ? '#9ca3af' : '#6b7280';
+  const t = useFallbackTranslator();
 
   useEffect(() => {
     Sentry.captureException(error, {
-      tags: {
-        errorBoundary: 'global',
-      },
+      tags: { errorBoundary: 'global' },
     });
   }, [error]);
 
@@ -108,103 +77,80 @@ export function GlobalErrorDisplay({ error, reset }: GlobalErrorDisplayProps) {
     }
   };
 
-  const toggleButtonStyle = {
-    padding: '0.5rem 1rem',
-    backgroundColor: isDarkMode ? '#374151' : '#e5e7eb',
-    color: isDarkMode ? '#d1d5db' : '#374151',
-    borderRadius: '0.375rem',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: '0.875rem',
-    fontWeight: 500,
-  };
-
-  const primaryButtonStyle = {
-    padding: '0.5rem 1rem',
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    borderRadius: '0.375rem',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: '0.875rem',
-    fontWeight: 500,
-  };
+  const errorMessage = error.message || String(error);
+  const errorStack = error.stack;
 
   return (
     <div
-      style={{
-        minHeight: '80vh',
-        display: 'flex',
-        flexDirection: 'column',
-        flex: 1,
-      }}
+      role="alert"
+      aria-live="assertive"
+      className={cn(
+        'flex min-h-[80vh] flex-1 flex-col items-center justify-center px-6',
+        'pt-(--safe-top) pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)',
+      )}
     >
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          justifyContent: 'center',
-          padding: '4rem 2rem',
-        }}
-      >
-        <div style={{ maxWidth: '28rem', textAlign: 'center' }}>
-          <h1
-            style={{
-              fontSize: '1.25rem',
-              fontWeight: 600,
-              marginBottom: '0.5rem',
-              color: textColor,
-            }}
-          >
-            {FALLBACK_TEXT.somethingWentWrong}
-          </h1>
-          <p
-            style={{
-              color: mutedColor,
-              fontSize: '0.875rem',
-              marginBottom: '1.5rem',
-            }}
-          >
-            {FALLBACK_TEXT.errorLoadingPage}
-          </p>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-            }}
-          >
-            <button onClick={handleReset} style={primaryButtonStyle}>
-              {FALLBACK_TEXT.tryAgain}
-            </button>
-            <button
-              onClick={() => setShowError(!showError)}
-              style={toggleButtonStyle}
-            >
-              {showError ? FALLBACK_TEXT.hideError : FALLBACK_TEXT.showError}
-            </button>
-          </div>
-          <p
-            style={{
-              color: mutedColor,
-              fontSize: '0.75rem',
-              marginTop: '1rem',
-            }}
-          >
-            {FALLBACK_TEXT.persistsProblem}{' '}
-            <a
-              href="https://tale.dev/contact"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: '#3b82f6', textDecoration: 'underline' }}
-            >
-              {FALLBACK_TEXT.contactSupport}
-            </a>
-            .
-          </p>
-          <ErrorDetails error={error} show={showError} isDark={isDarkMode} />
+      <div className="mx-auto flex w-full max-w-md flex-col items-center text-center">
+        {/* The visual: muted icon in a soft circle — calmer than the offline
+            overlay's pulsing rings because this isn't a "we're trying"
+            state, it's a definitive failure. Static signals static. */}
+        <div
+          aria-hidden="true"
+          className="bg-muted text-muted-foreground mb-6 flex size-16 items-center justify-center rounded-full"
+        >
+          <AlertTriangle className="size-7" />
         </div>
+        <h1 className="text-foreground text-2xl leading-tight font-semibold tracking-tight">
+          {t('somethingWentWrong')}
+        </h1>
+        <p className="text-muted-foreground mt-3 text-base leading-relaxed">
+          {t('errorLoadingPage')}
+        </p>
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <Button
+            type="button"
+            variant="primary"
+            icon={RotateCcw}
+            className="min-h-11 px-5"
+            onClick={handleReset}
+          >
+            {t('tryAgain')}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            icon={showError ? ChevronUp : ChevronDown}
+            iconClassName="size-3.5"
+            onClick={() => setShowError((v) => !v)}
+            aria-expanded={showError}
+          >
+            {showError ? t('hideDetails') : t('showDetails')}
+          </Button>
+        </div>
+        {showError && (
+          <div
+            // Theme-tokened error surface — matches the destructive palette
+            // without resorting to hardcoded reds, so the panel stays in
+            // sync with light/dark + future palette changes.
+            className="border-destructive/30 bg-destructive/5 mt-4 max-h-64 w-full overflow-auto rounded-lg border p-3 text-left"
+          >
+            <pre className="text-destructive font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap">
+              <code>{errorStack || errorMessage}</code>
+            </pre>
+          </div>
+        )}
+        <p className="text-muted-foreground mt-6 text-xs">
+          {t('persistsProblem')}{' '}
+          <a
+            href="https://tale.dev/contact"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline underline-offset-2 hover:no-underline"
+          >
+            {t('contactSupport')}
+          </a>
+          .
+        </p>
       </div>
     </div>
   );

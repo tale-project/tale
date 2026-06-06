@@ -840,6 +840,7 @@
     "agentSelector": {
       "label": "Sélectionner un agent",
       "auto": "Auto",
+      "autoDescription": "Tale choisit le meilleur agent pour chaque message en fonction de ta demande.",
       "viewDetails": "Voir les détails de l'agent",
       "noAgents": "Aucun agent",
       "defaultAgent": "Assistant",
@@ -852,6 +853,7 @@
       "searchPlaceholder": "Rechercher des modèles...",
       "noResults": "Aucun modèle trouvé",
       "auto": "Auto",
+      "autoDescription": "Tale choisit le meilleur modèle pour chaque message — équilibre qualité, vitesse et coût.",
       "noModelsAvailable": "Aucun modèle disponible",
       "noModelsAdminHint": "Aucun fournisseur d’IA n’est encore configuré. Clique pour ouvrir Paramètres → Fournisseurs d’IA et en ajouter un pour commencer à discuter.",
       "noModelsAgentHint": "Cet assistant n’a aucun modèle utilisable. Vérifie que ses modèles autorisés correspondent à un fournisseur configuré — clique pour ouvrir les fournisseurs d’IA.",
@@ -1549,10 +1551,14 @@
     "styleFriendly": "Amical"
   },
   "connectivity": {
-    "reconnectingTitle": "Reconnexion…",
-    "reconnectingDescription": "La connexion à Tale est interrompue. Patiente, on s'en occupe.",
+    "tabTitle": "Reconnexion",
+    "deviceTitle": "Tu es hors ligne",
+    "deviceDescription": "Vérifie ta connexion Internet. Tale se reconnectera automatiquement dès que tu seras en ligne.",
+    "backendTitle": "Impossible de joindre Tale",
+    "backendDescription": "Le serveur Tale ne répond pas. On essaie de se reconnecter — patiente un instant.",
     "retry": "Réessayer",
-    "statusReconnecting": "Reconnexion"
+    "getApp": "Obtenir l'application",
+    "reachingServer": "Connexion au serveur en cours"
   },
   "conversations": {
     "title": "Conversations",
@@ -4274,7 +4280,7 @@
       "columns": {
         "name": "Nom",
         "members": "Membres",
-        "created": "Créé"
+        "created": "Ajouté le"
       },
       "editTeam": "Modifier l'équipe",
       "deleteTeam": "Supprimer l'équipe",
@@ -5093,7 +5099,7 @@
       "columns": {
         "name": "Nom",
         "key": "Clé",
-        "created": "Créée",
+        "created": "Ajouté le",
         "lastUsed": "Dernière utilisation"
       },
       "form": {
@@ -5734,7 +5740,7 @@
       "teams": "Équipes",
       "uploadedBy": "Téléversé par",
       "actions": "Actions",
-      "created": "Créé",
+      "created": "Ajouté le",
       "description": "Description",
       "email": "Courriel",
       "product": "Produit",

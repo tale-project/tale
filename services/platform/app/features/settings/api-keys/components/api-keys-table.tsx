@@ -2,12 +2,16 @@
 
 import { buttonVariants } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
+import type { RowSelectionState } from '@tanstack/react-table';
 import { BookOpen, Key } from 'lucide-react';
+import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
+import { useRevokeApiKey } from '../hooks/use-api-keys';
 import { useApiKeysTableConfig } from '../hooks/use-api-keys-table-config';
 import type { ApiKey } from '../types';
 import { ApiKeysActionMenu } from './api-keys-action-menu';
@@ -42,6 +46,22 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
 
   const { t: tSettings } = useT('settings');
 
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const revokeApiKey = useRevokeApiKey(organizationId);
+
+  const handleClearSelection = useCallback(() => {
+    setRowSelection({});
+  }, []);
+
+  const handleDeleteItem = useCallback(
+    async (id: string) => {
+      // `useRevokeApiKey` takes the keyId directly and throws on auth-client
+      // failure; the bar surfaces a destructive toast for the whole batch.
+      await revokeApiKey.mutateAsync(id);
+    },
+    [revokeApiKey],
+  );
+
   const list = useListPage<ApiKey>({
     dataSource: { type: 'query', data: apiKeys },
     pageSize,
@@ -57,6 +77,9 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
       <DataTable
         columns={columns}
         stickyLayout={stickyLayout}
+        enableRowSelection
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
         actionMenu={<ApiKeysActionMenu organizationId={organizationId} />}
         emptyState={{
           icon: Key,
@@ -68,6 +91,14 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
             </>
           ),
         }}
+        footer={
+          <BulkDeleteBar
+            rowSelection={rowSelection}
+            onClearSelection={handleClearSelection}
+            onDeleteItem={handleDeleteItem}
+            onDeleteComplete={handleClearSelection}
+          />
+        }
         {...list.tableProps}
       />
       {hasKeys && <ApiDocsLink />}

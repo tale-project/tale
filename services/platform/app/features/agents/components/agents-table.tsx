@@ -2,18 +2,21 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import type { Row } from '@tanstack/react-table';
+import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Bot } from 'lucide-react';
 import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
+import { PROTECTED_AGENT_NAMES } from '@/lib/shared/constants/agents';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 
+import { useDeleteAgent } from '../hooks/mutations';
 import { useListAgents } from '../hooks/queries';
 import { useAgentsTableConfig } from '../hooks/use-agents-table-config';
 import { AgentsActionMenu } from './agents-action-menu';
@@ -67,9 +70,25 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
     return validAgents;
   }, [rawAgents, locale]);
 
+  const { mutateAsync: deleteAgent } = useDeleteAgent();
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
   const invalidateAgents = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['config', 'agents'] });
   }, [queryClient]);
+
+  const handleClearSelection = useCallback(() => {
+    setRowSelection({});
+  }, []);
+
+  const handleBulkDeleteItem = useCallback(
+    // Per-row delete reuses the same mutation as the single-row dialog so
+    // server-side handling stays consistent. The bar surfaces one batch toast.
+    async (agentName: string) => {
+      await deleteAgent({ organizationId, agentName });
+    },
+    [deleteAgent, organizationId],
+  );
 
   // Briefly highlight a freshly-duplicated row so it reads as a new, separate
   // agent in the list rather than something tied to the menu it came from
@@ -155,6 +174,18 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
       {...list.tableProps}
       columns={columns}
       stickyLayout={stickyLayout}
+      // Built-in agents are not deletable, so they aren't selectable either —
+      // the header checkbox + bulk bar only ever target user-created agents.
+      enableRowSelection={(row) =>
+        !(PROTECTED_AGENT_NAMES as readonly string[]).includes(
+          row.original.name,
+        )
+      }
+      rowSelection={rowSelection}
+      onRowSelectionChange={setRowSelection}
+      // Agents are keyed by `name`; pin the row id so the bulk handler receives
+      // the same string the delete mutation expects.
+      getRowId={(row) => row.name}
       rowClassName={(row) =>
         row.original.name === highlightedName
           ? 'bg-primary/10 transition-colors duration-500 motion-reduce:transition-none'
@@ -168,6 +199,17 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
         title: tEmpty('agents.title'),
         description: tEmpty('agents.description'),
       }}
+      footer={
+        <BulkDeleteBar
+          rowSelection={rowSelection}
+          onClearSelection={handleClearSelection}
+          onDeleteItem={handleBulkDeleteItem}
+          onDeleteComplete={() => {
+            handleClearSelection();
+            invalidateAgents();
+          }}
+        />
+      }
     />
   );
 }
