@@ -862,7 +862,7 @@
       "recommended": "Recommandé",
       "viewProvider": "Voir les paramètres du fournisseur",
       "viewInfo": "Détails du modèle",
-      "noApiKey": "Aucune clé API configurée pour le fournisseur de ce modèle — ajoutes-en une dans Paramètres → API.",
+      "noApiKey": "Aucune clé API configurée pour le fournisseur de ce modèle — ajoutes-en une dans Paramètres → Fournisseurs d’IA.",
       "info": {
         "provider": "Fournisseur",
         "type": "Type"

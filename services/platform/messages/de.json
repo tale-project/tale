@@ -861,7 +861,7 @@
       "recommended": "Empfohlen",
       "viewProvider": "Anbietereinstellungen anzeigen",
       "viewInfo": "Modelldetails",
-      "noApiKey": "Für den Anbieter dieses Modells ist kein API-Schlüssel konfiguriert — füge in Einstellungen → API einen hinzu.",
+      "noApiKey": "Für den Anbieter dieses Modells ist kein API-Schlüssel konfiguriert — füge in Einstellungen → KI-Anbieter einen hinzu.",
       "info": {
         "provider": "Anbieter",
         "type": "Typ"
