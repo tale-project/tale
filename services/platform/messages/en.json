@@ -5983,7 +5983,6 @@
       "source": "Source",
       "updated": "Updated",
       "modified": "Modified",
-      "uploadedAt": "Uploaded at",
       "member": "Member",
       "role": "Role",
       "joined": "Joined",
@@ -6008,7 +6007,6 @@
       "stock": "Stock",
       "price": "Price",
       "category": "Category",
-      "title": "Title",
       "website": "Website"
     },
     "cells": {

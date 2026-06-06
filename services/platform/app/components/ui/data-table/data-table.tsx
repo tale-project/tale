@@ -43,7 +43,10 @@ import type { DateRange } from 'react-day-picker';
 
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
-import { SELECT_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
+import {
+  ACTIONS_COLUMN_SIZE,
+  SELECT_COLUMN_SIZE,
+} from '@/app/components/ui/data-table/column-builders';
 import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
 import { useInfiniteScroll } from '@/app/hooks/use-infinite-scroll';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -511,7 +514,12 @@ export function DataTable<TData, TValue = unknown>({
   ): ReactNode => (
     <div
       style={{
-        width: size !== undefined && size !== 150 ? size : SELECT_COLUMN_SIZE,
+        width:
+          size !== undefined && size !== 150
+            ? size
+            : id === 'actions'
+              ? ACTIONS_COLUMN_SIZE
+              : SELECT_COLUMN_SIZE,
       }}
       className={cn(
         'flex h-full items-center',

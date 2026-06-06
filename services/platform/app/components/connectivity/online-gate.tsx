@@ -47,13 +47,13 @@ export function OnlineGate({ children }: OnlineGateProps) {
 function useOfflineReason(): OfflineReason | null {
   const connection = useConvexConnectionState();
   const [isDeviceOffline, setIsDeviceOffline] = useState(
-    () => typeof navigator !== 'undefined' && navigator.onLine === false,
+    () => typeof navigator !== 'undefined' && !navigator.onLine,
   );
   const [isWsStale, setIsWsStale] = useState(false);
   const graceTimer = useRef<number | null>(null);
 
   useEffect(() => {
-    const sync = () => setIsDeviceOffline(navigator.onLine === false);
+    const sync = () => setIsDeviceOffline(!navigator.onLine);
     sync();
     window.addEventListener('online', sync);
     window.addEventListener('offline', sync);

@@ -8,7 +8,6 @@ import { useCallback, useState } from 'react';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
-import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
@@ -67,14 +66,12 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
         organizationId,
       });
       if (result.error) {
-        toast({
-          title: tSettings('teams.teamDeleteFailed'),
-          variant: 'destructive',
-        });
+        // Throw so `BulkDeleteBar` surfaces a single batch-failure toast
+        // rather than one toast per failed row.
         throw new Error(result.error.message || 'Failed to delete team');
       }
     },
-    [organizationId, tSettings],
+    [organizationId],
   );
 
   const { columns, searchPlaceholder, stickyLayout, pageSize } =

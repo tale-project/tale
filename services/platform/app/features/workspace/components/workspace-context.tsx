@@ -86,13 +86,13 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     threadId ? { threadId } : 'skip',
   );
 
-  const [localState, setLocalState] = useState<WorkspaceState>(INITIAL_STATE);
+  const [localState, setLocalState] = useState(INITIAL_STATE);
   const { mutate: setCanvasState } = useSetThreadCanvasState();
 
   // Reset the transient new-chat state on every thread switch so navigating
   // away from a closed canvas and back to another new-chat surface doesn't
   // inherit the previous tab's open/file state.
-  const prevThreadIdRef = useRef<string | undefined>(threadId);
+  const prevThreadIdRef = useRef(threadId);
   useEffect(() => {
     if (prevThreadIdRef.current !== threadId) {
       setLocalState(INITIAL_STATE);
@@ -100,14 +100,20 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }
   }, [threadId]);
 
-  const state: WorkspaceState = threadId
-    ? threadMeta?.canvasState
-      ? {
-          isOpen: threadMeta.canvasState.isOpen,
-          activeFilePath: threadMeta.canvasState.activeFilePath,
-        }
-      : INITIAL_STATE
-    : localState;
+  // Memoize so `value` (below) doesn't re-create every render — a fresh object
+  // literal here would defeat the `useMemo` that depends on it.
+  const state = useMemo<WorkspaceState>(
+    () =>
+      threadId
+        ? threadMeta?.canvasState
+          ? {
+              isOpen: threadMeta.canvasState.isOpen,
+              activeFilePath: threadMeta.canvasState.activeFilePath,
+            }
+          : INITIAL_STATE
+        : localState,
+    [threadId, threadMeta?.canvasState, localState],
+  );
 
   const openWorkspace = useCallback(
     (path?: string) => {

@@ -91,7 +91,7 @@ export function NotificationBell({
               side="right"
               sideOffset={8}
               collisionPadding={8}
-              className="bg-foreground text-background animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
+              className="bg-foreground text-background motion-safe:animate-in motion-safe:fade-in-0 data-[state=closed]:motion-safe:animate-out data-[state=closed]:motion-safe:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
             >
               {tNav('notifications')}
             </TooltipPrimitive.Content>

@@ -5722,7 +5722,6 @@
       "source": "Quelle",
       "updated": "Aktualisiert",
       "modified": "Geändert",
-      "uploadedAt": "Hochgeladen am",
       "member": "Mitglied",
       "role": "Rolle",
       "joined": "Beigetreten",
@@ -5747,7 +5746,6 @@
       "stock": "Bestand",
       "price": "Preis",
       "category": "Kategorie",
-      "title": "Titel",
       "website": "Website"
     },
     "cells": {

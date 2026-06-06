@@ -21,6 +21,7 @@ import {
   useChatLayout,
 } from '@/app/features/chat/context/chat-layout-context';
 import { StreamingToolProvider } from '@/app/features/chat/context/streaming-tool-context';
+import { THREADS_PAGE_SIZE } from '@/app/features/chat/hooks/queries';
 import { CanvasPane } from '@/app/features/workspace/components/canvas-pane';
 import {
   WorkspaceProvider,
@@ -47,10 +48,6 @@ const PlanPane = lazyComponent(() =>
 const chatSearchSchema = z.object({
   projectId: z.string().optional(),
 });
-
-// Matches THREADS_PAGE_SIZE in features/chat/hooks/queries.ts — keep in sync
-// so the loader primes the same page the sidebar's `useThreads` will read.
-const THREADS_PAGE_SIZE = 20;
 
 export const Route = createFileRoute('/dashboard/$id/chat')({
   head: () => ({

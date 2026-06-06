@@ -177,9 +177,7 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
       // Built-in agents are not deletable, so they aren't selectable either —
       // the header checkbox + bulk bar only ever target user-created agents.
       enableRowSelection={(row) =>
-        !(PROTECTED_AGENT_NAMES as readonly string[]).includes(
-          row.original.name,
-        )
+        !PROTECTED_AGENT_NAMES.some((name) => name === row.original.name)
       }
       rowSelection={rowSelection}
       onRowSelectionChange={setRowSelection}

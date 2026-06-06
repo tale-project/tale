@@ -35,6 +35,7 @@ function useFallbackTranslator() {
   // can render above it). Catch and degrade to the hardcoded copy so the
   // page still has something to show.
   try {
+    // oxlint-disable-next-line react-hooks/rules-of-hooks -- `useT` throws when this boundary renders above the i18n provider; the catch degrades to hardcoded fallback copy. A conditional hook is the only recovery here.
     const { t } = useT('common');
     return (key: keyof typeof FALLBACK_TEXT): string => {
       switch (key) {
@@ -54,6 +55,12 @@ function useFallbackTranslator() {
       }
     };
   } catch {
+    // i18n provider isn't mounted above this boundary — expected when the
+    // boundary catches an error before the provider renders. Degrade to the
+    // hardcoded copy; warn so an unexpected occurrence is still visible.
+    console.warn(
+      '[GlobalErrorDisplay] i18n provider unavailable, using fallback text',
+    );
     return (key: keyof typeof FALLBACK_TEXT) => FALLBACK_TEXT[key];
   }
 }

@@ -66,6 +66,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       // per-project confirm phrase, which doesn't translate to a multi-row
       // gesture, so cascade stays single-row-only via the row dialog.
       await deleteProject({
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RowSelectionState keys are the row `_id`s by construction (see getRowId); Convex Ids carry no runtime-checkable format.
         projectId: id as Id<'projects'>,
         mode: 'detach',
       });

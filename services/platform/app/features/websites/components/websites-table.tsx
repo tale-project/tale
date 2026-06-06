@@ -157,6 +157,7 @@ export function WebsitesTable({
 
   const handleDeleteItem = useCallback(
     async (id: string) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RowSelectionState keys are the row `_id`s by construction (see getRowId); Convex Ids carry no runtime-checkable format.
       await deleteWebsite({ websiteId: id as Website['_id'] });
     },
     [deleteWebsite],

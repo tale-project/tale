@@ -477,6 +477,7 @@ export const ModelSelector = memo(function ModelSelector({
       side="top"
       sideOffset={8}
       contentClassName="w-[22rem]"
+      descriptionMode="tooltip"
       tooltip={t('modelSelector.label')}
       tooltipSide="top"
       searchPlaceholder={t('modelSelector.searchPlaceholder')}

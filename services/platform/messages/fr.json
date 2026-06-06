@@ -5723,7 +5723,6 @@
       "source": "Source",
       "updated": "Mis à jour",
       "modified": "Modifié",
-      "uploadedAt": "Téléversé le",
       "member": "Membre",
       "role": "Rôle",
       "joined": "Inscrit",
@@ -5748,7 +5747,6 @@
       "stock": "Stock",
       "price": "Prix",
       "category": "Catégorie",
-      "title": "Titre",
       "website": "Site web"
     },
     "cells": {

@@ -14,7 +14,6 @@ import {
 } from '@/app/components/ui/data-table/column-builders';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
-import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
 
@@ -74,17 +73,11 @@ export function MemberTable({
       // members table lives in the better-auth component, not Convex's
       // user table — so no `Id<'members'>` schema type). The row id we
       // pull from RowSelectionState matches `Member._id` directly.
-      try {
-        await removeMember.mutateAsync({ memberId: id });
-      } catch (error) {
-        toast({
-          title: tSettings('organization.memberRemoveFailed'),
-          variant: 'destructive',
-        });
-        throw error;
-      }
+      // Let failures propagate so `BulkDeleteBar` surfaces a single batch
+      // toast instead of one per failed row.
+      await removeMember.mutateAsync({ memberId: id });
     },
-    [removeMember, tSettings],
+    [removeMember],
   );
 
   const columns = useMemo<ColumnDef<Member>[]>(
