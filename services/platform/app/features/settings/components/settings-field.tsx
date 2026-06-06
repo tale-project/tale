@@ -77,9 +77,7 @@ export const SettingsField = forwardRef<HTMLDivElement, SettingsFieldProps>(
           </p>
         )}
         {description && !error && (
-          <Description id={descId} className="text-xs">
-            {description}
-          </Description>
+          <Description id={descId}>{description}</Description>
         )}
       </div>
     );

@@ -5,6 +5,14 @@ import { fireEvent, render, waitFor } from '@/test/utils/render';
 
 import { OrganizationSettingsView } from './organization-settings';
 
+// The view now embeds the Members section, which subscribes to Convex via
+// `useMembers`. This suite renders the view in isolation (no Convex provider)
+// to exercise the locale-select dirty guard, so stub the members table out —
+// it has its own coverage.
+vi.mock('./members-settings', () => ({
+  MembersSettings: () => null,
+}));
+
 interface Form {
   name: string;
   defaultLocale: string;
@@ -26,6 +34,8 @@ function Harness() {
     <OrganizationSettingsView
       controller={editor}
       organization={{ _id: 'org1', name: 'Acme' }}
+      organizationId="org1"
+      memberContext={null}
       onSave={save}
     />
   );

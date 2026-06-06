@@ -5,7 +5,6 @@ import { useLocation, useNavigate } from '@tanstack/react-router';
 import {
   Bot,
   BrainIcon,
-  Building2,
   Folder,
   Inbox,
   MessageCircle,
@@ -20,7 +19,6 @@ import { useBrandingContext } from '@/app/components/branding/branding-provider'
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDisplayMode } from '@/app/hooks/use-display-mode';
-import { isPersonalSettingsPath } from '@/app/lib/personal-settings-path';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -129,24 +127,11 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         activePrefix: `/dashboard/${organizationId}/automations`,
       },
       {
-        key: 'user-settings',
+        key: 'settings',
         label: tNav('userSettings'),
         icon: SettingsIcon,
-        to: `/dashboard/${organizationId}/settings/personal`,
-        activePrefix: `/dashboard/${organizationId}/settings/personal`,
-        isActive: (p) => isPersonalSettingsPath(p, organizationId),
-      },
-      {
-        key: 'org-settings',
-        label: tNav('orgSettings'),
-        icon: Building2,
         to: `/dashboard/${organizationId}/settings`,
         activePrefix: `/dashboard/${organizationId}/settings`,
-        isActive: (p) => {
-          const base = `/dashboard/${organizationId}/settings`;
-          if (p !== base && !p.startsWith(`${base}/`)) return false;
-          return !isPersonalSettingsPath(p, organizationId);
-        },
       },
     ],
     [organizationId, tNav],

@@ -44,11 +44,7 @@ export const SettingsRow = forwardRef<HTMLDivElement, SettingsRowProps>(
           >
             {label}
           </span>
-          {description && (
-            <Description id={descId} className="text-xs">
-              {description}
-            </Description>
-          )}
+          {description && <Description id={descId}>{description}</Description>}
         </div>
         <div className="shrink-0">{children}</div>
       </div>

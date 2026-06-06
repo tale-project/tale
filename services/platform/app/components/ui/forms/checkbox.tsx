@@ -97,9 +97,7 @@ const CheckboxBase = React.forwardRef<
                 {label}
               </Label>
             )}
-            <Description id={descriptionId} className="text-xs">
-              {description}
-            </Description>
+            <Description id={descriptionId}>{description}</Description>
           </div>
         </div>
       );

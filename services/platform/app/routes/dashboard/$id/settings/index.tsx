@@ -59,6 +59,6 @@ function SettingsIndex() {
   if (!isMobile) return null;
 
   return (
-    <SettingsSectionList groups={groups} ariaLabel={tNav('orgSettings')} />
+    <SettingsSectionList groups={groups} ariaLabel={tNav('userSettings')} />
   );
 }

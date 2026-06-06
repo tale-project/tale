@@ -75,9 +75,7 @@ export function SettingsSectionList({
                         {item.label}
                       </span>
                       {item.description && (
-                        <Description className="text-xs">
-                          {item.description}
-                        </Description>
+                        <Description>{item.description}</Description>
                       )}
                     </div>
                     <ChevronRight

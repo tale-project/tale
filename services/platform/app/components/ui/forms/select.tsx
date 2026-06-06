@@ -191,7 +191,7 @@ const SelectBase = forwardRef<
                   key={option.value}
                   value={option.value}
                   disabled={option.disabled}
-                  className="focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
+                  className="focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default items-center rounded-sm py-1.5 pr-8 pl-2 text-base outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
                 >
                   <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
                     <SelectPrimitive.ItemIndicator>
@@ -236,9 +236,7 @@ const SelectBase = forwardRef<
         )}
         {trigger}
         {description && (
-          <Description id={descriptionId} className="text-xs">
-            {description}
-          </Description>
+          <Description id={descriptionId}>{description}</Description>
         )}
       </div>
     );

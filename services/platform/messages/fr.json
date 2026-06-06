@@ -861,7 +861,12 @@
       "noModelsRestricted": "Aucun modèle ne t’est disponible ici. Les restrictions de modèles de ce projet excluent tous les modèles auxquels tu as accès — contacte ton administrateur pour demander l’accès.",
       "recommended": "Recommandé",
       "viewProvider": "Voir les paramètres du fournisseur",
+      "viewInfo": "Détails du modèle",
       "noApiKey": "Aucune clé API configurée pour le fournisseur de ce modèle — ajoutes-en une dans Paramètres → API.",
+      "info": {
+        "provider": "Fournisseur",
+        "type": "Type"
+      },
       "tags": {
         "chat": "Chat",
         "embedding": "Embedding",
@@ -4178,10 +4183,10 @@
         "description": "Comment Tale s'adapte à toi — mémoire, instructions et voix."
       },
       "organization": {
-        "description": "Nom de l'espace de travail, langue et identifiants."
+        "description": "Nom de l'espace de travail, membres et identifiants."
       },
-      "people": {
-        "description": "Membres, rôles et équipes."
+      "teams": {
+        "description": "Équipes et leurs membres."
       },
       "branding": {
         "description": "Logo, couleurs et nom affiché à tes utilisateurs."
@@ -4232,6 +4237,8 @@
       "organizationIdDescription": "Utilise cet ID dans les requêtes API et les intégrations.",
       "copyOrganizationId": "Copier l'ID de l'organisation",
       "membersTitle": "Membres de l'organisation",
+      "membersSectionTitle": "Membres",
+      "membersDescription": "Personnes ayant accès à cette organisation.",
       "membersEntityLabel": "membres",
       "defaultLocale": "Langue par défaut (pour les agents)",
       "searchMember": "Rechercher un membre",
@@ -4929,7 +4936,7 @@
       "baseUrlPlaceholder": "ex., https://api.openai.com/v1",
       "secretsEnv": "Variable d'environnement de la clé API",
       "secretsEnvPlaceholder": "ex., TALE_PROVIDER_KEY_OPENROUTER",
-      "secretsEnvHelp": "Lit la clé API depuis cette variable d'environnement au lieu du fichier de secrets. Le nom doit commencer par TALE_PROVIDER_KEY_. Modifier la valeur nécessite un redémarrage de la plateforme.",
+      "secretsEnvHelp": "Lit la clé API depuis cette variable d'environnement au lieu du fichier de secrets. Modifier la valeur nécessite un redémarrage de la plateforme.",
       "secretsEnvPatternError": "Doit commencer par TALE_PROVIDER_KEY_ suivi de lettres, chiffres ou underscores (40 caractères maximum).",
       "modelSecretsEnv": "Variable d'environnement de la clé API (spécifique)",
       "modelSecretsEnvPlaceholder": "Laisser vide pour utiliser la variable du fournisseur",

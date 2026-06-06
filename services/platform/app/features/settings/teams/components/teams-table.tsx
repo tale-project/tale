@@ -1,6 +1,5 @@
 'use client';
 
-import { PageSection } from '@tale/ui/page-section';
 import type { RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -88,11 +87,9 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
   const teamIds = teams?.map((t) => t.id) ?? [];
 
   return (
-    <PageSection
-      title={tSettings('teams.title')}
-      description={tSettings('teams.sectionDescription')}
-      gap={3}
-    >
+    // No section header here — the Teams settings page already renders the
+    // "Teams" title + description, so the table is just the bare content.
+    <div className="flex flex-col gap-3">
       {teamIds.length > 0 && <TeamMembersPreloader teamIds={teamIds} />}
 
       <DataTable
@@ -130,6 +127,6 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
           }}
         />
       )}
-    </PageSection>
+    </div>
   );
 }

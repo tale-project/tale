@@ -106,9 +106,7 @@ const SwitchBase = forwardRef<
             )}
             {switchElement}
           </div>
-          <Description id={descriptionId} className="text-xs">
-            {description}
-          </Description>
+          <Description id={descriptionId}>{description}</Description>
         </div>
       );
     }

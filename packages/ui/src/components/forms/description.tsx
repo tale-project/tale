@@ -14,7 +14,7 @@ export const Description = forwardRef<HTMLParagraphElement, DescriptionProps>(
     <p
       ref={ref}
       className={cn(
-        'text-xs md:text-sm leading-relaxed',
+        'text-xs leading-relaxed',
         muted && 'text-muted-foreground',
         className,
       )}

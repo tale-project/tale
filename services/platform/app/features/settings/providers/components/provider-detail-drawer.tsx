@@ -482,11 +482,14 @@ function ApiKeySection({
   const [saving, setSaving] = useState(false);
   // Env-var override name. Seeded from config on open via `openDialog`.
   const [envName, setEnvName] = useState(SECRETS_ENV_PREFIX);
+  // Don't flag the seeded/incomplete prefix as an error until the user edits it.
+  const [envTouched, setEnvTouched] = useState(false);
   const envError = useMemo(() => {
+    if (!envTouched) return false;
     const value = envName.trim();
     if (!value) return false;
     return value.length > 40 || !SECRETS_ENV_REGEX.test(value);
-  }, [envName]);
+  }, [envName, envTouched]);
   const [overwritePrompt, setOverwritePrompt] = useState<{
     kind: 'encrypted_no_key' | 'undecryptable_existing';
     path: string;
@@ -598,6 +601,7 @@ function ApiKeySection({
   // then keep the user's in-dialog edits even if a sibling refetch lands.
   const openDialog = useCallback(() => {
     setEnvName(config.secretsEnv ?? SECRETS_ENV_PREFIX);
+    setEnvTouched(false);
     setApiKey('');
     setDialogOpen(true);
   }, [config.secretsEnv]);
@@ -835,15 +839,16 @@ function ApiKeySection({
           </Text>
           <Input
             placeholder={t('providers.secretsEnvPlaceholder')}
+            description={t('providers.secretsEnvHelp')}
             value={envName}
-            onChange={(e) => setEnvName(e.target.value)}
+            onChange={(e) => {
+              setEnvTouched(true);
+              setEnvName(e.target.value);
+            }}
             errorMessage={
               envError ? t('providers.secretsEnvPatternError') : undefined
             }
           />
-          <Text variant="caption" className="text-muted-foreground -mt-2">
-            {t('providers.secretsEnvHelp')}
-          </Text>
           <HStack gap={2} align="center" wrap>
             <Button
               type="button"

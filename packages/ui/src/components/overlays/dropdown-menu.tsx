@@ -138,7 +138,7 @@ function renderItem(item: DropdownMenuItem, key: number) {
           // for grouped settings dropdowns.
           onSelect={(e) => e.preventDefault()}
           className={cn(
-            'relative flex min-h-11 cursor-default select-none items-center gap-2 rounded-md px-2 py-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+            'relative flex min-h-11 cursor-default select-none items-center gap-2 rounded-md px-2 py-2 text-base outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
             item.className,
           )}
         >

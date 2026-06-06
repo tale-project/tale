@@ -549,9 +549,7 @@ function JsonInputBase({
       )}
 
       {description && (
-        <Description id={descriptionId} className="text-xs">
-          {description}
-        </Description>
+        <Description id={descriptionId}>{description}</Description>
       )}
     </div>
   );

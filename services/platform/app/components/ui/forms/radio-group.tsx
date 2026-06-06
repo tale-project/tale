@@ -67,9 +67,7 @@ export const RadioGroup = forwardRef<
           </Label>
         )}
         {description && (
-          <Description id={descriptionId} className="text-xs">
-            {description}
-          </Description>
+          <Description id={descriptionId}>{description}</Description>
         )}
         <RadioGroupPrimitive.Root
           className={cn(
@@ -155,7 +153,7 @@ const RadioGroupItemBase = forwardRef<
           <span className="text-xs leading-none font-normal md:text-sm">
             {label}
           </span>
-          <Description className="text-xs">{description}</Description>
+          <Description>{description}</Description>
         </div>
       ) : (
         <span className="text-xs leading-none font-normal md:text-sm">
