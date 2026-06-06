@@ -370,7 +370,7 @@ export function DataTableFilters({
             }
             errorFallback={
               <Text as="span" variant="muted">
-                Date filter unavailable
+                {t('dataTable.dateFilterUnavailable')}
               </Text>
             }
           >

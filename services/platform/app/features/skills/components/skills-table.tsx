@@ -125,12 +125,27 @@ export function SkillsTable({
     setRowSelection({});
   }, []);
 
+  // SKILL.md hash observed at list time, keyed by slug — forwarded to the
+  // delete mutation's CAS guard so a concurrently-edited skill isn't deleted
+  // from a stale view (mirrors the single-row delete dialog).
+  const skillHashBySlug = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of skills) {
+      if (s.hash) map.set(s.slug, s.hash);
+    }
+    return map;
+  }, [skills]);
+
   const handleBulkDeleteItem = useCallback(
     // Reuses the single-row delete mutation; the bar batches + toasts.
     async (slug: string) => {
-      await deleteSkill({ organizationId, slug });
+      await deleteSkill({
+        organizationId,
+        slug,
+        expectedHash: skillHashBySlug.get(slug),
+      });
     },
-    [deleteSkill, organizationId],
+    [deleteSkill, organizationId, skillHashBySlug],
   );
 
   const { columns, searchPlaceholder, stickyLayout, pageSize } =

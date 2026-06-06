@@ -16,7 +16,7 @@ import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-ac
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
-import type { Id } from '@/convex/_generated/dataModel';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteProject } from '../hooks/mutations';
@@ -66,8 +66,8 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       // per-project confirm phrase, which doesn't translate to a multi-row
       // gesture, so cascade stays single-row-only via the row dialog.
       await deleteProject({
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RowSelectionState keys are the row `_id`s by construction (see getRowId); Convex Ids carry no runtime-checkable format.
-        projectId: id as Id<'projects'>,
+        // RowSelectionState keys are the row `_id`s by construction (getRowId).
+        projectId: toId<'projects'>(id),
         mode: 'detach',
       });
     },

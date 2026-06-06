@@ -9,6 +9,7 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteWebsite, useSyncWebsiteStatuses } from '../hooks/mutations';
@@ -157,8 +158,8 @@ export function WebsitesTable({
 
   const handleDeleteItem = useCallback(
     async (id: string) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RowSelectionState keys are the row `_id`s by construction (see getRowId); Convex Ids carry no runtime-checkable format.
-      await deleteWebsite({ websiteId: id as Website['_id'] });
+      // RowSelectionState keys are the row `_id`s by construction (getRowId).
+      await deleteWebsite({ websiteId: toId<'websites'>(id) });
     },
     [deleteWebsite],
   );

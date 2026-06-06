@@ -353,10 +353,11 @@ function DatePickerWithRangeBase({
   );
 
   const handleClear = useCallback(() => {
+    if (disabled || isLoading) return;
     setStartDate(null);
     setEndDate(null);
     onChange(undefined);
-  }, [onChange]);
+  }, [disabled, isLoading, onChange]);
 
   const picker = (
     <div
@@ -410,6 +411,7 @@ function DatePickerWithRangeBase({
               variant="ghost"
               size="sm"
               onClick={handleClear}
+              disabled={disabled || isLoading}
               className="relative top-1 ml-auto block h-min px-2 py-1 text-xs"
             >
               {t('actions.reset')}

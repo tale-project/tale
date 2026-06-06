@@ -105,16 +105,21 @@ export function useSetThreadCanvasState() {
         store,
         api.threads.queries.getThreadMeta,
         { threadId: args.threadId },
-        (current) => ({
-          ...current,
-          canvasState: {
-            isOpen: args.canvasOpen ?? current.canvasState.isOpen,
-            activeFilePath:
-              args.canvasActiveFilePath === undefined
-                ? current.canvasState.activeFilePath
-                : args.canvasActiveFilePath,
-          },
-        }),
+        (current) => {
+          // `getThreadMeta` returns `null` until the row loads — skip the
+          // optimistic patch rather than dereferencing null.
+          if (!current) return current;
+          return {
+            ...current,
+            canvasState: {
+              isOpen: args.canvasOpen ?? current.canvasState.isOpen,
+              activeFilePath:
+                args.canvasActiveFilePath === undefined
+                  ? current.canvasState.activeFilePath
+                  : args.canvasActiveFilePath,
+            },
+          };
+        },
       ),
   });
 }

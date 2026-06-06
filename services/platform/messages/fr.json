@@ -1523,6 +1523,9 @@
       "warningTitle": "Tu vas bientôt être déconnecté",
       "warningDescription": "Ta session prend fin après une période d'inactivité. Interagis avec la page ou utilise le bouton pour continuer.",
       "staySignedIn": "Rester connecté"
+    },
+    "dataTable": {
+      "dateFilterUnavailable": "Filtre de date indisponible"
     }
   },
   "composer": {

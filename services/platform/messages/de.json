@@ -1522,6 +1522,9 @@
       "warningTitle": "Du wirst bald abgemeldet",
       "warningDescription": "Deine Sitzung endet nach einer Phase der Inaktivität. Interagiere mit der Seite oder nutze die Schaltfläche, um weiterzuarbeiten.",
       "staySignedIn": "Angemeldet bleiben"
+    },
+    "dataTable": {
+      "dateFilterUnavailable": "Datumsfilter nicht verfügbar"
     }
   },
   "composer": {

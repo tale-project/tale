@@ -77,9 +77,7 @@ export function AgentRowActions({
     onDuplicated,
   ]);
 
-  const isProtected = (PROTECTED_AGENT_NAMES as readonly string[]).includes(
-    agentName,
-  );
+  const isProtected = PROTECTED_AGENT_NAMES.some((name) => name === agentName);
 
   const actions = [
     {
