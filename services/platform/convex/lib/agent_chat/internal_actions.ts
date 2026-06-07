@@ -231,38 +231,43 @@ export const runAgentGeneration = internalAction({
     try {
       const toolBuildStart = Date.now();
 
-      // Stage 1: org-level resources + skill snapshot, all in parallel.
-      // `buildSkillContext` gates on the agent's `skillBindings` allowlist —
-      // an empty / absent list short-circuits to the empty snapshot (no disk
-      // reads, no `expand_skill` tool exposed).
-      const orgSlug = await resolveOrgSlug(ctx, organizationId);
-      const [orgLocale, governanceResult, mcpExtraTools, skillSnapshot] =
-        await Promise.all([
-          ctx.runQuery(
-            internal.organizations.internal_queries
-              .getOrganizationDefaultLocale,
-            { organizationId },
-          ),
-          fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
-          buildMcpTools(ctx, organizationId),
-          buildSkillContext(ctx, orgSlug, agentConfig.skillBindings),
-        ]);
-
+      // Flatten the tool-build round-trips into ONE awaited set instead of a
+      // serial resolveOrgSlug + two stage barriers. The org-id-only resources
+      // (locale, governance, MCP, integrations) start immediately; the
+      // orgSlug/orgLocale-dependent builders (skill, delegation, workflow)
+      // chain off those promises so they begin the moment their input resolves.
+      // `buildSkillContext` short-circuits to the empty snapshot when the
+      // agent's `skillBindings` allowlist is empty (no disk reads, no
+      // `expand_skill` tool). Arg passing is byte-identical to the prior two
+      // stages — only the concurrency shape changed.
       const effectiveConfig = agentConfig;
-
-      // Stage 3: build dependent tool categories.
-      const [integrationExtraTools, delegationResult, workflowExtraTools] =
-        await Promise.all([
-          buildIntegrationTools(ctx, effectiveConfig, organizationId),
-          buildDelegationTools(
-            ctx,
-            effectiveConfig,
-            organizationId,
-            orgSlug,
-            orgLocale,
-          ),
-          buildWorkflowTools(ctx, effectiveConfig, orgSlug),
-        ]);
+      const orgSlugPromise = resolveOrgSlug(ctx, organizationId);
+      const orgLocalePromise = ctx.runQuery(
+        internal.organizations.internal_queries.getOrganizationDefaultLocale,
+        { organizationId },
+      );
+      const [
+        governanceResult,
+        mcpExtraTools,
+        integrationExtraTools,
+        skillSnapshot,
+        delegationResult,
+        workflowExtraTools,
+      ] = await Promise.all([
+        fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
+        buildMcpTools(ctx, organizationId),
+        buildIntegrationTools(ctx, effectiveConfig, organizationId),
+        // orgSlug/orgLocale are awaited transitively via these dependent
+        // builders (so resolveOrgSlug errors still surface); not needed
+        // standalone after the block.
+        orgSlugPromise.then((s) =>
+          buildSkillContext(ctx, s, agentConfig.skillBindings),
+        ),
+        Promise.all([orgSlugPromise, orgLocalePromise]).then(([s, l]) =>
+          buildDelegationTools(ctx, effectiveConfig, organizationId, s, l),
+        ),
+        orgSlugPromise.then((s) => buildWorkflowTools(ctx, effectiveConfig, s)),
+      ]);
 
       // Extract delegation tools and instructions append
       let delegationExtraTools: Record<string, unknown> | undefined;

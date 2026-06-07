@@ -623,6 +623,8 @@ export interface StructuredCitation {
 export interface MessageMetadata {
   model: string;
   provider: string;
+  /** Owning assistant slug — used by the dev TTFT probe to reproduce its tools. */
+  agentSlug?: string;
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
@@ -665,6 +667,7 @@ export function useMessageMetadata(
       ? {
           model: metadata.model,
           provider: metadata.provider,
+          agentSlug: metadata.agentSlug,
           inputTokens: metadata.inputTokens,
           outputTokens: metadata.outputTokens,
           totalTokens: metadata.totalTokens,

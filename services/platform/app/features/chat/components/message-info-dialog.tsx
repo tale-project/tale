@@ -194,17 +194,20 @@ function ToolCallCard({ usage, locale, t }: ToolCallCardProps) {
  * Dev-only "direct HTTP" TTFT probe. Renders nothing unless the current user
  * is on the probe allowlist (server-checked via `canRunDirectTtft`; the action
  * re-checks, so this gate is advisory). Streams the prompt straight to the
- * model — no tools/RAG/history — to measure the raw model+network floor, for
- * comparison against the pipeline metrics shown above (the gap is our overhead).
+ * model — optionally with the agent's tools + system prompt so the prefill
+ * matches the pipeline — to isolate the model+network floor from our backend
+ * overhead (the gap vs the pipeline numbers above).
  */
 function DirectTtftProbe({
   organizationId,
   modelId,
+  agentSlug,
   pipelineFirstReasoningMs,
   pipelineTimeFromSendMs,
 }: {
   organizationId: string;
   modelId?: string;
+  agentSlug?: string;
   pipelineFirstReasoningMs?: number;
   pipelineTimeFromSendMs?: number;
 }) {
@@ -214,6 +217,7 @@ function DirectTtftProbe({
   );
   const runProbe = useAction(api.debug.direct_ttft.measureDirectTtft);
   const [message, setMessage] = useState('');
+  const [withTools, setWithTools] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Awaited<
@@ -235,6 +239,8 @@ function DirectTtftProbe({
           organizationId,
           message: message.trim() || 'Reply with a one-sentence greeting.',
           ...(modelId ? { modelId } : {}),
+          ...(agentSlug ? { agentSlug } : {}),
+          withTools,
         }),
       );
     } catch (e) {
@@ -248,10 +254,13 @@ function DirectTtftProbe({
     <Field label="Direct TTFT probe (dev)">
       <Stack gap={2}>
         <Text as="div" variant="caption" className="text-muted-foreground">
-          Streams this prompt straight to {modelId ?? 'the chat model'} with no
-          tools / RAG / history — the raw model + network floor. Compare with
-          the pipeline numbers above; the gap is backend overhead. Issues a real
-          (billed) call, aborted at first content.
+          Streams this prompt straight to {modelId ?? 'the chat model'}
+          {withTools && agentSlug
+            ? `, replaying ${agentSlug}'s tools + system prompt so the prefill matches the pipeline`
+            : ' with no tools/system — the bare model floor'}
+          . Compare with the pipeline numbers above; the gap is backend
+          overhead. Real (billed) call, aborted at first output (tools never
+          execute).
         </Text>
         <textarea
           value={message}
@@ -260,6 +269,16 @@ function DirectTtftProbe({
           rows={2}
           className="bg-muted w-full rounded px-2 py-1 text-sm"
         />
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={withTools && !!agentSlug}
+            disabled={!agentSlug}
+            onChange={(e) => setWithTools(e.target.checked)}
+          />
+          Replay agent tools + system prompt
+          {agentSlug ? '' : ' (unavailable — no agent on this message)'}
+        </label>
         <button
           type="button"
           onClick={onRun}
@@ -286,8 +305,12 @@ function DirectTtftProbe({
                 value: <Text>{fmt(result.firstContentMs)}</Text>,
               },
               {
-                label: 'Direct TTFB',
-                value: <Text>{fmt(result.ttfbMs)}</Text>,
+                label: 'Prefill replayed',
+                value: (
+                  <Text>
+                    {result.toolCount} tools · {result.systemChars} sys chars
+                  </Text>
+                ),
               },
               ...(pipelineFirstReasoningMs != null
                 ? [
@@ -532,6 +555,7 @@ export function MessageInfoDialog({
               <DirectTtftProbe
                 organizationId={organizationId}
                 modelId={metadata.model}
+                agentSlug={metadata.agentSlug}
                 pipelineFirstReasoningMs={metadata.timeToFirstReasoningMs}
                 pipelineTimeFromSendMs={metadata.timeFromSendMs}
               />

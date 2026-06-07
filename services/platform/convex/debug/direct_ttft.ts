@@ -11,23 +11,40 @@
  *   pipeline `timeFromSendMs` / `timeToFirstReasoningMs`  (from message metadata)
  *   vs  direct  ttfb / first-reasoning / first-content     (from this probe)
  *
- * The delta is our backend overhead. Honesty caveat: this measures the model's
- * floor for a MINIMAL prompt (the given message, reasoning via base provider
- * options, NO tools / RAG / history / system prompt), so it is the
- * lower-bound model floor — it does NOT reproduce the pipeline's full prefill.
+ * The delta is our backend overhead.
+ *
+ * `withTools` (default on when `agentSlug` is given) reproduces the agent's tool
+ * set + system instructions in the request so the prefill — and therefore the
+ * model's time-to-first-reasoning — matches the pipeline. With tools the probe
+ * should land near the pipeline's model segment; WITHOUT them it's the bare
+ * model+network floor. The gap between the two is the tool/prompt prefill cost.
+ * Tool `execute` handlers are STRIPPED before sending: the schemas still count
+ * toward prefill, but the model can never actually run a tool — a probe must
+ * have zero side effects. We also abort at the first tool-call.
  *
  * Cost: this issues a REAL (billed) provider call and bypasses usageLedger /
- * budget enforcement. It aborts the moment first content arrives so it never
- * pays for a full completion, but it is not free — hence the dev/admin gate.
+ * budget enforcement. It aborts the moment first content (or a tool decision)
+ * arrives so it never pays for a full completion, but it is not free — hence
+ * the dev/admin gate.
  */
 
-import { streamText } from 'ai';
+import { streamText, type ToolSet } from 'ai';
 import { ConvexError, v } from 'convex/values';
 
 import { action, type ActionCtx } from '../_generated/server';
+import { loadConvexToolsAsObject } from '../agent_tools/load_convex_tools_as_object';
+import { TOOL_NAMES, type ToolName } from '../agent_tools/tool_registry';
+import {
+  MAX_FILE_SIZE_BYTES,
+  parseAgentJson,
+  resolveAgentFilePath,
+  type AgentJsonConfig,
+} from '../agents/file_utils';
 import { isDeploymentEditor } from '../deployment/editors';
+import { readJsonFile } from '../lib/file_io';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 import { resolveLanguageModelById } from '../providers/resolve_model';
 
@@ -71,6 +88,71 @@ async function resolveProbeModel(
   return resolveLanguageModelWithFallback(ctx, { tag: 'chat', organizationId });
 }
 
+/**
+ * Assemble the agent's tool set + system instructions to reproduce the
+ * pipeline's prefill. Mirrors the pipeline's tool filter (rag_search/web gated
+ * by mode; propose_memory dropped — personalization is off for a probe). Tool
+ * `execute` handlers are stripped so the model can request a tool (prefill
+ * parity) but the SDK can NEVER run one. Throws for image-generation agents
+ * (they bypass streamText). Degrades to no-tools on a config read miss.
+ */
+async function assembleAgentTools(
+  ctx: ActionCtx,
+  organizationId: string,
+  agentSlug: string,
+): Promise<{ tools?: ToolSet; system?: string; toolCount: number }> {
+  const orgSlug = await resolveOrgSlug(ctx, organizationId);
+  const result = await readJsonFile<AgentJsonConfig>(
+    resolveAgentFilePath(orgSlug, agentSlug),
+    MAX_FILE_SIZE_BYTES,
+    parseAgentJson,
+  );
+  if (!result.ok) {
+    console.warn(
+      `[direct_ttft] agent config "${agentSlug}" unreadable; probing without tools: ${result.message}`,
+    );
+    return { toolCount: 0 };
+  }
+  const cfg = result.data;
+  if (cfg.primaryBehavior === 'image-generation') {
+    throw new ConvexError({ code: 'NON_CHAT_AGENT' });
+  }
+
+  const km = cfg.knowledgeMode ?? 'off';
+  const wm = cfg.webSearchMode ?? 'off';
+  const names = (cfg.toolNames ?? []).filter((n): n is ToolName => {
+    if (!(TOOL_NAMES as readonly string[]).includes(n)) return false;
+    if (n === 'propose_memory') return false;
+    if (n === 'rag_search' && km !== 'tool' && km !== 'both') return false;
+    if (n === 'web' && wm !== 'tool' && wm !== 'both') return false;
+    return true;
+  });
+
+  const loaded = loadConvexToolsAsObject(names);
+  const stripped: Record<string, unknown> = {};
+  for (const [name, toolDef] of Object.entries(loaded)) {
+    if (toolDef && typeof toolDef === 'object') {
+      // Drop `execute` so schemas reach the model (prefill) but the SDK can't
+      // run the tool — a probe must be side-effect free.
+      const { execute: _execute, ...schemaOnly } = toolDef as Record<
+        string,
+        unknown
+      >;
+      stripped[name] = schemaOnly;
+    } else {
+      stripped[name] = toolDef;
+    }
+  }
+
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- schema-only tool objects structurally satisfy ToolSet; the registry produces AI SDK tools and we only removed `execute`
+  const tools = stripped as ToolSet;
+  return {
+    tools: Object.keys(stripped).length > 0 ? tools : undefined,
+    system: cfg.systemInstructions || undefined,
+    toolCount: Object.keys(stripped).length,
+  };
+}
+
 export const measureDirectTtft = action({
   args: {
     organizationId: v.string(),
@@ -78,6 +160,12 @@ export const measureDirectTtft = action({
     // Measure the SAME model a given message used (pass `metadata.model`).
     // Falls back to the org's chat-tagged model when omitted.
     modelId: v.optional(v.string()),
+    // Reproduce this agent's tools + system instructions (pass
+    // `metadata.agentSlug`) so the prefill matches the pipeline.
+    agentSlug: v.optional(v.string()),
+    // Include the agent's tools/system. Defaults ON when `agentSlug` is given;
+    // set false to measure the bare model floor for comparison.
+    withTools: v.optional(v.boolean()),
   },
   returns: v.object({
     modelId: v.string(),
@@ -87,6 +175,8 @@ export const measureDirectTtft = action({
     firstContentMs: v.optional(v.number()),
     totalMs: v.number(),
     promptChars: v.number(),
+    toolCount: v.number(),
+    systemChars: v.number(),
     aborted: v.boolean(),
   }),
   handler: async (ctx, args) => {
@@ -106,6 +196,12 @@ export const measureDirectTtft = action({
       args.modelId,
     );
 
+    const probeAgentSlug =
+      args.withTools !== false ? args.agentSlug : undefined;
+    const { tools, system, toolCount } = probeAgentSlug
+      ? await assembleAgentTools(ctx, args.organizationId, probeAgentSlug)
+      : { tools: undefined, system: undefined, toolCount: 0 };
+
     const providerOptions = buildCallProviderOptions(modelData);
     const abort = new AbortController();
     const t0 = Date.now();
@@ -124,11 +220,15 @@ export const measureDirectTtft = action({
         model: languageModel,
         prompt,
         abortSignal: abort.signal,
+        ...(system ? { system } : {}),
+        ...(tools ? { tools } : {}),
         ...(providerOptions ? { providerOptions } : {}),
       });
 
-      // Drive the stream just until first content (which always follows
-      // reasoning), then abort so we don't pay for the whole completion.
+      // Drive the stream until the model's first post-reasoning output — answer
+      // text OR a tool decision (with tools present it may call instead of
+      // answer) — then abort so we don't pay for the whole completion. Reasoning
+      // always streams first, so first-reasoning is captured either way.
       for await (const part of result.fullStream) {
         const now = Date.now();
         if (ttfbMs === undefined) ttfbMs = now - t0;
@@ -137,9 +237,6 @@ export const measureDirectTtft = action({
         }
         if (part.type === 'text-delta' && firstContentMs === undefined) {
           firstContentMs = now - t0;
-          aborted = true;
-          abort.abort();
-          break;
         }
         if (part.type === 'error') {
           // Surface provider/stream errors — but never echo the raw provider
@@ -152,6 +249,13 @@ export const measureDirectTtft = action({
             code: 'PROBE_FAILED',
             message: msg.slice(0, 200),
           });
+        }
+        // First answer token or any tool-related part = the model has finished
+        // its initial reasoning and produced output. Stop here.
+        if (firstContentMs !== undefined || part.type.startsWith('tool-')) {
+          aborted = true;
+          abort.abort();
+          break;
         }
       }
     } catch (err) {
@@ -177,6 +281,8 @@ export const measureDirectTtft = action({
       firstContentMs,
       totalMs: Date.now() - t0,
       promptChars: prompt.length,
+      toolCount,
+      systemChars: system?.length ?? 0,
       aborted,
     };
   },
