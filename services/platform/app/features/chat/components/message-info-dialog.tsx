@@ -6,8 +6,8 @@ import { Stack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
 import { useAction } from 'convex/react';
-import { Copy, Check, ChevronLeft } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Copy, Check } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
@@ -360,6 +360,22 @@ function TtftDetailContent({
   );
 }
 
+/**
+ * A drill-in detail view reachable from a clickable cell in the main view.
+ * Adding a new clickable cell is one registry entry + a `setView(key)` trigger —
+ * the dialog renders generically from the active entry, with no per-view branches.
+ */
+type DetailViewKey = 'context' | 'ttft';
+interface DetailView {
+  title: string;
+  description: string;
+  /** Override the dialog size for this view (e.g. wide for markdown). */
+  className?: string;
+  /** Optional header action (top-right), e.g. a copy button. */
+  headerActions?: ReactNode;
+  render: () => ReactNode;
+}
+
 interface MessageInfoDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -390,7 +406,7 @@ export function MessageInfoDialog({
   // Drill-in router: the clickable cells (context window, time-to-first-token)
   // swap the dialog body in-place rather than opening a nested dialog, so a
   // detail view always fully covers the main view (single surface).
-  const [view, setView] = useState<'main' | 'context' | 'ttft'>('main');
+  const [view, setView] = useState<'main' | DetailViewKey>('main');
   const { copied: ctxCopied, onClick: handleCopyContext } = useCopyButton(
     metadata?.contextWindow ?? '',
   );
@@ -541,72 +557,63 @@ export function MessageInfoDialog({
     locale,
   ]);
 
-  // Back lives in the header's leading slot (top-left, before the title) —
-  // symmetric with the top-right close button — rather than in the body.
-  const backIcon =
-    view === 'main' ? undefined : (
-      <IconButton
-        icon={ChevronLeft}
-        aria-label={tCommon('actions.back')}
-        onClick={() => setView('main')}
-      />
-    );
-  const dialogTitle =
-    view === 'context'
-      ? t('messageInfo.contextWindow')
-      : view === 'ttft'
-        ? t('messageInfo.ttftDetailsTitle')
-        : t('messageInfo.title');
-  const dialogDescription =
-    view === 'context'
-      ? t('messageInfo.contextWindowDescription')
-      : view === 'ttft'
-        ? t('messageInfo.ttftDetailsDescription')
-        : t('messageInfo.description');
-  const dialogClassName =
-    view === 'context' ? 'max-h-[80vh] sm:max-w-[800px]' : 'sm:max-w-[500px]';
+  // Declarative registry of drill-in detail views (see DetailView). The dialog
+  // chrome + body render generically from `active`, so adding a clickable cell
+  // never touches this render logic — just add an entry + a setView trigger.
+  const detailViews: Partial<Record<DetailViewKey, DetailView>> = {};
+  if (metadata?.contextWindow) {
+    const contextWindow = metadata.contextWindow;
+    detailViews.context = {
+      title: t('messageInfo.contextWindow'),
+      description: t('messageInfo.contextWindowDescription'),
+      className: 'max-h-[80vh] sm:max-w-[800px]',
+      headerActions: (
+        <IconButton
+          icon={ctxCopied ? Check : Copy}
+          aria-label={
+            ctxCopied ? tCommon('actions.copied') : tCommon('actions.copy')
+          }
+          onClick={handleCopyContext}
+        />
+      ),
+      render: () => <ContextWindowMarkdown contextWindow={contextWindow} />,
+    };
+  }
+  if (metadata?.timeToFirstTokenMs != null) {
+    const md = metadata;
+    const ttftMs = metadata.timeToFirstTokenMs;
+    detailViews.ttft = {
+      title: t('messageInfo.ttftDetailsTitle'),
+      description: t('messageInfo.ttftDetailsDescription'),
+      render: () => (
+        <TtftDetailContent
+          timeToFirstTokenMs={ttftMs}
+          timeToFirstReasoningMs={md.timeToFirstReasoningMs}
+          timeFromSendMs={md.timeFromSendMs}
+          organizationId={organizationId}
+          modelId={md.model}
+          agentSlug={md.agentSlug}
+          t={t}
+        />
+      ),
+    };
+  }
+  const active = view === 'main' ? undefined : detailViews[view];
 
   return (
     <ViewDialog
       open={isOpen}
       onOpenChange={handleOpenChange}
-      title={dialogTitle}
-      description={dialogDescription}
-      className={dialogClassName}
-      icon={backIcon}
-      headerActions={
-        view === 'context' && metadata?.contextWindow ? (
-          <IconButton
-            icon={ctxCopied ? Check : Copy}
-            aria-label={
-              ctxCopied ? tCommon('actions.copied') : tCommon('actions.copy')
-            }
-            onClick={handleCopyContext}
-          />
-        ) : view === 'ttft' ? (
-          // No right-side action here, but a present `headerActions` makes the
-          // dialog stack the leading Back icon on its own row above the title —
-          // matching the context view — instead of centering it beside the
-          // title+description block. Empty, invisible placeholder.
-          <span aria-hidden />
-        ) : undefined
-      }
+      title={active?.title ?? t('messageInfo.title')}
+      description={active?.description ?? t('messageInfo.description')}
+      className={active?.className ?? 'sm:max-w-[500px]'}
+      onBack={active ? () => setView('main') : undefined}
+      backLabel={tCommon('actions.back')}
+      headerActions={active?.headerActions}
     >
-      {view === 'context' && metadata?.contextWindow ? (
+      {active ? (
         <FieldGroup gap={4} className="min-w-0 overflow-hidden">
-          <ContextWindowMarkdown contextWindow={metadata.contextWindow} />
-        </FieldGroup>
-      ) : view === 'ttft' && metadata?.timeToFirstTokenMs != null ? (
-        <FieldGroup gap={4} className="min-w-0 overflow-hidden">
-          <TtftDetailContent
-            timeToFirstTokenMs={metadata.timeToFirstTokenMs}
-            timeToFirstReasoningMs={metadata.timeToFirstReasoningMs}
-            timeFromSendMs={metadata.timeFromSendMs}
-            organizationId={organizationId}
-            modelId={metadata.model}
-            agentSlug={metadata.agentSlug}
-            t={t}
-          />
+          {active.render()}
         </FieldGroup>
       ) : (
         <FieldGroup gap={4} className="min-w-0 overflow-hidden">
