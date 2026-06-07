@@ -583,6 +583,12 @@ export function MessageInfoDialog({
             }
             onClick={handleCopyContext}
           />
+        ) : view === 'ttft' ? (
+          // No right-side action here, but a present `headerActions` makes the
+          // dialog stack the leading Back icon on its own row above the title —
+          // matching the context view — instead of centering it beside the
+          // title+description block. Empty, invisible placeholder.
+          <span aria-hidden />
         ) : undefined
       }
     >
