@@ -24,7 +24,7 @@
 import { streamText } from 'ai';
 import { ConvexError, v } from 'convex/values';
 
-import { action } from '../_generated/server';
+import { action, type ActionCtx } from '../_generated/server';
 import { isDeploymentEditor } from '../deployment/editors';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -35,6 +35,41 @@ import { resolveLanguageModelById } from '../providers/resolve_model';
 const PROBE_TIMEOUT_MS = 30_000;
 /** Don't send unbounded prompts to the provider. */
 const MAX_PROMPT_CHARS = 8_000;
+
+/**
+ * Resolve a chat model for the probe, tolerant of the fact that `metadata.model`
+ * is the provider's *response* id — which can carry a date/version suffix (e.g.
+ * `deepseek/deepseek-v4-flash-20260423`) that the provider config does NOT
+ * register (it lists the undated `deepseek/deepseek-v4-flash`). Tries the exact
+ * id, then the undated form, then falls back to the org's chat-tagged model so a
+ * dev probe never dead-ends on an unresolvable recorded id. The returned
+ * `modelData.modelId` reflects what was actually measured.
+ */
+async function resolveProbeModel(
+  ctx: ActionCtx,
+  organizationId: string,
+  modelId?: string,
+) {
+  if (modelId) {
+    const candidates = [modelId, modelId.replace(/-\d{6,8}$/, '')].filter(
+      (id, i, arr) => id.length > 0 && arr.indexOf(id) === i,
+    );
+    for (const id of candidates) {
+      try {
+        return await resolveLanguageModelById(ctx, {
+          modelId: id,
+          organizationId,
+        });
+      } catch (err) {
+        console.warn(
+          `[direct_ttft] model "${id}" not resolvable; trying next candidate`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+  }
+  return resolveLanguageModelWithFallback(ctx, { tag: 'chat', organizationId });
+}
 
 export const measureDirectTtft = action({
   args: {
@@ -65,15 +100,11 @@ export const measureDirectTtft = action({
 
     const prompt = args.message.slice(0, MAX_PROMPT_CHARS);
 
-    const { languageModel, modelData } = args.modelId
-      ? await resolveLanguageModelById(ctx, {
-          modelId: args.modelId,
-          organizationId: args.organizationId,
-        })
-      : await resolveLanguageModelWithFallback(ctx, {
-          tag: 'chat',
-          organizationId: args.organizationId,
-        });
+    const { languageModel, modelData } = await resolveProbeModel(
+      ctx,
+      args.organizationId,
+      args.modelId,
+    );
 
     const providerOptions = buildCallProviderOptions(modelData);
     const abort = new AbortController();
