@@ -541,16 +541,16 @@ export function MessageInfoDialog({
     locale,
   ]);
 
-  const backButton = (
-    <button
-      type="button"
-      onClick={() => setView('main')}
-      className="text-muted-foreground hover:text-foreground -ml-1 flex w-fit items-center gap-1 text-sm"
-    >
-      <ChevronLeft className="size-4" aria-hidden="true" />
-      {tCommon('actions.back')}
-    </button>
-  );
+  // Back lives in the header's leading slot (top-left, before the title) —
+  // symmetric with the top-right close button — rather than in the body.
+  const backIcon =
+    view === 'main' ? undefined : (
+      <IconButton
+        icon={ChevronLeft}
+        aria-label={tCommon('actions.back')}
+        onClick={() => setView('main')}
+      />
+    );
   const dialogTitle =
     view === 'context'
       ? t('messageInfo.contextWindow')
@@ -573,6 +573,7 @@ export function MessageInfoDialog({
       title={dialogTitle}
       description={dialogDescription}
       className={dialogClassName}
+      icon={backIcon}
       headerActions={
         view === 'context' && metadata?.contextWindow ? (
           <IconButton
@@ -587,12 +588,10 @@ export function MessageInfoDialog({
     >
       {view === 'context' && metadata?.contextWindow ? (
         <FieldGroup gap={4} className="min-w-0 overflow-hidden">
-          {backButton}
           <ContextWindowMarkdown contextWindow={metadata.contextWindow} />
         </FieldGroup>
       ) : view === 'ttft' && metadata?.timeToFirstTokenMs != null ? (
         <FieldGroup gap={4} className="min-w-0 overflow-hidden">
-          {backButton}
           <TtftDetailContent
             timeToFirstTokenMs={metadata.timeToFirstTokenMs}
             timeToFirstReasoningMs={metadata.timeToFirstReasoningMs}

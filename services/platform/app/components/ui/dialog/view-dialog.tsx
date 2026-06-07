@@ -30,6 +30,8 @@ export interface ViewDialogProps {
   size?: DialogSize;
   /** Actions to display in the header (next to the title) */
   headerActions?: React.ReactNode;
+  /** Leading element rendered before the title (e.g. a back affordance). */
+  icon?: React.ReactNode;
   /** Additional className for DialogHeader */
   headerClassName?: string;
   /** Enable error boundary (default: true) */
@@ -53,6 +55,7 @@ export function ViewDialog({
   customFooter,
   size,
   headerActions,
+  icon,
   headerClassName,
   enableErrorBoundary = true,
   onError,
@@ -70,6 +73,7 @@ export function ViewDialog({
       className={cn('max-h-[90vh] overflow-y-auto', className)}
       size={size}
       headerActions={headerActions}
+      icon={icon}
       headerClassName={headerClassName}
     >
       {enableErrorBoundary ? (
