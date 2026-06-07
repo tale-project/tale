@@ -6,7 +6,7 @@ import { Stack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
 import { useAction } from 'convex/react';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, ChevronLeft } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
@@ -41,74 +41,30 @@ function formatAgentName(toolName: string): string {
   return nameMap[toolName] ?? toolName;
 }
 
-interface ContextWindowTokenProps {
-  contextWindow: string;
-  contextStats?: MessageMetadata['contextStats'];
-  t: (key: string) => string;
-  tCommon: (key: string) => string;
-  locale: string;
-}
-
-function ContextWindowToken({
-  contextWindow,
-  contextStats,
-  t,
-  tCommon,
-  locale,
-}: ContextWindowTokenProps) {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { copied, onClick: handleCopy } = useCopyButton(contextWindow);
-  const tokenCount = contextStats?.totalTokens ?? 0;
-
+/** The context-window markdown body, shown in the in-dialog "context" detail view. */
+function ContextWindowMarkdown({ contextWindow }: { contextWindow: string }) {
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setIsDialogOpen(true)}
-        className="cursor-pointer text-left font-medium hover:underline"
-      >
-        ~{formatNumber(tokenCount, locale)}
-      </button>
-
-      <ViewDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        title={t('messageInfo.contextWindow')}
-        description={t('messageInfo.contextWindowDescription')}
-        className="max-h-[80vh] sm:max-w-[800px]"
-        headerActions={
-          <IconButton
-            icon={copied ? Check : Copy}
-            aria-label={
-              copied ? tCommon('actions.copied') : tCommon('actions.copy')
-            }
-            onClick={handleCopy}
-          />
-        }
-      >
-        <div className="context-window-content [&_details]:border-border [&_details_summary]:bg-muted [&_details[open]_summary]:border-border [&_details_h3]:border-border/50 max-h-[60vh] overflow-auto [&_details]:mb-2 [&_details]:overflow-hidden [&_details]:rounded-md [&_details]:border [&_details_h3]:border-b [&_details_h3]:!pt-4 [&_details_h3]:!pb-1.5 [&_details_h3]:!text-sm [&_details_h3]:!font-semibold [&_details_h3:first-of-type]:!pt-0 [&_details_summary]:cursor-pointer [&_details_summary]:list-none [&_details_summary]:px-3 [&_details_summary]:py-2 [&_details_summary]:font-medium [&_details>*:not(summary)]:overflow-x-auto [&_details>*:not(summary)]:p-3 [&_details>*:not(summary)]:font-mono [&_details>*:not(summary)]:text-xs [&_details>*:not(summary)]:whitespace-pre-wrap [&_details[open]_summary]:border-b">
-          <Markdown
-            rehypePlugins={[
-              rehypeRaw,
-              [
-                rehypeSanitize,
-                {
-                  ...defaultSchema,
-                  tagNames: [
-                    ...(defaultSchema.tagNames ?? []),
-                    'details',
-                    'summary',
-                  ],
-                },
+    <div className="context-window-content [&_details]:border-border [&_details_summary]:bg-muted [&_details[open]_summary]:border-border [&_details_h3]:border-border/50 max-h-[60vh] overflow-auto [&_details]:mb-2 [&_details]:overflow-hidden [&_details]:rounded-md [&_details]:border [&_details_h3]:border-b [&_details_h3]:!pt-4 [&_details_h3]:!pb-1.5 [&_details_h3]:!text-sm [&_details_h3]:!font-semibold [&_details_h3:first-of-type]:!pt-0 [&_details_summary]:cursor-pointer [&_details_summary]:list-none [&_details_summary]:px-3 [&_details_summary]:py-2 [&_details_summary]:font-medium [&_details>*:not(summary)]:overflow-x-auto [&_details>*:not(summary)]:p-3 [&_details>*:not(summary)]:font-mono [&_details>*:not(summary)]:text-xs [&_details>*:not(summary)]:whitespace-pre-wrap [&_details[open]_summary]:border-b">
+      <Markdown
+        rehypePlugins={[
+          rehypeRaw,
+          [
+            rehypeSanitize,
+            {
+              ...defaultSchema,
+              tagNames: [
+                ...(defaultSchema.tagNames ?? []),
+                'details',
+                'summary',
               ],
-            ]}
-            remarkPlugins={[remarkGfm]}
-          >
-            {contextWindow}
-          </Markdown>
-        </div>
-      </ViewDialog>
-    </>
+            },
+          ],
+        ]}
+        remarkPlugins={[remarkGfm]}
+      >
+        {contextWindow}
+      </Markdown>
+    </div>
   );
 }
 
@@ -337,12 +293,10 @@ function DirectTtftProbe({
 }
 
 /**
- * The Performance section's "Time to first token" cell. Shows the single
- * familiar headline number; clicking it opens a detail dialog with the full
- * send → first-reasoning → first-token breakdown (kept out of the main view so
- * it isn't overwhelming) plus the dev-only direct-TTFT probe.
+ * The "time to first token" breakdown + dev probe, shown in the in-dialog
+ * "ttft" detail view (the Performance cell drills in to this).
  */
-function TtftCell({
+function TtftDetailContent({
   timeToFirstTokenMs,
   timeToFirstReasoningMs,
   timeFromSendMs,
@@ -359,7 +313,6 @@ function TtftCell({
   agentSlug?: string;
   t: (key: string) => string;
 }) {
-  const [open, setOpen] = useState(false);
   const fmtS = (ms?: number) =>
     ms == null ? '—' : `${(ms / 1000).toFixed(2)}s`;
 
@@ -388,43 +341,21 @@ function TtftCell({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="cursor-pointer text-left font-medium hover:underline"
-      >
-        {fmtS(timeToFirstTokenMs)}
-      </button>
-
-      <ViewDialog
-        open={open}
-        onOpenChange={setOpen}
-        title={t('messageInfo.ttftDetailsTitle')}
-        description={t('messageInfo.ttftDetailsDescription')}
-        className="sm:max-w-[500px]"
-      >
-        <FieldGroup gap={4} className="min-w-0 overflow-hidden">
-          <Field label={t('messageInfo.ttftBreakdown')}>
-            <StatGrid className="text-sm" items={breakdown} />
-            <Text
-              as="div"
-              variant="caption"
-              className="text-muted-foreground mt-1"
-            >
-              {t('messageInfo.ttftBreakdownHint')}
-            </Text>
-          </Field>
-          {organizationId && (
-            <DirectTtftProbe
-              organizationId={organizationId}
-              modelId={modelId}
-              agentSlug={agentSlug}
-              pipelineFirstReasoningMs={timeToFirstReasoningMs}
-              pipelineTimeFromSendMs={timeFromSendMs}
-            />
-          )}
-        </FieldGroup>
-      </ViewDialog>
+      <Field label={t('messageInfo.ttftBreakdown')}>
+        <StatGrid className="text-sm" items={breakdown} />
+        <Text as="div" variant="caption" className="text-muted-foreground mt-1">
+          {t('messageInfo.ttftBreakdownHint')}
+        </Text>
+      </Field>
+      {organizationId && (
+        <DirectTtftProbe
+          organizationId={organizationId}
+          modelId={modelId}
+          agentSlug={agentSlug}
+          pipelineFirstReasoningMs={timeToFirstReasoningMs}
+          pipelineTimeFromSendMs={timeFromSendMs}
+        />
+      )}
     </>
   );
 }
@@ -456,6 +387,17 @@ export function MessageInfoDialog({
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
   const { copied: idCopied, onClick: handleCopyId } = useCopyButton(messageId);
+  // Drill-in router: the clickable cells (context window, time-to-first-token)
+  // swap the dialog body in-place rather than opening a nested dialog, so a
+  // detail view always fully covers the main view (single surface).
+  const [view, setView] = useState<'main' | 'context' | 'ttft'>('main');
+  const { copied: ctxCopied, onClick: handleCopyContext } = useCopyButton(
+    metadata?.contextWindow ?? '',
+  );
+  const handleOpenChange = (open: boolean) => {
+    if (!open) setView('main');
+    onOpenChange(open);
+  };
   // Skip the query while the dialog is closed — most opens-close cycles
   // wouldn't ever look at the section, and TTS chunks subscribe is cheap
   // enough that gating on `isOpen` keeps the steady-state cost at zero.
@@ -470,13 +412,17 @@ export function MessageInfoDialog({
             {
               label: t('messageInfo.contextWindow'),
               value: (
-                <ContextWindowToken
-                  contextWindow={metadata.contextWindow}
-                  contextStats={metadata.contextStats}
-                  t={t}
-                  tCommon={tCommon}
-                  locale={locale}
-                />
+                <button
+                  type="button"
+                  onClick={() => setView('context')}
+                  className="cursor-pointer text-left font-medium hover:underline"
+                >
+                  ~
+                  {formatNumber(
+                    metadata.contextStats?.totalTokens ?? 0,
+                    locale,
+                  )}
+                </button>
               ),
             },
           ]
@@ -533,7 +479,7 @@ export function MessageInfoDialog({
           ]
         : []),
     ],
-    [metadata, t, tCommon, locale],
+    [metadata, t, locale],
   );
 
   const perfItems = useMemo<StatGridItem[]>(() => {
@@ -550,18 +496,17 @@ export function MessageInfoDialog({
     // The fuller send → first-reasoning → first-token breakdown (and the dev
     // probe) live behind a click so the default view isn't overwhelming.
     if (metadata?.timeToFirstTokenMs != null) {
+      const ttft = metadata.timeToFirstTokenMs;
       items.push({
         label: t('messageInfo.timeToFirstToken'),
         value: (
-          <TtftCell
-            timeToFirstTokenMs={metadata.timeToFirstTokenMs}
-            timeToFirstReasoningMs={metadata.timeToFirstReasoningMs}
-            timeFromSendMs={metadata.timeFromSendMs}
-            organizationId={organizationId}
-            modelId={metadata.model}
-            agentSlug={metadata.agentSlug}
-            t={t}
-          />
+          <button
+            type="button"
+            onClick={() => setView('ttft')}
+            className="cursor-pointer text-left font-medium hover:underline"
+          >
+            {(ttft / 1000).toFixed(2)}s
+          </button>
         ),
       });
     }
@@ -590,153 +535,204 @@ export function MessageInfoDialog({
     return items;
   }, [
     metadata?.durationMs,
-    metadata?.timeFromSendMs,
-    metadata?.timeToFirstReasoningMs,
     metadata?.timeToFirstTokenMs,
     metadata?.outputTokens,
-    metadata?.model,
-    metadata?.agentSlug,
-    organizationId,
     t,
     locale,
   ]);
 
+  const backButton = (
+    <button
+      type="button"
+      onClick={() => setView('main')}
+      className="text-muted-foreground hover:text-foreground -ml-1 flex w-fit items-center gap-1 text-sm"
+    >
+      <ChevronLeft className="size-4" aria-hidden="true" />
+      {tCommon('actions.back')}
+    </button>
+  );
+  const dialogTitle =
+    view === 'context'
+      ? t('messageInfo.contextWindow')
+      : view === 'ttft'
+        ? t('messageInfo.ttftDetailsTitle')
+        : t('messageInfo.title');
+  const dialogDescription =
+    view === 'context'
+      ? t('messageInfo.contextWindowDescription')
+      : view === 'ttft'
+        ? t('messageInfo.ttftDetailsDescription')
+        : t('messageInfo.description');
+  const dialogClassName =
+    view === 'context' ? 'max-h-[80vh] sm:max-w-[800px]' : 'sm:max-w-[500px]';
+
   return (
     <ViewDialog
       open={isOpen}
-      onOpenChange={onOpenChange}
-      title={t('messageInfo.title')}
-      description={t('messageInfo.description')}
-      className="sm:max-w-[500px]"
+      onOpenChange={handleOpenChange}
+      title={dialogTitle}
+      description={dialogDescription}
+      className={dialogClassName}
+      headerActions={
+        view === 'context' && metadata?.contextWindow ? (
+          <IconButton
+            icon={ctxCopied ? Check : Copy}
+            aria-label={
+              ctxCopied ? tCommon('actions.copied') : tCommon('actions.copy')
+            }
+            onClick={handleCopyContext}
+          />
+        ) : undefined
+      }
     >
-      <FieldGroup gap={4} className="min-w-0 overflow-hidden">
-        <Field label={t('messageInfo.timestamp')}>
-          <Text as="div">{formatDate(timestamp, 'long')}</Text>
-          <Text as="div" variant="muted" className="text-xs">
-            {formatRelativeTime(timestamp, locale)}
-          </Text>
-        </Field>
-
-        <Field label={t('messageInfo.messageId')}>
-          <div className="flex items-center gap-1">
-            <Text
-              as="div"
-              variant="code"
-              className="bg-muted min-w-0 flex-1 truncate rounded px-2 py-1"
-            >
-              {messageId}
+      {view === 'context' && metadata?.contextWindow ? (
+        <FieldGroup gap={4} className="min-w-0 overflow-hidden">
+          {backButton}
+          <ContextWindowMarkdown contextWindow={metadata.contextWindow} />
+        </FieldGroup>
+      ) : view === 'ttft' && metadata?.timeToFirstTokenMs != null ? (
+        <FieldGroup gap={4} className="min-w-0 overflow-hidden">
+          {backButton}
+          <TtftDetailContent
+            timeToFirstTokenMs={metadata.timeToFirstTokenMs}
+            timeToFirstReasoningMs={metadata.timeToFirstReasoningMs}
+            timeFromSendMs={metadata.timeFromSendMs}
+            organizationId={organizationId}
+            modelId={metadata.model}
+            agentSlug={metadata.agentSlug}
+            t={t}
+          />
+        </FieldGroup>
+      ) : (
+        <FieldGroup gap={4} className="min-w-0 overflow-hidden">
+          <Field label={t('messageInfo.timestamp')}>
+            <Text as="div">{formatDate(timestamp, 'long')}</Text>
+            <Text as="div" variant="muted" className="text-xs">
+              {formatRelativeTime(timestamp, locale)}
             </Text>
-            <IconButton
-              icon={idCopied ? Check : Copy}
-              aria-label={
-                idCopied ? tCommon('actions.copied') : t('messageInfo.copyId')
-              }
-              onClick={handleCopyId}
-            />
-          </div>
-        </Field>
+          </Field>
 
-        {metadata ? (
-          <>
-            <Field label={t('messageInfo.model')}>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant="outline">{metadata.model}</Badge>
-                {metadata.provider && (
-                  <Text as="span" variant="muted" className="text-xs">
-                    {metadata.provider}
-                  </Text>
-                )}
-              </div>
-            </Field>
+          <Field label={t('messageInfo.messageId')}>
+            <div className="flex items-center gap-1">
+              <Text
+                as="div"
+                variant="code"
+                className="bg-muted min-w-0 flex-1 truncate rounded px-2 py-1"
+              >
+                {messageId}
+              </Text>
+              <IconButton
+                icon={idCopied ? Check : Copy}
+                aria-label={
+                  idCopied ? tCommon('actions.copied') : t('messageInfo.copyId')
+                }
+                onClick={handleCopyId}
+              />
+            </div>
+          </Field>
 
-            {tokenItems.length > 0 && (
-              <Field label={t('messageInfo.tokenUsage')}>
-                <StatGrid className="text-sm" items={tokenItems} />
-              </Field>
-            )}
-
-            {perfItems.length > 0 && (
-              <Field label={t('messageInfo.performance')}>
-                <StatGrid className="text-sm" items={perfItems} />
-              </Field>
-            )}
-
-            {voiceUsage && voiceUsage.breakdown.length > 0 && (
-              <Field label={t('messageInfo.voiceOutput')}>
-                <Stack gap={2}>
-                  {voiceUsage.breakdown.map((entry, index) => (
-                    <div
-                      key={`${entry.provider}-${entry.model}-${entry.voice ?? ''}-${index}`}
-                      className="bg-muted min-w-0 overflow-hidden rounded px-3 py-2 text-sm"
-                    >
-                      <Text as="div" variant="label">
-                        {entry.model}
-                        <Text
-                          as="span"
-                          variant="muted"
-                          className="ml-2 font-normal"
-                        >
-                          ({entry.provider})
-                        </Text>
-                      </Text>
-                      <Text as="div" variant="caption" className="mt-0.5">
-                        {entry.voice && (
-                          <>
-                            {t('messageInfo.voice')}: {entry.voice}
-                            {' · '}
-                          </>
-                        )}
-                        {t('messageInfo.voiceCharacters')}:{' '}
-                        {formatNumber(entry.characters, locale)}
-                        {' · '}
-                        Cost: {formatCostDollars(entry.costCents)}
-                      </Text>
-                    </div>
-                  ))}
-                  {voiceUsage.breakdown.length > 1 && (
-                    <Text as="div" variant="caption" className="px-1">
-                      {t('messageInfo.voiceCharacters')}:{' '}
-                      {formatNumber(voiceUsage.totalCharacters, locale)}
-                      {' · '}
-                      Cost: {formatCostDollars(voiceUsage.totalCostCents)}
+          {metadata ? (
+            <>
+              <Field label={t('messageInfo.model')}>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant="outline">{metadata.model}</Badge>
+                  {metadata.provider && (
+                    <Text as="span" variant="muted" className="text-xs">
+                      {metadata.provider}
                     </Text>
                   )}
-                </Stack>
+                </div>
               </Field>
-            )}
 
-            {metadata.toolsUsage && metadata.toolsUsage.length > 0 && (
-              <Field label={t('messageInfo.toolCalls')}>
-                <Stack gap={2}>
-                  {metadata.toolsUsage.map((usage, index) => (
-                    <ToolCallCard
-                      key={`${usage.toolName}-${index}`}
-                      usage={usage}
-                      locale={locale}
-                      t={t}
-                    />
-                  ))}
-                </Stack>
-              </Field>
-            )}
+              {tokenItems.length > 0 && (
+                <Field label={t('messageInfo.tokenUsage')}>
+                  <StatGrid className="text-sm" items={tokenItems} />
+                </Field>
+              )}
 
-            {metadata.reasoning && (
-              <Field label={t('messageInfo.reasoning')}>
-                <Text
-                  as="div"
-                  className="bg-muted max-h-40 overflow-y-auto rounded px-3 py-2"
-                >
-                  {metadata.reasoning}
-                </Text>
-              </Field>
-            )}
-          </>
-        ) : (
-          <Text as="div" variant="muted">
-            {t('messageInfo.noMetadata')}
-          </Text>
-        )}
-      </FieldGroup>
+              {perfItems.length > 0 && (
+                <Field label={t('messageInfo.performance')}>
+                  <StatGrid className="text-sm" items={perfItems} />
+                </Field>
+              )}
+
+              {voiceUsage && voiceUsage.breakdown.length > 0 && (
+                <Field label={t('messageInfo.voiceOutput')}>
+                  <Stack gap={2}>
+                    {voiceUsage.breakdown.map((entry, index) => (
+                      <div
+                        key={`${entry.provider}-${entry.model}-${entry.voice ?? ''}-${index}`}
+                        className="bg-muted min-w-0 overflow-hidden rounded px-3 py-2 text-sm"
+                      >
+                        <Text as="div" variant="label">
+                          {entry.model}
+                          <Text
+                            as="span"
+                            variant="muted"
+                            className="ml-2 font-normal"
+                          >
+                            ({entry.provider})
+                          </Text>
+                        </Text>
+                        <Text as="div" variant="caption" className="mt-0.5">
+                          {entry.voice && (
+                            <>
+                              {t('messageInfo.voice')}: {entry.voice}
+                              {' · '}
+                            </>
+                          )}
+                          {t('messageInfo.voiceCharacters')}:{' '}
+                          {formatNumber(entry.characters, locale)}
+                          {' · '}
+                          Cost: {formatCostDollars(entry.costCents)}
+                        </Text>
+                      </div>
+                    ))}
+                    {voiceUsage.breakdown.length > 1 && (
+                      <Text as="div" variant="caption" className="px-1">
+                        {t('messageInfo.voiceCharacters')}:{' '}
+                        {formatNumber(voiceUsage.totalCharacters, locale)}
+                        {' · '}
+                        Cost: {formatCostDollars(voiceUsage.totalCostCents)}
+                      </Text>
+                    )}
+                  </Stack>
+                </Field>
+              )}
+
+              {metadata.toolsUsage && metadata.toolsUsage.length > 0 && (
+                <Field label={t('messageInfo.toolCalls')}>
+                  <Stack gap={2}>
+                    {metadata.toolsUsage.map((usage, index) => (
+                      <ToolCallCard
+                        key={`${usage.toolName}-${index}`}
+                        usage={usage}
+                        locale={locale}
+                        t={t}
+                      />
+                    ))}
+                  </Stack>
+                </Field>
+              )}
+
+              {metadata.reasoning && (
+                <Field label={t('messageInfo.reasoning')}>
+                  <Text
+                    as="div"
+                    className="bg-muted max-h-40 overflow-y-auto rounded px-3 py-2"
+                  >
+                    {metadata.reasoning}
+                  </Text>
+                </Field>
+              )}
+            </>
+          ) : (
+            <Text as="div" variant="muted">
+              {t('messageInfo.noMetadata')}
+            </Text>
+          )}
+        </FieldGroup>
+      )}
     </ViewDialog>
   );
 }
