@@ -336,6 +336,99 @@ function DirectTtftProbe({
   );
 }
 
+/**
+ * The Performance section's "Time to first token" cell. Shows the single
+ * familiar headline number; clicking it opens a detail dialog with the full
+ * send → first-reasoning → first-token breakdown (kept out of the main view so
+ * it isn't overwhelming) plus the dev-only direct-TTFT probe.
+ */
+function TtftCell({
+  timeToFirstTokenMs,
+  timeToFirstReasoningMs,
+  timeFromSendMs,
+  organizationId,
+  modelId,
+  agentSlug,
+  t,
+}: {
+  timeToFirstTokenMs: number;
+  timeToFirstReasoningMs?: number;
+  timeFromSendMs?: number;
+  organizationId?: string;
+  modelId?: string;
+  agentSlug?: string;
+  t: (key: string) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const fmtS = (ms?: number) =>
+    ms == null ? '—' : `${(ms / 1000).toFixed(2)}s`;
+
+  const breakdown: StatGridItem[] = [
+    ...(timeFromSendMs != null
+      ? [
+          {
+            label: t('messageInfo.timeFromSend'),
+            value: <Text>{fmtS(timeFromSendMs)}</Text>,
+          },
+        ]
+      : []),
+    ...(timeToFirstReasoningMs != null
+      ? [
+          {
+            label: t('messageInfo.timeToFirstReasoning'),
+            value: <Text>{fmtS(timeToFirstReasoningMs)}</Text>,
+          },
+        ]
+      : []),
+    {
+      label: t('messageInfo.timeToFirstToken'),
+      value: <Text>{fmtS(timeToFirstTokenMs)}</Text>,
+    },
+  ];
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="cursor-pointer text-left font-medium hover:underline"
+      >
+        {fmtS(timeToFirstTokenMs)}
+      </button>
+
+      <ViewDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={t('messageInfo.ttftDetailsTitle')}
+        description={t('messageInfo.ttftDetailsDescription')}
+        className="sm:max-w-[500px]"
+      >
+        <FieldGroup gap={4} className="min-w-0 overflow-hidden">
+          <Field label={t('messageInfo.ttftBreakdown')}>
+            <StatGrid className="text-sm" items={breakdown} />
+            <Text
+              as="div"
+              variant="caption"
+              className="text-muted-foreground mt-1"
+            >
+              {t('messageInfo.ttftBreakdownHint')}
+            </Text>
+          </Field>
+          {organizationId && (
+            <DirectTtftProbe
+              organizationId={organizationId}
+              modelId={modelId}
+              agentSlug={agentSlug}
+              pipelineFirstReasoningMs={timeToFirstReasoningMs}
+              pipelineTimeFromSendMs={timeFromSendMs}
+            />
+          )}
+        </FieldGroup>
+      </ViewDialog>
+    </>
+  );
+}
+
 interface MessageInfoDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -444,20 +537,34 @@ export function MessageInfoDialog({
   );
 
   const perfItems = useMemo<StatGridItem[]>(() => {
-    const items = (
-      [
-        [metadata?.durationMs, 'duration'],
-        // Causal order: send → first thinking token → first answer token.
-        [metadata?.timeFromSendMs, 'timeFromSend'],
-        [metadata?.timeToFirstReasoningMs, 'timeToFirstReasoning'],
-        [metadata?.timeToFirstTokenMs, 'timeToFirstToken'],
-      ] as [number | undefined, string][]
-    )
-      .filter((entry): entry is [number, string] => entry[0] != null)
-      .map(([value, key]) => ({
-        label: t(`messageInfo.${key}`),
-        value: <Text>{(value / 1000).toFixed(2)}s</Text>,
-      }));
+    const items: StatGridItem[] = [];
+
+    if (metadata?.durationMs != null) {
+      items.push({
+        label: t('messageInfo.duration'),
+        value: <Text>{(metadata.durationMs / 1000).toFixed(2)}s</Text>,
+      });
+    }
+
+    // Keep the Performance section to ONE familiar "time to first token" value.
+    // The fuller send → first-reasoning → first-token breakdown (and the dev
+    // probe) live behind a click so the default view isn't overwhelming.
+    if (metadata?.timeToFirstTokenMs != null) {
+      items.push({
+        label: t('messageInfo.timeToFirstToken'),
+        value: (
+          <TtftCell
+            timeToFirstTokenMs={metadata.timeToFirstTokenMs}
+            timeToFirstReasoningMs={metadata.timeToFirstReasoningMs}
+            timeFromSendMs={metadata.timeFromSendMs}
+            organizationId={organizationId}
+            modelId={metadata.model}
+            agentSlug={metadata.agentSlug}
+            t={t}
+          />
+        ),
+      });
+    }
 
     // Derived throughput: output tokens per second of generation. Only when
     // both signals exist and duration is non-zero.
@@ -487,6 +594,9 @@ export function MessageInfoDialog({
     metadata?.timeToFirstReasoningMs,
     metadata?.timeToFirstTokenMs,
     metadata?.outputTokens,
+    metadata?.model,
+    metadata?.agentSlug,
+    organizationId,
     t,
     locale,
   ]);
@@ -549,16 +659,6 @@ export function MessageInfoDialog({
               <Field label={t('messageInfo.performance')}>
                 <StatGrid className="text-sm" items={perfItems} />
               </Field>
-            )}
-
-            {organizationId && (
-              <DirectTtftProbe
-                organizationId={organizationId}
-                modelId={metadata.model}
-                agentSlug={metadata.agentSlug}
-                pipelineFirstReasoningMs={metadata.timeToFirstReasoningMs}
-                pipelineTimeFromSendMs={metadata.timeFromSendMs}
-              />
             )}
 
             {voiceUsage && voiceUsage.breakdown.length > 0 && (
