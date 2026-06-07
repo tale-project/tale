@@ -1071,6 +1071,8 @@
       "performance": "Leistung",
       "duration": "Dauer",
       "timeToFirstToken": "Zeit bis zum ersten Token",
+      "timeToFirstReasoning": "Zeit bis zum ersten Reasoning",
+      "timeFromSend": "Zeit seit dem Senden",
       "toolCalls": "Tool-Aufrufe",
       "voiceOutput": "Sprachausgabe",
       "voice": "Stimme",

@@ -92,6 +92,11 @@ export const chatWithAgent = action({
     ctx,
     args,
   ): Promise<{ messageAlreadyExists: boolean; streamId: string }> => {
+    // Earliest server-side mark of this turn — threaded through the action
+    // chain so the TTFT metric can measure the full pre-stream overhead
+    // (auto-route + markGenerating + scheduler hop + setup), not just the
+    // portion inside the final generation action.
+    const requestStartMs = Date.now();
     // Mark as generating IMMEDIATELY so the Convex subscription delivers
     // isGenerating=true to the client with minimal delay. This mutation
     // commits before the slower PII/config/budget checks below.
@@ -190,7 +195,11 @@ export const chatWithAgent = action({
       }
     }
 
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    // orgSlug feeds agent-config resolution (below) and input sanitization.
+    // It's independent of the guardrails snapshot and the governance-default
+    // query, so start it concurrently with them instead of as a serial
+    // pre-step, then chain config-resolution off it (config NEEDS the slug).
+    const orgSlugPromise = resolveOrgSlug(ctx, args.organizationId);
 
     // PII query, governance default model resolution, and agent config
     // resolution are independent — run them in parallel to reduce TTFT.
@@ -209,13 +218,18 @@ export const chatWithAgent = action({
             },
           )
         : null,
-      resolveAgentConfigInline(ctx, {
-        orgSlug,
-        agentSlug: resolvedAgentSlug,
-        organizationId: args.organizationId,
-        modelId: args.modelId,
-      }),
+      orgSlugPromise.then((orgSlug) =>
+        resolveAgentConfigInline(ctx, {
+          orgSlug,
+          agentSlug: resolvedAgentSlug,
+          organizationId: args.organizationId,
+          modelId: args.modelId,
+        }),
+      ),
     ]);
+    // Already resolved above (ran concurrently); awaited here for the later
+    // sanitize + audit uses.
+    const orgSlug = await orgSlugPromise;
 
     const agentConfig = configResult.config;
 
@@ -379,6 +393,7 @@ export const chatWithAgent = action({
         capabilityBindings: args.capabilityBindings,
         projectId: args.projectId,
         composerProfiles: args.composerProfiles,
+        requestStartMs,
       });
     } catch (err) {
       await rollbackGenerating();

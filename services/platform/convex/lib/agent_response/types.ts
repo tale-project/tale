@@ -172,6 +172,15 @@ export interface GenerateResponseArgs {
   maxSteps?: number;
   /** Absolute deadline (Date.now()-based) by which this generation must complete */
   deadlineMs?: number;
+  /**
+   * Timestamp (Date.now()-based) stamped at `chatWithAgent` entry — the
+   * earliest server-side point of the turn. Threaded through the action chain
+   * so `timeFromSendMs` can measure the full pre-stream overhead, not just the
+   * portion inside this action. Optional: in-flight jobs scheduled before this
+   * field existed (and other callers) omit it; consumers fall back to the
+   * local `startTime`.
+   */
+  requestStartMs?: number;
   /** Optional per-request generation parameters from OpenAI compat endpoint */
   generationParams?: {
     temperature?: number;
@@ -220,6 +229,14 @@ export interface GenerateResponseResult {
   finishReason?: string;
   durationMs: number;
   timeToFirstTokenMs?: number;
+  /** Action-relative time to the first reasoning ("thinking") delta. */
+  timeToFirstReasoningMs?: number;
+  /**
+   * Send-relative time to the first user-visible token (reasoning if present,
+   * else content) — measured from `requestStartMs` when available, else from
+   * the local `startTime`. This is the number that reflects the real wait.
+   */
+  timeFromSendMs?: number;
   toolCalls?: Array<{ toolName: string; status: string }>;
   toolsUsage?: Array<{
     toolName: string;

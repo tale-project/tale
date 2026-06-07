@@ -62,6 +62,8 @@ export const startChat = internalMutation({
     projectId: v.optional(v.id('projects')),
     /** Composer response-tuning profiles (effort/creativity/style). */
     composerProfiles: v.optional(composerProfilesValidator),
+    /** Server-stamped turn-start (chatWithAgent entry) for TTFT measurement. */
+    requestStartMs: v.optional(v.number()),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
@@ -171,6 +173,7 @@ export const startChat = internalMutation({
       preAllocatedStreamId: args.preAllocatedStreamId,
       hooks,
       reasoningOverride,
+      requestStartMs: args.requestStartMs,
     });
   },
 });

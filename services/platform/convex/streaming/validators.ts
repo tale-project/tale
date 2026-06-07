@@ -55,6 +55,8 @@ export const messageMetadataValidator = v.object({
   providerMetadata: v.optional(jsonRecordValidator),
   durationMs: v.optional(v.number()),
   timeToFirstTokenMs: v.optional(v.number()),
+  timeToFirstReasoningMs: v.optional(v.number()),
+  timeFromSendMs: v.optional(v.number()),
   subAgentUsage: v.optional(v.array(toolUsageItemValidator)),
   toolsUsage: v.optional(v.array(toolUsageItemValidator)),
   citations: v.optional(v.array(citationItemValidator)),

@@ -262,6 +262,8 @@ import type * as customers_update_customer from "../customers/update_customer.js
 import type * as customers_update_customer_metadata from "../customers/update_customer_metadata.js";
 import type * as customers_update_customers from "../customers/update_customers.js";
 import type * as customers_validators from "../customers/validators.js";
+import type * as debug_direct_ttft from "../debug/direct_ttft.js";
+import type * as debug_queries from "../debug/queries.js";
 import type * as deployment_auth from "../deployment/auth.js";
 import type * as deployment_auth_policy from "../deployment/auth_policy.js";
 import type * as deployment_editors from "../deployment/editors.js";
@@ -1498,6 +1500,8 @@ declare const fullApi: ApiFromModules<{
   "customers/update_customer_metadata": typeof customers_update_customer_metadata;
   "customers/update_customers": typeof customers_update_customers;
   "customers/validators": typeof customers_validators;
+  "debug/direct_ttft": typeof debug_direct_ttft;
+  "debug/queries": typeof debug_queries;
   "deployment/auth": typeof deployment_auth;
   "deployment/auth_policy": typeof deployment_auth_policy;
   "deployment/editors": typeof deployment_editors;

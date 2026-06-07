@@ -631,6 +631,10 @@ export interface MessageMetadata {
   reasoning?: string;
   durationMs?: number;
   timeToFirstTokenMs?: number;
+  /** Action-relative time to the first reasoning ("thinking") delta. */
+  timeToFirstReasoningMs?: number;
+  /** Send-relative time to the first user-visible token (reasoning or content). */
+  timeFromSendMs?: number;
   toolsUsage?: ToolUsage[];
   contextWindow?: string;
   contextStats?: ContextStats;
@@ -669,6 +673,8 @@ export function useMessageMetadata(
           reasoning: metadata.reasoning,
           durationMs: metadata.durationMs,
           timeToFirstTokenMs: metadata.timeToFirstTokenMs,
+          timeToFirstReasoningMs: metadata.timeToFirstReasoningMs,
+          timeFromSendMs: metadata.timeFromSendMs,
           toolsUsage: metadata.toolsUsage ?? metadata.subAgentUsage,
           contextWindow: metadata.contextWindow,
           contextStats: metadata.contextStats,

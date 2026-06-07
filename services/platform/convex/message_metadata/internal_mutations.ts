@@ -26,6 +26,8 @@ export const saveMessageMetadata = internalMutation({
     providerMetadata: v.optional(jsonRecordValidator),
     durationMs: v.optional(v.number()),
     timeToFirstTokenMs: v.optional(v.number()),
+    timeToFirstReasoningMs: v.optional(v.number()),
+    timeFromSendMs: v.optional(v.number()),
     toolsUsage: v.optional(v.array(toolUsageItemValidator)),
     citations: v.optional(v.array(citationItemValidator)),
     contextWindow: v.optional(v.string()),
@@ -69,6 +71,9 @@ export const saveMessageMetadata = internalMutation({
         durationMs: args.durationMs ?? existing.durationMs,
         timeToFirstTokenMs:
           args.timeToFirstTokenMs ?? existing.timeToFirstTokenMs,
+        timeToFirstReasoningMs:
+          args.timeToFirstReasoningMs ?? existing.timeToFirstReasoningMs,
+        timeFromSendMs: args.timeFromSendMs ?? existing.timeFromSendMs,
         toolsUsage: args.toolsUsage ?? existing.toolsUsage,
         citations: args.citations ?? existing.citations,
         contextWindow: contextWindow ?? existing.contextWindow,
@@ -94,6 +99,8 @@ export const saveMessageMetadata = internalMutation({
       providerMetadata: args.providerMetadata,
       durationMs: args.durationMs,
       timeToFirstTokenMs: args.timeToFirstTokenMs,
+      timeToFirstReasoningMs: args.timeToFirstReasoningMs,
+      timeFromSendMs: args.timeFromSendMs,
       toolsUsage: args.toolsUsage,
       citations: args.citations,
       contextWindow,

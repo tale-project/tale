@@ -100,6 +100,12 @@ export interface StartAgentChatArgs {
   /** Composer-sourced reasoning override (effort/creativity). */
   reasoningOverride?: ReasoningOverride;
   /**
+   * Server-stamped turn-start (chatWithAgent entry, ms epoch) for TTFT
+   * measurement. Threaded into the scheduled generation so `timeFromSendMs`
+   * spans the full pre-stream overhead. Optional — older callers omit it.
+   */
+  requestStartMs?: number;
+  /**
    * Pre-created stream ID from markGenerating. When provided, stream creation
    * and the generationStatus patch are skipped (already committed in the
    * earlier markGenerating mutation for faster subscriber notification).
@@ -447,6 +453,7 @@ export async function startAgentChat(
       reasoningOverride: args.reasoningOverride,
       maxContextTokens: governanceMaxContextTokens,
       threadTeamId: threadMeta?.teamId,
+      requestStartMs: args.requestStartMs,
     },
   );
 

@@ -1072,6 +1072,8 @@
       "performance": "Performance",
       "duration": "Durée",
       "timeToFirstToken": "Délai avant le premier token",
+      "timeToFirstReasoning": "Délai avant le premier Reasoning",
+      "timeFromSend": "Délai depuis l'envoi",
       "toolCalls": "Appels d'outils",
       "voiceOutput": "Sortie vocale",
       "voice": "Voix",

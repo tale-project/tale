@@ -173,12 +173,23 @@ export const runAgentGeneration = internalAction({
     reasoningOverride: v.optional(v.any()),
     maxContextTokens: v.optional(v.number()),
     threadTeamId: v.optional(v.string()),
+    // Server-stamped turn-start (chatWithAgent entry) for TTFT measurement.
+    // Optional so jobs scheduled before this field existed still validate
+    // during a rolling deploy (the consumer falls back to the action start).
+    requestStartMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const actionStartTime = Date.now();
     debugLog('ACTION_START', {
       threadId: args.threadId,
       timestamp: new Date(actionStartTime).toISOString(),
+      // Send → this action's start: the upstream work (auto-route,
+      // markGenerating, startChat) PLUS the Convex scheduler dequeue hop —
+      // the single biggest pre-stream segment the pipeline can target.
+      // Undefined for jobs scheduled before requestStartMs existed.
+      sinceRequestStartMs: args.requestStartMs
+        ? actionStartTime - args.requestStartMs
+        : undefined,
     });
 
     const {
@@ -519,6 +530,7 @@ export const runAgentGeneration = internalAction({
               deadlineMs,
               generationParams,
               reasoningOverride,
+              requestStartMs: args.requestStartMs,
               // Suppress error cleanup (stream error, generation status clear,
               // failed message) when there are more fallback models to try.
               // The fallback loop handles cleanup itself.

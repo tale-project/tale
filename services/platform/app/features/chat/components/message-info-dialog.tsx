@@ -5,6 +5,7 @@ import { IconButton } from '@tale/ui/icon-button';
 import { Stack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
+import { useAction } from 'convex/react';
 import { Copy, Check } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
@@ -189,6 +190,129 @@ function ToolCallCard({ usage, locale, t }: ToolCallCardProps) {
   );
 }
 
+/**
+ * Dev-only "direct HTTP" TTFT probe. Renders nothing unless the current user
+ * is on the probe allowlist (server-checked via `canRunDirectTtft`; the action
+ * re-checks, so this gate is advisory). Streams the prompt straight to the
+ * model — no tools/RAG/history — to measure the raw model+network floor, for
+ * comparison against the pipeline metrics shown above (the gap is our overhead).
+ */
+function DirectTtftProbe({
+  organizationId,
+  modelId,
+  pipelineFirstReasoningMs,
+  pipelineTimeFromSendMs,
+}: {
+  organizationId: string;
+  modelId?: string;
+  pipelineFirstReasoningMs?: number;
+  pipelineTimeFromSendMs?: number;
+}) {
+  const { data: canRun } = useConvexQuery(
+    api.debug.queries.canRunDirectTtft,
+    {},
+  );
+  const runProbe = useAction(api.debug.direct_ttft.measureDirectTtft);
+  const [message, setMessage] = useState('');
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<Awaited<
+    ReturnType<typeof runProbe>
+  > | null>(null);
+
+  if (!canRun) return null;
+
+  const fmt = (ms?: number) =>
+    ms == null ? '—' : ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
+
+  const onRun = async () => {
+    setRunning(true);
+    setError(null);
+    setResult(null);
+    try {
+      setResult(
+        await runProbe({
+          organizationId,
+          message: message.trim() || 'Reply with a one-sentence greeting.',
+          ...(modelId ? { modelId } : {}),
+        }),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Field label="Direct TTFT probe (dev)">
+      <Stack gap={2}>
+        <Text as="div" variant="caption" className="text-muted-foreground">
+          Streams this prompt straight to {modelId ?? 'the chat model'} with no
+          tools / RAG / history — the raw model + network floor. Compare with
+          the pipeline numbers above; the gap is backend overhead. Issues a real
+          (billed) call, aborted at first content.
+        </Text>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Probe prompt (defaults to a short greeting)"
+          rows={2}
+          className="bg-muted w-full rounded px-2 py-1 text-sm"
+        />
+        <button
+          type="button"
+          onClick={onRun}
+          disabled={running}
+          className="bg-primary text-primary-foreground w-fit rounded px-3 py-1 text-sm font-medium disabled:opacity-50"
+        >
+          {running ? 'Measuring…' : 'Measure direct TTFT'}
+        </button>
+        {error && (
+          <Text as="div" variant="caption" className="text-destructive">
+            {error}
+          </Text>
+        )}
+        {result && (
+          <StatGrid
+            className="text-sm"
+            items={[
+              {
+                label: 'Direct first-reasoning',
+                value: <Text>{fmt(result.firstReasoningMs)}</Text>,
+              },
+              {
+                label: 'Direct first-content',
+                value: <Text>{fmt(result.firstContentMs)}</Text>,
+              },
+              {
+                label: 'Direct TTFB',
+                value: <Text>{fmt(result.ttfbMs)}</Text>,
+              },
+              ...(pipelineFirstReasoningMs != null
+                ? [
+                    {
+                      label: 'Pipeline first-reasoning',
+                      value: <Text>{fmt(pipelineFirstReasoningMs)}</Text>,
+                    },
+                  ]
+                : []),
+              ...(pipelineTimeFromSendMs != null
+                ? [
+                    {
+                      label: 'Pipeline from-send',
+                      value: <Text>{fmt(pipelineTimeFromSendMs)}</Text>,
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        )}
+      </Stack>
+    </Field>
+  );
+}
+
 interface MessageInfoDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -199,6 +323,8 @@ interface MessageInfoDialogProps {
   threadId?: string;
   timestamp: Date;
   metadata?: MessageMetadata;
+  /** Owning org — enables the dev-only direct-TTFT probe when present. */
+  organizationId?: string;
 }
 
 export function MessageInfoDialog({
@@ -208,6 +334,7 @@ export function MessageInfoDialog({
   threadId,
   timestamp,
   metadata,
+  organizationId,
 }: MessageInfoDialogProps) {
   const { formatDate, locale } = useFormatDate();
   const { t } = useT('chat');
@@ -297,6 +424,9 @@ export function MessageInfoDialog({
     const items = (
       [
         [metadata?.durationMs, 'duration'],
+        // Causal order: send → first thinking token → first answer token.
+        [metadata?.timeFromSendMs, 'timeFromSend'],
+        [metadata?.timeToFirstReasoningMs, 'timeToFirstReasoning'],
         [metadata?.timeToFirstTokenMs, 'timeToFirstToken'],
       ] as [number | undefined, string][]
     )
@@ -330,6 +460,8 @@ export function MessageInfoDialog({
     return items;
   }, [
     metadata?.durationMs,
+    metadata?.timeFromSendMs,
+    metadata?.timeToFirstReasoningMs,
     metadata?.timeToFirstTokenMs,
     metadata?.outputTokens,
     t,
@@ -394,6 +526,15 @@ export function MessageInfoDialog({
               <Field label={t('messageInfo.performance')}>
                 <StatGrid className="text-sm" items={perfItems} />
               </Field>
+            )}
+
+            {organizationId && (
+              <DirectTtftProbe
+                organizationId={organizationId}
+                modelId={metadata.model}
+                pipelineFirstReasoningMs={metadata.timeToFirstReasoningMs}
+                pipelineTimeFromSendMs={metadata.timeFromSendMs}
+              />
             )}
 
             {voiceUsage && voiceUsage.breakdown.length > 0 && (

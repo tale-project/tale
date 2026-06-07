@@ -824,6 +824,7 @@ function MessageBubbleComponent({
           threadId={message.threadId}
           timestamp={message.timestamp}
           metadata={metadata}
+          organizationId={organizationId}
         />
       </div>
       {isUser && (onEdit || onSavePrompt || toolbarExtra) && (
