@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { Stack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
@@ -235,14 +236,9 @@ function DirectTtftProbe({
           Replay agent tools + system prompt
           {agentSlug ? '' : ' (unavailable — no agent on this message)'}
         </label>
-        <button
-          type="button"
-          onClick={onRun}
-          disabled={running}
-          className="bg-primary text-primary-foreground w-fit rounded px-3 py-1 text-sm font-medium disabled:opacity-50"
-        >
-          {running ? 'Measuring…' : 'Measure direct TTFT'}
-        </button>
+        <Button size="sm" className="w-fit" isLoading={running} onClick={onRun}>
+          Measure direct TTFT
+        </Button>
         {error && (
           <Text as="div" variant="caption" className="text-destructive">
             {error}
