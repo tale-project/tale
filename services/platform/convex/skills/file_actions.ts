@@ -32,6 +32,7 @@ import {
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalAction, action, type ActionCtx } from '../_generated/server';
+import { invalidateSkillContextCache } from '../lib/agent_chat/skill_context_cache';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { type OrgMembershipAuth } from '../lib/auth/require_org_membership';
 import {
@@ -801,6 +802,11 @@ export const uploadSkillBundle = action({
       newState,
     });
 
+    // Drop any cached skill snapshot for this org so the next chat send
+    // rebuilds with the uploaded content immediately (the mtime probe also
+    // catches this, but this avoids any 1s-mtime-resolution race).
+    invalidateSkillContextCache(auth.orgSlug);
+
     return {
       ok: true as const,
       slug: parsed.slug,
@@ -925,6 +931,8 @@ export const duplicateSkill = action({
       },
     });
 
+    invalidateSkillContextCache(auth.orgSlug);
+
     return { newSlug };
   },
 });
@@ -967,6 +975,7 @@ export const deleteSkill = action({
     // — we now return `deleted: true` unconditionally on a non-throwing rm.
     await logSkillAudit(ctx, auth, 'delete_skill', args.slug);
     await rm(dir, { recursive: true, force: true });
+    invalidateSkillContextCache(auth.orgSlug);
     return { deleted: true };
   },
 });

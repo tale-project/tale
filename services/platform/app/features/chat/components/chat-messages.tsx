@@ -304,6 +304,24 @@ export const ChatMessages = memo(function ChatMessages({
     return item.type === 'message' ? item.data.key : null;
   }, [items, lastUserIdx]);
 
+  // Map each assistant message key → the text of the user message that produced
+  // it (the nearest preceding user turn). Powers the dev-only Direct TTFT probe,
+  // which pre-fills with this so it can replay the real prompt instead of a
+  // generic greeting — making its "model floor vs pipeline" gap apples-to-apples.
+  const precedingUserTextByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    let lastUserContent: string | undefined;
+    for (const item of items) {
+      if (item.type !== 'message') continue;
+      if (item.data.role === 'user') {
+        lastUserContent = item.data.content;
+      } else if (item.data.role === 'assistant' && lastUserContent != null) {
+        map.set(item.data.key, lastUserContent);
+      }
+    }
+    return map;
+  }, [items]);
+
   // Only show the retry button on the latest failed assistant message
   // to avoid retrying the wrong turn when multiple messages have failed.
   const latestFailedAssistantKey = useMemo(() => {
@@ -611,6 +629,7 @@ export const ChatMessages = memo(function ChatMessages({
                 threadId: threadId,
               }}
               organizationId={organizationId}
+              precedingUserText={precedingUserTextByKey.get(message.key)}
               isFreshSinceMount={isFreshSinceMount(message.id)}
               hideFeedback={hideFeedback}
               onSendFollowUp={onSendFollowUp}

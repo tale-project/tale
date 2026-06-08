@@ -3,7 +3,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { X } from 'lucide-react';
+import { ChevronLeft, X } from 'lucide-react';
 import * as React from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -104,6 +104,14 @@ export interface DialogProps {
   headerActions?: React.ReactNode;
   /** Icon to display before the title */
   icon?: React.ReactNode;
+  /**
+   * Back-navigation handler. When set, a back control renders on its own row at
+   * the top-left of the header (consistently, regardless of `icon`/`headerActions`),
+   * turning the dialog into a drill-in surface. Use for in-dialog sub-views.
+   */
+  onBack?: () => void;
+  /** Visible + accessible label for the back control (see `onBack`). */
+  backLabel?: string;
   /** Custom header content - completely replaces the default header */
   customHeader?: React.ReactNode;
   /** Optional trigger element that opens the dialog */
@@ -149,6 +157,8 @@ export function Dialog({
   size = 'default',
   headerActions,
   icon,
+  onBack,
+  backLabel,
   customHeader,
   trigger,
   preventCloseAutoFocus = false,
@@ -196,43 +206,60 @@ export function Dialog({
                 {customHeader}
               </>
             ) : (
-              <div
-                className={cn(
-                  'flex flex-col space-y-2 text-left',
-                  !hideClose && 'pr-8',
-                  headerActions && 'flex-row items-start justify-between gap-4',
-                  headerClassName,
+              <div className={cn('flex flex-col', onBack && 'gap-2')}>
+                {onBack && (
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    aria-label={backLabel}
+                    className="text-muted-foreground hover:text-foreground focus-visible:ring-ring -ml-1 flex w-fit items-center gap-1 rounded text-sm transition-colors focus-visible:ring-1 focus-visible:outline-none"
+                  >
+                    <ChevronLeft
+                      className="size-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                    {backLabel}
+                  </button>
                 )}
-              >
                 <div
                   className={cn(
-                    'flex items-center gap-3',
+                    'flex flex-col space-y-2 text-left',
+                    !hideClose && 'pr-8',
                     headerActions &&
-                      'flex-col items-start space-y-2 gap-0 flex-1 min-w-0',
+                      'flex-row items-start justify-between gap-4',
+                    headerClassName,
                   )}
                 >
-                  {icon && <div className="shrink-0">{icon}</div>}
                   <div
                     className={cn(
-                      'flex flex-col space-y-2',
-                      headerActions && 'min-w-0',
+                      'flex items-center gap-3',
+                      headerActions &&
+                        'flex-col items-start space-y-2 gap-0 flex-1 min-w-0',
                     )}
                   >
-                    <DialogPrimitive.Title className="text-base leading-none font-semibold tracking-tight">
-                      {title}
-                    </DialogPrimitive.Title>
-                    {description && (
-                      <DialogPrimitive.Description className="text-muted-foreground text-sm">
-                        {description}
-                      </DialogPrimitive.Description>
-                    )}
+                    {icon && <div className="shrink-0">{icon}</div>}
+                    <div
+                      className={cn(
+                        'flex flex-col space-y-2',
+                        headerActions && 'min-w-0',
+                      )}
+                    >
+                      <DialogPrimitive.Title className="text-base leading-none font-semibold tracking-tight">
+                        {title}
+                      </DialogPrimitive.Title>
+                      {description && (
+                        <DialogPrimitive.Description className="text-muted-foreground text-sm">
+                          {description}
+                        </DialogPrimitive.Description>
+                      )}
+                    </div>
                   </div>
+                  {headerActions && (
+                    <div className="-mt-1 flex items-center gap-1">
+                      {headerActions}
+                    </div>
+                  )}
                 </div>
-                {headerActions && (
-                  <div className="-mt-1 flex items-center gap-1">
-                    {headerActions}
-                  </div>
-                )}
               </div>
             )}
             <div className="-mx-2 -my-1 min-h-0 flex-1 overflow-y-auto px-2 py-1">

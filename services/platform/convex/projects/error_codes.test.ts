@@ -43,7 +43,7 @@ describe('projects error-code ↔ i18n key consistency', () => {
       'projects/mutations.ts',
       'projects/queries.ts',
       'projects/internal_queries.ts',
-      'agents/unified_chat.ts',
+      'agents/chat_turn.ts',
       'agents/start_chat.ts',
     ];
     const allThrownCodes = new Set<string>();
@@ -84,7 +84,7 @@ describe('projects error-code ↔ i18n key consistency', () => {
       'projects/mutations.ts',
       'projects/queries.ts',
       'projects/internal_queries.ts',
-      'agents/unified_chat.ts',
+      'agents/chat_turn.ts',
       'agents/start_chat.ts',
     ];
     const allThrownCodes = new Set<string>();

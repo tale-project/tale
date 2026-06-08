@@ -623,6 +623,8 @@ export interface StructuredCitation {
 export interface MessageMetadata {
   model: string;
   provider: string;
+  /** Owning assistant slug — used by the dev TTFT probe to reproduce its tools. */
+  agentSlug?: string;
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
@@ -631,6 +633,10 @@ export interface MessageMetadata {
   reasoning?: string;
   durationMs?: number;
   timeToFirstTokenMs?: number;
+  /** Action-relative time to the first reasoning ("thinking") delta. */
+  timeToFirstReasoningMs?: number;
+  /** Send-relative time to the first user-visible token (reasoning or content). */
+  timeFromSendMs?: number;
   toolsUsage?: ToolUsage[];
   contextWindow?: string;
   contextStats?: ContextStats;
@@ -661,6 +667,7 @@ export function useMessageMetadata(
       ? {
           model: metadata.model,
           provider: metadata.provider,
+          agentSlug: metadata.agentSlug,
           inputTokens: metadata.inputTokens,
           outputTokens: metadata.outputTokens,
           totalTokens: metadata.totalTokens,
@@ -669,6 +676,8 @@ export function useMessageMetadata(
           reasoning: metadata.reasoning,
           durationMs: metadata.durationMs,
           timeToFirstTokenMs: metadata.timeToFirstTokenMs,
+          timeToFirstReasoningMs: metadata.timeToFirstReasoningMs,
+          timeFromSendMs: metadata.timeFromSendMs,
           toolsUsage: metadata.toolsUsage ?? metadata.subAgentUsage,
           contextWindow: metadata.contextWindow,
           contextStats: metadata.contextStats,

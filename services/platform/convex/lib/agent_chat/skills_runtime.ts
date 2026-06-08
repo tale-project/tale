@@ -34,6 +34,11 @@ import { SKILL_NAME_REGEX } from '../../../lib/shared/schemas/skills';
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { escapeForXmlTag } from '../untrusted_content';
+import {
+  computeSkillMtimeKey,
+  getCachedSkillSnapshot,
+  setCachedSkillSnapshot,
+} from './skill_context_cache';
 
 /** Asset payloads inlined into `expand_skill` responses below this size. */
 const INLINE_ASSET_BYTE_CAP = 8 * 1024; // 8 KB
@@ -90,6 +95,32 @@ export async function buildSkillContext(
   boundSlugs: readonly string[] | undefined,
 ): Promise<SkillSnapshot> {
   if (!boundSlugs || boundSlugs.length === 0) return EMPTY_SNAPSHOT;
+
+  // The snapshot is a pure function of the bound skills' on-disk content, so
+  // reuse a cached one when none of their SKILL.md files changed. This skips
+  // the nested `ctx.runAction` round-trips + disk reads in
+  // `rebuildSkillContext` — the dominant per-send tool-build cost. Freshness
+  // is a cheap in-process `stat`; writes also invalidate explicitly
+  // (`invalidateSkillContextCache`), and a deploy clears the whole cache.
+  const mtimeKey = await computeSkillMtimeKey(orgSlug, boundSlugs);
+  const cached = getCachedSkillSnapshot(orgSlug, boundSlugs, mtimeKey);
+  if (cached) return cached;
+
+  const snapshot = await rebuildSkillContext(ctx, orgSlug, boundSlugs);
+  setCachedSkillSnapshot(orgSlug, boundSlugs, mtimeKey, snapshot);
+  return snapshot;
+}
+
+/**
+ * Uncached path for {@link buildSkillContext}: intersect the bound slugs with
+ * the org's skills, load each one's SKILL.md + bundle, and assemble the
+ * snapshot. Bound slugs that point at non-existent org skills are dropped.
+ */
+async function rebuildSkillContext(
+  ctx: ActionCtx,
+  orgSlug: string,
+  boundSlugs: readonly string[],
+): Promise<SkillSnapshot> {
   const boundSet = new Set(boundSlugs);
 
   // Let `listSkillsForExecution` failures propagate. Sibling builders

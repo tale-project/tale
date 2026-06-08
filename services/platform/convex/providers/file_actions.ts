@@ -64,6 +64,9 @@ import {
   serializeProviderJson,
   validateProviderName,
 } from './file_utils';
+// Type-only import (erased at runtime — no circular dependency) so the
+// in-process resolver shares the canonical ResolvedModelData shape.
+import type { ResolvedModelData } from './resolve_model';
 import {
   UndecryptableExistingSecretError,
   prepareMergedSecrets,
@@ -869,123 +872,132 @@ export const resolveModelData = internalAction({
       }),
     ),
   }),
-  handler: async (ctx, args) => {
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-    const providers = await loadAllProviders(orgSlug);
-
-    // Split off any `@<quant>` suffix so the provider config lookup uses the
-    // bare model id from the JSON. The variant pins the
-    // `providerOptions.provider.quantizations` array further below.
-    // Fall back to the ref's parsed `provider:` qualifier when the caller
-    // didn't pass `args.providerName` separately, so a fully-qualified
-    // modelId pins the lookup without a redundant arg.
-    const {
-      providerName: parsedProviderName,
-      modelId: bareModelId,
-      quantization,
-    } = parseModelRef(args.modelId);
-    const effectiveProviderName = args.providerName ?? parsedProviderName;
-
-    const candidates = effectiveProviderName
-      ? providers.filter((p) => p.name === effectiveProviderName)
-      : providers;
-
-    if (effectiveProviderName && candidates.length === 0) {
-      const available = providers.map((p) => p.name);
-      throw new ConvexError({
-        code: 'UNKNOWN_PROVIDER',
-        message: `Provider "${effectiveProviderName}" not found. Available: ${available.join(', ')}`,
-      });
-    }
-
-    let firstMatch:
-      | {
-          provider: (typeof candidates)[number];
-          definition: (typeof candidates)[number]['config']['models'][number];
-        }
-      | undefined;
-    const secondaryMatchProviders: string[] = [];
-    for (const provider of candidates) {
-      const definition = provider.config.models.find(
-        (m) => m.id === bareModelId,
-      );
-      if (!definition) continue;
-      if (!firstMatch) {
-        firstMatch = { provider, definition };
-      } else {
-        secondaryMatchProviders.push(provider.name);
-      }
-    }
-
-    if (firstMatch) {
-      if (!effectiveProviderName && secondaryMatchProviders.length > 0) {
-        console.warn(
-          `[resolveModelData] Unqualified model "${bareModelId}" matches multiple providers ` +
-            `(pinned: ${firstMatch.provider.name}; also in: ${secondaryMatchProviders.join(', ')}). ` +
-            `Qualify as "${firstMatch.provider.name}:${bareModelId}" to pin explicitly.`,
-        );
-      }
-      const { provider, definition } = firstMatch;
-      let providerOptions = mergeModelLevel(
-        provider.config.providerOptions,
-        definition.providerOptions,
-      );
-
-      // The user pinned a specific quantization via the `@<quant>` suffix.
-      // Validate it appears in the model's declared `quantizations` and
-      // narrow the merged passthrough to a single-element array so the
-      // upstream request asks for exactly that weight format.
-      if (quantization) {
-        const declared = readQuantizations(providerOptions);
-        if (!declared || !declared.includes(quantization)) {
-          const available = declared?.length ? declared.join(', ') : '(none)';
-          throw new ConvexError({
-            code: 'UNKNOWN_MODEL_VARIANT',
-            message: `Model "${bareModelId}" has no quantization "${quantization}". Available: ${available}`,
-          });
-        }
-        providerOptions = pinQuantization(providerOptions, quantization);
-      }
-
-      return {
-        providerName: provider.name,
-        baseUrl: definition.baseUrl ?? provider.config.baseUrl,
-        apiKey: resolveModelApiKey(provider, definition),
-        // The wire-side request uses the bare config id; the variant lives
-        // only in providerOptions.provider.quantizations.
-        modelId: bareModelId,
-        tags: [...definition.tags],
-        dimensions: definition.dimensions,
-        maxOutputTokens: definition.maxOutputTokens,
-        supportsStructuredOutputs:
-          definition.supportsStructuredOutputs ??
-          provider.config.supportsStructuredOutputs ??
-          false,
-        imageGenerationMode: definition.imageGenerationMode,
-        inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
-        outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
-        imageCentsPerImage: definition.cost?.imageCentsPerImage,
-        centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
-        centsPerMillionCharacters: definition.cost?.centsPerMillionCharacters,
-        defaultVoice: definition.defaultVoice,
-        voicesByLocale: definition.voicesByLocale,
-        defaultInstructions: definition.defaultInstructions,
-        instructionsByLocale: definition.instructionsByLocale,
-        audioFormat: definition.audioFormat,
-        providerOptions,
-        reasoning: definition.reasoning,
-      };
-    }
-
-    const allModelIds = candidates.flatMap((p) =>
-      p.config.models.map((m) => m.id),
-    );
-    throw new ConvexError({
-      code: 'UNKNOWN_MODEL',
-      message: `Model "${bareModelId}" not found${effectiveProviderName ? ` in provider "${effectiveProviderName}"` : ' in any provider'}. Available: ${allModelIds.join(', ')}`,
-    });
-  },
+  handler: (ctx, args) => resolveModelDataInline(ctx, args),
 });
+
+/**
+ * In-process variant of `resolveModelData` — call directly from a node action
+ * (e.g. `resolveLanguageModelById`) to avoid a ~340ms node→backend `runAction`
+ * dispatch hop. The internalAction above is a thin wrapper kept for any
+ * cross-runtime callers.
+ */
+export async function resolveModelDataInline(
+  ctx: ActionCtx,
+  args: { modelId: string; organizationId: string; providerName?: string },
+): Promise<ResolvedModelData> {
+  const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+  const providers = await loadAllProviders(orgSlug);
+
+  // Split off any `@<quant>` suffix so the provider config lookup uses the
+  // bare model id from the JSON. The variant pins the
+  // `providerOptions.provider.quantizations` array further below.
+  // Fall back to the ref's parsed `provider:` qualifier when the caller
+  // didn't pass `args.providerName` separately, so a fully-qualified
+  // modelId pins the lookup without a redundant arg.
+  const {
+    providerName: parsedProviderName,
+    modelId: bareModelId,
+    quantization,
+  } = parseModelRef(args.modelId);
+  const effectiveProviderName = args.providerName ?? parsedProviderName;
+
+  const candidates = effectiveProviderName
+    ? providers.filter((p) => p.name === effectiveProviderName)
+    : providers;
+
+  if (effectiveProviderName && candidates.length === 0) {
+    const available = providers.map((p) => p.name);
+    throw new ConvexError({
+      code: 'UNKNOWN_PROVIDER',
+      message: `Provider "${effectiveProviderName}" not found. Available: ${available.join(', ')}`,
+    });
+  }
+
+  let firstMatch:
+    | {
+        provider: (typeof candidates)[number];
+        definition: (typeof candidates)[number]['config']['models'][number];
+      }
+    | undefined;
+  const secondaryMatchProviders: string[] = [];
+  for (const provider of candidates) {
+    const definition = provider.config.models.find((m) => m.id === bareModelId);
+    if (!definition) continue;
+    if (!firstMatch) {
+      firstMatch = { provider, definition };
+    } else {
+      secondaryMatchProviders.push(provider.name);
+    }
+  }
+
+  if (firstMatch) {
+    if (!effectiveProviderName && secondaryMatchProviders.length > 0) {
+      console.warn(
+        `[resolveModelData] Unqualified model "${bareModelId}" matches multiple providers ` +
+          `(pinned: ${firstMatch.provider.name}; also in: ${secondaryMatchProviders.join(', ')}). ` +
+          `Qualify as "${firstMatch.provider.name}:${bareModelId}" to pin explicitly.`,
+      );
+    }
+    const { provider, definition } = firstMatch;
+    let providerOptions = mergeModelLevel(
+      provider.config.providerOptions,
+      definition.providerOptions,
+    );
+
+    // The user pinned a specific quantization via the `@<quant>` suffix.
+    // Validate it appears in the model's declared `quantizations` and
+    // narrow the merged passthrough to a single-element array so the
+    // upstream request asks for exactly that weight format.
+    if (quantization) {
+      const declared = readQuantizations(providerOptions);
+      if (!declared || !declared.includes(quantization)) {
+        const available = declared?.length ? declared.join(', ') : '(none)';
+        throw new ConvexError({
+          code: 'UNKNOWN_MODEL_VARIANT',
+          message: `Model "${bareModelId}" has no quantization "${quantization}". Available: ${available}`,
+        });
+      }
+      providerOptions = pinQuantization(providerOptions, quantization);
+    }
+
+    return {
+      providerName: provider.name,
+      baseUrl: definition.baseUrl ?? provider.config.baseUrl,
+      apiKey: resolveModelApiKey(provider, definition),
+      // The wire-side request uses the bare config id; the variant lives
+      // only in providerOptions.provider.quantizations.
+      modelId: bareModelId,
+      tags: [...definition.tags],
+      dimensions: definition.dimensions,
+      maxOutputTokens: definition.maxOutputTokens,
+      supportsStructuredOutputs:
+        definition.supportsStructuredOutputs ??
+        provider.config.supportsStructuredOutputs ??
+        false,
+      imageGenerationMode: definition.imageGenerationMode,
+      inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
+      outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
+      imageCentsPerImage: definition.cost?.imageCentsPerImage,
+      centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+      centsPerMillionCharacters: definition.cost?.centsPerMillionCharacters,
+      defaultVoice: definition.defaultVoice,
+      voicesByLocale: definition.voicesByLocale,
+      defaultInstructions: definition.defaultInstructions,
+      instructionsByLocale: definition.instructionsByLocale,
+      audioFormat: definition.audioFormat,
+      providerOptions,
+      reasoning: definition.reasoning,
+    };
+  }
+
+  const allModelIds = candidates.flatMap((p) =>
+    p.config.models.map((m) => m.id),
+  );
+  throw new ConvexError({
+    code: 'UNKNOWN_MODEL',
+    message: `Model "${bareModelId}" not found${effectiveProviderName ? ` in provider "${effectiveProviderName}"` : ' in any provider'}. Available: ${allModelIds.join(', ')}`,
+  });
+}
 
 /**
  * Resolve provider data for the first model matching a tag (chat/vision/embedding).

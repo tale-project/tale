@@ -468,6 +468,36 @@ export async function generateAgentResponse(
   let agentInstructions: string | undefined;
   let retrySystemMessageId: string | undefined;
   let firstTokenTime: number | null = null;
+  // First reasoning ("thinking") delta — what the user is actually waiting
+  // for on a reasoning model, and which streams BEFORE the first text-delta.
+  // Tracked separately from firstTokenTime (which is first answer content).
+  // LIMITATION: captured only via the streaming `onChunk` below. The
+  // non-streaming `agent.generateText` path (sub-agents) and the
+  // `continueAgent.generateText` retry (DeepSeek empty-with-tools) have no
+  // onChunk, so on those turns this stays null and the reasoning/send metrics
+  // are undercounted — acceptable, as the metric targets the streaming chat path.
+  let firstReasoningTime: number | null = null;
+  // chatWithAgent entry when threaded through the action chain; otherwise this
+  // action's start, so the metric degrades gracefully for older in-flight jobs
+  // and non-chat callers that don't supply it.
+  const sendStartMs = args.requestStartMs ?? startTime;
+  // Derive the two reasoning-aware timings from the latest first-token marks.
+  // Called at each onAgentComplete site (success / error / cancel).
+  // Wall-clock at the moment we hand off to the LLM (just before streamText).
+  // Lets the PERF trace split "our pre-stream setup" from "model TTFR".
+  let preStreamAtMs: number | null = null;
+  const computeReasoningTimings = () => ({
+    timeToFirstReasoningMs:
+      firstReasoningTime != null ? firstReasoningTime - startTime : undefined,
+    // First user-visible token of EITHER kind (reasoning preferred), measured
+    // from send so it captures the full pre-stream backend overhead.
+    timeFromSendMs:
+      firstReasoningTime != null
+        ? firstReasoningTime - sendStartMs
+        : firstTokenTime != null
+          ? firstTokenTime - sendStartMs
+          : undefined,
+  });
   let savedMessageId: string | undefined;
   // Accumulator for every saved-message envelope returned across the
   // stream / generate / continue / recovery code paths. Used after
@@ -651,6 +681,10 @@ export async function generateAgentResponse(
               usage: result.usage,
               reasoning: result.reasoning,
               durationMs,
+              timeToFirstTokenMs: firstTokenTime
+                ? firstTokenTime - startTime
+                : undefined,
+              ...computeReasoningTimings(),
               contextWindow: cancelContextWindow,
               contextStats: cancelContextStats,
             },
@@ -678,6 +712,57 @@ export async function generateAgentResponse(
         model: actualModel,
         provider,
       };
+    };
+
+    // Guardrails-blocked turn finalizer. A content-policy block still consumed
+    // provider tokens, so it must run onAgentComplete (usage ledger + AI audit
+    // log + timing metadata) exactly like the success/cancel paths — the block
+    // sites previously returned via buildBlockedReturn alone and silently
+    // dropped all three. saveMessageMetadata merges (`?? existing`), so the
+    // blocked-reason already written by applyGuardrailsBlockTombstone is kept.
+    const blockedReturn = async (): Promise<GenerateResponseResult> => {
+      abortWatcher?.stop();
+      if (savedMessageId) {
+        const durationMs = Date.now() - startTime;
+        const actualModel = result.response?.modelId ?? model;
+        try {
+          await onAgentComplete(ctx, {
+            threadId,
+            agentType,
+            result: {
+              threadId,
+              messageId: savedMessageId,
+              text: OUTPUT_BLOCKED_SENTINEL,
+              model: actualModel,
+              provider,
+              usage: result.usage,
+              reasoning: result.reasoning,
+              durationMs,
+              timeToFirstTokenMs: firstTokenTime
+                ? firstTokenTime - startTime
+                : undefined,
+              ...computeReasoningTimings(),
+            },
+            organizationId,
+            userId,
+            teamIds,
+            agentSlug,
+            providerCost,
+          });
+        } catch (metaError) {
+          console.error(
+            '[generateAgentResponse] blocked-turn onAgentComplete failed:',
+            metaError,
+          );
+        }
+      }
+      return buildBlockedReturn(
+        threadId,
+        savedMessageId,
+        result.usage,
+        result.finishReason,
+        startTime,
+      );
     };
 
     // Determine retrieval modes
@@ -807,6 +892,7 @@ export async function generateAgentResponse(
       projectInstructionsBlock,
       reasoningStateRow,
       reasoningProfile,
+      guardrailsPair,
     ] = await Promise.all([
       knowledgeContextPromise ?? Promise.resolve(undefined),
       webContextPromise ?? Promise.resolve(undefined),
@@ -848,8 +934,33 @@ export async function generateAgentResponse(
               return null;
             })
         : Promise.resolve(null),
+      // Output guardrails snapshot + orgSlug. Independent of RAG/history, so
+      // resolved here in parallel rather than serially before the LLM call.
+      // Wrapped as ONE self-catching tuple so a transient load failure degrades
+      // BOTH to null (stream without output guardrails) — exactly the prior
+      // behavior — instead of turning a transient failure into a failed turn.
+      organizationId
+        ? Promise.all([
+            loadGuardrailsSnapshot(ctx, organizationId),
+            resolveOrgSlug(ctx, organizationId),
+          ]).catch(
+            (err: unknown): [GuardrailsSnapshot | null, string | null] => {
+              console.warn(
+                `[guardrails] failed to load snapshot for org ${organizationId}: ${
+                  err instanceof Error ? err.message : String(err)
+                }`,
+              );
+              return [null, null];
+            },
+          )
+        : Promise.resolve<[GuardrailsSnapshot | null, string | null]>([
+            null,
+            null,
+          ]),
     ]);
     const reasoningState = reasoningStateRow?.reasoningState ?? undefined;
+    // Assign the hoisted guardrails state from the parallel resolve above.
+    [guardrailsSnapshot, resolvedOrgSlug] = guardrailsPair;
 
     if (knowledgeContextResult) {
       debugLog('Knowledge context injected', {
@@ -1115,24 +1226,11 @@ export async function generateAgentResponse(
       timestamp: new Date().toISOString(),
     });
 
-    // Snapshot guardrails configs once before LLM call; used by both the
-    // streaming transform (if enabled) and by `finalizeSanitize` on the
-    // full text at the end. Also resolves orgSlug which moderation needs
-    // to locate the per-org SOPS secrets file.
-    if (organizationId) {
-      try {
-        [guardrailsSnapshot, resolvedOrgSlug] = await Promise.all([
-          loadGuardrailsSnapshot(ctx, organizationId),
-          resolveOrgSlug(ctx, organizationId),
-        ]);
-      } catch (err) {
-        console.warn(
-          `[guardrails] failed to load snapshot for org ${organizationId}: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-      }
-    }
+    // Guardrails snapshot + orgSlug are resolved in the context Promise.all
+    // above (parallel with RAG/history), preserving the degrade-to-null
+    // semantics — used by the streaming transform (if enabled) and by
+    // `finalizeSanitize` on the full text at the end. orgSlug lets moderation
+    // locate the per-org SOPS secrets file. Already assigned here.
 
     const guardrailsOutputEnabled =
       guardrailsSnapshot !== null &&
@@ -1199,6 +1297,21 @@ export async function generateAgentResponse(
               })()
             : null;
 
+        preStreamAtMs = Date.now();
+        // PERF (diagnostic, env-gated via debugLog): consolidated pre-stream
+        // attribution. `totalPreStreamMs` is the whole send → just-before-
+        // streamText window; `genPreStreamMs` is this action's own setup
+        // (context Promise.all, buildSkillContext, model resolve, system prompt).
+        // Enable with DEBUG_<AGENTTYPE>_AGENT=true or DEBUG_MODE=true.
+        debugLog(
+          'PRE_STREAM_SUMMARY',
+          JSON.stringify({
+            threadId,
+            model,
+            totalPreStreamMs: preStreamAtMs - sendStartMs,
+            genPreStreamMs: preStreamAtMs - startTime,
+          }),
+        );
         const streamResult = await agent.streamText(
           contextWithOrg,
           { threadId, userId },
@@ -1232,6 +1345,12 @@ export async function generateAgentResponse(
               ? { providerOptions: reasoningProviderOptions }
               : {}),
             onChunk: ({ chunk }: { chunk: { type: string } }) => {
+              if (
+                firstReasoningTime === null &&
+                chunk.type === 'reasoning-delta'
+              ) {
+                firstReasoningTime = Date.now();
+              }
               if (firstTokenTime === null && chunk.type === 'text-delta') {
                 firstTokenTime = Date.now();
               }
@@ -1305,20 +1424,9 @@ export async function generateAgentResponse(
           );
           result.text = OUTPUT_BLOCKED_SENTINEL;
           // Skip the empty-output-provider-error heuristic below: empty
-          // text is now expected.
-          // Match the sibling success/catch return paths (`:580`, `:2008`,
-          // `:2011`) which all stop the abort watcher before returning.
-          // Without this the polling closure keeps issuing redundant
-          // Convex `check_cancelled` queries for up to one ABORT_POLL_INTERVAL
-          // (~1.5s) after the function has returned.
-          abortWatcher?.stop();
-          return buildBlockedReturn(
-            threadId,
-            savedMessageId,
-            streamUsage,
-            streamFinishReason,
-            startTime,
-          );
+          // text is now expected. blockedReturn stops the abort watcher and
+          // persists usage/audit/metrics (the block still billed tokens).
+          return blockedReturn();
         }
 
         // Detect stream-level provider errors: the stream completed "successfully"
@@ -1402,16 +1510,9 @@ export async function generateAgentResponse(
                 blockedReason,
               );
               result.text = OUTPUT_BLOCKED_SENTINEL;
-              // Sibling parity with the mid-stream guardrails-block path
-              // and the success/catch returns — see note above.
-              abortWatcher?.stop();
-              return buildBlockedReturn(
-                threadId,
-                savedMessageId,
-                streamUsage,
-                streamFinishReason,
-                startTime,
-              );
+              // Sibling parity with the mid-stream guardrails-block path —
+              // blockedReturn stops the watcher and persists usage/audit/metrics.
+              return blockedReturn();
             }
             throw err;
           }
@@ -1964,6 +2065,8 @@ export async function generateAgentResponse(
     const timeToFirstTokenMs = firstTokenTime
       ? firstTokenTime - startTime
       : undefined;
+    const { timeToFirstReasoningMs, timeFromSendMs } =
+      computeReasoningTimings();
 
     debugLog('Response generated', {
       durationMs,
@@ -1973,12 +2076,24 @@ export async function generateAgentResponse(
       timeToFirstTokenMs,
     });
 
-    // Structured performance summary for profiling (T0 instrumentation)
+    // Structured performance summary for profiling (T0 instrumentation).
+    // The send-relative fields decompose the wait: requestStartMs → this
+    // action's setup → preStream handoff → model first-reasoning / first-token.
     debugLog('PERF_SUMMARY', {
       threadId,
       model,
       totalMs: durationMs,
       ttftMs: timeToFirstTokenMs,
+      // What the user actually waits for, split into our-overhead vs model-floor.
+      timeToFirstReasoningMs,
+      timeFromSendMs,
+      // Setup inside THIS action (entry → handoff to the LLM).
+      preStreamSetupMs:
+        preStreamAtMs != null ? preStreamAtMs - startTime : undefined,
+      // Our pre-stream overhead measured from send (includes the upstream
+      // hops + scheduler tick captured separately in runAgentGeneration).
+      preStreamFromSendMs:
+        preStreamAtMs != null ? preStreamAtMs - sendStartMs : undefined,
       contextBuildMs,
       ragContextLength: knowledgeContextResult?.text?.length ?? 0,
       webContextLength: webContextResult?.text?.length ?? 0,
@@ -2070,6 +2185,8 @@ export async function generateAgentResponse(
       reasoning: result.reasoning,
       durationMs,
       timeToFirstTokenMs,
+      timeToFirstReasoningMs,
+      timeFromSendMs,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       toolsUsage: toolsUsage.length > 0 ? toolsUsage : undefined,
       citations: citations.length > 0 ? citations : undefined,
@@ -2131,6 +2248,8 @@ export async function generateAgentResponse(
             reasoning: responseResult.reasoning,
             durationMs,
             timeToFirstTokenMs,
+            timeToFirstReasoningMs,
+            timeFromSendMs,
             toolCalls: responseResult.toolCalls,
             toolsUsage: responseResult.toolsUsage,
             citations: responseResult.citations,
@@ -2496,6 +2615,7 @@ export async function generateAgentResponse(
             timeToFirstTokenMs: firstTokenTime
               ? firstTokenTime - startTime
               : undefined,
+            ...computeReasoningTimings(),
             toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
             toolsUsage: toolsUsage.length > 0 ? toolsUsage : undefined,
             citations: citations.length > 0 ? citations : undefined,

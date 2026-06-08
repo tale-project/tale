@@ -43,6 +43,36 @@ function extractGuardrailsBlockedCode(
   return null;
 }
 
+type ProjectErrorCode =
+  | 'PROJECT_MISMATCH'
+  | 'PROJECT_FORBIDDEN'
+  | 'PROJECT_NOT_FOUND'
+  | 'PROJECT_ORG_MISMATCH';
+
+/**
+ * Project-context send failures thrown synchronously by `chatWithAgentTurn`
+ * (access denials + thread↔project mismatch). Mapped to their localized
+ * `errors.*` messages so the user sees a meaningful toast instead of the raw
+ * ConvexError payload.
+ */
+function extractProjectErrorCode(error: unknown): ProjectErrorCode | null {
+  if (!(error instanceof ConvexError)) return null;
+  const data: unknown = error.data;
+  if (typeof data !== 'object' || data === null || !('code' in data)) {
+    return null;
+  }
+  const code = data.code;
+  if (
+    code === 'PROJECT_MISMATCH' ||
+    code === 'PROJECT_FORBIDDEN' ||
+    code === 'PROJECT_NOT_FOUND' ||
+    code === 'PROJECT_ORG_MISMATCH'
+  ) {
+    return code;
+  }
+  return null;
+}
+
 import type {
   PendingMessage,
   SelectedAgent,
@@ -834,8 +864,10 @@ export function useSendMessage({
         // Guardrails block detection: prefer structured ConvexError data,
         // fall back to the legacy substring for old server bundles.
         const blockedCode = extractGuardrailsBlockedCode(error);
+        const projectCode = extractProjectErrorCode(error);
 
         let title = t('toast.sendFailed');
+        let description = errorMessage;
         if (
           blockedCode === 'pii.blocked' ||
           errorMessage.includes('Message blocked: PII')
@@ -856,11 +888,22 @@ export function useSendMessage({
           title = t('toast.modelAccessDenied');
         } else if (lower.includes('usage limit') || lower.includes('budget')) {
           title = t('toast.budgetExceeded');
+        } else if (projectCode) {
+          // Surface the localized project-context message instead of the raw
+          // ConvexError payload (which would otherwise show as the description).
+          description =
+            projectCode === 'PROJECT_MISMATCH'
+              ? t('errors.PROJECT_MISMATCH')
+              : projectCode === 'PROJECT_FORBIDDEN'
+                ? t('errors.PROJECT_FORBIDDEN')
+                : projectCode === 'PROJECT_NOT_FOUND'
+                  ? t('errors.PROJECT_NOT_FOUND')
+                  : t('errors.PROJECT_ORG_MISMATCH');
         }
 
         toast({
           title,
-          description: errorMessage,
+          description,
           variant: 'destructive',
         });
       } finally {

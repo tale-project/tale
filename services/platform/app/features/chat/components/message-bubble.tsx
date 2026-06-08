@@ -71,6 +71,12 @@ export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
 interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   message: Message;
   organizationId?: string;
+  /**
+   * Text of the user message that produced this assistant reply. Forwarded to
+   * the dev-only Direct TTFT probe so it can replay the real prompt. Undefined
+   * for user messages and assistant replies with no preceding user turn.
+   */
+  precedingUserText?: string;
   hideFeedback?: boolean;
   onSendFollowUp?: (message: string) => void;
   onRetry?: () => void;
@@ -160,6 +166,7 @@ function MessageBubbleComponent({
   message,
   className,
   organizationId,
+  precedingUserText,
   hideFeedback,
   onSendFollowUp,
   onRetry,
@@ -824,6 +831,8 @@ function MessageBubbleComponent({
           threadId={message.threadId}
           timestamp={message.timestamp}
           metadata={metadata}
+          organizationId={organizationId}
+          precedingUserText={precedingUserText}
         />
       </div>
       {isUser && (onEdit || onSavePrompt || toolbarExtra) && (
@@ -975,6 +984,7 @@ export const MessageBubble = memo(
       prevProps.message.threadId === nextProps.message.threadId &&
       prevProps.className === nextProps.className &&
       prevProps.organizationId === nextProps.organizationId &&
+      prevProps.precedingUserText === nextProps.precedingUserText &&
       prevProps.hideFeedback === nextProps.hideFeedback &&
       prevProps.onSendFollowUp === nextProps.onSendFollowUp &&
       prevProps.onRetry === nextProps.onRetry &&

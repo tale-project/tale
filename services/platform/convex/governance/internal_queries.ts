@@ -1,6 +1,5 @@
 import { v } from 'convex/values';
 
-import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
@@ -1073,56 +1072,6 @@ export const listExpiredLoginBlockCounters = internalQuery({
   },
 });
 
-interface BetterAuthTeamMember {
-  teamId: string;
-}
-
-interface BetterAuthFindManyResult<T> {
-  page: T[];
-  continueCursor: string;
-  isDone: boolean;
-}
-
-export const resolveDefaultModelInternal = internalQuery({
-  args: {
-    organizationId: v.string(),
-    userId: v.string(),
-    userEmail: v.string(),
-    userName: v.optional(v.string()),
-  },
-  returns: v.union(
-    v.object({
-      providerName: v.string(),
-      modelId: v.string(),
-    }),
-    v.null(),
-  ),
-  handler: async (ctx, args) => {
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: args.userId,
-      email: args.userEmail,
-      name: args.userName,
-    });
-
-    const membershipsResult: BetterAuthFindManyResult<BetterAuthTeamMember> =
-      await ctx.runQuery(components.betterAuth.adapter.findMany, {
-        model: 'teamMember',
-        paginationOpts: { cursor: null, numItems: 1000 },
-        where: [{ field: 'userId', operator: 'eq', value: member.userId }],
-      });
-
-    const teamIds = membershipsResult?.page.map((m) => m.teamId) ?? [];
-
-    return resolveDefaultModel(
-      ctx,
-      args.organizationId,
-      args.userId,
-      teamIds,
-      member.role,
-    );
-  },
-});
-
 export const checkModelAccessInternal = internalQuery({
   args: {
     organizationId: v.string(),
@@ -1150,27 +1099,100 @@ export const checkModelAccessInternal = internalQuery({
   },
 });
 
-export const getAccessibleModelsInternal = internalQuery({
+/**
+ * Single-round-trip governance resolution for a chat generation turn.
+ *
+ * Folds the per-turn governance reads — default-model override, implicit
+ * accessible-model filter, and explicit model-access check — into ONE query so
+ * the node generation action makes a single backend round-trip. It fetches the
+ * org member + team IDs ONCE and threads them into every business function
+ * (which already take `ctx`), so membership is read once per turn rather than
+ * once per governance check.
+ *
+ * `explicitModelId` set → caller pinned a model: returns `explicitAccess` only.
+ * `explicitModelId` unset → implicit path: returns `defaultModel` (governance
+ * override, already access-filtered) + `accessibleModelIds` (the subset of
+ * `supportedModels` the user may use). `supportedModels` are plain (qualifier-
+ * stripped) ids; the action maps the returned subset back to qualified refs.
+ */
+export const resolveGenerationGovernance = internalQuery({
   args: {
     organizationId: v.string(),
     userId: v.string(),
-    modelIds: v.array(v.string()),
+    userEmail: v.string(),
+    userName: v.optional(v.string()),
+    supportedModels: v.array(v.string()),
+    explicitModelId: v.optional(v.string()),
   },
-  returns: v.array(v.string()),
+  returns: v.object({
+    defaultModel: v.union(
+      v.object({ providerName: v.string(), modelId: v.string() }),
+      v.null(),
+    ),
+    accessibleModelIds: v.array(v.string()),
+    explicitAccess: v.union(
+      v.object({ allowed: v.boolean(), reason: v.optional(v.string()) }),
+      v.null(),
+    ),
+    // The org member + team context this query already fetched. Returned so the
+    // downstream budget/feature-flag enforcement (in startChat) can reuse it
+    // instead of re-fetching member (betterAuth findMany) + teamIds — each a
+    // ~40-60ms cross-component sub-transaction. `getOrganizationMember` here
+    // also throws on non-membership, so the caller can treat a successful
+    // governance resolution as having verified org membership.
+    role: v.string(),
+    teamIds: v.array(v.string()),
+  }),
   handler: async (ctx, args) => {
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: args.userId,
+      email: args.userEmail,
+      name: args.userName,
     });
     const teamIds = await getUserTeamIds(ctx, args.userId);
 
-    return getAccessibleModels(
-      ctx,
-      args.organizationId,
-      args.userId,
+    if (args.explicitModelId) {
+      const explicitAccess = await checkModelAccess(
+        ctx,
+        args.organizationId,
+        args.userId,
+        teamIds,
+        member.role,
+        args.explicitModelId,
+      );
+      return {
+        defaultModel: null,
+        accessibleModelIds: [],
+        explicitAccess,
+        role: member.role,
+        teamIds,
+      };
+    }
+
+    const [defaultModel, accessibleModelIds] = await Promise.all([
+      resolveDefaultModel(
+        ctx,
+        args.organizationId,
+        args.userId,
+        teamIds,
+        member.role,
+      ),
+      getAccessibleModels(
+        ctx,
+        args.organizationId,
+        args.userId,
+        teamIds,
+        member.role,
+        args.supportedModels,
+      ),
+    ]);
+    return {
+      defaultModel,
+      accessibleModelIds,
+      explicitAccess: null,
+      role: member.role,
       teamIds,
-      member.role,
-      args.modelIds,
-    );
+    };
   },
 });
 

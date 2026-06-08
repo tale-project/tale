@@ -32,6 +32,10 @@ export interface AgentResponseResult {
   reasoning?: string;
   durationMs?: number;
   timeToFirstTokenMs?: number;
+  /** Action-relative time to the first reasoning ("thinking") delta. */
+  timeToFirstReasoningMs?: number;
+  /** Send-relative time to the first user-visible token (reasoning or content). */
+  timeFromSendMs?: number;
   toolCalls?: Array<{ toolName: string; status: string }>;
   toolsUsage?: Array<{
     toolName: string;
@@ -154,6 +158,8 @@ export async function onAgentComplete(
               reasoning: result.reasoning,
               durationMs: result.durationMs,
               timeToFirstTokenMs: result.timeToFirstTokenMs,
+              timeToFirstReasoningMs: result.timeToFirstReasoningMs,
+              timeFromSendMs: result.timeFromSendMs,
               toolsUsage: result.toolsUsage,
               citations: result.citations,
               contextWindow: result.contextWindow,
@@ -248,6 +254,8 @@ export async function onAgentComplete(
             costEstimateCents: costCents,
             durationMs: result.durationMs,
             timeToFirstTokenMs: result.timeToFirstTokenMs,
+            timeToFirstReasoningMs: result.timeToFirstReasoningMs,
+            timeFromSendMs: result.timeFromSendMs,
             threadId,
             agentType,
             agentSlug: args.agentSlug,

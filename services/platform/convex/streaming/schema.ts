@@ -26,6 +26,14 @@ export const messageMetadataTable = defineTable({
   providerMetadata: v.optional(jsonRecordValidator),
   durationMs: v.optional(v.number()),
   timeToFirstTokenMs: v.optional(v.number()),
+  // Time to the first reasoning ("thinking") delta — what the user waits for
+  // on a reasoning model; streams before the first content token. Optional for
+  // rows written before the field existed and for non-reasoning models.
+  timeToFirstReasoningMs: v.optional(v.number()),
+  // Send-relative time to the first user-visible token (reasoning or content),
+  // measured from chatWithAgent entry — includes the pre-stream backend hops
+  // that timeToFirstTokenMs (action-relative) misses.
+  timeFromSendMs: v.optional(v.number()),
   subAgentUsage: v.optional(v.array(toolUsageItemValidator)),
   toolsUsage: v.optional(v.array(toolUsageItemValidator)),
   citations: v.optional(v.array(citationItemValidator)),

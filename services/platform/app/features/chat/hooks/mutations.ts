@@ -4,7 +4,12 @@ import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
 export function useUnifiedChatWithAgent() {
-  return useConvexAction(api.agents.unified_chat.chatWithAgent);
+  // Track B: the entry is now a fast V8 mutation (chatWithAgentTurn) that marks
+  // generating + schedules a single durable node action for resolution +
+  // generation — keeping the orchestration off the Node event loop so
+  // generation isn't starved by a concurrent node action. The hook surface
+  // (mutateAsync) is unchanged for callers.
+  return useConvexMutation(api.agents.chat_turn.chatWithAgentTurn);
 }
 
 export function useArenaChat() {
