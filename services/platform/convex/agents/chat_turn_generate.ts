@@ -294,6 +294,12 @@ export const runChatTurnGeneration = internalAction({
           composerProfiles: args.composerProfiles,
           requestStartMs: args.requestStartMs,
           deferGeneration: true,
+          // Shared-ctx: the governance query above already fetched + verified
+          // org membership (role) and team IDs. Reuse them so startChat skips
+          // its getOrganizationMember and budget skips getUserTeamIds + the
+          // member findMany (each a ~40-60ms cross-component sub-transaction).
+          preResolvedRole: governance.role,
+          preResolvedTeamIds: governance.teamIds,
         },
       );
 

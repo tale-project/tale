@@ -15,7 +15,6 @@ import {
   effortToTierOverride,
   styleInstructionFragment,
 } from '../../lib/shared/composer-profiles';
-import { components } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
 import { startAgentChat } from '../lib/agent_chat';
 import { userContextValidator } from '../lib/agent_response/validators';
@@ -69,6 +68,16 @@ export const startChat = internalMutation({
      * so the node-action caller can `ctx.runAction(runAgentGeneration, ...)`.
      */
     deferGeneration: v.optional(v.boolean()),
+    /**
+     * Org member role + team IDs already resolved by the caller's consolidated
+     * governance query (`resolveGenerationGovernance`, which also throws on
+     * non-membership). When present, skip the duplicate `getOrganizationMember`
+     * auth lookup here and thread them into budget enforcement, removing 2-3
+     * cross-component sub-transactions from the warm chat path. Omit for callers
+     * that did not pre-verify membership (they fall back to a fresh lookup).
+     */
+    preResolvedRole: v.optional(v.string()),
+    preResolvedTeamIds: v.optional(v.array(v.string())),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
@@ -77,16 +86,29 @@ export const startChat = internalMutation({
     generationArgs: v.optional(v.any()),
   }),
   handler: async (ctx, args) => {
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: args.userId,
-      email: args.userEmail,
-      name: args.userName,
-    });
+    // Org-membership auth. When the caller already resolved it via the
+    // consolidated governance query (which throws on non-membership), reuse the
+    // role and skip this betterAuth lookup entirely; otherwise verify here.
+    const resolvedRole =
+      args.preResolvedRole ??
+      (
+        await getOrganizationMember(ctx, args.organizationId, {
+          userId: args.userId,
+          email: args.userEmail,
+          name: args.userName,
+        })
+      ).role;
 
-    const thread = await ctx.runQuery(components.agent.threads.getThread, {
-      threadId: args.threadId,
-    });
-    if (!thread || thread.userId !== args.userId) {
+    // Auth + existence via our own threadMetadata row (a direct ctx.db read)
+    // instead of the agent-component getThread (a ~40-60ms cross-component
+    // sub-transaction). threadMetadata.userId mirrors the agent thread and was
+    // already verified by the chatWithAgentTurn V8 entry mutation. Reused for
+    // the projectId persist below so the row is read once.
+    const threadMeta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+    if (!threadMeta || threadMeta.userId !== args.userId) {
       throw new Error('Thread not found');
     }
 
@@ -141,10 +163,6 @@ export const startChat = internalMutation({
     // must call `moveThreadToProject` instead of side-channeling via a
     // chat send.
     if (args.projectId) {
-      const threadMeta = await ctx.db
-        .query('threadMetadata')
-        .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-        .first();
       if (threadMeta) {
         if (threadMeta.projectId && threadMeta.projectId !== args.projectId) {
           throw new ConvexError({ code: 'PROJECT_MISMATCH' });
@@ -182,6 +200,11 @@ export const startChat = internalMutation({
       reasoningOverride,
       requestStartMs: args.requestStartMs,
       deferGeneration: args.deferGeneration,
+      // Skip the duplicate betterAuth member + team lookups in
+      // resolveBudgetContext — both came from the governance query (or the
+      // getOrganizationMember above).
+      preResolvedRole: resolvedRole,
+      preResolvedTeamIds: args.preResolvedTeamIds,
     });
   },
 });

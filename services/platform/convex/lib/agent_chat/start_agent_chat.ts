@@ -95,6 +95,19 @@ export interface StartAgentChatArgs {
   agentSlug?: string;
   /** @deprecated Use agentSlug instead */
   agentId?: Id<'agentBindings'>;
+  /**
+   * Org member role already resolved upstream (the consolidated governance
+   * query, or `startChat`'s `getOrganizationMember`). Threaded into
+   * `resolveBudgetContext` so it skips a duplicate betterAuth member lookup
+   * (~40-60ms cross-component sub-transaction). Omit to have budget resolve it.
+   */
+  preResolvedRole?: string;
+  /**
+   * User team IDs already resolved upstream (the governance query fetches them
+   * for model-access). Threaded into `resolveBudgetContext` to skip
+   * `getUserTeamIds`. Only consulted when `preResolvedRole` is also set.
+   */
+  preResolvedTeamIds?: string[];
   /** Optional per-request generation parameters (temperature, etc.) */
   generationParams?: GenerationParams;
   /** Composer-sourced reasoning override (effort/creativity). */
@@ -236,10 +249,11 @@ export async function startAgentChat(
     }
   }
 
-  const thread = await ctx.runQuery(components.agent.threads.getThread, {
-    threadId,
-  });
-
+  // The agent-component getThread was eliminated: `userId` comes from the
+  // `threadMeta` row read above (a direct ctx.db read, no cross-component
+  // sub-transaction), which mirrors the agent thread and was already verified
+  // by the chatWithAgentTurn entry mutation.
+  const userId = threadMeta?.userId;
   // Load recent non-tool messages for deduplication
   const existingMessages: AgentListMessagesResult = await listMessages(
     ctx,
@@ -303,7 +317,6 @@ export async function startAgentChat(
   // then run the budget check and feature-flag resolution CONCURRENTLY — both
   // read the same team membership, and previously each re-derived the team ids
   // (a duplicate lookup) and ran in series.
-  const userId = thread?.userId;
   let enforcedConfig = agentConfig;
   let governanceMaxContextTokens: number | undefined;
   if (userId) {
@@ -311,6 +324,8 @@ export async function startAgentChat(
       ctx,
       organizationId,
       userId,
+      args.preResolvedRole,
+      args.preResolvedTeamIds,
     );
     const [budgetResult, featureFlags] = await Promise.all([
       checkBudget(ctx, organizationId, userId, userTeamIds, userRole),
@@ -432,7 +447,7 @@ export async function startAgentChat(
         streamId: streamId || undefined,
         agentSlug: args.agentSlug,
         organizationId,
-        userId: thread?.userId,
+        userId,
       },
     );
 
@@ -463,7 +478,7 @@ export async function startAgentChat(
     hooks,
     threadId,
     organizationId,
-    userId: thread?.userId,
+    userId,
     agentSlug: args.agentSlug,
     promptMessage: messageContent,
     originalUserText: trimmedMessage,

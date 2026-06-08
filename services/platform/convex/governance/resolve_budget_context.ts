@@ -35,7 +35,25 @@ export async function resolveBudgetContext(
   ctx: GenericQueryCtx<DataModel>,
   organizationId: string,
   userId: string,
+  /**
+   * When the caller already resolved the org member (e.g. an upstream auth
+   * check or the consolidated governance query), pass the role here to skip the
+   * betterAuth `findMany` — a ~40-60ms cross-component sub-transaction.
+   */
+  preResolvedRole?: string,
+  /**
+   * When the caller already resolved the user's team IDs (e.g. the governance
+   * query, which fetches them for model-access), pass them here to skip
+   * `getUserTeamIds` too — another cross-component read.
+   */
+  preResolvedTeamIds?: string[],
 ): Promise<BudgetContext> {
+  if (preResolvedRole !== undefined) {
+    const userTeamIds =
+      preResolvedTeamIds ?? (await getUserTeamIds(ctx, userId));
+    return { userTeamIds, userRole: preResolvedRole };
+  }
+
   const [userTeamIds, memberResult] = await Promise.all([
     getUserTeamIds(ctx, userId),
     ctx.runQuery(components.betterAuth.adapter.findMany, {

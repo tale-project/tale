@@ -81,13 +81,21 @@ function createMockCtx(
     _id: string;
     generationStatus?: string;
     streamId?: string;
+    userId?: string;
   } | null = null,
 ) {
   return {
     db: {
       query: () => ({
         withIndex: () => ({
-          first: vi.fn().mockResolvedValue(threadMeta),
+          // The real threadMetadata row always carries userId; startAgentChat
+          // now reads it from here (not the agent-component getThread), so
+          // inject a default so budget/feature-flag enforcement runs.
+          first: vi
+            .fn()
+            .mockResolvedValue(
+              threadMeta ? { userId: 'user_1', ...threadMeta } : null,
+            ),
         }),
       }),
       patch: vi.fn(),
@@ -97,7 +105,6 @@ function createMockCtx(
       if (queryRef === 'mock-betterAuth-findMany') {
         return Promise.resolve({ page: [], isDone: true });
       }
-      // getThread query returns thread data with userId
       return Promise.resolve({ userId: 'user_1' });
     }),
     scheduler: {

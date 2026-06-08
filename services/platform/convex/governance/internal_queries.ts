@@ -1134,6 +1134,14 @@ export const resolveGenerationGovernance = internalQuery({
       v.object({ allowed: v.boolean(), reason: v.optional(v.string()) }),
       v.null(),
     ),
+    // The org member + team context this query already fetched. Returned so the
+    // downstream budget/feature-flag enforcement (in startChat) can reuse it
+    // instead of re-fetching member (betterAuth findMany) + teamIds — each a
+    // ~40-60ms cross-component sub-transaction. `getOrganizationMember` here
+    // also throws on non-membership, so the caller can treat a successful
+    // governance resolution as having verified org membership.
+    role: v.string(),
+    teamIds: v.array(v.string()),
   }),
   handler: async (ctx, args) => {
     const member = await getOrganizationMember(ctx, args.organizationId, {
@@ -1152,7 +1160,13 @@ export const resolveGenerationGovernance = internalQuery({
         member.role,
         args.explicitModelId,
       );
-      return { defaultModel: null, accessibleModelIds: [], explicitAccess };
+      return {
+        defaultModel: null,
+        accessibleModelIds: [],
+        explicitAccess,
+        role: member.role,
+        teamIds,
+      };
     }
 
     const [defaultModel, accessibleModelIds] = await Promise.all([
@@ -1172,7 +1186,13 @@ export const resolveGenerationGovernance = internalQuery({
         args.supportedModels,
       ),
     ]);
-    return { defaultModel, accessibleModelIds, explicitAccess: null };
+    return {
+      defaultModel,
+      accessibleModelIds,
+      explicitAccess: null,
+      role: member.role,
+      teamIds,
+    };
   },
 });
 
