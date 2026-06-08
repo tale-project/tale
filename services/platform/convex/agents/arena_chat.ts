@@ -67,10 +67,14 @@ export const arenaChat = action({
       `[arenaChat] START threadIdA=${args.threadIdA} threadIdB=${args.threadIdB} modelA=${args.modelIdA} modelB=${args.modelIdB}`,
     );
     const [resultA, resultB] = await Promise.all([
+      // Thread A is the arena root: pass threadIdB so the A↔B branch link is
+      // created from A's node action AFTER its user message is saved. Creating
+      // it here (eagerly) raced the now-async save and threw on the first turn.
       ctx.runMutation(api.agents.chat_turn.chatWithAgentTurn, {
         ...sharedArgs,
         threadId: args.threadIdA,
         modelId: args.modelIdA,
+        arenaBranchThreadId: args.threadIdB,
       }),
       ctx.runMutation(api.agents.chat_turn.chatWithAgentTurn, {
         ...sharedArgs,
@@ -81,12 +85,6 @@ export const arenaChat = action({
     console.log(
       `[arenaChat] DONE streamIdA=${resultA.streamId} streamIdB=${resultB.streamId}`,
     );
-
-    // Create branch link so thread B appears as a branch of thread A
-    await ctx.runMutation(internal.threads.mutations.createArenaBranchLink, {
-      rootThreadId: args.threadIdA,
-      branchThreadId: args.threadIdB,
-    });
 
     return {
       streamIdA: resultA.streamId,

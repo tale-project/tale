@@ -86,6 +86,9 @@ export const runChatTurnGeneration = internalAction({
     userEmail: v.string(),
     userName: v.string(),
     requestStartMs: v.optional(v.number()),
+    // Arena root side only: create the A↔B branch link from here, AFTER
+    // startChat has saved this thread's user message (see chat_turn.ts).
+    arenaBranchThreadId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -241,25 +244,34 @@ export const runChatTurnGeneration = internalAction({
       if (args.modelId) {
         const accessCheck = governance.explicitAccess;
         if (accessCheck && !accessCheck.allowed) {
-          await ctx.runMutation(
-            internal.audit_logs.internal_mutations.createAuditLog,
-            {
-              organizationId: args.organizationId,
-              actorId: args.userId,
-              actorEmail: args.userEmail,
-              actorType: 'user',
-              action: 'model_access.denied',
-              category: 'ai',
-              resourceType: 'chat_message',
-              resourceId: args.threadId,
-              status: 'denied',
-              metadata: {
-                requestedModelId: args.modelId,
-                reason: accessCheck.reason ?? null,
-                agentSlug: resolvedAgentSlug,
+          // Audit the denial, but never let an audit-log failure skip the
+          // status clear + user notice below (which is what the user sees).
+          try {
+            await ctx.runMutation(
+              internal.audit_logs.internal_mutations.createAuditLog,
+              {
+                organizationId: args.organizationId,
+                actorId: args.userId,
+                actorEmail: args.userEmail,
+                actorType: 'user',
+                action: 'model_access.denied',
+                category: 'ai',
+                resourceType: 'chat_message',
+                resourceId: args.threadId,
+                status: 'denied',
+                metadata: {
+                  requestedModelId: args.modelId,
+                  reason: accessCheck.reason ?? null,
+                  agentSlug: resolvedAgentSlug,
+                },
               },
-            },
-          );
+            );
+          } catch (auditErr) {
+            console.error(
+              '[runChatTurnGeneration] model_access.denied audit log failed',
+              auditErr instanceof Error ? auditErr.message : auditErr,
+            );
+          }
           await clearGen();
           await saveSystemNotice(
             ctx,
@@ -302,6 +314,27 @@ export const runChatTurnGeneration = internalAction({
           preResolvedTeamIds: governance.teamIds,
         },
       );
+
+      // Arena root side: startChat has now committed this thread's user
+      // message, so the branch link can be created without racing the save.
+      // Best-effort — a link failure must never fail the turn (both
+      // generations already proceed; this only affects the A/B branch UI).
+      if (args.arenaBranchThreadId) {
+        try {
+          await ctx.runMutation(
+            internal.threads.mutations.createArenaBranchLink,
+            {
+              rootThreadId: args.threadId,
+              branchThreadId: args.arenaBranchThreadId,
+            },
+          );
+        } catch (err) {
+          console.error(
+            '[runChatTurnGeneration] arena branch link failed',
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
 
       // Budget block / file-upload block / image-generation agents are fully
       // handled inside startChat (no generationArgs) — the turn is finalized.

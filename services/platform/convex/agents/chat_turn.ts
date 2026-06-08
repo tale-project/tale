@@ -28,6 +28,7 @@ import { mutation } from '../_generated/server';
 import { userContextValidator } from '../lib/agent_response/validators';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { persistentStreaming } from '../streaming/helpers';
+import { cancelGeneration } from '../threads/cancel_generation';
 
 export const chatWithAgentTurn = mutation({
   args: {
@@ -52,6 +53,11 @@ export const chatWithAgentTurn = mutation({
     userContext: v.optional(userContextValidator),
     projectId: v.optional(v.id('projects')),
     composerProfiles: v.optional(composerProfilesValidator),
+    // Arena: when this turn is the ROOT side (thread A) of an A/B comparison,
+    // the branch-thread id (thread B). The branch link is created from the
+    // node action AFTER this thread's user message is saved — creating it
+    // eagerly in arenaChat raced the async save and threw on the first turn.
+    arenaBranchThreadId: v.optional(v.string()),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
@@ -105,6 +111,27 @@ export const chatWithAgentTurn = mutation({
     if (meta.organizationId && meta.organizationId !== args.organizationId) {
       throw new Error('Thread does not belong to the requested organization');
     }
+
+    // Projects: detect a thread↔project mismatch synchronously so the client
+    // gets a PROJECT_MISMATCH toast (the same UX as before Track B), rather
+    // than failing silently when startChat's async check throws into the node
+    // action's outer catch. `meta` is already read above, so this is ~free.
+    // startChat keeps the same check as defense-in-depth for other callers.
+    if (args.projectId && meta.projectId && meta.projectId !== args.projectId) {
+      throw new ConvexError({ code: 'PROJECT_MISMATCH' });
+    }
+
+    // Supersede an in-flight generation: if this thread is already generating,
+    // cancel the running turn (aborts its SDK stream → the running action's
+    // abort watcher stops it) before starting a new one. Prevents a concurrent
+    // / cancel-then-resend send from double-generating and double-billing.
+    // Reuses the same helper as the user-facing Stop, so cancel→resend keeps
+    // working (no hard reject). Like Stop, the abort is poll-based (~1.5s), so
+    // a near-instant prior turn may still finalize — acceptable parity.
+    if (meta.generationStatus === 'generating' && meta.streamId) {
+      await cancelGeneration(ctx, authUser.userId, args.threadId);
+    }
+
     const streamId = await persistentStreaming.createStream(ctx);
     const isAuto = args.agentSlug === AUTO_AGENT_SLUG;
     await ctx.db.patch(meta._id, {
@@ -138,6 +165,7 @@ export const chatWithAgentTurn = mutation({
         userEmail: authUser.email ?? '',
         userName: authUser.name ?? '',
         requestStartMs,
+        arenaBranchThreadId: args.arenaBranchThreadId,
       },
     );
 
