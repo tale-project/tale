@@ -303,6 +303,70 @@ function DirectTtftProbe({
   );
 }
 
+/** Timing inputs for {@link deriveTtftBreakdown} — a subset of the metadata. */
+interface TtftTimings {
+  durationMs?: number;
+  timeToFirstTokenMs?: number;
+  timeToFirstReasoningMs?: number;
+  timeFromSendMs?: number;
+}
+
+/** Send-anchored timing breakdown derived from the stored metrics. */
+interface TtftBreakdown {
+  /** Setup-before-model: send → generation entry. */
+  setupMs?: number;
+  /** Send-relative time to first reasoning (only when reasoning present). */
+  ttfrFromSendMs?: number;
+  /** Send-relative time to first content token. */
+  ttftFromSendMs?: number;
+  /** Full send → completion wall-clock; falls back to generation duration when no send anchor. */
+  durationFromSendMs?: number;
+}
+
+/**
+ * Re-anchor every metric at the moment of send so they read as one cumulative
+ * timeline (setup < first reasoning < first token ≤ duration) instead of mixing
+ * send-relative and generation-relative baselines. `timeFromSendMs` anchors on
+ * first reasoning when present, else first token — so the setup segment
+ * (send → generation begins) is that minus the matching from-generation mark.
+ * Derivable only when `timeFromSendMs` exists (older rows degrade to the
+ * model-side generation values). Pure function of metadata so the headline and
+ * the detail view derive identically and can't drift.
+ */
+function deriveTtftBreakdown(m: TtftTimings): TtftBreakdown {
+  const {
+    durationMs,
+    timeToFirstTokenMs,
+    timeToFirstReasoningMs,
+    timeFromSendMs,
+  } = m;
+  const hasReasoning = timeToFirstReasoningMs != null;
+  const anchorFromGen = hasReasoning
+    ? timeToFirstReasoningMs
+    : timeToFirstTokenMs;
+  const setupMs =
+    timeFromSendMs != null && anchorFromGen != null
+      ? Math.max(0, timeFromSendMs - anchorFromGen)
+      : undefined;
+  const ttfrFromSendMs =
+    hasReasoning && setupMs != null
+      ? setupMs + timeToFirstReasoningMs
+      : undefined;
+  const ttftFromSendMs =
+    timeToFirstTokenMs == null
+      ? undefined
+      : setupMs != null
+        ? setupMs + timeToFirstTokenMs
+        : timeToFirstTokenMs;
+  const durationFromSendMs =
+    durationMs == null
+      ? undefined
+      : setupMs != null
+        ? durationMs + setupMs
+        : durationMs;
+  return { setupMs, ttfrFromSendMs, ttftFromSendMs, durationFromSendMs };
+}
+
 /**
  * The "time to first token" breakdown + dev probe, shown in the in-dialog
  * "ttft" detail view (the Performance cell drills in to this).
@@ -329,27 +393,11 @@ function TtftDetailContent({
   const fmtS = (ms?: number) =>
     ms == null ? '—' : `${(ms / 1000).toFixed(2)}s`;
 
-  // Re-anchor every row at the moment of send so the breakdown reads as one
-  // cumulative timeline (Setup before model < first reasoning < first token)
-  // instead of mixing send-relative and generation-relative baselines.
-  // `timeFromSendMs` anchors on first reasoning when present, else first token —
-  // so the setup segment (send → generation begins) is that minus the matching
-  // from-generation mark. Derivable only when `timeFromSendMs` exists (older
-  // rows degrade to the model-side values).
-  const hasReasoning = timeToFirstReasoningMs != null;
-  const anchorFromGen = hasReasoning
-    ? timeToFirstReasoningMs
-    : timeToFirstTokenMs;
-  const setupMs =
-    timeFromSendMs != null
-      ? Math.max(0, timeFromSendMs - anchorFromGen)
-      : undefined;
-  const ttfrFromSendMs =
-    hasReasoning && setupMs != null
-      ? setupMs + timeToFirstReasoningMs
-      : undefined;
-  const ttftFromSendMs =
-    setupMs != null ? setupMs + timeToFirstTokenMs : timeToFirstTokenMs;
+  const { setupMs, ttfrFromSendMs, ttftFromSendMs } = deriveTtftBreakdown({
+    timeToFirstTokenMs,
+    timeToFirstReasoningMs,
+    timeFromSendMs,
+  });
 
   const breakdown: StatGridItem[] = [
     ...(setupMs != null
@@ -540,10 +588,21 @@ export function MessageInfoDialog({
   const perfItems = useMemo<StatGridItem[]>(() => {
     const items: StatGridItem[] = [];
 
-    if (metadata?.durationMs != null) {
+    // Send-anchored total so Duration shares the same baseline as the TTFR
+    // headline below (which is send-relative). Without this, Duration measures
+    // only from the generation action's entry and excludes the setup-before-model
+    // segment — so it can read SMALLER than time-to-first-reasoning. Falls back
+    // to the raw generation duration for older rows without a send anchor.
+    const durationFromSendMs = deriveTtftBreakdown({
+      durationMs: metadata?.durationMs,
+      timeToFirstTokenMs: metadata?.timeToFirstTokenMs,
+      timeToFirstReasoningMs: metadata?.timeToFirstReasoningMs,
+      timeFromSendMs: metadata?.timeFromSendMs,
+    }).durationFromSendMs;
+    if (durationFromSendMs != null) {
       items.push({
         label: t('messageInfo.duration'),
-        value: <Text>{(metadata.durationMs / 1000).toFixed(2)}s</Text>,
+        value: <Text>{(durationFromSendMs / 1000).toFixed(2)}s</Text>,
       });
     }
 
