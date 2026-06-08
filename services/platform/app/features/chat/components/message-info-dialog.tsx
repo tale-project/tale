@@ -159,12 +159,14 @@ function DirectTtftProbe({
   organizationId,
   modelId,
   agentSlug,
+  precedingUserText,
   pipelineFirstReasoningMs,
   pipelineTimeFromSendMs,
 }: {
   organizationId: string;
   modelId?: string;
   agentSlug?: string;
+  precedingUserText?: string;
   pipelineFirstReasoningMs?: number;
   pipelineTimeFromSendMs?: number;
 }) {
@@ -173,7 +175,10 @@ function DirectTtftProbe({
     {},
   );
   const runProbe = useAction(api.debug.direct_ttft.measureDirectTtft);
-  const [message, setMessage] = useState('');
+  // Pre-fill with the user message that produced this reply so the probe
+  // replays the real prompt (apples-to-apples with the pipeline numbers above);
+  // still editable so you can trim it or test a variant.
+  const [message, setMessage] = useState(precedingUserText ?? '');
   const [withTools, setWithTools] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -211,18 +216,19 @@ function DirectTtftProbe({
     <Field label="Direct TTFT probe (dev)">
       <Stack gap={2}>
         <Text as="div" variant="caption" className="text-muted-foreground">
-          Streams this prompt straight to {modelId ?? 'the chat model'}
+          Replays this turn's user message straight to{' '}
+          {modelId ?? 'the chat model'}
           {withTools && agentSlug
-            ? `, replaying ${agentSlug}'s tools + system prompt so the prefill matches the pipeline`
+            ? `, with ${agentSlug}'s tools + system prompt so the prefill matches the pipeline`
             : ' with no tools/system — the bare model floor'}
           . Compare with the pipeline numbers above; the gap is backend
           overhead. Real (billed) call, aborted at first output (tools never
-          execute).
+          execute). Text only — attachments aren't replayed.
         </Text>
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Probe prompt (defaults to a short greeting)"
+          placeholder="Replays this turn's user message (editable)"
           rows={2}
           className="bg-muted w-full rounded px-2 py-1 text-sm"
         />
@@ -299,6 +305,7 @@ function TtftDetailContent({
   organizationId,
   modelId,
   agentSlug,
+  precedingUserText,
   t,
 }: {
   timeToFirstTokenMs: number;
@@ -307,6 +314,7 @@ function TtftDetailContent({
   organizationId?: string;
   modelId?: string;
   agentSlug?: string;
+  precedingUserText?: string;
   t: (key: string) => string;
 }) {
   const fmtS = (ms?: number) =>
@@ -348,6 +356,7 @@ function TtftDetailContent({
           organizationId={organizationId}
           modelId={modelId}
           agentSlug={agentSlug}
+          precedingUserText={precedingUserText}
           pipelineFirstReasoningMs={timeToFirstReasoningMs}
           pipelineTimeFromSendMs={timeFromSendMs}
         />
@@ -384,6 +393,8 @@ interface MessageInfoDialogProps {
   metadata?: MessageMetadata;
   /** Owning org — enables the dev-only direct-TTFT probe when present. */
   organizationId?: string;
+  /** User message that produced this reply — pre-fills the direct-TTFT probe. */
+  precedingUserText?: string;
 }
 
 export function MessageInfoDialog({
@@ -394,6 +405,7 @@ export function MessageInfoDialog({
   timestamp,
   metadata,
   organizationId,
+  precedingUserText,
 }: MessageInfoDialogProps) {
   const { formatDate, locale } = useFormatDate();
   const { t } = useT('chat');
@@ -589,6 +601,7 @@ export function MessageInfoDialog({
           organizationId={organizationId}
           modelId={md.model}
           agentSlug={md.agentSlug}
+          precedingUserText={precedingUserText}
           t={t}
         />
       ),
