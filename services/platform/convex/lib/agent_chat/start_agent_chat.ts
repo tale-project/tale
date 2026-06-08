@@ -329,7 +329,7 @@ export async function startAgentChat(
     );
     const [budgetResult, featureFlags] = await Promise.all([
       checkBudget(ctx, organizationId, userId, userTeamIds, userRole),
-      resolveFeatureFlags(ctx, organizationId, userId, userTeamIds),
+      resolveFeatureFlags(ctx, organizationId, userId, userTeamIds, userRole),
     ]);
     if (!budgetResult.allowed) {
       const budgetMessage =
