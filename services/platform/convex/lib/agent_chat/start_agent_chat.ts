@@ -12,6 +12,7 @@
  */
 
 import { listMessages, saveMessage } from '@convex-dev/agent';
+import type { FunctionArgs } from 'convex/server';
 
 import { isAudioOrVideo, isSpreadsheet } from '../../../lib/shared/file-types';
 import { formatVideoLinkAttachmentMarkdown } from '../../../lib/shared/video-link-markdown';
@@ -27,7 +28,6 @@ import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
 import { AGENT_CONTEXT_CONFIGS } from '../context_management/constants';
 import { createDebugLog } from '../debug_log';
-import { getUserTeamIds } from '../get_user_teams';
 import {
   computeDeduplicationState,
   type AgentListMessagesResult,
@@ -118,12 +118,31 @@ export interface StartAgentChatArgs {
    * completed answer stranded past the poll. Omit for no cap.
    */
   maxDeadlineMs?: number;
+  /**
+   * Track B: when true, do all the prep (saveMessage / budget / feature-flags /
+   * image-gen decision) but DO NOT `scheduler.runAfter` the generation —
+   * instead return its args in `generationArgs` so a node-action caller can
+   * `await ctx.runAction(runAgentGeneration, ...)`. Running generation via an
+   * awaited runAction (the parent yields the Node event loop) lets it start on
+   * a free loop instead of contending with a concurrently-running node action
+   * — the ~800ms pre-stream gap. Omit/false preserves the legacy schedule path.
+   */
+  deferGeneration?: boolean;
 }
 
 export interface StartAgentChatResult {
   messageAlreadyExists: boolean;
   /** The stream ID for the AI response (always created for async delivery). */
   streamId: string;
+  /**
+   * Track B (deferGeneration): the `runAgentGeneration` args to run via
+   * `ctx.runAction`. Present only when `deferGeneration` was set AND generation
+   * should proceed (absent for image-gen / budget-block / file-upload-block
+   * early returns, which the caller treats as "turn already finalized").
+   */
+  generationArgs?: FunctionArgs<
+    typeof internal.lib.agent_chat.internal_actions.runAgentGeneration
+  >;
 }
 
 /**
@@ -191,6 +210,16 @@ export async function startAgentChat(
 
   if (args.preAllocatedStreamId) {
     streamId = args.preAllocatedStreamId;
+    // Track B: markGenerating ran in the V8 entry mutation BEFORE auto-route
+    // resolved the concrete agent, so persist the (now-resolved) slug here for
+    // the UI. No-op for the legacy path (markGenerating already set it).
+    if (
+      threadMeta &&
+      args.agentSlug &&
+      threadMeta.agentSlug !== args.agentSlug
+    ) {
+      await ctx.db.patch(threadMeta._id, { agentSlug: args.agentSlug });
+    }
   } else {
     streamId = await persistentStreaming.createStream(ctx);
     if (threadMeta) {
@@ -270,21 +299,23 @@ export async function startAgentChat(
     args.maxDeadlineMs,
   );
 
-  // Budget enforcement — if limits exceeded, save a system reply instead of generating
+  // Budget + feature-flag enforcement. Resolve the user's team context ONCE,
+  // then run the budget check and feature-flag resolution CONCURRENTLY — both
+  // read the same team membership, and previously each re-derived the team ids
+  // (a duplicate lookup) and ran in series.
   const userId = thread?.userId;
+  let enforcedConfig = agentConfig;
+  let governanceMaxContextTokens: number | undefined;
   if (userId) {
     const { userTeamIds, userRole } = await resolveBudgetContext(
       ctx,
       organizationId,
       userId,
     );
-    const budgetResult = await checkBudget(
-      ctx,
-      organizationId,
-      userId,
-      userTeamIds,
-      userRole,
-    );
+    const [budgetResult, featureFlags] = await Promise.all([
+      checkBudget(ctx, organizationId, userId, userTeamIds, userRole),
+      resolveFeatureFlags(ctx, organizationId, userId, userTeamIds),
+    ]);
     if (!budgetResult.allowed) {
       const budgetMessage =
         budgetResult.reason ??
@@ -321,21 +352,10 @@ export async function startAgentChat(
 
       return { messageAlreadyExists, streamId };
     }
-  }
 
-  // Feature flag enforcement — resolve per-user flags and override agent config
-  let enforcedConfig = agentConfig;
-  let governanceMaxContextTokens: number | undefined;
-
-  if (userId) {
-    const userTeamIds = await getUserTeamIds(ctx, userId);
-    const featureFlags = await resolveFeatureFlags(
-      ctx,
-      organizationId,
-      userId,
-      userTeamIds,
-    );
-
+    // Feature-flag enforcement — `featureFlags` was resolved in parallel with
+    // the budget check above (reusing the same team context), not in a second
+    // serial pass that re-derived the team ids.
     if (!featureFlags.webSearch) {
       enforcedConfig = {
         ...agentConfig,
@@ -420,41 +440,61 @@ export async function startAgentChat(
   }
 
   // Schedule the generic agent action with full configuration
+  const scheduledAtMs = Date.now();
   debugLog('SCHEDULE_ACTION', {
     threadId,
     deadlineMs: new Date(deadlineMs).toISOString(),
     timestamp: new Date().toISOString(),
+    // PERF: ms from chatWithAgent entry to this schedule call (end of the
+    // synchronous client-facing chain). Diagnostic — see PRE_STREAM_SUMMARY.
+    sinceSendMs: args.requestStartMs
+      ? scheduledAtMs - args.requestStartMs
+      : undefined,
   });
+  const generationArgs: FunctionArgs<
+    typeof internal.lib.agent_chat.internal_actions.runAgentGeneration
+  > = {
+    agentType,
+    agentConfig: enforcedConfig,
+    model,
+    provider,
+    debugTag,
+    enableStreaming,
+    hooks,
+    threadId,
+    organizationId,
+    userId: thread?.userId,
+    agentSlug: args.agentSlug,
+    promptMessage: messageContent,
+    originalUserText: trimmedMessage,
+    attachments: actionAttachments,
+    streamId: streamId || undefined,
+    promptMessageId,
+    maxSteps,
+    additionalContext,
+    userContext,
+    deadlineMs,
+    generationParams: args.generationParams,
+    reasoningOverride: args.reasoningOverride,
+    maxContextTokens: governanceMaxContextTokens,
+    threadTeamId: threadMeta?.teamId,
+    requestStartMs: args.requestStartMs,
+    // PERF: wall-clock at schedule time so the action can measure the
+    // scheduler dispatch + module-import hop. Diagnostic.
+    scheduledAtMs,
+  };
+
+  // Track B: hand the generation args back so a node-action caller can run it
+  // via an awaited `ctx.runAction` (parent yields → generation starts on a free
+  // Node event loop, no contention). Legacy path schedules as before.
+  if (args.deferGeneration) {
+    return { messageAlreadyExists, streamId, generationArgs };
+  }
+
   await ctx.scheduler.runAfter(
     0,
     internal.lib.agent_chat.internal_actions.runAgentGeneration,
-    {
-      agentType,
-      agentConfig: enforcedConfig,
-      model,
-      provider,
-      debugTag,
-      enableStreaming,
-      hooks,
-      threadId,
-      organizationId,
-      userId: thread?.userId,
-      agentSlug: args.agentSlug,
-      promptMessage: messageContent,
-      originalUserText: trimmedMessage,
-      attachments: actionAttachments,
-      streamId: streamId || undefined,
-      promptMessageId,
-      maxSteps,
-      additionalContext,
-      userContext,
-      deadlineMs,
-      generationParams: args.generationParams,
-      reasoningOverride: args.reasoningOverride,
-      maxContextTokens: governanceMaxContextTokens,
-      threadTeamId: threadMeta?.teamId,
-      requestStartMs: args.requestStartMs,
-    },
+    generationArgs,
   );
 
   return { messageAlreadyExists, streamId };

@@ -67,12 +67,12 @@ export const arenaChat = action({
       `[arenaChat] START threadIdA=${args.threadIdA} threadIdB=${args.threadIdB} modelA=${args.modelIdA} modelB=${args.modelIdB}`,
     );
     const [resultA, resultB] = await Promise.all([
-      ctx.runAction(api.agents.unified_chat.chatWithAgent, {
+      ctx.runMutation(api.agents.chat_turn.chatWithAgentTurn, {
         ...sharedArgs,
         threadId: args.threadIdA,
         modelId: args.modelIdA,
       }),
-      ctx.runAction(api.agents.unified_chat.chatWithAgent, {
+      ctx.runMutation(api.agents.chat_turn.chatWithAgentTurn, {
         ...sharedArgs,
         threadId: args.threadIdB,
         modelId: args.modelIdB,

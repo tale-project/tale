@@ -64,10 +64,17 @@ export const startChat = internalMutation({
     composerProfiles: v.optional(composerProfilesValidator),
     /** Server-stamped turn-start (chatWithAgent entry) for TTFT measurement. */
     requestStartMs: v.optional(v.number()),
+    /**
+     * Track B: when true, prep but DO NOT schedule generation — return its args
+     * so the node-action caller can `ctx.runAction(runAgentGeneration, ...)`.
+     */
+    deferGeneration: v.optional(v.boolean()),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
     streamId: v.string(),
+    // Track B: present only when deferGeneration is set AND generation proceeds.
+    generationArgs: v.optional(v.any()),
   }),
   handler: async (ctx, args) => {
     await getOrganizationMember(ctx, args.organizationId, {
@@ -174,6 +181,7 @@ export const startChat = internalMutation({
       hooks,
       reasoningOverride,
       requestStartMs: args.requestStartMs,
+      deferGeneration: args.deferGeneration,
     });
   },
 });

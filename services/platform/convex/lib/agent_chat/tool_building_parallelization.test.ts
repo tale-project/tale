@@ -124,6 +124,15 @@ vi.mock('../../providers/resolve_model', () => ({
   resolveLanguageModelById: (...args: unknown[]) =>
     mockResolveModelById(...args),
 }));
+// Generation now resolves explicit models in-process via the node-only
+// `resolveLanguageModelByIdNode` (resolve_model_node → resolveModelDataInline),
+// not the old `ctx.runAction(resolveModelData)` hop. Mock it at the same level
+// the old `resolveLanguageModelById` was mocked so the test never touches real
+// SOPS-encrypted provider files.
+vi.mock('../../providers/resolve_model_node', () => ({
+  resolveLanguageModelByIdNode: (...args: unknown[]) =>
+    mockResolveModelById(...args),
+}));
 
 const mockGenerateAgentResponse = vi.fn();
 vi.mock('../agent_response', () => ({

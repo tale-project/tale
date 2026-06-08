@@ -8,7 +8,7 @@ import {
 } from '@convex-dev/agent';
 import type { ModelMessage } from 'ai';
 import type { FunctionHandle } from 'convex/server';
-import { v } from 'convex/values';
+import { type ObjectType, v } from 'convex/values';
 import { snakeCase } from 'lodash';
 
 import { parseModelRef } from '../../../lib/shared/utils/model-ref';
@@ -38,7 +38,9 @@ import {
   shouldFailoverToNextModel,
 } from '../../providers/errors';
 import { resolveLanguageModelWithFallback } from '../../providers/failover';
-import { resolveLanguageModelById } from '../../providers/resolve_model';
+// Node-only fast-path resolver — in-process, skips the ~340ms runAction hop
+// that resolve_model.ts uses to stay V8-importable.
+import { resolveLanguageModelByIdNode } from '../../providers/resolve_model_node';
 import { generateAgentResponse } from '../agent_response';
 import type {
   GenerateResponseHooks,
@@ -130,653 +132,685 @@ const hooksConfigValidator = v.object({
   afterGenerate: v.optional(v.string()),
 });
 
-export const runAgentGeneration = internalAction({
-  args: {
-    agentType: v.string(),
-    agentConfig: serializableAgentConfigValidator,
-    model: v.string(),
-    provider: v.optional(v.string()),
-    debugTag: v.string(),
-    enableStreaming: v.optional(v.boolean()),
-    hooks: v.optional(hooksConfigValidator),
-    threadId: v.string(),
-    organizationId: v.string(),
-    userId: v.optional(v.string()),
-    agentSlug: v.optional(v.string()),
-    promptMessage: v.string(),
-    /**
-     * Un-augmented user text (without the attachment markdown that
-     * `buildMessageWithAttachments` appends to `promptMessage`). Used as the
-     * text part when building a multimodal prompt for vision-capable models,
-     * so PDF/audio references aren't duplicated.
-     */
-    originalUserText: v.optional(v.string()),
-    additionalContext: v.optional(v.record(v.string(), v.string())),
-    userContext: v.optional(userContextValidator),
-    parentThreadId: v.optional(v.string()),
-    agentOptions: v.optional(v.any()),
-    attachments: v.optional(
-      v.array(
-        v.object({
-          fileId: v.id('_storage'),
-          fileName: v.string(),
-          fileType: v.string(),
-          fileSize: v.number(),
-        }),
-      ),
+const runGenerationArgs = {
+  agentType: v.string(),
+  agentConfig: serializableAgentConfigValidator,
+  model: v.string(),
+  provider: v.optional(v.string()),
+  debugTag: v.string(),
+  enableStreaming: v.optional(v.boolean()),
+  hooks: v.optional(hooksConfigValidator),
+  threadId: v.string(),
+  organizationId: v.string(),
+  userId: v.optional(v.string()),
+  agentSlug: v.optional(v.string()),
+  promptMessage: v.string(),
+  /**
+   * Un-augmented user text (without the attachment markdown that
+   * `buildMessageWithAttachments` appends to `promptMessage`). Used as the
+   * text part when building a multimodal prompt for vision-capable models,
+   * so PDF/audio references aren't duplicated.
+   */
+  originalUserText: v.optional(v.string()),
+  additionalContext: v.optional(v.record(v.string(), v.string())),
+  userContext: v.optional(userContextValidator),
+  parentThreadId: v.optional(v.string()),
+  agentOptions: v.optional(v.any()),
+  attachments: v.optional(
+    v.array(
+      v.object({
+        fileId: v.id('_storage'),
+        fileName: v.string(),
+        fileType: v.string(),
+        fileSize: v.number(),
+      }),
     ),
-    streamId: v.optional(v.string()),
-    promptMessageId: v.optional(v.string()),
-    maxSteps: v.optional(v.number()),
-    deadlineMs: v.optional(v.number()),
-    generationParams: v.optional(v.any()),
-    reasoningOverride: v.optional(v.any()),
-    maxContextTokens: v.optional(v.number()),
-    threadTeamId: v.optional(v.string()),
-    // Server-stamped turn-start (chatWithAgent entry) for TTFT measurement.
-    // Optional so jobs scheduled before this field existed still validate
-    // during a rolling deploy (the consumer falls back to the action start).
-    requestStartMs: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const actionStartTime = Date.now();
-    debugLog('ACTION_START', {
-      threadId: args.threadId,
-      timestamp: new Date(actionStartTime).toISOString(),
-      // Send → this action's start: the upstream work (auto-route,
-      // markGenerating, startChat) PLUS the Convex scheduler dequeue hop —
-      // the single biggest pre-stream segment the pipeline can target.
-      // Undefined for jobs scheduled before requestStartMs existed.
-      sinceRequestStartMs: args.requestStartMs
-        ? actionStartTime - args.requestStartMs
-        : undefined,
-    });
+  ),
+  streamId: v.optional(v.string()),
+  promptMessageId: v.optional(v.string()),
+  maxSteps: v.optional(v.number()),
+  deadlineMs: v.optional(v.number()),
+  generationParams: v.optional(v.any()),
+  reasoningOverride: v.optional(v.any()),
+  maxContextTokens: v.optional(v.number()),
+  threadTeamId: v.optional(v.string()),
+  // Server-stamped turn-start (chatWithAgent entry) for TTFT measurement.
+  // Optional so jobs scheduled before this field existed still validate
+  // during a rolling deploy (the consumer falls back to the action start).
+  requestStartMs: v.optional(v.number()),
+  // PERF (diagnostic): wall-clock when startAgentChat scheduled this action.
+  // Lets us isolate the scheduler dispatch + module-import hop in isolation.
+  scheduledAtMs: v.optional(v.number()),
+};
+type RunGenerationArgs = ObjectType<typeof runGenerationArgs>;
 
-    const {
-      agentType: agentTypeStr,
-      agentConfig,
-      model,
-      provider: _provider,
-      debugTag,
-      enableStreaming,
-      hooks: hooksConfig,
-      threadId,
-      organizationId,
-      userId,
-      promptMessage,
-      originalUserText,
-      additionalContext,
-      userContext,
-      parentThreadId,
-      agentOptions,
-      attachments,
-      streamId,
-      promptMessageId,
-      maxSteps,
-      deadlineMs,
-      generationParams,
-      reasoningOverride,
-      maxContextTokens,
-    } = args;
+/**
+ * Durable scheduled-action wrapper. Kept for callers that schedule generation
+ * across the V8↔node boundary (fork/edit/openai/webhooks). The chat path calls
+ * `runGenerationCore` IN-PROCESS instead (no node→backend runAction hop).
+ */
+export const runAgentGeneration = internalAction({
+  args: runGenerationArgs,
+  handler: (ctx, args) => runGenerationCore(ctx, args),
+});
 
-    const agentType = narrowStringUnion(
-      agentTypeStr,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.keys loses literal types; keys are known AgentType values
-      Object.keys(AGENT_CONTEXT_CONFIGS) as AgentType[],
+/**
+ * Generation core: tool build → model resolution (fallback loop) →
+ * generateAgentResponse → result/retry handling. Call this directly from a
+ * node action to run generation in-process (the chat path); or via the
+ * `runAgentGeneration` scheduled wrapper for durable cross-boundary callers.
+ */
+export async function runGenerationCore(
+  ctx: ActionCtx,
+  args: RunGenerationArgs,
+) {
+  const actionStartTime = Date.now();
+  debugLog('ACTION_START', {
+    threadId: args.threadId,
+    timestamp: new Date(actionStartTime).toISOString(),
+    // Send → this action's start: the upstream work (auto-route,
+    // markGenerating, startChat) PLUS the Convex scheduler dequeue hop —
+    // the single biggest pre-stream segment the pipeline can target.
+    // Undefined for jobs scheduled before requestStartMs existed.
+    sinceRequestStartMs: args.requestStartMs
+      ? actionStartTime - args.requestStartMs
+      : undefined,
+    // PERF: pure scheduler dispatch + module-import latency. A large value
+    // here that SHRINKS on the 2nd warm send = cold module re-import after a
+    // `convex dev` push, not steady-state cost. Diagnostic.
+    scheduleHopMs: args.scheduledAtMs
+      ? actionStartTime - args.scheduledAtMs
+      : undefined,
+  });
+
+  const {
+    agentType: agentTypeStr,
+    agentConfig,
+    model,
+    provider: _provider,
+    debugTag,
+    enableStreaming,
+    hooks: hooksConfig,
+    threadId,
+    organizationId,
+    userId,
+    promptMessage,
+    originalUserText,
+    additionalContext,
+    userContext,
+    parentThreadId,
+    agentOptions,
+    attachments,
+    streamId,
+    promptMessageId,
+    maxSteps,
+    deadlineMs,
+    generationParams,
+    reasoningOverride,
+    maxContextTokens,
+  } = args;
+
+  const agentType = narrowStringUnion(
+    agentTypeStr,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.keys loses literal types; keys are known AgentType values
+    Object.keys(AGENT_CONTEXT_CONFIGS) as AgentType[],
+  );
+  if (!agentType) {
+    throw new Error(`Invalid agent type: ${agentTypeStr}`);
+  }
+
+  try {
+    const toolBuildStart = Date.now();
+
+    // Flatten the tool-build round-trips into ONE awaited set instead of a
+    // serial resolveOrgSlug + two stage barriers. The org-id-only resources
+    // (locale, governance, MCP, integrations) start immediately; the
+    // orgSlug/orgLocale-dependent builders (skill, delegation, workflow)
+    // chain off those promises so they begin the moment their input resolves.
+    // `buildSkillContext` short-circuits to the empty snapshot when the
+    // agent's `skillBindings` allowlist is empty (no disk reads, no
+    // `expand_skill` tool). Arg passing is byte-identical to the prior two
+    // stages — only the concurrency shape changed.
+    const effectiveConfig = agentConfig;
+    const orgSlugPromise = resolveOrgSlug(ctx, organizationId);
+    const orgLocalePromise = ctx.runQuery(
+      internal.organizations.internal_queries.getOrganizationDefaultLocale,
+      { organizationId },
     );
-    if (!agentType) {
-      throw new Error(`Invalid agent type: ${agentTypeStr}`);
+    const [
+      governanceResult,
+      mcpExtraTools,
+      integrationExtraTools,
+      skillSnapshot,
+      delegationResult,
+      workflowExtraTools,
+    ] = await Promise.all([
+      fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
+      buildMcpTools(ctx, organizationId),
+      buildIntegrationTools(ctx, effectiveConfig, organizationId),
+      // orgSlug/orgLocale are awaited transitively via these dependent
+      // builders (so resolveOrgSlug errors still surface); not needed
+      // standalone after the block.
+      orgSlugPromise.then((s) =>
+        buildSkillContext(ctx, s, agentConfig.skillBindings),
+      ),
+      Promise.all([orgSlugPromise, orgLocalePromise]).then(([s, l]) =>
+        buildDelegationTools(ctx, effectiveConfig, organizationId, s, l),
+      ),
+      orgSlugPromise.then((s) => buildWorkflowTools(ctx, effectiveConfig, s)),
+    ]);
+
+    // Extract delegation tools and instructions append
+    let delegationExtraTools: Record<string, unknown> | undefined;
+    let delegationInstructionsAppend = '';
+    if (delegationResult) {
+      delegationExtraTools = delegationResult.tools;
+      delegationInstructionsAppend = delegationResult.instructionsAppend;
+      debugLog('Built delegation tools', {
+        names: Object.keys(delegationExtraTools),
+      });
     }
 
-    try {
-      const toolBuildStart = Date.now();
-
-      // Flatten the tool-build round-trips into ONE awaited set instead of a
-      // serial resolveOrgSlug + two stage barriers. The org-id-only resources
-      // (locale, governance, MCP, integrations) start immediately; the
-      // orgSlug/orgLocale-dependent builders (skill, delegation, workflow)
-      // chain off those promises so they begin the moment their input resolves.
-      // `buildSkillContext` short-circuits to the empty snapshot when the
-      // agent's `skillBindings` allowlist is empty (no disk reads, no
-      // `expand_skill` tool). Arg passing is byte-identical to the prior two
-      // stages — only the concurrency shape changed.
-      const effectiveConfig = agentConfig;
-      const orgSlugPromise = resolveOrgSlug(ctx, organizationId);
-      const orgLocalePromise = ctx.runQuery(
-        internal.organizations.internal_queries.getOrganizationDefaultLocale,
-        { organizationId },
-      );
-      const [
-        governanceResult,
-        mcpExtraTools,
-        integrationExtraTools,
-        skillSnapshot,
-        delegationResult,
-        workflowExtraTools,
-      ] = await Promise.all([
-        fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
-        buildMcpTools(ctx, organizationId),
-        buildIntegrationTools(ctx, effectiveConfig, organizationId),
-        // orgSlug/orgLocale are awaited transitively via these dependent
-        // builders (so resolveOrgSlug errors still surface); not needed
-        // standalone after the block.
-        orgSlugPromise.then((s) =>
-          buildSkillContext(ctx, s, agentConfig.skillBindings),
-        ),
-        Promise.all([orgSlugPromise, orgLocalePromise]).then(([s, l]) =>
-          buildDelegationTools(ctx, effectiveConfig, organizationId, s, l),
-        ),
-        orgSlugPromise.then((s) => buildWorkflowTools(ctx, effectiveConfig, s)),
-      ]);
-
-      // Extract delegation tools and instructions append
-      let delegationExtraTools: Record<string, unknown> | undefined;
-      let delegationInstructionsAppend = '';
-      if (delegationResult) {
-        delegationExtraTools = delegationResult.tools;
-        delegationInstructionsAppend = delegationResult.instructionsAppend;
-        debugLog('Built delegation tools', {
-          names: Object.keys(delegationExtraTools),
-        });
-      }
-
-      if (workflowExtraTools) {
-        debugLog('Built bound workflow tools', {
-          names: Object.keys(workflowExtraTools),
-        });
-      }
-
-      // Extract governance prompt prefixes/suffixes
-      const { mandatoryPrefix, mandatorySuffix } = governanceResult;
-
-      const toolBuildMs = Date.now() - toolBuildStart;
-      debugLog('PERF_TOOL_BUILD', {
-        durationMs: toolBuildMs,
-        hasIntegrations: !!integrationExtraTools,
-        hasDelegation: !!delegationExtraTools,
-        hasWorkflows: !!workflowExtraTools,
-        hasMcp: !!mcpExtraTools,
-        hasGovernance: !!(mandatoryPrefix || mandatorySuffix),
+    if (workflowExtraTools) {
+      debugLog('Built bound workflow tools', {
+        names: Object.keys(workflowExtraTools),
       });
+    }
 
-      // Merge all extra tools. Skill built-ins (`expand_skill`,
-      // `read_skill_file`) are spliced in last so they cannot be shadowed by
-      // an integration / workflow / delegation tool sharing the same
-      // reserved name — defense-in-depth for the reserved-name set.
-      const hasAnyExtra =
-        integrationExtraTools ||
-        delegationExtraTools ||
-        workflowExtraTools ||
-        mcpExtraTools ||
-        Object.keys(skillSnapshot.builtInTools).length > 0;
-      const allExtraTools: Record<string, unknown> | undefined = hasAnyExtra
-        ? {
-            ...integrationExtraTools,
-            ...delegationExtraTools,
-            ...workflowExtraTools,
-            ...mcpExtraTools,
-            ...skillSnapshot.builtInTools,
-          }
-        : undefined;
+    // Extract governance prompt prefixes/suffixes
+    const { mandatoryPrefix, mandatorySuffix } = governanceResult;
 
-      // Combine instructions with delegation agent descriptions
-      let finalInstructions = delegationInstructionsAppend
-        ? agentConfig.instructions + delegationInstructionsAppend
-        : agentConfig.instructions;
+    const toolBuildMs = Date.now() - toolBuildStart;
+    debugLog('PERF_TOOL_BUILD', {
+      durationMs: toolBuildMs,
+      hasIntegrations: !!integrationExtraTools,
+      hasDelegation: !!delegationExtraTools,
+      hasWorkflows: !!workflowExtraTools,
+      hasMcp: !!mcpExtraTools,
+      hasGovernance: !!(mandatoryPrefix || mandatorySuffix),
+    });
 
-      // Wrap with mandatory governance system prompt (non-overridable)
-      if (mandatoryPrefix) {
-        finalInstructions = mandatoryPrefix + '\n\n' + finalInstructions;
-      }
-      if (mandatorySuffix) {
-        finalInstructions = finalInstructions + '\n\n' + mandatorySuffix;
-      }
-      // Append the "Available Skills" suffix AFTER governance so the
-      // governance/persona prefix stays cache-stable across skill edits
-      // (plan Phase 5 ordering). Empty string when no skills bound.
-      if (skillSnapshot.systemPromptAppend) {
-        finalInstructions =
-          finalInstructions + skillSnapshot.systemPromptAppend;
-      }
-
-      // Build hooks object from FunctionHandle strings
-      const hooks: GenerateResponseHooks | undefined = hooksConfig
-        ? buildHooksFromConfig(hooksConfig)
-        : undefined;
-
-      // Build tools summary for context window display.
-      // Read from effectiveConfig — agentConfig predates the skill merge
-      // and would omit skill-declared convex tools.
-      const toolsSummary = buildToolsSummary(
-        effectiveConfig.convexToolNames,
-        allExtraTools,
-      );
-
-      // Build ordered list of models to try: primary + fallbacks
-      const primaryModelId = model === 'default' ? undefined : model;
-      const modelsToTry: Array<string | undefined> = [primaryModelId];
-      if (agentConfig.fallbackModels?.length) {
-        for (const fb of agentConfig.fallbackModels) {
-          modelsToTry.push(fb);
+    // Merge all extra tools. Skill built-ins (`expand_skill`,
+    // `read_skill_file`) are spliced in last so they cannot be shadowed by
+    // an integration / workflow / delegation tool sharing the same
+    // reserved name — defense-in-depth for the reserved-name set.
+    const hasAnyExtra =
+      integrationExtraTools ||
+      delegationExtraTools ||
+      workflowExtraTools ||
+      mcpExtraTools ||
+      Object.keys(skillSnapshot.builtInTools).length > 0;
+    const allExtraTools: Record<string, unknown> | undefined = hasAnyExtra
+      ? {
+          ...integrationExtraTools,
+          ...delegationExtraTools,
+          ...workflowExtraTools,
+          ...mcpExtraTools,
+          ...skillSnapshot.builtInTools,
         }
+      : undefined;
+
+    // Combine instructions with delegation agent descriptions
+    let finalInstructions = delegationInstructionsAppend
+      ? agentConfig.instructions + delegationInstructionsAppend
+      : agentConfig.instructions;
+
+    // Wrap with mandatory governance system prompt (non-overridable)
+    if (mandatoryPrefix) {
+      finalInstructions = mandatoryPrefix + '\n\n' + finalInstructions;
+    }
+    if (mandatorySuffix) {
+      finalInstructions = finalInstructions + '\n\n' + mandatorySuffix;
+    }
+    // Append the "Available Skills" suffix AFTER governance so the
+    // governance/persona prefix stays cache-stable across skill edits
+    // (plan Phase 5 ordering). Empty string when no skills bound.
+    if (skillSnapshot.systemPromptAppend) {
+      finalInstructions = finalInstructions + skillSnapshot.systemPromptAppend;
+    }
+
+    // Build hooks object from FunctionHandle strings
+    const hooks: GenerateResponseHooks | undefined = hooksConfig
+      ? buildHooksFromConfig(hooksConfig)
+      : undefined;
+
+    // Build tools summary for context window display.
+    // Read from effectiveConfig — agentConfig predates the skill merge
+    // and would omit skill-declared convex tools.
+    const toolsSummary = buildToolsSummary(
+      effectiveConfig.convexToolNames,
+      allExtraTools,
+    );
+
+    // Build ordered list of models to try: primary + fallbacks
+    const primaryModelId = model === 'default' ? undefined : model;
+    const modelsToTry: Array<string | undefined> = [primaryModelId];
+    if (agentConfig.fallbackModels?.length) {
+      for (const fb of agentConfig.fallbackModels) {
+        modelsToTry.push(fb);
       }
+    }
 
-      // Fallback retry loop — try each model in order until one succeeds
-      let lastFallbackError: unknown;
-      for (let attempt = 0; attempt < modelsToTry.length; attempt++) {
-        const currentModelId = modelsToTry[attempt];
+    // Fallback retry loop — try each model in order until one succeeds
+    let lastFallbackError: unknown;
+    for (let attempt = 0; attempt < modelsToTry.length; attempt++) {
+      const currentModelId = modelsToTry[attempt];
 
-        try {
-          // orgSlug was resolved once in the outer Promise.all and is shared
-          // across model lookup + delegation + workflows so multi-org
-          // deployments read each org's own provider/API-key files.
-          // Parse provider qualifier from the ref (e.g. "openrouter:foo" → {providerName:"openrouter", modelId:"foo"}).
-          // Per-entry qualifier takes precedence over the agent's top-level provider.
-          const parsed = currentModelId
-            ? parseModelRef(currentModelId)
-            : undefined;
-          const { languageModel, modelData } = parsed
-            ? await resolveLanguageModelById(ctx, {
-                modelId: parsed.modelId,
-                providerName: parsed.providerName ?? agentConfig.provider,
-                organizationId,
-              })
-            : await resolveLanguageModelWithFallback(ctx, {
-                providerName: agentConfig.provider,
-                tag: 'chat',
-                organizationId,
-              });
-          const resolvedProvider = modelData.providerName;
-          const resolvedModelId = modelData.modelId;
-
-          // Vision branch: when the resolved chat model has the `vision`
-          // tag and the turn carries image attachments, inline the images
-          // as multimodal content and drop the `image` tool for this
-          // attempt. Failover to a non-vision model on the next attempt
-          // re-evaluates and reverts to the markdown + image-tool path.
-          const imageAttachments =
-            attachments?.filter((a) => a.fileType.startsWith('image/')) ?? [];
-          const isVisionCapable = modelData.tags.includes('vision');
-          const useMultiModal = isVisionCapable && imageAttachments.length > 0;
-
-          let multiModalPrompt: ModelMessage[] | undefined;
-          if (useMultiModal) {
-            const built = await buildInlineMultiModalPrompt(ctx, {
-              userText: originalUserText ?? promptMessage,
-              imageAttachments,
-            });
-            multiModalPrompt = built.prompt;
-            debugLog('MULTIMODAL_BRANCH', {
-              modelId: resolvedModelId,
-              inlinedImageCount: built.inlinedImageCount,
-              skippedImages: built.skippedImages,
-            });
-          }
-
-          // Read+write symmetry: only attach `propose_memory` when the
-          // memories gate is on (org `user_memories` policy,
-          // `prefs.memoriesEnabled === true`, and no thread veto). The
-          // agent-level `personalizationMode === 'off'` short-circuits
-          // before we hit the DB and disables BOTH features.
-          const personalizationActive =
-            userId &&
-            organizationId &&
-            agentConfig.personalizationMode !== 'off'
-              ? ((
-                  await ctx.runQuery(
-                    internal.personalization.internal_queries
-                      .isPersonalizationActiveForChat,
-                    { userId, organizationId, threadId },
-                  )
-                )?.memories ?? false)
-              : false;
-
-          // Create agent factory function from serializable config
-          const createAgent = () => {
-            // Filter tools: exclude rag_search/web when their retrieval mode
-            // is 'context' or 'off' (tool should only be available in 'tool'/'both').
-            // Drop `image` when the chat model handles images natively.
-            const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
-            const webSearchMode = agentConfig.webSearchMode ?? 'off';
-            // Read from effectiveConfig so skill-declared convex tools
-            // (post-mergeSkillDependencies) actually reach the LLM.
-            const baseToolList = effectiveConfig.convexToolNames ?? [];
-            const withPropose: string[] =
-              personalizationActive && !baseToolList.includes('propose_memory')
-                ? [...baseToolList, 'propose_memory']
-                : baseToolList;
-            const filteredToolNames = withPropose.filter((n): n is ToolName => {
-              if (!(TOOL_NAMES as readonly string[]).includes(n)) return false;
-              if (n === 'propose_memory' && !personalizationActive)
-                return false;
-              if (
-                n === 'rag_search' &&
-                knowledgeMode !== 'tool' &&
-                knowledgeMode !== 'both'
-              )
-                return false;
-              if (
-                n === 'web' &&
-                webSearchMode !== 'tool' &&
-                webSearchMode !== 'both'
-              )
-                return false;
-              if (n === 'image' && useMultiModal) return false;
-              return true;
-            });
-            const config = createAgentConfig({
-              name: agentConfig.name,
-              instructions: finalInstructions,
-              languageModel,
-              modelMaxOutputTokens: modelData.maxOutputTokens,
-              convexToolNames:
-                filteredToolNames && filteredToolNames.length > 0
-                  ? filteredToolNames
-                  : undefined,
-              extraTools: allExtraTools,
-              maxSteps: agentConfig.maxSteps,
-            });
-            return new Agent(components.agent, config);
-          };
-
-          const result = await generateAgentResponse(
-            {
-              agentType,
-              createAgent,
-              model: resolvedModelId,
-              provider: resolvedProvider,
-              debugTag,
-              enableStreaming,
-              hooks,
-              convexToolNames: effectiveConfig.convexToolNames,
-              knowledgeMode: agentConfig.knowledgeMode,
-              webSearchMode: agentConfig.webSearchMode,
-              includeTeamKnowledge: agentConfig.includeTeamKnowledge,
-              includeOrgKnowledge: agentConfig.includeOrgKnowledge,
-              agentTeamId: agentConfig.agentTeamId,
-              agentTeamIds: agentConfig.agentTeamIds,
-              knowledgeFileIds: agentConfig.knowledgeFileIds,
-              agentProjectIds: agentConfig.agentProjectIds,
-              structuredResponsesEnabled:
-                agentConfig.structuredResponsesEnabled,
-              maxContextTokens,
-              instructions: finalInstructions,
-              toolsSummary,
-              personalizationMode: agentConfig.personalizationMode,
-              providerOptions: buildCallProviderOptions(modelData),
-              modelMaxOutputTokens: modelData.maxOutputTokens,
-              reasoningCapability: modelData.reasoning,
-            },
-            {
-              ctx,
-              threadId,
+      try {
+        // orgSlug was resolved once in the outer Promise.all and is shared
+        // across model lookup + delegation + workflows so multi-org
+        // deployments read each org's own provider/API-key files.
+        // Parse provider qualifier from the ref (e.g. "openrouter:foo" → {providerName:"openrouter", modelId:"foo"}).
+        // Per-entry qualifier takes precedence over the agent's top-level provider.
+        const parsed = currentModelId
+          ? parseModelRef(currentModelId)
+          : undefined;
+        const { languageModel, modelData } = parsed
+          ? await resolveLanguageModelByIdNode(ctx, {
+              modelId: parsed.modelId,
+              providerName: parsed.providerName ?? agentConfig.provider,
               organizationId,
-              userId,
-              agentSlug: args.agentSlug,
-              teamIds: args.threadTeamId ? [args.threadTeamId] : undefined,
-              providerCost:
-                modelData.inputCentsPerMillion != null
-                  ? {
-                      inputCentsPerMillion: modelData.inputCentsPerMillion,
-                      outputCentsPerMillion:
-                        modelData.outputCentsPerMillion ?? 0,
-                    }
-                  : undefined,
-              promptMessage,
-              additionalContext,
-              userContext,
-              parentThreadId,
-              agentOptions,
-              attachments,
-              multiModalPrompt,
-              streamId,
-              promptMessageId,
-              maxSteps,
-              deadlineMs,
-              generationParams,
-              reasoningOverride,
-              requestStartMs: args.requestStartMs,
-              // Suppress error cleanup (stream error, generation status clear,
-              // failed message) when there are more fallback models to try.
-              // The fallback loop handles cleanup itself.
-              suppressErrorCleanup: attempt < modelsToTry.length - 1,
-            },
-          );
+            })
+          : await resolveLanguageModelWithFallback(ctx, {
+              providerName: agentConfig.provider,
+              tag: 'chat',
+              organizationId,
+            });
+        const resolvedProvider = modelData.providerName;
+        const resolvedModelId = modelData.modelId;
 
-          // User cancelled — cancelGeneration already handled message state
-          if (result.finishReason === 'cancelled') {
-            return result;
+        // Vision branch: when the resolved chat model has the `vision`
+        // tag and the turn carries image attachments, inline the images
+        // as multimodal content and drop the `image` tool for this
+        // attempt. Failover to a non-vision model on the next attempt
+        // re-evaluates and reverts to the markdown + image-tool path.
+        const imageAttachments =
+          attachments?.filter((a) => a.fileType.startsWith('image/')) ?? [];
+        const isVisionCapable = modelData.tags.includes('vision');
+        const useMultiModal = isVisionCapable && imageAttachments.length > 0;
+
+        let multiModalPrompt: ModelMessage[] | undefined;
+        if (useMultiModal) {
+          const built = await buildInlineMultiModalPrompt(ctx, {
+            userText: originalUserText ?? promptMessage,
+            imageAttachments,
+          });
+          multiModalPrompt = built.prompt;
+          debugLog('MULTIMODAL_BRANCH', {
+            modelId: resolvedModelId,
+            inlinedImageCount: built.inlinedImageCount,
+            skippedImages: built.skippedImages,
+          });
+        }
+
+        // Read+write symmetry: only attach `propose_memory` when the
+        // memories gate is on (org `user_memories` policy,
+        // `prefs.memoriesEnabled === true`, and no thread veto). The
+        // agent-level `personalizationMode === 'off'` short-circuits
+        // before we hit the DB and disables BOTH features.
+        const personalizationActive =
+          userId && organizationId && agentConfig.personalizationMode !== 'off'
+            ? ((
+                await ctx.runQuery(
+                  internal.personalization.internal_queries
+                    .isPersonalizationActiveForChat,
+                  { userId, organizationId, threadId },
+                )
+              )?.memories ?? false)
+            : false;
+
+        // Create agent factory function from serializable config
+        const createAgent = () => {
+          // Filter tools: exclude rag_search/web when their retrieval mode
+          // is 'context' or 'off' (tool should only be available in 'tool'/'both').
+          // Drop `image` when the chat model handles images natively.
+          const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
+          const webSearchMode = agentConfig.webSearchMode ?? 'off';
+          // Read from effectiveConfig so skill-declared convex tools
+          // (post-mergeSkillDependencies) actually reach the LLM.
+          const baseToolList = effectiveConfig.convexToolNames ?? [];
+          const withPropose: string[] =
+            personalizationActive && !baseToolList.includes('propose_memory')
+              ? [...baseToolList, 'propose_memory']
+              : baseToolList;
+          const filteredToolNames = withPropose.filter((n): n is ToolName => {
+            if (!(TOOL_NAMES as readonly string[]).includes(n)) return false;
+            if (n === 'propose_memory' && !personalizationActive) return false;
+            if (
+              n === 'rag_search' &&
+              knowledgeMode !== 'tool' &&
+              knowledgeMode !== 'both'
+            )
+              return false;
+            if (
+              n === 'web' &&
+              webSearchMode !== 'tool' &&
+              webSearchMode !== 'both'
+            )
+              return false;
+            if (n === 'image' && useMultiModal) return false;
+            return true;
+          });
+          const config = createAgentConfig({
+            name: agentConfig.name,
+            instructions: finalInstructions,
+            languageModel,
+            modelMaxOutputTokens: modelData.maxOutputTokens,
+            convexToolNames:
+              filteredToolNames && filteredToolNames.length > 0
+                ? filteredToolNames
+                : undefined,
+            extraTools: allExtraTools,
+            maxSteps: agentConfig.maxSteps,
+          });
+          return new Agent(components.agent, config);
+        };
+
+        // PERF: ms from this action's entry to the generateAgentResponse
+        // hand-off — i.e. the tool-build + model-resolution setup inside
+        // runAgentGeneration. Diagnostic.
+        debugLog('PERF_RUNGEN_SETUP', {
+          threadId: args.threadId,
+          runAgentGenSetupMs: Date.now() - actionStartTime,
+          sinceSendMs: args.requestStartMs
+            ? Date.now() - args.requestStartMs
+            : undefined,
+        });
+
+        const result = await generateAgentResponse(
+          {
+            agentType,
+            createAgent,
+            model: resolvedModelId,
+            provider: resolvedProvider,
+            debugTag,
+            enableStreaming,
+            hooks,
+            convexToolNames: effectiveConfig.convexToolNames,
+            knowledgeMode: agentConfig.knowledgeMode,
+            webSearchMode: agentConfig.webSearchMode,
+            includeTeamKnowledge: agentConfig.includeTeamKnowledge,
+            includeOrgKnowledge: agentConfig.includeOrgKnowledge,
+            agentTeamId: agentConfig.agentTeamId,
+            agentTeamIds: agentConfig.agentTeamIds,
+            knowledgeFileIds: agentConfig.knowledgeFileIds,
+            agentProjectIds: agentConfig.agentProjectIds,
+            structuredResponsesEnabled: agentConfig.structuredResponsesEnabled,
+            maxContextTokens,
+            instructions: finalInstructions,
+            toolsSummary,
+            personalizationMode: agentConfig.personalizationMode,
+            providerOptions: buildCallProviderOptions(modelData),
+            modelMaxOutputTokens: modelData.maxOutputTokens,
+            reasoningCapability: modelData.reasoning,
+          },
+          {
+            ctx,
+            threadId,
+            organizationId,
+            userId,
+            agentSlug: args.agentSlug,
+            teamIds: args.threadTeamId ? [args.threadTeamId] : undefined,
+            providerCost:
+              modelData.inputCentsPerMillion != null
+                ? {
+                    inputCentsPerMillion: modelData.inputCentsPerMillion,
+                    outputCentsPerMillion: modelData.outputCentsPerMillion ?? 0,
+                  }
+                : undefined,
+            promptMessage,
+            additionalContext,
+            userContext,
+            parentThreadId,
+            agentOptions,
+            attachments,
+            multiModalPrompt,
+            streamId,
+            promptMessageId,
+            maxSteps,
+            deadlineMs,
+            generationParams,
+            reasoningOverride,
+            requestStartMs: args.requestStartMs,
+            // Suppress error cleanup (stream error, generation status clear,
+            // failed message) when there are more fallback models to try.
+            // The fallback loop handles cleanup itself.
+            suppressErrorCleanup: attempt < modelsToTry.length - 1,
+          },
+        );
+
+        // User cancelled — cancelGeneration already handled message state
+        if (result.finishReason === 'cancelled') {
+          return result;
+        }
+
+        // Validate response — save a failed message so the client exits loading
+        if (!result.text?.trim()) {
+          try {
+            await saveMessage(ctx, components.agent, {
+              threadId,
+              message: {
+                role: 'assistant',
+                content:
+                  'I was unable to generate a response. Please try again.',
+              },
+              metadata: {
+                status: 'failed',
+                error: 'Agent returned empty response',
+              },
+            });
+          } catch (saveError) {
+            console.error(
+              '[runAgentGeneration] Failed to save failed message:',
+              saveError,
+            );
+          }
+          throw new Error(
+            `Agent returned empty response: ${JSON.stringify({
+              model: result.model,
+              usage: result.usage,
+            })}`,
+          );
+        }
+
+        return result;
+      } catch (fallbackError) {
+        lastFallbackError = fallbackError;
+        const hasMoreFallbacks = attempt < modelsToTry.length - 1;
+
+        // Retry on any provider-specific error with remaining fallbacks.
+        // This includes transient errors (429, 5xx) AND non-transient
+        // provider errors (401 auth, 404 model-not-found) because a
+        // different fallback model may use a different provider.
+        if (hasMoreFallbacks && shouldFailoverToNextModel(fallbackError)) {
+          const failedModelLabel = currentModelId ?? model;
+          const nextModel = modelsToTry[attempt + 1] ?? 'default';
+
+          // Record circuit breaker failure only for transient errors
+          // (429, 5xx, timeouts). Non-transient errors like 401/404 are
+          // config issues, not provider flakiness.
+          if (
+            currentModelId &&
+            agentConfig.provider &&
+            isTransientProviderError(fallbackError)
+          ) {
+            recordFailure(agentConfig.provider, currentModelId);
           }
 
-          // Validate response — save a failed message so the client exits loading
-          if (!result.text?.trim()) {
-            try {
-              await saveMessage(ctx, components.agent, {
-                threadId,
-                message: {
-                  role: 'assistant',
-                  content:
-                    'I was unable to generate a response. Please try again.',
-                },
-                metadata: {
-                  status: 'failed',
-                  error: 'Agent returned empty response',
-                },
-              });
-            } catch (saveError) {
-              console.error(
-                '[runAgentGeneration] Failed to save failed message:',
-                saveError,
-              );
-            }
-            throw new Error(
-              `Agent returned empty response: ${JSON.stringify({
-                model: result.model,
-                usage: result.usage,
-              })}`,
+          // Check remaining deadline budget before retrying
+          if (deadlineMs && Date.now() >= deadlineMs - 5000) {
+            debugLog('FALLBACK_SKIP_DEADLINE', {
+              failedModel: failedModelLabel,
+              remainingMs: deadlineMs - Date.now(),
+            });
+            throw fallbackError;
+          }
+
+          const errStatus = isRecord(fallbackError)
+            ? (fallbackError['status'] ?? fallbackError['statusCode'])
+            : undefined;
+          const errMessage = isRecord(fallbackError)
+            ? getString(fallbackError, 'message')
+            : undefined;
+          debugLog('MODEL_FALLBACK', {
+            attempt: attempt + 1,
+            failedModel: failedModelLabel,
+            nextModel,
+            errorStatus: typeof errStatus === 'number' ? errStatus : undefined,
+            errorMessage: errMessage?.slice(0, 200),
+          });
+
+          // Save system message so the user sees the fallback in chat
+          try {
+            await saveMessage(ctx, components.agent, {
+              threadId,
+              message: {
+                role: 'system',
+                content: `[MODEL_FALLBACK] ${failedModelLabel} was unavailable. Trying ${nextModel}...`,
+              },
+            });
+          } catch (msgError) {
+            console.error(
+              '[runAgentGeneration] Failed to save fallback message:',
+              msgError,
             );
           }
 
-          return result;
-        } catch (fallbackError) {
-          lastFallbackError = fallbackError;
-          const hasMoreFallbacks = attempt < modelsToTry.length - 1;
-
-          // Retry on any provider-specific error with remaining fallbacks.
-          // This includes transient errors (429, 5xx) AND non-transient
-          // provider errors (401 auth, 404 model-not-found) because a
-          // different fallback model may use a different provider.
-          if (hasMoreFallbacks && shouldFailoverToNextModel(fallbackError)) {
-            const failedModelLabel = currentModelId ?? model;
-            const nextModel = modelsToTry[attempt + 1] ?? 'default';
-
-            // Record circuit breaker failure only for transient errors
-            // (429, 5xx, timeouts). Non-transient errors like 401/404 are
-            // config issues, not provider flakiness.
-            if (
-              currentModelId &&
-              agentConfig.provider &&
-              isTransientProviderError(fallbackError)
-            ) {
-              recordFailure(agentConfig.provider, currentModelId);
-            }
-
-            // Check remaining deadline budget before retrying
-            if (deadlineMs && Date.now() >= deadlineMs - 5000) {
-              debugLog('FALLBACK_SKIP_DEADLINE', {
-                failedModel: failedModelLabel,
-                remainingMs: deadlineMs - Date.now(),
-              });
-              throw fallbackError;
-            }
-
-            const errStatus = isRecord(fallbackError)
-              ? (fallbackError['status'] ?? fallbackError['statusCode'])
-              : undefined;
-            const errMessage = isRecord(fallbackError)
-              ? getString(fallbackError, 'message')
-              : undefined;
-            debugLog('MODEL_FALLBACK', {
-              attempt: attempt + 1,
-              failedModel: failedModelLabel,
-              nextModel,
-              errorStatus:
-                typeof errStatus === 'number' ? errStatus : undefined,
-              errorMessage: errMessage?.slice(0, 200),
+          // Clean up stale assistant messages from this attempt.
+          // With suppressErrorCleanup, generateAgentResponse skips saving
+          // failed messages, but the Agent SDK may have created a pending
+          // message before the error. Convert any failed/pending assistant
+          // messages to a system fallback note.
+          try {
+            const msgs = await listMessages(ctx, components.agent, {
+              threadId,
+              paginationOpts: { cursor: null, numItems: 5 },
+              excludeToolMessages: true,
             });
-
-            // Save system message so the user sees the fallback in chat
-            try {
-              await saveMessage(ctx, components.agent, {
-                threadId,
-                message: {
-                  role: 'system',
-                  content: `[MODEL_FALLBACK] ${failedModelLabel} was unavailable. Trying ${nextModel}...`,
+            const staleAssistants = msgs.page.filter(
+              (m: MessageDoc) =>
+                m.message?.role === 'assistant' &&
+                (m.status === 'failed' || m.status === 'pending'),
+            );
+            for (const stale of staleAssistants) {
+              await ctx.runMutation(components.agent.messages.updateMessage, {
+                messageId: stale._id,
+                patch: {
+                  status: 'success',
+                  message: {
+                    role: 'system',
+                    content: `[MODEL_FALLBACK] ${failedModelLabel} failed — retrying with ${nextModel}.`,
+                  },
                 },
               });
-            } catch (msgError) {
-              console.error(
-                '[runAgentGeneration] Failed to save fallback message:',
-                msgError,
-              );
             }
-
-            // Clean up stale assistant messages from this attempt.
-            // With suppressErrorCleanup, generateAgentResponse skips saving
-            // failed messages, but the Agent SDK may have created a pending
-            // message before the error. Convert any failed/pending assistant
-            // messages to a system fallback note.
-            try {
-              const msgs = await listMessages(ctx, components.agent, {
-                threadId,
-                paginationOpts: { cursor: null, numItems: 5 },
-                excludeToolMessages: true,
-              });
-              const staleAssistants = msgs.page.filter(
-                (m: MessageDoc) =>
-                  m.message?.role === 'assistant' &&
-                  (m.status === 'failed' || m.status === 'pending'),
-              );
-              for (const stale of staleAssistants) {
-                await ctx.runMutation(components.agent.messages.updateMessage, {
-                  messageId: stale._id,
-                  patch: {
-                    status: 'success',
-                    message: {
-                      role: 'system',
-                      content: `[MODEL_FALLBACK] ${failedModelLabel} failed — retrying with ${nextModel}.`,
-                    },
-                  },
-                });
-              }
-            } catch (cleanupError) {
-              debugLog('FALLBACK_CLEANUP_ERROR', { error: cleanupError });
-            }
-
-            continue;
+          } catch (cleanupError) {
+            debugLog('FALLBACK_CLEANUP_ERROR', { error: cleanupError });
           }
 
-          // Non-transient error or no more fallbacks — rethrow
-          throw fallbackError;
+          continue;
         }
-      }
 
-      // Should not reach here, but satisfy TypeScript
-      throw lastFallbackError ?? new Error('No model could be resolved');
-    } catch (error) {
-      // Log full error details for debugging
-      const err = isRecord(error) ? error : { message: String(error) };
-      console.error('[runAgentGeneration] Full error details:', {
-        name: getString(err, 'name'),
+        // Non-transient error or no more fallbacks — rethrow
+        throw fallbackError;
+      }
+    }
+
+    // Should not reach here, but satisfy TypeScript
+    throw lastFallbackError ?? new Error('No model could be resolved');
+  } catch (error) {
+    // Log full error details for debugging
+    const err = isRecord(error) ? error : { message: String(error) };
+    console.error('[runAgentGeneration] Full error details:', {
+      name: getString(err, 'name'),
+      message: getString(err, 'message'),
+      code: getString(err, 'code'),
+      status: err['status'],
+      statusCode: err['statusCode'],
+      cause: err['cause'],
+      stack: getString(err, 'stack'),
+      error: JSON.stringify(
+        error,
+        isRecord(error) ? Object.getOwnPropertyNames(error) : [],
+        2,
+      ),
+    });
+
+    // generateAgentResponse's own catch terminalizes the stream for failures
+    // raised inside it. Failures BEFORE it runs (tool building, model
+    // resolution) reach here with the stream still 'pending'/'streaming',
+    // which would leave non-streaming pollers (e.g. the Slack processor)
+    // hanging until their own timeout. Mark it errored here too — idempotent
+    // if it was already terminalized.
+    if (streamId) {
+      try {
+        await ctx.runMutation(
+          internal.streaming.internal_mutations.errorStream,
+          { streamId },
+        );
+      } catch (streamError) {
+        console.error(
+          '[runAgentGeneration] Failed to error stream:',
+          streamError,
+        );
+      }
+      // Clear generation status so the UI stops showing "Thinking..."
+      try {
+        await ctx.runMutation(
+          internal.threads.internal_mutations.clearGenerationStatus,
+          { threadId, streamId },
+        );
+      } catch (clearError) {
+        console.error(
+          '[runAgentGeneration] Failed to clear generation status:',
+          clearError,
+        );
+      }
+    }
+
+    try {
+      const msgs = await listMessages(ctx, components.agent, {
+        threadId,
+        paginationOpts: { cursor: null, numItems: 5 },
+        excludeToolMessages: true,
+      });
+      const newestAssistant = msgs.page.find(
+        (m: MessageDoc) => m.message?.role === 'assistant',
+      );
+      const hasFailedAssistant = newestAssistant?.status === 'failed';
+      if (!hasFailedAssistant) {
+        const providerError = classifyProviderError(error);
+        await saveMessage(ctx, components.agent, {
+          threadId,
+          message: {
+            role: 'assistant',
+            content: providerError.userMessage,
+          },
+          metadata: {
+            status: 'failed',
+            error: `[${providerError.errorType}] ${getString(err, 'message') ?? 'Unknown error'}`,
+          },
+        });
+      }
+    } catch (saveError) {
+      console.error(
+        '[runAgentGeneration] Failed to save failed message:',
+        saveError,
+      );
+    }
+
+    throw new NonRetryableError(
+      `Agent generation failed: ${JSON.stringify({
         message: getString(err, 'message'),
         code: getString(err, 'code'),
         status: err['status'],
-        statusCode: err['statusCode'],
         cause: err['cause'],
-        stack: getString(err, 'stack'),
-        error: JSON.stringify(
-          error,
-          isRecord(error) ? Object.getOwnPropertyNames(error) : [],
-          2,
-        ),
-      });
-
-      // generateAgentResponse's own catch terminalizes the stream for failures
-      // raised inside it. Failures BEFORE it runs (tool building, model
-      // resolution) reach here with the stream still 'pending'/'streaming',
-      // which would leave non-streaming pollers (e.g. the Slack processor)
-      // hanging until their own timeout. Mark it errored here too — idempotent
-      // if it was already terminalized.
-      if (streamId) {
-        try {
-          await ctx.runMutation(
-            internal.streaming.internal_mutations.errorStream,
-            { streamId },
-          );
-        } catch (streamError) {
-          console.error(
-            '[runAgentGeneration] Failed to error stream:',
-            streamError,
-          );
-        }
-        // Clear generation status so the UI stops showing "Thinking..."
-        try {
-          await ctx.runMutation(
-            internal.threads.internal_mutations.clearGenerationStatus,
-            { threadId, streamId },
-          );
-        } catch (clearError) {
-          console.error(
-            '[runAgentGeneration] Failed to clear generation status:',
-            clearError,
-          );
-        }
-      }
-
-      try {
-        const msgs = await listMessages(ctx, components.agent, {
-          threadId,
-          paginationOpts: { cursor: null, numItems: 5 },
-          excludeToolMessages: true,
-        });
-        const newestAssistant = msgs.page.find(
-          (m: MessageDoc) => m.message?.role === 'assistant',
-        );
-        const hasFailedAssistant = newestAssistant?.status === 'failed';
-        if (!hasFailedAssistant) {
-          const providerError = classifyProviderError(error);
-          await saveMessage(ctx, components.agent, {
-            threadId,
-            message: {
-              role: 'assistant',
-              content: providerError.userMessage,
-            },
-            metadata: {
-              status: 'failed',
-              error: `[${providerError.errorType}] ${getString(err, 'message') ?? 'Unknown error'}`,
-            },
-          });
-        }
-      } catch (saveError) {
-        console.error(
-          '[runAgentGeneration] Failed to save failed message:',
-          saveError,
-        );
-      }
-
-      throw new NonRetryableError(
-        `Agent generation failed: ${JSON.stringify({
-          message: getString(err, 'message'),
-          code: getString(err, 'code'),
-          status: err['status'],
-          cause: err['cause'],
-        })}`,
-        error,
-        'generation_error',
-      );
-    }
-  },
-});
+      })}`,
+      error,
+      'generation_error',
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // T2 helper functions: parallelized tool building

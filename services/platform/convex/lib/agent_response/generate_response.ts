@@ -1247,6 +1247,20 @@ export async function generateAgentResponse(
             : null;
 
         preStreamAtMs = Date.now();
+        // PERF (diagnostic, env-gated via debugLog): consolidated pre-stream
+        // attribution. `totalPreStreamMs` is the whole send → just-before-
+        // streamText window; `genPreStreamMs` is this action's own setup
+        // (context Promise.all, buildSkillContext, model resolve, system prompt).
+        // Enable with DEBUG_<AGENTTYPE>_AGENT=true or DEBUG_MODE=true.
+        debugLog(
+          'PRE_STREAM_SUMMARY',
+          JSON.stringify({
+            threadId,
+            model,
+            totalPreStreamMs: preStreamAtMs - sendStartMs,
+            genPreStreamMs: preStreamAtMs - startTime,
+          }),
+        );
         const streamResult = await agent.streamText(
           contextWithOrg,
           { threadId, userId },

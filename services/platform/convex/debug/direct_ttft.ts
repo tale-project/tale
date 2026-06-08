@@ -134,10 +134,10 @@ async function assembleAgentTools(
     if (toolDef && typeof toolDef === 'object') {
       // Drop `execute` so schemas reach the model (prefill) but the SDK can't
       // run the tool — a probe must be side-effect free.
-      const { execute: _execute, ...schemaOnly } = toolDef as Record<
-        string,
-        unknown
-      >;
+      const schemaOnly: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(toolDef)) {
+        if (key !== 'execute') schemaOnly[key] = value;
+      }
       stripped[name] = schemaOnly;
     } else {
       stripped[name] = toolDef;

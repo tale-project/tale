@@ -302,7 +302,9 @@ function createDebugFetch(providerName: string): FetchFn | undefined {
   };
 }
 
-function createLanguageModel(modelData: ResolvedModelData): LanguageModelV3 {
+export function createLanguageModel(
+  modelData: ResolvedModelData,
+): LanguageModelV3 {
   const debugFetch = createDebugFetch(modelData.providerName);
   const provider = createOpenAICompatible({
     name: modelData.providerName,
@@ -435,15 +437,14 @@ export async function resolveLanguageModelById(
   ctx: ActionCtx,
   opts: { modelId: string; providerName?: string; organizationId: string },
 ): Promise<ResolvedLanguageModel> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelData returns v.any() but shape is guaranteed by file_actions contract
-  const modelData = (await ctx.runAction(
+  const modelData = await ctx.runAction(
     internal.providers.file_actions.resolveModelData,
     {
       modelId: opts.modelId,
       providerName: opts.providerName,
       organizationId: opts.organizationId,
     },
-  )) as ResolvedModelData;
+  );
   return { languageModel: createLanguageModel(modelData), modelData };
 }
 
@@ -489,15 +490,14 @@ export async function resolveImageModelById(
   ctx: ActionCtx,
   opts: { modelId: string; providerName?: string; organizationId: string },
 ): Promise<ResolvedImageModel> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelData returns v.any() but shape is guaranteed by file_actions contract
-  const modelData = (await ctx.runAction(
+  const modelData = await ctx.runAction(
     internal.providers.file_actions.resolveModelData,
     {
       modelId: opts.modelId,
       providerName: opts.providerName,
       organizationId: opts.organizationId,
     },
-  )) as ResolvedModelData;
+  );
   if (!modelData.tags.includes('image-generation')) {
     throw new Error(
       `Model "${modelData.modelId}" lacks the "image-generation" tag.`,
