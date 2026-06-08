@@ -219,11 +219,13 @@ function DirectTtftProbe({
           Replays this turn's user message straight to{' '}
           {modelId ?? 'the chat model'}
           {withTools && agentSlug
-            ? `, with ${agentSlug}'s tools + system prompt so the prefill matches the pipeline`
+            ? `, with ${agentSlug}'s tools + static system prompt (base policy + agent instructions)`
             : ' with no tools/system — the bare model floor'}
-          . Compare with the pipeline numbers above; the gap is backend
-          overhead. Real (billed) call, aborted at first output (tools never
-          execute). Text only — attachments aren't replayed.
+          . Compare with the pipeline numbers above; the gap is backend overhead
+          plus the prompt this probe leaves out. Real (billed) call, aborted at
+          first output (tools never execute). Not replayed: attachments, your
+          memories, conversation history, project instructions — so this prefill
+          is a lower bound and Direct reads as a floor, not an exact replay.
         </Text>
         <textarea
           value={message}
@@ -251,43 +253,50 @@ function DirectTtftProbe({
           </Text>
         )}
         {result && (
-          <StatGrid
-            className="text-sm"
-            items={[
-              {
-                label: 'Direct first-reasoning',
-                value: <Text>{fmt(result.firstReasoningMs)}</Text>,
-              },
-              {
-                label: 'Direct first-content',
-                value: <Text>{fmt(result.firstContentMs)}</Text>,
-              },
-              {
-                label: 'Prefill replayed',
-                value: (
-                  <Text>
-                    {result.toolCount} tools · {result.systemChars} sys chars
-                  </Text>
-                ),
-              },
-              ...(pipelineFirstReasoningMs != null
-                ? [
-                    {
-                      label: 'Pipeline first-reasoning',
-                      value: <Text>{fmt(pipelineFirstReasoningMs)}</Text>,
-                    },
-                  ]
-                : []),
-              ...(pipelineTimeFromSendMs != null
-                ? [
-                    {
-                      label: 'Pipeline from-send',
-                      value: <Text>{fmt(pipelineTimeFromSendMs)}</Text>,
-                    },
-                  ]
-                : []),
-            ]}
-          />
+          <Stack gap={1} className="mt-2">
+            <StatGrid
+              className="text-sm"
+              items={[
+                {
+                  label: 'Direct first-reasoning',
+                  value: <Text>{fmt(result.firstReasoningMs)}</Text>,
+                },
+                {
+                  label: 'Direct first-content',
+                  value: <Text>{fmt(result.firstContentMs)}</Text>,
+                },
+                {
+                  label: 'Static prefill',
+                  value: (
+                    <Text>
+                      {result.toolCount} tools · {result.systemChars} sys chars
+                    </Text>
+                  ),
+                },
+                ...(pipelineFirstReasoningMs != null
+                  ? [
+                      {
+                        label: 'Pipeline first-reasoning',
+                        value: <Text>{fmt(pipelineFirstReasoningMs)}</Text>,
+                      },
+                    ]
+                  : []),
+                ...(pipelineTimeFromSendMs != null
+                  ? [
+                      {
+                        label: 'Pipeline from-send',
+                        value: <Text>{fmt(pipelineTimeFromSendMs)}</Text>,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+            <Text as="div" variant="caption" className="text-muted-foreground">
+              Static prefill = tools + base policy + agent instructions only. It
+              excludes your memories, the conversation history, and project
+              instructions, so Direct is a lower bound vs Pipeline.
+            </Text>
+          </Stack>
         )}
       </Stack>
     </Field>
@@ -320,26 +329,48 @@ function TtftDetailContent({
   const fmtS = (ms?: number) =>
     ms == null ? '—' : `${(ms / 1000).toFixed(2)}s`;
 
+  // Re-anchor every row at the moment of send so the breakdown reads as one
+  // cumulative timeline (Setup before model < first reasoning < first token)
+  // instead of mixing send-relative and generation-relative baselines.
+  // `timeFromSendMs` anchors on first reasoning when present, else first token —
+  // so the setup segment (send → generation begins) is that minus the matching
+  // from-generation mark. Derivable only when `timeFromSendMs` exists (older
+  // rows degrade to the model-side values).
+  const hasReasoning = timeToFirstReasoningMs != null;
+  const anchorFromGen = hasReasoning
+    ? timeToFirstReasoningMs
+    : timeToFirstTokenMs;
+  const setupMs =
+    timeFromSendMs != null
+      ? Math.max(0, timeFromSendMs - anchorFromGen)
+      : undefined;
+  const ttfrFromSendMs =
+    hasReasoning && setupMs != null
+      ? setupMs + timeToFirstReasoningMs
+      : undefined;
+  const ttftFromSendMs =
+    setupMs != null ? setupMs + timeToFirstTokenMs : timeToFirstTokenMs;
+
   const breakdown: StatGridItem[] = [
-    ...(timeFromSendMs != null
+    ...(setupMs != null
       ? [
           {
-            label: t('messageInfo.timeFromSend'),
-            value: <Text>{fmtS(timeFromSendMs)}</Text>,
+            label: t('messageInfo.setupBeforeModel'),
+            value: <Text>{fmtS(setupMs)}</Text>,
           },
         ]
       : []),
-    ...(timeToFirstReasoningMs != null
+    ...(ttfrFromSendMs != null
       ? [
           {
             label: t('messageInfo.timeToFirstReasoning'),
-            value: <Text>{fmtS(timeToFirstReasoningMs)}</Text>,
+            value: <Text>{fmtS(ttfrFromSendMs)}</Text>,
           },
         ]
       : []),
     {
       label: t('messageInfo.timeToFirstToken'),
-      value: <Text>{fmtS(timeToFirstTokenMs)}</Text>,
+      value: <Text>{fmtS(ttftFromSendMs)}</Text>,
     },
   ];
 
@@ -516,20 +547,27 @@ export function MessageInfoDialog({
       });
     }
 
-    // Keep the Performance section to ONE familiar "time to first token" value.
-    // The fuller send → first-reasoning → first-token breakdown (and the dev
-    // probe) live behind a click so the default view isn't overwhelming.
+    // Keep the Performance section to ONE headline value: the full wait from
+    // send to the first thing the user sees (reasoning preferred). The fuller
+    // setup → first-reasoning → first-token breakdown (and the dev probe) live
+    // behind a click so the default view isn't overwhelming.
     if (metadata?.timeToFirstTokenMs != null) {
-      const ttft = metadata.timeToFirstTokenMs;
+      // From-send total; fall back to the model-side TTFT for older rows that
+      // predate the send anchor. Label tracks what arrived first.
+      const headlineMs = metadata.timeFromSendMs ?? metadata.timeToFirstTokenMs;
+      const headlineLabel =
+        metadata.timeToFirstReasoningMs != null
+          ? t('messageInfo.timeToFirstReasoning')
+          : t('messageInfo.timeToFirstToken');
       items.push({
-        label: t('messageInfo.timeToFirstToken'),
+        label: headlineLabel,
         value: (
           <button
             type="button"
             onClick={() => setView('ttft')}
             className="cursor-pointer text-left font-medium hover:underline"
           >
-            {(ttft / 1000).toFixed(2)}s
+            {(headlineMs / 1000).toFixed(2)}s
           </button>
         ),
       });
@@ -560,6 +598,8 @@ export function MessageInfoDialog({
   }, [
     metadata?.durationMs,
     metadata?.timeToFirstTokenMs,
+    metadata?.timeFromSendMs,
+    metadata?.timeToFirstReasoningMs,
     metadata?.outputTokens,
     t,
     locale,

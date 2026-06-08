@@ -14,10 +14,15 @@
  * The delta is our backend overhead.
  *
  * `withTools` (default on when `agentSlug` is given) reproduces the agent's tool
- * set + system instructions in the request so the prefill — and therefore the
- * model's time-to-first-reasoning — matches the pipeline. With tools the probe
- * should land near the pipeline's model segment; WITHOUT them it's the bare
- * model+network floor. The gap between the two is the tool/prompt prefill cost.
+ * set + the pipeline's STATIC system prefill (agent instructions + the always-on
+ * untrusted-content rules + language directive, via the same buildSystemPrompt
+ * the pipeline uses) so the prefill — and therefore the model's
+ * time-to-first-reasoning — tracks the pipeline. It deliberately omits the
+ * per-turn DYNAMIC blocks (personalization/memories, thread context, project
+ * instructions): a post-hoc probe can't faithfully reconstruct that
+ * point-in-time state, so the probe's prefill is a LOWER BOUND on the pipeline's
+ * and `Direct` should read as a floor, not an exact replay. WITHOUT tools it's
+ * the bare model+network floor.
  * Tool `execute` handlers are STRIPPED before sending: the schemas still count
  * toward prefill, but the model can never actually run a tool — a probe must
  * have zero side effects. We also abort at the first tool-call.
@@ -41,6 +46,8 @@ import {
   type AgentJsonConfig,
 } from '../agents/file_utils';
 import { isDeploymentEditor } from '../deployment/editors';
+import { buildSystemPrompt } from '../lib/agent_response/build_system_prompt';
+import type { UserPersonalization } from '../lib/agent_response/build_user_personalization';
 import { readJsonFile } from '../lib/file_io';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -52,6 +59,22 @@ import { resolveLanguageModelById } from '../providers/resolve_model';
 const PROBE_TIMEOUT_MS = 30_000;
 /** Don't send unbounded prompts to the provider. */
 const MAX_PROMPT_CHARS = 8_000;
+
+/**
+ * Empty personalization for the probe's system prompt: it carries only the
+ * STATIC prefill the pipeline always sends (untrusted-content rules + language
+ * directive, via buildSystemPrompt) plus the agent's instructions — never a
+ * user's point-in-time memories. The dynamic per-turn blocks (personalization,
+ * thread context, project instructions) are intentionally omitted because a
+ * post-hoc probe can't faithfully reconstruct them, so the probe's prefill is a
+ * documented lower bound on the pipeline's (surfaced in the dialog copy).
+ */
+const EMPTY_PERSONALIZATION: UserPersonalization = {
+  text: '',
+  fingerprint: '',
+  injectedMemoryIds: [],
+  tokens: 0,
+};
 
 /**
  * Resolve a chat model for the probe, tolerant of the fact that `metadata.model`
@@ -146,9 +169,21 @@ async function assembleAgentTools(
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- schema-only tool objects structurally satisfy ToolSet; the registry produces AI SDK tools and we only removed `execute`
   const tools = stripped as ToolSet;
+  // Reproduce the pipeline's STATIC system prefill through the same helper the
+  // pipeline uses (so they can't drift): agent instructions + the always-present
+  // base (untrusted-content rules + language directive). Per-turn dynamic blocks
+  // stay empty (see EMPTY_PERSONALIZATION) — the probe's prefill is a lower bound.
+  const system =
+    buildSystemPrompt(
+      cfg.systemInstructions || undefined,
+      EMPTY_PERSONALIZATION,
+      undefined,
+      undefined,
+      undefined,
+    ) || undefined;
   return {
     tools: Object.keys(stripped).length > 0 ? tools : undefined,
-    system: cfg.systemInstructions || undefined,
+    system,
     toolCount: Object.keys(stripped).length,
   };
 }
