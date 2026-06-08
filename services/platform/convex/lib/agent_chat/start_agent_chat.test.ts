@@ -192,6 +192,65 @@ describe('startAgentChat — concurrent generation guard', () => {
   });
 });
 
+describe('startAgentChat — deferGeneration (Track B return path)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListMessages.mockResolvedValue({ page: [] });
+    mockSaveMessage.mockResolvedValue({ messageId: 'msg_1' });
+  });
+
+  it('returns fully-populated generationArgs and does NOT schedule when deferGeneration is true', async () => {
+    const ctx = createMockCtx({ _id: 'meta_1', generationStatus: 'idle' });
+
+    const result = await startAgentChat({
+      ...createDefaultArgs(ctx),
+      deferGeneration: true,
+    } as never);
+
+    // The node-action caller runs generation itself via runAction; startChat
+    // must NOT also schedule runAgentGeneration (that would double-generate).
+    // (Thread-title generation is still scheduled — assert specifically that
+    // the generation action is not.)
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'mock-runAgentGeneration',
+      expect.anything(),
+    );
+    expect(result.generationArgs).toBeDefined();
+    expect(result.generationArgs).toMatchObject({
+      agentType: 'writer',
+      model: 'gpt-4',
+      provider: 'openai',
+      threadId: 'thread_1',
+      organizationId: 'org_1',
+      promptMessage: 'hello',
+      promptMessageId: 'msg_1',
+      streamId: 'new-stream-id',
+      deadlineMs: expect.any(Number),
+      scheduledAtMs: expect.any(Number),
+    });
+    expect(result.streamId).toBe('new-stream-id');
+    expect(result.messageAlreadyExists).toBe(false);
+  });
+
+  it('schedules generation and omits generationArgs when deferGeneration is false', async () => {
+    const ctx = createMockCtx({ _id: 'meta_1', generationStatus: 'idle' });
+
+    const result = await startAgentChat({
+      ...createDefaultArgs(ctx),
+      deferGeneration: false,
+    } as never);
+
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'mock-runAgentGeneration',
+      expect.objectContaining({ threadId: 'thread_1', model: 'gpt-4' }),
+    );
+    expect(result.generationArgs).toBeUndefined();
+    expect(result.streamId).toBe('new-stream-id');
+  });
+});
+
 describe('startAgentChat — feature flag enforcement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
