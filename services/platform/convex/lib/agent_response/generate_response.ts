@@ -714,6 +714,57 @@ export async function generateAgentResponse(
       };
     };
 
+    // Guardrails-blocked turn finalizer. A content-policy block still consumed
+    // provider tokens, so it must run onAgentComplete (usage ledger + AI audit
+    // log + timing metadata) exactly like the success/cancel paths — the block
+    // sites previously returned via buildBlockedReturn alone and silently
+    // dropped all three. saveMessageMetadata merges (`?? existing`), so the
+    // blocked-reason already written by applyGuardrailsBlockTombstone is kept.
+    const blockedReturn = async (): Promise<GenerateResponseResult> => {
+      abortWatcher?.stop();
+      if (savedMessageId) {
+        const durationMs = Date.now() - startTime;
+        const actualModel = result.response?.modelId ?? model;
+        try {
+          await onAgentComplete(ctx, {
+            threadId,
+            agentType,
+            result: {
+              threadId,
+              messageId: savedMessageId,
+              text: OUTPUT_BLOCKED_SENTINEL,
+              model: actualModel,
+              provider,
+              usage: result.usage,
+              reasoning: result.reasoning,
+              durationMs,
+              timeToFirstTokenMs: firstTokenTime
+                ? firstTokenTime - startTime
+                : undefined,
+              ...computeReasoningTimings(),
+            },
+            organizationId,
+            userId,
+            teamIds,
+            agentSlug,
+            providerCost,
+          });
+        } catch (metaError) {
+          console.error(
+            '[generateAgentResponse] blocked-turn onAgentComplete failed:',
+            metaError,
+          );
+        }
+      }
+      return buildBlockedReturn(
+        threadId,
+        savedMessageId,
+        result.usage,
+        result.finishReason,
+        startTime,
+      );
+    };
+
     // Determine retrieval modes
     const knowledgeMode = configKnowledgeMode ?? 'off';
     const webSearchMode = configWebSearchMode ?? 'off';
@@ -1373,20 +1424,9 @@ export async function generateAgentResponse(
           );
           result.text = OUTPUT_BLOCKED_SENTINEL;
           // Skip the empty-output-provider-error heuristic below: empty
-          // text is now expected.
-          // Match the sibling success/catch return paths (`:580`, `:2008`,
-          // `:2011`) which all stop the abort watcher before returning.
-          // Without this the polling closure keeps issuing redundant
-          // Convex `check_cancelled` queries for up to one ABORT_POLL_INTERVAL
-          // (~1.5s) after the function has returned.
-          abortWatcher?.stop();
-          return buildBlockedReturn(
-            threadId,
-            savedMessageId,
-            streamUsage,
-            streamFinishReason,
-            startTime,
-          );
+          // text is now expected. blockedReturn stops the abort watcher and
+          // persists usage/audit/metrics (the block still billed tokens).
+          return blockedReturn();
         }
 
         // Detect stream-level provider errors: the stream completed "successfully"
@@ -1470,16 +1510,9 @@ export async function generateAgentResponse(
                 blockedReason,
               );
               result.text = OUTPUT_BLOCKED_SENTINEL;
-              // Sibling parity with the mid-stream guardrails-block path
-              // and the success/catch returns — see note above.
-              abortWatcher?.stop();
-              return buildBlockedReturn(
-                threadId,
-                savedMessageId,
-                streamUsage,
-                streamFinishReason,
-                startTime,
-              );
+              // Sibling parity with the mid-stream guardrails-block path —
+              // blockedReturn stops the watcher and persists usage/audit/metrics.
+              return blockedReturn();
             }
             throw err;
           }
