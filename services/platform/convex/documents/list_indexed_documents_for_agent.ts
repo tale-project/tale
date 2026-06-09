@@ -115,19 +115,28 @@ export async function listIndexedDocumentsForAgent(
     prevDbCursor = dbCursor;
     matchesSeenOnLastPage = 0;
 
+    // RAG completion is canonical on fileMetadata.ragStatus. Paginate completed
+    // fileMetadata for the org and resolve each to its Document-Hub document for
+    // scoping. Rows without a documentId (chat uploads, transcripts) are not
+    // Document-Hub knowledge and are skipped.
     const result = await ctx.db
-      .query('documents')
-      .withIndex('by_organizationId_and_indexed', (q) =>
-        q.eq('organizationId', args.organizationId).eq('indexed', true),
+      .query('fileMetadata')
+      .withIndex('by_organizationId_and_ragStatus', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('ragStatus', 'completed'),
       )
       .order('desc')
       .paginate({ cursor: dbCursor ?? null, numItems: limit * 2 });
 
-    for (const doc of result.page) {
-      if (!hasFileId(doc)) continue;
-      // Exclude trashed/soft-deleted docs (e.g. WebDAV DELETE) from the
-      // agent's indexed-document listing — the `indexed` index doesn't
-      // filter lifecycle status.
+    for (const fm of result.page) {
+      if (!fm.documentId) continue;
+      const doc = await ctx.db.get(fm.documentId);
+      if (!doc || !hasFileId(doc)) continue;
+      // Only the document's CURRENT blob counts — a re-indexed doc can leave a
+      // stale completed fileMetadata on its previous blob.
+      if (String(doc.fileId) !== String(fm.storageId)) continue;
+      // Exclude trashed/soft-deleted docs (e.g. WebDAV DELETE).
       if (!isActiveDocument(doc)) continue;
 
       const fileId = String(doc.fileId);

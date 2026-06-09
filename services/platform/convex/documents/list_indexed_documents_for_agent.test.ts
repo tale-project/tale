@@ -12,15 +12,26 @@ interface MockDoc {
 }
 
 function createMockCtx(docs: MockDoc[]) {
+  // Completion is canonical on fileMetadata.ragStatus now: the query paginates
+  // completed fileMetadata (one per doc), then resolves each to its document
+  // via ctx.db.get(documentId).
+  const fms = docs.map((d) => ({
+    storageId: d.fileId,
+    documentId: d._id,
+    ragStatus: 'completed' as const,
+    organizationId: 'org1',
+  }));
+  const docsById = new Map(docs.map((d) => [d._id, d]));
+
   const queryFn = () => ({
     withIndex: () => ({
       order: () => ({
         paginate: async (opts: { cursor: string | null; numItems: number }) => {
-          // Simulate Convex .paginate() behavior
+          // Simulate Convex .paginate() behavior over the fileMetadata rows
           const startIndex = opts.cursor ? Number(opts.cursor) : 0;
-          const page = docs.slice(startIndex, startIndex + opts.numItems);
+          const page = fms.slice(startIndex, startIndex + opts.numItems);
           const endIndex = startIndex + page.length;
-          const isDone = endIndex >= docs.length;
+          const isDone = endIndex >= fms.length;
           return {
             page,
             isDone,
@@ -31,7 +42,9 @@ function createMockCtx(docs: MockDoc[]) {
     }),
   });
 
-  return { db: { query: queryFn } } as unknown as Parameters<
+  const get = async (id: unknown) => docsById.get(id as string) ?? null;
+
+  return { db: { query: queryFn, get } } as unknown as Parameters<
     typeof listIndexedDocumentsForAgent
   >[0];
 }
@@ -288,18 +301,26 @@ describe('listIndexedDocumentsForAgent', () => {
       title: `Doc ${i}`,
     }));
 
+    const fms = docs.map((d) => ({
+      storageId: d.fileId,
+      documentId: d._id,
+      ragStatus: 'completed' as const,
+      organizationId: 'org1',
+    }));
+    const docsById = new Map(docs.map((d) => [d._id, d]));
     const queryFn = () => ({
       withIndex: () => ({
         order: () => ({
           paginate: async () => ({
-            page: docs,
+            page: fms,
             isDone: true,
             continueCursor: 'end',
           }),
         }),
       }),
     });
-    const ctx = { db: { query: queryFn } } as unknown as Parameters<
+    const get = async (id: unknown) => docsById.get(id as string) ?? null;
+    const ctx = { db: { query: queryFn, get } } as unknown as Parameters<
       typeof listIndexedDocumentsForAgent
     >[0];
 

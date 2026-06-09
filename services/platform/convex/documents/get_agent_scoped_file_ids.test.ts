@@ -17,16 +17,39 @@ function createMockCtx(docs: Array<Record<string, unknown>>) {
     },
   });
 
-  const query = () => ({
+  // RAG completion is canonical on fileMetadata.ragStatus now. Derive the
+  // completed fileMetadata rows from the doc fixtures (a doc is RAG-complete
+  // when its ragInfo.status === 'completed'), and resolve documents by _id via
+  // ctx.db.get — mirroring getAgentScopedFileIds' new query path.
+  const completedFms = docs
+    .filter(
+      (d) =>
+        (d.ragInfo as { status?: string } | undefined)?.status === 'completed',
+    )
+    .map((d) => ({
+      storageId: d.fileId,
+      documentId: d._id,
+      ragStatus: 'completed',
+      organizationId: 'org1',
+    }));
+
+  const docsById = new Map(docs.map((d) => [d._id, d]));
+
+  const query = (table: string) => ({
     withIndex: (indexName: string) => {
-      if (indexName === 'by_organizationId_and_indexed') {
-        return makeAsyncIterator(docs.filter((d) => d.indexed === true));
+      if (
+        table === 'fileMetadata' &&
+        indexName === 'by_organizationId_and_ragStatus'
+      ) {
+        return makeAsyncIterator(completedFms);
       }
-      return makeAsyncIterator(docs);
+      return makeAsyncIterator([]);
     },
   });
 
-  return { db: { query } } as unknown as Parameters<
+  const get = async (id: unknown) => docsById.get(id) ?? null;
+
+  return { db: { query, get } } as unknown as Parameters<
     typeof getAgentScopedFileIds
   >[0];
 }

@@ -41,6 +41,11 @@ export const ragInfoStatusValidator = v.union(
   v.literal('failed'),
 );
 
+/**
+ * @deprecated RAG status is canonical on `fileMetadata.ragStatus`. This shape
+ * mirrors the retired `documents.ragInfo` field; read status via
+ * `getDocumentRagProjection` instead.
+ */
 export const ragInfoValidator = v.object({
   status: ragInfoStatusValidator,
   indexedAt: v.optional(v.number()),

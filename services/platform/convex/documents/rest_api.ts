@@ -68,6 +68,37 @@ export const createDocument = withRestAuth('rest:api', async (rc, request) => {
     },
   );
 
+  // Coverage: a REST-created document with a backing blob must have a
+  // fileMetadata row so its RAG indexing status has a canonical home
+  // (documents.ragInfo is being retired in favor of fileMetadata.ragStatus).
+  // Every other creation path (UI upload, connectors, WebDAV, agent writes)
+  // already does this; REST was the one gap. Mirrors createDocumentFromUpload:
+  // saveFileMetadata (idempotent on by_storageId, schedules RAG upload) then
+  // linkDocumentToFile (sets source from the doc's provider).
+  if (body.fileId) {
+    const storageId = toId<'_storage'>(body.fileId);
+    const meta = await rc.ctx.runQuery(
+      internal.file_metadata.internal_queries.getStorageMetadata,
+      { storageId },
+    );
+    await rc.ctx.runMutation(
+      internal.file_metadata.internal_mutations.saveFileMetadata,
+      {
+        organizationId: rc.org.organizationId,
+        storageId,
+        fileName: body.title ?? 'document',
+        contentType:
+          body.mimeType ?? meta?.contentType ?? 'application/octet-stream',
+        size: meta?.size ?? 0,
+        uploadedBy: rc.user.userId,
+      },
+    );
+    await rc.ctx.runMutation(
+      internal.file_metadata.internal_mutations.linkDocumentToFile,
+      { storageId, documentId },
+    );
+  }
+
   return jsonCreated({ id: documentId });
 });
 

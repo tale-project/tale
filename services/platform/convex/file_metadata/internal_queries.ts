@@ -200,6 +200,34 @@ export const getStorageSha256 = internalQuery({
 });
 
 /**
+ * Read Convex-computed blob metadata (size + contentType) for a storage id.
+ * Exists because `ctx.db.system.get(...)` is unavailable in actions — the
+ * REST `POST /api/v1/documents` handler calls this to size the fileMetadata
+ * row it creates for an externally-supplied `fileId`. Returns null when the
+ * blob is missing.
+ */
+export const getStorageMetadata = internalQuery({
+  args: {
+    storageId: v.id('_storage'),
+  },
+  returns: v.union(
+    v.object({
+      size: v.number(),
+      contentType: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
+  async handler(ctx, args) {
+    const meta = await ctx.db.system.get(args.storageId);
+    if (!meta) return null;
+    return {
+      size: meta.size,
+      ...(meta.contentType != null && { contentType: meta.contentType }),
+    };
+  },
+});
+
+/**
  * Find a prior completed audio transcription with identical content (same
  * SHA-256 hash) within the same org. Used by `transcribeAudio` to short-
  * circuit duplicate uploads: user drags the same `meeting.mp3` twice, we

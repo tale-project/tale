@@ -31,5 +31,15 @@ export const runAll = internalAction({
       internal.migrations.split_personalization_toggle.apply,
       {},
     );
+    // Copies legacy documents.ragInfo.{status,error,indexedAt} onto the now-
+    // canonical fileMetadata.{ragStatus,ragError,ragIndexedAt}. Self-scheduling
+    // (one paginated batch per call), idempotent, fills holes only — safe to
+    // re-run on every deploy. Keys on storageId, so it does not depend on the
+    // documentId backfill.
+    await ctx.runMutation(
+      internal.migrations.backfill_filemetadata_rag_status
+        .backfillFilemetadataRagStatus,
+      {},
+    );
   },
 });

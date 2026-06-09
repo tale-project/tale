@@ -12,7 +12,8 @@ import { isActiveDocument } from './_helpers';
  *    Per the projects mutual-exclusivity rule, a project doc has projectId set and
  *    teamId cleared — so this branch never double-counts with the team layer.
  *
- * Only returns documents with ragInfo.status === 'completed' and a valid fileId.
+ * Only returns documents whose current blob is RAG-completed
+ * (fileMetadata.ragStatus === 'completed') and that have a valid fileId.
  */
 export async function getAgentScopedFileIds(
   ctx: QueryCtx,
@@ -51,22 +52,30 @@ export async function getAgentScopedFileIds(
     return [...fileIdSet];
   }
 
-  const query = ctx.db
-    .query('documents')
-    .withIndex('by_organizationId_and_indexed', (q) =>
-      q.eq('organizationId', args.organizationId).eq('indexed', true),
+  // RAG completion now lives on fileMetadata.ragStatus (canonical). Enumerate
+  // completed fileMetadata for the org and resolve each to its Document-Hub
+  // document to apply lifecycle + team/project/org scoping. fileMetadata rows
+  // without a documentId (chat uploads, transcripts) are not Document-Hub
+  // knowledge and are excluded here.
+  const completedFiles = ctx.db
+    .query('fileMetadata')
+    .withIndex('by_organizationId_and_ragStatus', (q) =>
+      q.eq('organizationId', args.organizationId).eq('ragStatus', 'completed'),
     );
 
-  for await (const doc of query) {
-    if (!doc.fileId) continue;
-    // Skip trashed/soft-deleted docs (e.g. WebDAV DELETE) — they must not
-    // remain in agent RAG retrieval scope. The `indexed` index doesn't
-    // filter lifecycle, so an out-of-scope deleted file would otherwise
-    // still be retrievable by the agent.
-    if (!isActiveDocument(doc)) continue;
-
-    const fileId = String(doc.fileId);
+  for await (const fm of completedFiles) {
+    if (!fm.documentId) continue;
+    const fileId = String(fm.storageId);
     if (fileIdSet.has(fileId)) continue;
+
+    const doc = await ctx.db.get(fm.documentId);
+    if (!doc || !doc.fileId) continue;
+    // Only the document's CURRENT blob counts — a re-indexed doc can leave a
+    // stale completed fileMetadata on its previous blob.
+    if (String(doc.fileId) !== fileId) continue;
+    // Skip trashed/soft-deleted docs (e.g. WebDAV DELETE) — they must not
+    // remain in agent RAG retrieval scope.
+    if (!isActiveDocument(doc)) continue;
 
     if (
       needsProjectDocs &&

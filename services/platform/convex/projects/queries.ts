@@ -10,6 +10,7 @@ import { v } from 'convex/values';
 
 import type { Doc, Id } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
+import { getDocumentRagProjectionBatch } from '../documents/get_document_rag_projection';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -221,7 +222,12 @@ export const getProjectStats = query({
       .take(PROJECT_STATS_CAP + 1);
     const docsTruncated = docs.length > PROJECT_STATS_CAP;
     const docsPage = docsTruncated ? docs.slice(0, PROJECT_STATS_CAP) : docs;
-    const indexedFileCount = docsPage.filter((d) => d.indexed === true).length;
+    // Indexed state is projected from fileMetadata.ragStatus (canonical), not
+    // the retired documents.indexed flag.
+    const ragProjections = await getDocumentRagProjectionBatch(ctx, docsPage);
+    const indexedFileCount = docsPage.filter(
+      (d) => ragProjections.get(String(d._id))?.indexed === true,
+    ).length;
 
     const threads = await ctx.db
       .query('threadMetadata')
@@ -291,30 +297,32 @@ export const listProjectDocuments = query({
     const auth = await getAuthContext(ctx, project.organizationId);
     if (!hasProjectAccess(project, auth.teamIds, auth.role)) return [];
 
-    const docsQuery = ctx.db
+    const rawDocs = await ctx.db
       .query('documents')
       .withIndex('by_organizationId_and_projectId', (q) =>
         q
           .eq('organizationId', project.organizationId)
           .eq('projectId', args.projectId),
       )
-      .order('desc');
+      .order('desc')
+      .collect();
 
-    const docs = [];
-    for await (const d of docsQuery) {
-      docs.push({
+    // RAG status/indexed projected from fileMetadata.ragStatus (canonical).
+    const ragProjections = await getDocumentRagProjectionBatch(ctx, rawDocs);
+    return rawDocs.map((d) => {
+      const proj = ragProjections.get(String(d._id));
+      return {
         _id: d._id,
         _creationTime: d._creationTime,
         title: d.title,
         fileId: d.fileId,
         mimeType: d.mimeType,
         extension: d.extension,
-        indexed: d.indexed,
-        ragStatus: d.ragInfo?.status ?? null,
+        indexed: proj?.indexed ?? false,
+        ragStatus: proj?.status ?? null,
         createdBy: d.createdBy,
-      });
-    }
-    return docs;
+      };
+    });
   },
 });
 

@@ -63,6 +63,10 @@ function createMockCtx(initial: MockDoc[], initialFolders: MockFolder[] = []) {
             [Symbol.asyncIterator]: async function* () {
               for (const m of matched) yield m;
             },
+            // The RAG-status reindex gate queries fileMetadata `by_storageId`
+            // and calls .first(); these fixtures have no fileMetadata, so the
+            // gate stays inactive (matched is empty for that lookup).
+            first: async () => matched[0] ?? null,
           };
         },
       }),

@@ -180,6 +180,13 @@ export const getPollingInterval = (attempt: number): number => {
   return (15 + (attempt - 30) * 6) * MINUTE;
 };
 
+/**
+ * @deprecated Retired by the RAG-status collapse onto fileMetadata.ragStatus.
+ * No longer scheduled — uploaders now schedule
+ * `internal.file_metadata.internal_actions.pollFileRagStatus` (keyed by
+ * storageId). Kept defined only so any invocation scheduled before the cutover
+ * resolves instead of erroring; it writes the now-unread documents.ragInfo.
+ */
 export const checkRagDocumentStatus = internalAction({
   args: {
     documentId: v.id('documents'),
@@ -616,6 +623,12 @@ export const uploadDocumentToRag = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    // RAG status is canonical on fileMetadata.ragStatus. This documents-pipeline
+    // action keeps its synchronous upload but writes status + schedules the
+    // server poll on the fileMetadata row (keyed by the document's storageId).
+    // storageId is hoisted so the catch can still mark failure when the upload
+    // throws after the document is resolved.
+    let storageId: Id<'_storage'> | null = null;
     try {
       const document = await ctx.runQuery(
         internal.documents.internal_queries.getDocumentByIdRaw,
@@ -628,6 +641,7 @@ export const uploadDocumentToRag = internalAction({
       if (!document.fileId) {
         throw new Error(`Document has no file: ${args.documentId}`);
       }
+      storageId = document.fileId;
 
       const rawResult = await ragAction.execute(
         ctx,
@@ -646,18 +660,17 @@ export const uploadDocumentToRag = internalAction({
 
       if (success) {
         await ctx.runMutation(
-          internal.documents.internal_mutations.updateDocumentRagInfo,
-          {
-            documentId: args.documentId,
-            ragInfo: {
-              status: 'queued',
-            },
-          },
+          internal.file_metadata.internal_mutations.updateFileRagStatus,
+          { storageId: document.fileId, ragStatus: 'queued' },
         );
         await ctx.scheduler.runAfter(
           INITIAL_POLLING_DELAY_MS,
-          internal.documents.internal_actions.checkRagDocumentStatus,
-          { documentId: args.documentId, attempt: 1 },
+          internal.file_metadata.internal_actions.pollFileRagStatus,
+          {
+            storageId: document.fileId,
+            organizationId: document.organizationId,
+            attempt: 1,
+          },
         );
       } else {
         const error =
@@ -667,11 +680,8 @@ export const uploadDocumentToRag = internalAction({
           `[uploadDocumentToRag] Failed to upload document ${args.documentId}: ${error}`,
         );
         await ctx.runMutation(
-          internal.documents.internal_mutations.updateDocumentRagInfo,
-          {
-            documentId: args.documentId,
-            ragInfo: { status: 'failed', error },
-          },
+          internal.file_metadata.internal_mutations.updateFileRagStatus,
+          { storageId: document.fileId, ragStatus: 'failed', ragError: error },
         );
       }
     } catch (error) {
@@ -680,13 +690,12 @@ export const uploadDocumentToRag = internalAction({
       console.error(
         `[uploadDocumentToRag] Error uploading document ${args.documentId}: ${message}`,
       );
-      await ctx.runMutation(
-        internal.documents.internal_mutations.updateDocumentRagInfo,
-        {
-          documentId: args.documentId,
-          ragInfo: { status: 'failed', error: message },
-        },
-      );
+      if (storageId) {
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.updateFileRagStatus,
+          { storageId, ragStatus: 'failed', ragError: message },
+        );
+      }
       throw error;
     }
 
@@ -786,29 +795,25 @@ export const reindexDocumentInRag = internalAction({
       if (success) {
         uploadSuccess = true;
         await ctx.runMutation(
-          internal.documents.internal_mutations.updateDocumentRagInfo,
-          {
-            documentId: args.documentId,
-            ragInfo: {
-              status: 'queued',
-            },
-          },
+          internal.file_metadata.internal_mutations.updateFileRagStatus,
+          { storageId: document.fileId, ragStatus: 'queued' },
         );
         await ctx.scheduler.runAfter(
           INITIAL_POLLING_DELAY_MS,
-          internal.documents.internal_actions.checkRagDocumentStatus,
-          { documentId: args.documentId, attempt: 1 },
+          internal.file_metadata.internal_actions.pollFileRagStatus,
+          {
+            storageId: document.fileId,
+            organizationId: document.organizationId,
+            attempt: 1,
+          },
         );
       } else {
         const error =
           (resultRec ? getString(resultRec, 'error') : undefined) ??
           'Re-index upload failed';
         await ctx.runMutation(
-          internal.documents.internal_mutations.updateDocumentRagInfo,
-          {
-            documentId: args.documentId,
-            ragInfo: { status: 'failed', error },
-          },
+          internal.file_metadata.internal_mutations.updateFileRagStatus,
+          { storageId: document.fileId, ragStatus: 'failed', ragError: error },
         );
       }
     } catch (error) {
@@ -818,11 +823,8 @@ export const reindexDocumentInRag = internalAction({
         `[reindexDocumentInRag] Error re-indexing document ${args.documentId}: ${message}`,
       );
       await ctx.runMutation(
-        internal.documents.internal_mutations.updateDocumentRagInfo,
-        {
-          documentId: args.documentId,
-          ragInfo: { status: 'failed', error: message },
-        },
+        internal.file_metadata.internal_mutations.updateFileRagStatus,
+        { storageId: document.fileId, ragStatus: 'failed', ragError: message },
       );
     }
 

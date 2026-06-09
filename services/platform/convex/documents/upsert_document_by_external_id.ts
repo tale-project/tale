@@ -158,12 +158,23 @@ export async function upsertDocumentByExternalId(
     // re-uploads) is the main producer of this state. `reindexDocumentInRag`
     // dedup-skips a re-upload when the new content already exists in RAG,
     // so the only work it does here is the old-fileId DELETE.
+    // Re-index gate reads canonical fileMetadata.ragStatus for the existing
+    // blob (documents.ragInfo is retired).
+    const existingFileId = existing.fileId;
+    const existingFm = existingFileId
+      ? await ctx.db
+          .query('fileMetadata')
+          .withIndex('by_storageId', (q) => q.eq('storageId', existingFileId))
+          .first()
+      : null;
+    const existingIndexed = existingFm?.ragStatus === 'completed';
+
     if (
       contentChanged &&
       existing.fileId &&
       args.fileId &&
       existing.fileId !== args.fileId &&
-      existing.ragInfo?.status === 'completed'
+      existingIndexed
     ) {
       await ctx.scheduler.runAfter(
         0,

@@ -34,6 +34,12 @@ export const documentsTable = defineTable({
    * RAG retrieval unions project docs via `getAgentScopedFileIds`.
    */
   projectId: v.optional(v.id('projects')),
+  /**
+   * @deprecated RAG indexing status is now canonical on
+   * `fileMetadata.ragStatus` (join: `documents.fileId == fileMetadata.storageId`).
+   * No longer written; read via `getDocumentRagProjection`. Kept optional for
+   * backward compatibility with existing rows.
+   */
   ragInfo: v.optional(
     v.object({
       status: v.union(
@@ -50,6 +56,10 @@ export const documentsTable = defineTable({
       jobId: v.optional(v.string()),
     }),
   ),
+  /**
+   * @deprecated Use `fileMetadata.ragStatus === 'completed'` (projected via
+   * `getDocumentRagProjection`). No longer written.
+   */
   indexed: v.optional(v.boolean()),
   scannedPagesDetected: v.optional(v.number()),
   ocrApplied: v.optional(v.boolean()),
@@ -92,6 +102,9 @@ export const documentsTable = defineTable({
   // .DS_Store, index.html) makes the (org,title) collect O(all-same-name).
   .index('by_org_title_folder', ['organizationId', 'title', 'folderId'])
   .index('by_organizationId_and_fileId', ['organizationId', 'fileId'])
+  // @deprecated unused — RAG completion is now queried via fileMetadata
+  // `by_organizationId_and_ragStatus`. Kept (deprecate-don't-delete) so
+  // existing data + any in-flight code referencing it stays valid.
   .index('by_organizationId_and_indexed', ['organizationId', 'indexed'])
   .index('by_organizationId_and_folderPath', ['organizationId', 'folderPath'])
   // Projects feature: list documents attached to a project.

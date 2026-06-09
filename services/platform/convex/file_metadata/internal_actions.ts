@@ -3,22 +3,37 @@
 import { v } from 'convex/values';
 
 import { extractExtension } from '../../lib/shared/file-types';
-import { isRecord, getNumber } from '../../lib/utils/type-guards';
+import {
+  isRecord,
+  getNumber,
+  getString,
+  getBoolean,
+} from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { getCrawlerUrl } from '../documents/generate_document_helpers';
+import { getPollingInterval } from '../documents/internal_actions';
 import {
   isUpstreamHttpError,
   UpstreamHttpError,
 } from '../lib/errors/upstream_http_error';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
+import { ragFetch } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
+const INITIAL_POLLING_DELAY_MS = 10_000;
+const MAX_POLL_ATTEMPTS = 50;
+
 /**
- * Upload a file to the RAG service for indexing.
+ * Upload a file to the RAG service for indexing, then start a server-driven
+ * status poll.
  *
- * Triggered by saveFileMetadata on new inserts. Only uploads — status
- * polling is driven by the client via checkFileRagStatus.
+ * Triggered by saveFileMetadata on new inserts. The chat UI's
+ * checkFileRagStatuses still polls while a chat is open, but it is the only
+ * client poller — so this schedules pollFileRagStatus to advance status to
+ * 'completed' server-side even when no client is watching (e.g. a Document-Hub
+ * upload). Both pollers hit the same RAG /statuses endpoint and write the same
+ * canonical fileMetadata.ragStatus.
  */
 export const uploadFileToRag = internalAction({
   args: {
@@ -40,6 +55,15 @@ export const uploadFileToRag = internalAction({
         },
         { organizationId: args.organizationId },
       );
+      await ctx.scheduler.runAfter(
+        INITIAL_POLLING_DELAY_MS,
+        internal.file_metadata.internal_actions.pollFileRagStatus,
+        {
+          storageId: args.storageId,
+          organizationId: args.organizationId,
+          attempt: 1,
+        },
+      );
     } catch (error) {
       console.error(
         `[uploadFileToRag] Failed to upload file ${args.storageId}: ${error instanceof Error ? error.message : String(error)}`,
@@ -54,6 +78,184 @@ export const uploadFileToRag = internalAction({
       );
     }
 
+    return null;
+  },
+});
+
+/**
+ * Server-driven RAG status poller for a single fileMetadata row.
+ *
+ * Scheduled by uploadFileToRag after the blob is pushed to RAG. Self-reschedules
+ * (progressive backoff via getPollingInterval) until ragStatus is terminal,
+ * writing the canonical fileMetadata.ragStatus via updateFileRagStatus. This is
+ * the server-side counterpart to the chat UI's checkFileRagStatuses poll — both
+ * hit the same RAG /statuses endpoint and write the same field — so every
+ * upload reaches 'completed' even with no client polling. Source dates / OCR are
+ * handled separately by extractFileMetadata, so this only advances status.
+ */
+export const pollFileRagStatus = internalAction({
+  args: {
+    storageId: v.id('_storage'),
+    organizationId: v.string(),
+    attempt: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const metadata = await ctx.runQuery(
+      internal.file_metadata.internal_queries.getByStorageId,
+      { storageId: args.storageId },
+    );
+    // Row gone, never RAG-queued (audio → transcript pipeline), or already
+    // terminal → nothing to advance.
+    if (
+      !metadata ||
+      metadata.ragStatus === undefined ||
+      metadata.ragStatus === 'completed' ||
+      metadata.ragStatus === 'failed'
+    ) {
+      return null;
+    }
+
+    if (args.attempt > MAX_POLL_ATTEMPTS) {
+      console.warn(
+        `[pollFileRagStatus] Max attempts (${MAX_POLL_ATTEMPTS}) reached for ${args.storageId}`,
+      );
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.updateFileRagStatus,
+        {
+          storageId: args.storageId,
+          ragStatus: 'failed',
+          ragError: `Status check timed out after ${MAX_POLL_ATTEMPTS} attempts`,
+        },
+      );
+      return null;
+    }
+
+    // A missing/unresolvable slug is terminal — retrying just re-throws.
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+    if (orgSlug === null) {
+      console.warn(
+        `[pollFileRagStatus] org ${args.organizationId} unresolvable for ${args.storageId}; marking failed (no retry)`,
+      );
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.updateFileRagStatus,
+        {
+          storageId: args.storageId,
+          ragStatus: 'failed',
+          ragError: 'Organization unresolvable (deleted or missing slug).',
+        },
+      );
+      return null;
+    }
+
+    const reschedule = () =>
+      ctx.scheduler.runAfter(
+        getPollingInterval(args.attempt),
+        internal.file_metadata.internal_actions.pollFileRagStatus,
+        {
+          storageId: args.storageId,
+          organizationId: args.organizationId,
+          attempt: args.attempt + 1,
+        },
+      );
+
+    try {
+      const response = await ragFetch('/api/v1/documents/statuses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_ids: [args.storageId] }),
+        timeoutMs: 10_000,
+        orgSlug,
+      });
+
+      if (response.status === 429 || (!response.ok && response.status >= 500)) {
+        await reschedule();
+        return null;
+      }
+      if (response.status >= 400 && response.status < 500) {
+        console.error(
+          `[pollFileRagStatus] RAG returned ${response.status} for ${args.storageId}, not retrying`,
+        );
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.updateFileRagStatus,
+          {
+            storageId: args.storageId,
+            ragStatus: 'failed',
+            ragError: `RAG service returned ${response.status}`,
+          },
+        );
+        return null;
+      }
+      if (!response.ok) {
+        await reschedule();
+        return null;
+      }
+
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        await reschedule();
+        return null;
+      }
+      if (!isRecord(body) || !isRecord(body.statuses)) {
+        await reschedule();
+        return null;
+      }
+
+      const docStatus = body.statuses[args.storageId];
+      if (!isRecord(docStatus)) {
+        // RAG hasn't ingested it yet — keep polling.
+        await reschedule();
+        return null;
+      }
+
+      const status = getString(docStatus, 'status');
+      const error = getString(docStatus, 'error');
+      const progressPhase = getString(docStatus, 'progress_phase');
+      const progressDetail = getString(docStatus, 'progress_detail');
+      const ragProgress =
+        progressPhase && progressDetail
+          ? `${progressPhase} ${progressDetail}`
+          : progressPhase || undefined;
+
+      if (status === 'completed') {
+        const ocrApplied = getBoolean(docStatus, 'ocr_applied');
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.updateFileRagStatus,
+          {
+            storageId: args.storageId,
+            ragStatus: 'completed',
+            ...(ocrApplied != null && { ocrApplied }),
+          },
+        );
+        return null;
+      }
+      if (status === 'failed') {
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.updateFileRagStatus,
+          {
+            storageId: args.storageId,
+            ragStatus: 'failed',
+            ragError: error || 'Unknown error',
+          },
+        );
+        return null;
+      }
+      if (status === 'processing') {
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.updateFileRagStatus,
+          { storageId: args.storageId, ragStatus: 'running', ragProgress },
+        );
+      }
+      await reschedule();
+    } catch (error) {
+      console.error(
+        `[pollFileRagStatus] Error (attempt ${args.attempt}/${MAX_POLL_ATTEMPTS}):`,
+        error,
+      );
+      await reschedule();
+    }
     return null;
   },
 });

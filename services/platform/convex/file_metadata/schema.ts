@@ -43,6 +43,10 @@ export const fileMetadataTable = defineTable({
   // (e.g. scheduled action silently failed before hitting the service).
   // Falls back to _creationTime when absent on older rows.
   ragQueuedAt: v.optional(v.number()),
+  // Unix ms when ragStatus most recently reached 'completed'. Canonical
+  // replacement for the retired documents.ragInfo.indexedAt — stamped by
+  // updateFileRagStatus on completion, read by getDocumentRagProjection.
+  ragIndexedAt: v.optional(v.number()),
   // Audio transcription (populated when contentType starts with 'audio/').
   transcript: v.optional(v.string()),
   transcriptionStatus: v.optional(
@@ -160,6 +164,11 @@ export const fileMetadataTable = defineTable({
   // thread's bound files in O(1) per thread. Same shape as the soft-delete
   // composite index for status-narrowed sweeps.
   .index('by_organizationId_and_threadId', ['organizationId', 'threadId'])
+  // Canonical "list indexed files in this org" lookup — replaces the
+  // documents-side by_organizationId_and_indexed index after RAG status
+  // collapsed onto fileMetadata. Used by getAgentScopedFileIds +
+  // listIndexedDocumentsForAgent (ragStatus === 'completed').
+  .index('by_organizationId_and_ragStatus', ['organizationId', 'ragStatus'])
   // Watchdog sweep: the `recoverStuckTranscriptions` cron runs every 5
   // minutes and only cares about rows whose `transcriptionStatus` is
   // `'running'`. The vast majority of rows are `'completed'` /

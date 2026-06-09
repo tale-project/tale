@@ -192,6 +192,10 @@ export const updateFileRagStatus = internalMutation({
           : isTerminal
             ? undefined
             : metadata.ragQueuedAt,
+      // Canonical completion timestamp (replaces documents.ragInfo.indexedAt).
+      // Stamp on completion; preserve the prior value otherwise.
+      ragIndexedAt:
+        args.ragStatus === 'completed' ? Date.now() : metadata.ragIndexedAt,
       ...(args.ocrApplied != null && { ocrApplied: args.ocrApplied }),
     });
 
