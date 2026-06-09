@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useId } from 'react';
 
 interface DirtySourceRegistry {
   register: (id: string, dirty: boolean) => void;
+  /** Drop a source entirely (on unmount) so the registry stays bounded. */
+  unregister: (id: string) => void;
 }
 
 export const DirtySourceContext = createContext<DirtySourceRegistry | null>(
@@ -39,7 +41,7 @@ export function useRegisterDirtySource(isDirty: boolean): void {
 
   useEffect(
     () => () => {
-      ctx?.register(id, false);
+      ctx?.unregister(id);
     },
     [ctx, id],
   );

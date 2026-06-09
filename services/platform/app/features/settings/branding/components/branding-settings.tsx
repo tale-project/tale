@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 
 import { useBranding } from '../hooks/queries';
@@ -33,9 +34,11 @@ interface BrandingData {
 // so it reserves its exact fixed-height footprint with zero shift on load.
 // =============================================================================
 function BrandingSettingsView({
+  organizationId,
   branding,
   onSaved,
 }: {
+  organizationId: string;
   branding?: BrandingData;
   onSaved?: () => void;
 }) {
@@ -64,6 +67,7 @@ function BrandingSettingsView({
           the row. */}
       <div className="flex flex-1 justify-center gap-6">
         <BrandingForm
+          organizationId={organizationId}
           branding={branding}
           onPreviewChange={handlePreviewChange}
           onSaved={onSaved}
@@ -86,9 +90,10 @@ function BrandingSettingsView({
 export function BrandingSettings() {
   const { t: tAccessDenied } = useT('accessDenied');
 
+  const organizationId = useOrganizationId();
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
-  const brandingQuery = useBranding();
+  const brandingQuery = useBranding(organizationId);
 
   // Access is only knowable once the ability has loaded; until then the
   // skeleton stands in (no denied-flash on warm entry).
@@ -96,11 +101,16 @@ export function BrandingSettings() {
     return <AccessDenied message={tAccessDenied('branding')} />;
   }
 
+  // Always present under the `/dashboard/$id` route; the guard narrows the type
+  // for the per-org save/upload mutations below.
+  if (!organizationId) return null;
+
   const branding = brandingQuery.data;
 
   return (
     <Skeletonize loading={abilityLoading || brandingQuery.isPending}>
       <BrandingSettingsView
+        organizationId={organizationId}
         branding={branding ?? undefined}
         onSaved={() => void brandingQuery.refetch()}
       />

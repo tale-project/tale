@@ -39,7 +39,7 @@ import {
   useMarkThreadRead,
   useUnarchiveThread,
 } from '../hooks/mutations';
-import { useChatAgents } from '../hooks/queries';
+import { ThreadMessageMetadataProvider, useChatAgents } from '../hooks/queries';
 import { useArenaThreadSetup } from '../hooks/use-arena-thread-setup';
 import { useChatScroll } from '../hooks/use-chat-scroll';
 import { useChatVideoLinks } from '../hooks/use-chat-video-links';
@@ -51,8 +51,13 @@ import { useMergedChatItems } from '../hooks/use-merged-chat-items';
 import { useMessageProcessing } from '../hooks/use-message-processing';
 import { useModelFallbackAutoSwitch } from '../hooks/use-model-fallback-auto-switch';
 import { usePendingMessages } from '../hooks/use-pending-messages';
-import { useIsSendPending, clearSendPending } from '../hooks/use-pending-send';
+import {
+  useIsSendPending,
+  clearSendPending,
+  markSendPending,
+} from '../hooks/use-pending-send';
 import { usePersistedAttachments } from '../hooks/use-persisted-attachments';
+import { usePrewarmChatCache } from '../hooks/use-prewarm-chat-cache';
 import { useSendMessage } from '../hooks/use-send-message';
 import { useStopGenerating } from '../hooks/use-stop-generating';
 import { useStreamingToolBridge } from '../hooks/use-streaming-tool-bridge';
@@ -128,9 +133,9 @@ export function ChatInterface({
     selectedModelOverrides,
     setSelectedModelOverride,
     enabledCapabilities,
-    composerProfiles,
     insertedPrompt,
     setInsertedPrompt,
+    selectedAgent,
   } = useChatLayout();
 
   const arenaContext = useArenaModeOptional();
@@ -143,8 +148,20 @@ export function ChatInterface({
   // Use the active branch thread for data loading, but keep URL threadId for drafts/routing
   const dataThreadId = activeBranchThreadId ?? threadId;
 
+  // `isAgentLoading` is the chat agent catalog (action-backed, warmed in the
+  // /dashboard/$id loader). Deliberately NOT used to gate first paint: the
+  // WelcomeView and composer (incl. the AgentSelector trigger) render
+  // immediately and mask only their dynamic leaves while the catalog loads, so
+  // the composer is interactive sooner. Do not turn this into a whole-tree
+  // gate — it would re-block first paint on the catalog round-trip. It is only
+  // forwarded to WelcomeView for granular masking below.
   const { agent: effectiveAgent, isLoading: isAgentLoading } =
     useEffectiveAgent(organizationId);
+
+  // `selectedAgent == null` means the composer is in Auto mode (the raw
+  // selection, not the resolved `effectiveAgent`) — the turn will be Auto-routed,
+  // so the optimistic thinking shell opens in the 'routing' phase.
+  const isAutoRoute = selectedAgent == null;
 
   const [inputValue, setInputValue, clearInputValue] = usePersistedState(
     chatDraftKey(user?.userId, organizationId, threadId),
@@ -365,8 +382,25 @@ export function ChatInterface({
   // Fork info — for showing divider in forked threads
   const forkInfo = threadMeta?.forkInfo ?? undefined;
 
+  // The in-flight turn's resolved Auto route (broadcast mid-turn by the backend),
+  // mapped slug → display name so the thinking timeline shows "Routed to X" while
+  // the turn is still generating. Null until routing resolves / on idle threads.
+  const liveRoute = useMemo(() => {
+    const lr = threadMeta?.liveRoute;
+    if (!lr) return undefined;
+    const agent = agents?.find((a) => a.name === lr.agentSlug);
+    return { agentName: agent?.displayName ?? lr.agentSlug, reason: lr.reason };
+  }, [threadMeta?.liveRoute, agents]);
+
   // Server-derived generation status (reactive Convex subscription)
   const isGenerating = threadMeta?.isGenerating;
+
+  // The in-flight turn's server start (markGenerating, BEFORE Auto routing) —
+  // the authoritative anchor for the "Thinking · Ns" timer. Sharing ONE
+  // server clock across the gap shell and the in-bubble timeline is what keeps
+  // the timer from resetting at the routing→agent handoff and across the
+  // new-chat remount. Null on idle threads (gated server-side on isGenerating).
+  const generationStartMs = threadMeta?.generationStartTime ?? null;
 
   // Client-side optimistic flag — set on send click, released when the
   // server subscription confirms or the send fails. Closes the ~200–550 ms
@@ -405,7 +439,9 @@ export function ChatInterface({
   }, [markReadIfOwned]);
   const prevLoadingForReadRef = useRef(isLoading);
   useEffect(() => {
-    if (prevLoadingForReadRef.current && !isLoading) markReadIfOwned();
+    if (prevLoadingForReadRef.current && !isLoading) {
+      markReadIfOwned();
+    }
     prevLoadingForReadRef.current = isLoading;
   }, [isLoading, markReadIfOwned]);
 
@@ -475,6 +511,16 @@ export function ChatInterface({
   // way.
   const currentProjectId = threadMeta?.projectId ?? projectIdFromUrl;
 
+  // Pre-warm the prompt cache when the composer is focused so the next message
+  // is served warm. No-op until a thread exists (a fresh chat has nothing to
+  // prime yet); deduped per (thread, agent, project) within the cache TTL.
+  const prewarmChatCache = usePrewarmChatCache({
+    threadId: dataThreadId,
+    organizationId,
+    agentSlug: effectiveAgent?.name,
+    projectId: currentProjectId,
+  });
+
   const { sendMessage } = useSendMessage({
     organizationId,
     threadId: dataThreadId,
@@ -485,15 +531,22 @@ export function ChatInterface({
     onBeforeSend: () => {
       resetCancelled();
     },
-    selectedAgent: effectiveAgent,
+    // Pass the RAW selection (null in Auto mode), NOT `effectiveAgent` — the
+    // latter resolves null to the default 'chat-agent', which would make
+    // `useSendMessage` send that concrete slug instead of the AUTO_AGENT_SLUG
+    // sentinel, silently bypassing `resolveAutoRoute` entirely.
+    selectedAgent,
     modelId: effectiveAgent?.name
       ? selectedModelOverrides[effectiveAgent.name]
       : undefined,
     enabledCapabilities,
-    composerProfiles,
     userContext,
     arena: arenaContext ?? undefined,
     teamId: teamFilter?.selectedTeamId ?? undefined,
+    // Lets the hook skip the per-send guardrails precheck round-trip when the
+    // org has no enabled input guardrail (renders + dispatches immediately).
+    // `undefined` while flags load → hook runs precheck (safe default).
+    inputGuardrailsActive: featureFlags?.inputGuardrailsActive,
     projectId: projectIdFromUrl,
     // The hook sets this ref RIGHT BEFORE each setPendingMessage call,
     // so the force-snap intent is fresh when the MutationObserver picks
@@ -587,7 +640,14 @@ export function ChatInterface({
   // No client-side optimistic loading needed — server sets
   // generationStatus='generating' when the agent resumes and the
   // Convex subscription delivers it in real-time.
-  const handleHumanInputResponseSubmitted = useCallback(() => {}, []);
+  const handleHumanInputResponseSubmitted = useCallback(() => {
+    // Generation resumes server-side once the human-input response is saved, but
+    // the `isGenerating` subscription lags that round-trip — so without this the
+    // thinking line doesn't render until the server flips generating. Flip the
+    // optimistic pending flag NOW (same as a normal send) so `isLoading` is true
+    // immediately; the effect above clears it when real `isGenerating` arrives.
+    if (dataThreadId) markSendPending(dataThreadId);
+  }, [dataThreadId]);
 
   const handleSendFollowUp = useCallback(
     (message: string) => {
@@ -633,7 +693,15 @@ export function ChatInterface({
 
   const handleEditSubmit = useCallback(
     async (newContent: string) => {
-      if (!editingMessage || !dataThreadId || !effectiveAgent) return;
+      if (!editingMessage || !dataThreadId) return;
+      // `editAndBranch` needs a CONCRETE agent (it resolves the agent config;
+      // it can't take the Auto sentinel). If the roster hasn't resolved the
+      // effective agent yet, surface it instead of silently swallowing the
+      // edit (which read as "editing does nothing").
+      if (!effectiveAgent) {
+        toast({ title: t('toast.sendFailed'), variant: 'destructive' });
+        return;
+      }
       const modelId = effectiveAgent.name
         ? selectedModelOverrides[effectiveAgent.name]
         : undefined;
@@ -654,17 +722,31 @@ export function ChatInterface({
       // visible (instant — see ChatScroll.scrollIntentRef).
       scrollIntentRef.current = true;
 
-      const result = await editAndBranchAction({
-        sourceThreadId: dataThreadId,
-        rootThreadId: rootThreadId ?? dataThreadId,
-        editedMessageId: editingMessage.id,
-        newMessage: newContent,
-        organizationId,
-        agentSlug: effectiveAgent.name,
-        modelId,
-        userContext,
-      });
-      selectNewBranch(String(result.forkOrder), result.branchThreadId);
+      try {
+        const result = await editAndBranchAction({
+          sourceThreadId: dataThreadId,
+          rootThreadId: rootThreadId ?? dataThreadId,
+          editedMessageId: editingMessage.id,
+          newMessage: newContent,
+          organizationId,
+          agentSlug: effectiveAgent.name,
+          modelId,
+          userContext,
+        });
+        selectNewBranch(String(result.forkOrder), result.branchThreadId);
+      } catch (err) {
+        // Roll back the optimistic edit and tell the user. Without this the
+        // editor closes, the branch never appears, and the failure is silent —
+        // e.g. the selected model's provider has no API key, or agent-config
+        // resolution failed server-side ("editing does nothing").
+        console.error('[chat] edit-and-branch failed', err);
+        setPendingMessage(null);
+        toast({
+          title: t('toast.sendFailed'),
+          description: err instanceof Error ? err.message : undefined,
+          variant: 'destructive',
+        });
+      }
     },
     [
       editingMessage,
@@ -678,6 +760,8 @@ export function ChatInterface({
       selectNewBranch,
       setPendingMessage,
       scrollIntentRef,
+      toast,
+      t,
     ],
   );
 
@@ -870,59 +954,73 @@ export function ChatInterface({
               organizationId={organizationId}
               threadId={dataThreadId}
             >
-              <ChatMessages
-                items={mergedMessages}
-                threadId={dataThreadId}
-                organizationId={organizationId}
-                canLoadMore={canLoadMore}
-                isLoadingMore={isLoadingMore}
-                loadMore={handleLoadMore}
-                isLoading={isLoading}
-                lastUserMessageRef={lastUserMessageRef}
-                containerRef={containerRef}
-                activeApproval={activeApproval}
-                forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
-                lastForkedMessageOrder={
-                  forkInfo?.lastForkedMessageOrder ?? undefined
-                }
-                forkedAt={forkInfo?.forkedAt ?? undefined}
-                forkedFromShare={forkInfo?.forkedFromShare}
-                onHumanInputResponseSubmitted={
-                  handleHumanInputResponseSubmitted
-                }
-                onSendFollowUp={
-                  isArchived || readOnly ? undefined : handleSendFollowUp
-                }
-                onSendMessage={
-                  isArchived || readOnly ? undefined : handleSendMessageDirect
-                }
-                onEditMessage={
-                  isArchived || readOnly ? undefined : handleEditClick
-                }
-                onForkAtMessage={
-                  isArchived || readOnly ? undefined : handleForkAtMessage
-                }
-                onSavePrompt={handleSavePromptFromMessage}
-                onUnsavePrompt={handleUnsavePrompt}
-                savedMessageMap={savedMessageMap}
-                onRetry={isArchived || readOnly ? undefined : handleRetry}
-                onRegenerate={
-                  isArchived || readOnly ? undefined : handleRegenerateMessage
-                }
-                editingMessageId={
-                  isArchived || readOnly ? undefined : editingMessage?.id
-                }
-                editingMessageContent={
-                  isArchived || readOnly ? undefined : editingMessage?.content
-                }
-                onEditSubmit={
-                  isArchived || readOnly ? undefined : handleEditSubmit
-                }
-                onEditCancel={
-                  isArchived || readOnly ? undefined : handleEditCancel
-                }
-                hideFeedback={isArchived}
-              />
+              {/* One thread-level metadata subscription shared by every bubble
+                  (collapses N per-message subscriptions into 1). MessageBubble's
+                  useMessageMetadata reads from this map, falling back to a
+                  per-message query for rows not yet in the batch. */}
+              <ThreadMessageMetadataProvider
+                threadId={dataThreadId ?? null}
+                liveRoute={liveRoute ?? null}
+                generationStartMs={generationStartMs}
+              >
+                <ChatMessages
+                  items={mergedMessages}
+                  threadId={dataThreadId}
+                  organizationId={organizationId}
+                  canLoadMore={canLoadMore}
+                  isLoadingMore={isLoadingMore}
+                  loadMore={handleLoadMore}
+                  isLoading={isLoading}
+                  isSendPending={isSendPending}
+                  isAutoRoute={isAutoRoute}
+                  liveRoute={liveRoute}
+                  generationStartMs={generationStartMs}
+                  lastUserMessageRef={lastUserMessageRef}
+                  containerRef={containerRef}
+                  activeApproval={activeApproval}
+                  forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
+                  lastForkedMessageOrder={
+                    forkInfo?.lastForkedMessageOrder ?? undefined
+                  }
+                  forkedAt={forkInfo?.forkedAt ?? undefined}
+                  forkedFromShare={forkInfo?.forkedFromShare}
+                  onHumanInputResponseSubmitted={
+                    handleHumanInputResponseSubmitted
+                  }
+                  onSendFollowUp={
+                    isArchived || readOnly ? undefined : handleSendFollowUp
+                  }
+                  onSendMessage={
+                    isArchived || readOnly ? undefined : handleSendMessageDirect
+                  }
+                  onEditMessage={
+                    isArchived || readOnly ? undefined : handleEditClick
+                  }
+                  onForkAtMessage={
+                    isArchived || readOnly ? undefined : handleForkAtMessage
+                  }
+                  onSavePrompt={handleSavePromptFromMessage}
+                  onUnsavePrompt={handleUnsavePrompt}
+                  savedMessageMap={savedMessageMap}
+                  onRetry={isArchived || readOnly ? undefined : handleRetry}
+                  onRegenerate={
+                    isArchived || readOnly ? undefined : handleRegenerateMessage
+                  }
+                  editingMessageId={
+                    isArchived || readOnly ? undefined : editingMessage?.id
+                  }
+                  editingMessageContent={
+                    isArchived || readOnly ? undefined : editingMessage?.content
+                  }
+                  onEditSubmit={
+                    isArchived || readOnly ? undefined : handleEditSubmit
+                  }
+                  onEditCancel={
+                    isArchived || readOnly ? undefined : handleEditCancel
+                  }
+                  hideFeedback={isArchived}
+                />
+              </ThreadMessageMetadataProvider>
             </ChatMessagesErrorBoundary>
           )}
         </div>
@@ -932,7 +1030,7 @@ export function ChatInterface({
           Portals to <body>, so placement here is just for lifecycle. */}
       {!readOnly && <SelectionQuoteButton containerRef={containerRef} />}
 
-      <PanelFooter className="mt-auto">
+      <PanelFooter className="bg-background/95 mt-auto backdrop-blur-xs">
         <div className="relative mx-auto w-full max-w-(--chat-max-width)">
           <AnimatePresence>
             {showScrollButton && (
@@ -947,7 +1045,7 @@ export function ChatInterface({
                   onClick={scrollToBottom}
                   size="icon"
                   variant="secondary"
-                  className="bg-opacity-60 rounded-full shadow-lg backdrop-blur-sm"
+                  className="bg-background/95 rounded-full shadow-lg backdrop-blur-xs"
                   aria-label={t('aria.scrollToBottom')}
                 >
                   <ArrowDown className="h-4 w-4" />
@@ -1019,6 +1117,7 @@ export function ChatInterface({
                 organizationId={organizationId}
                 projectId={currentProjectId}
                 threadId={dataThreadId}
+                onComposerActivate={prewarmChatCache}
                 attachments={attachments}
                 uploadingFiles={uploadingFiles}
                 uploadFiles={uploadFiles}

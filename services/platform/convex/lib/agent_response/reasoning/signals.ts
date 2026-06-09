@@ -18,10 +18,10 @@
 
 import { clamp01 } from './clamp';
 import {
+  countCreativeVerbs,
+  countEasyVerbs,
+  countHardVerbs,
   matchesAnalyticalVerb,
-  matchesCreativeVerb,
-  matchesEasyVerb,
-  matchesHardVerb,
   matchesTrivialAck,
 } from './lexicon';
 import {
@@ -54,7 +54,28 @@ export interface DifficultySignals {
   historyMessageCount?: number;
 }
 
-export interface DifficultyResult {
+/**
+ * Structural signals surfaced for downstream consumers (model routing,
+ * cascade). Purely descriptive — they do not change the difficulty math.
+ */
+interface DifficultyFeatures {
+  /** Graded code-likeness in [0,1] (fences, inline, stack traces, syntax). */
+  codeDensity: number;
+  /** Whether math/LaTeX notation is present. */
+  hasMath: boolean;
+  /** Structure score in [0,1] (multi-question, tables, enumeration, steps). */
+  structure: number;
+  /** Number of question marks in the prompt (multi-question detection). */
+  questionCount: number;
+  /** Agentic shape in [0,1] (tool count, step ceiling, non-chat agent). */
+  agentic: number;
+  /** Retrieval shape in [0,1] (attachments, RAG/web context). */
+  retrieval: number;
+  /** Whole message is a trivial greeting / ack. */
+  isTrivial: boolean;
+}
+
+interface DifficultyResult {
   /** Continuous difficulty in [0,1] (the calibrated prior). */
   intensity: number;
   /** Continuous creativity in [0,1] — 0 precise/analytical, 1 open-ended. */
@@ -65,9 +86,15 @@ export interface DifficultyResult {
   target: ReasoningTarget;
   /** Minimum tier the controller may not undercut for this turn. */
   floorTier: ReasoningTier;
+  /** Structural signals for model routing / cascade (descriptive only). */
+  features: DifficultyFeatures;
 }
 
 const CODE_FENCE = /```[\s\S]*?```|~~~[\s\S]*?~~~/g;
+const INLINE_CODE = /`[^`\n]+`/g;
+// Stack traces / exceptions across common runtimes (JS, Python, Java, .NET).
+const STACK_TRACE =
+  /\bat\s+.+\(.+:\d+:\d+\)|Traceback \(most recent call last\)|Exception in thread|\b[\w.]+(?:Error|Exception):/;
 const TABLE = /\|.*\|.*\n\s*\|?\s*[-:]+\s*\|/;
 const ENUMERATION = /(^|\n)\s*(\d+[.)]\s|[-*]\s).*(\n\s*(\d+[.)]\s|[-*]\s))/;
 const MULTI_STEP =
@@ -83,12 +110,36 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-/** Fraction of characters that live inside fenced code blocks (0..1). */
+/**
+ * Graded "how code-like is this" in [0,1]. Fenced blocks are the strongest
+ * signal; inline backticks, stack traces, and brace/semicolon density catch
+ * code that fenced-only counting misses (a pasted error, a one-liner, raw
+ * JSON). Take the max so any one strong cue suffices — still O(n), no latency.
+ */
 function codeDensity(text: string): number {
   if (text.length === 0) return 0;
-  let inside = 0;
-  for (const match of text.matchAll(CODE_FENCE)) inside += match[0].length;
-  return clamp01(inside / text.length);
+  let fenced = 0;
+  for (const match of text.matchAll(CODE_FENCE)) fenced += match[0].length;
+  const fencedFraction = fenced / text.length;
+
+  let inlineChars = 0;
+  for (const match of text.matchAll(INLINE_CODE))
+    inlineChars += match[0].length;
+  const inlineFraction = inlineChars / text.length;
+
+  const stackTrace = STACK_TRACE.test(text) ? 1 : 0;
+  // Brace/semicolon/bracket density — a cheap proxy for raw code or JSON.
+  const syntaxChars = (text.match(/[{};[\]]/g) ?? []).length;
+  const syntaxFraction = syntaxChars / text.length;
+
+  return clamp01(
+    Math.max(
+      fencedFraction,
+      inlineFraction,
+      0.5 * stackTrace,
+      Math.min(1, syntaxFraction * 4),
+    ),
+  );
 }
 
 // Feature weights for the logit. Tuned so an empty/greeting prompt lands near
@@ -100,8 +151,10 @@ const W = {
   code: 2.6,
   structure: 1.2,
   math: 0.8,
-  hardVerb: 1.5,
-  easyVerb: -1.6,
+  // Doubled vs. the old binary weights so a single match (strength 0.5)
+  // reproduces the prior contribution (1.5 / -1.6); a second match doubles it.
+  hardVerb: 3.0,
+  easyVerb: -3.2,
   retrieval: 0.9,
   agentic: 1.1,
   trivial: -3.0,
@@ -126,6 +179,15 @@ export function scoreDifficulty(signals: DifficultySignals): DifficultyResult {
       difficultyClass: 'easy',
       target: { tier: 'off', budgetTokens: 0 },
       floorTier: 'off',
+      features: {
+        codeDensity: 0,
+        hasMath: false,
+        structure: 0,
+        questionCount: 0,
+        agentic: 0,
+        retrieval: 0,
+        isTrivial: false,
+      },
     };
   }
 
@@ -143,10 +205,13 @@ export function scoreDifficulty(signals: DifficultySignals): DifficultyResult {
       (ENUMERATION.test(text) || MULTI_STEP.test(text) ? 0.5 : 0),
   );
 
-  // Multilingual intent cues (composed across every shipped locale).
-  const hasHardVerb = matchesHardVerb(text);
-  const hasEasyVerb = matchesEasyVerb(text);
-  const hasCreativeVerb = matchesCreativeVerb(text);
+  // Multilingual intent cues (composed across every shipped locale). Graded by
+  // COUNT and saturated at two occurrences, so two hard verbs read stronger than
+  // one. A single match yields strength 0.5; the weights below are scaled so
+  // that single-match case reproduces the original binary contribution exactly.
+  const hardStrength = clamp01(countHardVerbs(text) / 2);
+  const easyStrength = clamp01(countEasyVerbs(text) / 2);
+  const creativeStrength = clamp01(countCreativeVerbs(text) / 2);
   const hasAnalyticalVerb = matchesAnalyticalVerb(text);
   const isTrivial = matchesTrivialAck(text);
 
@@ -164,8 +229,12 @@ export function scoreDifficulty(signals: DifficultySignals): DifficultyResult {
         ? 0.3
         : 0),
   );
-  const isFollowUp =
-    (signals.historyMessageCount ?? 0) >= 6 && tokens < 30 ? 1 : 0;
+  // Follow-up: a short reply deep in a thread leans on prior context and needs
+  // less reasoning. Continuous (not a 6/30 cliff): history depth ramps in after
+  // ~2 turns and saturates by ~8; shortness fades out by ~40 tokens.
+  const historyDepth = clamp01(((signals.historyMessageCount ?? 0) - 2) / 6);
+  const shortness = 1 - clamp01(tokens / 40);
+  const followUpScore = historyDepth * shortness;
 
   const z =
     W.bias +
@@ -173,28 +242,41 @@ export function scoreDifficulty(signals: DifficultySignals): DifficultyResult {
     W.code * density +
     W.structure * structure +
     W.math * (hasMath ? 1 : 0) +
-    W.hardVerb * (hasHardVerb ? 1 : 0) +
-    W.easyVerb * (hasEasyVerb ? 1 : 0) +
+    W.hardVerb * hardStrength +
+    W.easyVerb * easyStrength +
     W.retrieval * retrieval +
     W.agentic * agentic +
     W.trivial * (isTrivial ? 1 : 0) +
-    W.followUp * isFollowUp;
+    W.followUp * followUpScore;
 
-  const intensity = sigmoid(z);
+  let intensity = sigmoid(z);
+
+  // Long-context QA damp: a very long prompt with NO code, NO hard-verb intent,
+  // and little structure is usually a pasted document with a short ask
+  // (extract / look up / answer-from-this) — mechanically simpler than its
+  // length implies. The length feature alone would over-escalate it, so damp
+  // the prior. Gated tightly so it can never fire on a long *coding* or
+  // *analytical* task (those carry density / hardStrength / structure).
+  const longContextQa =
+    tokens > 1500 &&
+    density === 0 &&
+    hardStrength === 0 &&
+    !hasMath &&
+    structure < 0.4 &&
+    !isTrivial;
+  if (longContextQa) intensity *= 0.85;
 
   // Creativity: precise/deterministic work pulls temperature down, open-ended
   // generation pulls it up. Code / math / analytical intent are precise.
-  const analytical = hasAnalyticalVerb || density > 0 || hasMath || hasHardVerb;
+  const analytical =
+    hasAnalyticalVerb || density > 0 || hasMath || hardStrength > 0;
   const creativity = clamp01(
-    0.5 +
-      (hasCreativeVerb ? 0.35 : 0) -
-      (analytical ? 0.35 : 0) -
-      (hasEasyVerb ? 0.1 : 0),
+    0.5 + 0.7 * creativeStrength - (analytical ? 0.35 : 0) - 0.2 * easyStrength,
   );
 
   // Hard floors: a genuinely hard turn can't be starved by history.
   let floorTier: ReasoningTier = 'off';
-  if (density > 0 || hasHardVerb) floorTier = maxTier(floorTier, 'medium');
+  if (density > 0 || hardStrength > 0) floorTier = maxTier(floorTier, 'medium');
   if (signals.hasAttachments) floorTier = maxTier(floorTier, 'low');
 
   // Continuous intensity → prior budget → tier, lifted to the floor.
@@ -214,5 +296,14 @@ export function scoreDifficulty(signals: DifficultySignals): DifficultyResult {
     difficultyClass: classFromIntensity(intensity),
     target: { tier, budgetTokens },
     floorTier,
+    features: {
+      codeDensity: density,
+      hasMath,
+      structure,
+      questionCount,
+      agentic,
+      retrieval,
+      isTrivial,
+    },
   };
 }

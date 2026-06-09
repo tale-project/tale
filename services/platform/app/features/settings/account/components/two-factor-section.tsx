@@ -4,7 +4,6 @@ import { Button } from '@tale/ui/button';
 import { HStack, Stack, VStack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
-import { QRCodeSVG } from 'qrcode.react';
 import { useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
@@ -14,9 +13,19 @@ import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { lazyComponent } from '@/lib/utils/lazy-component';
 import { extractSecret, normalizeOtpauthURI } from '@/lib/utils/totp';
 
 import { useShowBackupCodes } from './backup-codes-dialog-provider';
+
+// qrcode.react is only needed during the brief TOTP-enrollment "verify" step,
+// but this section renders on every Account-settings visit. Lazy-load it so the
+// QR library stays out of the settings chunk until a user actually enrolls. The
+// fallback reserves the QR's 180px footprint so the dialog doesn't jump.
+const QRCodeSVG = lazyComponent(
+  () => import('qrcode.react').then((m) => ({ default: m.QRCodeSVG })),
+  { loading: () => <div className="size-[180px]" aria-busy="true" /> },
+);
 
 type EnrollState =
   | { step: 'idle' }

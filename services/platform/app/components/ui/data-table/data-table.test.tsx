@@ -32,11 +32,15 @@ const columns: ColumnDef<TestRow>[] = [
   },
 ];
 
+// The first content column flexes (absorbs the container slack so the table
+// fills its width without a runaway column), so the explicit `size` is asserted
+// on a *later* column — `name` stands in as the flex column.
 const columnsWithSize: ColumnDef<TestRow>[] = [
-  { accessorKey: 'name', header: 'Name', size: 200 },
+  { accessorKey: 'name', header: 'Name' },
   {
     accessorKey: 'status',
     header: 'Status',
+    size: 200,
     meta: { skeleton: { type: 'badge' } },
   },
 ];
@@ -197,8 +201,10 @@ describe('DataTable loading states', () => {
       const tbody = getTbody();
       const firstDataRow = within(tbody).getAllByRole('row')[0];
       const cells = within(firstDataRow).getAllByRole('cell');
-      expect(cells[0]).toHaveStyle({ width: '200px' });
-      expect(cells[1]).not.toHaveStyle({ width: '150px' });
+      // First content column flexes → no fixed inline width.
+      expect(cells[0].style.width).toBe('');
+      // A later column keeps its explicit size.
+      expect(cells[1]).toHaveStyle({ width: '200px' });
     });
 
     it('applies explicit column size to skeleton row cells', () => {
@@ -213,7 +219,7 @@ describe('DataTable loading states', () => {
 
       const skeletons = getSkeletonRows();
       const cells = within(skeletons[0]).getAllByRole('cell');
-      expect(cells[0]).toHaveStyle({ width: '200px' });
+      expect(cells[1]).toHaveStyle({ width: '200px' });
     });
   });
 

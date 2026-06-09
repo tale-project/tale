@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../lib/validators/json';
 import {
+  autoRouteReasonValidator,
   citationItemValidator,
   contextStatsValidator,
   toolUsageItemValidator,
@@ -17,6 +18,9 @@ export const messageMetadataTable = defineTable({
   // written before the field existed; new writes should populate it from
   // OnAgentCompleteArgs.agentSlug so feedback rows can attribute by agent.
   agentSlug: v.optional(v.string()),
+  // Why the Auto router chose `agentSlug` for this turn. Set only on Auto
+  // routes; absent means the user pinned the agent.
+  autoRouteReason: v.optional(autoRouteReasonValidator),
   inputTokens: v.optional(v.number()),
   outputTokens: v.optional(v.number()),
   totalTokens: v.optional(v.number()),
@@ -34,6 +38,13 @@ export const messageMetadataTable = defineTable({
   // measured from chatWithAgent entry — includes the pre-stream backend hops
   // that timeToFirstTokenMs (action-relative) misses.
   timeFromSendMs: v.optional(v.number()),
+  // Wall-clock pre-answer "thinking" time the user waited: from the turn start
+  // (markGenerating, BEFORE Auto routing) to the first answer token. UNLIKE
+  // timeToFirstTokenMs (measured from the generation action start, i.e. routing
+  // already done) this INCLUDES the router-classifier latency, so the chat
+  // "Thought for Ns" summary matches the live timer. Absent when no answer
+  // token streamed (aborted / tool-only turn).
+  thinkingDurationMs: v.optional(v.number()),
   subAgentUsage: v.optional(v.array(toolUsageItemValidator)),
   toolsUsage: v.optional(v.array(toolUsageItemValidator)),
   citations: v.optional(v.array(citationItemValidator)),

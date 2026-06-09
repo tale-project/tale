@@ -1,6 +1,23 @@
-import { v } from 'convex/values';
+import { type Infer, v } from 'convex/values';
 
 import { jsonRecordValidator } from '../lib/validators/json';
+
+/**
+ * Why the Auto router picked the agent that answered this message. Persisted on
+ * message metadata ONLY when the turn came from Auto routing — absent means the
+ * user pinned the agent. Canonical source of the reason union — `resolveAutoRoute`
+ * (`agents/auto_route.ts`) imports `AutoRouteReason`/`autoRouteReasonValidator`
+ * from here for its result type and return validator.
+ */
+export const autoRouteReasonValidator = v.union(
+  v.literal('single-candidate'),
+  v.literal('trivial'),
+  v.literal('cached'),
+  v.literal('classified'),
+  v.literal('fallback'),
+);
+
+export type AutoRouteReason = Infer<typeof autoRouteReasonValidator>;
 
 export const toolUsageItemValidator = v.object({
   toolName: v.string(),
@@ -46,6 +63,7 @@ export const messageMetadataValidator = v.object({
   model: v.string(),
   provider: v.string(),
   agentSlug: v.optional(v.string()),
+  autoRouteReason: v.optional(autoRouteReasonValidator),
   inputTokens: v.optional(v.number()),
   outputTokens: v.optional(v.number()),
   totalTokens: v.optional(v.number()),
@@ -57,6 +75,9 @@ export const messageMetadataValidator = v.object({
   timeToFirstTokenMs: v.optional(v.number()),
   timeToFirstReasoningMs: v.optional(v.number()),
   timeFromSendMs: v.optional(v.number()),
+  // Wall-clock pre-answer thinking time INCLUDING Auto-routing latency (from
+  // markGenerating to first answer token) — see streaming/schema.ts.
+  thinkingDurationMs: v.optional(v.number()),
   subAgentUsage: v.optional(v.array(toolUsageItemValidator)),
   toolsUsage: v.optional(v.array(toolUsageItemValidator)),
   citations: v.optional(v.array(citationItemValidator)),

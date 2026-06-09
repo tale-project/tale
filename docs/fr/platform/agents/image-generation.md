@@ -1,15 +1,17 @@
 ---
 title: Génération d'images
-description: La génération d'images comme capacité d'agent — choisir un modèle tagué image, coûts, et comment les images générées apparaissent dans la réponse.
+description: La génération d'images comme capacité d'agent — n'importe quel assistant peut créer une image en ligne quand un modèle d'image est configuré, comment les images générées apparaissent, et ce qu'elles coûtent.
 ---
 
-La génération d'images est une capacité qu'un agent obtient en choisissant un modèle tagué image. La réponse de l'agent peut inclure des images générées à côté du texte ; l'utilisateur voit l'image en ligne dans le chat, de la même manière qu'une pièce jointe. Cette page couvre le câblage.
+N'importe quel assistant dans Tale peut générer des images. Demande-lui de créer, dessiner ou concevoir quelque chose et il produit l'image en ligne — comme une pièce jointe s'affiche dans la réponse, sans mode séparé dans lequel basculer d'abord. Cela fonctionne dès qu'un modèle de génération d'images est configuré ; cette page couvre le câblage.
 
 Le mécanisme dépend du fournisseur sous-jacent — qualité, coût et vitesse varient grandement. Le travail de Tale est d'exposer la capacité à l'agent et à l'utilisateur ; le travail du fournisseur est de fabriquer l'image.
 
-## Choisir le modèle
+## Demander une image à n'importe quel assistant
 
-Dans l'onglet **Instructions & model** de l'agent, le sélecteur de modèles expose les modèles tagués **Image generation**. Choisis-en un comme modèle secondaire et la liste d'outils de l'agent gagne un outil de génération d'images ; l'agent peut l'invoquer pendant une réponse quand le modèle décide que l'utilisateur veut une image. Certains fournisseurs exposent **Image editing** comme tag séparé — choisis-le pour que l'agent édite une image attachée plutôt que d'en créer une à partir de rien.
+Chaque assistant porte un outil d'image qu'il sollicite quand tu lui demandes de créer une image, un logo ou une illustration. L'assistant appelle l'outil, l'image s'affiche en ligne, et son texte s'enroule autour du résultat comme autour d'une pièce jointe téléversée. Comme l'outil est livré avec chaque assistant, l'assistant **Auto** traite aussi une demande d'image — tu n'as pas à choisir d'abord un agent spécialisé.
+
+L'image provient du modèle de génération d'images de l'organisation — celui qu'un admin a configuré dans [Providers](/fr/platform/admin/providers) et tagué **Image generation**. Il n'y a rien à configurer par agent. Si l'organisation n'a pas un tel modèle, l'assistant te dit que la génération d'images est indisponible au lieu de deviner, pour qu'un admin sache en ajouter un.
 
 ## Comment ça apparaît
 
@@ -21,4 +23,4 @@ Les modèles d'images coûtent plus par appel que les modèles texte — parfois
 
 ## Où ça s'inscrit
 
-La génération d'images est un tag de plus sur le sélecteur de modèles — le reste de la forme de l'agent reste le même. Le candidat à la dérive ici est le nom des fournisseurs et modèles ; consulte cette page avec la liste des modèles en cours dans [Providers](/fr/platform/admin/providers) plutôt que de mémoriser des chaînes de modèles précises.
+La génération d'images repose sur une seule chose — un modèle tagué **Image generation** dans l'organisation — et de là, chaque assistant peut produire une image en ligne, l'assistant **Auto** compris. Le candidat à la dérive ici est le nom des fournisseurs et modèles ; consulte cette page avec la liste des modèles en cours dans [Providers](/fr/platform/admin/providers) plutôt que de mémoriser des chaînes de modèles précises.

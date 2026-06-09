@@ -40,9 +40,14 @@ const TableHeader = forwardRef<HTMLTableSectionElement, TableHeaderProps>(
   ({ className, sticky = false, ...props }, ref) => (
     <thead
       ref={ref}
+      // Paint the muted fill on the header *cells*, not the row: the corner
+      // cells carry `first:rounded-tl-lg`/`last:rounded-tr-lg`, so the fill is
+      // clipped to the rounded shape. A `bg-muted` on the `<tr>` is a square
+      // box that bleeds over the bordered wrapper's rounded corners in the
+      // sticky layout (which can't use `overflow-hidden`), squaring them off.
       className={cn(
-        '[&_tr]:bg-muted [&_tr]:border-0 border-b',
-        sticky && 'sticky top-0 z-10 [&_tr]:bg-muted',
+        '[&_th]:bg-muted [&_tr]:border-0 border-b',
+        sticky && 'sticky top-0 z-10 [&_th]:bg-muted',
         className,
       )}
       {...props}

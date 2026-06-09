@@ -66,7 +66,7 @@ const inputClasses = cn(
   // input — every native track surface is transparent so the rounded
   // pill behind shows through unchanged.
   'relative z-10 block h-5 w-full cursor-pointer appearance-none bg-transparent',
-  'focus-visible:outline-none',
+  'focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
   // WebKit / Blink: transparent track, styled thumb
   '[&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent',
   '[&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:-mt-1.5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[color:var(--color-accent-base)] [&::-webkit-slider-thumb]:bg-[color:var(--color-bg-base)] [&::-webkit-slider-thumb]:shadow-[0_1px_3px_rgba(0,0,0,0.18)] [&::-webkit-slider-thumb]:transition-[transform,box-shadow] [&::-webkit-slider-thumb]:duration-150',

@@ -7,6 +7,11 @@ const bucket = v.object({
   mean: v.number(),
   m2: v.number(),
   underResourcedEma: v.number(),
+  // Added after the initial schema; optional so legacy rows keep validating.
+  wastefulEma: v.optional(v.number()),
+  // Response-quality EMA per class (quality-feedback governor). Optional;
+  // legacy rows omit it and readers coalesce to a neutral 1.0.
+  qualityEma: v.optional(v.number()),
 });
 
 /**
@@ -30,6 +35,10 @@ export const reasoningProfilesTable = defineTable({
     medium: bucket,
     hard: bucket,
     turns: v.number(),
+    // Cross-class intensity distribution (self-calibrating thresholds).
+    intensityCount: v.optional(v.number()),
+    intensityMean: v.optional(v.number()),
+    intensityM2: v.optional(v.number()),
   }),
   updatedAt: v.number(),
 }).index('by_org_scope', ['organizationId', 'scopeKey']);

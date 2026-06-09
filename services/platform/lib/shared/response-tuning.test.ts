@@ -3,13 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   creativityToScoreOverride,
   effortToTierOverride,
-  isCreativityProfile,
-  isEffortProfile,
-  isStyleProfile,
   styleInstructionFragment,
-} from './composer-profiles';
+  tuningInstructionSuffix,
+  verbosityInstructionFragment,
+} from './response-tuning';
 
-describe('composer-profiles mappings', () => {
+describe('response-tuning mappings', () => {
   describe('effortToTierOverride', () => {
     it('returns undefined for adaptive / unset (keeps the governor in charge)', () => {
       expect(effortToTierOverride('adaptive')).toBeUndefined();
@@ -34,12 +33,14 @@ describe('composer-profiles mappings', () => {
     });
   });
 
-  describe('styleInstructionFragment', () => {
+  describe('style + verbosity fragments', () => {
     it('returns empty string for adaptive / unset (no prompt override)', () => {
       expect(styleInstructionFragment('adaptive')).toBe('');
       expect(styleInstructionFragment(undefined)).toBe('');
+      expect(verbosityInstructionFragment('adaptive')).toBe('');
+      expect(verbosityInstructionFragment(undefined)).toBe('');
     });
-    it('returns a non-empty fragment for each fixed style', () => {
+    it('returns a non-empty fragment for each fixed style/verbosity', () => {
       for (const style of [
         'concise',
         'detailed',
@@ -48,17 +49,28 @@ describe('composer-profiles mappings', () => {
       ] as const) {
         expect(styleInstructionFragment(style).length).toBeGreaterThan(0);
       }
+      for (const v of ['terse', 'normal', 'verbose'] as const) {
+        expect(verbosityInstructionFragment(v).length).toBeGreaterThan(0);
+      }
     });
   });
 
-  describe('type guards', () => {
-    it('accept valid values and reject junk', () => {
-      expect(isEffortProfile('high')).toBe(true);
-      expect(isEffortProfile('nope')).toBe(false);
-      expect(isCreativityProfile('balanced')).toBe(true);
-      expect(isCreativityProfile('')).toBe(false);
-      expect(isStyleProfile('formal')).toBe(true);
-      expect(isStyleProfile('formals')).toBe(false);
+  describe('tuningInstructionSuffix', () => {
+    it('is empty when nothing is set', () => {
+      expect(tuningInstructionSuffix(undefined)).toBe('');
+      expect(tuningInstructionSuffix({})).toBe('');
+      expect(
+        tuningInstructionSuffix({ style: 'adaptive', verbosity: 'adaptive' }),
+      ).toBe('');
+    });
+    it('joins style and verbosity when both set', () => {
+      const out = tuningInstructionSuffix({
+        style: 'concise',
+        verbosity: 'terse',
+      });
+      expect(out).toContain('concise');
+      expect(out).toContain('few words');
+      expect(out.split('\n').length).toBe(2);
     });
   });
 });

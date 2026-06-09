@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
+
+import {
+  ActiveEditorProvider,
+  useActiveEditor,
+} from '@/app/components/ui/editor';
 
 // Mock next-intl
 vi.mock('next-intl', () => ({
@@ -53,6 +58,7 @@ afterEach(() => {
 
 describe('BrandingForm', () => {
   const defaultProps = {
+    organizationId: 'org_test',
     onPreviewChange: vi.fn(),
   };
 
@@ -122,6 +128,56 @@ describe('BrandingForm', () => {
     render(<BrandingForm {...defaultProps} />);
 
     expect(screen.getByText('branding.faviconDescription')).toBeInTheDocument();
+  });
+
+  // Regression: the brand-color control is not a `register`ed RHF field — it
+  // drives the form purely through `setValue(..., { shouldDirty: true })`. The
+  // Save/Discard cluster lives in the parent settings nav and reads the form
+  // via the active-editor registry, so this asserts the WHOLE path (custom
+  // control → editor → active-editor context) flips dirty on a color edit.
+  function DirtyProbe() {
+    const controller = useActiveEditor();
+    return (
+      <span data-testid="dirty">{controller?.isDirty ? 'yes' : 'no'}</span>
+    );
+  }
+
+  it('marks the active editor dirty when the brand color changes', () => {
+    render(
+      <ActiveEditorProvider>
+        <BrandingForm
+          {...defaultProps}
+          branding={{ appName: 'App', brandColor: '#FF0000' }}
+        />
+        <DirtyProbe />
+      </ActiveEditorProvider>,
+    );
+
+    expect(screen.getByTestId('dirty')).toHaveTextContent('no');
+
+    const hexInput = screen.getByLabelText('branding.brandColor hex value');
+    fireEvent.change(hexInput, { target: { value: '00FF00' } });
+
+    expect(screen.getByTestId('dirty')).toHaveTextContent('yes');
+  });
+
+  it('returns the active editor to clean when the color reverts to baseline', () => {
+    render(
+      <ActiveEditorProvider>
+        <BrandingForm
+          {...defaultProps}
+          branding={{ appName: 'App', brandColor: '#FF0000' }}
+        />
+        <DirtyProbe />
+      </ActiveEditorProvider>,
+    );
+
+    const hexInput = screen.getByLabelText('branding.brandColor hex value');
+    fireEvent.change(hexInput, { target: { value: '00FF00' } });
+    expect(screen.getByTestId('dirty')).toHaveTextContent('yes');
+
+    fireEvent.change(hexInput, { target: { value: 'FF0000' } });
+    expect(screen.getByTestId('dirty')).toHaveTextContent('no');
   });
 
   describe('accessibility', () => {

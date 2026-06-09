@@ -11,6 +11,8 @@ import path from 'node:path';
 
 import {
   agentJsonSchema,
+  type AgentRoutingConfig,
+  type ResponseTuningConfig,
   type SkillBindingResolvedEntry,
 } from '../../lib/shared/schemas/agents';
 import {
@@ -95,9 +97,19 @@ export interface AgentJsonConfig {
     tooltip?: string;
     order?: number;
   };
+  /** Per-agent response tuning (effort/creativity/style + bounds). Mirrors
+   *  `responseTuningSchema` in `lib/shared/schemas/agents.ts`. */
+  responseTuning?: ResponseTuningConfig;
+  /** Per-agent routing / cascade behaviour. Mirrors `agentRoutingSchema`. */
+  routing?: AgentRoutingConfig;
   roleRestriction?: 'admin_developer';
   conversationStarters?: string[];
   visibleInChat?: boolean;
+  /** Marks the system "Auto" router agent (instructions generated per-request
+   *  from `buildRouterInstructions`; never answers a turn itself). */
+  isRouter?: boolean;
+  /** `false` = system-managed, not creatable/editable/deletable via the UI. */
+  uiConfigurable?: boolean;
   i18n?: Record<string, AgentI18nOverrides>;
 }
 

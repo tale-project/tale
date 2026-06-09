@@ -27,6 +27,7 @@
  */
 
 import type { ReasoningCapability } from './capability';
+import { clamp01 } from './clamp';
 import {
   bucketStd,
   budgetToTier,
@@ -52,12 +53,22 @@ const SHRINK_PSEUDO = 3;
 const K_SIGMA = 1.0;
 // Safety multiplier over revealed need for self-truncating models.
 const SELF_TRUNC_MARGIN = 1.15;
-// underResourcedEma ≥ HI ⇒ bump up; < LO ⇒ confident enough to trim down.
-// The gap between them is a hysteresis deadband that prevents oscillation.
-const UNDER_RESOURCED_HI = 0.5;
-const UNDER_RESOURCED_LO = 0.2;
+// The under/waste deadbands live in QUALITY_DEADBANDS (keyed by qualityProfile);
+// the `balanced` preset reproduces the original HI=0.5 / LO=0.2 / WASTE=0.5.
 // Multiplicative bump when a self-truncating model looks under-resourced.
 const BUMP_FACTOR = 1.4;
+// effUnder ≥ this ⇒ the class is strongly starved; on tier-filling models, jump
+// two tiers at once instead of one (converge faster at the edge). Profile-
+// independent so a pathologically starved class always converges fast.
+const UNDER_RESOURCED_STRONG = 0.8;
+// Multiplicative trim applied to a self-truncating estimate when wasteful.
+const WASTE_TRIM = 0.85;
+// Samples required before a tier-filling bucket may take the fast (−2) trim.
+const MIN_N_TO_TRIM_FAST = 4;
+// A turn is "wasteful" when it spent ≥ this fraction of its thinking budget …
+const WASTE_BUDGET_FRACTION = 0.6;
+// … yet produced fewer than this many output tokens (a clean, terse finish).
+const WASTE_OUTPUT_FLOOR = 256;
 // The controller may not exceed this multiple of the per-turn prior.
 const BAND_MAX = 1.5;
 // Samples required before the controller adjusts a bucket at all.
@@ -76,11 +87,50 @@ export interface ReasoningOutcome {
   budgetTokens: number;
   /** Whether the model self-truncates (budget knob) — see capability. */
   selfTruncates: boolean;
-  /** Finish reason; `'length'` means the answer hit the output cap. */
+  /** Finish reason; `'length'` means the OUTPUT hit its cap (not the thinking
+   * budget — those are distinct signals; see `recordOutcome`). */
   finishReason?: string;
   /** Whether the turn needed a continue/retry — a strong under-resourced cue. */
   retried?: boolean;
+  /** Observed output (answer) tokens; used to detect wasteful over-reasoning. */
+  outputTokens?: number;
+  /** This turn's continuous difficulty intensity [0,1]; folded into the state's
+   *  intensity distribution to self-calibrate the difficulty thresholds. */
+  intensity?: number;
+  /**
+   * This turn's response-quality score in [0,1] (from the shared quality
+   * analyzer). Folded into the per-class `qualityEma`. Omit when not scored
+   * (e.g. tool-only turns) — the EMA simply isn't updated.
+   */
+  qualityScore?: number;
 }
+
+/**
+ * Quality-feedback tuning, selected per agent via `responseTuning.qualityProfile`.
+ * `balanced` reproduces the original deadband constants exactly (so an agent
+ * without a profile behaves identically to before). `strict` reasons more
+ * readily and trims less; `lenient` is the opposite.
+ */
+export type QualityProfile = 'lenient' | 'balanced' | 'strict';
+
+interface QualityDeadbands {
+  underHi: number;
+  underLo: number;
+  wasteHi: number;
+  /** Quality EMA at/above which the class is "good enough"; below pulls the
+   *  effective under-resourced signal up (more reasoning). */
+  qualityTarget: number;
+}
+
+const QUALITY_DEADBANDS: Record<QualityProfile, QualityDeadbands> = {
+  // balanced === the original constants (UNDER_RESOURCED_HI/LO, WASTE_HI).
+  balanced: { underHi: 0.5, underLo: 0.2, wasteHi: 0.5, qualityTarget: 0.7 },
+  strict: { underHi: 0.4, underLo: 0.15, wasteHi: 0.6, qualityTarget: 0.8 },
+  lenient: { underHi: 0.6, underLo: 0.25, wasteHi: 0.4, qualityTarget: 0.6 },
+};
+
+// How strongly a quality shortfall lifts the effective under-resourced signal.
+const QUALITY_UNDER_WEIGHT = 0.5;
 
 function welfordUpdate(b: BucketStats, x: number): BucketStats {
   const count = b.count + 1;
@@ -88,6 +138,11 @@ function welfordUpdate(b: BucketStats, x: number): BucketStats {
   const mean = b.mean + delta / count;
   const m2 = b.m2 + delta * (x - mean);
   return { ...b, count, mean, m2 };
+}
+
+/** Exponential moving average step (alpha = SATURATION_ALPHA). */
+function ema(prev: number, observation: number): number {
+  return SATURATION_ALPHA * observation + (1 - SATURATION_ALPHA) * prev;
 }
 
 /**
@@ -109,16 +164,64 @@ export function recordOutcome(
 
   const saturation =
     outcome.budgetTokens > 0 && hasTokens ? tokens / outcome.budgetTokens : 0;
+  // A `'length'` finish means the OUTPUT hit max_tokens — a generation-length
+  // problem, NOT a thinking-budget problem. Bumping the thinking budget on it
+  // wastes tokens, so it is deliberately excluded here; genuine thinking
+  // starvation on a self-truncating model is already captured by saturation,
+  // and a continue/retry is the cross-knob "needed more" cue.
   const underResourced =
     outcome.retried === true ||
-    outcome.finishReason === 'length' ||
     (outcome.selfTruncates && saturation >= SATURATION_THRESHOLD);
-  const underResourcedEma =
-    SATURATION_ALPHA * (underResourced ? 1 : 0) +
-    (1 - SATURATION_ALPHA) * bucket.underResourcedEma;
-  bucket = { ...bucket, underResourcedEma };
+  const underResourcedEma = ema(
+    bucket.underResourcedEma ?? 0,
+    underResourced ? 1 : 0,
+  );
 
-  return { ...base, [cls]: bucket, turns: base.turns + 1 };
+  // Wasteful: thought hard (≥60% of budget) but answered tersely with a clean
+  // finish and no retry — a strong "this class is over-resourced" signal.
+  const out = outcome.outputTokens;
+  const hasOut = out != null && Number.isFinite(out) && out >= 0;
+  const wasteful =
+    hasTokens &&
+    hasOut &&
+    outcome.budgetTokens > 0 &&
+    tokens >= WASTE_BUDGET_FRACTION * outcome.budgetTokens &&
+    out < WASTE_OUTPUT_FLOOR &&
+    outcome.finishReason === 'stop' &&
+    outcome.retried !== true;
+  const wastefulEma = ema(bucket.wastefulEma ?? 0, wasteful ? 1 : 0);
+
+  // Quality EMA — only updated on turns where a quality score was computed.
+  const q = outcome.qualityScore;
+  const hasQuality = q != null && Number.isFinite(q);
+  const priorQualityEma = bucket.qualityEma ?? 1;
+  const qualityEma = hasQuality
+    ? ema(priorQualityEma, clamp01(q))
+    : priorQualityEma;
+
+  bucket = { ...bucket, underResourcedEma, wastefulEma, qualityEma };
+
+  // Cross-class Welford over the difficulty intensity (self-calibration input).
+  let { intensityCount, intensityMean, intensityM2 } = base;
+  const intensity = outcome.intensity;
+  if (intensity != null && Number.isFinite(intensity)) {
+    const n = (intensityCount ?? 0) + 1;
+    const prevMean = intensityMean ?? 0;
+    const mean = prevMean + (intensity - prevMean) / n;
+    const m2 = (intensityM2 ?? 0) + (intensity - prevMean) * (intensity - mean);
+    intensityCount = n;
+    intensityMean = mean;
+    intensityM2 = m2;
+  }
+
+  return {
+    ...base,
+    [cls]: bucket,
+    turns: base.turns + 1,
+    intensityCount,
+    intensityMean,
+    intensityM2,
+  };
 }
 
 function clampBudget(
@@ -139,6 +242,10 @@ interface CombinedView {
   count: number;
   /** Under-resourced EMA from the level with evidence (thread preferred). */
   underResourcedEma: number;
+  /** Wasteful-reasoning EMA from the level with evidence (thread preferred). */
+  wastefulEma: number;
+  /** Response-quality EMA from the level with evidence (thread preferred). */
+  qualityEma: number;
 }
 
 /**
@@ -176,9 +283,22 @@ function combineBuckets(
   // tokens are reported), so it is independent of the Welford sample count.
   // Prefer the thread's own signal; fall back to the inherited profile.
   const underResourcedEma = threadBucket
-    ? threadBucket.underResourcedEma
+    ? (threadBucket.underResourcedEma ?? 0)
     : (profileBucket?.underResourcedEma ?? 0);
-  return { mean, std, count: dataN, underResourcedEma };
+  const wastefulEma = threadBucket
+    ? (threadBucket.wastefulEma ?? 0)
+    : (profileBucket?.wastefulEma ?? 0);
+  const qualityEma = threadBucket
+    ? (threadBucket.qualityEma ?? 1)
+    : (profileBucket?.qualityEma ?? 1);
+  return {
+    mean,
+    std,
+    count: dataN,
+    underResourcedEma,
+    wastefulEma,
+    qualityEma,
+  };
 }
 
 /**
@@ -194,14 +314,30 @@ export function adjustTarget(
   state: ReasoningState | undefined,
   capability: ReasoningCapability,
   profile?: ReasoningState,
+  qualityProfile: QualityProfile = 'balanced',
 ): ReasoningTarget {
   const floorBudget = TIER_BUDGET_TOKENS[floorTier];
   const priorBudget = prior.budgetTokens;
+  const db = QUALITY_DEADBANDS[qualityProfile];
 
   const view = combineBuckets(
     state?.[difficultyClass],
     profile?.[difficultyClass],
     priorBudget,
+  );
+
+  // Quality-sharpened under-resourced signal: a class whose recent answers
+  // scored BELOW the profile's quality target is treated as more starved than
+  // tokens alone suggest (low quality + saturation ⇒ likely needs more
+  // reasoning). With a neutral qualityEma (1.0) the penalty is 0, so behaviour
+  // is identical to the token-only controller.
+  const qualityShortfall = Math.max(
+    0,
+    (db.qualityTarget - view.qualityEma) / db.qualityTarget,
+  );
+  const effUnder = Math.min(
+    1,
+    view.underResourcedEma + QUALITY_UNDER_WEIGHT * qualityShortfall,
   );
 
   if (capability.selfTruncates) {
@@ -211,9 +347,12 @@ export function adjustTarget(
       return clampToFloor(prior, floorTier, floorBudget);
     }
     // Usage reveals the true need: estimate it plus an uncertainty headroom,
-    // then bump if recent turns looked clipped.
+    // then bump if recent turns looked clipped / low-quality — or trim if the
+    // class is confidently wasteful (thought hard, answered tersely). Bump
+    // dominates a trim; the clamp keeps it within [floor, prior·band].
     let estimate = view.mean * SELF_TRUNC_MARGIN + K_SIGMA * view.std;
-    if (view.underResourcedEma >= UNDER_RESOURCED_HI) estimate *= BUMP_FACTOR;
+    if (effUnder >= db.underHi) estimate *= BUMP_FACTOR;
+    else if (view.wastefulEma >= db.wasteHi) estimate *= WASTE_TRIM;
     const bounded = clampBudget(estimate, floorBudget, priorBudget);
     return {
       tier: maxTier(budgetToTier(bounded), floorTier),
@@ -227,12 +366,19 @@ export function adjustTarget(
   // HI/LO deadband + the ±1-tier bound around the prior keep it from
   // oscillating or drifting away from the difficulty signal.
   let rank = TIER_RANK[prior.tier];
-  if (view.underResourcedEma >= UNDER_RESOURCED_HI) {
+  if (effUnder >= UNDER_RESOURCED_STRONG) {
+    // Strongly starved: skip a tier so a badly-under-provisioned class
+    // converges in one step instead of crawling up by one per turn.
+    rank += 2;
+  } else if (effUnder >= db.underHi) {
     rank += 1;
   } else if (
-    view.underResourcedEma < UNDER_RESOURCED_LO &&
-    view.count >= MIN_N_TO_TRIM
+    view.wastefulEma >= db.wasteHi &&
+    view.count >= MIN_N_TO_TRIM_FAST
   ) {
+    // Confidently wasteful with enough evidence: trim two tiers at once.
+    rank -= 2;
+  } else if (effUnder < db.underLo && view.count >= MIN_N_TO_TRIM) {
     rank -= 1;
   }
   rank = Math.max(TIER_RANK[floorTier], Math.min(rank, TIER_RANK.high));

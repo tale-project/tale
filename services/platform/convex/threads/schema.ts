@@ -1,6 +1,7 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { autoRouteReasonValidator } from '../streaming/validators';
 import { chatTypeValidator, threadStatusValidator } from './validators';
 
 /** One Adaptive Reasoning Governor difficulty-bucket — mirrors `BucketStats`. */
@@ -9,6 +10,12 @@ const reasoningBucketValidator = v.object({
   mean: v.number(),
   m2: v.number(),
   underResourcedEma: v.number(),
+  // Added after the initial schema; optional so legacy rows (written before
+  // this field existed) keep validating. Readers coalesce `undefined` to 0.
+  wastefulEma: v.optional(v.number()),
+  // Response-quality EMA per class (quality-feedback governor). Optional;
+  // legacy rows omit it and readers coalesce to a neutral 1.0.
+  qualityEma: v.optional(v.number()),
 });
 
 export const threadMetadataTable = defineTable({
@@ -47,9 +54,91 @@ export const threadMetadataTable = defineTable({
       medium: reasoningBucketValidator,
       hard: reasoningBucketValidator,
       turns: v.number(),
+      // Cross-class intensity distribution for self-calibrating difficulty
+      // thresholds. Optional; legacy rows fall back to the static thresholds.
+      intensityCount: v.optional(v.number()),
+      intensityMean: v.optional(v.number()),
+      intensityM2: v.optional(v.number()),
+    }),
+  ),
+  /**
+   * Auto-compaction rolling summary. When a thread's history approaches the
+   * model's context-window budget, the oldest turns are folded into this dense
+   * summary (see `lib/context_management/compaction/`) instead of being
+   * silently dropped. The context builder injects `text` ahead of the recent
+   * verbatim turns and excludes every message with `order <= coversThroughOrder`
+   * (those are now represented by the summary). Optional + additive: legacy
+   * rows have no summary and behave exactly as before.
+   */
+  contextSummary: v.optional(
+    v.object({
+      /** The dense natural-language summary of the compacted history. */
+      text: v.string(),
+      /** Messages with `order <= coversThroughOrder` are folded into `text`. */
+      coversThroughOrder: v.number(),
+      /** Estimated tokens of `text` (for budget math). */
+      tokens: v.number(),
+      /** How many source messages were folded in (telemetry). */
+      sourceMessageCount: v.number(),
+      updatedAt: v.number(),
+      /** Summary schema/version, for future re-summarization migrations. */
+      version: v.number(),
     }),
   ),
   agentSlug: v.optional(v.string()),
+  /**
+   * The most recent "Auto" routing decision on this thread (set by
+   * `resolveAutoRoute`). If the user re-sends the SAME message but explicitly
+   * pins a different agent, that's a sound misroute correction — folded into
+   * the auto-route cache as an `override` (see `unified_chat`). Cleared after
+   * a correction is recorded.
+   */
+  lastAutoRoute: v.optional(
+    v.object({
+      messageKey: v.string(),
+      candidatesHash: v.string(),
+      agentSlug: v.string(),
+    }),
+  ),
+  /**
+   * TRANSIENT, turn-scoped UI signal (NOT the `lastAutoRoute` re-route cache):
+   * the agent the Auto router resolved for the IN-FLIGHT turn, broadcast the
+   * instant routing decides so the thinking timeline can show "Routed to X"
+   * mid-turn instead of waiting for completion. Written best-effort by
+   * `setLiveRoute`, cleared at the start of each turn (`markGenerating`) and at
+   * the end (`clearGenerationStatus`) — persisted history reads the agent from
+   * the message's own `metadata.autoRouteReason` instead.
+   */
+  liveRoute: v.optional(
+    v.object({
+      agentSlug: v.string(),
+      reason: autoRouteReasonValidator,
+      at: v.number(),
+    }),
+  ),
+  /**
+   * Debug/feedback record of the most recent router-driven orchestration on
+   * this thread (router-as-orchestrator). Written fire-and-forget by
+   * `setLastOrchestration`. Per-step transcripts live in the sub-threads.
+   */
+  lastOrchestration: v.optional(
+    v.object({
+      primaryAgentSlug: v.string(),
+      deadlineHit: v.boolean(),
+      steps: v.array(
+        v.object({
+          id: v.string(),
+          agentSlug: v.string(),
+          status: v.union(
+            v.literal('ok'),
+            v.literal('error'),
+            v.literal('skipped'),
+          ),
+        }),
+      ),
+      createdAt: v.number(),
+    }),
+  ),
   /** @deprecated Use agentSlug. Retained for backward compatibility with existing documents. */
   agentId: v.optional(v.id('agentBindings')),
   /** @deprecated Retained for backward compatibility with existing documents. */

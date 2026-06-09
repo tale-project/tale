@@ -60,7 +60,8 @@ function MaskedContent({
  * shimmer layered on top — the base never animates, so the content stays hidden
  * even at the trough of the pulse. The base is inset by a negative 2px so it
  * slightly overhangs the content on every side — anti-aliased glyph/border
- * edges can't peek out from under the mask. It also intercepts pointer events so
+ * edges can't peek out from under the mask — without over-extending enough to
+ * overlap adjacent masks in tight layouts. It also intercepts pointer events so
  * masked controls aren't interactive. When *not* loading the wrapper is
  * `display: contents`, so it
  * adds no box and can't tangle layout — wrap any dynamic value (text, a number,

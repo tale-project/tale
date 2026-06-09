@@ -11,6 +11,7 @@ import { checkBudget } from './budget_enforcement';
 import { resolveFeatureFlags } from './feature_enforcement';
 import { getOrgUsageMetrics as getOrgUsageMetricsHandler } from './get_org_usage_metrics';
 import { getAccessibleModels } from './model_access_enforcement';
+import { readGuardrailsPolicies } from './read_guardrails_policies';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 import {
   SOFT_DELETE_RESOURCE_CONFIG,
@@ -329,13 +330,27 @@ export const getMyFeatureFlags = query({
     });
 
     const teamIds = await getUserTeamIds(ctx, userId);
-    return resolveFeatureFlags(
-      ctx,
-      args.organizationId,
-      userId,
-      teamIds,
-      member.role,
+    const [flags, guardrailPolicies] = await Promise.all([
+      resolveFeatureFlags(
+        ctx,
+        args.organizationId,
+        userId,
+        teamIds,
+        member.role,
+      ),
+      // Whether ANY input guardrail (chat-filter / PII / moderation) policy is
+      // enabled for this org. Lets the chat composer skip the per-send
+      // `precheckInput` action round-trip when there's nothing to check (the
+      // common case) and render + dispatch immediately. Conservative — a
+      // present, non-disabled row counts as active. The server always
+      // re-sanitizes authoritatively, so a stale `false` can never bypass a real
+      // block/mask; it only governs whether the client shows the pre-send toast.
+      readGuardrailsPolicies(ctx, args.organizationId),
+    ]);
+    const inputGuardrailsActive = guardrailPolicies.some(
+      (p) => p !== null && p.enabled !== false,
     );
+    return { ...flags, inputGuardrailsActive };
   },
 });
 

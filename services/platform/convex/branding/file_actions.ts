@@ -1,15 +1,18 @@
 'use node';
 
 /**
- * Branding file I/O actions.
+ * Branding file I/O actions — per organization.
  *
- * Branding is global (not org-scoped). A single branding.json file at
- * {TALE_CONFIG_DIR}/default/branding/branding.json applies to the entire
- * platform. Images (logo, favicons) are stored on disk at
- * {TALE_CONFIG_DIR}/default/branding/images/. Although on-disk files live
- * under the `default` org subtree like every other domain, the read-side
- * here hardcodes `'default'` — non-default orgs do not have separate
- * branding today.
+ * Each org owns a branding.json + images under its own subtree:
+ * {TALE_CONFIG_DIR}/<orgSlug>/branding/{branding.json,images/}. The public
+ * actions take an `organizationId`; the slug is resolved server-side (never
+ * trusted from the client) and used for the on-disk path. Writes require the
+ * caller to hold the `orgSettings` capability in that org — matching the
+ * branding settings page's route gate — so one org's admin can't restyle
+ * another. Reads are display-only (logo/colors/app name) and resolve the slug
+ * without a membership gate to stay off the auth-latency path; omitting
+ * `organizationId` reads the platform `default` bucket, which backs the
+ * pre-auth shell (login page) where no org is in scope yet.
  *
  * Uses atomic writes (temp → fsync → rename) for data safety.
  * History snapshots use epoch-ms filenames with 10-entry retention.
@@ -18,12 +21,14 @@
 import { mkdir, readdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
+import { defineAbilityFor } from '../../lib/permissions/ability';
 import { brandingJsonSchema } from '../../lib/shared/schemas/branding';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { action } from '../_generated/server';
+import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
   atomicWrite,
   atomicWriteBuffer,
@@ -34,11 +39,10 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
-import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
-import { getTrustedAuthData } from '../lib/rls/auth/get_trusted_auth_data';
-import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import type { BrandingJsonConfig, BrandingReadResult } from './file_utils';
 import {
+  buildBrandingImageUrl,
   MAX_FILE_SIZE_BYTES,
   MAX_HISTORY_ENTRIES,
   mimeToExtension,
@@ -53,28 +57,28 @@ import {
 
 const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 
-async function requireBrandingAdmin(ctx: ActionCtx): Promise<void> {
-  const authUser = await getAuthUserIdentity(ctx);
-  if (!authUser) throw new Error('Unauthenticated');
+/** Platform-wide bucket read by the pre-auth shell when no org is in scope. */
+const DEFAULT_ORG_SLUG = 'default';
 
-  const trustedData = await getTrustedAuthData(ctx);
-  // Trusted-headers mode: `trustedRole` is a JWT claim sourced from an
-  // upstream IdP. A user marked as admin in SOME org (or globally)
-  // would previously short-circuit past the per-org membership check
-  // and mutate global branding. Branding is pinned to the `default`
-  // org's admin set, so the trusted-role fast-fail must still defer
-  // to `isCallerAdmin` for the actual membership lookup.
-  if (trustedData && !isAdmin(trustedData.trustedRole)) {
-    throw new Error('Only admins can modify branding');
+/**
+ * Authenticate the caller, verify membership in `organizationId`, and require
+ * the `orgSettings` capability there (the same gate the branding settings page
+ * applies on the client). Returns the resolved slug for the on-disk path.
+ * Throws a `ConvexError` with a stable `code` so the UI can dispatch:
+ * `UNAUTHENTICATED`, `ORG_NOT_FOUND`, or `ORG_FORBIDDEN`.
+ */
+async function requireBrandingAdmin(
+  ctx: ActionCtx,
+  organizationId: string,
+): Promise<{ orgSlug: string }> {
+  const auth = await requireOrgMembershipById(ctx, organizationId);
+  if (defineAbilityFor(auth.member.role).cannot('read', 'orgSettings')) {
+    throw new ConvexError({
+      code: 'ORG_FORBIDDEN',
+      message: `Role "${auth.member.role}" lacks the org-settings capability required to modify branding.`,
+    });
   }
-
-  const isUserAdmin = await ctx.runQuery(
-    internal.branding.internal_queries.isCallerAdmin,
-    { userId: authUser.userId },
-  );
-  if (!isUserAdmin) {
-    throw new Error('Only admins can modify branding');
-  }
+  return { orgSlug: auth.orgSlug };
 }
 
 async function readBrandingFile(orgSlug: string): Promise<BrandingReadResult> {
@@ -88,13 +92,6 @@ async function readBrandingFile(orgSlug: string): Promise<BrandingReadResult> {
     return { ok: true, config: result.data, hash: result.hash };
   }
   return result;
-}
-
-function buildImageUrl(filename: string | undefined): string | null {
-  if (!filename) return null;
-  const siteUrl = (process.env.SITE_URL ?? '').replace(/\/$/, '');
-  const basePath = process.env.BASE_PATH ?? '';
-  return `${siteUrl}${basePath}/branding/images/${filename}`;
 }
 
 interface BrandingResult {
@@ -112,7 +109,11 @@ interface BrandingResult {
 }
 
 export const readBranding = action({
-  args: {},
+  // `organizationId` optional: omitted reads the platform `default` bucket
+  // (pre-auth shell); provided reads that org's branding. Display-only data,
+  // so no membership gate — only the slug resolution, which already validates
+  // the org exists.
+  args: { organizationId: v.optional(v.string()) },
   returns: v.object({
     appName: v.optional(v.string()),
     textLogo: v.optional(v.string()),
@@ -126,8 +127,11 @@ export const readBranding = action({
     faviconDarkFilename: v.optional(v.string()),
     hash: v.string(),
   }),
-  handler: async (ctx): Promise<BrandingResult> => {
-    const fileResult = await readBrandingFile('default');
+  handler: async (ctx, args): Promise<BrandingResult> => {
+    const orgSlug = args.organizationId
+      ? await resolveOrgSlug(ctx, args.organizationId)
+      : DEFAULT_ORG_SLUG;
+    const fileResult = await readBrandingFile(orgSlug);
 
     if (fileResult.ok) {
       const config = fileResult.config;
@@ -136,9 +140,15 @@ export const readBranding = action({
         textLogo: config.textLogo,
         brandColor: config.brandColor,
         accentColor: config.accentColor,
-        logoUrl: buildImageUrl(config.logoFilename),
-        faviconLightUrl: buildImageUrl(config.faviconLightFilename),
-        faviconDarkUrl: buildImageUrl(config.faviconDarkFilename),
+        logoUrl: buildBrandingImageUrl(orgSlug, config.logoFilename),
+        faviconLightUrl: buildBrandingImageUrl(
+          orgSlug,
+          config.faviconLightFilename,
+        ),
+        faviconDarkUrl: buildBrandingImageUrl(
+          orgSlug,
+          config.faviconDarkFilename,
+        ),
         logoFilename: config.logoFilename,
         faviconLightFilename: config.faviconLightFilename,
         faviconDarkFilename: config.faviconDarkFilename,
@@ -146,28 +156,33 @@ export const readBranding = action({
       };
     }
 
-    if (!fileResult.ok && fileResult.error !== 'not_found') {
+    if (fileResult.error !== 'not_found') {
       console.error(
-        '[Branding] Failed to read branding file:',
+        `[Branding] Failed to read branding file for "${orgSlug}":`,
         fileResult.message,
       );
     }
 
-    const legacy = await ctx.runQuery(
-      internal.branding.internal_queries.getLegacyBranding,
-      {},
-    );
-    if (legacy) {
-      return {
-        appName: legacy.appName ?? undefined,
-        textLogo: legacy.textLogo ?? undefined,
-        brandColor: legacy.brandColor ?? undefined,
-        accentColor: legacy.accentColor ?? undefined,
-        logoUrl: legacy.logoUrl,
-        faviconLightUrl: legacy.faviconLightUrl,
-        faviconDarkUrl: legacy.faviconDarkUrl,
-        hash: '',
-      };
+    // The legacy DB-backed branding table predates per-org files and held a
+    // single platform-wide record, so only fall back to it for the default
+    // bucket. A real org with no branding file simply has no custom branding.
+    if (!args.organizationId) {
+      const legacy = await ctx.runQuery(
+        internal.branding.internal_queries.getLegacyBranding,
+        {},
+      );
+      if (legacy) {
+        return {
+          appName: legacy.appName ?? undefined,
+          textLogo: legacy.textLogo ?? undefined,
+          brandColor: legacy.brandColor ?? undefined,
+          accentColor: legacy.accentColor ?? undefined,
+          logoUrl: legacy.logoUrl,
+          faviconLightUrl: legacy.faviconLightUrl,
+          faviconDarkUrl: legacy.faviconDarkUrl,
+          hash: '',
+        };
+      }
     }
 
     return {
@@ -181,6 +196,7 @@ export const readBranding = action({
 
 export const saveBranding = action({
   args: {
+    organizationId: v.string(),
     config: v.object({
       appName: v.optional(v.string()),
       textLogo: v.optional(v.string()),
@@ -193,11 +209,11 @@ export const saveBranding = action({
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    await requireBrandingAdmin(ctx);
+    const { orgSlug } = await requireBrandingAdmin(ctx, args.organizationId);
 
     const config = brandingJsonSchema.parse(args.config);
     const content = serializeBrandingJson(config);
-    const filePath = resolveBrandingFilePath('default');
+    const filePath = resolveBrandingFilePath(orgSlug);
 
     await atomicWrite(filePath, content);
 
@@ -207,13 +223,14 @@ export const saveBranding = action({
 
 export const saveImage = action({
   args: {
+    organizationId: v.string(),
     type: v.string(),
     base64: v.string(),
     mimeType: v.string(),
   },
   returns: v.object({ filename: v.string() }),
   handler: async (ctx, args): Promise<{ filename: string }> => {
-    await requireBrandingAdmin(ctx);
+    const { orgSlug } = await requireBrandingAdmin(ctx, args.organizationId);
 
     if (!validateImageType(args.type)) {
       throw new Error(`Invalid image type: ${args.type}`);
@@ -232,7 +249,7 @@ export const saveImage = action({
     }
 
     const filename = `${args.type}.${ext}`;
-    const imagesDir = resolveImagesDir('default');
+    const imagesDir = resolveImagesDir(orgSlug);
     await mkdir(imagesDir, { recursive: true });
 
     // Remove any existing file for this image type (may have different
@@ -251,7 +268,7 @@ export const saveImage = action({
       }
     }
 
-    const filePath = resolveImagePath('default', filename);
+    const filePath = resolveImagePath(orgSlug, filename);
     await atomicWriteBuffer(filePath, buffer);
 
     return { filename };
@@ -260,17 +277,18 @@ export const saveImage = action({
 
 export const deleteImage = action({
   args: {
+    organizationId: v.string(),
     type: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    await requireBrandingAdmin(ctx);
+    const { orgSlug } = await requireBrandingAdmin(ctx, args.organizationId);
 
     if (!validateImageType(args.type)) {
       throw new Error(`Invalid image type: ${args.type}`);
     }
 
-    const imagesDir = resolveImagesDir('default');
+    const imagesDir = resolveImagesDir(orgSlug);
     try {
       const existing = await readdir(imagesDir);
       for (const entry of existing) {
@@ -289,17 +307,17 @@ export const deleteImage = action({
 });
 
 export const resetBranding = action({
-  args: {},
+  args: { organizationId: v.string() },
   returns: v.null(),
-  handler: async (ctx): Promise<null> => {
-    await requireBrandingAdmin(ctx);
+  handler: async (ctx, args): Promise<null> => {
+    const { orgSlug } = await requireBrandingAdmin(ctx, args.organizationId);
 
-    const filePath = resolveBrandingFilePath('default');
+    const filePath = resolveBrandingFilePath(orgSlug);
     const content = serializeBrandingJson({});
     await atomicWrite(filePath, content);
 
     // Remove all image files
-    const imagesDir = resolveImagesDir('default');
+    const imagesDir = resolveImagesDir(orgSlug);
     try {
       const entries = await readdir(imagesDir);
       await Promise.all(
@@ -325,16 +343,16 @@ export const resetBranding = action({
 });
 
 export const snapshotToHistory = action({
-  args: {},
+  args: { organizationId: v.string() },
   returns: v.union(v.object({ timestamp: v.string() }), v.null()),
-  handler: async (ctx): Promise<{ timestamp: string } | null> => {
-    await requireBrandingAdmin(ctx);
+  handler: async (ctx, args): Promise<{ timestamp: string } | null> => {
+    const { orgSlug } = await requireBrandingAdmin(ctx, args.organizationId);
 
-    const filePath = resolveBrandingFilePath('default');
+    const filePath = resolveBrandingFilePath(orgSlug);
     const currentContent = await readFileSafe(filePath);
     if (!currentContent) return null;
 
-    const historyDir = resolveHistoryDir('default');
+    const historyDir = resolveHistoryDir(orgSlug);
     await mkdir(historyDir, { recursive: true });
 
     const timestamp = generateHistoryTimestamp();

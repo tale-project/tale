@@ -1,15 +1,17 @@
 ---
 title: Bildgenerierung
-description: Bildgenerierung als Agent-Fähigkeit — ein bild-getaggtes Modell wählen, Kosten und wie generierte Bilder in der Antwort auftauchen.
+description: Bildgenerierung als Agent-Fähigkeit — jeder Assistent kann ein Bild inline erstellen, wenn ein Bildmodell konfiguriert ist, wie generierte Bilder auftauchen und was sie kosten.
 ---
 
-Bildgenerierung ist eine Fähigkeit, die ein Agent bekommt, indem er ein bild-getaggtes Modell wählt. Die Antwort des Agents kann generierte Bilder neben dem Text enthalten; der User sieht das Bild inline im Chat, so wie ein Anhang rendert. Diese Seite deckt die Verdrahtung ab.
+Jeder Assistent in Tale kann Bilder generieren. Bitte ihn, etwas zu erstellen, zu zeichnen oder zu gestalten, und er erzeugt das Bild inline — so wie ein Anhang in der Antwort rendert, ohne separaten Modus, in den du erst wechseln musst. Das funktioniert, sobald ein Bildgenerierungs-Modell konfiguriert ist; diese Seite deckt die Verdrahtung ab.
 
 Die Mechanik hängt vom darunter liegenden Provider ab — Qualität, Kosten und Geschwindigkeit variieren stark. Tales Aufgabe ist, die Fähigkeit für den Agent und den User verfügbar zu machen; die Aufgabe des Providers ist, das Bild zu erstellen.
 
-## Das Modell wählen
+## Jeden Assistenten um ein Bild bitten
 
-Im **Instructions & model**-Tab des Agents zeigt der Modell-Picker Modelle mit dem Tag **Image generation**. Wähl eines als sekundäres Modell, und die Tool-Liste des Agents gewinnt ein Bildgenerierungs-Tool; der Agent kann es während einer Antwort aufrufen, wenn das Modell entscheidet, dass der User ein Bild will. Manche Provider zeigen **Image editing** als separates Tag — wähl das, um den Agent ein angehängtes Bild bearbeiten zu lassen, statt eines von Grund auf zu erzeugen.
+Jeder Assistent hat ein Bild-Tool, zu dem er greift, wenn du ihn bittest, ein Bild, Logo oder eine Illustration zu erstellen. Der Assistent ruft das Tool auf, das Bild rendert inline, und sein Text legt sich darum, so wie um einen hochgeladenen Anhang. Weil das Tool bei jedem Assistenten dabei ist, erledigt auch der **Auto**-Assistent eine Bildanfrage — du musst nicht erst einen spezialisierten Agent wählen.
+
+Das Bild stammt vom Bildgenerierungs-Modell der Org — dem, das ein Admin unter [Provider](/de/platform/admin/providers) eingerichtet und mit **Image generation** getaggt hat. Pro Agent gibt es nichts zu konfigurieren. Hat die Org kein solches Modell, sagt dir der Assistent, dass Bildgenerierung nicht verfügbar ist, statt zu raten — so erkennt ein Admin, dass er eines hinzufügen muss.
 
 ## Wie es auftaucht
 
@@ -21,4 +23,4 @@ Bildmodelle kosten pro Aufruf mehr als Textmodelle — manchmal das Zehnfache. D
 
 ## Wo das hineinpasst
 
-Bildgenerierung ist ein zusätzliches Tag am Modell-Picker — der Rest der Form des Agents bleibt gleich. Der Drift-Kandidat hier sind Provider- und Modellnamen; paar diese Seite mit der laufenden Modell-Liste in [Provider](/de/platform/admin/providers), statt dir spezifische Modell-Strings zu merken.
+Bildgenerierung hängt an einer Sache — einem Modell mit dem Tag **Image generation** in der Org — und von da aus kann jeder Assistent ein Bild inline erzeugen, der **Auto**-Assistent eingeschlossen. Der Drift-Kandidat hier sind Provider- und Modellnamen; paar diese Seite mit der laufenden Modell-Liste in [Provider](/de/platform/admin/providers), statt dir spezifische Modell-Strings zu merken.

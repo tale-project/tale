@@ -8,6 +8,7 @@ import { z } from 'zod/v4';
 import { action } from '../../_generated/server';
 import { reasoningProviderOptionsFor } from '../../lib/agent_response/reasoning/build_reasoning_options';
 import { requireOrgMembershipById } from '../../lib/auth/require_org_membership';
+import { renderPrompt } from '../../lib/prompts/registry';
 import { buildCallProviderOptions } from '../../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../../providers/failover';
 
@@ -62,15 +63,7 @@ export const generateCronExpression = action({
             'A short human-readable English description of the schedule',
           ),
       }),
-      system: `You are a cron expression generator. Convert natural language schedule descriptions into standard 5-field cron expressions (minute hour day month weekday).
-
-Rules:
-- Output ONLY valid 5-field cron expressions. Do NOT use 6-field or 7-field formats.
-- The five fields are: minute (0-59), hour (0-23), day of month (1-31), month (1-12), day of week (0-6, where 0=Sunday).
-- Supported special characters: * , - /
-- The description must be a concise English explanation regardless of the input language.
-- If the input is ambiguous, use the most common interpretation.
-- All times are in UTC unless the user specifies otherwise.`,
+      system: renderPrompt('cron.generator'),
       prompt: input,
     });
 

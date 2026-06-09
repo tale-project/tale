@@ -110,14 +110,14 @@ function HumanInputRequestCardComponent({
     }
     setError(null);
     const response = JSON.stringify({ [FEEDBACK_KEY]: feedbackText.trim() });
+    // Optimistic resume signal — see handleSubmit. Fires before the round-trip so
+    // the thinking line shows immediately; visual-only + safety-timeout guarded.
+    if (!isWorkflowContext) {
+      onResponseSubmitted?.();
+    }
     submitResponse(
       { approvalId, response, modelId },
       {
-        onSuccess: () => {
-          if (!isWorkflowContext) {
-            onResponseSubmitted?.();
-          }
-        },
         onError: (err) => {
           setError(
             err instanceof Error ? err.message : tCommon('errorSubmitFailed'),
@@ -189,14 +189,18 @@ function HumanInputRequestCardComponent({
 
     const response = JSON.stringify(formValues);
 
+    // Signal the resume OPTIMISTICALLY — before the mutation round-trip — so the
+    // "Thinking…" line renders the instant the user submits, instead of only
+    // after the server confirms (the round-trip is the visible lag the user
+    // reported). The flag is visual-only and self-clears via its safety timeout
+    // if the submit fails; the server is the authority for actually resuming.
+    if (!isWorkflowContext) {
+      onResponseSubmitted?.();
+    }
+
     submitResponse(
       { approvalId, response, modelId },
       {
-        onSuccess: () => {
-          if (!isWorkflowContext) {
-            onResponseSubmitted?.();
-          }
-        },
         onError: (err) => {
           setError(
             err instanceof Error ? err.message : tCommon('errorSubmitFailed'),

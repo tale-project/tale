@@ -78,6 +78,16 @@ export function useUnarchiveThread() {
   return useConvexMutation(api.threads.mutations.unarchiveChatThread);
 }
 
+/** Soft-delete (move to Trash) every one of the current user's chats. */
+export function useDeleteAllThreads() {
+  return useConvexMutation(api.threads.mutations.deleteAllChatThreads);
+}
+
+/** Archive every one of the current user's active chats. */
+export function useArchiveAllThreads() {
+  return useConvexMutation(api.threads.mutations.archiveAllChatThreads);
+}
+
 export function useUpdateThread() {
   return useConvexMutation(api.threads.mutations.updateChatThread);
 }

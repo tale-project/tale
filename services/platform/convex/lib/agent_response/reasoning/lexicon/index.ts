@@ -11,6 +11,11 @@
  * calls is stateless and safe.
  */
 
+import {
+  buildAnywhereMatcher,
+  buildWholeMessageMatcher,
+  countMatches,
+} from '../../../../../lib/shared/text-matching';
 import { ALL_LEXICONS } from './data';
 import type { ReasoningLexicon } from './types';
 
@@ -20,23 +25,6 @@ type Category =
   | 'creativeVerbs'
   | 'analyticalVerbs'
   | 'trivialAcks';
-
-const NEVER = /(?!)/u;
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/** Longest-first, de-duplicated, escaped alternation source (no flags/anchors). */
-function alternation(terms: Iterable<string>): string {
-  const merged = new Set<string>();
-  for (const t of terms) if (t.length > 0) merged.add(t);
-  if (merged.size === 0) return '';
-  return [...merged]
-    .sort((a, b) => b.length - a.length)
-    .map(escapeRegExp)
-    .join('|');
-}
 
 function termsFor(
   category: Category,
@@ -51,26 +39,22 @@ function termsFor(
 
 /**
  * "Match anywhere in the text" matcher: word-mode terms are wrapped in Unicode
- * word boundaries; substring-mode (CJK) terms match raw.
+ * word boundaries; substring-mode (CJK) terms match raw. Built via the shared
+ * matcher utility so the lexicon and domain detection stay in lockstep.
  */
 function buildAnywhere(category: Category): RegExp {
-  const word = alternation(termsFor(category, 'word'));
-  const sub = alternation(termsFor(category, 'substring'));
-  const parts: string[] = [];
-  if (word) parts.push(`(?<![\\p{L}\\p{N}])(?:${word})(?![\\p{L}\\p{N}])`);
-  if (sub) parts.push(`(?:${sub})`);
-  if (parts.length === 0) return NEVER;
-  return new RegExp(parts.join('|'), 'iu');
+  return buildAnywhereMatcher({
+    wordTerms: termsFor(category, 'word'),
+    substringTerms: termsFor(category, 'substring'),
+  });
 }
 
 /** Whole-message matcher for trivial acks (the entire message is just an ack). */
 function buildTrivial(): RegExp {
-  const all = alternation([
-    ...termsFor('trivialAcks', 'word'),
-    ...termsFor('trivialAcks', 'substring'),
-  ]);
-  if (!all) return NEVER;
-  return new RegExp(`^[\\s\\p{P}]*(?:${all})[\\s\\p{P}]*$`, 'iu');
+  return buildWholeMessageMatcher({
+    wordTerms: termsFor('trivialAcks', 'word'),
+    substringTerms: termsFor('trivialAcks', 'substring'),
+  });
 }
 
 interface Matchers {
@@ -115,7 +99,50 @@ export function matchesAnalyticalVerb(text: string): boolean {
   return matchers().analytical.test(text);
 }
 
-/** True if the whole message is a trivial greeting / acknowledgement. */
+/**
+ * True if the whole message is a trivial greeting / acknowledgement. Still used
+ * by the reasoning governor's difficulty prior ([signals.ts] `W.trivial`) to
+ * keep a bare greeting at the lowest reasoning budget — NOT a routing fast-path
+ * (that small-talk gate was removed).
+ */
 export function matchesTrivialAck(text: string): boolean {
   return matchers().trivial.test(text);
+}
+
+// Graded intent: COUNT matches (not just presence) so two hard verbs read as a
+// stronger signal than one. Separate `g`-flagged clones — the stateless
+// `matches*` regexes deliberately carry no `g` flag (see the file header), so
+// we cannot reuse them for counting without corrupting `lastIndex`.
+interface Counters {
+  hard: RegExp;
+  easy: RegExp;
+  creative: RegExp;
+}
+let gCache: Counters | null = null;
+function counters(): Counters {
+  if (gCache) return gCache;
+  const withG = (r: RegExp): RegExp =>
+    r.flags.includes('g') ? r : new RegExp(r.source, `${r.flags}g`);
+  const m = matchers();
+  gCache = {
+    hard: withG(m.hard),
+    easy: withG(m.easy),
+    creative: withG(m.creative),
+  };
+  return gCache;
+}
+
+/** Count of hard, deliberation-heavy intent cues across all locales. */
+export function countHardVerbs(text: string): number {
+  return countMatches(counters().hard, text);
+}
+
+/** Count of mechanical, low-reasoning intent cues across all locales. */
+export function countEasyVerbs(text: string): number {
+  return countMatches(counters().easy, text);
+}
+
+/** Count of open-ended / generative intent cues across all locales. */
+export function countCreativeVerbs(text: string): number {
+  return countMatches(counters().creative, text);
 }

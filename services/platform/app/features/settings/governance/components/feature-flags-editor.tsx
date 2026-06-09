@@ -26,6 +26,7 @@ import {
   type FeatureFlagRule,
 } from '@/lib/shared/schemas/governance';
 import { formatNumber } from '@/lib/utils/format/number';
+import { structuralEqual } from '@/lib/utils/structural-equal';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -119,9 +120,10 @@ function RuleDialog({
     }
   }, [open, initialRule]);
 
-  const isDirty = useMemo(() => {
-    return JSON.stringify(draft) !== JSON.stringify(initialRule);
-  }, [draft, initialRule]);
+  const isDirty = useMemo(
+    () => !structuralEqual(draft, initialRule),
+    [draft, initialRule],
+  );
 
   const updateDraft = useCallback((patch: Partial<FeatureFlagRule>) => {
     setDraft((prev) => {

@@ -15,6 +15,16 @@
       "displayName": "Claude Opus 4.6",
       "description": "Anthropic's flagship — best for complex reasoning and coding",
       "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "budgetTokens",
+        "minBudgetTokens": 1024
+      },
+      "promptCaching": {
+        "mode": "explicit-breakpoints",
+        "maxBreakpoints": 4
+      },
+      "contextWindow": 200000,
+      "qualityScore": 0.98,
       "cost": {
         "inputCentsPerMillion": 500,
         "outputCentsPerMillion": 2500
@@ -25,6 +35,16 @@
       "displayName": "Claude Sonnet 4.6",
       "description": "Balanced Anthropic model for everyday tasks",
       "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "budgetTokens",
+        "minBudgetTokens": 1024
+      },
+      "promptCaching": {
+        "mode": "explicit-breakpoints",
+        "maxBreakpoints": 4
+      },
+      "contextWindow": 200000,
+      "qualityScore": 0.92,
       "cost": {
         "inputCentsPerMillion": 300,
         "outputCentsPerMillion": 1500
@@ -35,6 +55,15 @@
       "displayName": "Claude Haiku 4.5",
       "description": "Fast, lightweight Anthropic model",
       "tags": ["chat"],
+      "reasoning": {
+        "knob": "none"
+      },
+      "promptCaching": {
+        "mode": "explicit-breakpoints",
+        "maxBreakpoints": 4
+      },
+      "contextWindow": 200000,
+      "qualityScore": 0.8,
       "cost": {
         "inputCentsPerMillion": 100,
         "outputCentsPerMillion": 500
@@ -45,6 +74,15 @@
       "displayName": "GPT-5.2 Pro",
       "description": "OpenAI's most advanced model for the hardest reasoning tasks",
       "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "effort",
+        "supportsMinimal": true
+      },
+      "promptCaching": {
+        "mode": "auto-server"
+      },
+      "contextWindow": 400000,
+      "qualityScore": 0.97,
       "cost": {
         "inputCentsPerMillion": 2100,
         "outputCentsPerMillion": 16800
@@ -55,6 +93,15 @@
       "displayName": "GPT-5.2",
       "description": "OpenAI's flagship general-purpose model",
       "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "effort",
+        "supportsMinimal": true
+      },
+      "promptCaching": {
+        "mode": "auto-server"
+      },
+      "contextWindow": 400000,
+      "qualityScore": 0.95,
       "cost": {
         "inputCentsPerMillion": 175,
         "outputCentsPerMillion": 1400
@@ -65,6 +112,11 @@
       "displayName": "GPT-5.2 Instant",
       "description": "Low-latency GPT-5.2 variant tuned for chat",
       "tags": ["chat"],
+      "promptCaching": {
+        "mode": "auto-server"
+      },
+      "contextWindow": 400000,
+      "qualityScore": 0.85,
       "cost": {
         "inputCentsPerMillion": 175,
         "outputCentsPerMillion": 1400
@@ -75,6 +127,14 @@
       "displayName": "GPT-OSS 120B",
       "description": "OpenAI open-weight MoE (117B / 5.1B active), Apache 2.0, 131K context",
       "tags": ["chat"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "promptCaching": {
+        "mode": "auto-server"
+      },
+      "contextWindow": 131072,
+      "qualityScore": 0.72,
       "cost": {
         "inputCentsPerMillion": 4,
         "outputCentsPerMillion": 18
@@ -85,6 +145,15 @@
       "displayName": "Gemini 3 Pro",
       "description": "Google's most capable Gemini model",
       "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "promptCaching": {
+        "mode": "explicit-breakpoints",
+        "maxBreakpoints": 4
+      },
+      "contextWindow": 1000000,
+      "qualityScore": 0.94,
       "cost": {
         "inputCentsPerMillion": 200,
         "outputCentsPerMillion": 1200
@@ -95,6 +164,15 @@
       "displayName": "Gemini 3 Flash",
       "description": "Fast, efficient Gemini for high-volume use",
       "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "promptCaching": {
+        "mode": "explicit-breakpoints",
+        "maxBreakpoints": 4
+      },
+      "contextWindow": 1000000,
+      "qualityScore": 0.86,
       "cost": {
         "inputCentsPerMillion": 50,
         "outputCentsPerMillion": 300
@@ -105,6 +183,8 @@
       "displayName": "Gemma 4 31B IT",
       "description": "Google open-weight 31B Instruct, multimodal, 262K context",
       "tags": ["chat", "vision"],
+      "contextWindow": 262144,
+      "qualityScore": 0.66,
       "cost": {
         "inputCentsPerMillion": 13,
         "outputCentsPerMillion": 38
@@ -115,6 +195,8 @@
       "displayName": "Gemma 4 26B A4B IT",
       "description": "Smaller Gemma 4 MoE variant, multimodal",
       "tags": ["chat", "vision"],
+      "contextWindow": 131072,
+      "qualityScore": 0.62,
       "cost": {
         "inputCentsPerMillion": 6,
         "outputCentsPerMillion": 33
@@ -135,12 +217,20 @@
       "displayName": "DeepSeek V4 Pro",
       "description": "DeepSeek flagship open-weight MoE, 1M context",
       "tags": ["chat"],
+      "promptCaching": {
+        "mode": "auto-server"
+      },
+      "contextWindow": 131072,
+      "qualityScore": 0.88,
+      "routingTags": ["code"],
       "cost": {
         "inputCentsPerMillion": 44,
         "outputCentsPerMillion": 87
       },
       "providerOptions": {
-        "provider": { "quantizations": ["fp8", "fp4"] }
+        "provider": {
+          "quantizations": ["fp8", "fp4"]
+        }
       }
     },
     {
@@ -148,12 +238,20 @@
       "displayName": "DeepSeek V4 Flash",
       "description": "Efficiency-optimized DeepSeek V4 MoE",
       "tags": ["chat"],
+      "promptCaching": {
+        "mode": "auto-server"
+      },
+      "contextWindow": 131072,
+      "qualityScore": 0.8,
+      "routingTags": ["code"],
       "cost": {
         "inputCentsPerMillion": 14,
         "outputCentsPerMillion": 28
       },
       "providerOptions": {
-        "provider": { "quantizations": ["fp8", "fp4"] }
+        "provider": {
+          "quantizations": ["fp8", "fp4"]
+        }
       }
     },
     {
@@ -161,12 +259,16 @@
       "displayName": "Kimi K2.6",
       "description": "Moonshot K2.6 — multimodal, 262K context",
       "tags": ["chat", "vision"],
+      "contextWindow": 262144,
+      "qualityScore": 0.84,
       "cost": {
         "inputCentsPerMillion": 75,
         "outputCentsPerMillion": 350
       },
       "providerOptions": {
-        "provider": { "quantizations": ["bf16", "fp8", "fp4"] }
+        "provider": {
+          "quantizations": ["bf16", "fp8", "fp4"]
+        }
       }
     },
     {
@@ -174,6 +276,8 @@
       "displayName": "Kimi K2.5",
       "description": "High-performance Moonshot general-purpose model",
       "tags": ["chat"],
+      "contextWindow": 131072,
+      "qualityScore": 0.8,
       "cost": {
         "inputCentsPerMillion": 44,
         "outputCentsPerMillion": 200
@@ -184,12 +288,19 @@
       "displayName": "MiniMax M2.7",
       "description": "MiniMax flagship MoE for agentic coding and reasoning",
       "tags": ["chat"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "contextWindow": 200000,
+      "qualityScore": 0.78,
       "cost": {
         "inputCentsPerMillion": 30,
         "outputCentsPerMillion": 120
       },
       "providerOptions": {
-        "provider": { "quantizations": ["fp8", "fp4"] }
+        "provider": {
+          "quantizations": ["fp8", "fp4"]
+        }
       }
     },
     {
@@ -197,6 +308,11 @@
       "displayName": "NVIDIA Nemotron 3 Super",
       "description": "NVIDIA frontier open-weight reasoning model",
       "tags": ["chat"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "contextWindow": 131072,
+      "qualityScore": 0.76,
       "cost": {
         "inputCentsPerMillion": 9,
         "outputCentsPerMillion": 45
@@ -207,6 +323,11 @@
       "displayName": "Qwen3.6 Max Preview",
       "description": "Alibaba Qwen flagship preview, 262K context",
       "tags": ["chat"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "contextWindow": 262144,
+      "qualityScore": 0.86,
       "cost": {
         "inputCentsPerMillion": 104,
         "outputCentsPerMillion": 624
@@ -217,6 +338,8 @@
       "displayName": "Qwen3.6 Plus",
       "description": "Multimodal Qwen with 1M context",
       "tags": ["chat", "vision"],
+      "contextWindow": 131072,
+      "qualityScore": 0.82,
       "cost": {
         "inputCentsPerMillion": 33,
         "outputCentsPerMillion": 195
@@ -227,6 +350,8 @@
       "displayName": "Qwen3.6 Flash",
       "description": "Fastest Qwen 1M-context variant, multimodal",
       "tags": ["chat", "vision"],
+      "contextWindow": 131072,
+      "qualityScore": 0.74,
       "cost": {
         "inputCentsPerMillion": 25,
         "outputCentsPerMillion": 150
@@ -237,6 +362,8 @@
       "displayName": "Qwen3.6 35B A3B",
       "description": "Compact Qwen3.6 MoE, multimodal",
       "tags": ["chat", "vision"],
+      "contextWindow": 131072,
+      "qualityScore": 0.72,
       "cost": {
         "inputCentsPerMillion": 15,
         "outputCentsPerMillion": 100
@@ -247,12 +374,19 @@
       "displayName": "Qwen3.5 397B A17B",
       "description": "Qwen3.5 large open-weight MoE (397B / 17B active)",
       "tags": ["chat"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "contextWindow": 262144,
+      "qualityScore": 0.84,
       "cost": {
         "inputCentsPerMillion": 39,
         "outputCentsPerMillion": 234
       },
       "providerOptions": {
-        "provider": { "quantizations": ["fp8", "fp4"] }
+        "provider": {
+          "quantizations": ["fp8", "fp4"]
+        }
       }
     },
     {
@@ -260,6 +394,9 @@
       "displayName": "Qwen3 Coder 480B",
       "description": "Qwen3-Coder MoE (480B / 35B active) tuned for agentic coding, 262K context",
       "tags": ["chat"],
+      "contextWindow": 262144,
+      "qualityScore": 0.8,
+      "routingTags": ["code"],
       "cost": {
         "inputCentsPerMillion": 22,
         "outputCentsPerMillion": 180
@@ -270,6 +407,11 @@
       "displayName": "Qwen3 235B A22B",
       "description": "Qwen3 open-weight MoE (235B / 22B active), 262K context",
       "tags": ["chat"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "contextWindow": 131072,
+      "qualityScore": 0.78,
       "cost": {
         "inputCentsPerMillion": 7,
         "outputCentsPerMillion": 10
@@ -280,6 +422,8 @@
       "displayName": "Qwen3 VL 32B",
       "description": "Qwen vision-language model for image understanding",
       "tags": ["chat", "vision"],
+      "contextWindow": 131072,
+      "qualityScore": 0.74,
       "cost": {
         "inputCentsPerMillion": 10,
         "outputCentsPerMillion": 42
@@ -301,12 +445,19 @@
       "displayName": "GLM 5.1",
       "description": "Z.ai GLM 5.1 flagship, 202K context",
       "tags": ["chat"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "contextWindow": 200000,
+      "qualityScore": 0.84,
       "cost": {
         "inputCentsPerMillion": 105,
         "outputCentsPerMillion": 350
       },
       "providerOptions": {
-        "provider": { "quantizations": ["fp8", "fp4"] }
+        "provider": {
+          "quantizations": ["fp8", "fp4"]
+        }
       }
     },
     {
@@ -314,6 +465,8 @@
       "displayName": "GLM 5 Turbo",
       "description": "Fast 202K-context Z.ai GLM 5",
       "tags": ["chat"],
+      "contextWindow": 131072,
+      "qualityScore": 0.78,
       "cost": {
         "inputCentsPerMillion": 120,
         "outputCentsPerMillion": 400
@@ -324,6 +477,8 @@
       "displayName": "GLM 5V Turbo",
       "description": "Multimodal Z.ai GLM 5 Turbo",
       "tags": ["chat", "vision"],
+      "contextWindow": 131072,
+      "qualityScore": 0.76,
       "cost": {
         "inputCentsPerMillion": 120,
         "outputCentsPerMillion": 400
@@ -335,6 +490,8 @@
       "description": "Mistral's flagship large model",
       "tags": ["chat"],
       "maxOutputTokens": 8192,
+      "contextWindow": 131072,
+      "qualityScore": 0.8,
       "cost": {
         "inputCentsPerMillion": 50,
         "outputCentsPerMillion": 150
@@ -346,6 +503,8 @@
       "description": "Mid-tier Mistral for general tasks",
       "tags": ["chat"],
       "maxOutputTokens": 8192,
+      "contextWindow": 131072,
+      "qualityScore": 0.74,
       "cost": {
         "inputCentsPerMillion": 40,
         "outputCentsPerMillion": 200
@@ -356,12 +515,19 @@
       "displayName": "MiMo V2.5 Pro",
       "description": "Xiaomi MiMo flagship reasoning model",
       "tags": ["chat"],
+      "reasoning": {
+        "knob": "effort"
+      },
+      "contextWindow": 131072,
+      "qualityScore": 0.72,
       "cost": {
         "inputCentsPerMillion": 100,
         "outputCentsPerMillion": 300
       },
       "providerOptions": {
-        "provider": { "quantizations": ["fp8"] }
+        "provider": {
+          "quantizations": ["fp8"]
+        }
       }
     },
     {
@@ -369,6 +535,8 @@
       "displayName": "LLaMA 4 Maverick",
       "description": "Meta's powerful open-source LLM",
       "tags": ["chat"],
+      "contextWindow": 1000000,
+      "qualityScore": 0.78,
       "cost": {
         "inputCentsPerMillion": 15,
         "outputCentsPerMillion": 60
@@ -379,6 +547,8 @@
       "displayName": "LLaMA 4 Scout",
       "description": "Meta's efficient open-source LLM",
       "tags": ["chat"],
+      "contextWindow": 1000000,
+      "qualityScore": 0.7,
       "cost": {
         "inputCentsPerMillion": 8,
         "outputCentsPerMillion": 30

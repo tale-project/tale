@@ -10,6 +10,7 @@ import { Agent } from '@convex-dev/agent';
 
 import { components } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { renderPrompt } from '../../../lib/prompts/registry';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[VisionAgent]');
 
@@ -26,11 +27,7 @@ export function createVisionAgent(languageModel: LanguageModelV3): Agent {
   return new Agent(components.agent, {
     name: 'vision-analyzer',
     languageModel,
-    instructions: `You are a vision AI that analyzes images and extracts information from them.
-
-Extract and transcribe visible text content accurately. Be specific - provide actual information visible, not just general descriptions.
-
-Answer the user's question thoroughly with the specific content from the image.`,
+    instructions: renderPrompt('vision.analyzer'),
     // Cap output to ensure the model has room to respond without OpenRouter's
     // low default truncating mid-answer.
     callSettings: { maxOutputTokens: 8192 },

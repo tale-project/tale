@@ -20,6 +20,7 @@ import {
   sanitizeMessage,
 } from '../governance/sanitize';
 import { buildReasoningOptions } from '../lib/agent_response/reasoning/build_reasoning_options';
+import { reasoningScopeKey } from '../lib/agent_response/reasoning/scope';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
@@ -38,19 +39,10 @@ function mapToolChoice(
     if (openaiChoice === 'none') return 'none';
     return 'auto';
   }
-  if (
-    typeof openaiChoice === 'object' &&
-    openaiChoice !== null &&
-    'type' in openaiChoice &&
-    (openaiChoice as Record<string, unknown>).type === 'function' &&
-    'function' in openaiChoice
-  ) {
-    const fn = (openaiChoice as Record<string, unknown>).function;
-    if (typeof fn === 'object' && fn !== null && 'name' in fn) {
-      return {
-        type: 'tool',
-        toolName: String((fn as Record<string, unknown>).name),
-      };
+  if (isRecord(openaiChoice) && openaiChoice.type === 'function') {
+    const fn = openaiChoice.function;
+    if (isRecord(fn) && 'name' in fn) {
+      return { type: 'tool', toolName: String(fn.name) };
     }
   }
   return 'auto';
@@ -248,7 +240,8 @@ export const chatDirectModel = internalAction({
     const reasoningProfile = await ctx
       .runQuery(internal.threads.internal_queries.getReasoningProfile, {
         organizationId: args.organizationId,
-        scopeKey: resolved.modelData.modelId,
+        // Stateless API turns share the 'chat' agent-type scope.
+        scopeKey: reasoningScopeKey(resolved.modelData.modelId),
       })
       .catch(() => null);
     const reasoningDecision = buildReasoningOptions({

@@ -1,5 +1,7 @@
 import { useUIMessages } from '@convex-dev/agent/react';
-import { useMemo } from 'react';
+import type { FunctionReturnType } from 'convex/server';
+import { createContext, createElement, useContext, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useListAgents } from '@/app/features/agents/hooks/queries';
@@ -24,6 +26,8 @@ import type {
 } from '@/lib/shared/schemas/approvals';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { isRecord } from '@/lib/utils/type-guards';
+
+import type { RouteReason } from '../utils/route-reason';
 
 export interface Thread {
   _id: string;
@@ -132,6 +136,18 @@ export function useArchivedThreads({
     isLoadingMore: status === 'LoadingMore',
     loadMore: () => loadMore(THREADS_PAGE_SIZE),
   };
+}
+
+/**
+ * Count the current user's chats by lifecycle state for the given org. Powers
+ * the "manage all my chats" settings section (how many a bulk archive/delete
+ * would touch, and whether the actions should be enabled).
+ */
+export function useChatCounts(organizationId?: string | null) {
+  return useConvexQuery(
+    api.threads.queries.countMyChats,
+    organizationId ? { organizationId } : {},
+  );
 }
 
 export interface ComposerModeMeta {
@@ -623,8 +639,11 @@ export interface StructuredCitation {
 export interface MessageMetadata {
   model: string;
   provider: string;
-  /** Owning assistant slug — used by the dev TTFT probe to reproduce its tools. */
+  /** Agent that answered (the concrete agent the Auto router resolved to, or a
+   *  pinned agent). Also used by the dev TTFT probe to reproduce its tools. */
   agentSlug?: string;
+  /** Why the Auto router chose `agentSlug`; absent when the user pinned the agent. */
+  autoRouteReason?: RouteReason;
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
@@ -637,6 +656,10 @@ export interface MessageMetadata {
   timeToFirstReasoningMs?: number;
   /** Send-relative time to the first user-visible token (reasoning or content). */
   timeFromSendMs?: number;
+  /** Pre-answer wall-clock the user waited, INCLUDING Auto-routing latency
+   *  (markGenerating → first answer token). Preferred over timeToFirstTokenMs
+   *  for the "Thought for Ns" summary so it matches the live timer. */
+  thinkingDurationMs?: number;
   toolsUsage?: ToolUsage[];
   contextWindow?: string;
   contextStats?: ContextStats;
@@ -653,43 +676,203 @@ export function useMessageError(threadId: string | null) {
   return data ?? null;
 }
 
+/**
+ * Raw metadata row as returned by the Convex `getMessageMetadata` /
+ * `getThreadMessageMetadata` queries (non-null variant). Derived from the
+ * generated return type so the per-message and batched paths stay in lockstep
+ * with the `messageMetadataValidator` shape.
+ */
+type RawMessageMetadataRow = NonNullable<
+  FunctionReturnType<typeof api.message_metadata.queries.getMessageMetadata>
+>;
+
+/** Projected shape the chat UI consumes (incl. guardrails `blockedReason`). */
+type ProjectedMessageMetadata = MessageMetadata & {
+  /**
+   * Guardrails pipeline flags: set when chat_filter / PII /
+   * moderation_provider blocked the message. `message-bubble` swaps to
+   * <BlockedNotice/> before rendering any content block (text, reasoning,
+   * tools) when this is present.
+   */
+  blockedReason?: RawMessageMetadataRow['blockedReason'];
+};
+
+/**
+ * Single source of truth for the per-message → projected metadata mapping.
+ * Both the per-message subscription (`useMessageMetadata`) and the batched
+ * thread subscription (`useThreadMessageMetadata`) project through this so the
+ * returned object shape is byte-identical regardless of which path supplied
+ * the row — callers depend on every field below (agentSlug, autoRouteReason,
+ * blockedReason, …).
+ */
+function projectMessageMetadata(
+  metadata: RawMessageMetadataRow,
+): ProjectedMessageMetadata {
+  return {
+    model: metadata.model,
+    provider: metadata.provider,
+    agentSlug: metadata.agentSlug,
+    autoRouteReason: metadata.autoRouteReason,
+    inputTokens: metadata.inputTokens,
+    outputTokens: metadata.outputTokens,
+    totalTokens: metadata.totalTokens,
+    reasoningTokens: metadata.reasoningTokens,
+    cachedInputTokens: metadata.cachedInputTokens,
+    reasoning: metadata.reasoning,
+    durationMs: metadata.durationMs,
+    timeToFirstTokenMs: metadata.timeToFirstTokenMs,
+    timeToFirstReasoningMs: metadata.timeToFirstReasoningMs,
+    timeFromSendMs: metadata.timeFromSendMs,
+    thinkingDurationMs: metadata.thinkingDurationMs,
+    toolsUsage: metadata.toolsUsage ?? metadata.subAgentUsage,
+    contextWindow: metadata.contextWindow,
+    contextStats: metadata.contextStats,
+    costEstimateCents: metadata.costEstimateCents,
+    citations: metadata.citations,
+    blockedReason: metadata.blockedReason,
+  };
+}
+
+/**
+ * Shared, batched metadata for a whole thread. When a `ThreadMessageMetadata`
+ * provider is mounted above the message list, `useMessageMetadata` reads each
+ * row from this map instead of opening its own per-message subscription —
+ * collapsing N subscriptions (one per assistant bubble) into one thread-level
+ * subscription. `null` (the default) means no provider is mounted, so every
+ * `useMessageMetadata` transparently falls back to its per-message query.
+ */
+interface ThreadMessageMetadataValue {
+  /** messageId → projected metadata for rows present in the batched result. */
+  byMessageId: Map<string, ProjectedMessageMetadata>;
+  /** True while the batched thread subscription's first result is pending. */
+  isLoading: boolean;
+}
+
+const ThreadMessageMetadataContext =
+  createContext<ThreadMessageMetadataValue | null>(null);
+
+/** The in-flight turn's resolved Auto route, surfaced to descendant bubbles so a
+ *  STREAMING assistant bubble can show "Routed to X" the moment routing resolves
+ *  — the persisted `metadata.autoRouteReason` only lands at turn completion. */
+export interface ThreadLiveRoute {
+  agentName: string;
+  reason: RouteReason;
+}
+
+const ThreadLiveRouteContext = createContext<ThreadLiveRoute | null>(null);
+
+export function useThreadLiveRoute(): ThreadLiveRoute | null {
+  return useContext(ThreadLiveRouteContext);
+}
+
+/** The in-flight turn's server start (`generationStartTime`, stamped at
+ *  markGenerating BEFORE Auto routing). The authoritative anchor for the live
+ *  "Thinking · Ns" timer — identical across the gap-shell→bubble handoff and
+ *  the new-chat remount, so the timer never resets. `null` on idle threads. */
+const ThreadGenerationStartContext = createContext<number | null>(null);
+
+export function useThreadGenerationStart(): number | null {
+  return useContext(ThreadGenerationStartContext);
+}
+
+/**
+ * Subscribe once to ALL metadata rows for `threadId` and expose them as a
+ * `messageId → projected metadata` map for the provider below. Mount this near
+ * the message list; individual bubbles then read via `useMessageMetadata`
+ * without each opening their own subscription.
+ */
+function useThreadMessageMetadata(
+  threadId: string | null,
+): ThreadMessageMetadataValue {
+  const { data: rows, isLoading } = useConvexQuery(
+    api.message_metadata.queries.getThreadMessageMetadata,
+    threadId ? { threadId } : 'skip',
+  );
+
+  return useMemo(() => {
+    const byMessageId = new Map<string, ProjectedMessageMetadata>();
+    if (rows) {
+      for (const row of rows) {
+        byMessageId.set(row.messageId, projectMessageMetadata(row));
+      }
+    }
+    return { byMessageId, isLoading };
+  }, [rows, isLoading]);
+}
+
+/**
+ * Provides a batched, thread-level metadata map to descendant `MessageBubble`s.
+ * When present, per-bubble `useMessageMetadata` calls resolve from the shared
+ * map (one subscription for the whole thread) and only fall back to a
+ * per-message subscription for rows not yet in the batch (e.g. the just-created
+ * row for a streaming turn, or the error-path id mismatch the per-message query
+ * resolves via its `by_threadId` fallback).
+ */
+export function ThreadMessageMetadataProvider({
+  threadId,
+  liveRoute = null,
+  generationStartMs = null,
+  children,
+}: {
+  threadId: string | null;
+  /** The in-flight turn's resolved Auto route (slug→display-name mapped by the
+   *  caller), exposed to streaming bubbles via `useThreadLiveRoute`. */
+  liveRoute?: ThreadLiveRoute | null;
+  /** The in-flight turn's server start, exposed to bubbles via
+   *  `useThreadGenerationStart` so the in-bubble timeline anchors its live timer
+   *  to the same clock as the gap shell (no reset across the handoff). */
+  generationStartMs?: number | null;
+  children: ReactNode;
+}) {
+  const value = useThreadMessageMetadata(threadId);
+  // `createElement` (not JSX) so this hooks module stays a `.ts` file — the
+  // provider is a thin convenience wrapper around the contexts + hook above.
+  return createElement(
+    ThreadMessageMetadataContext.Provider,
+    { value },
+    createElement(
+      ThreadLiveRouteContext.Provider,
+      { value: liveRoute },
+      createElement(
+        ThreadGenerationStartContext.Provider,
+        { value: generationStartMs },
+        children,
+      ),
+    ),
+  );
+}
+
 export function useMessageMetadata(
   messageId: string | null,
   threadId?: string | null,
 ) {
+  // Shared batched map (present only when a ThreadMessageMetadataProvider is
+  // mounted). When it already holds this message's row we skip opening a
+  // per-message subscription entirely.
+  const shared = useContext(ThreadMessageMetadataContext);
+  const sharedMetadata =
+    messageId && shared ? shared.byMessageId.get(messageId) : undefined;
+  const hasShared = sharedMetadata !== undefined;
+
+  // Per-message fallback. Gated to 'skip' whenever the shared map already
+  // satisfied the read — this is the subscription-count win. Also preserves
+  // the original behavior 1:1 when no provider is mounted (shared === null).
   const { data: metadata, isLoading } = useConvexQuery(
     api.message_metadata.queries.getMessageMetadata,
-    messageId ? { messageId, ...(threadId ? { threadId } : {}) } : 'skip',
+    messageId && !hasShared
+      ? { messageId, ...(threadId ? { threadId } : {}) }
+      : 'skip',
   );
 
+  if (hasShared) {
+    return { metadata: sharedMetadata, isLoading: false };
+  }
+
   return {
-    metadata: metadata
-      ? {
-          model: metadata.model,
-          provider: metadata.provider,
-          agentSlug: metadata.agentSlug,
-          inputTokens: metadata.inputTokens,
-          outputTokens: metadata.outputTokens,
-          totalTokens: metadata.totalTokens,
-          reasoningTokens: metadata.reasoningTokens,
-          cachedInputTokens: metadata.cachedInputTokens,
-          reasoning: metadata.reasoning,
-          durationMs: metadata.durationMs,
-          timeToFirstTokenMs: metadata.timeToFirstTokenMs,
-          timeToFirstReasoningMs: metadata.timeToFirstReasoningMs,
-          timeFromSendMs: metadata.timeFromSendMs,
-          toolsUsage: metadata.toolsUsage ?? metadata.subAgentUsage,
-          contextWindow: metadata.contextWindow,
-          contextStats: metadata.contextStats,
-          costEstimateCents: metadata.costEstimateCents,
-          citations: metadata.citations,
-          // Guardrails pipeline flags: set when chat_filter / PII /
-          // moderation_provider blocked the message. `message-bubble`
-          // swaps to <BlockedNotice/> before rendering any content
-          // block (text, reasoning, tools) when this is present.
-          blockedReason: metadata.blockedReason,
-        }
-      : undefined,
-    isLoading,
+    metadata: metadata ? projectMessageMetadata(metadata) : undefined,
+    // While a provider is mounted but this row hasn't landed in the batch yet,
+    // surface the batch's loading state so a bubble doesn't flash "loaded with
+    // no metadata" before the thread subscription's first result arrives.
+    isLoading: shared ? shared.isLoading || isLoading : isLoading,
   };
 }

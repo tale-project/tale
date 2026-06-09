@@ -11,6 +11,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { Controller } from 'react-hook-form';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import {
@@ -51,6 +52,7 @@ interface BrandingData {
 }
 
 interface BrandingFormProps {
+  organizationId: string;
   branding?: BrandingData;
   onPreviewChange: (data: BrandingPreviewData) => void;
   onSaved?: () => void;
@@ -71,6 +73,7 @@ function MaskWhileLoading({ children }: { children: ReactNode }) {
 }
 
 export function BrandingForm({
+  organizationId,
   branding,
   onPreviewChange,
   onSaved,
@@ -111,9 +114,9 @@ export function BrandingForm({
         };
         // Snapshot the prior baseline AFTER save succeeds (fix to inherited
         // snapshot-then-save bug). Best-effort; failure is non-fatal.
-        await saveBranding.mutateAsync({ config });
+        await saveBranding.mutateAsync({ organizationId, config });
         snapshotHistory
-          .mutateAsync({})
+          .mutateAsync({ organizationId })
           .catch((e) => console.warn('[branding history snapshot]', e));
         onSaved?.();
         void refetchBranding();
@@ -129,7 +132,15 @@ export function BrandingForm({
         throw err;
       }
     },
-    [onSaved, refetchBranding, saveBranding, snapshotHistory, toast, tToast],
+    [
+      organizationId,
+      onSaved,
+      refetchBranding,
+      saveBranding,
+      snapshotHistory,
+      toast,
+      tToast,
+    ],
   );
 
   const editor = useFormEditor<BrandingFormData>({
@@ -141,7 +152,7 @@ export function BrandingForm({
   useRegisterActiveEditor(editor);
 
   const {
-    form: { handleSubmit, register, watch, setValue, formState },
+    form: { handleSubmit, register, watch, setValue, control, formState },
   } = editor;
 
   const watchedValues = watch();
@@ -172,20 +183,6 @@ export function BrandingForm({
     onPreviewChange,
   ]);
 
-  const handleBrandColorChange = useCallback(
-    (value: string) => {
-      setValue('brandColor', value, { shouldDirty: true });
-    },
-    [setValue],
-  );
-
-  const handleAccentColorChange = useCallback(
-    (value: string) => {
-      setValue('accentColor', value, { shouldDirty: true });
-    },
-    [setValue],
-  );
-
   // Clear branding wipes the form fields AND deletes the uploaded image
   // blobs. Distinct from the per-row Discard which only reverts unsaved
   // edits — clearing is a destructive, server-mutating action.
@@ -200,11 +197,15 @@ export function BrandingForm({
     setValue('faviconDarkFilename', '', opts);
 
     await Promise.all([
-      deleteImage.mutateAsync({ type: 'logo' }),
-      deleteImage.mutateAsync({ type: 'favicon-light' }),
-      deleteImage.mutateAsync({ type: 'favicon-dark' }),
-    ]).catch(() => {});
-  }, [setValue, deleteImage]);
+      deleteImage.mutateAsync({ organizationId, type: 'logo' }),
+      deleteImage.mutateAsync({ organizationId, type: 'favicon-light' }),
+      deleteImage.mutateAsync({ organizationId, type: 'favicon-dark' }),
+    ]).catch((err) => {
+      // Non-fatal: the form fields are already cleared and will be persisted on
+      // the next save; surface the blob-deletion failure rather than swallow it.
+      console.warn('[branding] failed to delete image blobs on clear', err);
+    });
+  }, [organizationId, setValue, deleteImage]);
 
   const hasAnyBranding =
     !!branding?.appName ||
@@ -251,6 +252,7 @@ export function BrandingForm({
           >
             <MaskWhileLoading>
               <ImageUploadField
+                organizationId={organizationId}
                 currentUrl={branding?.logoUrl}
                 imageType="logo"
                 onUpload={(filename) => {
@@ -273,6 +275,7 @@ export function BrandingForm({
             <HStack gap={2}>
               <MaskWhileLoading>
                 <ImageUploadField
+                  organizationId={organizationId}
                   currentUrl={branding?.faviconLightUrl}
                   imageType="favicon-light"
                   onUpload={(filename) => {
@@ -292,6 +295,7 @@ export function BrandingForm({
               </MaskWhileLoading>
               <MaskWhileLoading>
                 <ImageUploadField
+                  organizationId={organizationId}
                   currentUrl={branding?.faviconDarkUrl}
                   imageType="favicon-dark"
                   onUpload={(filename) => {
@@ -311,18 +315,33 @@ export function BrandingForm({
             </HStack>
           </SettingsRow>
 
-          <ColorPickerInput
-            id="branding-brand-color"
-            value={watchedValues.brandColor || '#000000'}
-            onChange={handleBrandColorChange}
-            label={t('branding.brandColor')}
+          {/* Controlled via RHF `Controller` so dirty tracking is automatic —
+              the field registers itself and `field.onChange` marks it dirty,
+              so there's no `setValue(..., { shouldDirty })` to forget. */}
+          <Controller
+            control={control}
+            name="brandColor"
+            render={({ field }) => (
+              <ColorPickerInput
+                id="branding-brand-color"
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                label={t('branding.brandColor')}
+              />
+            )}
           />
 
-          <ColorPickerInput
-            id="branding-accent-color"
-            value={watchedValues.accentColor || '#000000'}
-            onChange={handleAccentColorChange}
-            label={t('branding.accentColor')}
+          <Controller
+            control={control}
+            name="accentColor"
+            render={({ field }) => (
+              <ColorPickerInput
+                id="branding-accent-color"
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                label={t('branding.accentColor')}
+              />
+            )}
           />
         </FormSection>
 

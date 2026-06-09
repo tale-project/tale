@@ -27,8 +27,8 @@ import {
   useUpdateApprovalStatus,
 } from '@/app/features/chat/hooks/mutations';
 import { useAuth } from '@/app/hooks/use-convex-auth';
-import { Id } from '@/convex/_generated/dataModel';
-import { IntegrationOperationMetadata } from '@/convex/approvals/types';
+import type { Id } from '@/convex/_generated/dataModel';
+import type { IntegrationOperationMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

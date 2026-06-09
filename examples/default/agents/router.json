@@ -1,0 +1,16 @@
+{
+  "displayName": "Auto Router",
+  "description": "System agent that routes each message to the best assistant. Not user-configurable.",
+  "isRouter": true,
+  "uiConfigurable": false,
+  "visibleInChat": false,
+  "personalizationMode": "off",
+  "maxSteps": 1,
+  "timeoutMs": 8000,
+  "supportedModels": [
+    "openrouter:anthropic/claude-haiku-4.5",
+    "openrouter:google/gemini-3-flash-preview",
+    "openrouter:openai/gpt-oss-120b",
+    "openrouter:deepseek/deepseek-v4-flash"
+  ]
+}

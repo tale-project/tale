@@ -25,6 +25,7 @@ import { formatNumber } from '@/lib/utils/format/number';
 import { formatRelativeTime } from '@/lib/utils/format/relative-time';
 
 import type { MessageMetadata, ToolUsage } from '../hooks/queries';
+import { routeReasonLabel } from '../utils/route-reason';
 
 function formatCostDollars(cents: number): string {
   const dollars = cents / 100;
@@ -474,6 +475,9 @@ interface MessageInfoDialogProps {
   organizationId?: string;
   /** User message that produced this reply — pre-fills the direct-TTFT probe. */
   precedingUserText?: string;
+  /** Display name of the Auto-routed agent (resolved by the caller), shown in
+   *  the Routing field when `metadata.autoRouteReason` is set. */
+  routedAgentName?: string;
 }
 
 export function MessageInfoDialog({
@@ -485,6 +489,7 @@ export function MessageInfoDialog({
   metadata,
   organizationId,
   precedingUserText,
+  routedAgentName,
 }: MessageInfoDialogProps) {
   const { formatDate, locale } = useFormatDate();
   const { t } = useT('chat');
@@ -763,6 +768,19 @@ export function MessageInfoDialog({
                   )}
                 </div>
               </Field>
+
+              {metadata.autoRouteReason && (
+                <Field label={t('messageInfo.routing')}>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline">
+                      {routedAgentName ?? metadata.agentSlug}
+                    </Badge>
+                    <Text as="span" variant="muted" className="text-xs">
+                      {routeReasonLabel(t, metadata.autoRouteReason)}
+                    </Text>
+                  </div>
+                </Field>
+              )}
 
               {tokenItems.length > 0 && (
                 <Field label={t('messageInfo.tokenUsage')}>

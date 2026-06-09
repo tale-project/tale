@@ -73,8 +73,14 @@ const DEFAULT_CONFIG = {
    *  ahead of the reveal (see streamingBufferTargetChars/streamingCPSMax) and
    *  during drain. */
   targetCPS: 40,
-  /** Characters to buffer before starting reveal */
-  initialBufferChars: 30,
+  /** Characters to buffer before starting the reveal. This is the dominant
+   *  PERCEIVED-TTFT lever: nothing is shown until this many characters have
+   *  accumulated. The backend flushes deltas in ~250 ms throttled bursts (often
+   *  20-80 chars each), so a threshold of 30 could force a wait for the SECOND
+   *  burst (~+250 ms) whenever the first burst lands at 12-29 chars. 12 lets the
+   *  first burst start the reveal immediately; the EMA catch-up ramp below still
+   *  smooths the first second, so the lower reservoir doesn't read as choppy. */
+  initialBufferChars: 12,
   /** Max chars scanned past a chunk while extending through an ambiguous
    *  markdown prefix (partial fences/rules) before giving up and holding.
    *  Bounds the per-tick line-buffer extension. */

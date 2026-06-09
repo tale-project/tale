@@ -1,6 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { invalidateSkillContextCache } from './skill_context_cache';
 import { buildSkillContext } from './skills_runtime';
+
+// `buildSkillContext` memoizes per (orgSlug, boundSlugs) in a module-level
+// cache; in tests the disk-mtime key is stable, so a snapshot cached by one
+// case (e.g. the empty snapshot from a simulated list failure) would otherwise
+// leak into the next case under the same key. Clear it before each test.
+beforeEach(() => {
+  invalidateSkillContextCache('org');
+});
 
 function makeOkRead(
   slug: string,
@@ -86,15 +95,18 @@ describe('buildSkillContext binding gate', () => {
     expect(Object.keys(snap.builtInTools)).toEqual([]);
   });
 
-  it('propagates the rejection when the list call throws', async () => {
-    // Silent fall-through to an empty snapshot hides real failures from
-    // the operator and contradicts the hard-allowlist promise — match
-    // the behavior of sibling builders (integrations / workflows / mcp)
-    // and let the turn fail loudly.
+  it('degrades to the empty snapshot when the list call throws', async () => {
+    // Skills are an enhancement layer: a transient failure listing them
+    // (action timeout, backend InternalServerError during a hot redeploy)
+    // must never abort the user's chat turn — degrade to no skills, mirroring
+    // the per-skill read fallback below.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const ctx = makeCtx({ listResult: new Error('boom') });
-    await expect(buildSkillContext(ctx, 'org', ['foo'])).rejects.toThrow(
-      'boom',
-    );
+    const snap = await buildSkillContext(ctx, 'org', ['foo']);
+    expect(snap.entries).toEqual([]);
+    expect(Object.keys(snap.builtInTools)).toEqual([]);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('injects "before reaching for a generic tool" guidance into systemPromptAppend', async () => {

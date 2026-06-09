@@ -18,6 +18,7 @@ import { fileEditTool } from './files/file_edit_tool';
 import { fileListTool } from './files/file_list_tool';
 import { fileReadTool } from './files/file_read_tool';
 import { fileWriteTool } from './files/file_write_tool';
+import { generateImageTool } from './files/generate_image_tool';
 import { imageTool } from './files/image_tool';
 import { pdfTool } from './files/pdf_tool';
 import { textTool } from './files/text_tool';
@@ -72,6 +73,7 @@ export const TOOL_REGISTRY = [
   excelTool,
   pdfTool,
   imageTool,
+  generateImageTool,
   docxTool,
   textTool,
   integrationTool,

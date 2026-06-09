@@ -45,6 +45,12 @@ interface ResolvedLanguageModel {
   modelData: ResolvedModelData;
 }
 
+interface FailoverAttempt {
+  modelId?: string;
+  providerName?: string;
+  tag?: string;
+}
+
 /**
  * Resolve a language model with automatic failover when the circuit breaker
  * indicates the primary model is unavailable.
@@ -59,11 +65,7 @@ export async function resolveLanguageModelWithFallback(
   ctx: ActionCtx,
   params: FailoverParams,
 ): Promise<ResolvedLanguageModel> {
-  const attempts: Array<{
-    modelId?: string;
-    providerName?: string;
-    tag?: string;
-  }> = [];
+  const attempts: FailoverAttempt[] = [];
 
   // Helper: skip an explicit `(provider, modelId)` attempt when its
   // circuit is open. Tag-only attempts can't be filtered up front
@@ -71,13 +73,10 @@ export async function resolveLanguageModelWithFallback(
   // those we fall through and let the resolver pick a model — the
   // generation-side `recordFailure` callers (generate_response,
   // agent_chat, workflow LLM nodes) will track that tuple's failures.
-  const pushIfClosed = (a: {
-    modelId?: string;
-    providerName?: string;
-    tag?: string;
-  }) => {
-    if (a.modelId && isOpen(a.providerName ?? '', a.modelId)) return;
-    attempts.push(a);
+  const pushIfClosed = (attempt: FailoverAttempt) => {
+    if (attempt.modelId && isOpen(attempt.providerName ?? '', attempt.modelId))
+      return;
+    attempts.push(attempt);
   };
 
   // Attempt 1: primary model
@@ -116,16 +115,16 @@ export async function resolveLanguageModelWithFallback(
     attempts.push({ tag: params.tag });
   }
 
-  // Deduplicate and limit attempts
+  // Deduplicate then cap the number of attempts.
   const seen = new Set<string>();
-  const uniqueAttempts = attempts.filter((a) => {
-    const key = `${a.modelId ?? ''}:${a.providerName ?? ''}:${a.tag ?? ''}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  const limitedAttempts = uniqueAttempts.slice(0, MAX_FAILOVER_ATTEMPTS);
+  const limitedAttempts = attempts
+    .filter((attempt) => {
+      const key = `${attempt.modelId ?? ''}:${attempt.providerName ?? ''}:${attempt.tag ?? ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, MAX_FAILOVER_ATTEMPTS);
 
   // Surface a structured "no attempts" error early so callers can
   // distinguish "you misconfigured failover" from "every attempt threw".
@@ -142,8 +141,12 @@ export async function resolveLanguageModelWithFallback(
   }
 
   let lastError: unknown;
+  const failures: Array<{ attempt: string; reason: string }> = [];
 
   for (const attempt of limitedAttempts) {
+    const label = attempt.modelId
+      ? `${attempt.providerName ?? '*'}:${attempt.modelId}`
+      : `tag:${attempt.tag}@${attempt.providerName ?? '*'}`;
     try {
       if (attempt.modelId) {
         return await resolveLanguageModelById(ctx, {
@@ -153,14 +156,28 @@ export async function resolveLanguageModelWithFallback(
         });
       }
       if (attempt.tag) {
-        return await resolveLanguageModel(ctx, {
+        const resolved = await resolveLanguageModel(ctx, {
           tag: attempt.tag,
           providerName: attempt.providerName,
           organizationId: params.organizationId,
         });
+        // Tag attempts can't be circuit-filtered up front (the resolved id is
+        // unknown until now). If the tag landed on a model whose circuit is
+        // open, skip it and try the next attempt rather than routing straight
+        // back onto a known-bad tuple.
+        const { providerName, modelId } = resolved.modelData;
+        if (isOpen(providerName, modelId)) {
+          failures.push({ attempt: label, reason: `circuit-open:${modelId}` });
+          continue;
+        }
+        return resolved;
       }
     } catch (err) {
       lastError = err;
+      failures.push({
+        attempt: label,
+        reason: err instanceof Error ? err.message : String(err),
+      });
       // Resolution-side failure for an explicit (provider, modelId)
       // attempt counts toward the breaker — without this, attempts
       // 2-4 against a dead model never trip cooldown via this path
@@ -173,5 +190,12 @@ export async function resolveLanguageModelWithFallback(
     }
   }
 
-  throw lastError ?? new Error('No model could be resolved after failover');
+  // Surface the full attempt history so telemetry/operators can see WHICH
+  // tuples were tried and why each failed — not just the last opaque error.
+  throw new ConvexError({
+    code: 'ALL_FAILOVER_ATTEMPTS_FAILED',
+    message: `No model could be resolved after ${failures.length} failover attempt(s).`,
+    attempts: failures,
+    lastError: lastError instanceof Error ? lastError.message : undefined,
+  });
 }

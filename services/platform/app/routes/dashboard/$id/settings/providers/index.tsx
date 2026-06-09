@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { ModelCatalogCard } from '@/app/features/settings/providers/components/model-catalog-card';
 import { ProvidersTable } from '@/app/features/settings/providers/components/providers-table';
 import { useT } from '@/lib/i18n/client';
 
@@ -19,6 +20,7 @@ function ProvidersIndexRoute() {
       description={tSettings('menu.providers.description')}
     >
       <ProvidersTable organizationId={id} />
+      <ModelCatalogCard organizationId={id} />
     </SettingsPage>
   );
 }

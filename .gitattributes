@@ -1,0 +1,2 @@
+# Exclude designs from GitHub language statistics (Linguist).
+designs/** linguist-vendored

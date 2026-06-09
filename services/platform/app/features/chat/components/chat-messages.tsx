@@ -24,6 +24,7 @@ import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { usePersonalizationActiveForThread } from '../hooks/use-personalization-active';
 import { VoiceOutputProvider } from '../hooks/voice-output-context';
 import { hasThoughtSteps } from '../utils/build-thought-timeline';
+import type { RouteReason } from '../utils/route-reason';
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
@@ -162,6 +163,21 @@ interface ChatMessagesProps {
   isLoadingMore: boolean;
   loadMore: (numItems: number) => void;
   isLoading: boolean;
+  /** Optimistic "send/submit in flight" flag (pre server-confirm). Lets the gap
+   *  affordance stay up right after a human-input submit even though a completed
+   *  request bubble is on screen — see `responseFooterLive`. */
+  isSendPending?: boolean;
+  /** True when the in-flight turn used the Auto sentinel (no pinned agent), so
+   *  the optimistic gap shell opens in the 'routing' phase. */
+  isAutoRoute?: boolean;
+  /** The live Auto-route decision for the in-flight turn (surfaced mid-turn via
+   *  the thread's transient `liveRoute`), so the gap shell can show "Routed to X"
+   *  as soon as the router decides instead of waiting for turn completion. */
+  liveRoute?: { agentName: string; reason: RouteReason };
+  /** The in-flight turn's server start (`generationStartTime`), anchoring the
+   *  gap-shell "Thinking · Ns" timer to the same clock the in-bubble timeline
+   *  uses — so it neither resets at the handoff nor across the new-chat remount. */
+  generationStartMs?: number | null;
   lastUserMessageRef: RefObject<HTMLDivElement | null>;
   containerRef: RefObject<HTMLDivElement | null>;
   activeApproval: ChatItem | null;
@@ -211,6 +227,10 @@ export const ChatMessages = memo(function ChatMessages({
   isLoadingMore,
   loadMore,
   isLoading,
+  isSendPending,
+  isAutoRoute,
+  liveRoute,
+  generationStartMs,
   lastUserMessageRef,
   containerRef,
   activeApproval,
@@ -749,19 +769,37 @@ export const ChatMessages = memo(function ChatMessages({
   const lastUserItem = lastUserIdx >= 0 ? items[lastUserIdx] : null;
   const afterItems = lastUserIdx >= 0 ? items.slice(lastUserIdx + 1) : [];
 
-  // True once an assistant bubble for this turn renders something (answer text,
-  // attachments, an abort/fail notice, or a thought-process timeline). Gates
-  // the post-send "Thinking…" fallback so it only fills the gap between send
-  // and the assistant message appearing — the in-bubble timeline takes over
-  // the moment reasoning or tools arrive.
+  // True once the CURRENT turn's assistant bubble is rendering — which gates the
+  // post-send "Thinking…" affordance off. A bubble counts when it's actively
+  // streaming (its in-bubble timeline + typewriter own the indicator), has hit a
+  // terminal abort/fail notice, or shows a completed answer.
+  //
+  // The completed-answer case has one exception: right after the user answers a
+  // `request_human_input` card (`isSendPending`, set optimistically on submit),
+  // the completed bubble is the resolved *request* — its text and/or tool call —
+  // and a brand-new turn is now pending. Don't treat it as "the response
+  // arrived": keep the optimistic Thinking line up until the new turn streams.
+  // Without this the gap stays blank through the whole submit→resume round-trip
+  // (the lag the user saw). The `isSendPending` guard is what keeps a *normal*
+  // finished answer from flashing a stray Thinking line ~1–2s later when a
+  // fire-and-forget follow-up (e.g. the title write) briefly flips the thread's
+  // generation status.
   const hasRenderableAssistantResponse = afterItems.some(
     (it) =>
       it.type === 'message' &&
       it.data.role === 'assistant' &&
-      (!!it.data.content ||
+      // A streaming assistant bubble counts as "the response arrived" only once
+      // it has SOMETHING to paint — answer text or a reasoning/tool step. A bare
+      // empty streaming shell (isStreaming true, no content, no parts yet)
+      // renders nothing (`shouldShow` is false), so treating it as renderable
+      // would hide the "Thinking…" line into a blank gap until the first token.
+      // Gating on content/steps hands the indicator off to the bubble in the
+      // SAME commit the bubble first paints — no gap.
+      ((it.data.isStreaming === true &&
+        (!!it.data.content || hasThoughtSteps(it.data.parts))) ||
         it.data.isAborted ||
         it.data.isFailed ||
-        hasThoughtSteps(it.data.parts)),
+        (!!it.data.content && !isSendPending)),
   );
 
   // Shared between the virtualized and non-virtualized paths.
@@ -791,9 +829,25 @@ export const ChatMessages = memo(function ChatMessages({
   // with its in-bubble thought-process timeline. The ThinkingIndicator has no
   // live region of its own (to avoid nested-live-region double-announce), so it
   // must sit inside an aria-live wrapper to be announced.
+  // The optimistic user bubble (key `pending-…`) is set in the same commit as
+  // the send; on a brand-new thread `isLoading` only flips true a few hundred ms
+  // later (after the createThread/bind round-trips let `markSendPending` key the
+  // real threadId), so keying the indicator solely on `isLoading` renders the
+  // message first and the timeline a beat later. Drive it off the optimistic
+  // bubble too so both paint together. Once the real user message replaces the
+  // pending one, `isLoading` is already true, so the indicator never flickers.
+  const lastUserIsPendingOptimistic =
+    lastUserMessageKey?.startsWith('pending-') ?? false;
   const responseFooterLive =
-    isLoading && !hasRenderableAssistantResponse ? (
-      <ThinkingIndicator className="px-4 py-3" />
+    (isLoading || lastUserIsPendingOptimistic) &&
+    !hasRenderableAssistantResponse ? (
+      <ThinkingIndicator
+        className="px-4 py-3"
+        phase={isAutoRoute && !liveRoute ? 'routing' : 'thinking'}
+        routedAgentName={liveRoute?.agentName}
+        routeReason={liveRoute?.reason}
+        turnStartMs={generationStartMs ?? undefined}
+      />
     ) : null;
   // Approval cards own internal live regions for their executing/error
   // sub-states (e.g. workflow-run-approval-card's role=status, the role=alert

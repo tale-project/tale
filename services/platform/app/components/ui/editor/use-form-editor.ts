@@ -11,6 +11,8 @@ import {
   type UseFormReturn,
 } from 'react-hook-form';
 
+import { structuralEqual } from '@/lib/utils/structural-equal';
+
 import type { EditorController } from './types';
 import { useRegisterDirtySource } from './use-dirty-source';
 
@@ -19,16 +21,6 @@ import { useRegisterDirtySource } from './use-dirty-source';
 // though the underlying validation is identical.
 // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- bridge cast
 type AnyZodSchema = any;
-
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? '';
-  } catch {
-    // Cyclic or non-serializable input — fall back to identity comparison
-    // by stamping a non-equivalent string each call so the effect runs.
-    return `__nonserializable__:${Math.random()}`;
-  }
-}
 
 interface UseFormEditorArgs<T extends FieldValues> {
   /**
@@ -95,12 +87,23 @@ export function useFormEditor<T extends FieldValues>({
   // every render where a parent rebuilds `data` by reference (test mocks
   // that return `{ ... }` per call, hooks whose deps are themselves
   // unstable). Each reset re-renders, which fires the effect again — an
-  // infinite loop. Comparing the structural fingerprint dodges that.
-  const lastDataKeyRef = useRef<string | null>(null);
-  const dataKey = useMemo(
-    () => (data === undefined ? null : safeStringify(data)),
-    [data],
-  );
+  // infinite loop. A structural compare against the last-adopted baseline
+  // dodges that AND is key-order-insensitive, so a server payload whose keys
+  // arrive in a different order than our local shape doesn't trigger a
+  // spurious reset / remote-update flag.
+  const lastDataRef = useRef<T | undefined>(undefined);
+  // Latest closures behind stable refs. `doSave`/`reset` are handed to the
+  // active-editor registry, which only re-registers when isDirty/isSaving/
+  // isValid/isLoading change — so if these callbacks changed identity on every
+  // `data`/`save`-prop churn, the global Save bar could invoke a stale closure
+  // (e.g. discarding to an outdated baseline after a remote update). Reading
+  // through refs keeps their identity stable AND always-current.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const mapServerErrorRef = useRef(mapServerError);
+  mapServerErrorRef.current = mapServerError;
+  const dataRef = useRef(data);
+  dataRef.current = data;
 
   // Convex-baseline drift fix: when upstream data changes, only reset the
   // form if the user has no live edits. Otherwise flag it so the page can
@@ -109,18 +112,23 @@ export function useFormEditor<T extends FieldValues>({
   useEffect(() => {
     if (data === undefined) return;
     if (isSavingRef.current) return;
-    if (lastDataKeyRef.current === dataKey) return;
+    if (
+      lastDataRef.current !== undefined &&
+      structuralEqual(lastDataRef.current, data)
+    ) {
+      return;
+    }
     if (hasInitializedRef.current && form.formState.isDirty) {
       setHasRemoteUpdate(true);
     } else {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- DefaultValues<T> ⊂ T
       form.reset(data as DefaultValues<T>);
       hasInitializedRef.current = true;
-      lastDataKeyRef.current = dataKey;
+      lastDataRef.current = data;
       setHasRemoteUpdate(false);
     }
     // form is stable across renders; intentionally exclude.
-  }, [data, dataKey, form]);
+  }, [data, form]);
 
   const dismissRemoteUpdate = useCallback(() => {
     setHasRemoteUpdate(false);
@@ -150,7 +158,7 @@ export function useFormEditor<T extends FieldValues>({
           async (values) => {
             try {
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RHF widens generic
-              await save(values as unknown as T);
+              await saveRef.current(values as unknown as T);
               // Adopt the just-saved values as the new baseline so
               // `isDirty` flips false immediately. `keepValues: true`
               // preserves any subsequent typing after Convex emits the
@@ -163,7 +171,7 @@ export function useFormEditor<T extends FieldValues>({
               setHasRemoteUpdate(false);
               resolve();
             } catch (err) {
-              const issues = mapServerError?.(err) ?? null;
+              const issues = mapServerErrorRef.current?.(err) ?? null;
               if (issues && issues.length > 0) {
                 for (const { path, message } of issues) {
                   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- caller-provided path string
@@ -186,14 +194,14 @@ export function useFormEditor<T extends FieldValues>({
       isSavingRef.current = false;
       inFlightRef.current = false;
     }
-  }, [form, save, mapServerError]);
+  }, [form]);
 
   const reset = useCallback(() => {
     if (isSavingRef.current) return;
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- DefaultValues<T> ⊂ T
-    form.reset(data as DefaultValues<T>);
+    form.reset(dataRef.current as DefaultValues<T>);
     setHasRemoteUpdate(false);
-  }, [form, data]);
+  }, [form]);
 
   const setServerErrors = useCallback(
     (issues: ReadonlyArray<{ path: string; message: string }>) => {

@@ -4,6 +4,7 @@ import * as ToastPrimitives from '@radix-ui/react-toast';
 import type { ToastPosition, ToastVariant } from '@tale/ui/toast';
 import { cva } from 'class-variance-authority';
 import { X, CheckCircle2, XCircle, Info } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 import { useToast } from '@/app/hooks/use-toast';
 import { cn } from '@/lib/utils/cn';
@@ -33,7 +34,9 @@ function VariantIcon({ variant }: { variant?: ToastVariant }) {
     case 'destructive':
       return <XCircle className="text-destructive size-5" aria-hidden="true" />;
     default:
-      return <Info className="size-5 text-blue-500" aria-hidden="true" />;
+      return (
+        <Info className="text-info-foreground size-5" aria-hidden="true" />
+      );
   }
 }
 
@@ -95,12 +98,28 @@ export function Toaster() {
           );
         },
       )}
-      <ToastPrimitives.Viewport
-        className={cn(
-          'fixed z-100 flex max-h-screen w-auto max-w-sm min-w-[18.75rem] flex-col p-3 pt-[calc(0.75rem+var(--safe-top))] pr-[calc(0.75rem+var(--safe-right))] pl-[calc(0.75rem+var(--safe-left))]',
-          viewportPositionClasses[position],
-        )}
-      />
+      {/* Portal the viewport to `document.body` so it shares the root
+          stacking context with Radix Dialog/Sheet portals (which also mount
+          on `body`). Rendered inline, the viewport is trapped in whatever
+          stacking context an ancestor creates, so an open modal Sheet —
+          portaled to `body` and painted later in DOM order — covers the
+          toast even though the toast's `z-100` is numerically above the
+          Sheet's `z-50`. The toast then looks visible but its actions can't
+          be clicked (e.g. the "update available" prompt while a settings
+          panel is open). On `body`, `z-100 > z-50` wins for real. The toast
+          rows keep `pointer-events-auto`, so they stay interactive even while
+          the modal locks `body { pointer-events: none }`. */}
+      {typeof document === 'undefined'
+        ? null
+        : createPortal(
+            <ToastPrimitives.Viewport
+              className={cn(
+                'fixed z-100 flex max-h-screen w-auto max-w-sm min-w-[18.75rem] flex-col p-3 pt-[calc(0.75rem+var(--safe-top))] pr-[calc(0.75rem+var(--safe-right))] pl-[calc(0.75rem+var(--safe-left))]',
+                viewportPositionClasses[position],
+              )}
+            />,
+            document.body,
+          )}
     </ToastPrimitives.Provider>
   );
 }

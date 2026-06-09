@@ -51,6 +51,30 @@ crons.cron(
   {},
 );
 
+// Model-capability catalog refresh — fetch model facts (pricing, context,
+// reasoning/tool/vision support) from OpenRouter's public catalog into
+// `modelCapabilityCache`, the layer the resolver reads UNDER operator config.
+// 03:30 avoids the other daily sweeps. Self-healing: a failed fetch is recorded
+// and the existing cache keeps serving.
+crons.cron(
+  'refresh model capability catalog (daily)',
+  '30 3 * * *',
+  internal.model_catalog.sync.refreshModelCatalogCron,
+  {},
+);
+
+// Weekly in-instance provider-config auto-sync — 3-way-merges fresh OpenRouter
+// facts into each org's provider config (refresh defaults, add newer flagship
+// versions, hide superseded), preserving operator edits. Per-org opt-out via
+// the providers settings UI. Mondays 04:30 UTC (after the daily cache refresh,
+// off-peak). Self-healing: offline/transient failures are logged and skipped.
+crons.cron(
+  'sync provider configs from catalog (weekly)',
+  '30 4 * * 1',
+  internal.model_catalog.sync.refreshProviderConfigsCron,
+  {},
+);
+
 // Audit-log integrity monitoring (#1505) — the hash-chain + checkpoint
 // verification previously ran only as an on-demand admin query. Run it daily
 // across every org with an audit chain and alert (a structured console.error
@@ -135,6 +159,16 @@ crons.cron(
   '0 * * * *',
   internal.tts.cascade_helpers.gcOrgTtsChunks,
   {},
+);
+
+// Auto-route cache purge — drop routing-decision rows older than 30 days so
+// the cache can't grow unbounded. Correctness rests on the candidate-roster
+// hash + read-side TTL, not this sweep; daily off-peak is plenty.
+crons.cron(
+  'purge stale auto-route cache (daily)',
+  '30 3 * * *',
+  internal.agents.internal_mutations.purgeAutoRouteCache,
+  { maxAgeMs: 30 * 24 * 60 * 60 * 1000 },
 );
 
 export default crons;

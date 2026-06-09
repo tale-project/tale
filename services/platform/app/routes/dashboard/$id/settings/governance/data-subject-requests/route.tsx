@@ -1,20 +1,12 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 
+// Both sections always render together on this single route; per-section lazy
+// chunks only added a waterfall + pop-in. The route is already code-split, so
+// static imports keep them in the page's own chunk (load together, once).
+import { DsarPolicyEditor } from '@/app/features/settings/governance/components/dsar-policy-editor';
+import { RequestsListSection } from '@/app/features/settings/governance/data-subject-requests/requests-list-section';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
 import { api } from '@/convex/_generated/api';
-import { lazyComponent } from '@/lib/utils/lazy-component';
-
-const RequestsListSection = lazyComponent(() =>
-  import('@/app/features/settings/governance/data-subject-requests/requests-list-section').then(
-    (m) => ({ default: m.RequestsListSection }),
-  ),
-);
-
-const DsarPolicyEditor = lazyComponent(() =>
-  import('@/app/features/settings/governance/components/dsar-policy-editor').then(
-    (m) => ({ default: m.DsarPolicyEditor }),
-  ),
-);
 
 export const Route = createFileRoute(
   '/dashboard/$id/settings/governance/data-subject-requests',

@@ -437,7 +437,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Bildgenerierung",
-      "description": "Bildgenerierung als Agent-Fähigkeit — ein bild-getaggtes Modell wählen, Kosten und wie generierte Bilder in der Antwort auftauchen."
+      "description": "Bildgenerierung als Agent-Fähigkeit — jeder Assistent kann ein Bild inline erstellen, wenn ein Bildmodell konfiguriert ist, wie generierte Bilder auftauchen und was sie kosten."
     }
   },
   "de:platform/agents/skills": {
@@ -1461,7 +1461,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Génération d'images",
-      "description": "La génération d'images comme capacité d'agent — choisir un modèle tagué image, coûts, et comment les images générées apparaissent dans la réponse."
+      "description": "La génération d'images comme capacité d'agent — n'importe quel assistant peut créer une image en ligne quand un modèle d'image est configuré, comment les images générées apparaissent, et ce qu'elles coûtent."
     }
   },
   "fr:platform/agents/skills": {
@@ -2485,7 +2485,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Image generation",
-      "description": "Image generation as an agent capability — picking an image-tagged model, costing, and how generated images surface in the reply."
+      "description": "Image generation as an agent capability — any assistant can create an image inline when the workspace has an image model, how generated images surface, and what they cost."
     }
   },
   "en:platform/agents/skills": {

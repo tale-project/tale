@@ -120,7 +120,7 @@ const RadioGroupItemBase = forwardRef<
       ref={ref}
       id={id}
       className={cn(
-        'aspect-square size-4 shrink-0 rounded-full border border-primary data-[state=checked]:border-blue-600 text-blue-600 ring-offset-background transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+        'aspect-square size-4 shrink-0 rounded-full border border-primary data-[state=checked]:border-(--color-accent-base) text-(--color-accent-base) ring-offset-background transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
         description && 'mt-0.5',
         className,
       )}

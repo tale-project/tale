@@ -47,16 +47,21 @@ function createMockCtx(opts: {
       .fn()
       .mockImplementation(
         (_ref, args: { where: { field: string; value: string }[] }) => {
+          // isOrgMember queries the `member` table by userId (and an optional
+          // org filter on the legacy fallback path) and resolves the org match
+          // in memory. Return every row matching the where clauses present, as
+          // a single terminated page.
           const orgIdFilter = args.where.find(
             (w) => w.field === 'organizationId',
           );
           const userIdFilter = args.where.find((w) => w.field === 'userId');
-          const match = (opts.members ?? []).find(
+          const page = (opts.members ?? []).filter(
             (m) =>
-              m.organizationId === orgIdFilter?.value &&
-              m.userId === userIdFilter?.value,
+              (orgIdFilter === undefined ||
+                m.organizationId === orgIdFilter.value) &&
+              (userIdFilter === undefined || m.userId === userIdFilter.value),
           );
-          return Promise.resolve({ page: match ? [match] : [] });
+          return Promise.resolve({ page, isDone: true, continueCursor: '' });
         },
       ),
     auth: {},

@@ -50,6 +50,7 @@ export function SavePromptMenu({
           aria-label={tChat('savePromptMenu')}
           aria-haspopup="menu"
           disabled={disabled}
+          className="focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-inset"
         >
           <Bookmark className="size-4" aria-hidden="true" />
         </Button>

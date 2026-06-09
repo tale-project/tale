@@ -331,12 +331,25 @@ export function useChatScroll({
     // so the edited message and incoming AI response are visible.
     if (!pendingEditedMessageId && !threadChanged) {
       branchScrollSaveRef.current = containerRef.current?.scrollTop ?? null;
+      // Freeze the content height for the switch window. Switching branches
+      // re-subscribes the message query to the other branch thread, so the
+      // list briefly EMPTIES (observed: height 3574→668→4247 over ~1s) before
+      // the new branch's messages arrive — that collapse-then-expand is the
+      // visible "jump" the user sees (the fork message reflows out and back).
+      // Pinning min-height to the pre-switch height keeps the list from
+      // collapsing; the saved scrollTop then lands the fork message exactly
+      // where it was. Released when the switch settles (below). Set in the
+      // render body — like the scrollTop capture above — so it lands BEFORE the
+      // browser paints the emptied list.
+      const contentEl = contentRef.current;
+      if (contentEl) contentEl.style.minHeight = `${contentEl.offsetHeight}px`;
       // Clear after content settles
       if (branchScrollTimerRef.current)
         clearTimeout(branchScrollTimerRef.current);
       branchScrollTimerRef.current = setTimeout(() => {
         branchScrollSaveRef.current = null;
         branchScrollTimerRef.current = null;
+        if (contentRef.current) contentRef.current.style.minHeight = '';
         // Reconcile the follow latch to where the view actually ended up. The
         // override held scrollTop at the saved (often non-bottom) position, so
         // the latch could still read `true` from before the switch — without
@@ -352,8 +365,10 @@ export function useChatScroll({
       }, 2000);
     } else {
       // edit-and-branch OR thread navigation: clear any stale saved position
-      // so onContentChange doesn't override the intended scroll-to-bottom.
+      // so onContentChange doesn't override the intended scroll-to-bottom, and
+      // release any frozen height so the new thread isn't pinned tall.
       branchScrollSaveRef.current = null;
+      if (contentRef.current) contentRef.current.style.minHeight = '';
       if (branchScrollTimerRef.current) {
         clearTimeout(branchScrollTimerRef.current);
         branchScrollTimerRef.current = null;

@@ -45,6 +45,12 @@ const INLINE_ASSET_BYTE_CAP = 8 * 1024; // 8 KB
 /** Aggregate cap per `expand_skill` reply — anything above falls through to name-only. */
 const INLINE_TOTAL_BYTE_CAP = 64 * 1024; // 64 KB
 
+interface SkillBundleFile {
+  path: string;
+  content: string;
+  size: number;
+}
+
 export interface SkillRuntimeEntry {
   slug: string;
   description: string;
@@ -60,7 +66,29 @@ export interface SkillRuntimeEntry {
   /** SHA-256 of the SKILL.md file content at turn-start. */
   versionHashLive: string;
   /** Asset payloads scoped to the skill bundle. */
-  files: Array<{ path: string; content: string; size: number }>;
+  files: SkillBundleFile[];
+}
+
+/**
+ * Successful `readSkillForExecution` payload. The action's validator is
+ * `v.any()`, so {@link isSkillReadOk} narrows the runtime value before use.
+ */
+interface SkillReadOk {
+  ok: true;
+  slug: string;
+  meta: { description: string; disableModelInvocation?: boolean };
+  body: string;
+  versionHash: string;
+  files: SkillBundleFile[];
+}
+
+function isSkillReadOk(value: unknown): value is SkillReadOk {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    'ok' in value &&
+    value.ok === true
+  );
 }
 
 export interface SkillSnapshot {
@@ -123,16 +151,25 @@ async function rebuildSkillContext(
 ): Promise<SkillSnapshot> {
   const boundSet = new Set(boundSlugs);
 
-  // Let `listSkillsForExecution` failures propagate. Sibling builders
-  // (`buildIntegrationTools` / `buildWorkflowTools` / `buildMcpTools`)
-  // all let listing errors abort the turn — silently degrading here
-  // would hide a real fault from the operator and contradict the
-  // promise of a hard `skillBindings` allowlist.
-  const listed = await ctx.runAction(
-    internal.skills.file_actions.listSkillsForExecution,
-    { orgSlug },
-  );
-  const orgSlugs = Array.isArray(listed) ? listed : [];
+  // Skills are an ENHANCEMENT layer — a transient failure listing them (e.g. an
+  // action timeout, or a backend `InternalServerError` while `convex dev` is
+  // hot-redeploying) must never abort the user's chat turn. Degrade to the
+  // empty snapshot and log; the per-skill reads below already degrade the same
+  // way, so this just makes the list call consistent with them.
+  let orgSlugs: string[];
+  try {
+    const listed = await ctx.runAction(
+      internal.skills.file_actions.listSkillsForExecution,
+      { orgSlug },
+    );
+    orgSlugs = Array.isArray(listed) ? listed : [];
+  } catch (err) {
+    console.warn(
+      '[skills_runtime] listSkillsForExecution failed; proceeding without skills:',
+      err instanceof Error ? err.message : err,
+    );
+    return EMPTY_SNAPSHOT;
+  }
   const slugs = orgSlugs.filter((s) => boundSet.has(s));
   if (slugs.length === 0) return EMPTY_SNAPSHOT;
 
@@ -157,32 +194,14 @@ async function rebuildSkillContext(
   const entries: SkillRuntimeEntry[] = [];
   const bySlug = new Map<string, SkillRuntimeEntry>();
   for (const { slug, result } of loads) {
-    if (
-      !result ||
-      typeof result !== 'object' ||
-      !('ok' in result) ||
-      !result.ok
-    ) {
-      continue;
-    }
-    const ok = result as {
-      ok: true;
-      slug: string;
-      meta: {
-        description: string;
-        disableModelInvocation?: boolean;
-      };
-      body: string;
-      versionHash: string;
-      files: Array<{ path: string; content: string; size: number }>;
-    };
+    if (!isSkillReadOk(result)) continue;
     const entry: SkillRuntimeEntry = {
       slug,
-      description: ok.meta.description,
-      disableModelInvocation: ok.meta.disableModelInvocation === true,
-      body: ok.body,
-      versionHashLive: ok.versionHash,
-      files: ok.files,
+      description: result.meta.description,
+      disableModelInvocation: result.meta.disableModelInvocation === true,
+      body: result.body,
+      versionHashLive: result.versionHash,
+      files: result.files,
     };
     entries.push(entry);
     bySlug.set(slug, entry);

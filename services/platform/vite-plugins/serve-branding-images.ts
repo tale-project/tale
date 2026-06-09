@@ -4,6 +4,8 @@ import { join, resolve, sep } from 'node:path';
 
 import { type Plugin } from 'vite';
 
+import { isValidOrgSlug } from '../lib/shared/constants/org-slug';
+
 const MIME_TYPES: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',
@@ -14,36 +16,44 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 export function serveBrandingImages(): Plugin {
-  // Branding is default-only on the read side (see branding/file_actions.ts).
-  // On-disk location: `${TALE_CONFIG_DIR}/default/branding/images/`.
+  // Per-org branding (mirrors the prod handler in server.ts). On-disk:
+  // `${TALE_CONFIG_DIR}/<orgSlug>/branding/images/<filename>`. URL carries the
+  // slug as a path segment: `/branding/images/<orgSlug>/<filename>`.
   const configDir = process.env.TALE_CONFIG_DIR;
-  const imagesDir = configDir
-    ? join(configDir, 'default', 'branding', 'images')
-    : null;
 
   return {
     name: 'serve-branding-images',
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (!imagesDir || !req.url?.startsWith('/branding/images/')) {
+        if (!configDir || !req.url?.startsWith('/branding/images/')) {
           next();
           return;
         }
 
         // Parse via URL so query strings (e.g. ?v=2 cache-busters)
-        // and fragments are dropped before filename validation. Without
-        // this, /branding/images/logo.png?v=2 became filename
-        // 'logo.png?v=2' which then failed existsSync and 404'd in
-        // dev — silently diverging from the prod handler that uses
-        // c.req.param('filename') (round-3 P2 R3-P2-a).
+        // and fragments are dropped before validation. The path after the
+        // prefix is `<orgSlug>/<filename>`; split into exactly two segments.
         const url = new URL(req.url, 'http://x');
-        const filename = url.pathname.slice('/branding/images/'.length);
-        if (!filename || filename.includes('/') || filename.includes('..')) {
+        const rest = url.pathname.slice('/branding/images/'.length);
+        const slashIndex = rest.indexOf('/');
+        if (slashIndex === -1) {
+          next();
+          return;
+        }
+        const orgSlug = rest.slice(0, slashIndex);
+        const filename = rest.slice(slashIndex + 1);
+        if (
+          !isValidOrgSlug(orgSlug) ||
+          !filename ||
+          filename.includes('/') ||
+          filename.includes('..')
+        ) {
           next();
           return;
         }
 
+        const imagesDir = join(configDir, orgSlug, 'branding', 'images');
         const filePath = resolve(imagesDir, filename);
         // `+ sep` defense-in-depth so a future sibling dir whose name
         // is a string prefix of imagesDir (e.g. `imagesXYZ/`) can't be

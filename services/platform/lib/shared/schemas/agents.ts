@@ -15,11 +15,9 @@ export const MAX_SKILL_BINDINGS_PER_AGENT = 10;
  * array — the trusted snapshot the runtime reads at chat-turn start to
  * decide which tools / integrations / workflows a bound skill grants.
  *
- * Until now this same shape was redeclared in seven places (zod schema,
- * Convex validator, TS interfaces in `skills_runtime.ts`,
- * `agent_chat/types.ts`, `agents/file_utils.ts`) — a trust-boundary
- * type with inconsistent enforcement across sites. Sharing one schema
- * makes drift a build-time error instead of a runtime one.
+ * A trust-boundary type consumed at several sites (Convex validator, the
+ * runtime types, `agents/file_utils.ts`); sharing one schema makes drift a
+ * build-time error instead of a runtime one.
  */
 export const skillBindingResolvedEntrySchema = z.object({
   slug: z.string().min(1).max(64).regex(SKILL_NAME_REGEX),
@@ -39,7 +37,7 @@ const retrievalModeLiterals = ['off', 'tool', 'context', 'both'] as const;
 type RetrievalMode = (typeof retrievalModeLiterals)[number];
 
 export function isRetrievalMode(value: string): value is RetrievalMode {
-  return (retrievalModeLiterals as readonly string[]).includes(value);
+  return retrievalModeLiterals.some((mode) => mode === value);
 }
 
 const retrievalModeSchema = z.enum(retrievalModeLiterals);
@@ -53,6 +51,109 @@ const composerModeSchema = z.object({
   tooltip: z.string().max(300).optional(),
   order: z.number().int().optional(),
 });
+
+/**
+ * Per-agent "response tuning" — the agent-author home for what was previously
+ * the per-message composer menu. Every field is optional; absence (or
+ * `adaptive`) leaves the Adaptive Reasoning Governor fully in charge, so an
+ * agent without this block behaves exactly as before.
+ *
+ *  - `effort` (fixed tier) BYPASSES the adaptive controller for that turn.
+ *  - `effortFloor`/`effortCeiling` keep adaptivity but BOUND it.
+ *  - `verbosity`/`style` append a system-prompt fragment.
+ *  - `qualityProfile` selects the quality-feedback thresholds + controller
+ *    deadband preset (`lenient`/`balanced`/`strict`).
+ *
+ * The settings UI surfaces the common knobs above. `budgetCaps` (per-class
+ * hard cap on the thinking-token budget) and `temperatureRange` (override the
+ * governor's temperature band) are advanced, JSON-only knobs — kept in the
+ * schema for power users editing the agent config directly, but deliberately
+ * left out of the UI to keep it simple.
+ */
+const EFFORT_TIER_RANK: Record<'off' | 'low' | 'medium' | 'high', number> = {
+  off: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+};
+const effortTierEnum = z.enum(['off', 'low', 'medium', 'high']);
+export const responseTuningSchema = z
+  .object({
+    effort: z.enum(['adaptive', 'low', 'medium', 'high']).optional(),
+    creativity: z
+      .enum(['adaptive', 'precise', 'balanced', 'creative'])
+      .optional(),
+    style: z
+      .enum(['adaptive', 'concise', 'detailed', 'formal', 'friendly'])
+      .optional(),
+    effortFloor: effortTierEnum.optional(),
+    effortCeiling: effortTierEnum.optional(),
+    budgetCaps: z
+      .object({
+        easy: z.number().int().min(256).max(32768).optional(),
+        medium: z.number().int().min(256).max(32768).optional(),
+        hard: z.number().int().min(256).max(32768).optional(),
+      })
+      .optional(),
+    temperatureRange: z
+      .object({
+        min: z.number().min(0).max(2).optional(),
+        max: z.number().min(0).max(2).optional(),
+      })
+      .refine((r) => r.min == null || r.max == null || r.min <= r.max, {
+        message: 'temperatureRange.min must be ≤ temperatureRange.max',
+      })
+      .optional(),
+    verbosity: z.enum(['adaptive', 'terse', 'normal', 'verbose']).optional(),
+    qualityProfile: z.enum(['lenient', 'balanced', 'strict']).optional(),
+  })
+  .refine(
+    (t) =>
+      t.effortFloor == null ||
+      t.effortCeiling == null ||
+      EFFORT_TIER_RANK[t.effortFloor] <= EFFORT_TIER_RANK[t.effortCeiling],
+    { message: 'effortFloor must be ≤ effortCeiling', path: ['effortFloor'] },
+  );
+
+export type ResponseTuningConfig = z.infer<typeof responseTuningSchema>;
+
+/**
+ * Per-agent routing/cascade behaviour (opt-in; defaults preserve today's
+ * config-order model selection with no cascade).
+ *
+ *  - `modelSelection: 'auto'` picks the model TIER per turn from the turn's
+ *    complexity + domain among the agent's `supportedModels` (cheap for easy
+ *    turns, frontier for hard / high-stakes). `'config'` (default) uses the
+ *    listed order.
+ *  - `cascade: true` enables speculative cascade on non-streaming generations
+ *    (cheap draft → quality-validate → escalate to a stronger model only when
+ *    the draft fails). `cascadeDraftModel` optionally pins the drafter.
+ */
+export const agentRoutingSchema = z.object({
+  modelSelection: z.enum(['config', 'auto']).optional(),
+  cascade: z.boolean().optional(),
+  cascadeDraftModel: z
+    .string()
+    .min(1)
+    .refine(isValidModelRef, {
+      message: 'Invalid model ref (expected "[provider:]model-id")',
+    })
+    .optional(),
+  /**
+   * Router-driven delegation mode (set on the `router` agent for org policy).
+   *  - `'single'` (default): pick ONE agent; that agent self-delegates via
+   *    tools. Today's behavior — backward compatible.
+   *  - `'orchestrate'`: always attempt to decompose into a multi-agent plan.
+   *  - `'auto'`: decompose only when the zero-cost escalation gate fires
+   *    (multi-domain / high-complexity); otherwise behave as `'single'`.
+   * Decomposition always degrades to single-agent on failure/timeout.
+   */
+  orchestration: z.enum(['single', 'orchestrate', 'auto']).optional(),
+  /** Per-agent override of the plan step cap (1–6). */
+  maxOrchestrationSteps: z.number().int().min(1).max(6).optional(),
+});
+
+export type AgentRoutingConfig = z.infer<typeof agentRoutingSchema>;
 
 /**
  * Fields that can be overridden per locale via the i18n key.
@@ -130,6 +231,10 @@ export const agentJsonSchema = z
      */
     maxIntegrationCallsPerRun: z.number().int().min(1).max(500).optional(),
     composerMode: composerModeSchema.optional(),
+    /** Per-agent response tuning; see `responseTuningSchema`. */
+    responseTuning: responseTuningSchema.optional(),
+    /** Per-agent routing / cascade behaviour; see `agentRoutingSchema`. */
+    routing: agentRoutingSchema.optional(),
     roleRestriction: z.literal('admin_developer').optional(),
     conversationStarters: z.array(z.string().max(200)).max(4).optional(),
     visibleInChat: z.boolean().optional(),
@@ -141,6 +246,21 @@ export const agentJsonSchema = z
      * compliance bots, etc. Default 'on'.
      */
     personalizationMode: z.enum(['on', 'off']).optional(),
+    /**
+     * Marks the system "Auto" router agent. When true, the agent's effective
+     * instructions are generated at route time from `buildRouterInstructions`
+     * (the static `systemInstructions` is unused), and the agent is used by
+     * `resolveAutoRoute` purely to pick which other agent answers — it never
+     * answers a user turn itself. There should be exactly one router agent.
+     */
+    isRouter: z.boolean().optional(),
+    /**
+     * When explicitly `false`, the agent is system-managed and cannot be
+     * created/edited/deleted through the UI (the settings editor hides it and
+     * `saveAgent` rejects writes to it). Used for the router. Omitted/`true`
+     * means a normal, user-configurable agent.
+     */
+    uiConfigurable: z.boolean().optional(),
     i18n: z
       .record(
         z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
@@ -164,8 +284,10 @@ export const agentJsonSchema = z
       });
     }
 
-    // Chat agents require systemInstructions in some locale (top-level or i18n).
-    if ((data.primaryBehavior ?? 'chat') === 'chat') {
+    // Chat agents require systemInstructions in some locale (top-level or
+    // i18n) — EXCEPT the router, whose instructions are generated per-request
+    // from the candidate agents (`buildRouterInstructions`).
+    if ((data.primaryBehavior ?? 'chat') === 'chat' && data.isRouter !== true) {
       const hasInstructions =
         (data.systemInstructions != null &&
           data.systemInstructions.length > 0) ||
@@ -213,17 +335,3 @@ export const agentJsonSchema = z
       }
     }
   });
-type AgentJson = z.infer<typeof agentJsonSchema>;
-
-/**
- * Schema for creating a new agent (filename validation).
- */
-const createAgentSchema = z.object({
-  name: z
-    .string()
-    .min(1)
-    .max(100)
-    .regex(/^[a-z0-9][a-z0-9_-]*$/),
-  config: agentJsonSchema,
-});
-type CreateAgent = z.infer<typeof createAgentSchema>;

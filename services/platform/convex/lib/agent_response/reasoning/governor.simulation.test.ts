@@ -15,6 +15,7 @@ const MODEL = {
   providerName: 'anthropic',
   modelId: 'anthropic/claude-sonnet-4',
   maxOutputTokens: 32768,
+  reasoning: { knob: 'budgetTokens' as const, minBudgetTokens: 1024 },
 };
 
 // A non-trivial, non-floored medium prompt (no code, no hard-verb triggers).

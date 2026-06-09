@@ -23,6 +23,7 @@ import { useT } from '@/lib/i18n/client';
 import { agentJsonSchema } from '@/lib/shared/schemas/agents';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 import { normalizeAgentConfig } from '@/lib/shared/utils/normalize-agent-config';
+import { changedKeys } from '@/lib/utils/structural-equal';
 
 import { useOrganization } from '../../organization/hooks/queries';
 import { useAgentConfig } from '../hooks/use-agent-config-context';
@@ -80,6 +81,7 @@ const AGENT_TAB_DIRTY_KEYS = {
     'knowledgeTopK',
   ],
   delegation: ['delegates'],
+  responseTuning: ['responseTuning'],
   conversationStarters: ['conversationStarters'],
   webhook: [],
 } as const;
@@ -88,17 +90,12 @@ function computeDirtyKeys(
   config: AgentJsonConfig | null | undefined,
   savedConfig: AgentJsonConfig | null | undefined,
 ): ReadonlySet<string> {
-  const keys = new Set<string>();
-  if (!config || !savedConfig) return keys;
+  if (!config || !savedConfig) return new Set<string>();
   // oxlint-disable typescript/no-unsafe-type-assertion -- record reflection
   const cfg = config as unknown as Record<string, unknown>;
   const saved = savedConfig as unknown as Record<string, unknown>;
   // oxlint-enable typescript/no-unsafe-type-assertion
-  const allKeys = new Set([...Object.keys(cfg), ...Object.keys(saved)]);
-  for (const k of allKeys) {
-    if (JSON.stringify(cfg[k]) !== JSON.stringify(saved[k])) keys.add(k);
-  }
-  return keys;
+  return changedKeys(cfg, saved);
 }
 
 export function AgentNavigation({
@@ -186,6 +183,12 @@ export function AgentNavigation({
       href: `${basePath}/delegation`,
       matchMode: 'exact',
       dirtyKeys: AGENT_TAB_DIRTY_KEYS.delegation,
+    },
+    {
+      label: t('agents.navigation.responseTuning'),
+      href: `${basePath}/response-tuning`,
+      matchMode: 'exact',
+      dirtyKeys: AGENT_TAB_DIRTY_KEYS.responseTuning,
     },
     {
       label: t('agents.navigation.conversationStarters'),

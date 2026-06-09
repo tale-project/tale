@@ -48,7 +48,7 @@ const CheckboxBase = React.forwardRef<
         ref={ref}
         id={id}
         className={cn(
-          'peer size-4 shrink-0 rounded-sm border border-border ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 data-[state=checked]:text-white data-[state=indeterminate]:text-white data-[state=indeterminate]:bg-blue-600 data-[state=indeterminate]:border-blue-600 bg-background transition-colors duration-150',
+          'peer size-4 shrink-0 rounded-sm border border-border ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-[state=checked]:bg-(--color-accent-base) data-[state=checked]:border-(--color-accent-base) data-[state=checked]:text-(--color-accent-fg) data-[state=indeterminate]:text-(--color-accent-fg) data-[state=indeterminate]:bg-(--color-accent-base) data-[state=indeterminate]:border-(--color-accent-base) bg-background transition-colors duration-150',
           className,
         )}
         onCheckedChange={onCheckedChange}

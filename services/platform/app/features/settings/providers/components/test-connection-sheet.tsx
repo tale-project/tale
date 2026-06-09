@@ -14,6 +14,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useTestProviderConnection } from '../hooks/mutations';
 import { useReadProvider } from '../hooks/queries';
+import { readConvexErrorData } from '../utils/error-dispatch';
 
 interface ProbeRow {
   modelId: string;
@@ -68,13 +69,23 @@ export function TestConnectionSheet({
       })) as ProbeReport;
       setReport(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setSystemError(message);
+      // Surface a human-readable message instead of the raw Convex action
+      // error (which is either a leaked internal string or an opaque
+      // "Server Error" in production). The only actionable typed case here is
+      // the developer-settings permission gate; everything else maps to a
+      // single "check your base URL / API key" hint — per-model upstream
+      // failures already render their own status in the rows below.
+      const code = readConvexErrorData(err)?.code;
+      setSystemError(
+        code === 'FORBIDDEN_DEVELOPER_SETTINGS'
+          ? t('providers.forbiddenDeveloperSettings')
+          : t('providers.testSystemError'),
+      );
       setReport(null);
     } finally {
       setRunning(false);
     }
-  }, [organizationId, providerName, testConnection]);
+  }, [organizationId, providerName, testConnection, t]);
 
   // Auto-run on every open transition (covers both the detail-page case where
   // open toggles false → true and the providers-table case where the sheet is

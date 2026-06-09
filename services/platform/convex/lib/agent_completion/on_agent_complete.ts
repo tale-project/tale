@@ -10,6 +10,7 @@
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { estimateCostCents } from '../../governance/cost_estimation';
+import type { AutoRouteReason } from '../../streaming/validators';
 import { createDebugLog } from '../debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_COMPLETION', '[AgentCompletion]');
@@ -36,6 +37,8 @@ export interface AgentResponseResult {
   timeToFirstReasoningMs?: number;
   /** Send-relative time to the first user-visible token (reasoning or content). */
   timeFromSendMs?: number;
+  /** Pre-answer wall-clock INCLUDING Auto-routing latency. See streaming/schema.ts. */
+  thinkingDurationMs?: number;
   toolCalls?: Array<{ toolName: string; status: string }>;
   toolsUsage?: Array<{
     toolName: string;
@@ -76,6 +79,8 @@ export interface OnAgentCompleteArgs {
   userId?: string;
   teamIds?: string[];
   agentSlug?: string;
+  /** Set only when this turn came from Auto routing; absent for a pinned agent. */
+  autoRouteReason?: AutoRouteReason;
   providerCost?: {
     inputCentsPerMillion: number;
     outputCentsPerMillion: number;
@@ -150,6 +155,7 @@ export async function onAgentComplete(
               model: result.model,
               provider: result.provider,
               agentSlug: args.agentSlug,
+              autoRouteReason: args.autoRouteReason,
               inputTokens: result.usage?.inputTokens,
               outputTokens: result.usage?.outputTokens,
               totalTokens: result.usage?.totalTokens,
@@ -160,6 +166,7 @@ export async function onAgentComplete(
               timeToFirstTokenMs: result.timeToFirstTokenMs,
               timeToFirstReasoningMs: result.timeToFirstReasoningMs,
               timeFromSendMs: result.timeFromSendMs,
+              thinkingDurationMs: result.thinkingDurationMs,
               toolsUsage: result.toolsUsage,
               citations: result.citations,
               contextWindow: result.contextWindow,
@@ -256,6 +263,7 @@ export async function onAgentComplete(
             timeToFirstTokenMs: result.timeToFirstTokenMs,
             timeToFirstReasoningMs: result.timeToFirstReasoningMs,
             timeFromSendMs: result.timeFromSendMs,
+            thinkingDurationMs: result.thinkingDurationMs,
             threadId,
             agentType,
             agentSlug: args.agentSlug,

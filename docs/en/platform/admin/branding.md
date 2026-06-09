@@ -9,7 +9,9 @@ Only Admins and Owners can edit branding. Everyone else sees the result; the for
 
 ## Where branding lives
 
-Open **Settings > Branding**. The form has four sections (app name and text logo, logo upload, favicon upload, colours) and a live preview that mirrors the sidebar and the login screen with the values you are editing. Save commits the change for every member of the organisation on their next page load — there is no per-user override.
+Open **Settings > Branding**. The form has four sections (app name and text logo, logo upload, favicon upload, colours) and a live preview that mirrors the sidebar with the values you are editing. Save commits the change for every member of _that_ organisation on their next page load — there is no per-user override.
+
+Branding is scoped to one organisation. Each organisation keeps its own logo, favicon, app name, and colours, so switching organisations swaps the chrome to that organisation's branding rather than carrying the previous one's over. Editing here changes only the organisation you are currently in.
 
 ## The four assets
 
@@ -29,7 +31,7 @@ To rebrand an instance for `Acme Corp`, open **Settings > Branding** and fill th
 
 ## The custom login screen
 
-The login screen picks up the logo and brand colour automatically. There is no separate login skin — the same assets render on the sign-in page, the sign-up page, and the password-reset flow. Sign out and reload the login URL to verify the result.
+The sign-in, sign-up, and password-reset screens render before you have picked an organisation, so there is no organisation in scope to brand them with. They show the platform's default branding rather than any single organisation's; per-organisation branding takes over the moment you land inside that organisation's workspace. Sign out and reload the login URL to verify which assets the pre-auth screens use.
 
 ## Where this fits
 

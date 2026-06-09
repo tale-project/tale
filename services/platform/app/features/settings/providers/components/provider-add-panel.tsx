@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { Loader2, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
@@ -902,19 +902,18 @@ export function ProviderAddPanel({
           <Text variant="caption" className="text-sm font-medium">
             {t('providers.tags')}
           </Text>
-          <HStack gap={4} align="center" className="flex-wrap">
+          <Grid cols={2} className="gap-x-4 gap-y-1.5">
             {modelTagLiterals.map((tag) => (
-              <label key={tag} className="flex items-center gap-1.5 text-sm">
-                <Checkbox
-                  checked={dialogModel.tags.includes(tag)}
-                  onCheckedChange={(checked) =>
-                    handleDialogTagToggle(tag, checked === true)
-                  }
-                />
-                {modelTagLabel(tag, t)}
-              </label>
+              <Checkbox
+                key={tag}
+                label={modelTagLabel(tag, t)}
+                checked={dialogModel.tags.includes(tag)}
+                onCheckedChange={(checked) =>
+                  handleDialogTagToggle(tag, checked === true)
+                }
+              />
             ))}
-          </HStack>
+          </Grid>
           {dialogErrors.tags && (
             <Text
               variant="caption"

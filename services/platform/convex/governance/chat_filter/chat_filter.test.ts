@@ -1,7 +1,22 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { ChatFilterConfig } from '../../../lib/shared/schemas/governance';
+import { DEFAULT_CHAT_FILTER_CATEGORIES } from './categories';
 import { resetCompilationCacheForTesting, runChatFilter } from './index';
+
+describe('vendor-neutrality of shipped defaults', () => {
+  // The platform deliberately ships NO curated word/slur lists (cultural,
+  // locale, and legal variance is too high for a vendor to opinionate on).
+  // Admins author their own. This guard prevents anyone from accidentally
+  // shipping a wordlist or enabling a category by default.
+  it('ships all default categories empty and disabled', () => {
+    for (const cat of DEFAULT_CHAT_FILTER_CATEGORIES) {
+      expect(cat.enabled, `${cat.id} enabled`).toBe(false);
+      expect(cat.words, `${cat.id} words`).toEqual([]);
+      expect(cat.patterns, `${cat.id} patterns`).toEqual([]);
+    }
+  });
+});
 
 function baseConfig(
   overrides: Partial<ChatFilterConfig> = {},

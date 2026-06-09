@@ -14,9 +14,22 @@
  * is ephemeral and self-healing by design.
  */
 
-const FAILURE_THRESHOLD = 3;
-const FAILURE_WINDOW_MS = 60_000;
-const COOLDOWN_MS = 30_000;
+/**
+ * Tunables, env-overridable so an operator can adjust failover sensitivity
+ * without a code change. Invalid / missing env falls back to the defaults.
+ */
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const n = Number(raw);
+  // These are failure counts and millisecond windows — only whole positive
+  // integers are meaningful; a float like `2.5` is a misconfiguration, so fall
+  // back rather than silently using it as a threshold/timeout.
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+const FAILURE_THRESHOLD = envInt('TALE_CIRCUIT_FAILURE_THRESHOLD', 3);
+const FAILURE_WINDOW_MS = envInt('TALE_CIRCUIT_FAILURE_WINDOW_MS', 60_000);
+const COOLDOWN_MS = envInt('TALE_CIRCUIT_COOLDOWN_MS', 30_000);
 
 interface CircuitState {
   failures: number[];
@@ -73,16 +86,12 @@ export function isOpen(provider: string, model: string): boolean {
   const state = circuits.get(key);
   if (!state || state.openedAt === null) return false;
 
-  const now = Date.now();
-  const elapsed = now - state.openedAt;
+  const elapsed = Date.now() - state.openedAt;
+  if (elapsed < COOLDOWN_MS) return true;
 
-  if (elapsed >= COOLDOWN_MS) {
-    if (!state.halfOpen) {
-      state.halfOpen = true;
-      return false;
-    }
-    return false;
-  }
-
-  return true;
+  // Cooldown elapsed: transition to half-open on the first probe and let it
+  // (and every subsequent probe) through until a success closes or a failure
+  // re-opens the circuit.
+  state.halfOpen = true;
+  return false;
 }

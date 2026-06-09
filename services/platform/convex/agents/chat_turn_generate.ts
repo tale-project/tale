@@ -24,7 +24,6 @@
 import { saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
-import { composerProfilesValidator } from '../../lib/shared/composer-profiles';
 import { AUTO_AGENT_SLUG } from '../../lib/shared/constants/agents';
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import { components, internal } from '../_generated/api';
@@ -36,6 +35,7 @@ import {
 import { runGenerationCore } from '../lib/agent_chat/internal_actions';
 import { userContextValidator } from '../lib/agent_response/validators';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
+import type { AutoRouteReason } from '../streaming/validators';
 import { applyModelOverride } from './config';
 import { resolveAgentConfigInline } from './resolve_agent_config';
 
@@ -79,31 +79,42 @@ export const runChatTurnGeneration = internalAction({
     userContext: v.optional(userContextValidator),
     maxSteps: v.optional(v.number()),
     projectId: v.optional(v.id('projects')),
-    composerProfiles: v.optional(composerProfilesValidator),
     threadId: v.string(),
     streamId: v.string(),
     userId: v.string(),
     userEmail: v.string(),
     userName: v.string(),
     requestStartMs: v.optional(v.number()),
+    /** Cache pre-warm: prime the prompt cache with a throwaway generation and
+     *  persist nothing. No stream, no saved message, no visible failure notice. */
+    prewarm: v.optional(v.boolean()),
     // Arena root side only: create the A↔B branch link from here, AFTER
     // startChat has saved this thread's user message (see chat_turn.ts).
     arenaBranchThreadId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    // A prewarm has no stream/generation status to clear and is invisible, so
+    // both clearGen and the system-notice saves below are no-ops for it.
     const clearGen = () =>
-      ctx.runMutation(
-        internal.threads.internal_mutations.clearGenerationStatus,
-        {
-          threadId: args.threadId,
-          streamId: args.streamId,
-        },
-      );
+      args.prewarm
+        ? Promise.resolve(null)
+        : ctx.runMutation(
+            internal.threads.internal_mutations.clearGenerationStatus,
+            {
+              threadId: args.threadId,
+              streamId: args.streamId,
+            },
+          );
+    const notify = (content: string) =>
+      args.prewarm
+        ? Promise.resolve()
+        : saveSystemNotice(ctx, args.threadId, content);
 
     try {
       // 1. Auto-route (LLM classifier) — only when no agent is pinned.
       let resolvedAgentSlug = args.agentSlug;
+      let autoRouteReason: AutoRouteReason | undefined;
       if (args.agentSlug === AUTO_AGENT_SLUG) {
         const allowedAgentSlugs = args.projectId
           ? await ctx.runQuery(
@@ -111,17 +122,21 @@ export const runChatTurnGeneration = internalAction({
               { projectId: args.projectId },
             )
           : undefined;
-        const route = await ctx.runAction(
+        const resolved = await ctx.runAction(
           internal.agents.auto_route.resolveAutoRoute,
           {
             organizationId: args.organizationId,
             message: args.message,
+            // Pass the thread id so a later same-message manual override can
+            // correct this decision (route-quality feedback).
+            threadId: args.threadId,
             ...(allowedAgentSlugs && allowedAgentSlugs.length > 0
               ? { allowedAgentSlugs }
               : {}),
           },
         );
-        resolvedAgentSlug = route.agentSlug;
+        resolvedAgentSlug = resolved.agentSlug;
+        autoRouteReason = resolved.reason;
       }
 
       // (Project access was validated synchronously in the chatWithAgentTurn
@@ -183,9 +198,7 @@ export const runChatTurnGeneration = internalAction({
         );
         if (accessibleRefs.length === 0) {
           await clearGen();
-          await saveSystemNotice(
-            ctx,
-            args.threadId,
+          await notify(
             "No model in this agent is permitted by your organization's model access policy.",
           );
           return null;
@@ -226,11 +239,7 @@ export const runChatTurnGeneration = internalAction({
         );
       } catch (err) {
         await clearGen();
-        await saveSystemNotice(
-          ctx,
-          args.threadId,
-          'Your message was blocked by a content policy.',
-        );
+        await notify('Your message was blocked by a content policy.');
         console.warn(
           '[runChatTurnGeneration] input blocked by guardrails',
           err instanceof ConvexError ? err.data : err,
@@ -273,9 +282,7 @@ export const runChatTurnGeneration = internalAction({
             );
           }
           await clearGen();
-          await saveSystemNotice(
-            ctx,
-            args.threadId,
+          await notify(
             accessCheck.reason ??
               'You do not have access to the selected model.',
           );
@@ -300,12 +307,13 @@ export const runChatTurnGeneration = internalAction({
           userContext: args.userContext,
           agentConfig,
           agentSlug: resolvedAgentSlug,
+          autoRouteReason,
           preAllocatedStreamId: args.streamId,
           capabilityBindings: args.capabilityBindings,
           projectId: args.projectId,
-          composerProfiles: args.composerProfiles,
           requestStartMs: args.requestStartMs,
           deferGeneration: true,
+          prewarm: args.prewarm,
           // Shared-ctx: the governance query above already fetched + verified
           // org membership (role) and team IDs. Reuse them so startChat skips
           // its getOrganizationMember and budget skips getUserTeamIds + the

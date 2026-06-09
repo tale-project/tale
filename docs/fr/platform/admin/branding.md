@@ -9,7 +9,9 @@ Seuls les Administrateurs et Propriétaires peuvent éditer le branding. Tous le
 
 ## Où vit le branding
 
-Ouvre **Paramètres > Branding**. Le formulaire a quatre sections (nom d'app et logo texte, téléversement du logo, téléversement du favicon, couleurs) et un aperçu en direct qui reflète la sidebar et l'écran de connexion avec les valeurs que tu édites. Enregistrer applique le changement pour chaque membre de l'organisation à son prochain chargement de page — il n'y a pas de surcharge par utilisateur.
+Ouvre **Paramètres > Branding**. Le formulaire a quatre sections (nom d'app et logo texte, téléversement du logo, téléversement du favicon, couleurs) et un aperçu en direct qui reflète la sidebar avec les valeurs que tu édites. Enregistrer applique le changement pour chaque membre de _cette_ organisation à son prochain chargement de page — il n'y a pas de surcharge par utilisateur.
+
+Le branding est limité à une organisation. Chaque organisation conserve son propre logo, favicon, nom d'app et ses couleurs, donc changer d'organisation bascule le chrome vers le branding de cette organisation au lieu de garder celui de la précédente. Éditer ici ne change que l'organisation dans laquelle tu te trouves actuellement.
 
 ## Les quatre assets
 
@@ -29,7 +31,7 @@ Pour rebrander une instance pour `Acme Corp`, ouvre **Paramètres > Branding** e
 
 ## L'écran de connexion personnalisé
 
-L'écran de connexion reprend le logo et la couleur de marque automatiquement. Il n'y a pas d'habillage de connexion séparé — les mêmes assets s'affichent sur la page de connexion, la page d'inscription et le flux de réinitialisation de mot de passe. Déconnecte-toi et recharge l'URL de connexion pour vérifier le résultat.
+Les écrans de connexion, d'inscription et de réinitialisation de mot de passe s'affichent avant que tu aies choisi une organisation — il n'y a donc aucune organisation dans le contexte pour les brander. Ils montrent le branding par défaut de la plateforme plutôt que celui d'une organisation précise ; le branding par organisation prend le relais dès que tu arrives dans l'espace de travail de cette organisation. Déconnecte-toi et recharge l'URL de connexion pour vérifier quels assets utilisent les écrans pré-authentification.
 
 ## Où ça s'inscrit
 

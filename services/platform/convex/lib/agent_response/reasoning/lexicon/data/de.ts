@@ -46,6 +46,11 @@ export const de: ReasoningLexicon = {
     'klar',
     'bitte',
     'alles klar',
+    'wie geht es dir',
+    "wie geht's",
+    'wie geht es ihnen',
+    'guten morgen',
+    'guten abend',
   ],
   creativeVerbs: [
     'schreibe',

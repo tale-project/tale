@@ -9,16 +9,11 @@
 import { createFunctionHandle, makeFunctionReference } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
-import {
-  composerProfilesValidator,
-  creativityToScoreOverride,
-  effortToTierOverride,
-  styleInstructionFragment,
-} from '../../lib/shared/composer-profiles';
 import { internalMutation } from '../_generated/server';
 import { startAgentChat } from '../lib/agent_chat';
 import { userContextValidator } from '../lib/agent_response/validators';
 import { getOrganizationMember } from '../lib/rls';
+import { autoRouteReasonValidator } from '../streaming/validators';
 
 const beforeGenerateHookRef = makeFunctionReference<'action'>(
   'lib/agent_chat/internal_actions:beforeGenerateHook',
@@ -59,8 +54,6 @@ export const startChat = internalMutation({
      * inherit the project context.
      */
     projectId: v.optional(v.id('projects')),
-    /** Composer response-tuning profiles (effort/creativity/style). */
-    composerProfiles: v.optional(composerProfilesValidator),
     /** Server-stamped turn-start (chatWithAgent entry) for TTFT measurement. */
     requestStartMs: v.optional(v.number()),
     /**
@@ -78,6 +71,11 @@ export const startChat = internalMutation({
      */
     preResolvedRole: v.optional(v.string()),
     preResolvedTeamIds: v.optional(v.array(v.string())),
+    /** Auto-route reason; forwarded to message metadata. Set only on an Auto
+     *  route. Absent for a pinned agent. */
+    autoRouteReason: v.optional(autoRouteReasonValidator),
+    /** Cache pre-warm: prime the prompt cache without persisting anything. */
+    prewarm: v.optional(v.boolean()),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
@@ -124,38 +122,10 @@ export const startChat = internalMutation({
         }
       : undefined;
 
-    let mergedConfig = mergeCapabilityBindings(
+    const mergedConfig = mergeCapabilityBindings(
       args.agentConfig,
       args.capabilityBindings,
     );
-
-    // Composer "response tuning" profiles. Each lever is independent and
-    // `adaptive` (or absent) is a no-op that leaves the existing algorithms
-    // in charge. Style is applied here (appended to the agent instructions
-    // → system prompt); effort + creativity are forwarded to the generation
-    // layer as a reasoning override consumed by `buildReasoningOptions`.
-    const profiles = args.composerProfiles;
-    if (profiles?.style && profiles.style !== 'adaptive') {
-      const fragment = styleInstructionFragment(profiles.style);
-      if (fragment) {
-        const baseInstructions =
-          typeof mergedConfig.instructions === 'string'
-            ? mergedConfig.instructions
-            : '';
-        mergedConfig = {
-          ...mergedConfig,
-          instructions: baseInstructions
-            ? `${baseInstructions}\n\n${fragment}`
-            : fragment,
-        };
-      }
-    }
-    const effortTier = effortToTierOverride(profiles?.effort);
-    const creativityScore = creativityToScoreOverride(profiles?.creativity);
-    const reasoningOverride =
-      effortTier !== undefined || creativityScore !== undefined
-        ? { effort: effortTier, creativity: creativityScore }
-        : undefined;
 
     // Projects: persist `projectId` on the thread row if the caller
     // explicitly passed one. Enforce mismatch detection: if the thread
@@ -193,11 +163,12 @@ export const startChat = internalMutation({
       model: mergedConfig.model ?? 'default',
       provider: mergedConfig.provider,
       agentSlug: args.agentSlug,
+      autoRouteReason: args.autoRouteReason,
       debugTag: `[${args.agentSlug}]`,
       enableStreaming: true,
       preAllocatedStreamId: args.preAllocatedStreamId,
       hooks,
-      reasoningOverride,
+      prewarm: args.prewarm,
       requestStartMs: args.requestStartMs,
       deferGeneration: args.deferGeneration,
       // Skip the duplicate betterAuth member + team lookups in

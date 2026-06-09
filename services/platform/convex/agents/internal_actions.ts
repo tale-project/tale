@@ -2,10 +2,13 @@
 
 import { readdir } from 'node:fs/promises';
 
+import type { Infer } from 'convex/values';
 import { v } from 'convex/values';
 
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { getString, isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { getPollingInterval } from '../documents/internal_actions';
 import { handleDirReadError, readJsonFile } from '../lib/file_io';
@@ -13,6 +16,7 @@ import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { ragFetch } from '../lib/helpers/rag_config';
 import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { uploadDocument } from '../workflow_engine/action_defs/rag/helpers/upload_document';
+import { resolveAgentDisplay } from './config';
 import type { AgentJsonConfig, AgentReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -22,9 +26,72 @@ import {
   resolveAgentsDir,
   validateAgentName,
 } from './file_utils';
+import { knowledgeFileRagStatusValidator } from './schema';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
 const MAX_POLLING_ATTEMPTS = 50;
+
+// In-process cache for the agent-list projection (per orgSlug). `resolveAutoRoute`
+// calls `listAgentsInternal` on EVERY Auto turn — including cached/short-circuited
+// routes — and the handler readdir's the agents dir then reads + parses +
+// i18n-resolves every agent JSON from disk each time. That disk fan-out is the
+// dominant cost of an otherwise-instant cached route (~seconds on a self-hosted
+// backend). A short TTL keeps warm turns off the disk while bounding staleness: a
+// newly created/edited/deleted agent appears in routing within the TTL. Module
+// scope persists across warm action invocations (same pattern as the provider
+// routing-catalog cache). Only successful reads are cached.
+// 60s: the auto-route cache is independently keyed on the candidates hash, so a
+// roster change still re-routes correctly within a turn — this TTL only bounds
+// how long a newly created/edited agent waits to become a routing *candidate*
+// (≤60s), which is an acceptable trade for keeping every warm Auto turn of a
+// session off the multi-file agent-JSON disk read. Module cache resets on deploy.
+const AGENT_LIST_CACHE_TTL_MS = 60_000;
+const agentListCache = new Map<
+  string,
+  { entries: unknown[]; expiresAt: number }
+>();
+
+interface StatusCheckArgs {
+  organizationId: string;
+  agentSlug: string;
+  fileId: Id<'_storage'>;
+  attempt: number;
+}
+
+/** Persist a knowledge file's RAG indexing state on its agent binding. */
+async function updateRagInfo(
+  ctx: ActionCtx,
+  fields: {
+    organizationId: string;
+    agentSlug: string;
+    fileId: Id<'_storage'>;
+    ragStatus: Infer<typeof knowledgeFileRagStatusValidator>;
+    ragIndexedAt?: number;
+    ragError?: string;
+  },
+): Promise<void> {
+  await ctx.runMutation(
+    internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
+    fields,
+  );
+}
+
+/** Re-arm the status poll for the next attempt with a backoff delay. */
+async function rescheduleStatusCheck(
+  ctx: ActionCtx,
+  args: StatusCheckArgs,
+): Promise<void> {
+  await ctx.scheduler.runAfter(
+    getPollingInterval(args.attempt),
+    internal.agents.internal_actions.checkKnowledgeFileStatus,
+    {
+      organizationId: args.organizationId,
+      agentSlug: args.agentSlug,
+      fileId: args.fileId,
+      attempt: args.attempt + 1,
+    },
+  );
+}
 
 export const indexKnowledgeFile = internalAction({
   args: {
@@ -52,16 +119,13 @@ export const indexKnowledgeFile = internalAction({
         `[indexKnowledgeFile] Failed to upload file ${args.fileId}:`,
         error,
       );
-      await ctx.runMutation(
-        internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
-        {
-          organizationId: args.organizationId,
-          agentSlug: args.agentSlug,
-          fileId: args.fileId,
-          ragStatus: 'failed',
-          ragError: error instanceof Error ? error.message : 'Upload failed',
-        },
-      );
+      await updateRagInfo(ctx, {
+        organizationId: args.organizationId,
+        agentSlug: args.agentSlug,
+        fileId: args.fileId,
+        ragStatus: 'failed',
+        ragError: error instanceof Error ? error.message : 'Upload failed',
+      });
     }
 
     return null;
@@ -81,16 +145,13 @@ export const checkKnowledgeFileStatus = internalAction({
       console.warn(
         `[checkKnowledgeFileStatus] Max attempts reached for file ${args.fileId}`,
       );
-      await ctx.runMutation(
-        internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
-        {
-          organizationId: args.organizationId,
-          agentSlug: args.agentSlug,
-          fileId: args.fileId,
-          ragStatus: 'failed',
-          ragError: `Status check timed out after ${MAX_POLLING_ATTEMPTS} attempts`,
-        },
-      );
+      await updateRagInfo(ctx, {
+        organizationId: args.organizationId,
+        agentSlug: args.agentSlug,
+        fileId: args.fileId,
+        ragStatus: 'failed',
+        ragError: `Status check timed out after ${MAX_POLLING_ATTEMPTS} attempts`,
+      });
       return null;
     }
 
@@ -105,34 +166,22 @@ export const checkKnowledgeFileStatus = internalAction({
       });
 
       if (response.status === 429 || !response.ok) {
-        if (
+        const isClientError =
           response.status >= 400 &&
           response.status < 500 &&
-          response.status !== 429
-        ) {
-          await ctx.runMutation(
-            internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
-            {
-              organizationId: args.organizationId,
-              agentSlug: args.agentSlug,
-              fileId: args.fileId,
-              ragStatus: 'failed',
-              ragError: `RAG service returned ${response.status}`,
-            },
-          );
-          return null;
-        }
-
-        await ctx.scheduler.runAfter(
-          getPollingInterval(args.attempt),
-          internal.agents.internal_actions.checkKnowledgeFileStatus,
-          {
+          response.status !== 429;
+        if (isClientError) {
+          await updateRagInfo(ctx, {
             organizationId: args.organizationId,
             agentSlug: args.agentSlug,
             fileId: args.fileId,
-            attempt: args.attempt + 1,
-          },
-        );
+            ragStatus: 'failed',
+            ragError: `RAG service returned ${response.status}`,
+          });
+          return null;
+        }
+
+        await rescheduleStatusCheck(ctx, args);
         return null;
       }
 
@@ -161,70 +210,43 @@ export const checkKnowledgeFileStatus = internalAction({
         : undefined;
 
       if (status === 'completed') {
-        await ctx.runMutation(
-          internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
-          {
-            organizationId: args.organizationId,
-            agentSlug: args.agentSlug,
-            fileId: args.fileId,
-            ragStatus: 'completed',
-            ragIndexedAt: Math.floor(Date.now() / 1000),
-          },
-        );
+        await updateRagInfo(ctx, {
+          organizationId: args.organizationId,
+          agentSlug: args.agentSlug,
+          fileId: args.fileId,
+          ragStatus: 'completed',
+          ragIndexedAt: Math.floor(Date.now() / 1000),
+        });
         return null;
       }
 
       if (status === 'failed') {
-        await ctx.runMutation(
-          internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
-          {
-            organizationId: args.organizationId,
-            agentSlug: args.agentSlug,
-            fileId: args.fileId,
-            ragStatus: 'failed',
-            ragError: error || 'Unknown error',
-          },
-        );
+        await updateRagInfo(ctx, {
+          organizationId: args.organizationId,
+          agentSlug: args.agentSlug,
+          fileId: args.fileId,
+          ragStatus: 'failed',
+          ragError: error || 'Unknown error',
+        });
         return null;
       }
 
       if (status === 'processing') {
-        await ctx.runMutation(
-          internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
-          {
-            organizationId: args.organizationId,
-            agentSlug: args.agentSlug,
-            fileId: args.fileId,
-            ragStatus: 'running',
-          },
-        );
-      }
-
-      await ctx.scheduler.runAfter(
-        getPollingInterval(args.attempt),
-        internal.agents.internal_actions.checkKnowledgeFileStatus,
-        {
+        await updateRagInfo(ctx, {
           organizationId: args.organizationId,
           agentSlug: args.agentSlug,
           fileId: args.fileId,
-          attempt: args.attempt + 1,
-        },
-      );
+          ragStatus: 'running',
+        });
+      }
+
+      await rescheduleStatusCheck(ctx, args);
     } catch (error) {
       console.error(
         `[checkKnowledgeFileStatus] Error (attempt ${args.attempt}):`,
         error,
       );
-      await ctx.scheduler.runAfter(
-        getPollingInterval(args.attempt),
-        internal.agents.internal_actions.checkKnowledgeFileStatus,
-        {
-          organizationId: args.organizationId,
-          agentSlug: args.agentSlug,
-          fileId: args.fileId,
-          attempt: args.attempt + 1,
-        },
-      );
+      await rescheduleStatusCheck(ctx, args);
     }
 
     return null;
@@ -275,53 +297,87 @@ async function readAgentFileInternal(
   return result;
 }
 
+/**
+ * The agent-list projection, as a plain (non-action) async function so callers
+ * already running in the Node runtime can invoke it DIRECTLY instead of paying
+ * a cross-action `runAction` dispatch. `resolveAutoRoute` does exactly this on
+ * EVERY Auto turn (including cached/short-circuited routes), so removing that
+ * hop — while still sharing this module's `agentListCache` (module scope is one
+ * instance per isolate) — cuts the dominant per-route overhead on a self-hosted
+ * backend. The `internalAction` below is the thin wrapper for cross-runtime
+ * callers (queries/mutations reach it via the scheduler/runAction).
+ */
+export async function listAgentsForOrg(orgSlug: string): Promise<unknown[]> {
+  const cached = agentListCache.get(orgSlug);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.entries;
+  }
+
+  const dir = resolveAgentsDir(orgSlug);
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch (err) {
+    handleDirReadError(err, 'agents.listAgentsInternal');
+    return [];
+  }
+
+  const jsonFiles = entries.filter(
+    (e) => e.endsWith('.json') && !e.startsWith('.'),
+  );
+
+  const results = await Promise.all(
+    jsonFiles.map(async (fileName) => {
+      const agentName = agentNameFromFileName(fileName);
+      if (!validateAgentName(agentName)) return null;
+      const result = await readAgentFileInternal(orgSlug, agentName);
+      if (result.ok) {
+        // Resolve display fields from i18n — descriptions/starters live under
+        // `i18n.<locale>`, not top-level, so reading them raw yields undefined
+        // and the Auto router would see every agent as a blank
+        // "General-purpose assistant." and never route to a specialist.
+        const display = resolveAgentDisplay(result.config);
+        return {
+          name: agentName,
+          displayName: display.displayName,
+          description: display.description,
+          visibleInChat: result.config.visibleInChat,
+          // Required by `filterRoutingCandidates` to exclude
+          // image-generation agents from chat routing — without projecting
+          // it here that filter silently never fires (the field is undefined
+          // on the route path) and an image agent becomes a live candidate.
+          primaryBehavior: result.config.primaryBehavior,
+          supportedModels: result.config.supportedModels,
+          toolNames: result.config.toolNames,
+          roleRestriction: result.config.roleRestriction,
+          conversationStarters: display.conversationStarters,
+          isRouter: result.config.isRouter,
+          uiConfigurable: result.config.uiConfigurable,
+          i18n: result.config.i18n,
+        };
+      }
+      return {
+        name: agentName,
+        status: result.error,
+        message: result.message,
+      };
+    }),
+  );
+
+  const projected = results.filter(Boolean);
+  agentListCache.set(orgSlug, {
+    entries: projected,
+    expiresAt: Date.now() + AGENT_LIST_CACHE_TTL_MS,
+  });
+  return projected;
+}
+
 export const listAgentsInternal = internalAction({
   args: {
     orgSlug: v.string(),
   },
   returns: v.any(),
-  handler: async (_ctx, args) => {
-    const dir = resolveAgentsDir(args.orgSlug);
-    let entries: string[];
-    try {
-      entries = await readdir(dir);
-    } catch (err) {
-      handleDirReadError(err, 'agents.listAgentsInternal');
-      return [];
-    }
-
-    const jsonFiles = entries.filter(
-      (e) => e.endsWith('.json') && !e.startsWith('.'),
-    );
-
-    const results = await Promise.all(
-      jsonFiles.map(async (fileName) => {
-        const agentName = agentNameFromFileName(fileName);
-        if (!validateAgentName(agentName)) return null;
-        const result = await readAgentFileInternal(args.orgSlug, agentName);
-        if (result.ok) {
-          return {
-            name: agentName,
-            displayName: result.config.displayName,
-            description: result.config.description,
-            visibleInChat: result.config.visibleInChat,
-            supportedModels: result.config.supportedModels,
-            toolNames: result.config.toolNames,
-            roleRestriction: result.config.roleRestriction,
-            conversationStarters: result.config.conversationStarters,
-            i18n: result.config.i18n,
-          };
-        }
-        return {
-          name: agentName,
-          status: result.error,
-          message: result.message,
-        };
-      }),
-    );
-
-    return results.filter(Boolean);
-  },
+  handler: async (_ctx, args) => listAgentsForOrg(args.orgSlug),
 });
 
 export const readAgentInternal = internalAction({

@@ -88,8 +88,8 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
   const isBottom = toolbarPosition === 'bottom';
 
   const buttonClass = isBottom
-    ? 'grid size-8 place-items-center rounded-full transition hover:bg-white/10 disabled:opacity-35'
-    : 'text-foreground size-8 disabled:opacity-50';
+    ? 'grid size-8 place-items-center rounded-full transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35'
+    : 'text-foreground size-8 disabled:cursor-not-allowed disabled:opacity-50';
 
   const toolbar = (
     <div

@@ -8,6 +8,9 @@ import { formatRelativeTime } from '@/lib/utils/format/relative-time';
 const SECOND_MS = 1_000;
 const MINUTE_MS = 60 * SECOND_MS;
 const HOUR_MS = 60 * MINUTE_MS;
+/** Sub-minute ages are quantised to 5-second steps (0s → 5s → 10s …) so the
+ *  label ticks in coarse, calm increments instead of jittering every second. */
+const SECONDS_STEP_MS = 5 * SECOND_MS;
 
 interface RelativeNowOptions {
   /**
@@ -23,7 +26,8 @@ interface RelativeNowOptions {
  * for the row-of-list density used in the chat sidebar.
  *
  * Tick cadence is whatever the displayed unit needs:
- *   - elapsed <  1m: re-renders every second (seconds visible)
+ *   - elapsed <  1m: re-renders on each 5-second boundary (seconds shown in
+ *     5s steps, so a per-second tick would be wasted work)
  *   - elapsed >= 1m: re-renders every minute (minute resolution is enough)
  *
  * For ages >= 1h the result falls through to `formatRelativeTime` so very
@@ -45,7 +49,12 @@ export function useRelativeNow(
     let handle: number;
     const schedule = () => {
       const diff = Math.max(0, Date.now() - timestamp);
-      const next = diff < MINUTE_MS ? SECOND_MS : MINUTE_MS;
+      // Below a minute, wake exactly on the next 5s boundary so the label
+      // flips precisely when its value changes; above, a per-minute tick.
+      const next =
+        diff < MINUTE_MS
+          ? SECONDS_STEP_MS - (diff % SECONDS_STEP_MS)
+          : MINUTE_MS;
       handle = window.setTimeout(() => {
         setTick((n) => n + 1);
         schedule();
@@ -59,9 +68,9 @@ export function useRelativeNow(
 
   const diff = Math.max(0, Date.now() - timestamp);
   if (diff < MINUTE_MS) {
-    // Clamp to 1s so the very first frame after a new timestamp doesn't
-    // briefly show "0s" before the first tick lands.
-    return `${Math.max(1, Math.floor(diff / SECOND_MS))}s`;
+    // Quantise to 5-second steps: 0s, 5s, 10s … 55s. Floor (not round) so the
+    // value never jumps ahead of the elapsed time.
+    return `${Math.floor(diff / SECONDS_STEP_MS) * 5}s`;
   }
   if (diff < HOUR_MS) {
     return `${Math.floor(diff / MINUTE_MS)}m`;

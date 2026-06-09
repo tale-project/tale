@@ -211,6 +211,14 @@ function SearchableSelectBase({
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // Controlled state for the optional trigger tooltip. Closing the popover
+  // restores focus to the trigger, which Radix Tooltip reads as a
+  // focus-to-open and flashes the tooltip over the value the user just picked.
+  // `suppressTooltipRef` is a one-shot guard armed on popover close to swallow
+  // exactly that focus-restore open.
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const suppressTooltipRef = useRef(false);
+
   const setIsOpen = useCallback(
     (next: boolean) => {
       if (!isControlled) setInternalOpen(next);
@@ -253,6 +261,21 @@ function SearchableSelectBase({
       setIsOpen(nextOpen);
       if (!nextOpen) {
         setSearch('');
+        // The popover restores focus to the trigger on close, which Radix
+        // Tooltip reads as a focus-to-open and flashes the tooltip over the
+        // value just picked. Arm a one-shot guard so that focus-driven open is
+        // swallowed (see the Root's onOpenChange). The focus restore is delayed
+        // until the close ANIMATION finishes (Radix keeps the content mounted
+        // for the ~150ms `animate-out`), so the guard can't be cleared on the
+        // next tick — it must outlive the animation. The one-shot consumes the
+        // restore whenever it lands; this timer is only a backstop that releases
+        // the guard if no focus restore ever fires (e.g. dismissed by a click
+        // far from the trigger), so a later genuine hover still works.
+        suppressTooltipRef.current = true;
+        setTooltipOpen(false);
+        window.setTimeout(() => {
+          suppressTooltipRef.current = false;
+        }, 500);
       }
     },
     [setIsOpen],
@@ -330,7 +353,18 @@ function SearchableSelectBase({
         // `asChild` triggers collapse onto the same node, so the popover opens
         // on click while the tooltip shows on hover/focus.
         <TooltipPrimitive.Provider delayDuration={300}>
-          <TooltipPrimitive.Root>
+          <TooltipPrimitive.Root
+            // Controlled so the tooltip is forced shut while the popover is
+            // open and during the focus-restore that follows its close.
+            open={tooltipOpen && !isOpen}
+            onOpenChange={(next) => {
+              if (next && suppressTooltipRef.current) {
+                suppressTooltipRef.current = false;
+                return;
+              }
+              setTooltipOpen(next);
+            }}
+          >
             <TooltipPrimitive.Trigger asChild>
               {popoverTrigger}
             </TooltipPrimitive.Trigger>

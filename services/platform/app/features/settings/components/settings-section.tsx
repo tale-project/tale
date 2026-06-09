@@ -1,7 +1,6 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
-import { SkeletonBox } from '@tale/ui/skeleton';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { forwardRef, useId, type HTMLAttributes, type ReactNode } from 'react';
 
@@ -57,7 +56,12 @@ export const SettingsSection = forwardRef<HTMLElement, SettingsSectionProps>(
                 id={descId}
                 className="text-muted-foreground text-sm"
               >
-                <SkeletonBox fullWidth>{description}</SkeletonBox>
+                {/* Section descriptions are static scaffolding (always-available
+                    i18n copy), so they render as real text even while the page
+                    is masked — masking them showed a grey bar under the real
+                    title that read as half-loaded and hid the page structure.
+                    Only the dynamic values inside the section mask. */}
+                {description}
               </Description>
             )}
           </div>

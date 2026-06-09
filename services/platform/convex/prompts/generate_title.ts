@@ -13,19 +13,13 @@ import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { renderPrompt } from '../lib/prompts/registry';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 
 const TITLE_TIMEOUT_MS = 10_000;
 
-const TITLE_INSTRUCTIONS = `You are a title generator for saved prompt templates.
-
-Given the prompt content below, produce a concise, descriptive title (3-8 words).
-- Capture the core intent or topic
-- Use title case
-- Do not wrap in quotes
-- Do not add punctuation at the end
-- Return ONLY the title text, nothing else`;
+const TITLE_INSTRUCTIONS = renderPrompt('title.saved_prompt');
 
 function createTitleGenerator(languageModel: LanguageModelV3): Agent {
   return new Agent(components.agent, {

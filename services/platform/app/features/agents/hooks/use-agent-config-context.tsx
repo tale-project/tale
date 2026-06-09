@@ -1,15 +1,8 @@
 'use client';
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { createContext, useContext, useMemo } from 'react';
 
+import { useConfigDirtyState } from '@/app/components/ui/editor/use-config-dirty-state';
 import type { AgentJsonConfig } from '@/convex/agents/file_utils';
 
 interface AgentConfigContextValue {
@@ -18,7 +11,11 @@ interface AgentConfigContextValue {
   initialConfig: AgentJsonConfig;
   isDirty: boolean;
   isSaving: boolean;
-  updateConfig: (partial: Partial<AgentJsonConfig>) => void;
+  updateConfig: (
+    partial:
+      | Partial<AgentJsonConfig>
+      | ((prev: AgentJsonConfig) => Partial<AgentJsonConfig>),
+  ) => void;
   resetConfig: () => void;
   markSaving: (saving: boolean) => void;
   markSaved: (persistedConfig: AgentJsonConfig) => void;
@@ -46,50 +43,17 @@ export function AgentConfigProvider({
   initialConfig,
   children,
 }: AgentConfigProviderProps) {
-  const [config, setConfig] = useState(initialConfig);
-  const [savedConfig, setSavedConfig] = useState(initialConfig);
-  const [isSaving, setIsSaving] = useState(false);
-  const configRef = useRef(config);
-  configRef.current = config;
-
-  // Sync with external changes (SSE file events) when user has no unsaved edits
-  const savedConfigRef = useRef(savedConfig);
-  savedConfigRef.current = savedConfig;
-  useEffect(() => {
-    const hasUnsavedEdits =
-      JSON.stringify(configRef.current) !==
-      JSON.stringify(savedConfigRef.current);
-    if (!hasUnsavedEdits) {
-      setConfig(initialConfig);
-      setSavedConfig(initialConfig);
-    }
-  }, [initialConfig]);
-
-  const isDirty = useMemo(
-    () => JSON.stringify(config) !== JSON.stringify(savedConfig),
-    [config, savedConfig],
-  );
-
-  const updateConfig = useCallback((partial: Partial<AgentJsonConfig>) => {
-    setConfig((prev) => ({ ...prev, ...partial }));
-  }, []);
-
-  const resetConfig = useCallback(() => {
-    setConfig(savedConfigRef.current);
-  }, []);
-
-  const markSaving = useCallback((saving: boolean) => {
-    setIsSaving(saving);
-  }, []);
-
-  const markSaved = useCallback((persistedConfig: AgentJsonConfig) => {
-    setSavedConfig(persistedConfig);
-  }, []);
-
-  const overrideConfig = useCallback((next: AgentJsonConfig) => {
-    setConfig(next);
-    setSavedConfig(next);
-  }, []);
+  const {
+    config,
+    savedConfig,
+    isDirty,
+    isSaving,
+    updateConfig,
+    resetConfig,
+    overrideConfig,
+    markSaved,
+    setIsSaving,
+  } = useConfigDirtyState<AgentJsonConfig>({ initial: initialConfig });
 
   const value = useMemo<AgentConfigContextValue>(
     () => ({
@@ -100,7 +64,10 @@ export function AgentConfigProvider({
       isSaving,
       updateConfig,
       resetConfig,
-      markSaving,
+      // `markSaving` is the legacy name for "set the in-flight flag". Save
+      // orchestration (and the dirty reset on success) happens in
+      // `agent-navigation` via `markSaved`/`overrideConfig`.
+      markSaving: setIsSaving,
       markSaved,
       overrideConfig,
     }),
@@ -112,7 +79,7 @@ export function AgentConfigProvider({
       isSaving,
       updateConfig,
       resetConfig,
-      markSaving,
+      setIsSaving,
       markSaved,
       overrideConfig,
     ],

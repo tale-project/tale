@@ -55,6 +55,11 @@ export const en: ReasoningLexicon = {
     'no',
     'sure',
     'please',
+    'how are you',
+    "how's it going",
+    'how are you doing',
+    'good morning',
+    'good evening',
   ],
   creativeVerbs: [
     'write',

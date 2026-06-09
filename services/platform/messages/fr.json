@@ -815,12 +815,24 @@
     },
     "thoughtProcess": {
       "thinking": "Réflexion",
+      "routingPhase": "Sélection de l'agent",
       "seconds": "{seconds} s",
       "durationLabel": "A réfléchi {seconds} s",
       "toolsCount": "{count, plural, one {# outil} other {# outils}}",
       "skillsCount": "{count, plural, one {# skill} other {# skills}}",
       "tokensCount": "{count, plural, one {# token} other {# tokens}}",
-      "summaryReasoningOnly": "A montré son raisonnement"
+      "summaryReasoningOnly": "A montré son raisonnement",
+      "responding": "Réponse"
+    },
+    "routing": {
+      "routedTo": "Dirigé vers {agent}",
+      "reason": {
+        "single-candidate": "Seul assistant correspondant",
+        "trivial": "Message simple — assistant par défaut utilisé",
+        "cached": "Décision de routage récente réutilisée",
+        "classified": "Meilleure correspondance pour cette demande",
+        "fallback": "Par défaut, le routage n'étant pas concluant"
+      }
     },
     "tools": {
       "customerRead": "Données client",
@@ -1063,6 +1075,7 @@
       "timestamp": "Horodatage",
       "messageId": "ID du message",
       "model": "Modèle",
+      "routing": "Routage",
       "tokenUsage": "Utilisation des tokens",
       "input": "Entrée",
       "output": "Sortie",
@@ -1547,22 +1560,7 @@
     "capabilityDisable": "Désactiver {name}",
     "requiresIntegration": "Nécessite {name}",
     "takeScreenshot": "Faire une capture d'écran",
-    "screenshotFailed": "Impossible de faire la capture d'écran",
-    "tuningHeader": "Réglage des réponses",
-    "adaptive": "Adaptatif",
-    "effort": "Effort",
-    "effortLow": "Faible",
-    "effortMedium": "Moyen",
-    "effortHigh": "Élevé",
-    "creativity": "Créativité",
-    "creativityPrecise": "Précis",
-    "creativityBalanced": "Équilibré",
-    "creativityCreative": "Créatif",
-    "style": "Style",
-    "styleConcise": "Concis",
-    "styleDetailed": "Détaillé",
-    "styleFormal": "Formel",
-    "styleFriendly": "Amical"
+    "screenshotFailed": "Impossible de faire la capture d'écran"
   },
   "connectivity": {
     "tabTitle": "Reconnexion",
@@ -3628,6 +3626,10 @@
       "title": "Délégation de l'agent",
       "description": "Configure la délégation de l'agent vers d'autres agents."
     },
+    "agentResponseTuning": {
+      "title": "Réglage des réponses",
+      "description": "Règle la façon dont cet agent raisonne et rédige."
+    },
     "automationTriggers": {
       "title": "Déclencheurs",
       "description": "Gère les déclencheurs, planifications et webhooks d'automatisation."
@@ -4229,6 +4231,20 @@
       "security": {
         "title": "Sécurité",
         "description": "Mot de passe et authentification à deux facteurs."
+      },
+      "chats": {
+        "title": "Tes chats",
+        "description": "Archive ou supprime définitivement tous tes chats en une seule fois.",
+        "archiveAll": "Archiver tous les chats",
+        "deleteAll": "Supprimer tous les chats",
+        "archiveConfirmTitle": "Archiver tous les chats ?",
+        "archiveConfirmDescription": "Cette action archivera l'ensemble de tes {count} chats actifs. Tu pourras toujours les retrouver et les restaurer depuis la section Archivés.",
+        "deleteConfirmTitle": "Supprimer tous les chats ?",
+        "deleteConfirmDescription": "Cette action déplacera l'ensemble de tes {count} chats, y compris les chats archivés, vers la corbeille.",
+        "deletePermanentMessage": "Les chats sont déplacés vers la corbeille. Tu peux les restaurer pendant la période de grâce de l'organisation ; ensuite la rétention les supprime définitivement, ainsi que leurs messages.",
+        "archiveStarted": "Archivage de {count} chats",
+        "deleteStarted": "Suppression de {count} chats",
+        "actionFailed": "Une erreur s'est produite. Réessaie."
       }
     },
     "organization": {
@@ -4359,6 +4375,7 @@
         "knowledge": "Base de connaissances",
         "webhook": "Webhooks",
         "delegation": "Délégation",
+        "responseTuning": "Réglage des réponses",
         "conversationStarters": "Amorces",
         "history": "Historique"
       },
@@ -4513,6 +4530,46 @@
         "uploadStarted": "Téléversement du fichier...",
         "fileTooLarge": "Fichier trop volumineux",
         "removeFailed": "Échec du retrait du fichier"
+      },
+      "responseTuning": {
+        "title": "Réglage des réponses",
+        "description": "Détermine comment cet agent raisonne et rédige. Chaque option est sur Automatique par défaut — la plateforme choisit alors le meilleur réglage pour chaque message. Choisis une valeur fixe pour la remplacer.",
+        "autoNote": "Le routeur Auto et le gouverneur de raisonnement adaptatif ajustent chaque réponse automatiquement — langue, style, longueur et effort. En général, tu n'as rien à modifier ici. Développe les remplacements ci-dessous uniquement pour imposer un réglage fixe à chaque message envoyé par cet agent.",
+        "overridesSummary": "Remplacements manuels",
+        "adaptive": "Automatique",
+        "effort": "Effort de raisonnement",
+        "effortHelp": "À quel point le modèle réfléchit. Automatique ajuste l'effort à chaque message — davantage pour les questions difficiles, moins pour les simples. Une valeur fixe applique toujours le même effort.",
+        "effortLow": "Faible",
+        "effortMedium": "Moyen",
+        "effortHigh": "Élevé",
+        "creativity": "Créativité",
+        "creativityHelp": "À quel point la formulation varie. Précis donne des réponses ciblées et reproductibles ; Créatif en donne de plus exploratoires. Automatique décide par message.",
+        "creativityPrecise": "Précis",
+        "creativityBalanced": "Équilibré",
+        "creativityCreative": "Créatif",
+        "style": "Style",
+        "styleHelp": "Donne un ton constant aux réponses. Automatique n'en ajoute aucun.",
+        "styleConcise": "Concis",
+        "styleDetailed": "Détaillé",
+        "styleFormal": "Formel",
+        "styleFriendly": "Amical",
+        "verbosity": "Longueur des réponses",
+        "verbosityHelp": "La longueur habituelle des réponses, indépendamment du ton. Automatique décide par message.",
+        "verbosityTerse": "Courte",
+        "verbosityNormal": "Moyenne",
+        "verbosityVerbose": "Longue",
+        "advancedTitle": "Avancé",
+        "advancedHelp": "Ceci ne remplace pas Automatique — ces options fixent des limites qu'il respecte, et ne s'appliquent qu'aux réglages laissés sur Automatique ci-dessus.",
+        "qualityProfile": "Qualité vs. rapidité",
+        "qualityProfileHelp": "À quel point l'agent ajoute du raisonnement quand une réponse semble faible. Strict privilégie la qualité ; Indulgent privilégie la rapidité et le coût.",
+        "qualityLenient": "Indulgent",
+        "qualityBalanced": "Équilibré",
+        "qualityStrict": "Strict",
+        "effortFloor": "Effort minimal",
+        "effortFloorHelp": "Ne jamais réfléchir moins que cela, même pour les messages simples.",
+        "effortCeiling": "Effort maximal",
+        "effortCeilingHelp": "Ne jamais réfléchir plus que cela — limite le coût sur les messages difficiles.",
+        "boundNone": "Aucune limite"
       },
       "tools": {
         "webSearchMode": "Recherche web",
@@ -4905,6 +4962,55 @@
     "providers": {
       "title": "Fournisseurs",
       "entityLabel": "fournisseurs",
+      "modelCatalog": {
+        "title": "Catalogue de modèles",
+        "description": "Les capacités des modèles (tarifs, fenêtre de contexte, raisonnement, outils, vision) sont tenues à jour depuis le catalogue public d'OpenRouter et servent de valeurs par défaut sous ta configuration de fournisseur. Actualisé chaque jour.",
+        "refresh": "Actualiser maintenant",
+        "synced": "{count} modèles synchronisés.",
+        "syncFailed": "Échec de la synchronisation : {error}",
+        "lastSynced": "Dernière synchro {when} · {count} modèles.",
+        "lastFailed": "Dernière tentative échouée à {when}.",
+        "neverSynced": "Pas encore synchronisé — s'actualise automatiquement chaque jour.",
+        "autoSync": "Synchronisation auto hebdomadaire de la config fournisseur",
+        "autoSyncHelp": "Une fois par semaine, fusionne dans la config fournisseur de cette organisation les nouvelles versions phares de modèles et les capacités actualisées depuis OpenRouter, en masquant les versions remplacées. Seuls les champs que tu n'as pas personnalisés sont modifiés.",
+        "autoSyncFailed": "Impossible de mettre à jour le paramètre : {error}"
+      },
+      "modelCapabilities": {
+        "routingTitle": "Routage et capacités",
+        "routingHelp": "Métadonnées optionnelles qui orientent le routage des modèles, le raisonnement et la mise en cache des prompts. Tout ce que tu laisses vide revient au catalogue OpenRouter à l'exécution.",
+        "fillFromCatalog": "Remplir depuis le catalogue",
+        "syncAll": "Synchroniser depuis le catalogue",
+        "tier": "Niveau de puissance",
+        "tierHelp": "Remplace le niveau basé sur le coût utilisé par le routage par complexité.",
+        "tierAuto": "Auto (déduire du coût)",
+        "qualityScore": "Score de qualité",
+        "contextWindow": "Fenêtre de contexte (tokens)",
+        "maxOutputTokens": "Tokens de sortie max.",
+        "reasoning": "Contrôle du raisonnement",
+        "reasoningHelp": "Comment ce modèle est invité à raisonner. Laisse vide pour laisser le catalogue décider.",
+        "notSet": "Non défini",
+        "reasoningNone": "Aucun (ne pas orienter)",
+        "reasoningEffort": "Effort (reasoning_effort)",
+        "reasoningBudget": "Budget de tokens (thinking)",
+        "supportsMinimal": "Prend en charge le palier d'effort « minimal » (famille gpt-5)",
+        "minBudgetTokens": "Tokens de budget min.",
+        "maxBudgetTokens": "Tokens de budget max.",
+        "optional": "optionnel",
+        "promptCaching": "Mise en cache des prompts",
+        "promptCachingHelp": "Comment un préfixe de prompt stable est mis en cache pour des tours répétés moins coûteux.",
+        "cachingNone": "Aucune",
+        "cachingAuto": "Automatique (côté serveur)",
+        "cachingExplicit": "Points d'arrêt explicites",
+        "maxBreakpoints": "Points d'arrêt de cache max.",
+        "routingTags": "Domaines préférés",
+        "routingTagsHelp": "Oriente le routage vers ce modèle pour les domaines sélectionnés.",
+        "noCatalogData": "Pas encore de données de catalogue pour ce modèle — actualise le catalogue de modèles.",
+        "filledFromCatalog": "Champs de capacités remplis depuis le catalogue.",
+        "syncAllNoop": "Tous les modèles ont déjà leurs capacités de catalogue définies.",
+        "syncAllDone": "Capacités de catalogue remplies pour {count} modèles."
+      },
+      "modelHidden": "Masqué des sélecteurs de modèles",
+      "modelHiddenHelp": "Masque ce modèle dans le composeur de chat et la sélection de modèle des agents. Il reste pleinement utilisable par les agents et workflows qui le référencent déjà — utile pour les versions remplacées ou dépréciées.",
       "addProvider": "Ajouter un fournisseur",
       "editProvider": "Modifier le fournisseur",
       "deleteProvider": "Supprimer le fournisseur",
@@ -5015,6 +5121,7 @@
       "testRerun": "Relancer",
       "testLatency": "{latencyMs} ms",
       "testKeyFailed": "Échec de la connexion",
+      "testSystemError": "Le test de connexion n'a pas pu s'exécuter. Vérifie l'URL de base et la clé API du fournisseur, puis réessaie.",
       "addKey": "Ajouter une clé API",
       "apiKeyEnter": "Saisis la clé API",
       "searchProvider": "Rechercher des fournisseurs...",
@@ -5524,14 +5631,18 @@
       },
       "knowledge": {
         "title": "Base de connaissances (RAG)",
+        "description": "La base Postgres qui alimente la recherche et la récupération de connaissances. Par défaut, la base fournie avec ce déploiement.",
         "paradeDbNote": "La base de connaissances externe doit utiliser ParadeDB (pgvector + pg_search) pour la recherche hybride complète ; pgvector seul se limite à la recherche vectorielle."
       },
       "storage": {
         "title": "Stockage de fichiers (documents téléversés)",
+        "description": "L'emplacement où sont stockés les documents téléversés et les exports générés. Par défaut, le volume Convex local.",
         "externalS3": "S3 externe",
         "region": "Région",
         "endpoint": "Endpoint (MinIO/R2 ; vide pour AWS)",
         "forcePathStyle": "Forcer le path-style (MinIO/R2)",
+        "bucketsLabel": "Buckets",
+        "credentialsLabel": "Identifiants",
         "bucket": {
           "files": "Bucket Files",
           "exports": "Bucket Exports",
@@ -5551,6 +5662,7 @@
       "appDb": {
         "summary": "Base de données applicative (avancé)",
         "title": "Base de métadonnées Convex",
+        "description": "Le magasin de métadonnées interne de Convex. La plupart des déploiements devraient conserver la base fournie.",
         "databaseNameNote": "Le backend Convex déduit le nom de sa base de données de la configuration de l'instance ; le Postgres externe doit donc déjà contenir cette base. Le champ « Base de données » ci-dessus sert uniquement au test de connexion.",
         "sslModeNote": "Le mode TLS de cette base de données est fixé par le pilote Convex et ne peut pas être configuré ici."
       },

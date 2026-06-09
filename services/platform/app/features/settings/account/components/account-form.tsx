@@ -31,6 +31,7 @@ import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
 
 import { useUpdatePassword, useUpdateUserName } from '../hooks/mutations';
+import { ChatsSection } from './chats-section';
 import { PasskeySection } from './passkey-section';
 import { TwoFactorSection } from './two-factor-section';
 
@@ -87,6 +88,7 @@ function AccountFormView({ hasCredential }: { hasCredential: boolean }) {
       <PasswordSection hasCredential={hasCredential} />
       <TwoFactorSection />
       <PasskeySection />
+      <ChatsSection />
     </SettingsPage>
   );
 }

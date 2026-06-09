@@ -11,10 +11,7 @@ import {
 
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
-import {
-  type ComposerProfiles,
-  DEFAULT_COMPOSER_PROFILES,
-} from '@/lib/shared/composer-profiles';
+import { DEFAULT_CHAT_AGENT_SLUG } from '@/lib/shared/constants/agents';
 
 interface PendingMessageAttachment {
   fileId: string;
@@ -46,6 +43,18 @@ export interface SelectedAgent {
   name: string;
   displayName: string;
 }
+
+/**
+ * Default composer selection: pin the general-purpose chat agent rather than
+ * Auto. New sessions (no persisted choice) open on the Assistant; users can
+ * still switch to Auto or any specialist. `displayName` here is only a fallback
+ * label — the selector renders the catalogue-resolved (localized) name once the
+ * agent list loads, so this placeholder is never user-visible in practice.
+ */
+const DEFAULT_SELECTED_AGENT: SelectedAgent = {
+  name: DEFAULT_CHAT_AGENT_SLUG,
+  displayName: 'Assistant',
+};
 
 /**
  * Reference to an image that should be attached to the next composer
@@ -97,16 +106,6 @@ interface ChatLayoutContextType {
   quotedText: string | null;
   setQuotedText: (text: string | null) => void;
   /**
-   * Per-user "response tuning" profiles (effort / creativity / style),
-   * persisted per user+org. Each defaults to `adaptive`; sent with every
-   * chatWithAgent call so a fixed profile overrides the adaptive algorithms.
-   */
-  composerProfiles: ComposerProfiles;
-  setComposerProfile: <K extends keyof ComposerProfiles>(
-    lever: K,
-    value: ComposerProfiles[K],
-  ) => void;
-  /**
    * Explicit editing target, set via ↻ Edit button or ThumbnailPicker. When
    * non-null, overrides the "latest image" auto-pick in EditingBanner.
    */
@@ -157,7 +156,7 @@ export function ChatLayoutProvider({
     ? `selected-agent-${user.userId}-${organizationId}`
     : `selected-agent-${organizationId}`;
   const [selectedAgent, setSelectedAgent] =
-    usePersistedState<SelectedAgent | null>(agentKey, null);
+    usePersistedState<SelectedAgent | null>(agentKey, DEFAULT_SELECTED_AGENT);
 
   const modelOverridesKey = user?.userId
     ? `selected-models-${user.userId}-${organizationId}`
@@ -227,33 +226,6 @@ export function ChatLayoutProvider({
     [setEnabledCapabilitiesRaw],
   );
 
-  const composerProfilesKey = user?.userId
-    ? `composer-profiles-${user.userId}-${organizationId}`
-    : `composer-profiles-${organizationId}`;
-  const [rawComposerProfiles, setRawComposerProfiles] = usePersistedState(
-    composerProfilesKey,
-    DEFAULT_COMPOSER_PROFILES,
-  );
-  // Defensive merge so a persisted partial (from an older build) still yields
-  // a complete profiles object with `adaptive` defaults.
-  const composerProfiles = useMemo<ComposerProfiles>(
-    () => ({ ...DEFAULT_COMPOSER_PROFILES, ...rawComposerProfiles }),
-    [rawComposerProfiles],
-  );
-  const setComposerProfile = useCallback(
-    <K extends keyof ComposerProfiles>(
-      lever: K,
-      value: ComposerProfiles[K],
-    ) => {
-      setRawComposerProfiles((prev) => ({
-        ...DEFAULT_COMPOSER_PROFILES,
-        ...prev,
-        [lever]: value,
-      }));
-    },
-    [setRawComposerProfiles],
-  );
-
   const clearChatState = useCallback(() => {
     setPendingThreadId(null);
     setPendingMessage(null);
@@ -281,8 +253,6 @@ export function ChatLayoutProvider({
       setInsertedPrompt,
       quotedText,
       setQuotedText,
-      composerProfiles,
-      setComposerProfile,
       editingImageRef,
       setEditingImageRef,
       dismissedImageKey,
@@ -301,8 +271,6 @@ export function ChatLayoutProvider({
       setCapabilityEnabled,
       insertedPrompt,
       quotedText,
-      composerProfiles,
-      setComposerProfile,
       editingImageRef,
       dismissedImageKey,
     ],

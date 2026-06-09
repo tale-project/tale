@@ -185,7 +185,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
         />
       </Sheet>
 
-      <div className="border-border hidden h-13 items-center gap-1 border-b px-5 md:flex">
+      <div className="border-border bg-background/95 hidden h-13 items-center gap-1 border-b px-5 backdrop-blur-xs md:flex">
         <Tooltip
           content={
             <>

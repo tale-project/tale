@@ -62,6 +62,13 @@ export const Route = createFileRoute('/dashboard/$id/automations/$amId')({
   // (different cache key) but those are user-driven, not on-load.
   loader: ({ context, params }) => {
     const wfDefinitionId = urlParamToSlug(params.amId);
+    // Warm the code-split ReactFlow canvas chunk while the workflow data is
+    // still loading. The chunk download overlaps the (slower) Convex read, so
+    // by the time `config` resolves and the canvas mounts the chunk is already
+    // in cache — no Suspense fallback → no first-open layout shift between the
+    // canvas skeleton and the real canvas. Fire-and-forget; render-time
+    // Suspense still covers the cold-cache case.
+    void import('@/app/features/automations/components/automation-steps');
     void primeCachedPaginatedQuery(
       context.convexQueryClient.convexClient,
       api.wf_executions.queries.listExecutions,

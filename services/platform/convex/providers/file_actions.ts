@@ -78,6 +78,134 @@ import {
   resolveApiKey,
 } from './secret_resolver';
 
+/**
+ * Optional routing/cascade metadata fields, shared by the two model-resolution
+ * action return validators so they can't drift. Mirrors
+ * `modelRoutingMetadataFields` in the provider zod schema. `routingTags` is
+ * validated as `v.string()[]` here (the zod schema already enforces the domain
+ * enum at config-load time); the action layer only needs to not reject it.
+ */
+const modelRoutingMetadataValidator = {
+  tier: v.optional(
+    v.union(v.literal('draft'), v.literal('standard'), v.literal('frontier')),
+  ),
+  qualityScore: v.optional(v.number()),
+  routingTags: v.optional(v.array(v.string())),
+  contextWindow: v.optional(v.number()),
+} as const;
+
+/**
+ * Serializable model-resolution payload shared by `resolveModelData` and
+ * `resolveModelByTag` so the two action return validators can't drift. Mirrors
+ * `ResolvedModelData` in `resolve_model.ts`.
+ */
+const resolvedModelDataValidator = v.object({
+  providerName: v.string(),
+  baseUrl: v.string(),
+  apiKey: v.string(),
+  modelId: v.string(),
+  tags: v.array(v.string()),
+  dimensions: v.optional(v.number()),
+  maxOutputTokens: v.optional(v.number()),
+  supportsStructuredOutputs: v.boolean(),
+  imageGenerationMode: v.optional(
+    v.union(v.literal('images-api'), v.literal('chat-multimodal')),
+  ),
+  inputCentsPerMillion: v.optional(v.number()),
+  outputCentsPerMillion: v.optional(v.number()),
+  imageCentsPerImage: v.optional(v.number()),
+  centsPerAudioMinute: v.optional(v.number()),
+  centsPerMillionCharacters: v.optional(v.number()),
+  defaultVoice: v.optional(v.string()),
+  voicesByLocale: v.optional(v.record(v.string(), v.string())),
+  defaultInstructions: v.optional(v.string()),
+  instructionsByLocale: v.optional(v.record(v.string(), v.string())),
+  audioFormat: v.optional(
+    v.union(
+      v.literal('mp3'),
+      v.literal('opus'),
+      v.literal('aac'),
+      v.literal('flac'),
+      v.literal('wav'),
+      v.literal('pcm'),
+    ),
+  ),
+  providerOptions: v.optional(v.record(v.string(), v.any())),
+  reasoning: v.optional(
+    v.object({
+      knob: v.union(
+        v.literal('effort'),
+        v.literal('budgetTokens'),
+        v.literal('none'),
+      ),
+      supportsMinimal: v.optional(v.boolean()),
+      minBudgetTokens: v.optional(v.number()),
+      maxBudgetTokens: v.optional(v.number()),
+    }),
+  ),
+  promptCaching: v.optional(
+    v.object({
+      mode: v.union(
+        v.literal('explicit-breakpoints'),
+        v.literal('auto-server'),
+        v.literal('none'),
+      ),
+      maxBreakpoints: v.optional(v.number()),
+    }),
+  ),
+  ...modelRoutingMetadataValidator,
+});
+
+/**
+ * Per-model id/tags/quantizations entry returned by the model-listing actions
+ * (`getAllModelIds`, `getAllConfiguredModelIds`). Shared so the two return
+ * validators stay in sync.
+ */
+const modelIdEntryValidator = v.object({
+  id: v.string(),
+  tags: v.array(v.string()),
+  providerName: v.string(),
+  displayName: v.optional(v.string()),
+  quantizations: v.optional(v.array(v.string())),
+});
+
+/**
+ * Layer the fetched capability cache (`modelCapabilityCache`) UNDER the
+ * operator-declared provider-JSON fields: any capability the JSON leaves unset
+ * is filled from the cache. Whatever is still unset falls to family-based
+ * inference in the pure resolvers (`reasoning/capability.ts`,
+ * `prompt_caching/strategy.ts`) for the reasoning knob + caching mode; cost /
+ * context have no further fallback (left undefined). Keyed by the resolved
+ * `modelId`. A cache miss (or no sync yet) is a no-op.
+ */
+async function applyCachedCapabilities<
+  T extends {
+    modelId: string;
+    reasoning?: unknown;
+    promptCaching?: unknown;
+    inputCentsPerMillion?: number;
+    outputCentsPerMillion?: number;
+    maxOutputTokens?: number;
+    contextWindow?: number;
+  },
+>(ctx: ActionCtx, data: T): Promise<T> {
+  const cap = await ctx.runQuery(
+    internal.model_catalog.queries.getModelCapabilityInternal,
+    { modelId: data.modelId },
+  );
+  if (!cap) return data;
+  return {
+    ...data,
+    reasoning: data.reasoning ?? cap.reasoning,
+    promptCaching: data.promptCaching ?? cap.promptCaching,
+    inputCentsPerMillion: data.inputCentsPerMillion ?? cap.inputCentsPerMillion,
+    outputCentsPerMillion:
+      data.outputCentsPerMillion ?? cap.outputCentsPerMillion,
+    maxOutputTokens: data.maxOutputTokens ?? cap.maxOutputTokens,
+    contextWindow: data.contextWindow ?? cap.contextWindow,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -131,9 +259,49 @@ function readEffectiveQuantizations(
   return readQuantizations(mergeModelLevel(providerLevel, modelLevel));
 }
 
+interface ModelIdEntry {
+  id: string;
+  tags: string[];
+  providerName: string;
+  displayName?: string;
+  quantizations?: string[];
+}
+
+/**
+ * Project a provider's models to the id/tags/quantizations listing shape
+ * returned by `getAllModelIds` and `getAllConfiguredModelIds`.
+ */
+function mapModelIdEntries(
+  providerName: string,
+  config: ProviderJson,
+): ModelIdEntry[] {
+  return config.models.map((m) => ({
+    id: m.id,
+    tags: [...m.tags],
+    providerName,
+    displayName: m.displayName,
+    quantizations: readEffectiveQuantizations(
+      config.providerOptions,
+      m.providerOptions,
+    ),
+  }));
+}
+
 /** True iff `err` is a Node ErrnoException with the given code. */
 function isErrnoCode(err: unknown, code: string): boolean {
   return err instanceof Error && 'code' in err && err.code === code;
+}
+
+/**
+ * A provider's public config file: a top-level `*.json` that is neither a
+ * dot-file nor a `*.secrets.json`. The provider name is its basename.
+ */
+function isProviderJsonFile(fileName: string): boolean {
+  return (
+    fileName.endsWith('.json') &&
+    !fileName.startsWith('.') &&
+    !fileName.endsWith('.secrets.json')
+  );
 }
 
 /**
@@ -251,10 +419,7 @@ async function loadAllProviders(
     ]);
   }
 
-  const jsonFiles = entries.filter(
-    (e) =>
-      e.endsWith('.json') && !e.startsWith('.') && !e.endsWith('.secrets.json'),
-  );
+  const jsonFiles = entries.filter(isProviderJsonFile);
 
   if (jsonFiles.length === 0) {
     throw new NoProviderAvailableError(FRIENDLY_NO_PROVIDER, 'no_providers', [
@@ -410,6 +575,11 @@ function buildResolvedTagModel(
       definition.providerOptions,
     ),
     reasoning: definition.reasoning,
+    promptCaching: definition.promptCaching,
+    tier: definition.tier,
+    qualityScore: definition.qualityScore,
+    routingTags: definition.routingTags,
+    contextWindow: definition.contextWindow,
   };
 }
 
@@ -598,12 +768,7 @@ export const listProviders = action({
       return [];
     }
 
-    const jsonFiles = entries.filter(
-      (e) =>
-        e.endsWith('.json') &&
-        !e.startsWith('.') &&
-        !e.endsWith('.secrets.json'),
-    );
+    const jsonFiles = entries.filter(isProviderJsonFile);
 
     const results = await Promise.all(
       jsonFiles.map(async (fileName) => {
@@ -671,6 +836,11 @@ export const listProviders = action({
                 result.config.providerOptions,
                 m.providerOptions,
               ),
+              // Whether the model is hidden from picker surfaces (chat
+              // composer). The model selector reads `model.hidden` to filter
+              // these out; without projecting it here, hidden models leaked
+              // into the picker.
+              hidden: m.hidden,
             })),
             i18n: result.config.i18n,
           };
@@ -770,12 +940,10 @@ export const deleteProvider = action({
     // discovery can't enumerate (loadAllProviders only iterates *.json),
     // requiring shell access to recover.
     await unlink(secretsPath).catch((err: unknown) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+      if (!isErrnoCode(err, 'ENOENT')) throw err;
     });
     await unlink(filePath).catch((err: unknown) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+      if (!isErrnoCode(err, 'ENOENT')) throw err;
     });
     // Drop any cached plaintext for the deleted secrets file. Without this,
     // the in-memory cache holds rotated/deleted credentials until process
@@ -827,51 +995,7 @@ export const resolveModelData = internalAction({
     organizationId: v.string(),
     providerName: v.optional(v.string()),
   },
-  returns: v.object({
-    providerName: v.string(),
-    baseUrl: v.string(),
-    apiKey: v.string(),
-    modelId: v.string(),
-    tags: v.array(v.string()),
-    dimensions: v.optional(v.number()),
-    maxOutputTokens: v.optional(v.number()),
-    supportsStructuredOutputs: v.boolean(),
-    imageGenerationMode: v.optional(
-      v.union(v.literal('images-api'), v.literal('chat-multimodal')),
-    ),
-    inputCentsPerMillion: v.optional(v.number()),
-    outputCentsPerMillion: v.optional(v.number()),
-    imageCentsPerImage: v.optional(v.number()),
-    centsPerAudioMinute: v.optional(v.number()),
-    centsPerMillionCharacters: v.optional(v.number()),
-    defaultVoice: v.optional(v.string()),
-    voicesByLocale: v.optional(v.record(v.string(), v.string())),
-    defaultInstructions: v.optional(v.string()),
-    instructionsByLocale: v.optional(v.record(v.string(), v.string())),
-    audioFormat: v.optional(
-      v.union(
-        v.literal('mp3'),
-        v.literal('opus'),
-        v.literal('aac'),
-        v.literal('flac'),
-        v.literal('wav'),
-        v.literal('pcm'),
-      ),
-    ),
-    providerOptions: v.optional(v.record(v.string(), v.any())),
-    reasoning: v.optional(
-      v.object({
-        knob: v.union(
-          v.literal('effort'),
-          v.literal('budgetTokens'),
-          v.literal('none'),
-        ),
-        supportsMinimal: v.optional(v.boolean()),
-        minBudgetTokens: v.optional(v.number()),
-        maxBudgetTokens: v.optional(v.number()),
-      }),
-    ),
-  }),
+  returns: resolvedModelDataValidator,
   handler: (ctx, args) => resolveModelDataInline(ctx, args),
 });
 
@@ -960,7 +1084,7 @@ export async function resolveModelDataInline(
       providerOptions = pinQuantization(providerOptions, quantization);
     }
 
-    return {
+    return applyCachedCapabilities(ctx, {
       providerName: provider.name,
       baseUrl: definition.baseUrl ?? provider.config.baseUrl,
       apiKey: resolveModelApiKey(provider, definition),
@@ -987,7 +1111,12 @@ export async function resolveModelDataInline(
       audioFormat: definition.audioFormat,
       providerOptions,
       reasoning: definition.reasoning,
-    };
+      promptCaching: definition.promptCaching,
+      tier: definition.tier,
+      qualityScore: definition.qualityScore,
+      routingTags: definition.routingTags,
+      contextWindow: definition.contextWindow,
+    });
   }
 
   const allModelIds = candidates.flatMap((p) =>
@@ -1008,51 +1137,7 @@ export const resolveModelByTag = internalAction({
     organizationId: v.string(),
     providerName: v.optional(v.string()),
   },
-  returns: v.object({
-    providerName: v.string(),
-    baseUrl: v.string(),
-    apiKey: v.string(),
-    modelId: v.string(),
-    tags: v.array(v.string()),
-    dimensions: v.optional(v.number()),
-    maxOutputTokens: v.optional(v.number()),
-    supportsStructuredOutputs: v.boolean(),
-    imageGenerationMode: v.optional(
-      v.union(v.literal('images-api'), v.literal('chat-multimodal')),
-    ),
-    inputCentsPerMillion: v.optional(v.number()),
-    outputCentsPerMillion: v.optional(v.number()),
-    imageCentsPerImage: v.optional(v.number()),
-    centsPerAudioMinute: v.optional(v.number()),
-    centsPerMillionCharacters: v.optional(v.number()),
-    defaultVoice: v.optional(v.string()),
-    voicesByLocale: v.optional(v.record(v.string(), v.string())),
-    defaultInstructions: v.optional(v.string()),
-    instructionsByLocale: v.optional(v.record(v.string(), v.string())),
-    audioFormat: v.optional(
-      v.union(
-        v.literal('mp3'),
-        v.literal('opus'),
-        v.literal('aac'),
-        v.literal('flac'),
-        v.literal('wav'),
-        v.literal('pcm'),
-      ),
-    ),
-    providerOptions: v.optional(v.record(v.string(), v.any())),
-    reasoning: v.optional(
-      v.object({
-        knob: v.union(
-          v.literal('effort'),
-          v.literal('budgetTokens'),
-          v.literal('none'),
-        ),
-        supportsMinimal: v.optional(v.boolean()),
-        minBudgetTokens: v.optional(v.number()),
-        maxBudgetTokens: v.optional(v.number()),
-      }),
-    ),
-  }),
+  returns: resolvedModelDataValidator,
   handler: async (ctx, args) => {
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const providers = await loadAllProviders(orgSlug);
@@ -1069,7 +1154,10 @@ export const resolveModelByTag = internalAction({
       });
     }
 
-    return selectModelByTag(candidates, args.tag, args.providerName);
+    return applyCachedCapabilities(
+      ctx,
+      selectModelByTag(candidates, args.tag, args.providerName),
+    );
   },
 });
 
@@ -1079,15 +1167,7 @@ export const resolveModelByTag = internalAction({
  */
 export const getAllModelIds = internalAction({
   args: { organizationId: v.string() },
-  returns: v.array(
-    v.object({
-      id: v.string(),
-      tags: v.array(v.string()),
-      providerName: v.string(),
-      displayName: v.optional(v.string()),
-      quantizations: v.optional(v.array(v.string())),
-    }),
-  ),
+  returns: v.array(modelIdEntryValidator),
   handler: async (ctx, args) => {
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     let providers: ProviderWithSecrets[];
@@ -1114,28 +1194,107 @@ export const getAllModelIds = internalAction({
       }
       return [];
     }
-    const models: Array<{
-      id: string;
-      tags: string[];
-      providerName: string;
-      displayName?: string;
-      quantizations?: string[];
-    }> = [];
-    for (const provider of providers) {
-      for (const m of provider.config.models) {
-        models.push({
-          id: m.id,
-          tags: [...m.tags],
-          providerName: provider.name,
-          displayName: m.displayName,
-          quantizations: readEffectiveQuantizations(
-            provider.config.providerOptions,
-            m.providerOptions,
-          ),
-        });
-      }
+    return providers.flatMap((provider) =>
+      mapModelIdEntries(provider.name, provider.config),
+    );
+  },
+});
+
+/**
+ * Read the per-model cost + routing metadata for ALL configured models from
+ * provider JSON directly — NO secret decryption, no model instances. Only the
+ * non-secret fields routing needs (cost/tier/quality/tags/context).
+ */
+async function readRoutingCatalog(orgSlug: string) {
+  const dir = resolveProvidersDir(orgSlug);
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch (err) {
+    if (!isErrnoCode(err, 'ENOENT')) {
+      console.warn(
+        '[getModelRoutingCatalog] readdir failed',
+        dir,
+        sanitizeError(err),
+      );
     }
-    return models;
+    return [];
+  }
+  const jsonFiles = entries.filter(isProviderJsonFile);
+  const perProvider = await Promise.all(
+    jsonFiles.map(async (fileName) => {
+      const name = providerNameFromFileName(fileName);
+      if (!validateProviderName(name)) return [];
+      const result = await readProviderFile(orgSlug, name);
+      if (!result.ok) {
+        console.warn(
+          '[getModelRoutingCatalog] readProviderFile failed',
+          name,
+          result.message,
+        );
+        return [];
+      }
+      return result.config.models.map((m) => ({
+        id: m.id,
+        providerName: name,
+        tags: [...m.tags],
+        outputCentsPerMillion: m.cost?.outputCentsPerMillion,
+        tier: m.tier,
+        qualityScore: m.qualityScore,
+        routingTags: m.routingTags,
+        contextWindow: m.contextWindow,
+      }));
+    }),
+  );
+  return perProvider.flat();
+}
+
+type RoutingCatalogEntry = Awaited<
+  ReturnType<typeof readRoutingCatalog>
+>[number];
+
+/**
+ * Short-TTL in-process memo of the routing catalog per org. `getModelRoutingCatalog`
+ * runs on EVERY auto-routed turn; provider configs change rarely, so caching it
+ * for a few seconds (within a warm action isolate) avoids re-reading every
+ * provider JSON each turn. Staleness is bounded by the TTL and only affects
+ * routing-preference metadata (cost/tier) — never correctness (an unknown model
+ * just routes by config order). Mirrors the module-level circuit-breaker state.
+ */
+const ROUTING_CATALOG_TTL_MS = 30_000;
+const routingCatalogCache = new Map<
+  string,
+  { at: number; catalog: RoutingCatalogEntry[] }
+>();
+
+/**
+ * Lightweight routing catalog: per-model cost + routing metadata for ALL
+ * configured models, WITHOUT resolving secrets or building model instances.
+ * Consumed by complexity-based model routing (`model_routing/select_model`) to
+ * pick a tier among an agent's `supportedModels`. Returns `[]` (never throws)
+ * when no providers are configured so routing degrades to config order.
+ */
+export const getModelRoutingCatalog = internalAction({
+  args: { organizationId: v.string() },
+  returns: v.array(
+    v.object({
+      id: v.string(),
+      providerName: v.string(),
+      tags: v.array(v.string()),
+      outputCentsPerMillion: v.optional(v.number()),
+      ...modelRoutingMetadataValidator,
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const now = Date.now();
+    const cached = routingCatalogCache.get(orgSlug);
+    if (cached && now - cached.at < ROUTING_CATALOG_TTL_MS) {
+      return cached.catalog;
+    }
+    const catalog = await readRoutingCatalog(orgSlug);
+    routingCatalogCache.set(orgSlug, { at: now, catalog });
+    return catalog;
   },
 });
 
@@ -1148,15 +1307,7 @@ export const getAllModelIds = internalAction({
  */
 export const getAllConfiguredModelIds = internalAction({
   args: { organizationId: v.string() },
-  returns: v.array(
-    v.object({
-      id: v.string(),
-      tags: v.array(v.string()),
-      providerName: v.string(),
-      displayName: v.optional(v.string()),
-      quantizations: v.optional(v.array(v.string())),
-    }),
-  ),
+  returns: v.array(modelIdEntryValidator),
   handler: async (ctx, args) => {
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const dir = resolveProvidersDir(orgSlug);
@@ -1176,19 +1327,8 @@ export const getAllConfiguredModelIds = internalAction({
       }
       return [];
     }
-    const jsonFiles = entries.filter(
-      (e) =>
-        e.endsWith('.json') &&
-        !e.startsWith('.') &&
-        !e.endsWith('.secrets.json'),
-    );
-    const models: Array<{
-      id: string;
-      tags: string[];
-      providerName: string;
-      displayName?: string;
-      quantizations?: string[];
-    }> = [];
+    const jsonFiles = entries.filter(isProviderJsonFile);
+    const models: ModelIdEntry[] = [];
     await Promise.all(
       jsonFiles.map(async (fileName) => {
         const name = providerNameFromFileName(fileName);
@@ -1211,18 +1351,7 @@ export const getAllConfiguredModelIds = internalAction({
           );
           return;
         }
-        for (const m of result.config.models) {
-          models.push({
-            id: m.id,
-            tags: [...m.tags],
-            providerName: name,
-            displayName: m.displayName,
-            quantizations: readEffectiveQuantizations(
-              result.config.providerOptions,
-              m.providerOptions,
-            ),
-          });
-        }
+        models.push(...mapModelIdEntries(name, result.config));
       }),
     );
     return models;
@@ -1256,12 +1385,7 @@ export const getAllProviderConfigs = action({
       return [];
     }
 
-    const jsonFiles = entries.filter(
-      (e) =>
-        e.endsWith('.json') &&
-        !e.startsWith('.') &&
-        !e.endsWith('.secrets.json'),
-    );
+    const jsonFiles = entries.filter(isProviderJsonFile);
 
     const results = await Promise.all(
       jsonFiles.map(async (fileName) => {
@@ -1292,6 +1416,46 @@ export const getAllProviderConfigs = action({
 // ---------------------------------------------------------------------------
 // Model discovery
 // ---------------------------------------------------------------------------
+
+/**
+ * Parse a `GET /v1/models` response body into a sorted list of model ids.
+ * Throws `PROVIDER_FETCH_FAILED` on non-JSON bodies or any shape other than
+ * `{ data: [{ id: string }, ...] }`. Shared by the connect-time and
+ * already-configured model-discovery actions so their parsing can't drift.
+ */
+function parseProviderModelsList(body: string): Array<{ id: string }> {
+  let json: unknown;
+  try {
+    json = JSON.parse(body);
+  } catch {
+    throw new ConvexError({
+      code: 'PROVIDER_FETCH_FAILED',
+      message: 'Provider returned non-JSON response',
+    });
+  }
+  if (
+    json == null ||
+    typeof json !== 'object' ||
+    !('data' in json) ||
+    !Array.isArray(json.data)
+  ) {
+    throw new ConvexError({
+      code: 'PROVIDER_FETCH_FAILED',
+      message:
+        'Unexpected response format: expected { data: [...] } from /v1/models',
+    });
+  }
+  return json.data
+    .filter(
+      (m): m is { id: string } =>
+        m != null &&
+        typeof m === 'object' &&
+        'id' in m &&
+        typeof m.id === 'string',
+    )
+    .map((m) => ({ id: m.id }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
 
 /**
  * Fetch available models from an OpenAI-compatible /v1/models endpoint.
@@ -1357,42 +1521,7 @@ export const fetchProviderModels = action({
       });
     }
 
-    let json: unknown;
-    try {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON narrowed below
-      json = JSON.parse(response.body);
-    } catch {
-      throw new ConvexError({
-        code: 'PROVIDER_FETCH_FAILED',
-        message: 'Provider returned non-JSON response',
-      });
-    }
-    const models =
-      json != null &&
-      typeof json === 'object' &&
-      'data' in json &&
-      Array.isArray(json.data)
-        ? (json.data as Array<unknown>)
-        : null;
-
-    if (!models) {
-      throw new ConvexError({
-        code: 'PROVIDER_FETCH_FAILED',
-        message:
-          'Unexpected response format: expected { data: [...] } from /v1/models',
-      });
-    }
-
-    return models
-      .filter(
-        (m): m is { id: string } =>
-          m != null &&
-          typeof m === 'object' &&
-          'id' in m &&
-          typeof (m as Record<string, unknown>).id === 'string',
-      )
-      .map((m) => ({ id: m.id }))
-      .sort((a, b) => a.id.localeCompare(b.id));
+    return parseProviderModelsList(response.body);
   },
 });
 
@@ -1496,39 +1625,7 @@ export const fetchConfiguredProviderModels = action({
       });
     }
 
-    let json: unknown;
-    try {
-      json = JSON.parse(response.body);
-    } catch {
-      throw new ConvexError({
-        code: 'PROVIDER_FETCH_FAILED',
-        message: 'Provider returned non-JSON response',
-      });
-    }
-    const models =
-      json != null &&
-      typeof json === 'object' &&
-      'data' in json &&
-      Array.isArray(json.data)
-        ? (json.data as Array<unknown>)
-        : null;
-    if (!models) {
-      throw new ConvexError({
-        code: 'PROVIDER_FETCH_FAILED',
-        message:
-          'Unexpected response format: expected { data: [...] } from /v1/models',
-      });
-    }
-    return models
-      .filter(
-        (m): m is { id: string } =>
-          m != null &&
-          typeof m === 'object' &&
-          'id' in m &&
-          typeof (m as Record<string, unknown>).id === 'string',
-      )
-      .map((m) => ({ id: m.id }))
-      .sort((a, b) => a.id.localeCompare(b.id));
+    return parseProviderModelsList(response.body);
   },
 });
 
@@ -1761,10 +1858,8 @@ async function fetchProviderModelIds(
       json &&
       typeof json === 'object' &&
       'data' in json &&
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by 'data' in check above
-      Array.isArray((json as Record<string, unknown>).data)
-        ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Array.isArray narrows the value
-          ((json as Record<string, unknown>).data as Array<unknown>)
+      Array.isArray(json.data)
+        ? json.data
         : null;
     if (!data) {
       return { ok: false, error: 'Unexpected response from /v1/models' };
@@ -1772,8 +1867,7 @@ async function fetchProviderModelIds(
     const ids = new Set<string>();
     for (const m of data) {
       if (m != null && typeof m === 'object' && 'id' in m) {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by 'id' in check above
-        const id = (m as Record<string, unknown>).id;
+        const id = m.id;
         if (typeof id === 'string') ids.add(id);
       }
     }

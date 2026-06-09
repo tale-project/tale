@@ -14,6 +14,7 @@ import {
   type RetentionCategory,
   unitForCategory,
 } from '@/lib/shared/schemas/retention';
+import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import { readConvexErrorData } from '../convex-error-data';
 import { useUpsertRetentionPolicy } from '../hooks/mutations';
@@ -96,7 +97,7 @@ function RetentionEditFormBody({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const inputDisabled = cannotManage || upsertMutation.isPending;
-  const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
+  const dirty = !structuralEqual(config, savedConfig);
 
   const handleResetToDefaults = useCallback(() => {
     setConfig((prev) => {

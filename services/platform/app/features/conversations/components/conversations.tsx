@@ -162,11 +162,16 @@ export function Conversations({
     onComplete: onBulkComplete,
   });
 
-  if (bodyState === 'activate-empty') {
-    return <ActivateConversationsEmptyState organizationId={organizationId} />;
-  }
-
+  // The not-yet-activated empty state renders *inside* the two-pane shell (list
+  // panel + reading pane) instead of swapping the whole page to a centered CTA,
+  // so the page layout matches the populated/loading variants and doesn't shift
+  // when the first conversation lands. The connect-email CTA takes the reading
+  // pane (prominent on desktop, full-width on mobile where the empty list is
+  // hidden); the list panel shows its normal empty state on desktop.
+  const isActivateEmpty = bodyState === 'activate-empty';
   const isLoading = bodyState === 'loading' || bodyState === 'skeleton';
+  // Nothing to search/select while loading or before activation.
+  const controlsDisabled = isLoading || isActivateEmpty;
   const skeletonRows = Math.min(conversationCount ?? 12, 12);
 
   const handleConversationSelect = (conversation: Conversation) => {
@@ -176,7 +181,9 @@ export function Conversations({
   return (
     <>
       <ConversationListPanel
-        hidden={!!selectedConversationId}
+        // On mobile the activate CTA owns the screen (reading pane below), so
+        // hide the empty list there; on desktop it sits beside the CTA.
+        hidden={!!selectedConversationId || isActivateEmpty}
         overlay={
           isBulkProcessing ? (
             <LoadingOverlay message={tConversations('updating')} />
@@ -189,9 +196,11 @@ export function Conversations({
             trigger={
               <button
                 type="button"
+                disabled={controlsDisabled}
                 className={cn(
                   'flex shrink-0 items-center gap-0.5 rounded pr-1 py-0.5',
                   readFilter !== 'all' && 'bg-blue-100',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
                 )}
                 aria-label={tConversations('filter.label')}
               >
@@ -207,7 +216,7 @@ export function Conversations({
                     checked={selectAllChecked}
                     onCheckedChange={handleSelectAll}
                     aria-label={tCommon('aria.selectAll')}
-                    disabled={isLoading}
+                    disabled={controlsDisabled}
                   />
                 </div>
                 <ChevronDownIcon className="text-muted-foreground size-3.5" />
@@ -350,7 +359,7 @@ export function Conversations({
               onChange={(e) => setSearchQuery(e.target.value)}
               wrapperClassName="flex-1"
               className="bg-transparent pr-3 text-sm shadow-none"
-              disabled={isLoading}
+              disabled={controlsDisabled}
             />
           )}
         </ConversationListToolbar>
@@ -370,15 +379,21 @@ export function Conversations({
       <div
         className={cn(
           'flex-1 min-w-0',
-          selectedConversationId ? 'flex' : 'hidden md:flex',
+          // Show the reading pane on mobile when there's a selection OR when
+          // it's hosting the activate CTA (the empty list is hidden there).
+          selectedConversationId || isActivateEmpty ? 'flex' : 'hidden md:flex',
         )}
       >
-        <ConversationPanel
-          selectedConversationId={selectedConversationId}
-          onSelectedConversationChange={setSelectedConversationId}
-          status={status}
-          forceLoading={isLoading}
-        />
+        {isActivateEmpty ? (
+          <ActivateConversationsEmptyState organizationId={organizationId} />
+        ) : (
+          <ConversationPanel
+            selectedConversationId={selectedConversationId}
+            onSelectedConversationChange={setSelectedConversationId}
+            status={status}
+            forceLoading={isLoading}
+          />
+        )}
       </div>
 
       {bulkSendDialog.isOpen && (

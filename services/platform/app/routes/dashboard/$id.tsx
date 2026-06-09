@@ -28,26 +28,67 @@ import { TwoFactorGraceBanner } from '@/app/features/auth/components/two-factor-
 import { TwoFactorLowBackupCodesBanner } from '@/app/features/auth/components/two-factor-low-backup-codes-banner';
 import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
 import { ChangelogToastTrigger } from '@/app/features/changelog/components/changelog-toast-trigger';
+import { configKeys } from '@/app/hooks/config-query-keys';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
+import { setActiveOrganizationId } from '@/app/lib/active-organization';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
+import type { RouterContext } from '@/app/router';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
 
+// Fire-and-forget warm of an action-backed config catalog into the SAME
+// TanStack Query cache entry the `useActionQuery` hooks read (matching key +
+// `staleTime: Infinity` + the `action(args)` queryFn), so the catalog loads
+// DURING the auth/WS handshake instead of after the consuming component mounts.
+// On mount the hook reads the warm cache and skips its own fetch; the result
+// shape, key, and access checks are identical to the hook's path, so behavior
+// is unchanged — this only moves the request earlier. Never awaited so a slow
+// catalog can't stall the navigation, and `.catch` keeps a transient/auth
+// failure from surfacing as an unhandled rejection (the hook refetches on
+// mount as before in that case).
+function prewarmConfigCatalog(
+  context: RouterContext,
+  queryKey: readonly unknown[],
+  organizationId: string,
+  action:
+    | typeof api.agents.file_actions.listAgents
+    | typeof api.providers.file_actions.listProviders,
+): void {
+  // `fetchQuery` (not `prefetchQuery`) so a failure reaches our `.catch` and is
+  // logged rather than silently swallowed — `prefetchQuery` does `.catch(noop)`
+  // internally. It populates the exact same cache entry either way.
+  void context.queryClient
+    .fetchQuery({
+      queryKey,
+      queryFn: () =>
+        context.convexQueryClient.convexClient.action(action, {
+          organizationId,
+        }),
+      staleTime: Infinity,
+    })
+    .catch((error: unknown) => {
+      console.warn('Failed to prewarm config catalog', error);
+    });
+}
+
 export const Route = createFileRoute('/dashboard/$id')({
-  // Warm the membership/ability context before the layout renders so children
-  // mount with access resolved (no shell-skeleton flash on warm org entry).
-  // The component's gating logic surfaces denied/not-found states, so an
-  // access error here must not fail the transition. Cap the wait at 2s so a
-  // slow membership round-trip (e.g. during an org switch) can't hang the
-  // transition — the component renders a skeleton while the live subscription
-  // catches up.
+  // Warm the membership/ability context and team filter, but DO NOT block the
+  // transition on them. The layout shell + side-nav rail paint immediately
+  // (NavRailPlaceholder) and the live getCurrentMemberContext subscription
+  // upgrades the rail to the real Navigation the moment access resolves — so
+  // the sidebar loads independently of the page content instead of the whole
+  // shell waiting on a (potentially slow) membership round-trip. On warm entry
+  // the prefetched cache resolves synchronously on first render, so there's no
+  // placeholder flash; on cold entry the rail's masked placeholder stands in
+  // while access catches up. The component's gating logic surfaces
+  // denied/not-found states, so an access error here is non-fatal.
   loader: ({ context, params }) => {
     // The team filter (TeamFilterProvider) reads getMyTeams on every dashboard
     // page; warm it alongside the gating member context.
@@ -56,20 +97,19 @@ export const Route = createFileRoute('/dashboard/$id')({
         organizationId: params.id,
       }),
     );
-    const preload = ensureConvexQuery(
+    void ensureConvexQuery(
       context,
       api.members.queries.getCurrentMemberContext,
       { organizationId: params.id },
     ).catch((error: unknown) => {
       console.warn('Failed to preload member context', error);
     });
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, 2000);
-    });
-    return Promise.race([preload, timeout]).finally(() => {
-      if (timer) clearTimeout(timer);
-    });
+    // NOTE: the chat agent/provider catalog prewarm is intentionally NOT done
+    // here. Firing it in the loader raced the WS auth handshake, so on every
+    // cold load the action ran unauthenticated → `UNAUTHENTICATED` (logged by
+    // the Convex client) + a failed/wasted query. It now runs in DashboardLayout
+    // gated on `isAuthenticated` (see the effect there), which still warms the
+    // cache before the chat composer mounts but never before auth is ready.
   },
   component: DashboardLayout,
 });
@@ -77,7 +117,42 @@ export const Route = createFileRoute('/dashboard/$id')({
 function DashboardLayout() {
   const { id: organizationId } = Route.useParams();
   usePasswordExpiryGate(organizationId);
-  const { isLoading: isAuthLoading } = useConvexAuth();
+
+  // Theme the app to this org's branding. BrandingProvider sits above the
+  // router (it themes the pre-auth shell too) and can't read this route param
+  // directly, so publish it to the active-org store it subscribes to. Reset on
+  // unmount so leaving the dashboard reverts to the platform-default branding.
+  useEffect(() => {
+    setActiveOrganizationId(organizationId);
+    return () => setActiveOrganizationId(undefined);
+  }, [organizationId]);
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
+  // Warm the chat composer's agent + provider catalogs ONCE auth is ready (the
+  // chat page is the dashboard's default landing). Done here rather than in the
+  // route loader because the loader raced the WS auth handshake — the catalog
+  // actions ran unauthenticated and failed on every cold load. DashboardLayout
+  // is the parent of the chat route, so this still populates the cache before
+  // the composer mounts; on a warm navigation `isAuthenticated` is already true
+  // so it fires immediately. Once per org.
+  const routeContext = Route.useRouteContext();
+  const catalogPrewarmedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (catalogPrewarmedRef.current === organizationId) return;
+    catalogPrewarmedRef.current = organizationId;
+    prewarmConfigCatalog(
+      routeContext,
+      configKeys.list('agents', organizationId),
+      organizationId,
+      api.agents.file_actions.listAgents,
+    );
+    prewarmConfigCatalog(
+      routeContext,
+      configKeys.list('providers', organizationId),
+      organizationId,
+      api.providers.file_actions.listProviders,
+    );
+  }, [isAuthenticated, organizationId, routeContext]);
   const {
     data: memberContext,
     isLoading: isQueryLoading,

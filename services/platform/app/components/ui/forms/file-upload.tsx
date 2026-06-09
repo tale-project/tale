@@ -245,11 +245,13 @@ function DropZoneBase({
       // — tabbing into the composer hit this element with zero feedback.
       // Concatenate via template literal so consumers can still pass
       // their own className.
-      className={
-        clickable && !disabled
-          ? `focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none ${className ?? ''}`
-          : className
-      }
+      className={cn(
+        clickable &&
+          !disabled &&
+          'focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none',
+        clickable && disabled && 'cursor-not-allowed',
+        className,
+      )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

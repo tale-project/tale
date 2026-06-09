@@ -34,6 +34,52 @@ function resolveInstructions(
   return direct ?? baseI18n ?? fallbackI18n ?? config.systemInstructions ?? '';
 }
 
+export interface ResolvedAgentDisplay {
+  displayName?: string;
+  description?: string;
+  conversationStarters?: string[];
+}
+
+/**
+ * Resolve the router/UI-facing display fields (displayName, description,
+ * conversationStarters) with the same i18n-first precedence as instructions:
+ *   i18n[locale] → i18n[base] → i18n['en'] → top-level (legacy).
+ *
+ * Load-bearing for Auto routing: the classifier prompt
+ * (`buildRouterInstructions`) is built from these. An agent whose
+ * description/starters live ONLY under `i18n` (the current data model) resolves
+ * to `undefined` if read straight off the raw config, so the router renders it
+ * as the blank "General-purpose assistant." fallback and can never pick it.
+ */
+export function resolveAgentDisplay(
+  config: AgentJsonConfig,
+  locale?: string,
+): ResolvedAgentDisplay {
+  const base =
+    locale && locale.includes('-') ? locale.split('-')[0] : undefined;
+  const atLocale = locale ? config.i18n?.[locale] : undefined;
+  const atBase = base ? config.i18n?.[base] : undefined;
+  const atDefault = config.i18n?.[appDefaultLocale];
+
+  return {
+    displayName:
+      atLocale?.displayName ??
+      atBase?.displayName ??
+      atDefault?.displayName ??
+      config.displayName,
+    description:
+      atLocale?.description ??
+      atBase?.description ??
+      atDefault?.description ??
+      config.description,
+    conversationStarters:
+      atLocale?.conversationStarters ??
+      atBase?.conversationStarters ??
+      atDefault?.conversationStarters ??
+      config.conversationStarters,
+  };
+}
+
 export function toSerializableConfig(
   agentName: string,
   config: AgentJsonConfig,
@@ -85,6 +131,8 @@ export function toSerializableConfig(
     structuredResponsesEnabled: config.structuredResponsesEnabled ?? false,
     timeoutMs: config.timeoutMs,
     outputReserve: config.outputReserve,
+    responseTuning: config.responseTuning,
+    routing: config.routing,
     fallbackModels:
       config.supportedModels.length > 1
         ? config.supportedModels.slice(1)

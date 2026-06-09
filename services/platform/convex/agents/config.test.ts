@@ -1,11 +1,57 @@
 import { describe, it, expect } from 'vitest';
 
-import { toSerializableConfig } from './config';
+import { resolveAgentDisplay, toSerializableConfig } from './config';
 import type { AgentJsonConfig } from './file_utils';
 
 const baseConfig: AgentJsonConfig = {
   supportedModels: ['openai:gpt-4o'],
 };
+
+describe('resolveAgentDisplay (Auto-router candidate descriptions)', () => {
+  // Mirrors the real translator.json: description/displayName/starters live ONLY
+  // under i18n, never top-level. The router projection must surface them or the
+  // classifier sees a blank "General-purpose assistant." and can't route to it.
+  const i18nOnly: AgentJsonConfig = {
+    ...baseConfig,
+    i18n: {
+      en: {
+        displayName: 'Translator',
+        description: 'Translate documents, text, and images between languages.',
+        conversationStarters: ['Translate this document to English'],
+      },
+      de: {
+        displayName: 'Übersetzer',
+        description: 'Übersetzt Dokumente, Text und Bilder zwischen Sprachen.',
+        conversationStarters: ['Übersetze dieses Dokument ins Englische'],
+      },
+    },
+  };
+
+  it('resolves description + starters from i18n when absent at top level', () => {
+    const r = resolveAgentDisplay(i18nOnly);
+    expect(r.description).toBe(
+      'Translate documents, text, and images between languages.',
+    );
+    expect(r.displayName).toBe('Translator');
+    expect(r.conversationStarters).toEqual([
+      'Translate this document to English',
+    ]);
+  });
+
+  it('prefers the requested locale, falling back to en then top level', () => {
+    expect(resolveAgentDisplay(i18nOnly, 'de').description).toBe(
+      'Übersetzt Dokumente, Text und Bilder zwischen Sprachen.',
+    );
+    // Unknown locale → en fallback.
+    expect(resolveAgentDisplay(i18nOnly, 'es').description).toBe(
+      'Translate documents, text, and images between languages.',
+    );
+    // No i18n → legacy top-level.
+    expect(
+      resolveAgentDisplay({ ...baseConfig, description: 'legacy' }).description,
+    ).toBe('legacy');
+  });
+});
 
 describe('toSerializableConfig systemInstructions resolution', () => {
   it('prefers i18n[locale].systemInstructions over all fallbacks', () => {

@@ -234,7 +234,7 @@ export function DataTableFilters({
                   <button
                     type="button"
                     onClick={handleClearAll}
-                    className="rounded-md px-2 py-0.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:hover:bg-blue-950"
+                    className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring rounded-md px-2 py-0.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none"
                   >
                     {t('actions.clearAll')}
                   </button>

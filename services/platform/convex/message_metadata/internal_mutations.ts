@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
 import {
+  autoRouteReasonValidator,
   toolUsageItemValidator,
   citationItemValidator,
   contextStatsValidator,
@@ -17,6 +18,7 @@ export const saveMessageMetadata = internalMutation({
     model: v.optional(v.string()),
     provider: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
+    autoRouteReason: v.optional(autoRouteReasonValidator),
     inputTokens: v.optional(v.number()),
     outputTokens: v.optional(v.number()),
     totalTokens: v.optional(v.number()),
@@ -28,6 +30,7 @@ export const saveMessageMetadata = internalMutation({
     timeToFirstTokenMs: v.optional(v.number()),
     timeToFirstReasoningMs: v.optional(v.number()),
     timeFromSendMs: v.optional(v.number()),
+    thinkingDurationMs: v.optional(v.number()),
     toolsUsage: v.optional(v.array(toolUsageItemValidator)),
     citations: v.optional(v.array(citationItemValidator)),
     contextWindow: v.optional(v.string()),
@@ -61,6 +64,9 @@ export const saveMessageMetadata = internalMutation({
         model: args.model ?? existing.model,
         provider: args.provider ?? existing.provider,
         agentSlug: args.agentSlug ?? existing.agentSlug,
+        // Preserve a reason saved on the first turn — continuation paths
+        // (tool approvals, delegation resume) re-save metadata without it.
+        autoRouteReason: args.autoRouteReason ?? existing.autoRouteReason,
         inputTokens: args.inputTokens ?? existing.inputTokens,
         outputTokens: args.outputTokens ?? existing.outputTokens,
         totalTokens: args.totalTokens ?? existing.totalTokens,
@@ -74,6 +80,8 @@ export const saveMessageMetadata = internalMutation({
         timeToFirstReasoningMs:
           args.timeToFirstReasoningMs ?? existing.timeToFirstReasoningMs,
         timeFromSendMs: args.timeFromSendMs ?? existing.timeFromSendMs,
+        thinkingDurationMs:
+          args.thinkingDurationMs ?? existing.thinkingDurationMs,
         toolsUsage: args.toolsUsage ?? existing.toolsUsage,
         citations: args.citations ?? existing.citations,
         contextWindow: contextWindow ?? existing.contextWindow,
@@ -90,6 +98,7 @@ export const saveMessageMetadata = internalMutation({
       model: args.model ?? '',
       provider: args.provider ?? '',
       agentSlug: args.agentSlug,
+      autoRouteReason: args.autoRouteReason,
       inputTokens: args.inputTokens,
       outputTokens: args.outputTokens,
       totalTokens: args.totalTokens,
@@ -101,6 +110,7 @@ export const saveMessageMetadata = internalMutation({
       timeToFirstTokenMs: args.timeToFirstTokenMs,
       timeToFirstReasoningMs: args.timeToFirstReasoningMs,
       timeFromSendMs: args.timeFromSendMs,
+      thinkingDurationMs: args.thinkingDurationMs,
       toolsUsage: args.toolsUsage,
       citations: args.citations,
       contextWindow,

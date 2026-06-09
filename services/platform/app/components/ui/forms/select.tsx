@@ -256,8 +256,11 @@ export const Select = forwardRef<
 >((props, ref) => {
   const loading = useSkeleton();
   if (loading) {
+    // `fullWidth` so the mask is block-level and stacks under sibling fields
+    // (matches Input/CopyableField). A bare inline-block mask let stacked
+    // controls flow side-by-side while loading, then snap to a column.
     return (
-      <SkeletonBox>
+      <SkeletonBox fullWidth>
         <SelectBase {...props} ref={ref} />
       </SkeletonBox>
     );

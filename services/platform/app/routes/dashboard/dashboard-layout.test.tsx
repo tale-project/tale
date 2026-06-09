@@ -22,6 +22,12 @@ const mockNavigate = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({
     useParams: mockUseParams,
+    // DashboardLayout warms the chat config catalog in an auth-gated effect via
+    // Route.useRouteContext(); stub it so the prewarm is a harmless no-op here.
+    useRouteContext: () => ({
+      queryClient: { fetchQuery: vi.fn().mockResolvedValue(undefined) },
+      convexQueryClient: { convexClient: { action: vi.fn() } },
+    }),
     ...config,
   }),
   Outlet: () => <div data-testid="outlet" />,
@@ -86,6 +92,9 @@ vi.mock('@/convex/_generated/api', () => ({
     organizations: {
       record_org_switch: { recordOrgSwitch: 'mock-record-org-switch' },
     },
+    // Referenced by DashboardLayout's auth-gated config-catalog prewarm effect.
+    agents: { file_actions: { listAgents: 'mock-list-agents' } },
+    providers: { file_actions: { listProviders: 'mock-list-providers' } },
   },
 }));
 

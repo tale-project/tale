@@ -1,7 +1,7 @@
 import { listMessages, saveMessage, type MessageDoc } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
-import { components } from '../_generated/api';
+import { components, internal } from '../_generated/api';
 import { internalMutation, mutation } from '../_generated/server';
 import {
   assertThreadAccess,
@@ -13,6 +13,10 @@ import {
   archiveChatThread as archiveChatThreadHelper,
   unarchiveChatThread as unarchiveChatThreadHelper,
 } from './archive_chat_thread';
+import {
+  assertBulkActionAllowed,
+  collectBulkActionThreadIds,
+} from './bulk_thread_actions';
 import { cancelGeneration as cancelGenerationHelper } from './cancel_generation';
 import { createChatThread as createChatThreadHelper } from './create_chat_thread';
 import { deleteChatThread as deleteChatThreadHelper } from './delete_chat_thread';
@@ -263,6 +267,100 @@ export const unarchiveChatThread = mutation({
 
     await unarchiveChatThreadHelper(ctx, args.threadId);
     return null;
+  },
+});
+
+/**
+ * Soft-delete (move to Trash) every one of the caller's own general chats —
+ * the "Delete all chats" action in account settings. Collects the matching
+ * thread ids, then hands them to a scheduled batch processor so a large
+ * history doesn't blow the per-mutation read/write budget. Returns the number
+ * of chats scheduled for deletion (0 = nothing to do). The chat list updates
+ * reactively as each batch flips threads to `'trashed'`.
+ *
+ * Explicit return type: this mutation references `internal.*` via the
+ * scheduler, so without the annotation TS would chase a circular type through
+ * the generated api.
+ */
+export const deleteAllChatThreads = mutation({
+  args: {
+    organizationId: v.optional(v.string()),
+  },
+  returns: v.object({ scheduled: v.number() }),
+  handler: async (ctx, args): Promise<{ scheduled: number }> => {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
+      throw new Error('Unauthenticated');
+    }
+
+    await assertBulkActionAllowed(ctx, identity.userId, args.organizationId);
+
+    const threadIds = await collectBulkActionThreadIds(
+      ctx,
+      identity.userId,
+      args.organizationId,
+      'delete',
+    );
+
+    if (threadIds.length > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.threads.internal_mutations.processBulkThreadAction,
+        {
+          threadIds,
+          offset: 0,
+          action: 'delete',
+          userId: identity.userId,
+          organizationId: args.organizationId,
+        },
+      );
+    }
+
+    return { scheduled: threadIds.length };
+  },
+});
+
+/**
+ * Archive every one of the caller's own active general chats — the
+ * "Archive all chats" action in account settings. Same scheduled-batch
+ * approach as `deleteAllChatThreads`; archived chats remain restorable from
+ * the archived section. Returns the number of chats scheduled.
+ */
+export const archiveAllChatThreads = mutation({
+  args: {
+    organizationId: v.optional(v.string()),
+  },
+  returns: v.object({ scheduled: v.number() }),
+  handler: async (ctx, args): Promise<{ scheduled: number }> => {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
+      throw new Error('Unauthenticated');
+    }
+
+    await assertBulkActionAllowed(ctx, identity.userId, args.organizationId);
+
+    const threadIds = await collectBulkActionThreadIds(
+      ctx,
+      identity.userId,
+      args.organizationId,
+      'archive',
+    );
+
+    if (threadIds.length > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.threads.internal_mutations.processBulkThreadAction,
+        {
+          threadIds,
+          offset: 0,
+          action: 'archive',
+          userId: identity.userId,
+          organizationId: args.organizationId,
+        },
+      );
+    }
+
+    return { scheduled: threadIds.length };
   },
 });
 
