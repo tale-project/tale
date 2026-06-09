@@ -43,6 +43,12 @@ export const fileMetadataTable = defineTable({
   // (e.g. scheduled action silently failed before hitting the service).
   // Falls back to _creationTime when absent on older rows.
   ragQueuedAt: v.optional(v.number()),
+  // Unix SECONDS when ragStatus most recently reached 'completed'. Canonical
+  // replacement for the retired documents.ragInfo.indexedAt — stamped by
+  // updateFileRagStatus on completion, read by getDocumentRagProjection. Seconds
+  // (not ms) to match the legacy writer, the backfill, and the RagStatusBadge's
+  // `new Date(indexedAt * 1000)` render.
+  ragIndexedAt: v.optional(v.number()),
   // Audio transcription (populated when contentType starts with 'audio/').
   transcript: v.optional(v.string()),
   transcriptionStatus: v.optional(
@@ -160,6 +166,20 @@ export const fileMetadataTable = defineTable({
   // thread's bound files in O(1) per thread. Same shape as the soft-delete
   // composite index for status-narrowed sweeps.
   .index('by_organizationId_and_threadId', ['organizationId', 'threadId'])
+  // Canonical "list indexed Document-Hub files in this org" lookup — replaces
+  // the documents-side by_organizationId_and_indexed index after RAG status
+  // collapsed onto fileMetadata. Used by getAgentScopedFileIds +
+  // listIndexedDocumentsForAgent, queried as
+  // `.eq(org).eq('ragStatus','completed').gt('documentId', undefined)`: the
+  // documentId third field lets the range bound SEEK past chat-upload /
+  // transcript rows (documentId absent → ordered as `undefined`, the least
+  // value), so the scan stays dense with Hub docs instead of being inflated by
+  // the org's chat corpus. (Convex orders: undefined < null < … < string.)
+  .index('by_organizationId_and_ragStatus_and_documentId', [
+    'organizationId',
+    'ragStatus',
+    'documentId',
+  ])
   // Watchdog sweep: the `recoverStuckTranscriptions` cron runs every 5
   // minutes and only cares about rows whose `transcriptionStatus` is
   // `'running'`. The vast majority of rows are `'completed'` /

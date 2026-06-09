@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 
 import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
@@ -19,6 +20,9 @@ export const retryRagIndexing = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
+    // RAG status is canonical on fileMetadata.ragStatus; hoist storageId so the
+    // catch can mark failure after the document is resolved.
+    let storageId: Id<'_storage'> | null = null;
     try {
       const authUser = await getAuthUserIdentity(ctx);
       if (!authUser) {
@@ -48,6 +52,23 @@ export const retryRagIndexing = action({
       if (!document.fileId) {
         return { success: false, error: 'Document has no file' };
       }
+      storageId = document.fileId;
+
+      // Self-heal the canonical RAG-status home before writing status:
+      // updateFileRagStatus below no-ops when the blob has no fileMetadata row
+      // (e.g. a UI upload without fileSize, or a legacy file-backed doc), which
+      // would leave this retry silently stuck. Does not schedule another upload
+      // — this action pushes the blob itself just below.
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.ensureFileMetadataForDocument,
+        {
+          organizationId: document.organizationId,
+          storageId: document.fileId,
+          documentId: args.documentId,
+          fileName: document.title ?? 'document',
+          contentType: document.mimeType,
+        },
+      );
 
       const rawResult = await ragAction.execute(
         ctx,
@@ -64,29 +85,25 @@ export const retryRagIndexing = action({
 
       if (success) {
         await ctx.runMutation(
-          internal.documents.internal_mutations.updateDocumentRagInfo,
-          {
-            documentId: args.documentId,
-            ragInfo: {
-              status: 'queued',
-            },
-          },
+          internal.file_metadata.internal_mutations.updateFileRagStatus,
+          { storageId: document.fileId, ragStatus: 'queued' },
         );
         await ctx.scheduler.runAfter(
           INITIAL_POLLING_DELAY_MS,
-          internal.documents.internal_actions.checkRagDocumentStatus,
-          { documentId: args.documentId, attempt: 1 },
+          internal.file_metadata.internal_actions.pollFileRagStatus,
+          {
+            storageId: document.fileId,
+            organizationId: document.organizationId,
+            attempt: 1,
+          },
         );
       } else {
         const error =
           (result ? getString(result, 'error') : undefined) ??
           'Upload to RAG failed';
         await ctx.runMutation(
-          internal.documents.internal_mutations.updateDocumentRagInfo,
-          {
-            documentId: args.documentId,
-            ragInfo: { status: 'failed', error },
-          },
+          internal.file_metadata.internal_mutations.updateFileRagStatus,
+          { storageId: document.fileId, ragStatus: 'failed', ragError: error },
         );
       }
 
@@ -95,19 +112,18 @@ export const retryRagIndexing = action({
       const message =
         error instanceof Error ? error.message : 'Failed to retry RAG indexing';
       console.error('[retryRagIndexing] Error:', error);
-      try {
-        await ctx.runMutation(
-          internal.documents.internal_mutations.updateDocumentRagInfo,
-          {
-            documentId: args.documentId,
-            ragInfo: { status: 'failed', error: message },
-          },
-        );
-      } catch (updateError) {
-        console.error(
-          '[retryRagIndexing] Failed to update document status:',
-          updateError,
-        );
+      if (storageId) {
+        try {
+          await ctx.runMutation(
+            internal.file_metadata.internal_mutations.updateFileRagStatus,
+            { storageId, ragStatus: 'failed', ragError: message },
+          );
+        } catch (updateError) {
+          console.error(
+            '[retryRagIndexing] Failed to update document status:',
+            updateError,
+          );
+        }
       }
       return { success: false, error: message };
     }

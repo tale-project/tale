@@ -292,6 +292,7 @@ import type * as documents_get_agent_scoped_file_ids from "../documents/get_agen
 import type * as documents_get_document_by_id from "../documents/get_document_by_id.js";
 import type * as documents_get_document_by_id_transformed from "../documents/get_document_by_id_transformed.js";
 import type * as documents_get_document_by_path from "../documents/get_document_by_path.js";
+import type * as documents_get_document_rag_projection from "../documents/get_document_rag_projection.js";
 import type * as documents_get_documents from "../documents/get_documents.js";
 import type * as documents_get_documents_cursor from "../documents/get_documents_cursor.js";
 import type * as documents_get_onedrive_sync_configs from "../documents/get_onedrive_sync_configs.js";
@@ -656,6 +657,7 @@ import type * as message_metadata_queries from "../message_metadata/queries.js";
 import type * as migrations from "../migrations.js";
 import type * as migrations_backfill_apikey_reference_id from "../migrations/backfill_apikey_reference_id.js";
 import type * as migrations_backfill_file_metadata_document_id from "../migrations/backfill_file_metadata_document_id.js";
+import type * as migrations_backfill_filemetadata_rag_status from "../migrations/backfill_filemetadata_rag_status.js";
 import type * as migrations_backfill_folder_path from "../migrations/backfill_folder_path.js";
 import type * as migrations_backfill_folders from "../migrations/backfill_folders.js";
 import type * as migrations_backfill_ledger_granularity from "../migrations/backfill_ledger_granularity.js";
@@ -1534,6 +1536,7 @@ declare const fullApi: ApiFromModules<{
   "documents/get_document_by_id": typeof documents_get_document_by_id;
   "documents/get_document_by_id_transformed": typeof documents_get_document_by_id_transformed;
   "documents/get_document_by_path": typeof documents_get_document_by_path;
+  "documents/get_document_rag_projection": typeof documents_get_document_rag_projection;
   "documents/get_documents": typeof documents_get_documents;
   "documents/get_documents_cursor": typeof documents_get_documents_cursor;
   "documents/get_onedrive_sync_configs": typeof documents_get_onedrive_sync_configs;
@@ -1898,6 +1901,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   "migrations/backfill_apikey_reference_id": typeof migrations_backfill_apikey_reference_id;
   "migrations/backfill_file_metadata_document_id": typeof migrations_backfill_file_metadata_document_id;
+  "migrations/backfill_filemetadata_rag_status": typeof migrations_backfill_filemetadata_rag_status;
   "migrations/backfill_folder_path": typeof migrations_backfill_folder_path;
   "migrations/backfill_folders": typeof migrations_backfill_folders;
   "migrations/backfill_ledger_granularity": typeof migrations_backfill_ledger_granularity;

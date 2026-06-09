@@ -1,5 +1,10 @@
 /**
- * Update document RAG info (internal helper)
+ * Update document RAG info (internal helper).
+ *
+ * @deprecated RAG status is canonical on `fileMetadata.ragStatus`. This writes
+ * the retired `documents.ragInfo`/`indexed` fields and is only reachable from
+ * the deprecated `checkRagDocumentStatus` poller (kept for pre-cutover drain).
+ * New code writes status via `internal.file_metadata.internal_mutations.updateFileRagStatus`.
  */
 
 import type { Id } from '../_generated/dataModel';

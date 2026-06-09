@@ -234,4 +234,51 @@ describe('transformToDocumentItem', () => {
       expect(result.teamIds).toEqual([]);
     });
   });
+
+  describe('RAG projection mapping (canonical fileMetadata.ragStatus)', () => {
+    it('maps ragStatus/ragIndexedAt/ragError from the projection map by document _id', () => {
+      const doc = createMockDocument();
+      const ragProjectionMap = new Map([
+        [
+          'doc1',
+          {
+            status: 'completed' as const,
+            indexedAt: 1_700_000_000,
+            error: undefined,
+            indexed: true,
+          },
+        ],
+      ]);
+      const result = transformToDocumentItem(doc, { ragProjectionMap });
+      expect(result.ragStatus).toBe('completed');
+      expect(result.ragIndexedAt).toBe(1_700_000_000);
+      expect(result.ragError).toBeUndefined();
+    });
+
+    it('surfaces a failed projection with its error', () => {
+      const doc = createMockDocument();
+      const ragProjectionMap = new Map([
+        ['doc1', { status: 'failed' as const, error: 'boom', indexed: false }],
+      ]);
+      const result = transformToDocumentItem(doc, { ragProjectionMap });
+      expect(result.ragStatus).toBe('failed');
+      expect(result.ragError).toBe('boom');
+    });
+
+    it('projects as not-indexed (undefined fields) when no map is provided', () => {
+      const doc = createMockDocument();
+      const result = transformToDocumentItem(doc);
+      expect(result.ragStatus).toBeUndefined();
+      expect(result.ragIndexedAt).toBeUndefined();
+      expect(result.ragError).toBeUndefined();
+    });
+
+    it('projects as not-indexed when the map has no entry for this doc', () => {
+      const doc = createMockDocument();
+      const result = transformToDocumentItem(doc, {
+        ragProjectionMap: new Map(),
+      });
+      expect(result.ragStatus).toBeUndefined();
+    });
+  });
 });

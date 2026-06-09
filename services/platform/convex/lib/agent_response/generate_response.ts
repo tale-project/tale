@@ -781,18 +781,30 @@ export async function generateAgentResponse(
         >
       | undefined;
     if (needsKnowledgeContext && organizationId && promptMessage) {
-      const accessibleFileIds: string[] = await ctx.runQuery(
-        internal.documents.internal_queries.getAgentScopedFileIds,
-        {
-          organizationId,
-          agentTeamId,
-          agentTeamIds,
-          includeTeamKnowledge,
-          includeOrgKnowledge,
-          knowledgeFileIds,
-          agentProjectIds,
-        },
-      );
+      // Resolve the agent's RAG scope defensively: on a very large knowledge
+      // corpus this query can hit the Convex transaction read cap and throw.
+      // Degrade to "no knowledge context this turn" (logged) rather than abort
+      // the whole response — same guardrail as the orgSlugFromId resolve below.
+      let accessibleFileIds: string[] = [];
+      try {
+        accessibleFileIds = await ctx.runQuery(
+          internal.documents.internal_queries.getAgentScopedFileIds,
+          {
+            organizationId,
+            agentTeamId,
+            agentTeamIds,
+            includeTeamKnowledge,
+            includeOrgKnowledge,
+            knowledgeFileIds,
+            agentProjectIds,
+          },
+        );
+      } catch (err) {
+        console.warn(
+          '[generateAgentResponse] getAgentScopedFileIds failed; skipping knowledge context',
+          err instanceof Error ? err.message : err,
+        );
+      }
       if (accessibleFileIds.length === 0) {
         debugLog('No accessible RAG documents, skipping knowledge context');
       } else {

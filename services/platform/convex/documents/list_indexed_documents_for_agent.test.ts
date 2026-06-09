@@ -12,15 +12,26 @@ interface MockDoc {
 }
 
 function createMockCtx(docs: MockDoc[]) {
+  // Completion is canonical on fileMetadata.ragStatus now: the query paginates
+  // completed fileMetadata (one per doc), then resolves each to its document
+  // via ctx.db.get(documentId).
+  const fms = docs.map((d) => ({
+    storageId: d.fileId,
+    documentId: d._id,
+    ragStatus: 'completed' as const,
+    organizationId: 'org1',
+  }));
+  const docsById = new Map(docs.map((d) => [d._id, d]));
+
   const queryFn = () => ({
     withIndex: () => ({
       order: () => ({
         paginate: async (opts: { cursor: string | null; numItems: number }) => {
-          // Simulate Convex .paginate() behavior
+          // Simulate Convex .paginate() behavior over the fileMetadata rows
           const startIndex = opts.cursor ? Number(opts.cursor) : 0;
-          const page = docs.slice(startIndex, startIndex + opts.numItems);
+          const page = fms.slice(startIndex, startIndex + opts.numItems);
           const endIndex = startIndex + page.length;
-          const isDone = endIndex >= docs.length;
+          const isDone = endIndex >= fms.length;
           return {
             page,
             isDone,
@@ -31,7 +42,9 @@ function createMockCtx(docs: MockDoc[]) {
     }),
   });
 
-  return { db: { query: queryFn } } as unknown as Parameters<
+  const get = async (id: unknown) => docsById.get(id as string) ?? null;
+
+  return { db: { query: queryFn, get } } as unknown as Parameters<
     typeof listIndexedDocumentsForAgent
   >[0];
 }
@@ -288,18 +301,26 @@ describe('listIndexedDocumentsForAgent', () => {
       title: `Doc ${i}`,
     }));
 
+    const fms = docs.map((d) => ({
+      storageId: d.fileId,
+      documentId: d._id,
+      ragStatus: 'completed' as const,
+      organizationId: 'org1',
+    }));
+    const docsById = new Map(docs.map((d) => [d._id, d]));
     const queryFn = () => ({
       withIndex: () => ({
         order: () => ({
           paginate: async () => ({
-            page: docs,
+            page: fms,
             isDone: true,
             continueCursor: 'end',
           }),
         }),
       }),
     });
-    const ctx = { db: { query: queryFn } } as unknown as Parameters<
+    const get = async (id: unknown) => docsById.get(id as string) ?? null;
+    const ctx = { db: { query: queryFn, get } } as unknown as Parameters<
       typeof listIndexedDocumentsForAgent
     >[0];
 
@@ -375,5 +396,70 @@ describe('listIndexedDocumentsForAgent', () => {
     expect(allDocs).toHaveLength(10);
     const uniqueFileIds = new Set(allDocs.map((d) => d.fileId));
     expect(uniqueFileIds.size).toBe(10);
+  });
+
+  // SSOT skip branches: the index range excludes documentId-absent rows, but the
+  // stale-blob (doc.fileId !== fm.storageId) and inactive-doc guards backstop
+  // re-indexed and trashed docs. Inject explicit fileMetadata rows + a docs map.
+  describe('SSOT skip branches', () => {
+    function createRawCtx(
+      fms: Array<Record<string, unknown>>,
+      docsById: Record<string, Record<string, unknown>>,
+    ) {
+      const queryFn = () => ({
+        withIndex: () => ({
+          order: () => ({
+            paginate: async () => ({
+              page: fms,
+              isDone: true,
+              continueCursor: 'end',
+            }),
+          }),
+        }),
+      });
+      const get = async (id: unknown) => docsById[id as string] ?? null;
+      return { db: { query: queryFn, get } } as unknown as Parameters<
+        typeof listIndexedDocumentsForAgent
+      >[0];
+    }
+
+    const orgArgs = { organizationId: 'org1', includeOrgKnowledge: true };
+
+    it('skips a completed row whose documentId is unset (defensive guard)', async () => {
+      const ctx = createRawCtx(
+        [
+          { storageId: 'blob-x', ragStatus: 'completed' }, // no documentId
+          { storageId: 'blob-y', documentId: 'docY', ragStatus: 'completed' },
+        ],
+        { docY: { _id: 'docY', fileId: 'blob-y', title: 'Y' } },
+      );
+      const result = await listIndexedDocumentsForAgent(ctx, orgArgs);
+      expect(result.documents.map((d) => d.fileId)).toEqual(['blob-y']);
+    });
+
+    it('skips a stale completed row on a re-indexed doc (current blob differs)', async () => {
+      const ctx = createRawCtx(
+        [{ storageId: 'old-blob', documentId: 'docZ', ragStatus: 'completed' }],
+        { docZ: { _id: 'docZ', fileId: 'new-blob', title: 'Z' } },
+      );
+      const result = await listIndexedDocumentsForAgent(ctx, orgArgs);
+      expect(result.documents).toEqual([]);
+    });
+
+    it('skips trashed / soft-deleted documents', async () => {
+      const ctx = createRawCtx(
+        [{ storageId: 'blob-t', documentId: 'docT', ragStatus: 'completed' }],
+        {
+          docT: {
+            _id: 'docT',
+            fileId: 'blob-t',
+            title: 'T',
+            lifecycleStatus: 'trashed',
+          },
+        },
+      );
+      const result = await listIndexedDocumentsForAgent(ctx, orgArgs);
+      expect(result.documents).toEqual([]);
+    });
   });
 });

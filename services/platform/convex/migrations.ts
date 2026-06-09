@@ -31,5 +31,32 @@ export const runAll = internalAction({
       internal.migrations.split_personalization_toggle.apply,
       {},
     );
+    // Both backfills below are independent and idempotent. The documentId
+    // backfill keys on (organizationId, fileId); the rag-status backfill keys on
+    // storageId and has NO documentId dependency — so call order is cosmetic.
+    // Each runs only its first batch synchronously here and self-schedules its
+    // tail, so the two walks interleave regardless. Agent RAG retrieval requires
+    // BOTH documentId set AND ragStatus === 'completed', so a legacy
+    // completed-but-unlinked blob is transiently invisible until both chains
+    // drain, then converges. (The rag-status backfill self-heals missing rows it
+    // creates with documentId already set; the documentId backfill skips those.)
+    //
+    // Links fileMetadata.documentId from the matching (organizationId, fileId)
+    // document. Self-scheduling, idempotent (skips rows that already have
+    // documentId).
+    await ctx.runMutation(
+      internal.migrations.backfill_file_metadata_document_id
+        .backfillFileMetadataDocumentId,
+      {},
+    );
+    // Mirrors TERMINAL legacy documents.ragInfo.{status,error,indexedAt} onto the
+    // canonical fileMetadata.{ragStatus,ragError,ragIndexedAt}, creating the row
+    // when missing. Self-scheduling (one paginated batch per call), idempotent —
+    // safe to re-run on every deploy.
+    await ctx.runMutation(
+      internal.migrations.backfill_filemetadata_rag_status
+        .backfillFilemetadataRagStatus,
+      {},
+    );
   },
 });

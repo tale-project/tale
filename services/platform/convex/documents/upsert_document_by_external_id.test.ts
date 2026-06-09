@@ -22,7 +22,13 @@ interface MockFolder {
   organizationId: string;
 }
 
-function createMockCtx(initial: MockDoc[], initialFolders: MockFolder[] = []) {
+function createMockCtx(
+  initial: MockDoc[],
+  initialFolders: MockFolder[] = [],
+  // Maps an existing blob storageId → its canonical RAG status row. Drives the
+  // reindex gate (`fileMetadata by_storageId .first()`); empty → gate inert.
+  fmByStorageId: Record<string, { ragStatus?: string }> = {},
+) {
   const docs = new Map<string, MockDoc>();
   for (const doc of initial) docs.set(doc._id, doc);
   const folders = new Map<string, MockFolder>();
@@ -30,6 +36,7 @@ function createMockCtx(initial: MockDoc[], initialFolders: MockFolder[] = []) {
   let counter = initial.length;
   const inserts: MockDoc[] = [];
   const patches: Array<{ id: string; patch: Record<string, unknown> }> = [];
+  const scheduled: Array<{ args: Record<string, unknown> }> = [];
 
   const ctx = {
     db: {
@@ -42,14 +49,24 @@ function createMockCtx(initial: MockDoc[], initialFolders: MockFolder[] = []) {
         ) => {
           let orgFilter: string | undefined;
           let externalFilter: string | undefined;
+          let storageIdFilter: string | undefined;
           const qb = {
             eq: (field: string, value: unknown) => {
               if (field === 'organizationId') orgFilter = value as string;
               if (field === 'externalItemId') externalFilter = value as string;
+              if (field === 'storageId') storageIdFilter = value as string;
               return qb;
             },
           };
           cb(qb);
+          // fileMetadata reindex-gate lookup (keyed on storageId only).
+          if (storageIdFilter !== undefined) {
+            const sid = storageIdFilter;
+            return {
+              [Symbol.asyncIterator]: async function* () {},
+              first: async () => fmByStorageId[sid] ?? null,
+            };
+          }
           const matched: MockDoc[] = [];
           for (const doc of docs.values()) {
             if (
@@ -63,6 +80,7 @@ function createMockCtx(initial: MockDoc[], initialFolders: MockFolder[] = []) {
             [Symbol.asyncIterator]: async function* () {
               for (const m of matched) yield m;
             },
+            first: async () => matched[0] ?? null,
           };
         },
       }),
@@ -94,9 +112,19 @@ function createMockCtx(initial: MockDoc[], initialFolders: MockFolder[] = []) {
       get: (id: string) =>
         Promise.resolve(folders.get(id) ?? docs.get(id) ?? null),
     },
+    scheduler: {
+      runAfter: (
+        _delay: number,
+        _ref: unknown,
+        args: Record<string, unknown>,
+      ) => {
+        scheduled.push({ args });
+        return Promise.resolve(undefined);
+      },
+    },
   };
 
-  return { ctx, docs, inserts, patches };
+  return { ctx, docs, inserts, patches, scheduled };
 }
 
 const ORG = 'org1';
@@ -383,5 +411,74 @@ describe('upsertDocumentByExternalId', () => {
     );
     expect(result.action).toBe('created');
     expect(inserts).toHaveLength(1);
+  });
+
+  describe('reindex gate (canonical fileMetadata.ragStatus)', () => {
+    const indexedDoc: MockDoc = {
+      _id: 'd1',
+      organizationId: ORG,
+      externalItemId: 'gd-1',
+      contentHash: 'h1',
+      fileId: 'old-blob',
+    };
+
+    it('schedules reindex when a RAG-completed doc swaps to a new blob with changed content', async () => {
+      const { ctx, scheduled } = createMockCtx([{ ...indexedDoc }], [], {
+        'old-blob': { ragStatus: 'completed' },
+      });
+
+      const result = await upsertDocumentByExternalId(
+        ctx as unknown as MutationCtx,
+        {
+          organizationId: ORG,
+          externalItemId: 'gd-1',
+          title: 'file.txt',
+          contentHash: 'h2',
+          fileId: 'new-blob' as never,
+        },
+      );
+
+      expect(result.action).toBe('updated');
+      expect(result.contentChanged).toBe(true);
+      expect(scheduled).toEqual([
+        {
+          args: {
+            documentId: 'd1',
+            oldFileId: 'old-blob',
+            oldOrganizationId: ORG,
+          },
+        },
+      ]);
+    });
+
+    it('does NOT schedule reindex when the existing blob is not RAG-completed', async () => {
+      const { ctx, scheduled } = createMockCtx([{ ...indexedDoc }], [], {
+        'old-blob': { ragStatus: 'queued' },
+      });
+
+      await upsertDocumentByExternalId(ctx as unknown as MutationCtx, {
+        organizationId: ORG,
+        externalItemId: 'gd-1',
+        title: 'file.txt',
+        contentHash: 'h2',
+        fileId: 'new-blob' as never,
+      });
+
+      expect(scheduled).toHaveLength(0);
+    });
+
+    it('does NOT schedule reindex when no fileMetadata row exists (migration window)', async () => {
+      const { ctx, scheduled } = createMockCtx([{ ...indexedDoc }], [], {});
+
+      await upsertDocumentByExternalId(ctx as unknown as MutationCtx, {
+        organizationId: ORG,
+        externalItemId: 'gd-1',
+        title: 'file.txt',
+        contentHash: 'h2',
+        fileId: 'new-blob' as never,
+      });
+
+      expect(scheduled).toHaveLength(0);
+    });
   });
 });

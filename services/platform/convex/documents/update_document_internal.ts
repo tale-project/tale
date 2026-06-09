@@ -78,27 +78,27 @@ export async function updateDocumentInternal(
   const titleChanged =
     updateData.title !== undefined && document.title !== updateData.title;
 
-  // If file changed and document was RAG-indexed, mark as queued for re-indexing
+  // Re-index gate reads canonical fileMetadata.ragStatus for the doc's current
+  // blob (documents.ragInfo is retired). The fileMetadata pipeline owns the
+  // flip to 'queued' when reindexDocumentInRag re-uploads, so status is not
+  // written here.
+  const currentFileId = document.fileId;
+  const currentFm = currentFileId
+    ? await ctx.db
+        .query('fileMetadata')
+        .withIndex('by_storageId', (q) => q.eq('storageId', currentFileId))
+        .first()
+    : null;
+  const wasIndexed = currentFm?.ragStatus === 'completed';
+
+  // If file/title changed and the document was RAG-indexed, re-index.
   const needsContentReindex =
-    hashChanged &&
-    hasNewFile &&
-    document.ragInfo?.status === 'completed' &&
-    document.fileId;
+    hashChanged && hasNewFile && wasIndexed && document.fileId;
 
   const needsTitleReindex =
-    titleChanged &&
-    !hashChanged &&
-    document.ragInfo?.status === 'completed' &&
-    document.fileId;
+    titleChanged && !hashChanged && wasIndexed && document.fileId;
 
   const needsReindex = needsContentReindex || needsTitleReindex;
-
-  if (needsReindex) {
-    finalUpdateData.ragInfo = {
-      ...document.ragInfo,
-      status: 'queued',
-    };
-  }
 
   // Remove undefined values
   const cleanUpdateData = Object.fromEntries(

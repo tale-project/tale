@@ -6,6 +6,10 @@ import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { toPublicUrl } from '../lib/helpers/public_storage_url';
 import { extractExtension } from './extract_extension';
+import {
+  type DocumentRagProjection,
+  getDocumentRagProjectionBatch,
+} from './get_document_rag_projection';
 import { getUserNamesBatch } from './get_user_names_batch';
 import type { DocumentItemResponse, DocumentMetadata } from './types';
 
@@ -44,6 +48,13 @@ export interface TransformOptions {
    * When provided, avoids individual storage.getUrl calls
    */
   storageUrlsMap?: Map<string, string>;
+  /**
+   * Pre-fetched RAG status projection map (document _id -> projection).
+   * RAG status lives on fileMetadata.ragStatus now (not documents.ragInfo);
+   * the batch transform populates this so per-doc projection is a map lookup.
+   * Absent → the doc projects as not-indexed.
+   */
+  ragProjectionMap?: Map<string, DocumentRagProjection>;
 }
 
 /**
@@ -82,6 +93,9 @@ export function transformToDocumentItem(
     ? options?.userNamesMap?.get(document.createdBy)
     : undefined;
 
+  // RAG status projected from fileMetadata.ragStatus (canonical owner).
+  const ragProjection = options?.ragProjectionMap?.get(String(document._id));
+
   return {
     id: document._id,
     name: document.title ?? metadata?.name ?? 'Untitled',
@@ -103,10 +117,10 @@ export function transformToDocumentItem(
     syncConfigId: metadata?.syncConfigId,
     isDirectlySelected: metadata?.isDirectlySelected,
     url,
-    // RAG status from database (if available)
-    ragStatus: document.ragInfo?.status,
-    ragIndexedAt: document.ragInfo?.indexedAt,
-    ragError: document.ragInfo?.error,
+    // RAG status projected from fileMetadata (canonical), not documents.ragInfo
+    ragStatus: ragProjection?.status,
+    ragIndexedAt: ragProjection?.indexedAt,
+    ragError: ragProjection?.error,
     scannedPagesDetected: document.scannedPagesDetected,
     ocrApplied: document.ocrApplied,
     teamId: document.teamId ?? null,
@@ -145,15 +159,20 @@ export async function transformDocumentsBatch(
     .map((doc) => doc.fileId)
     .filter((id): id is NonNullable<Doc<'documents'>['fileId']> => !!id);
 
-  // Batch fetch user names and storage URLs in parallel
-  const [userNamesMap, storageUrlsMap] = await Promise.all([
+  // Batch fetch user names, storage URLs, and RAG status projections in parallel
+  const [userNamesMap, storageUrlsMap, ragProjectionMap] = await Promise.all([
     getUserNamesBatch(ctx, userIds),
     batchGetStorageUrls(ctx, fileIds),
+    getDocumentRagProjectionBatch(ctx, documents),
   ]);
 
   // Transform all documents using pre-fetched data
   return documents.map((doc) =>
-    transformToDocumentItem(doc, { userNamesMap, storageUrlsMap }),
+    transformToDocumentItem(doc, {
+      userNamesMap,
+      storageUrlsMap,
+      ragProjectionMap,
+    }),
   );
 }
 
