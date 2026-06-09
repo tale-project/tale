@@ -31,11 +31,23 @@ export const runAll = internalAction({
       internal.migrations.split_personalization_toggle.apply,
       {},
     );
+    // Links fileMetadata.documentId from the matching (organizationId, fileId)
+    // document. Runs BEFORE the rag-status backfill: getAgentScopedFileIds and
+    // listIndexedDocumentsForAgent skip completed fileMetadata rows whose
+    // documentId is unset, so an unlinked-but-completed blob would silently drop
+    // out of agent RAG retrieval after the SSOT cutover. Self-scheduling,
+    // idempotent (skips rows that already have documentId). Both backfills are
+    // independent and idempotent, so the self-scheduled tails may overlap; agent
+    // scope converges once both drain.
+    await ctx.runMutation(
+      internal.migrations.backfill_file_metadata_document_id
+        .backfillFileMetadataDocumentId,
+      {},
+    );
     // Copies legacy documents.ragInfo.{status,error,indexedAt} onto the now-
     // canonical fileMetadata.{ragStatus,ragError,ragIndexedAt}. Self-scheduling
     // (one paginated batch per call), idempotent, fills holes only — safe to
-    // re-run on every deploy. Keys on storageId, so it does not depend on the
-    // documentId backfill.
+    // re-run on every deploy. Keys on storageId.
     await ctx.runMutation(
       internal.migrations.backfill_filemetadata_rag_status
         .backfillFilemetadataRagStatus,

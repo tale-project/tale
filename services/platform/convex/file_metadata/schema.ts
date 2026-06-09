@@ -43,9 +43,11 @@ export const fileMetadataTable = defineTable({
   // (e.g. scheduled action silently failed before hitting the service).
   // Falls back to _creationTime when absent on older rows.
   ragQueuedAt: v.optional(v.number()),
-  // Unix ms when ragStatus most recently reached 'completed'. Canonical
+  // Unix SECONDS when ragStatus most recently reached 'completed'. Canonical
   // replacement for the retired documents.ragInfo.indexedAt — stamped by
-  // updateFileRagStatus on completion, read by getDocumentRagProjection.
+  // updateFileRagStatus on completion, read by getDocumentRagProjection. Seconds
+  // (not ms) to match the legacy writer, the backfill, and the RagStatusBadge's
+  // `new Date(indexedAt * 1000)` render.
   ragIndexedAt: v.optional(v.number()),
   // Audio transcription (populated when contentType starts with 'audio/').
   transcript: v.optional(v.string()),

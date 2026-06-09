@@ -643,6 +643,21 @@ export const uploadDocumentToRag = internalAction({
       }
       storageId = document.fileId;
 
+      // Self-heal the canonical RAG-status home before writing status:
+      // updateFileRagStatus below no-ops when the blob has no fileMetadata row
+      // (e.g. a workflow-created or legacy file-backed doc), which would leave
+      // status stuck. Schedules no extra upload — this action uploads below.
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.ensureFileMetadataForDocument,
+        {
+          organizationId: document.organizationId,
+          storageId: document.fileId,
+          documentId: args.documentId,
+          fileName: document.title ?? 'document',
+          contentType: document.mimeType,
+        },
+      );
+
       const rawResult = await ragAction.execute(
         ctx,
         {

@@ -193,9 +193,14 @@ export const updateFileRagStatus = internalMutation({
             ? undefined
             : metadata.ragQueuedAt,
       // Canonical completion timestamp (replaces documents.ragInfo.indexedAt).
-      // Stamp on completion; preserve the prior value otherwise.
+      // Stamp on completion; preserve the prior value otherwise. Unix SECONDS
+      // to match every other consumer: the legacy ragInfo.indexedAt writer and
+      // the backfill store seconds, and the RagStatusBadge renders it as
+      // `new Date(indexedAt * 1000)`. Writing ms here renders a far-future date.
       ragIndexedAt:
-        args.ragStatus === 'completed' ? Date.now() : metadata.ragIndexedAt,
+        args.ragStatus === 'completed'
+          ? Math.floor(Date.now() / 1000)
+          : metadata.ragIndexedAt,
       ...(args.ocrApplied != null && { ocrApplied: args.ocrApplied }),
     });
 
@@ -208,6 +213,54 @@ export const updateFileRagStatus = internalMutation({
         });
       }
     }
+  },
+});
+
+/**
+ * Ensure the canonical `fileMetadata` row exists for a document blob that the
+ * documents pipeline RAG-indexes directly via `ragAction` (`retryRagIndexing`,
+ * `uploadDocumentToRag`). Those actions push the blob themselves and then write
+ * status via `updateFileRagStatus`, which silently no-ops when the row is
+ * missing — so a file-backed document that never got a `fileMetadata` row (e.g.
+ * a UI upload with no `fileSize`, or a legacy pre-`fileMetadata` doc) would
+ * report success while its status stayed stuck on `not_indexed`.
+ *
+ * Creates the row when absent (reading size/contentType straight from the
+ * `_storage` system table) and links the `documentId`, but schedules NO RAG
+ * upload or poll — the caller already uploaded and owns the status/poll, so
+ * routing through `saveFileMetadata` here would double-index. No-op beyond
+ * linking an absent `documentId` when the row already exists.
+ */
+export const ensureFileMetadataForDocument = internalMutation({
+  args: {
+    organizationId: v.string(),
+    storageId: v.id('_storage'),
+    documentId: v.id('documents'),
+    fileName: v.string(),
+    contentType: v.optional(v.string()),
+  },
+  async handler(ctx, args) {
+    const existing = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (existing) {
+      if (!existing.documentId) {
+        await ctx.db.patch(existing._id, { documentId: args.documentId });
+      }
+      return existing._id;
+    }
+
+    const sys = await ctx.db.system.get(args.storageId);
+    return await ctx.db.insert('fileMetadata', {
+      organizationId: args.organizationId,
+      storageId: args.storageId,
+      documentId: args.documentId,
+      fileName: args.fileName,
+      contentType:
+        args.contentType ?? sys?.contentType ?? 'application/octet-stream',
+      size: sys?.size ?? 0,
+    });
   },
 });
 

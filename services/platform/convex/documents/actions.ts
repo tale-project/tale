@@ -54,6 +54,22 @@ export const retryRagIndexing = action({
       }
       storageId = document.fileId;
 
+      // Self-heal the canonical RAG-status home before writing status:
+      // updateFileRagStatus below no-ops when the blob has no fileMetadata row
+      // (e.g. a UI upload without fileSize, or a legacy file-backed doc), which
+      // would leave this retry silently stuck. Does not schedule another upload
+      // — this action pushes the blob itself just below.
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.ensureFileMetadataForDocument,
+        {
+          organizationId: document.organizationId,
+          storageId: document.fileId,
+          documentId: args.documentId,
+          fileName: document.title ?? 'document',
+          contentType: document.mimeType,
+        },
+      );
+
       const rawResult = await ragAction.execute(
         ctx,
         {
