@@ -19,7 +19,11 @@ import type { QueryCtx } from '../_generated/server';
 import { isActiveDocument } from './_helpers';
 
 const DEFAULT_LIMIT = 50;
-const MAX_LIMIT = 500;
+// Caps the per-call read fan-out (numItems = limit*2 per page × MAX_PAGES ×
+// per-row ctx.db.get). The dense Hub-only index means pages rarely hit
+// MAX_PAGES now, but keep MAX_LIMIT modest so a single call stays well under
+// the Convex transaction read cap even on a large org.
+const MAX_LIMIT = 100;
 const MAX_PAGES = 20;
 
 export interface AgentIndexedDocumentItem {
@@ -116,20 +120,26 @@ export async function listIndexedDocumentsForAgent(
     matchesSeenOnLastPage = 0;
 
     // RAG completion is canonical on fileMetadata.ragStatus. Paginate completed
-    // fileMetadata for the org and resolve each to its Document-Hub document for
-    // scoping. Rows without a documentId (chat uploads, transcripts) are not
-    // Document-Hub knowledge and are skipped.
+    // Document-Hub fileMetadata for the org and resolve each to its document for
+    // scoping. The `.gt(documentId, undefined)` bound seeks past chat-upload /
+    // transcript rows (documentId absent) at the index level, so pages stay
+    // dense with Hub docs. (Pages are ordered by documentId desc within the
+    // (org, completed) group — stable for the cursor; this is an LLM listing
+    // tool that carries sourceModifiedAt per item, so chronological order is
+    // not relied upon.)
     const result = await ctx.db
       .query('fileMetadata')
-      .withIndex('by_organizationId_and_ragStatus', (q) =>
+      .withIndex('by_organizationId_and_ragStatus_and_documentId', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('ragStatus', 'completed'),
+          .eq('ragStatus', 'completed')
+          .gt('documentId', undefined),
       )
       .order('desc')
       .paginate({ cursor: dbCursor ?? null, numItems: limit * 2 });
 
     for (const fm of result.page) {
+      // Defensive — the index range already excludes documentId-absent rows.
       if (!fm.documentId) continue;
       const doc = await ctx.db.get(fm.documentId);
       if (!doc || !hasFileId(doc)) continue;

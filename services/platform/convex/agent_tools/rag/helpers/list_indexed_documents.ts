@@ -19,14 +19,28 @@ export async function listIndexedDocuments(
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ToolCtx from @convex-dev/agent lacks our agent knowledge properties injected at runtime
   const extended = ctx as AgentKnowledgeCtx;
 
-  return ctx.runQuery(internal.documents.internal_queries.listIndexedForAgent, {
-    organizationId,
-    agentTeamId: extended.agentTeamId,
-    agentTeamIds: extended.agentTeamIds,
-    includeTeamKnowledge: extended.includeTeamKnowledge,
-    includeOrgKnowledge: extended.includeOrgKnowledge,
-    knowledgeFileIds: extended.knowledgeFileIds,
-    limit: args.limit,
-    cursor: args.cursor,
-  });
+  try {
+    return await ctx.runQuery(
+      internal.documents.internal_queries.listIndexedForAgent,
+      {
+        organizationId,
+        agentTeamId: extended.agentTeamId,
+        agentTeamIds: extended.agentTeamIds,
+        includeTeamKnowledge: extended.includeTeamKnowledge,
+        includeOrgKnowledge: extended.includeOrgKnowledge,
+        knowledgeFileIds: extended.knowledgeFileIds,
+        limit: args.limit,
+        cursor: args.cursor,
+      },
+    );
+  } catch (err) {
+    // Defense-in-depth: a very large knowledge corpus can push this past the
+    // Convex transaction read cap. Degrade to an empty listing rather than
+    // throwing an opaque tool error to the agent.
+    console.warn(
+      '[rag_search list_indexed] listIndexedForAgent failed; returning empty listing',
+      err instanceof Error ? err.message : err,
+    );
+    return { documents: [], totalCount: null, hasMore: false, cursor: null };
+  }
 }

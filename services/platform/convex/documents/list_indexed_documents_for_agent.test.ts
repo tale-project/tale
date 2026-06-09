@@ -397,4 +397,69 @@ describe('listIndexedDocumentsForAgent', () => {
     const uniqueFileIds = new Set(allDocs.map((d) => d.fileId));
     expect(uniqueFileIds.size).toBe(10);
   });
+
+  // SSOT skip branches: the index range excludes documentId-absent rows, but the
+  // stale-blob (doc.fileId !== fm.storageId) and inactive-doc guards backstop
+  // re-indexed and trashed docs. Inject explicit fileMetadata rows + a docs map.
+  describe('SSOT skip branches', () => {
+    function createRawCtx(
+      fms: Array<Record<string, unknown>>,
+      docsById: Record<string, Record<string, unknown>>,
+    ) {
+      const queryFn = () => ({
+        withIndex: () => ({
+          order: () => ({
+            paginate: async () => ({
+              page: fms,
+              isDone: true,
+              continueCursor: 'end',
+            }),
+          }),
+        }),
+      });
+      const get = async (id: unknown) => docsById[id as string] ?? null;
+      return { db: { query: queryFn, get } } as unknown as Parameters<
+        typeof listIndexedDocumentsForAgent
+      >[0];
+    }
+
+    const orgArgs = { organizationId: 'org1', includeOrgKnowledge: true };
+
+    it('skips a completed row whose documentId is unset (defensive guard)', async () => {
+      const ctx = createRawCtx(
+        [
+          { storageId: 'blob-x', ragStatus: 'completed' }, // no documentId
+          { storageId: 'blob-y', documentId: 'docY', ragStatus: 'completed' },
+        ],
+        { docY: { _id: 'docY', fileId: 'blob-y', title: 'Y' } },
+      );
+      const result = await listIndexedDocumentsForAgent(ctx, orgArgs);
+      expect(result.documents.map((d) => d.fileId)).toEqual(['blob-y']);
+    });
+
+    it('skips a stale completed row on a re-indexed doc (current blob differs)', async () => {
+      const ctx = createRawCtx(
+        [{ storageId: 'old-blob', documentId: 'docZ', ragStatus: 'completed' }],
+        { docZ: { _id: 'docZ', fileId: 'new-blob', title: 'Z' } },
+      );
+      const result = await listIndexedDocumentsForAgent(ctx, orgArgs);
+      expect(result.documents).toEqual([]);
+    });
+
+    it('skips trashed / soft-deleted documents', async () => {
+      const ctx = createRawCtx(
+        [{ storageId: 'blob-t', documentId: 'docT', ragStatus: 'completed' }],
+        {
+          docT: {
+            _id: 'docT',
+            fileId: 'blob-t',
+            title: 'T',
+            lifecycleStatus: 'trashed',
+          },
+        },
+      );
+      const result = await listIndexedDocumentsForAgent(ctx, orgArgs);
+      expect(result.documents).toEqual([]);
+    });
+  });
 });

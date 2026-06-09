@@ -1,0 +1,142 @@
+import { describe, expect, it } from 'vitest';
+
+import { updateDocumentInternal } from './update_document_internal';
+
+type Doc = Record<string, unknown> & { _id: string; fileId?: string };
+
+/**
+ * Mock ctx for the reindex gate. The gate reads canonical RAG status from
+ * `fileMetadata` (`by_storageId` .first()) for the doc's CURRENT blob and only
+ * schedules `reindexDocumentInRag` when that blob is completed AND the file or
+ * title changed.
+ */
+function createMockCtx(document: Doc, fm: Record<string, unknown> | null) {
+  const patches: Array<{ id: string; data: Record<string, unknown> }> = [];
+  const scheduled: Array<{ args: Record<string, unknown> }> = [];
+
+  const ctx = {
+    db: {
+      get: async (id: unknown) => (id === document._id ? document : null),
+      query: () => {
+        let storageId: unknown;
+        const q = {
+          eq: (field: string, value: unknown) => {
+            if (field === 'storageId') storageId = value;
+            return q;
+          },
+        };
+        return {
+          withIndex: (_idx: string, cb: (qq: unknown) => unknown) => {
+            cb(q);
+            return {
+              first: async () => (storageId === document.fileId ? fm : null),
+            };
+          },
+        };
+      },
+      patch: async (id: string, data: Record<string, unknown>) => {
+        patches.push({ id, data });
+      },
+    },
+    scheduler: {
+      runAfter: async (
+        _delay: number,
+        _ref: unknown,
+        args: Record<string, unknown>,
+      ) => {
+        scheduled.push({ args });
+      },
+    },
+  } as unknown as Parameters<typeof updateDocumentInternal>[0];
+
+  return { ctx, patches, scheduled };
+}
+
+const baseDoc: Doc = {
+  _id: 'd1',
+  fileId: 's1',
+  organizationId: 'org1',
+  title: 'Old title',
+  contentHash: 'oldhash',
+};
+
+describe('updateDocumentInternal reindex gate', () => {
+  it('schedules content reindex when hash + file changed on a completed blob', async () => {
+    const { ctx, scheduled } = createMockCtx(
+      { ...baseDoc },
+      { ragStatus: 'completed' },
+    );
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      contentHash: 'newhash',
+      fileId: 's2' as never,
+    });
+
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0].args).toEqual({
+      documentId: 'd1',
+      oldFileId: 's1',
+      oldOrganizationId: 'org1',
+    });
+  });
+
+  it('schedules title reindex on a title-only rename of a completed blob', async () => {
+    const { ctx, scheduled } = createMockCtx(
+      { ...baseDoc },
+      { ragStatus: 'completed' },
+    );
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      title: 'New title',
+    });
+
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0].args).toMatchObject({
+      documentId: 'd1',
+      oldFileId: 's1',
+    });
+  });
+
+  it('does NOT reindex when the current blob is not completed', async () => {
+    const { ctx, scheduled, patches } = createMockCtx(
+      { ...baseDoc },
+      { ragStatus: 'queued' },
+    );
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      contentHash: 'newhash',
+      fileId: 's2' as never,
+    });
+
+    expect(scheduled).toHaveLength(0);
+    expect(patches).toHaveLength(1); // patch still happens
+  });
+
+  it('does NOT reindex a legacy completed doc with no fileMetadata row (migration window)', async () => {
+    const { ctx, scheduled } = createMockCtx({ ...baseDoc }, null);
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      title: 'New title',
+    });
+
+    expect(scheduled).toHaveLength(0);
+  });
+
+  it('does NOT reindex when neither file content nor title changed', async () => {
+    const { ctx, scheduled } = createMockCtx(
+      { ...baseDoc },
+      { ragStatus: 'completed' },
+    );
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      mimeType: 'application/pdf',
+    });
+
+    expect(scheduled).toHaveLength(0);
+  });
+});

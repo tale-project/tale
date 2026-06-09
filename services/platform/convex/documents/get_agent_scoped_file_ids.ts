@@ -53,17 +53,22 @@ export async function getAgentScopedFileIds(
   }
 
   // RAG completion now lives on fileMetadata.ragStatus (canonical). Enumerate
-  // completed fileMetadata for the org and resolve each to its Document-Hub
-  // document to apply lifecycle + team/project/org scoping. fileMetadata rows
-  // without a documentId (chat uploads, transcripts) are not Document-Hub
-  // knowledge and are excluded here.
+  // completed Document-Hub fileMetadata for the org and resolve each to its
+  // document to apply lifecycle + team/project/org scoping. The `.gt(documentId,
+  // undefined)` bound seeks past chat-upload / transcript rows (documentId
+  // absent), so the scan stays bounded by Hub-doc count instead of the org's
+  // whole completed corpus.
   const completedFiles = ctx.db
     .query('fileMetadata')
-    .withIndex('by_organizationId_and_ragStatus', (q) =>
-      q.eq('organizationId', args.organizationId).eq('ragStatus', 'completed'),
+    .withIndex('by_organizationId_and_ragStatus_and_documentId', (q) =>
+      q
+        .eq('organizationId', args.organizationId)
+        .eq('ragStatus', 'completed')
+        .gt('documentId', undefined),
     );
 
   for await (const fm of completedFiles) {
+    // Defensive — the index range already excludes documentId-absent rows.
     if (!fm.documentId) continue;
     const fileId = String(fm.storageId);
     if (fileIdSet.has(fileId)) continue;

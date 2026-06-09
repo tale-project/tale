@@ -106,18 +106,29 @@ export async function resolveFileIds(
     knowledgeFileIds: extended.knowledgeFileIds?.length,
   });
 
-  return ctx.runQuery(
-    internal.documents.internal_queries.getAgentScopedFileIds,
-    {
-      organizationId,
-      agentTeamId: extended.agentTeamId,
-      agentTeamIds: extended.agentTeamIds,
-      includeTeamKnowledge: extended.includeTeamKnowledge,
-      includeOrgKnowledge: extended.includeOrgKnowledge,
-      knowledgeFileIds: extended.knowledgeFileIds,
-      agentProjectIds: extended.agentProjectIds,
-    },
-  );
+  try {
+    return await ctx.runQuery(
+      internal.documents.internal_queries.getAgentScopedFileIds,
+      {
+        organizationId,
+        agentTeamId: extended.agentTeamId,
+        agentTeamIds: extended.agentTeamIds,
+        includeTeamKnowledge: extended.includeTeamKnowledge,
+        includeOrgKnowledge: extended.includeOrgKnowledge,
+        knowledgeFileIds: extended.knowledgeFileIds,
+        agentProjectIds: extended.agentProjectIds,
+      },
+    );
+  } catch (err) {
+    // A very large knowledge corpus can push this scope query past the Convex
+    // transaction read cap. Degrade to an empty scope (the tool reports no
+    // results) rather than throwing an opaque tool error to the agent.
+    console.warn(
+      '[rag_search] getAgentScopedFileIds failed; resolving to empty scope',
+      err instanceof Error ? err.message : err,
+    );
+    return [];
+  }
 }
 
 const ragToolArgs = z.discriminatedUnion('operation', [
