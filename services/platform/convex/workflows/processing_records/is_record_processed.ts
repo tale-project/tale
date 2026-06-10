@@ -29,10 +29,10 @@
  */
 
 import { QueryCtx } from '../../_generated/server';
-import { TableName } from './types';
+import { ExtendedTableName } from './types';
 
 export interface IsRecordProcessedArgs {
-  tableName: TableName;
+  tableName: ExtendedTableName;
   recordId: string;
   wfDefinitionId: string;
   cutoffTimestamp: string; // ISO date string

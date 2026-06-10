@@ -5,6 +5,7 @@ import { crawlerAction } from './crawler/crawler_action';
 import { customerAction } from './customer/customer_action';
 import { documentAction } from './document/document_action';
 import { integrationAction } from './integration/integration_action';
+import { integrationProcessingRecordsAction } from './integration_processing_records/integration_processing_records_action';
 import { onedriveAction } from './onedrive/onedrive_action';
 import { productAction } from './product/product_action';
 import { ragAction } from './rag/rag_action';
@@ -42,6 +43,7 @@ export const ACTIONS: AnyActionDefinition[] = [
   setVariablesAction,
   ragAction,
   workflowProcessingRecordsAction,
+  integrationProcessingRecordsAction, // Incremental processing of external integration data sources
   approvalAction,
   onedriveAction,
   crawlerAction,
