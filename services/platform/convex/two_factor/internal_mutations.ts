@@ -281,6 +281,11 @@ export const logEnrollmentEvent = internalMutation({
       // WebAuthn passkey lifecycle (#1508) — same security audit trail.
       v.literal('passkey_added'),
       v.literal('passkey_removed'),
+      v.literal('passkey_revoked_by_admin'),
+      // Successful passkey sign-in — failures are challenge-based and
+      // unattributable to a user, so only success is recorded (mirrors
+      // `login_success` on the password path).
+      v.literal('passkey_sign_in'),
     ),
     ip: v.optional(v.string()),
     userAgent: v.optional(v.string()),

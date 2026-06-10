@@ -5450,6 +5450,8 @@
           "2fa_reset_by_admin": "Authentification à deux facteurs réinitialisée par l'administrateur",
           "passkey_added": "Passkey enregistré",
           "passkey_removed": "Passkey supprimé",
+          "passkey_revoked_by_admin": "Passkey supprimé par l'administrateur",
+          "passkey_sign_in": "Connexion par passkey",
           "project.created": "Projet créé",
           "project.updated": "Projet mis à jour",
           "project.sharing.changed": "Partage du projet modifié",
@@ -5957,6 +5959,12 @@
       "namePromptDescription": "Donne un nom à ce passkey pour le reconnaître plus tard (p. ex. \"Touch ID du MacBook\").",
       "nameLabel": "Nom du passkey",
       "namePlaceholder": "Touch ID du MacBook",
+      "attachment": {
+        "label": "Type d'authentificateur",
+        "any": "Indifférent (recommandé)",
+        "platform": "Cet appareil (Face ID, Touch ID, Windows Hello)",
+        "crossPlatform": "Clé de sécurité ou téléphone"
+      },
       "errors": {
         "registerFailed": "Impossible d'enregistrer le passkey. Réessaie.",
         "revokeFailed": "Impossible de supprimer le passkey. Réessaie."
@@ -5991,7 +5999,9 @@
       "submitButton": "Vérifier",
       "invalid": "Code invalide ou expiré. Merci de réessayer.",
       "tooManyAttempts": "Trop de tentatives échouées. Merci de réessayer plus tard.",
-      "backupCodeSuccess": "Code de secours utilisé. Pense à régénérer tes codes de secours dans les Paramètres."
+      "backupCodeSuccess": "Code de secours utilisé. Pense à régénérer tes codes de secours dans les Paramètres.",
+      "usePasskeyButton": "Utiliser un passkey à la place",
+      "passkeyFailed": "Connexion par passkey échouée ou annulée. Réessaie ou utilise un code."
     },
     "lowBackupCodes": {
       "body": "Génère un nouveau lot afin de pouvoir récupérer ton compte en cas de perte de ton application d'authentification.",
@@ -6001,7 +6011,8 @@
     },
     "enroll": {
       "title": "Double facteur requis",
-      "description": "Ton organisation exige l'authentification à double facteur pour continuer."
+      "description": "Ton organisation exige l'authentification à double facteur pour continuer.",
+      "usePasskeyButton": "Enregistrer un passkey à la place"
     },
     "grace": {
       "body": "Ton organisation exigera bientôt que tous les membres utilisent un second facteur. Active-le maintenant pour éviter toute interruption.",
@@ -6012,7 +6023,16 @@
     "admin": {
       "resetButton": "Réinitialiser le double facteur",
       "confirmTitle": "Réinitialiser l'authentification à double facteur ?",
-      "confirmDescription": "Cela désactive le double facteur pour {name} et met fin à toutes ses sessions actives. {name} devra se réinscrire lors de sa prochaine connexion."
+      "confirmDescription": "Cela désactive le double facteur pour {name} et met fin à toutes ses sessions actives. {name} devra se réinscrire lors de sa prochaine connexion.",
+      "passkeys": {
+        "title": "Passkeys",
+        "confirmTitle": "Supprimer ce passkey ?",
+        "confirmDescription": "Cela supprime le passkey \"{name}\" et met fin à toutes les sessions actives du membre. Une nouvelle connexion sera nécessaire.",
+        "deviceTypes": {
+          "singleDevice": "Clé liée à un appareil",
+          "multiDevice": "Passkey synchronisé"
+        }
+      }
     },
     "errors": {
       "enableFailed": "Échec du démarrage de la configuration du double facteur. Merci de réessayer.",

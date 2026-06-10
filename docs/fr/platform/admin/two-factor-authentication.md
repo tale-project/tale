@@ -1,9 +1,9 @@
 ---
 title: Authentification à deux facteurs
-description: Inscription TOTP, codes de secours, la politique d'application org-large et comment un admin réinitialise un membre qui a perdu son authenticator. Lis ceci quand tu câbles la 2FA pour l'org ou que tu récupères un compte.
+description: Inscription TOTP, passkeys, codes de secours, la politique d'application org-large et comment un admin réinitialise un membre qui a perdu son authenticator. Lis ceci quand tu câbles la 2FA pour l'org ou que tu récupères un compte.
 ---
 
-L'authentification à deux facteurs ajoute une seconde preuve d'identité par-dessus le mot de passe — un code à six chiffres d'une appli authenticator. Tale embarque TOTP (mots de passe à usage unique basés sur le temps) compatible avec Google Authenticator, 1Password, Authy et toute autre appli qui suit le standard. La page couvre l'inscription par utilisateur, les codes de secours qui récupèrent un compte quand le téléphone n'est plus là, la politique d'application org-large et la réinitialisation admin pour un membre verrouillé.
+L'authentification à deux facteurs ajoute une seconde preuve d'identité par-dessus le mot de passe — un code à six chiffres d'une appli authenticator, ou un passkey WebAuthn. Tale embarque TOTP (mots de passe à usage unique basés sur le temps) compatible avec Google Authenticator, 1Password, Authy et toute autre appli qui suit le standard, plus les passkeys comme alternative résistante au phishing. La page couvre l'inscription par utilisateur, les passkeys, les codes de secours qui récupèrent un compte quand le téléphone n'est plus là, la politique d'application org-large et la réinitialisation admin pour un membre verrouillé.
 
 La 2FA est optionnelle par défaut. Les Administrateurs peuvent l'exiger pour toute l'organisation avec une fenêtre de grâce pour que les membres aient le temps de s'inscrire.
 
@@ -19,6 +19,16 @@ Les codes de secours sont des chaînes à usage unique que la plateforme frappe 
 
 Traite les codes de secours comme des mots de passe. Range-les dans un gestionnaire de mots de passe ou imprime-les et mets-les sous clé. Quiconque a ton mot de passe et un code de secours peut se connecter à ta place.
 
+## Passkeys
+
+Un passkey est un identifiant WebAuthn — Face ID, Touch ID, Windows Hello ou une clé de sécurité matérielle — qui signe un défi à chaque connexion au lieu de produire un code à taper. L'identifiant est lié à l'origine du site : un domaine de phishing qui lui ressemble n'obtient rien à rejouer. Un passkey résiste donc au phishing d'une façon que TOTP n'atteint pas, et il satisfait une politique de deux facteurs appliquée exactement comme TOTP.
+
+Pour en enregistrer un, ouvre **Compte > Sécurité** et clique sur **Ajouter un passkey**. Donne à l'identifiant un nom que tu reconnaîtras plus tard, puis choisis le **Type d'authentificateur** : **Indifférent (recommandé)** laisse le navigateur proposer tout ce qui est disponible, **Cet appareil (Face ID, Touch ID, Windows Hello)** restreint la cérémonie à l'authentificateur intégré, et **Clé de sécurité ou téléphone** à un authentificateur itinérant. Le navigateur déroule la cérémonie d'enregistrement à partir de là. La même liste porte **Supprimer** pour révoquer tes propres passkeys.
+
+Un passkey enregistré fonctionne à trois portes. Sur l'écran de connexion, **Se connecter avec un passkey** te connecte sans taper le mot de passe — l'identifiant est lui-même une preuve forte. Sur l'écran de vérification après une connexion par mot de passe, **Utiliser un passkey à la place** remplace le code à six chiffres. Et sur l'écran d'inscription vers lequel une politique appliquée route les membres non inscrits, **Enregistrer un passkey à la place** se trouve à côté de la configuration TOTP — un membre qui n'enregistre qu'un passkey, jamais TOTP, passe la politique.
+
+Quand un membre perd un appareil qui porte un passkey, un Administrateur révoque l'identifiant : ouvre **Paramètres > Organisation**, clique sur **Modifier le membre** et supprime l'identifiant dans la section **Passkeys** du dialogue. Tale supprime l'identifiant et met fin à chaque session active du membre, donc un authentificateur perdu ou volé ne garde aucune session en vie. L'enregistrement, la suppression par soi-même, la révocation admin et chaque connexion par passkey atterrissent dans le journal d'audit (`passkey_added`, `passkey_removed`, `passkey_revoked_by_admin`, `passkey_sign_in`).
+
 ## La politique d'application pour l'org
 
 Les Administrateurs peuvent exiger le second facteur pour chaque membre authentifié par mot de passe de l'organisation. Ouvre **Paramètres > Gouvernance > Authentification** et bascule **Exiger l'authentification à deux facteurs**. La politique porte une période de grâce (en jours) qui donne à chaque membre du temps pour s'inscrire à partir de sa première connexion sous la politique ; mets-la à zéro pour une application immédiate.
@@ -33,7 +43,7 @@ Un membre dans la fenêtre de grâce voit une bannière de compte à rebours dan
 
 ## Réinitialisation admin pour un membre verrouillé
 
-Quand un membre perd son téléphone et ses codes de secours, un Administrateur efface le second facteur sur son compte. Ouvre **Paramètres > Membres**, trouve le membre et clique sur **Réinitialiser la deux-facteurs** sur sa ligne. Tale désactive la 2FA pour le compte et met fin à chaque session active, donc le membre se réinscrit à sa prochaine connexion.
+Quand un membre perd son téléphone et ses codes de secours, un Administrateur efface le second facteur sur son compte. Ouvre **Paramètres > Organisation**, clique sur **Modifier le membre** puis sur **Réinitialiser le double facteur** dans le dialogue. Tale désactive la 2FA pour le compte et met fin à chaque session active, donc le membre se réinscrit à sa prochaine connexion.
 
 La réinitialisation est enregistrée dans le journal d'audit sous `2fa_reset_by_admin`. Va vers ça comme action de récupération — le membre doit se réinscrire immédiatement une fois revenu.
 

@@ -28,6 +28,8 @@ type Member = {
   email?: string;
   role?: string;
   displayName?: string;
+  twoFactorEnabled?: boolean;
+  passkeyCount?: number;
 };
 
 interface MemberContext {

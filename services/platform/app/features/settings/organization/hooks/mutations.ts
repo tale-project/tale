@@ -28,3 +28,7 @@ export function useTransferOwnership() {
 export function useResetMemberTwoFactor() {
   return useConvexMutation(api.two_factor.mutations.resetForUser);
 }
+
+export function useRevokeMemberPasskey() {
+  return useConvexMutation(api.two_factor.mutations.revokePasskeyForMember);
+}
