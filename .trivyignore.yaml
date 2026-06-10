@@ -43,15 +43,6 @@ vulnerabilities:
     statement: |
       Same scope and rationale as CVE-2024-22363. Accepted until the CDN-build
       migration lands.
-  # lodash _.template code-injection. No fixed npm release (4.17.21 is the last
-  # published version; the advisory range has no upstream remediation).
-  - id: GHSA-r5fr-rjxr-66jc
-    statement: |
-      The advisory affects `_.template` when compiled from attacker-controlled
-      template strings. Tale never compiles lodash templates from user input —
-      our usage is `_.template`-free (lodash is pulled for data utilities and
-      transitively by build/dev tooling). No fixed release exists, so the risk
-      is accepted and revisited if lodash ships a patched line.
 
 misconfigurations:
   # AVD-DS-0002: "Image user should not be 'root'"
