@@ -25,6 +25,13 @@ body {
   animation: fade-in 200ms var(--ease-out-quint) both;
 }
 
+/* Post-answer toolbar entrance: the toolbar is its own reveal segment, so it
+   enters with the same fade + lift as streamed blocks (`stream-block-in` is
+   defined in @tale/ui globals). */
+.animate-toolbar-in {
+  animation: stream-block-in 520ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
 /* Chat "thinking" dots: a gentle staggered pulse (opacity + tiny lift) instead
    of Tailwind's full-height `animate-bounce`, which reads as jumpy. Each dot
    spends most of the cycle at rest so the wave glides across the three dots. */
@@ -64,6 +71,9 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .animate-content-in {
+    animation: none;
+  }
+  .animate-toolbar-in {
     animation: none;
   }
   .animate-route-progress {

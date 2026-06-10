@@ -432,25 +432,31 @@
    so already-revealed segments never re-fade. Scoped to `.stream-reveal`
    (the streaming half of IncrementalMarkdown) so completed/stable markdown
    renders without any animation. */
-/* Text clauses: fade in with a soft de-blur, Gemini-style. `filter` (unlike
-   `transform`) applies to inline boxes, so clause spans can wrap normally. */
+/* Text clauses: a soft de-blur fade, Gemini-style. The opacity leads (mostly
+   visible by mid-animation) while the blur trails off, which reads as the
+   text "condensing" into place rather than blinking in. `filter` (unlike
+   `transform`) applies to inline boxes, so clause spans wrap normally. */
 @keyframes stream-segment-in {
-  from {
+  0% {
     opacity: 0;
-    filter: blur(3px);
+    filter: blur(4px);
   }
-  to {
+  55% {
+    opacity: 0.85;
+    filter: blur(1.5px);
+  }
+  100% {
     opacity: 1;
     filter: blur(0);
   }
 }
 
 /* Block-level units (list items, code blocks, quotes, images): fade + a
-   subtle lift. */
+   gentle lift that settles. */
 @keyframes stream-block-in {
   from {
     opacity: 0;
-    transform: translateY(2px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -469,20 +475,21 @@
   }
 }
 
+/* easeOutQuint-style curve: fast attack, long soft landing. */
 .stream-reveal .stream-seg {
-  animation: stream-segment-in 460ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  animation: stream-segment-in 600ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 
 .stream-reveal li,
 .stream-reveal pre,
 .stream-reveal blockquote,
 .stream-reveal img {
-  animation: stream-block-in 460ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  animation: stream-block-in 560ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 
 .stream-reveal tr,
 .stream-reveal hr {
-  animation: stream-fade-in 460ms ease-out both;
+  animation: stream-fade-in 520ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

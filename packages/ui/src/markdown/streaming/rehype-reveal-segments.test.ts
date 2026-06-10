@@ -1,10 +1,8 @@
 import type { Element, Root, Text } from 'hast';
 import { describe, expect, it } from 'vitest';
 
-import {
-  rehypeRevealSegments,
-  splitClauseChunks,
-} from './rehype-reveal-segments';
+import { splitClauseChunks } from './clause-boundaries';
+import { rehypeRevealSegments } from './rehype-reveal-segments';
 
 function el(tagName: string, children: Element['children']): Element {
   return { type: 'element', tagName, properties: {}, children };

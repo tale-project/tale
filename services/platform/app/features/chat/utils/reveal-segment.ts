@@ -5,28 +5,21 @@
  * SEGMENT per tick (pacing still charged per character, so the overall rate
  * is unchanged). This module decides where a segment ends:
  *
- *   - Prose: at the next clause separator (`, . : ; ! ?` followed by
- *     whitespace) or at the end of the line — so words appear in readable
- *     parts, never letter by letter.
+ *   - Prose: at the next clause boundary (shared `findClauseEnd` scanner —
+ *     the SAME positions `rehype-reveal-segments` splits the fade spans at,
+ *     so every reveal step gets its own fading span).
  *   - Fenced code: at the next newline — code reveals line by line.
  *   - Tables (`|`-prefixed lines): at the next newline — row by row.
  *
  * While the server is still streaming, an incomplete clause/line is HELD
  * (returns `from`, no progress) so a partial part never flashes in and then
  * grows awkwardly; the drain phase (stream ended) always reveals through to
- * the end. A hard cap bounds segments when no separator shows up (e.g. long
- * unpunctuated runs), snapping back to the last word boundary.
+ * the end.
  */
 
-/** Clause separators that end a prose segment when followed by whitespace. */
-const CLAUSE_SEPARATORS = new Set([',', '.', ':', ';', '!', '?']);
+import { findClauseEnd } from '@tale/ui/markdown/streaming/clause-boundaries';
 
-/** Fullwidth CJK punctuation ends a clause directly — CJK prose has no
- *  whitespace after punctuation, so no following-space requirement. */
-const CJK_SEPARATORS = new Set(['、', '。', '，', '！', '？', '；', '：']);
-
-/** Max chars a prose segment may span when no separator appears. */
-export const MAX_SEGMENT_CHARS = 48;
+export { MAX_SEGMENT_CHARS } from '@tale/ui/markdown/streaming/clause-boundaries';
 
 /**
  * Whether `pos` sits inside a fenced code block. Counts fence-opening lines
@@ -89,37 +82,11 @@ export function findRevealSegmentEnd(
     return findLineEnd(text, from, isStreaming);
   }
 
-  let lastWordBoundary = -1;
-  for (let i = from; i < text.length; i++) {
-    const c = text[i];
-    if (c === '\n') return i + 1;
-    if (c === ' ' || c === '\t') lastWordBoundary = i;
+  const clauseEnd = findClauseEnd(text, from);
+  if (clauseEnd !== -1) return clauseEnd;
 
-    if (CJK_SEPARATORS.has(c)) return i + 1;
-
-    if (CLAUSE_SEPARATORS.has(c)) {
-      const next = text[i + 1];
-      // A separator only ends a clause when followed by whitespace — keeps
-      // numbers ("3.14", "1,000"), URLs and version strings intact.
-      if (next === ' ' || next === '\t') {
-        let j = i + 1;
-        while (j < text.length && (text[j] === ' ' || text[j] === '\t')) j++;
-        return j;
-      }
-      if (next === '\n') return i + 1;
-      if (i + 1 === text.length && !isStreaming) return text.length;
-    }
-
-    if (i - from + 1 >= MAX_SEGMENT_CHARS) {
-      // No separator within the cap: prefer breaking after the last word
-      // boundary so the cut never lands mid-word; hard-cut as a last resort.
-      if (lastWordBoundary > from) return lastWordBoundary + 1;
-      return i + 1;
-    }
-  }
-
-  // Reached the end of the buffered text without a boundary. While streaming,
-  // hold — the rest of the clause is still on its way. After the stream ends
+  // No boundary before the end of the buffered text. While streaming, hold —
+  // the rest of the clause is still on its way. After the stream ends
   // (drain), reveal everything that's left.
   return isStreaming ? from : text.length;
 }

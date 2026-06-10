@@ -250,15 +250,15 @@ export function useSendMessage({
       // moment the user escapes the pin, e.g. during the video-link
       // `bindCompletedJobsToMessage` round-trip), so by the time the
       // optimistic bubble lands, the snap wouldn't fire.
+      // The FIRST message of a chat snaps INSTANTLY — the conversation is
+      // empty, so the message must simply render at its position with no
+      // visible scrolling. Follow-up messages glide smoothly to the new
+      // user message via the retargeting rAF snap (see
+      // ChatScroll.scrollIntentRef).
+      const isEmptyChat = !threadId || (messages?.length ?? 0) === 0;
       const markScrollIntent = () => {
         if (scrollIntentRef) {
-          // Force-snap to the bottom on the next content settle. Sends use the
-          // SMOOTH variant: a retargeting rAF animation that re-reads the live
-          // scrollHeight every frame, so it glides the new user message up to
-          // the viewport top without stalling against the still-settling
-          // response slack the way a one-shot `behavior: 'smooth'` would. See
-          // ChatScroll.scrollIntentRef.
-          scrollIntentRef.current = 'smooth';
+          scrollIntentRef.current = isEmptyChat ? true : 'smooth';
         }
       };
 

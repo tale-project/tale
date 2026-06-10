@@ -39,7 +39,7 @@ import { memo, useRef, useEffect } from 'react';
 
 import type { MarkdownComponentMap } from '@/lib/utils/markdown-types';
 
-import { isStreamFrozen, useStreamBuffer } from '../hooks/use-stream-buffer';
+import { useStreamBuffer } from '../hooks/use-stream-buffer';
 
 // ============================================================================
 // TYPES
@@ -96,7 +96,7 @@ function TypewriterTextComponent({
   const stableText = useStableStreamText(text, isStreaming);
 
   // Use the stream buffer hook for animation management
-  const { displayLength, progress, isTyping, isDraining } = useStreamBuffer({
+  const { displayLength, progress, isDraining } = useStreamBuffer({
     text: stableText,
     isStreaming,
   });
@@ -122,19 +122,14 @@ function TypewriterTextComponent({
     }
   }, [progress, isStreaming, onComplete]);
 
-  // Show cursor while text is being revealed — covers both the live streaming
-  // phase (isStreaming) and the post-stream drain phase (isDraining). isTyping
-  // guards against showing a cursor on a message that finished animating.
-  const showCursor =
-    (isStreaming || isDraining) && isTyping && !isStreamFrozen();
-
+  // No typing cursor: the segment fade itself signals "still generating" —
+  // a blinking caret on the last clause reads as noise next to it.
   return (
     <IncrementalMarkdown
       content={stableText}
       revealPosition={displayLength}
       components={components}
       className={className}
-      showCursor={showCursor}
       aria-busy={isStreaming || isDraining}
     />
   );

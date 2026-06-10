@@ -500,6 +500,11 @@ export function IncrementalMarkdown({
       )}
       {streamContent && (
         <StreamingMarkdown
+          // Remount when a block graduates (splitIndex jumps): without this,
+          // React reuses the previous block's element/span DOM for the next
+          // block's first chunk — that chunk then appears without its mount
+          // fade and stale animation state can bleed across blocks.
+          key={splitIndex}
           content={streamContent}
           revealedLength={streamRevealLength}
           components={streamingMerged}

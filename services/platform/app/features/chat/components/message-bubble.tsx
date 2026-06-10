@@ -426,8 +426,27 @@ function MessageBubbleComponent({
   // segment (a visible layout shift). The completion signal travels
   // MessageSegments → AssistantMessageContent → the last TypewriterText's
   // `onComplete`. History bubbles (never observed streaming) start done.
+  //
+  // The toolbar is its OWN reveal step: it fades in one segment-beat AFTER
+  // the last text segment, never in the same instant — so the answer's final
+  // clause finishes its fade before the controls appear.
+  const TOOLBAR_REVEAL_DELAY_MS = 450;
   const [revealDone, setRevealDone] = useState(!isAssistantStreaming);
-  const handleRevealComplete = useCallback(() => setRevealDone(true), []);
+  const revealDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const handleRevealComplete = useCallback(() => {
+    if (revealDelayTimerRef.current) clearTimeout(revealDelayTimerRef.current);
+    revealDelayTimerRef.current = setTimeout(
+      () => setRevealDone(true),
+      TOOLBAR_REVEAL_DELAY_MS,
+    );
+  }, []);
+  useEffect(() => {
+    return () => {
+      if (revealDelayTimerRef.current) {
+        clearTimeout(revealDelayTimerRef.current);
+      }
+    };
+  }, []);
   useEffect(() => {
     if (isAssistantStreaming) {
       setRevealDone(false);
@@ -916,15 +935,17 @@ function MessageBubbleComponent({
             // once the typewriter has fully revealed the answer. Only the
             // LAST assistant message keeps its toolbar always visible —
             // history toolbars reveal on hover/focus to keep the thread calm.
-            // `animate-content-in` (fill: both) would pin opacity at 1 after
-            // its entrance run, defeating the hover-hide — so the entrance
-            // fade applies only to the always-visible last-message toolbar.
-            // Touch devices have no hover: keep history toolbars visible there
-            // (pointer-coarse) so the actions stay reachable.
+            // The toolbar enters like a stream segment (fade + lift via
+            // `animate-toolbar-in`), one beat after the last text segment.
+            // Its fill-mode pins opacity at 1, which would defeat the
+            // hover-hide — so the entrance applies only to the always-visible
+            // last-message toolbar. Touch devices have no hover: keep history
+            // toolbars visible there (pointer-coarse) so actions stay
+            // reachable.
             <div
               className={cn(
                 isLastAssistantMessage
-                  ? 'animate-content-in'
+                  ? 'animate-toolbar-in'
                   : 'opacity-0 transition-opacity duration-200 focus-within:opacity-100 pointer-coarse:opacity-100 group-hover/message:opacity-100',
               )}
             >

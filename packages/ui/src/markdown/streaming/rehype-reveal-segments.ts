@@ -7,9 +7,9 @@
  * span that already existed keeps its node, while a NEWLY appeared clause
  * mounts a fresh span — and a CSS mount animation (`.stream-reveal
  * .stream-seg`, see globals.css) fades exactly that new chunk from 0% to
- * 100% opacity. Splitting at the same separators the stream buffer paces by
- * (`, . : ; ! ?` + whitespace) keeps the fade unit aligned with the reveal
- * unit.
+ * 100% opacity. Splitting happens at exactly the `findClauseEnd` positions
+ * the stream buffer paces by (see clause-boundaries.ts), so every reveal
+ * step lands on a span boundary and always gets its own fade.
  *
  * Code (`pre`/`code`) is left untouched: components extract its raw text
  * (Shiki highlighting, JSON viewers, copy buttons), and wrapping it in
@@ -24,43 +24,12 @@
 import type { Element, ElementContent, Root, Text } from 'hast';
 import { visit } from 'unist-util-visit';
 
+import { splitClauseChunks } from './clause-boundaries';
+
 const SEGMENT_CLASS = 'stream-seg';
 
 /** Tags whose text must stay a single raw text node. */
 const SKIP_TAGS = new Set(['pre', 'code', 'script', 'style']);
-
-/**
- * Split `value` into clause chunks. The separator and its trailing
- * whitespace stay attached to the chunk they end, so concatenating the
- * chunks reproduces the input exactly.
- */
-export function splitClauseChunks(value: string): string[] {
-  const chunks: string[] = [];
-  let start = 0;
-  for (let i = 0; i < value.length; i++) {
-    const c = value[i];
-    // Fullwidth CJK punctuation ends a clause directly (no following space
-    // in CJK prose); ASCII separators only when followed by whitespace, so
-    // numbers ("3.14", "1,000") and URLs stay whole.
-    if ('、。，！？；：'.includes(c)) {
-      chunks.push(value.slice(start, i + 1));
-      start = i + 1;
-      continue;
-    }
-    if (',.:;!?'.includes(c)) {
-      const next = value[i + 1];
-      if (next === ' ' || next === '\t' || next === '\n') {
-        let j = i + 1;
-        while (j < value.length && ' \t\n'.includes(value[j])) j++;
-        chunks.push(value.slice(start, j));
-        start = j;
-        i = j - 1;
-      }
-    }
-  }
-  if (start < value.length) chunks.push(value.slice(start));
-  return chunks;
-}
 
 function wrapTextNodes(children: ElementContent[]): ElementContent[] {
   const out: ElementContent[] = [];

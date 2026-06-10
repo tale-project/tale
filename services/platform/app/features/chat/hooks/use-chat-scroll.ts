@@ -36,6 +36,15 @@ interface UseChatScrollParams {
 const SCROLL_UP_ESCAPE_THRESHOLD_PX = 4;
 
 /**
+ * How long after a snap the position keeps re-pinning through layout ticks.
+ * The response-slack min-height settles within a frame or two of the snap;
+ * this window only needs to cover that (plus the edit-and-branch swap, whose
+ * release re-arms the snap itself). Content growth outside the window never
+ * scrolls.
+ */
+const SNAP_SETTLE_MS = 700;
+
+/**
  * Whether the scroll-to-bottom button should ANIMATE (smooth) or JUMP
  * (instant). Smooth motion is reserved for a settled conversation on an OS
  * that allows motion: while the assistant is still streaming we instant-snap
@@ -81,16 +90,19 @@ export interface ChatScroll {
   scrollToBottom: () => void;
   showScrollButton: boolean;
   /**
-   * Force-snap signal: forces a scroll-to-bottom (re-engaging the follow
-   * latch) on the next content settle, REGARDLESS of whether the user had
-   * scrolled away.
+   * Force-snap signal: forces a scroll-to-bottom on the next content settle,
+   * REGARDLESS of whether the user had scrolled away. This is the ONLY thing
+   * that scrolls the chat besides explicit user actions — AI generation
+   * growth never does.
    *
-   *  - `true`  → INSTANT snap (thread-init, edit-and-branch, regenerate).
-   *  - `'smooth'` → animated snap for SENDS: a retargeting rAF loop that
-   *    re-reads the live `scrollHeight` every frame, easing toward the
-   *    moving bottom. A one-shot `behavior: 'smooth'` would animate against
-   *    the still-settling response slack / streaming growth and stall
-   *    part-way down; the retargeting loop lands exactly, smoothly.
+   *  - `true`  → INSTANT snap (thread-init, the FIRST message of a chat —
+   *    which must render at its position without any visible scrolling).
+   *  - `'smooth'` → animated snap for follow-up sends and edits: a
+   *    retargeting rAF loop that re-reads the live `scrollHeight` every
+   *    frame, easing toward the moving bottom. A one-shot
+   *    `behavior: 'smooth'` would animate against the still-settling
+   *    response slack and stall part-way down; the retargeting loop lands
+   *    exactly, smoothly. Cancelled by any user scroll intent.
    *
    * Returned (not private) because `useSendMessage` writes it via its
    * `scrollIntentRef` prop RIGHT BEFORE each `setPendingMessage`, and the
@@ -103,22 +115,25 @@ export interface ChatScroll {
 /**
  * Chat scroll state machine.
  *
- * Implements the ChatGPT/Claude-style behavior: the view follows content
- * growth ONLY while pinned to the bottom; the user escapes the pin by
- * scrolling up and re-engages by returning to the bottom. Sending a message
- * (and thread-init / edit-branch) force-snaps back to the bottom.
+ * Implements the Gemini-style behavior: scrolling happens ONLY in response
+ * to user actions — submitting a message (snap the new user message to the
+ * viewport top: instant for the first message of a chat, a smooth glide for
+ * follow-ups), opening a thread, switching branches, or pressing the
+ * scroll-to-bottom button. AI text generation NEVER scrolls the view; the
+ * response streams into the slack below the user message and past the fold
+ * when it outgrows the viewport.
  *
  * Design notes:
- *  - The auto-follow pin is ALWAYS an instant `scrollTo` — never a smooth
- *    animation. The response area carries a dynamic min-height "slack" (see
- *    ChatMessages) that settles across a couple of layout frames while tokens
- *    stream in, so a smooth animation would chase a moving target and settle
- *    short. Instant pinning re-evaluates every content tick and lands exactly.
- *  - Our programmatic scrolls only ever move DOWN, so an upward `onScroll`
- *    delta is unambiguously the user — no fragile programmatic-vs-user flag.
- *  - Smooth motion is opt-in and one-shot: the floating scroll-to-bottom
- *    button. While its animation runs we suppress the instant pin so we don't
- *    interrupt it, then re-pin when it lands.
+ *  - After a snap lands, a short SETTLE WINDOW keeps the position pinned
+ *    while the response-slack min-height finishes its correction ticks (it
+ *    settles across a couple of layout frames) — without it the snap would
+ *    land short. Outside that window, content growth never scrolls.
+ *  - The smooth send-snap is a retargeting rAF loop (re-reads the live
+ *    scrollHeight each frame) rather than a one-shot `behavior: 'smooth'`,
+ *    which would animate against the still-settling slack and stall.
+ *  - Any user scroll intent (wheel, touch, an upward scroll) cancels the
+ *    animation, the settle window, and any pending snap — the user always
+ *    wins.
  *
  * Plus: thread-init scroll, streaming-end intent clear, branch-switch scroll
  * preservation (captured DURING render — see below), and load-more prepend
@@ -141,16 +156,22 @@ export function useChatScroll({
 
   const [showScrollButton, setShowScrollButton] = useState(false);
 
-  // Force-snap signal: truthy ⇒ snap to bottom on the next content settle and
-  // re-engage the pin, overriding a prior user scroll-up ('smooth' animates,
-  // true jumps — see ChatScroll.scrollIntentRef). Written externally by
-  // useSendMessage / edit-branch right before each setPendingMessage;
-  // consumed by the scroll machine once the snap lands.
+  // Force-snap signal: truthy ⇒ snap to bottom on the next content settle,
+  // overriding a prior user scroll-up ('smooth' animates, true jumps — see
+  // ChatScroll.scrollIntentRef). Written externally by useSendMessage /
+  // edit-branch right before each setPendingMessage; consumed by the scroll
+  // machine once the snap lands.
   const forceScrollRef = useRef<boolean | 'smooth'>(false);
-  // Stick-to-bottom latch: we auto-follow content growth only while this is
-  // true. The user escapes by scrolling UP and re-engages by returning to the
-  // bottom (see resolveStickToBottom).
+  // "User hasn't taken over" latch: true while the view is under snap
+  // control. The user escapes via wheel/touch or an upward scroll (see
+  // resolveStickToBottom) — escaping cancels the snap animation and the
+  // settle window. NOTE: this no longer drives any auto-follow; generation
+  // growth never scrolls.
   const pinnedRef = useRef(true);
+  // Post-snap settle deadline (epoch ms). While set and the user hasn't
+  // escaped, slack-correction layout ticks re-pin instantly so the snapped
+  // user message stays exactly at the viewport top. 0 = inactive.
+  const settleUntilRef = useRef(0);
   // Track scrollTop + scrollHeight across scroll events so a scrollTop drop
   // caused by content SHRINKING (browser clamps scrollTop) isn't misread as a
   // user scroll-up (which would falsely escape the lock).
@@ -204,11 +225,7 @@ export function useChatScroll({
     };
 
     const updateButton = () => {
-      // Show whenever we're NOT actively following — including the dead zone
-      // where the user escaped with a small scroll-up but is still within the
-      // 100px "at bottom" band (otherwise follow is off with no affordance to
-      // get back).
-      setShowScrollButton(!pinnedRef.current || !isAtBottom());
+      setShowScrollButton(!isAtBottom());
     };
 
     const onContentChange = () => {
@@ -223,23 +240,34 @@ export function useChatScroll({
         setShowScrollButton(!isAtBottom());
         return;
       }
-      // Forced snap: re-engage the pin and head to the bottom even if the
-      // user had scrolled away. Sends ('smooth') glide via the retargeting
-      // animation; thread-init / edit-branch (true) jump instantly. Consumed
-      // once it lands (the pin then carries subsequent growth).
+      // Forced snap (user action: send / thread-init / edit-branch): head to
+      // the bottom even if the user had scrolled away. Sends ('smooth') glide
+      // via the retargeting animation; thread-init / edit-branch (true) jump
+      // instantly. Consumed once; the settle window below carries the
+      // slack-correction ticks that follow.
       if (forceScrollRef.current) {
         pinnedRef.current = true;
         const smooth = forceScrollRef.current === 'smooth';
         forceScrollRef.current = false;
+        settleUntilRef.current = Date.now() + SNAP_SETTLE_MS;
         if (smooth) smoothSnapToBottom();
         else pinToBottom();
         updateButton();
         return;
       }
-      // Normal content growth while following: pin to bottom instantly —
-      // unless the send-snap animation is in flight (it re-reads the live
-      // bottom every frame, so an instant pin here would yank past it).
-      if (pinnedRef.current && smoothSnapRafId === null) pinToBottom();
+      // Post-snap settle window: the response slack corrects its min-height
+      // over a couple of layout frames after the snap; keep the position
+      // pinned through those ticks (instantly — unless the smooth glide is
+      // still in flight, which retargets on its own). OUTSIDE this window,
+      // content growth never scrolls: AI generation streams below the fold
+      // and only explicit user actions move the view.
+      if (
+        pinnedRef.current &&
+        settleUntilRef.current !== 0 &&
+        Date.now() < settleUntilRef.current
+      ) {
+        if (smoothSnapRafId === null) pinToBottom();
+      }
       updateButton();
     };
 
@@ -263,12 +291,34 @@ export function useChatScroll({
       });
       pinnedRef.current = nextPinned;
 
-      // Just escaped → cancel any pending forced (send/init) snap so we don't
-      // yank the user back to the bottom after they deliberately scrolled up.
+      // Just escaped → cancel any pending forced (send/init) snap and the
+      // settle window so we don't yank the user back after they deliberately
+      // scrolled away.
       if (!nextPinned && wasPinned) {
         forceScrollRef.current = false;
+        settleUntilRef.current = 0;
       }
-      setShowScrollButton(!nextPinned || !atBottom);
+      setShowScrollButton(!atBottom);
+    };
+
+    // Direct user scroll intent (wheel / touch) interrupts everything: the
+    // smooth glide, the settle window, and any pending snap. These events
+    // only ever come from the user (our programmatic scrolls don't fire
+    // them), so they're an unambiguous "I'm taking over".
+    const onUserScrollIntent = () => {
+      if (
+        smoothSnapRafId !== null ||
+        settleUntilRef.current !== 0 ||
+        forceScrollRef.current
+      ) {
+        pinnedRef.current = false;
+        forceScrollRef.current = false;
+        settleUntilRef.current = 0;
+        if (smoothSnapRafId !== null) {
+          cancelAnimationFrame(smoothSnapRafId);
+          smoothSnapRafId = null;
+        }
+      }
     };
 
     const resizeObserver = new ResizeObserver(onContentChange);
@@ -287,6 +337,10 @@ export function useChatScroll({
     });
 
     container.addEventListener('scroll', onScroll, { passive: true });
+    container.addEventListener('wheel', onUserScrollIntent, { passive: true });
+    container.addEventListener('touchmove', onUserScrollIntent, {
+      passive: true,
+    });
     // Seed scroll tracking so the first real scroll event compares against the
     // current position/height, not 0 (which would spuriously read as growth).
     lastScrollTopRef.current = container.scrollTop;
@@ -297,6 +351,8 @@ export function useChatScroll({
       resizeObserver.disconnect();
       mutationObserver.disconnect();
       container.removeEventListener('scroll', onScroll);
+      container.removeEventListener('wheel', onUserScrollIntent);
+      container.removeEventListener('touchmove', onUserScrollIntent);
       if (smoothSnapRafId !== null) cancelAnimationFrame(smoothSnapRafId);
     };
   }, [containerRef, contentRef, isAtBottom, isArenaMode, prefersReducedMotion]);
